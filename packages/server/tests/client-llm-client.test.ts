@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import { generateWithClientLlm } from "../llm/clientLlmClient.js";
 import * as llmService from "../services/llmService.js";
 import { createStagehandRuntime } from "../runtime.js";
@@ -83,7 +84,7 @@ describe("client LLM generation", () => {
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
-      protocolVersion: 4,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info",
       model: { source: "client" },

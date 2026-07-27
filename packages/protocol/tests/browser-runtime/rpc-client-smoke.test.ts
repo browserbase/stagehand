@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
 import { StagehandMethods } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
 const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
@@ -36,7 +37,7 @@ describe("Stagehand service worker RPC client smoke", () => {
       commandTimeoutMs: 15_000,
     });
     await rpcClient.send(StagehandMethods.stagehandInit, {
-      protocolVersion: 4,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "debug",
       browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,

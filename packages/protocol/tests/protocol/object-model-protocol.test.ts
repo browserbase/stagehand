@@ -6,6 +6,7 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
@@ -16,7 +17,7 @@ describe("Stagehand object-model protocol", () => {
 
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
-      protocolVersion: 4,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info",
       apiKey: "bb_key",
@@ -30,7 +31,7 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(params).toStrictEqual({
-      protocolVersion: 4,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info",
       apiKey: "bb_key",
@@ -72,7 +73,7 @@ describe("Stagehand object-model protocol", () => {
   it("rejects model names without a provider prefix", () => {
     expect(() =>
       StagehandMethods.stagehandInit.params.parse({
-        protocolVersion: 4,
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         model: { modelName: "gpt-5-mini" },
       }),
@@ -552,7 +553,7 @@ describe("Stagehand object-model protocol", () => {
   it("accepts telemetry configuration as protocol data", () => {
     expect(
       StagehandMethods.stagehandInit.params.parse({
-        protocolVersion: 4,
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {

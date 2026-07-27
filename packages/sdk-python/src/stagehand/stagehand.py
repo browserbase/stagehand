@@ -12,6 +12,7 @@ from typing import Literal, Self, TypeVar, overload
 
 from pydantic import BaseModel
 
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from ._generated.models import (
     Action,
     ActOptions,
@@ -617,7 +618,7 @@ class Stagehand:
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
-        values["protocol_version"] = 4
+        values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
         values["log_level"] = self.init_params.logging.level
         values["client_info"] = ImplementationInfo(
             name="stagehand-sdk-python",

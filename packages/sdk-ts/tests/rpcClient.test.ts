@@ -12,6 +12,7 @@ const UppercaseMethod = {
 } as const satisfies RPCMethod;
 
 class FakeCDPTransport implements CDPTransport {
+  readonly webSocketDebuggerUrl = "ws://127.0.0.1:9222/devtools/browser/test";
   readonly serviceWorker = {
     targetId: "worker-target",
     url: "chrome-extension://stagehand/service-worker.js",

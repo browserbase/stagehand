@@ -1035,7 +1035,7 @@
       "properties": {
         "protocol_version": {
           "type": "number",
-          "const": 4
+          "const": 1
         },
         "client_info": {
           "$ref": "#/$defs/ImplementationInfo"

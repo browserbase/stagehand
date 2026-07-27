@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import protocolPackageJson from "./package.json" with { type: "json" };
 
 // Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
 // Stagehand owns these allowlists: changes are reviewed and maintained here
@@ -467,6 +468,16 @@ const LLMToolJsonSchema = z
   .strict()
   .meta({ id: "LLMToolJson" });
 
+export const LLMToolSchema = z
+  .object({
+    type: z.literal("function"),
+    name: z.string(),
+    description: z.string(),
+    parameters: z.record(z.string(), z.unknown()),
+  })
+  .required()
+  .meta({ id: "LLMTool" });
+
 export const LLMClientToolSchema = z
   .object({
     name: z.string(),
@@ -694,6 +705,14 @@ export const CachingSchema = z
   ])
   .meta({ id: "Caching" });
 
+export const ApiKeyAuthSchema = z
+  .object({
+    type: z.literal("apiKey"),
+    apiKey: z.string().min(1),
+  })
+  .strict()
+  .meta({ id: "ApiKeyAuth" });
+
 /** Detailed model configuration object */
 export const GoogleServiceAccountCredentialsSchema = z
   .object({
@@ -811,6 +830,41 @@ export const AzureModelProviderOptionsSchema = z
   })
   .strict()
   .meta({ id: "AzureModelProviderOptions" });
+
+export const ThinkingEffortSchema = z
+  .enum(["none", "low", "medium", "high", "xhigh", "max"])
+  .meta({ id: "ThinkingEffort" });
+
+export const ModelAuthSchema = z
+  .discriminatedUnion("type", [
+    ApiKeyAuthSchema,
+    GoogleServiceAccountAuthSchema,
+    AzureEntraIdAuthSchema,
+  ])
+  .meta({ id: "ModelAuth" });
+
+export const ModelProviderOptionsSchema = z
+  .discriminatedUnion("type", [VertexModelProviderOptionsSchema, AzureModelProviderOptionsSchema])
+  .meta({ id: "ModelProviderOptions" });
+
+export const ClientOptionsBaseSchema = z
+  .object({
+    provider: ModelProviderSchema.optional(),
+    auth: ModelAuthSchema.optional(),
+    providerOptions: ModelProviderOptionsSchema.optional(),
+    baseURL: z.string().optional(),
+    organization: z.string().optional(),
+    thinkingBudget: z.number().optional(),
+    thinkingEffort: ThinkingEffortSchema.optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+    reasoningEffort: z.string().optional(),
+  })
+  .strict()
+  .meta({ id: "ClientOptionsBase" });
+
+export const ClientOptionsSchema = ClientOptionsBaseSchema.default({}).meta({
+  id: "ClientOptions",
+});
 
 const ModelConnectionSchema = z
   .object({
@@ -976,6 +1030,39 @@ export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSche
 })
   .strict()
   .meta({ id: "BrowserbaseBrowserSource" });
+
+/** Browser launch options for local browsers. */
+export const LocalBrowserLaunchOptionsSchema = z
+  .object({
+    args: z.array(z.string()).optional(),
+    executablePath: z.string().optional(),
+    port: z.number().optional(),
+    userDataDir: z.string().optional(),
+    preserveUserDataDir: z.boolean().optional(),
+    headless: z.boolean().optional(),
+    devtools: z.boolean().optional(),
+    chromiumSandbox: z.boolean().optional(),
+    ignoreDefaultArgs: z.union([z.boolean(), z.array(z.string())]).optional(),
+    proxy: z
+      .object({
+        server: z.string(),
+        bypass: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+      })
+      .optional(),
+    locale: z.string().optional(),
+    viewport: z.object({ width: z.number(), height: z.number() }).optional(),
+    deviceScaleFactor: z.number().optional(),
+    hasTouch: z.boolean().optional(),
+    ignoreHTTPSErrors: z.boolean().optional(),
+    connectTimeoutMs: z.number().optional(),
+    downloadsPath: z.string().optional(),
+    acceptDownloads: z.boolean().optional(),
+    keepAlive: z.boolean().optional(),
+  })
+  .strict()
+  .meta({ id: "LocalBrowserLaunchOptions" });
 
 /** Action object returned by observe and used by act */
 export const ActionSchema = z
@@ -1280,8 +1367,11 @@ export const DEFAULT_TELEMETRY_CONFIG = {
   },
 };
 
-export const STAGEHAND_PROTOCOL_VERSION = 4;
-export const STAGEHAND_RUNTIME_VERSION = "4.0.0";
+const protocolMajor = Number.parseInt(protocolPackageJson.version.split(".", 1)[0] ?? "", 10);
+if (!Number.isSafeInteger(protocolMajor) || protocolMajor <= 0) {
+  throw new Error(`Invalid Stagehand protocol package version: ${protocolPackageJson.version}`);
+}
+export const STAGEHAND_PROTOCOL_VERSION = protocolMajor;
 
 export const ImplementationInfoSchema = z
   .strictObject({

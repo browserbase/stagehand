@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
@@ -575,7 +576,7 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
 
 function configuredInitParams(cdpUrl: string) {
   return {
-    protocol_version: 4,
+    protocol_version: STAGEHAND_PROTOCOL_VERSION,
     client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
     browser_cdp_url: cdpUrl,
   };
@@ -596,7 +597,7 @@ describe("Stagehand worker clients", () => {
 
     expect(scope).toMatchObject({
       __stagehand_runtime: {
-        protocolVersion: 4,
+        protocolVersion: 1,
         serverInfo: {
           name: "stagehand",
           version: "4.0.0",

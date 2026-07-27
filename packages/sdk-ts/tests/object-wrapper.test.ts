@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import { BrowserClipboard, BrowserContext, Locator, Page } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithClientForTest } from "../src/stagehand.js";
@@ -69,7 +70,7 @@ function requestCall<Method extends RPCMethod>(
 }
 
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
-  protocolVersion: 4,
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
   clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
   logLevel: "info",
   browserCdpUrl: "test://stagehand",

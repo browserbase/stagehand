@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
 import { CDPConnectionClosedError } from "../src/cdpClient.js";
 import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
+import { STAGEHAND_SDK_VERSION } from "../src/version.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -149,8 +151,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
-          protocolVersion: 4,
-          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
           logLevel: "info",
           browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/exact-session",
           apiKey: "bb_key",
@@ -203,8 +205,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
-          protocolVersion: 4,
-          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
           logLevel: "info",
           apiKey: "bb_key",
           browser: {
@@ -261,8 +263,8 @@ describe("Stagehand", () => {
     expect(rpcClient.calls[0]).toMatchObject({
       method: "stagehand.init",
       params: {
-        protocolVersion: 4,
-        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
         logLevel: "info",
         browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
         telemetry: {
@@ -380,8 +382,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
-          protocolVersion: 4,
-          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
           logLevel: "info",
           browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
           model: { source: "client" },
@@ -423,8 +425,8 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
-          protocolVersion: 4,
-          clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
           logLevel: "info",
           telemetry: {
             traces: {

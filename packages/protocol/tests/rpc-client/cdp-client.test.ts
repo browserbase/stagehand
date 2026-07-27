@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
@@ -234,7 +235,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const readiness = [
       {
         marker: {
-          protocolVersion: 4,
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           serverInfo: { name: "other", version: "1" },
         },
         hasReceiver: false,
@@ -429,7 +430,7 @@ describe("waitForRuntimeReceiver", () => {
     let now = 0;
     const readiness = [
       {
-        marker: runtimeMarker(4),
+        marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
         hasReceiver: false,
       },
       readyRuntime(),
@@ -460,7 +461,7 @@ describe("waitForRuntimeReceiver", () => {
       result: {
         value: {
           marker: {
-            protocolVersion: 4,
+            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
             serverInfo: { name: "other-extension", version: "1" },
           },
           hasReceiver: false,
@@ -574,7 +575,7 @@ describe("waitForRuntimeReceiver", () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          marker: { ...runtimeMarker(4), status: "ready" },
+          marker: { ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION), status: "ready" },
           hasReceiver: true,
         },
       },
@@ -600,7 +601,7 @@ function target(targetId: string, url: string): TargetInfo {
 
 function readyRuntime(): Record<string, unknown> {
   return {
-    marker: runtimeMarker(4),
+    marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
     hasReceiver: true,
   };
 }

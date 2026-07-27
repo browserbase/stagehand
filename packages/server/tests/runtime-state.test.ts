@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 
 const clientMetadata = {
-  protocolVersion: 4 as const,
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
   clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
   logLevel: "info" as const,
 };

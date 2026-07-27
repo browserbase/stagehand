@@ -1885,7 +1885,7 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    protocol_version: Literal[4]
+    protocol_version: Literal[1]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None

@@ -27,6 +27,7 @@ import {
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
+import { STAGEHAND_SDK_VERSION } from "./version.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
@@ -36,7 +37,7 @@ type StagehandAdapters = {
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 const STAGEHAND_SDK_CLIENT_INFO = {
   name: "stagehand-sdk-ts",
-  version: "4.0.0",
+  version: STAGEHAND_SDK_VERSION,
 } as const;
 
 export class Stagehand {

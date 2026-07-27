@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from stagehand import cdp_client
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.cdp_client import (
     STAGEHAND_SEND_TO_HOST_BINDING,
     CDPClient,
@@ -17,7 +18,7 @@ def _ready_marker() -> dict[str, object]:
     """The readiness envelope a current service worker publishes."""
     return {
         "marker": {
-            "protocolVersion": 4,
+            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "4.0.0"},
             "state": "ready",
         },
@@ -261,16 +262,16 @@ class TestNegotiateRuntime:
 
     def test_accepts_a_current_marker(self) -> None:
         compatible, detail = cdp_client._negotiate_runtime({
-            "protocolVersion": 4,
+            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "4.0.0"},
         })
         assert compatible is True
-        assert "protocolVersion=4" in detail
+        assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in detail
 
     def test_tolerates_unknown_extra_keys(self) -> None:
         # A newer runtime may publish fields this client has never heard of, e.g. `status`.
         compatible, _ = cdp_client._negotiate_runtime({
-            "protocolVersion": 4,
+            "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "4.0.0"},
             "status": {"state": "ready"},
         })
@@ -281,10 +282,34 @@ class TestNegotiateRuntime:
         [
             (None, "no Stagehand runtime marker"),
             ({}, "serverInfo.name=None"),
-            ({"protocolVersion": 3, "serverInfo": {"name": "stagehand", "version": "3"}}, "below"),
-            ({"protocolVersion": 5, "serverInfo": {"name": "stagehand", "version": "5"}}, "above"),
-            ({"protocolVersion": 4, "serverInfo": {"name": "other", "version": "1"}}, "name="),
-            ({"protocolVersion": "4", "serverInfo": {"name": "stagehand", "version": "4"}}, "'4'"),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION - 1,
+                    "serverInfo": {"name": "stagehand", "version": "0"},
+                },
+                "below",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION + 1,
+                    "serverInfo": {"name": "stagehand", "version": "2"},
+                },
+                "above",
+            ),
+            (
+                {
+                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                    "serverInfo": {"name": "other", "version": "1"},
+                },
+                "name=",
+            ),
+            (
+                {
+                    "protocolVersion": str(STAGEHAND_PROTOCOL_VERSION),
+                    "serverInfo": {"name": "stagehand", "version": "1"},
+                },
+                repr(str(STAGEHAND_PROTOCOL_VERSION)),
+            ),
         ],
     )
     def test_rejects_unusable_markers(self, marker: object, expected: str) -> None:

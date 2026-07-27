@@ -6,6 +6,7 @@ import {
 } from "@opentelemetry/sdk-trace-web";
 import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
@@ -154,7 +155,7 @@ describe("Stagehand RPC router", () => {
       id: 15,
       method: "stagehand.init",
       params: {
-        protocol_version: 4,
+        protocol_version: STAGEHAND_PROTOCOL_VERSION,
         client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
         browser_cdp_url: "ws://127.0.0.1:9222/devtools/browser/session",
         log_level: "off",
