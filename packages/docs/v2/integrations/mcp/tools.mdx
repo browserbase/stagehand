@@ -1,0 +1,81 @@
+---
+title: "Browserbase MCP Server Tools"
+sidebarTitle: "Tools"
+description: "This guide covers the specialized tools available in the Browserbase MCP server for browser automation and interaction."
+---
+
+## Overview
+
+The Browserbase MCP server provides tools for browser automation and session management through a transport-scoped active session.
+
+## Core Browser Automation Tools
+
+These are the primary tools for modern web automation using natural language commands.
+
+<Accordion title="navigate">
+Navigate to any URL in the browser
+
+<ParamField path="url" type="string" required>
+  The URL to navigate to
+</ParamField>
+</Accordion>
+
+<Accordion title="act">
+Perform an action on the web page using natural language
+
+<ParamField path="action" type="string" required>
+  The action to perform (e.g., "click the login button", "fill form field")
+</ParamField>
+
+</Accordion>
+
+<Accordion title="observe">
+Observe and find actionable elements on the page
+
+<ParamField path="instruction" type="string" required>
+  Specific instruction for observation (e.g., "find the login button", "locate search form")
+</ParamField>
+</Accordion>
+
+<Accordion title="extract">
+Extract data from the current page.
+
+<ParamField path="instruction" type="string">
+  Optional extraction instruction.
+</ParamField>
+</Accordion>
+
+## Session Management
+
+<Accordion title="start">
+Create or reuse a Browserbase session and set it as active for the current MCP transport session.
+
+<Info>No input parameters required.</Info>
+
+<ResponseField name="sessionId" type="string">
+  Browserbase session ID.
+</ResponseField>
+</Accordion>
+
+<Accordion title="end">
+Close the active Browserbase session for the current MCP transport session.
+
+<Info>No input parameters required.</Info>
+
+</Accordion>
+
+## Further Reading
+
+<CardGroup cols={3}>
+<Card title="Model Context Protocol (MCP) Docs" icon="book" href="https://modelcontextprotocol.io/introduction">
+Learn more about the MCP protocol
+</Card>
+
+<Card title="Stagehand Documentation" icon="robot" href="https://docs.stagehand.dev/">
+Explore Stagehand's AI-powered browser automation
+</Card>
+
+<Card title="Support" icon="headset" href="mailto:support@browserbase.com">
+Get help from our support team
+</Card>
+</CardGroup>
