@@ -207,6 +207,77 @@ describe("action target validation", () => {
     expect(resolveNode).not.toHaveBeenCalled();
     expect(keyPress).toHaveBeenCalledWith("Enter");
   });
+
+  it("resolves the guarded locator before mouse.wheel so stale targets fail closed", async () => {
+    const resolveNode = vi.fn(async () => {
+      throw new ActionTargetMismatchError(
+        { frameOrdinal: 0, backendNodeId: 12 },
+        { frameOrdinal: 0, backendNodeId: 99 },
+      );
+    });
+    const send = vi.fn(async () => ({}));
+    resolveLocator.mockResolvedValue(
+      locatorForNode(
+        0,
+        99,
+        vi.fn(),
+        vi.fn(async () => 99),
+        resolveNode,
+      ),
+    );
+
+    await expect(
+      performUnderstudyMethod(
+        pageWithOrdinals(),
+        { ...rootFrame(), session: { send } } as unknown as Frame,
+        "mouse.wheel",
+        "xpath=/html/body/scrollable",
+        ["200"],
+        logger,
+        undefined,
+        { target: { frameOrdinal: 0, backendNodeId: 12 } },
+      ),
+    ).rejects.toBeInstanceOf(ActionTargetMismatchError);
+
+    expect(send).not.toHaveBeenCalledWith("Input.dispatchMouseEvent", expect.anything());
+  });
+
+  it("keeps targetless mouse.wheel on the page without resolving the locator", async () => {
+    const resolveNode = vi.fn(async () => {
+      throw new Error("should not resolve for targetless mouse.wheel");
+    });
+    const send = vi.fn(async () => ({}));
+    resolveLocator.mockResolvedValue(
+      locatorForNode(
+        0,
+        99,
+        vi.fn(),
+        vi.fn(async () => 99),
+        resolveNode,
+      ),
+    );
+
+    await performUnderstudyMethod(
+      pageWithOrdinals(),
+      { ...rootFrame(), session: { send } } as unknown as Frame,
+      "mouse.wheel",
+      "xpath=/html/body/stale",
+      ["200"],
+      logger,
+    );
+
+    expect(resolveNode).not.toHaveBeenCalled();
+    expect(send).toHaveBeenCalledWith(
+      "Input.dispatchMouseEvent",
+      expect.objectContaining({
+        type: "mouseWheel",
+        x: 0,
+        y: 0,
+        deltaY: 200,
+        deltaX: 0,
+      }),
+    );
+  });
 });
 
 function rootFrame(): Frame {
