@@ -38,9 +38,13 @@ const stagehand = new Stagehand({
   browser: { type: "local", headless: true },
   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
 });
-await stagehand.init();
-const page = await stagehand.context.newPage();
-await page.goto("https://example.com");
+try {
+  await stagehand.init();
+  const page = await stagehand.context.newPage();
+  await page.goto("https://example.com");
+} finally {
+  await stagehand.close();
+}
 ```
 
 ## Pages
@@ -95,17 +99,28 @@ You are writing async browser automation with `stagehand-v4`.
 - Construct with keyword args, then `await stagehand.init()`:
 
 ```python
+import asyncio
+import os
+
 from stagehand import Stagehand
 
-stagehand = Stagehand(
-    browser="local",           # or "browserbase" (default; needs an API key)
-    headless=True,
-    model="openai/gpt-5.4-mini",
-    model_api_key=os.environ["OPENAI_API_KEY"],
-)
-await stagehand.init()
-page = await stagehand.context.new_page()
-await page.goto("https://example.com")
+
+async def main() -> None:
+    stagehand = Stagehand(
+        browser="local",  # or "browserbase" (default; needs an API key)
+        headless=True,
+        model="openai/gpt-5.4-mini",
+        model_api_key=os.environ["OPENAI_API_KEY"],
+    )
+    try:
+        await stagehand.init()
+        page = await stagehand.context.new_page()
+        await page.goto("https://example.com")
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
 ```
 
 - Always `await stagehand.close()` in a `finally` block.
@@ -141,11 +156,6 @@ await page.goto("https://example.com")
 
 ## Next steps
 
-<CardGroup cols="2">
-  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
-    Write instructions that act, extract, and observe handle reliably.
-  </Card>
-  <Card title="SDK reference" icon="book" href="/v4/reference/stagehand">
-    The full list of Stagehand methods and options.
-  </Card>
-</CardGroup>
+<Card title="SDK reference" icon="book" href="/v4/reference/stagehand">
+  The full list of Stagehand methods and options.
+</Card>

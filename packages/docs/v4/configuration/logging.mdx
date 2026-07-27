@@ -18,6 +18,8 @@ human-readable or newline-delimited JSON terminal output.
 <View title="TypeScript" icon="js">
 
 ```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
 const stagehand = new Stagehand({
   // ...
   logging: {
@@ -43,6 +45,7 @@ output.
 
 ```typescript
 import { createWriteStream } from "node:fs";
+import { Stagehand } from "@browserbasehq/stagehand";
 
 const logFile = createWriteStream("stagehand.jsonl", { flags: "a" });
 
@@ -63,6 +66,9 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 
 ```python
+from stagehand import Stagehand, StagehandClientLoggingConfig
+
+
 stagehand = Stagehand(
     # ...
     logging=StagehandClientLoggingConfig(
@@ -87,6 +93,9 @@ application logger. The callback is additive: Stagehand continues to write its n
 output.
 
 ```python
+from stagehand import Stagehand, StagehandClientLoggingConfig
+
+
 log_file = open("stagehand.jsonl", "a", encoding="utf-8")
 
 stagehand = Stagehand(

@@ -4,7 +4,7 @@ sidebarTitle: "Introduction"
 description: "Developers use Stagehand to reliably automate the web."
 ---
 
-Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and reliable.
 
 ## The problem with browser automation
 
@@ -38,21 +38,25 @@ import { Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
 
 const stagehand = new Stagehand({ browser: { type: "local" } });
-await stagehand.init();
-const page = await stagehand.context.newPage();
-await page.goto("https://example.com");
+try {
+  await stagehand.init();
+  const page = await stagehand.context.newPage();
+  await page.goto("https://example.com");
 
-// Observe: discover the available actions
-const actions = await stagehand.observe("Find the primary call-to-action");
+  // Observe: discover the available actions
+  const actions = await stagehand.observe("Find the primary call-to-action");
 
-// Act: perform a natural-language action
-await stagehand.act("Click the primary call-to-action");
+  // Act: perform a natural-language action
+  await stagehand.act("Click the primary call-to-action");
 
-// Extract: pull structured data
-const { heading } = await stagehand.extract(
-  "Extract the page heading",
-  z.object({ heading: z.string() }),
-);
+  // Extract: pull structured data
+  const { heading } = await stagehand.extract(
+    "Extract the page heading",
+    z.object({ heading: z.string() }),
+  );
+} finally {
+  await stagehand.close();
+}
 ```
 
 </View>
@@ -60,6 +64,8 @@ const { heading } = await stagehand.extract(
 <View title="Python" icon="python">
 
 ```python
+import asyncio
+
 from pydantic import BaseModel
 from stagehand import Stagehand
 
@@ -68,22 +74,29 @@ class PageInfo(BaseModel):
     heading: str
 
 
-stagehand = Stagehand(browser="local")
-await stagehand.init()
-page = await stagehand.context.new_page()
-await page.goto("https://example.com")
+async def main() -> None:
+    stagehand = Stagehand(browser="local")
+    try:
+        await stagehand.init()
+        page = await stagehand.context.new_page()
+        await page.goto("https://example.com")
 
-# Observe: discover the available actions
-actions = await stagehand.observe(instruction="Find the primary call-to-action")
+        # Observe: discover the available actions
+        actions = await stagehand.observe(instruction="Find the primary call-to-action")
 
-# Act: perform a natural-language action
-await stagehand.act("Click the primary call-to-action")
+        # Act: perform a natural-language action
+        await stagehand.act("Click the primary call-to-action")
 
-# Extract: pull structured data
-page_info = await stagehand.extract(
-    instruction="Extract the page heading",
-    schema=PageInfo,
-)
+        # Extract: pull structured data
+        page_info = await stagehand.extract(
+            instruction="Extract the page heading",
+            schema=PageInfo,
+        )
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
 ```
 
 </View>
@@ -91,10 +104,10 @@ page_info = await stagehand.extract(
 ## What's new in V4
 
 - **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
-- **First-class TypeScript, Python, and Go SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
+- **First-class TypeScript and Python SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
 - **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/v4/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/v4/reference/page).
 - **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
-- **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback. See [Models](#).
+- **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback.
 - **Metrics and diagnostics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand), and check connectivity with `ping()`.
 
 ## Why developers choose Stagehand

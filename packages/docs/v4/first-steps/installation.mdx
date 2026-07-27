@@ -38,8 +38,7 @@ export BROWSERBASE_API_KEY="bb_..."
 
 ## Initialize Stagehand
 
-Construct a `Stagehand`, choose a [browser source](#) and a
-[model](#), then call `init()`.
+Construct a `Stagehand`, choose a browser source and a model, then call `init()`.
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -52,13 +51,15 @@ const stagehand = new Stagehand({
   },
 });
 
-await stagehand.init();
-const page = await stagehand.context.newPage();
-await page.goto("https://example.com");
+try {
+  await stagehand.init();
+  const page = await stagehand.context.newPage();
+  await page.goto("https://example.com");
 
-// ... use stagehand.act / stagehand.extract / stagehand.observe ...
-
-await stagehand.close();
+  // ... use stagehand.act / stagehand.extract / stagehand.observe ...
+} finally {
+  await stagehand.close();
+}
 ```
 
 </View>
@@ -93,28 +94,34 @@ export BROWSERBASE_API_KEY="bb_..."
 
 ## Initialize Stagehand
 
-Construct a `Stagehand`, choose a [browser source](#) and a
-[model](#), then call `init()`.
+Construct a `Stagehand`, choose a browser source and a model, then call `init()`.
 
 ```python
+import asyncio
 import os
 
 from stagehand import Stagehand
 
-stagehand = Stagehand(
-    browser="local",
-    headless=True,
-    model="openai/gpt-5.4-mini",
-    model_api_key=os.environ["OPENAI_API_KEY"],
-)
 
-await stagehand.init()
-page = await stagehand.context.new_page()
-await page.goto("https://example.com")
+async def main() -> None:
+    stagehand = Stagehand(
+        browser="local",
+        headless=True,
+        model="openai/gpt-5.4-mini",
+        model_api_key=os.environ["OPENAI_API_KEY"],
+    )
 
-# ... use stagehand.act / stagehand.extract / stagehand.observe ...
+    try:
+        await stagehand.init()
+        page = await stagehand.context.new_page()
+        await page.goto("https://example.com")
 
-await stagehand.close()
+        # ... use stagehand.act / stagehand.extract / stagehand.observe ...
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
 ```
 
 </View>
@@ -133,11 +140,5 @@ await stagehand.close()
   </Card>
   <Card title="AI rules" icon="robot" href="/v4/first-steps/ai-rules">
     Give your AI coding assistant the rules to write correct Stagehand code.
-  </Card>
-  <Card title="Browser configuration" icon="window" href="#">
-    Local, Browserbase, and CDP browser sources.
-  </Card>
-  <Card title="Models" icon="microchip-ai" href="#">
-    Choose and configure the LLM Stagehand uses.
   </Card>
 </CardGroup>

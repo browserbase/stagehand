@@ -119,11 +119,11 @@ await stagehand.act("Choose 'Peach' from the favorite color dropdown", {
 ```
 
 - `page`: the page to act on. Defaults to the active page.
-- `model`: override the model for this call (see [Models](#)).
+- `model`: override the model for this call.
 - `timeout`: maximum time in milliseconds.
 - `variables`: values substituted into the instruction (see below).
 - `locator`: a serialized element target to scope the action.
-- `cache`: reuse a prior result for this call (see [Caching](#)).
+- `cache`: reuse a prior result for this call.
 
 ### Variables
 
@@ -176,16 +176,12 @@ text, or a visual cue: `"Click the red 'Delete' button next to the user John Smi
 
 ### Cache repeated actions
 
-On [Browserbase](#), turn on [caching](#)
+On Browserbase, turn on caching
 so repeated, identical actions are served from a cache instead of calling the model again.
 
 ```typescript
 await stagehand.act("Click the sign in button", { cache: true });
 ```
-
-<Card title="Caching guide" icon="database" href="#">
-  Thresholds, session defaults, and when caching applies.
-</Card>
 
 ## Troubleshooting
 
@@ -331,20 +327,28 @@ Always check `success` before assuming the action ran. See the full field list i
 You can pass additional options to configure `act()` for your exact use case:
 
 ```python
+import os
+
+from stagehand import ModelConfig
+
+
 await stagehand.act(
     "Choose 'Peach' from the favorite color dropdown",
-    model="google/gemini-2.5-flash",
-    model_api_key=os.environ["GOOGLE_API_KEY"],
+    model=ModelConfig.model_validate(
+        {
+            "model_name": "google/gemini-2.5-flash",
+            "api_key": os.environ["GOOGLE_API_KEY"],
+        }
+    ),
     timeout=10_000,
 )
 ```
 
 - `page`: the page to act on. Defaults to the active page.
-- `model` / `model_api_key`: override the model for this call (see
-  [Models](#)).
+- `model`: override the complete model configuration for this call.
 - `timeout`: maximum time in milliseconds.
 - `variables`: values substituted into the instruction (see below).
-- `cache`: reuse a prior result for this call (see [Caching](#)).
+- `cache`: reuse a prior result for this call.
 
 ### Variables
 
@@ -398,16 +402,12 @@ text, or a visual cue: `"Click the red 'Delete' button next to the user John Smi
 
 ### Cache repeated actions
 
-On [Browserbase](#), turn on [caching](#)
+On Browserbase, turn on caching
 so repeated, identical actions are served from a cache instead of calling the model again.
 
 ```python
 await stagehand.act("Click the sign in button", cache=True)
 ```
-
-<Card title="Caching guide" icon="database" href="#">
-  Thresholds, session defaults, and when caching applies.
-</Card>
 
 ## Troubleshooting
 
@@ -457,11 +457,5 @@ if candidates and "checkout" in candidates[0].description.lower():
   </Card>
   <Card title="Extract" icon="download" href="/v4/basics/extract">
     Pull typed data from a page.
-  </Card>
-  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
-    Write instructions that work reliably.
-  </Card>
-  <Card title="Caching" icon="database" href="#">
-    Cut latency and cost on repeated runs.
   </Card>
 </CardGroup>

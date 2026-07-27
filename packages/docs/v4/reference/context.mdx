@@ -280,43 +280,16 @@ await stagehand.context.clearCookies({ domain: "example.com" });
 <ParamField path="options" type="ClearCookieOptions" optional>
   Options that configure this operation.
 
-  <ParamField path="options.domain" type="CookieFilter" optional>
-    The cookie domain.
-
-    <ParamField path="options.domain.flags" type="string" optional>
-      Regular-expression flags.
-    </ParamField>
-
-    <ParamField path="options.domain.source" type="string">
-      The regular-expression source.
-    </ParamField>
-
+  <ParamField path="options.domain" type="string | RegExp" optional>
+    A cookie domain or regular-expression filter.
   </ParamField>
 
-  <ParamField path="options.name" type="CookieFilter" optional>
-    The cookie name.
-
-    <ParamField path="options.name.flags" type="string" optional>
-      Regular-expression flags.
-    </ParamField>
-
-    <ParamField path="options.name.source" type="string">
-      The regular-expression source.
-    </ParamField>
-
+  <ParamField path="options.name" type="string | RegExp" optional>
+    A cookie name or regular-expression filter.
   </ParamField>
 
-  <ParamField path="options.path" type="CookieFilter" optional>
-    The cookie path.
-
-    <ParamField path="options.path.flags" type="string" optional>
-      Regular-expression flags.
-    </ParamField>
-
-    <ParamField path="options.path.source" type="string">
-      The regular-expression source.
-    </ParamField>
-
+  <ParamField path="options.path" type="string | RegExp" optional>
+    A cookie path or regular-expression filter.
   </ParamField>
 </ParamField>
 
@@ -587,40 +560,16 @@ Clear cookies that match optional name, domain, and path filters.
 await stagehand.context.clear_cookies(domain="example.com")
 ```
 
-<ParamField path="name" type="str | Pattern[str] | None" optional>
+<ParamField path="name" type="str | re.Pattern[str] | None" optional>
   A cookie name or regular-expression filter.
-
-<ParamField path="name.flags" type="str" optional>
-  Regular-expression flags.
 </ParamField>
 
-  <ParamField path="name.source" type="str">
-    The regular-expression source.
-  </ParamField>
-</ParamField>
-
-<ParamField path="domain" type="str | Pattern[str] | None" optional>
+<ParamField path="domain" type="str | re.Pattern[str] | None" optional>
   A cookie domain or regular-expression filter.
-
-<ParamField path="domain.flags" type="str" optional>
-  Regular-expression flags.
 </ParamField>
 
-  <ParamField path="domain.source" type="str">
-    The regular-expression source.
-  </ParamField>
-</ParamField>
-
-<ParamField path="path" type="str | Pattern[str] | None" optional>
+<ParamField path="path" type="str | re.Pattern[str] | None" optional>
   A cookie path or regular-expression filter.
-
-<ParamField path="path.flags" type="str" optional>
-  Regular-expression flags.
-</ParamField>
-
-  <ParamField path="path.source" type="str">
-    The regular-expression source.
-  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="None">

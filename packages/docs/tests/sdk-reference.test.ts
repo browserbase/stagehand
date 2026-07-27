@@ -65,7 +65,7 @@ type SchemaField = {
 
 type SdkMethod = {
   classSlug: string;
-  localInputPaths: string[];
+  localInputFields: PublicInputField[];
   methodName: string;
   methodSlug: string;
   operationName?: string;
@@ -74,11 +74,19 @@ type SdkMethod = {
   returnType?: string;
 };
 
+type PublicInputField = {
+  complete: boolean;
+  key: string;
+  optional: boolean;
+  type: string;
+};
+
 type JsonSchema = {
   $ref?: string;
   additionalProperties?: boolean | JsonSchema;
   allOf?: JsonSchema[];
   anyOf?: JsonSchema[];
+  enum?: unknown[];
   items?: JsonSchema;
   oneOf?: JsonSchema[];
   properties?: Record<string, JsonSchema>;
@@ -116,6 +124,7 @@ const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
+const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
@@ -153,6 +162,10 @@ const SDK_OBJECTS = [
     pythonFile: "locator.py",
   },
 ] as const satisfies readonly SdkObject[];
+
+const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
+  await readTypescriptPublicFieldNames(),
+);
 
 describe("SDK reference surface", () => {
   it("keeps every public callable in sync across TypeScript, Python, and reference pages", async () => {
@@ -421,6 +434,92 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
+  it("documents public wrapper inputs rather than internal wire shapes", async () => {
+    const [typescriptMethods, pythonMethods, referencePages, protocol, pythonAliases] =
+      await Promise.all([
+        readTypescriptMethods(),
+        readPythonMethods(),
+        readReferencePages(),
+        readProtocolDocument(),
+        readPythonTypeAliases(),
+      ]);
+    const differences: string[] = [];
+
+    const typescriptDocumented = documentedMethodMap(referencePages, "TypeScript");
+    for (const method of typescriptMethods) {
+      const publicFields = method.localInputFields.filter(({ complete }) => complete);
+      if (publicFields.length === 0) continue;
+      const reference = typescriptDocumented.get(methodKey(method));
+      if (!reference) continue;
+      const documented = new Map(
+        reference.method.paramFields
+          .filter(({ key }) => key !== undefined)
+          .map((field) => [field.key as string, field]),
+      );
+      const localRoots = new Set(publicFields.map(({ key }) => key.split(".", 1)[0] as string));
+      const actualPaths = reference.method.paramPaths
+        .filter(
+          (path): path is string =>
+            path !== undefined &&
+            path.includes(".") &&
+            localRoots.has(path.split(".", 1)[0] as string),
+        )
+        .sort();
+      const expectedPaths = publicFields.map(({ key }) => key).sort();
+      if (!arraysEqual(actualPaths, expectedPaths)) {
+        differences.push(
+          `${reference.filePath} TypeScript ${method.methodName}: expected public wrapper fields [${expectedPaths.join(", ")}], received [${actualPaths.join(", ")}]`,
+        );
+      }
+
+      for (const field of publicFields) {
+        const actual = documented.get(field.key);
+        if (!actual) continue;
+        const normalized = normalizePublicType(
+          actual.type,
+          "TypeScript",
+          actual.optional,
+          pythonAliases,
+        );
+        const expected = publicTypeCandidates(
+          field.type,
+          "TypeScript",
+          field.optional,
+          protocol,
+          pythonAliases,
+          method,
+        );
+        if (!expected.has(normalized)) {
+          differences.push(
+            `${methodKey(method)} TypeScript ${field.key}: expected one of [${[...expected].join(", ")}], received ${normalized || "<missing>"}`,
+          );
+        }
+      }
+    }
+
+    const pythonDocumented = documentedMethodMap(referencePages, "Python");
+    for (const method of pythonMethods) {
+      const reference = pythonDocumented.get(methodKey(method));
+      if (!reference) continue;
+      for (const [parameter, type] of Object.entries(method.parameterTypes)) {
+        if (!isScalarPublicType(type, "Python")) continue;
+        const nestedPaths = reference.method.paramPaths.filter(
+          (path): path is string => path?.startsWith(`${parameter}.`) ?? false,
+        );
+        if (nestedPaths.length > 0) {
+          differences.push(
+            `${reference.filePath} Python ${method.methodName}.${parameter}: scalar public type ${type} must not expose wire fields [${nestedPaths.join(", ")}]`,
+          );
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Reference inputs must describe values accepted by the public SDK wrappers, not serialized protocol objects",
+    ).toEqual([]);
+  });
+
   it("documents flattened model options with the protocol ModelConfig type", async () => {
     const [typescriptMethods, pythonMethods, referencePages, protocol] = await Promise.all([
       readTypescriptMethods(),
@@ -604,6 +703,56 @@ describe("SDK reference surface", () => {
 });
 
 describe("Mintlify customization boundary", () => {
+  it("uses SDK-native field spellings inside each language View", async () => {
+    const [typescriptNames, pythonNames, contentPages] = await Promise.all([
+      readTypescriptPublicFieldNames(),
+      readPythonPublicFieldNames(),
+      listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory),
+    ]);
+    const typescriptSpellings = uniqueSpellingsByWireName(typescriptNames);
+    const pythonSpellings = uniqueSpellingsByWireName(pythonNames);
+    const sharedNames = new Set(
+      [...typescriptSpellings.keys()].filter(
+        (wireName) =>
+          wireName.includes("_") &&
+          pythonSpellings.has(wireName) &&
+          typescriptSpellings.get(wireName) !== pythonSpellings.get(wireName),
+      ),
+    );
+    const differences: string[] = [];
+
+    for (const filePath of contentPages.filter((path) => extname(path) === ".mdx")) {
+      const tree = createProcessor({ format: "mdx" }).parse(
+        await readFile(filePath, "utf8"),
+      ) as MdxNode;
+      const pagePath = relative(DOCS_ROOT, filePath).split(sep).join("/");
+      for (const view of findElements(tree, "View")) {
+        const language = stringAttribute(view, "title");
+        if (language !== "TypeScript" && language !== "Python") continue;
+        const spellings = language === "TypeScript" ? typescriptSpellings : pythonSpellings;
+        const invalid = new Set<string>();
+        for (const value of mdxSpellingValues(view)) {
+          if (value.includes("TypeScript") && value.includes("Python")) continue;
+          for (const token of value.match(/[A-Za-z_][A-Za-z0-9_]*/gu) ?? []) {
+            const wireName = snakeCase(token);
+            const expected = spellings.get(wireName);
+            if (sharedNames.has(wireName) && expected && token !== expected) {
+              invalid.add(`${token} -> ${expected}`);
+            }
+          }
+        }
+        if (invalid.size > 0) {
+          differences.push(`${pagePath} ${language}: ${[...invalid].sort().join(", ")}`);
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Language-scoped documentation must use field names derived from that SDK's public source",
+    ).toEqual([]);
+  });
+
   it("includes every MDX content page in docs.json navigation", async () => {
     const docsConfig = JSON.parse(
       await readFile(resolve(DOCS_ROOT, "docs.json"), "utf8"),
@@ -709,7 +858,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
               extractOperationName(method, "TypeScript", registry, filePath),
               method.field("return_type")?.text().replace(/^:\s*/u, ""),
               readParameterTypes(method, typescriptParameterName),
-              localTypescriptInputPaths(method, root),
+              localTypescriptInputFields(method, root),
             ),
           ];
         });
@@ -900,7 +1049,7 @@ function firstIdentifier(node: SgNode): SgNode | undefined {
   return node.find({ rule: { kind: "identifier" } }) ?? undefined;
 }
 
-function localTypescriptInputPaths(method: SgNode, module: SgNode): string[] {
+function localTypescriptInputFields(method: SgNode, module: SgNode): PublicInputField[] {
   const aliases = new Map(
     module.findAll({ rule: { kind: "type_alias_declaration" } }).flatMap((alias) => {
       const name = alias.field("name")?.text();
@@ -911,7 +1060,7 @@ function localTypescriptInputPaths(method: SgNode, module: SgNode): string[] {
   const parameters = method.field("parameters");
   if (!parameters) return [];
 
-  const paths = namedChildren(parameters).flatMap((parameter): string[] => {
+  const fields = namedChildren(parameters).flatMap((parameter): PublicInputField[] => {
     const name = typescriptParameterName(parameter);
     const type = parameter.field("type");
     if (!name || !type) return [];
@@ -920,33 +1069,75 @@ function localTypescriptInputPaths(method: SgNode, module: SgNode): string[] {
       .map((identifier) => identifier.text())
       .filter((identifier) => aliases.has(identifier));
     return referencedAliases.flatMap((alias) =>
-      localTypePropertyPaths(alias, aliases).map((path) => `${name}.${path.join(".")}`),
+      localTypePropertyFields(alias, aliases).map((field) => ({
+        ...field,
+        complete: isLocallyCompleteTypeAlias(alias, aliases),
+        key: `${name}.${field.key}`,
+      })),
     );
   });
-  return [...new Set(paths)].sort();
+  return uniquePublicInputFields(fields);
 }
 
-function localTypePropertyPaths(
+function localTypePropertyFields(
   aliasName: string,
   aliases: ReadonlyMap<string, SgNode>,
   seen = new Set<string>(),
-): string[][] {
+): PublicInputField[] {
   if (seen.has(aliasName)) return [];
   const value = aliases.get(aliasName);
   if (!value) return [];
   const nextSeen = new Set([...seen, aliasName]);
   const directProperties = value
     .findAll({ rule: { kind: "property_signature" } })
-    .flatMap((property): string[][] => {
+    .flatMap((property): PublicInputField[] => {
       const name = property.field("name")?.text();
-      return name ? [[name]] : [];
+      const type = property.field("type")?.text().replace(/^:\s*/u, "");
+      return name && type
+        ? [
+            {
+              complete: true,
+              key: name,
+              optional: property.children().some((child) => child.text() === "?"),
+              type,
+            },
+          ]
+        : [];
     });
   const inheritedProperties = value
     .findAll({ rule: { kind: "type_identifier" } })
     .map((identifier) => identifier.text())
     .filter((identifier) => aliases.has(identifier))
-    .flatMap((identifier) => localTypePropertyPaths(identifier, aliases, nextSeen));
-  return uniquePaths([...directProperties, ...inheritedProperties]);
+    .flatMap((identifier) => localTypePropertyFields(identifier, aliases, nextSeen));
+  return uniquePublicInputFields([...directProperties, ...inheritedProperties]);
+}
+
+function isLocallyCompleteTypeAlias(
+  aliasName: string,
+  aliases: ReadonlyMap<string, SgNode>,
+  seen = new Set<string>(),
+): boolean {
+  if (seen.has(aliasName)) return true;
+  const value = aliases.get(aliasName);
+  if (!value) return false;
+  const nextSeen = new Set([...seen, aliasName]);
+  const compositionReferences = value
+    .findAll({ rule: { kind: "type_identifier" } })
+    .filter(
+      (identifier) =>
+        !identifier
+          .ancestors()
+          .some(
+            (ancestor) =>
+              ancestor.range().start.index !== value.range().start.index &&
+              ancestor.kind() === "property_signature",
+          ),
+    )
+    .map((identifier) => identifier.text());
+  return compositionReferences.every(
+    (reference) =>
+      aliases.has(reference) && isLocallyCompleteTypeAlias(reference, aliases, nextSeen),
+  );
 }
 
 function sdkMethod(
@@ -956,12 +1147,12 @@ function sdkMethod(
   operationName?: string,
   returnType?: string,
   parameterTypes: Record<string, string> = {},
-  localInputPaths: string[] = [],
+  localInputFields: PublicInputField[] = [],
 ): SdkMethod {
   const normalizedName = snakeCase(methodName);
   return {
     classSlug,
-    localInputPaths,
+    localInputFields,
     methodName,
     methodSlug: normalizedName.replaceAll("_", "-"),
     operationName,
@@ -1105,6 +1296,28 @@ function mdxText(node: MdxNode): string {
   return `${node.value ?? ""}${node.children?.map(mdxText).join("") ?? ""}`;
 }
 
+function mdxSpellingValues(node: MdxNode): string[] {
+  const pathValues =
+    node.attributes?.flatMap(({ name, value }) =>
+      name === "path" && typeof value === "string" ? [value] : [],
+    ) ?? [];
+  if (node.type === "paragraph") {
+    const text = mdxText(node);
+    return text.includes("TypeScript") && text.includes("Python")
+      ? pathValues
+      : [...pathValues, ...findNodeValues(node, "inlineCode")];
+  }
+  if (node.type === "code") return [...pathValues, node.value ?? ""];
+  return [...pathValues, ...(node.children?.flatMap(mdxSpellingValues) ?? [])];
+}
+
+function findNodeValues(node: MdxNode, type: string): string[] {
+  return [
+    ...(node.type === type && node.value !== undefined ? [node.value] : []),
+    ...(node.children?.flatMap((child) => findNodeValues(child, type)) ?? []),
+  ];
+}
+
 function stringAttribute(node: MdxNode, name: string): string | undefined {
   const value = node.attributes?.find(
     (attribute) => attribute.type === "mdxJsxAttribute" && attribute.name === name,
@@ -1187,6 +1400,21 @@ async function readPythonTypeAliases(): Promise<Map<string, string>> {
         aliases.set(name.text(), value.text());
       }
     }
+    for (const classNode of root.findAll({ rule: { kind: "class_definition" } })) {
+      const name = classNode.field("name")?.text();
+      const body = classNode.field("body");
+      if (!name || !body || !classNode.text().split("\n", 1)[0]?.includes("(StrEnum)")) continue;
+      const values = namedChildren(body).flatMap((statement): string[] => {
+        const assignment =
+          statement.kind() === "expression_statement" ? namedChildren(statement)[0] : statement;
+        if (assignment?.kind() !== "assignment") return [];
+        const value = namedChildren(assignment)[1];
+        return value?.kind() === "string" ? [stringLiteral(value)] : [];
+      });
+      if (values.length > 0) {
+        aliases.set(name, `Literal[${values.map((value) => `'${value}'`).join(", ")}]`);
+      }
+    }
   }
   return aliases;
 }
@@ -1216,6 +1444,16 @@ function publicTypeCandidates(
             pythonAliases,
           ),
         );
+        if (property.enum?.every((value) => typeof value === "string")) {
+          candidates.add(
+            normalizePublicType(
+              property.enum.map((value) => `'${value as string}'`).join(" | "),
+              language,
+              optional,
+              pythonAliases,
+            ),
+          );
+        }
       }
     }
     if (type.includes("this")) {
@@ -1322,6 +1560,15 @@ function projectedInputPaths(
     if (matchedIndex < 0) return [];
     const parameter = parameters.get(snakeCase(wirePath[matchedIndex] as string));
     if (!parameter) return [];
+    const parameterType = method.parameterTypes[parameter];
+    if (
+      matchedIndex > 0 &&
+      wirePath.length > matchedIndex + 1 &&
+      parameterType &&
+      isScalarPublicType(parameterType, language)
+    ) {
+      return [];
+    }
     const path = [
       parameter,
       ...wirePath.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
@@ -1339,7 +1586,17 @@ function projectedInputPaths(
           : [],
       )
     : [];
-  return [...new Set([...projected, ...wrappedParams, ...method.localInputPaths])]
+  const localInputPaths = method.localInputFields.map(({ key }) => key);
+  const completeLocalInputPaths = method.localInputFields
+    .filter(({ complete }) => complete)
+    .map(({ key }) => key);
+  const publicProjection = projected.filter(
+    (path) =>
+      !completeLocalInputPaths.some(
+        (localPath) => path === localPath || path.startsWith(`${localPath}.`),
+      ),
+  );
+  return [...new Set([...publicProjection, ...wrappedParams, ...localInputPaths])]
     .filter((path) => path.includes("."))
     .sort();
 }
@@ -1357,6 +1614,15 @@ function projectedInputFields(
     if (matchedIndex < 0) return [];
     const parameter = parameters.get(snakeCase(field.path[matchedIndex] as string));
     if (!parameter) return [];
+    const parameterType = method.parameterTypes[parameter];
+    if (
+      matchedIndex > 0 &&
+      field.path.length > matchedIndex + 1 &&
+      parameterType &&
+      isScalarPublicType(parameterType, language)
+    ) {
+      return [];
+    }
     const path = [
       parameter,
       ...field.path.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
@@ -1379,7 +1645,17 @@ function projectedInputFields(
           : [],
       )
     : [];
-  return uniqueProjectedFields([...projected, ...wrapped]);
+  const completeLocalInputPaths = method.localInputFields
+    .filter(({ complete }) => complete)
+    .map(({ key }) => key);
+  return uniqueProjectedFields(
+    [...projected, ...wrapped].filter(
+      ({ key }) =>
+        !completeLocalInputPaths.some(
+          (localPath) => key === localPath || key.startsWith(`${localPath}.`),
+        ),
+    ),
+  );
 }
 
 function projectedResultPaths(
@@ -1540,6 +1816,12 @@ function uniqueProjectedFields(fields: ProjectedField[]): ProjectedField[] {
   return [...unique.values()].sort((left, right) => left.key.localeCompare(right.key));
 }
 
+function uniquePublicInputFields(fields: PublicInputField[]): PublicInputField[] {
+  return [...new Map(fields.map((field) => [field.key, field])).values()].sort((left, right) =>
+    left.key.localeCompare(right.key),
+  );
+}
+
 function canonicalSchemaType(
   schema: JsonSchema,
   language: Language,
@@ -1604,7 +1886,92 @@ function canonicalPrimitiveType(type: string, language: Language): string {
 
 function publicFieldName(wireName: string, language: Language): string {
   if (language === "Python") return wireName;
-  return wireName.replace(/_([a-z\d])/gu, (_, character: string) => character.toUpperCase());
+  return (
+    TYPESCRIPT_FIELD_SPELLINGS.get(wireName) ??
+    wireName.replace(/_([a-z\d])/gu, (_, character: string) => character.toUpperCase())
+  );
+}
+
+async function readTypescriptPublicFieldNames(): Promise<Set<string>> {
+  const sourceFiles = [
+    PROTOCOL_SCHEMA_SOURCE,
+    resolve(TYPESCRIPT_ROOT, "clientSchemas.ts"),
+    ...SDK_OBJECTS.map(({ typescriptFile }) => resolve(TYPESCRIPT_ROOT, typescriptFile)),
+  ];
+  const names = new Set<string>();
+  for (const filePath of sourceFiles) {
+    const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
+    for (const property of root.findAll({ rule: { kind: "property_identifier" } })) {
+      const parentKind = property.parent()?.kind();
+      if (parentKind === "pair" || parentKind === "property_signature") {
+        names.add(property.text());
+      }
+    }
+  }
+  for (const method of await readTypescriptMethods()) {
+    for (const parameter of method.parameters) names.add(parameter);
+    for (const field of method.localInputFields) {
+      const name = field.key.split(".").at(-1);
+      if (name) names.add(name);
+    }
+  }
+  return names;
+}
+
+async function readPythonPublicFieldNames(): Promise<Set<string>> {
+  const names = new Set<string>();
+  for (const filePath of await listFiles(PYTHON_ROOT)) {
+    if (extname(filePath) !== ".py") continue;
+    const root = parse("python", await readFile(filePath, "utf8")).root();
+    for (const method of root.findAll({ rule: { kind: "function_definition" } })) {
+      const parameters = method.field("parameters");
+      if (!parameters) continue;
+      for (const parameter of namedChildren(parameters)) {
+        const name = pythonParameterName(parameter);
+        if (name && name !== "self" && name !== "cls") names.add(name);
+      }
+    }
+    for (const assignment of root.findAll({ rule: { kind: "assignment" } })) {
+      if (!assignment.ancestors().some((ancestor) => ancestor.kind() === "class_definition")) {
+        continue;
+      }
+      const name = namedChildren(assignment)[0];
+      if (name?.kind() === "identifier" && !name.text().startsWith("_")) {
+        names.add(name.text());
+      }
+    }
+  }
+  return names;
+}
+
+function uniqueSpellingsByWireName(names: ReadonlySet<string>): Map<string, string> {
+  const candidates = new Map<string, Set<string>>();
+  for (const name of names) {
+    const wireName = snakeCase(name);
+    const spellings = candidates.get(wireName) ?? new Set<string>();
+    spellings.add(name);
+    candidates.set(wireName, spellings);
+  }
+  return new Map(
+    [...candidates].flatMap(([wireName, spellings]) =>
+      spellings.size === 1 ? [[wireName, [...spellings][0] as string] as const] : [],
+    ),
+  );
+}
+
+function isScalarPublicType(type: string, language: Language): boolean {
+  const normalized = type
+    .replace(/\s+/gu, "")
+    .replace(/\b(?:builtins|re)\./gu, "")
+    .replace(/^Optional\[(.*)\]$/u, "$1|None");
+  const parts = splitTopLevelUnion(normalized).filter(
+    (part) => part !== "None" && part !== "undefined",
+  );
+  const scalar =
+    language === "TypeScript"
+      ? /^(?:string|number|boolean|RegExp|Literal<.*>)$/u
+      : /^(?:str|int|float|bool|Pattern\[.*\]|Literal\[.*\])$/u;
+  return parts.length > 0 && parts.every((part) => scalar.test(part));
 }
 
 function collectNavigationPages(value: unknown, pages = new Set<string>()): Set<string> {

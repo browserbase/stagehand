@@ -99,7 +99,7 @@ const data = await stagehand.extract("Extract the article body", schema, {
 - `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
 - `timeout`: maximum time in milliseconds.
 - `model`: override the model for this call.
-- `cache`: reuse a prior result for this call (see [Caching](#)).
+- `cache`: reuse a prior result for this call.
 
 ### Scoped extraction
 
@@ -122,7 +122,7 @@ when the data depends on layout or styling that isn't obvious from the DOM alone
 
 ### Cache repeated extractions
 
-On [Browserbase](#), turn on [caching](#)
+On Browserbase, turn on caching
 so repeated, identical extractions are served from a cache instead of calling the model again.
 
 ```typescript
@@ -132,10 +132,6 @@ const product = await stagehand.extract(
   { cache: true },
 );
 ```
-
-<Card title="Caching guide" icon="database" href="#">
-  Thresholds, session defaults, and when caching applies.
-</Card>
 
 ## Best practices
 
@@ -258,6 +254,9 @@ print(product.name, product.price)
 ## Advanced configuration
 
 ```python
+from stagehand import ModelConfig
+
+
 data = await stagehand.extract(
     instruction="Extract the article body",
     schema=schema,
@@ -265,7 +264,7 @@ data = await stagehand.extract(
     ignore_selectors=["nav", ".cookie-banner"],
     screenshot=True,
     timeout=30_000,
-    model="openai/gpt-5.4-mini",
+    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
 )
 ```
 
@@ -274,13 +273,13 @@ data = await stagehand.extract(
 - `ignore_selectors`: elements to exclude, such as ads, chrome, and boilerplate.
 - `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
 - `timeout`: maximum time in milliseconds.
-- `model` / `model_api_key`: override the model for this call.
-- `cache`: reuse a prior result for this call (see [Caching](#)).
+- `model`: override the complete model configuration for this call.
+- `cache`: reuse a prior result for this call.
 
 ### Scoped extraction
 
 When a page is large, scoping to the relevant region with `selector` (and excluding noise
-with `ignoreSelectors`) is faster, cheaper, and more accurate than extracting from the
+with `ignore_selectors`) is faster, cheaper, and more accurate than extracting from the
 whole document.
 
 ```python
@@ -299,7 +298,7 @@ when the data depends on layout or styling that isn't obvious from the DOM alone
 
 ### Cache repeated extractions
 
-On [Browserbase](#), turn on [caching](#)
+On Browserbase, turn on caching
 so repeated, identical extractions are served from a cache instead of calling the model again.
 
 ```python
@@ -310,17 +309,13 @@ product = await stagehand.extract(
 )
 ```
 
-<Card title="Caching guide" icon="database" href="#">
-  Thresholds, session defaults, and when caching applies.
-</Card>
-
 ## Best practices
 
 - **Ask for exactly what you need:** Smaller schemas are faster and more reliable than
   "extract everything."
 - **Use descriptions:** Field descriptions disambiguate similar values (for example, which
   price is the sale price).
-- **Scope first:** Reach for `selector`/`ignoreSelectors` before extracting from a busy
+- **Scope first:** Reach for `selector`/`ignore_selectors` before extracting from a busy
   page.
 
 ## Troubleshooting
@@ -332,7 +327,7 @@ product = await stagehand.extract(
   </Accordion>
   <Accordion title="Wrong value picked">
 
-Narrow with `selector`, exclude distractors with `ignoreSelectors`, or enable `screenshot`
+Narrow with `selector`, exclude distractors with `ignore_selectors`, or enable `screenshot`
 when the correct value is clear visually but ambiguous in the DOM.
 
 ```python
@@ -357,11 +352,5 @@ result = await stagehand.extract(
   </Card>
   <Card title="Observe" icon="eye" href="/v4/basics/observe">
     Discover available actions on a page.
-  </Card>
-  <Card title="Caching" icon="database" href="#">
-    Reuse results on repeated runs.
-  </Card>
-  <Card title="Prompting best practices" icon="wand-magic-sparkles" href="#">
-    Write instructions that extract cleanly.
   </Card>
 </CardGroup>

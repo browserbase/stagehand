@@ -25,9 +25,13 @@ const stagehand = new Stagehand({
   browser: { type: "local" },
 });
 
-await stagehand.init();
-const page = await stagehand.context.newPage();
-await page.goto("https://example.com");
+try {
+  await stagehand.init();
+  const page = await stagehand.context.newPage();
+  await page.goto("https://example.com");
+} finally {
+  await stagehand.close();
+}
 ```
 
 </View>
@@ -43,12 +47,22 @@ pip install stagehand-v4
 **Initialize Stagehand**
 
 ```python
+import asyncio
+
 from stagehand import Stagehand
 
-stagehand = Stagehand(browser="local")
-await stagehand.init()
-page = await stagehand.context.new_page()
-await page.goto("https://example.com")
+
+async def main() -> None:
+    stagehand = Stagehand(browser="local")
+    try:
+        await stagehand.init()
+        page = await stagehand.context.new_page()
+        await page.goto("https://example.com")
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
 ```
 
 </View>
