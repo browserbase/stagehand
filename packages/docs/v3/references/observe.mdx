@@ -1,0 +1,347 @@
+---
+title: observe()
+description: 'Complete API reference for the observe() method'
+icon: 'magnifying-glass'
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+<CardGroup cols={1}>
+<Card title="Observe" icon="magnifying-glass" href="/v3/basics/observe">
+  See how to use observe() to discover actionable elements and analyze web page structure
+</Card>
+</CardGroup>
+
+### Method Signatures
+
+<Tabs>
+<Tab title="TypeScript">
+
+```typescript
+// String instruction only
+await stagehand.observe(instruction: string): Promise<Action[]>
+
+// String instruction with options
+await stagehand.observe(instruction: string, options: ObserveOptions): Promise<Action[]>
+```
+
+**ObserveOptions Interface:**
+```typescript
+interface ObserveOptions {
+  model?: ModelConfiguration;
+  variables?: Record<string, VariableValue>;
+  timeout?: number;
+  selector?: string;
+  ignoreSelectors?: string[];
+  page?: PlaywrightPage | PuppeteerPage | PatchrightPage | Page;
+  serverCache?: boolean;
+}
+
+type VariableValue =
+  | string
+  | number
+  | boolean
+  | { value: string | number | boolean; description?: string };
+
+// ModelConfiguration can be either a string or an object
+type ModelConfiguration =
+  | string  // Format: "provider/model" (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4-6")
+  | {
+      modelName: string;  // The model name
+      apiKey?: string;    // Optional: API key override
+      baseURL?: string;   // Optional: Base URL override
+      // Additional provider-specific options
+    }
+```
+
+</Tab>
+
+</Tabs>
+
+### Parameters
+
+<ParamField path="instruction" type="string" required>
+  Natural language description of elements or actions to discover. If not provided, defaults to finding all interactive elements on the page.
+</ParamField>
+
+<ParamField path="model" type="ModelConfiguration" optional>
+  Configure the AI model to use for this observation. Can be either:
+  - A string in the format `"provider/model"` (e.g., `"openai/gpt-4o"`, `"anthropic/claude-sonnet-4-6"`)
+  - An object with detailed configuration
+
+  <Expandable title="Model Configuration Object">
+    <ParamField path="modelName" type="string" required>
+      The model name (e.g., "gpt-4o", "claude-sonnet-4-6", "gemini-2.5-flash")
+    </ParamField>
+    <ParamField path="apiKey" type="string" optional>
+      API key for the model provider (overrides default)
+    </ParamField>
+    <ParamField path="baseURL" type="string" optional>
+      Base URL for the API endpoint (for custom endpoints or proxies)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="variables" type="Record<string, VariableValue>" optional>
+  Key-value pairs for placeholder generation using `%variableName%` syntax in returned action arguments. `observe()` exposes only the placeholder names to the model and returns `Action[]` that still contain `%variableName%` tokens so you can validate them before executing with `act()`.
+
+  Values can be simple primitives (`string`, `number`, `boolean`) or rich objects with an optional description (`{ value, description? }`).
+</ParamField>
+
+<ParamField path="timeout" type="number" optional>
+  Maximum time in milliseconds to wait for the observation to complete. Default varies by configuration.
+</ParamField>
+
+<ParamField path="selector" type="string" optional>
+  Optional XPath selector to focus the observation on a specific part of the page. Useful for narrowing down the search area.
+</ParamField>
+
+<ParamField path="ignoreSelectors" type="string[]" optional>
+  Optional list of selectors to exclude from the observed snapshot before observation runs. Each selector removes all matching elements and their descendants.
+
+  <Note>
+    `ignoreSelectors` applies to all matches for each selector. `selector` keeps its single-target scoping behavior.
+  </Note>
+</ParamField>
+
+<ParamField path="page" type="PlaywrightPage | PuppeteerPage | PatchrightPage | Page" optional>
+  Optional: Specify which page to perform the observation on. Supports multiple browser automation libraries:
+  - **Playwright**: Native Playwright Page objects
+  - **Puppeteer**: Puppeteer Page objects
+  - **Patchright**: Patchright Page objects
+  - **Stagehand Page**: Stagehand's wrapped Page object
+
+  If not specified, defaults to the current "active" page in your Stagehand instance.
+</ParamField>
+
+<ParamField path="serverCache" type="boolean" optional>
+  Override the instance-level `serverCache` setting for this request. When `true`, enables server-side caching. When `false`, disables it.
+
+  <Note>Only applies when `env` is `"BROWSERBASE"`. Has no effect in local environments.</Note>
+
+  Defaults to the value set on the Stagehand constructor (which itself defaults to `true`).
+</ParamField>
+
+### Returns `Promise<Action[]>`
+
+Array of discovered actionable elements, ordered by relevance.
+
+<ResponseField name="selector" type="string">
+  XPath selector that precisely locates the element on the page.
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Human-readable description of the element and its purpose.
+</ResponseField>
+
+<ResponseField name="method" type="string" optional>
+  Suggested interaction method for the element (e.g., `"click"`, `"fill"`, `"type"`).
+</ResponseField>
+
+<ResponseField name="arguments" type="string[]" optional>
+  Additional parameters for the suggested action, if applicable.
+</ResponseField>
+
+**Action Interface:**
+```typescript
+interface Action {
+  selector: string;        // XPath selector to locate element
+  description: string;     // Human-readable description
+  method?: string;         // Suggested action method
+  arguments?: string[];    // Additional action parameters
+}
+```
+
+**Example Response:**
+```json
+[
+  {
+    "selector": "/html/body/div[1]/header/nav/button[1]",
+    "description": "Login button in the navigation bar",
+    "method": "click",
+    "arguments": []
+  },
+  {
+    "selector": "/html/body/main/form/input[1]",
+    "description": "Email input field in the login form",
+    "method": "fill",
+    "arguments": []
+  }
+]
+```
+
+### Built-in Support
+
+<Note>
+**Iframe and Shadow DOM interactions are supported out of the box.** Stagehand automatically handles iframe traversal and shadow DOM elements without requiring additional configuration or flags.
+</Note>
+
+### Code Examples
+
+<Tabs>
+<Tab title="Basic Usage">
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+// Initialize with Browserbase (API key from environment variable)
+// Set BROWSERBASE_API_KEY in your environment
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+
+// Basic element discovery
+const buttons = await stagehand.observe("find all clickable buttons");
+const formFields = await stagehand.observe("locate form input fields");
+
+// Working with results
+const [loginButton] = await stagehand.observe("find the login button");
+if (loginButton) {
+  console.log("Found:", loginButton.description);
+  console.log("Selector:", loginButton.selector);
+  await stagehand.act(loginButton); // Execute the action
+}
+```
+
+</Tab>
+<Tab title="Custom Model">
+
+```typescript
+// Using string format model
+const elements = await stagehand.observe("find important call-to-action buttons", {
+  model: "openai/gpt-4o",
+  timeout: 45000
+});
+
+// Using object format with custom configuration
+const actions = await stagehand.observe("find navigation links", {
+  model: {
+    modelName: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY
+  },
+  timeout: 30000
+});
+```
+
+</Tab>
+<Tab title="Scoped">
+
+```typescript
+// Focus observation on a specific part of the page
+const tableActions = await stagehand.observe("find all table rows", {
+  selector: "/html/body/main/table"
+});
+```
+
+</Tab>
+<Tab title="Ignore Elements">
+
+```typescript
+// Exclude parts of the page you do not want observe() to consider
+const actions = await stagehand.observe("find the main call-to-action buttons", {
+  ignoreSelectors: [
+    "//aside[contains(@class, 'promo-rail')]",
+    "//div[@id='floating-chat-launcher']",
+    "//section[@aria-label='recommended articles']"
+  ]
+});
+```
+
+</Tab>
+<Tab title="Validate Then Act">
+
+```typescript
+const [emailField, passwordField, submitButton] = await stagehand.observe(
+  "Find the login fields and submit button",
+  {
+    variables: {
+      username: { value: "user@example.com", description: "The login email" },
+      password: { value: process.env.USER_PASSWORD, description: "The login password" },
+    },
+  }
+);
+
+// Returned actions can reference placeholders like %username% and %password%
+console.log(emailField.arguments);
+
+// Validate the suggested actions before executing them
+await stagehand.act(emailField, {
+  variables: { username: "user@example.com" },
+});
+await stagehand.act(passwordField, {
+  variables: { password: process.env.USER_PASSWORD },
+});
+await stagehand.act(submitButton);
+```
+
+</Tab>
+<Tab title="Multi-Page">
+
+```typescript
+// Observe on specific pages
+const page1 = stagehand.context.pages()[0];
+const page2 = await stagehand.context.newPage();
+
+const page1Actions = await stagehand.observe("find navigation", { page: page1 });
+const page2Actions = await stagehand.observe("find buttons", { page: page2 });
+```
+
+</Tab>
+<Tab title="Filter Results">
+
+```typescript
+const submitButtons = await stagehand.observe("find all submit buttons");
+const primarySubmit = submitButtons.find(btn =>
+  btn.description.toLowerCase().includes('primary')
+);
+```
+
+</Tab>
+</Tabs>
+
+### Integration Patterns
+
+```typescript
+// Observe → Act workflow
+const actions = await stagehand.observe("find checkout elements");
+for (const action of actions) {
+  await stagehand.act(action);
+  await page.waitForTimeout(1000);
+}
+
+// Observe → Extract workflow
+const tables = await stagehand.observe("find data tables");
+if (tables.length > 0) {
+  const data = await stagehand.extract({
+    instruction: "extract the table data",
+    selector: tables[0].selector,
+    schema: DataSchema
+  });
+}
+
+// Element validation
+const requiredElements = await stagehand.observe("find the login form");
+if (requiredElements.length === 0) {
+  throw new Error("Login form not found");
+}
+```
+
+### Error Types
+
+The following errors may be thrown by the `observe()` method:
+
+- **StagehandError** - Base class for all Stagehand-specific errors
+- **StagehandDomProcessError** - Error occurred while processing the DOM
+- **StagehandEvalError** - Error occurred while evaluating JavaScript in the page context
+- **StagehandIframeError** - Unable to resolve iframe for the target element
+- **ContentFrameNotFoundError** - Unable to obtain content frame for the selector
+- **XPathResolutionError** - XPath does not resolve in the current page or frames
+- **StagehandShadowRootMissingError** - No shadow root present on the resolved host element
+- **LLMResponseError** - Error in LLM response processing
+- **MissingLLMConfigurationError** - No LLM API key or client configured
+- **UnsupportedModelError** - The specified model is not supported for this operation
+- **InvalidAISDKModelFormatError** - Model string does not follow the required `provider/model` format
