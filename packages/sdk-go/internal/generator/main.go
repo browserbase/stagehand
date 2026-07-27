@@ -120,7 +120,6 @@ func run(check bool) error {
 		},
 		DefaultOutputName:  generatedFile,
 		DefaultPackageName: "stagehand",
-		DisableOmitZero:    true,
 		OnlyModels:         true,
 		SchemaMappings: []generator.SchemaMapping{{
 			SchemaID:    "",
@@ -311,8 +310,6 @@ func transform(value any, path []string) (any, error) {
 			return customTypeSchemaWithPointer(customType, nullable(value)), nil
 		}
 
-		_, hasObjectDefault := value["default"].(map[string]any)
-		_, hasRef := value["$ref"]
 		if ref, ok := value["$ref"].(string); ok {
 			name := strings.TrimPrefix(ref, "#/$defs/")
 			if customType, custom := customDefinitions[name]; custom {
@@ -347,9 +344,6 @@ func transform(value any, path []string) (any, error) {
 				return nil, err
 			}
 			result[key] = transformed
-		}
-		if hasObjectDefault && hasRef {
-			return withPointer(result), nil
 		}
 		return result, nil
 	default:
