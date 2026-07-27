@@ -82,10 +82,10 @@ func TestGeneratedModelsContainNoEmptyInterfaceFallbacks(t *testing.T) {
 	}
 }
 
-func TestOptionalTelemetryOmissionAndExplicitDefault(t *testing.T) {
+func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 	t.Parallel()
 
-	defaultTelemetry := &TelemetryConfig{
+	defaultTelemetry := TelemetryConfig{
 		Traces: TelemetryTraces{
 			Endpoint: "https://example.com/v1/traces",
 			Headers:  TelemetryTracesHeaders{},
