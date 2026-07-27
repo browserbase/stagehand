@@ -25,6 +25,7 @@
     "@ast-grep/napi": "catalog:",
     "@changesets/changelog-github": "catalog:",
     "@changesets/cli": "catalog:",
+    "@changesets/parse": "0.4.3",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/sdk-trace-web": "catalog:",
     "@oxlint/plugins": "1.68.0",

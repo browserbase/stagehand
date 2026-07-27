@@ -44,13 +44,18 @@ Package metadata is the source of truth for versions. The private Python
 `package.json` lets Changesets version the public `stagehand` package; CI copies
 that version into `pyproject.toml` and updates `uv.lock`.
 
-After the initial v4 release, use `just changeset` when a pull request changes a
-public SDK or the protocol compatibility contract. Tests, documentation,
-formatting, and internal refactors do not need a Changeset.
+After the initial v4 release, run `just changeset` when a pull request changes a
+public SDK or the protocol compatibility contract. Select every affected package
+and commit the generated `.changeset/*.md` file with the pull request. Tests,
+documentation, formatting, and internal refactors do not need a Changeset.
 
-Changesets maintains the release pull request on `main`. Merging it publishes the
-TypeScript SDK to npm and the Python SDK to PyPI. Underscored `just` recipes are
-internal CI commands.
+Merging a normal pull request does not publish anything. Changesets creates or
+updates a release pull request on `main`, where additional Changesets can
+accumulate. When a maintainer is ready to release, merging that release pull
+request publishes the TypeScript SDK to npm and then publishes the synchronized
+Python SDK version to PyPI if it is not already present. The protocol package is
+versioned for compatibility tracking but is not published separately.
+Underscored `just` recipes are internal CI commands.
 
 ### Pull request previews
 

@@ -1,32 +1,47 @@
+import parseChangeset from "@changesets/parse";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
-const changesetDirectory = path.resolve(".changeset");
 const allowedPackages = new Set([
   "@browserbasehq/stagehand",
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
 ]);
 
-const files = (await readdir(changesetDirectory))
-  .filter((file) => file.endsWith(".md") && file !== "README.md")
-  .sort();
-
-for (const file of files) {
-  const contents = await readFile(path.join(changesetDirectory, file), "utf8");
-  const lines = contents.split(/\r?\n/);
-  const frontmatterEnd = lines.indexOf("---", 1);
-  if (lines[0] !== "---" || frontmatterEnd === -1) {
-    throw new Error(`${file} does not contain valid changeset frontmatter`);
+export function validateChangeset(contents: string, file: string): void {
+  let releases: Array<{ name: string }>;
+  try {
+    releases = parseChangeset(contents).releases;
+  } catch (error) {
+    throw new Error(`${file} does not contain valid changeset frontmatter`, { cause: error });
   }
-  const frontmatter = lines.slice(1, frontmatterEnd).join("\n");
 
-  const packages = [...frontmatter.matchAll(/^"(?<name>[^"]+)":\s*(?:major|minor|patch)$/gm)]
-    .map((match) => match.groups?.name)
-    .filter((name): name is string => name !== undefined);
-
-  const invalidPackages = packages.filter((packageName) => !allowedPackages.has(packageName));
+  const invalidPackages = releases
+    .map(({ name }) => name)
+    .filter((packageName) => !allowedPackages.has(packageName));
   if (invalidPackages.length > 0) {
     throw new Error(`${file} selects non-versioned packages: ${invalidPackages.join(", ")}`);
   }
+}
+
+export async function checkChangesets(
+  changesetDirectory = path.resolve(".changeset"),
+): Promise<void> {
+  const files = (await readdir(changesetDirectory))
+    .filter((file) => file.endsWith(".md") && file !== "README.md")
+    .sort();
+
+  for (const file of files) {
+    const contents = await readFile(path.join(changesetDirectory, file), "utf8");
+    validateChangeset(contents, file);
+  }
+}
+
+const invokedPath = process.argv[1];
+if (
+  invokedPath !== undefined &&
+  import.meta.url === pathToFileURL(path.resolve(invokedPath)).href
+) {
+  await checkChangesets();
 }

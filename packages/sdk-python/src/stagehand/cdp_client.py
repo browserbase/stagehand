@@ -9,10 +9,12 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from urllib.request import urlopen
 
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
-_MINIMUM_PROTOCOL_VERSION = 4
-_MAXIMUM_PROTOCOL_VERSION = 4
+_MINIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
+_MAXIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
 # drift. All judgement happens here rather than in the page.

@@ -56,6 +56,7 @@ export function consolidateChangelog(rootChangelog: string, sections: string[]):
   if (historyIndex === -1) {
     throw new Error("The root changelog does not contain a version heading");
   }
+  const rootHeadings = new Set(sectionHeadings(rootChangelog));
 
   const additions = sections.filter((section) => {
     const headings = sectionHeadings(section);
@@ -63,7 +64,7 @@ export function consolidateChangelog(rootChangelog: string, sections: string[]):
       throw new Error("A generated changelog section does not contain a version heading");
     }
 
-    const existingHeadings = headings.filter((heading) => rootChangelog.includes(`${heading}\n`));
+    const existingHeadings = headings.filter((heading) => rootHeadings.has(heading));
     if (existingHeadings.length > 0 && existingHeadings.length !== headings.length) {
       throw new Error(`The root changelog contains only part of ${headings.join(", ")}`);
     }
