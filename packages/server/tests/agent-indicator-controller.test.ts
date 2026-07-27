@@ -109,6 +109,28 @@ describe("agent indicator controller", () => {
     expect(insertCSS).not.toHaveBeenCalled();
   });
 
+  it("reapplies when navigation overlaps an in-flight insertion", async () => {
+    const { chromeApi, insertCSS, query, update } = createChromeApi();
+    query.mockResolvedValue([{ id: 12 }]);
+    let resolveInsertion: (() => void) | undefined;
+    insertCSS.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInsertion = resolve;
+        }),
+    );
+    const controller = createAgentIndicatorController(chromeApi);
+
+    const activation = controller.setActive(true);
+    await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(1));
+    update(12, "loading");
+    update(12, "complete");
+    resolveInsertion?.();
+    await activation;
+
+    await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(2));
+  });
+
   it("ignores restricted-tab failures", async () => {
     const { chromeApi, insertCSS } = createChromeApi();
     insertCSS.mockRejectedValueOnce(new Error("Cannot access a chrome:// URL"));
@@ -128,5 +150,19 @@ describe("agent indicator controller", () => {
 
     expect(query).toHaveBeenCalledTimes(2);
     expect(insertCSS).toHaveBeenCalledTimes(2);
+  });
+
+  it("removes cached indicators when the deactivation tab query fails", async () => {
+    const { chromeApi, query, removeCSS } = createChromeApi();
+    const controller = createAgentIndicatorController(chromeApi);
+    await controller.setActive(true);
+    query.mockRejectedValueOnce(new Error("temporary tabs.query failure"));
+
+    await expect(controller.setActive(false)).resolves.toBeUndefined();
+
+    expect(removeCSS).toHaveBeenCalledTimes(2);
+    expect(removeCSS.mock.calls.map(([injection]) => injection.target.tabId)).toStrictEqual([
+      12, 34,
+    ]);
   });
 });

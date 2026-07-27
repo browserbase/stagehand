@@ -54,6 +54,39 @@ function createBrowserSession() {
   };
 }
 
+function startConfiguredServiceWorker() {
+  mocks.browserSession = createBrowserSession();
+  const chromeApi = {
+    runtime: { getURL: (path: string) => `chrome-extension://stagehand/${path}` },
+  };
+  vi.stubGlobal("chrome", chromeApi);
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, text: async () => "locator runtime" })),
+  );
+
+  let resolveResponse: ((value: unknown) => void) | undefined;
+  const scope: StagehandServiceWorkerScope & Record<string, unknown> = {
+    [STAGEHAND_SEND_TO_HOST_BINDING]: (payload: string) => {
+      const message = JSON.parse(payload) as { id?: unknown };
+      if (message.id === undefined) return;
+      resolveResponse?.(message);
+      resolveResponse = undefined;
+    },
+  };
+  startStagehandServiceWorker(scope);
+
+  const send = async (id: number, method: string, params: object) =>
+    await new Promise((resolve, reject) => {
+      resolveResponse = resolve;
+      void scope
+        .__stagehandReceiveFromHost?.(JSON.stringify({ jsonrpc: "2.0", id, method, params }))
+        .catch(reject);
+    });
+
+  return { chromeApi, send };
+}
+
 describe("service worker agent indicator wiring", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -61,35 +94,8 @@ describe("service worker agent indicator wiring", () => {
   });
 
   it("activates on initialization and deactivates on close", async () => {
-    mocks.browserSession = createBrowserSession();
-    const chromeApi = {
-      runtime: { getURL: (path: string) => `chrome-extension://stagehand/${path}` },
-    };
-    vi.stubGlobal("chrome", chromeApi);
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => ({ ok: true, text: async () => "locator runtime" })),
-    );
-
-    let resolveResponse: ((value: unknown) => void) | undefined;
-    const scope: StagehandServiceWorkerScope & Record<string, unknown> = {
-      [STAGEHAND_SEND_TO_HOST_BINDING]: (payload: string) => {
-        const message = JSON.parse(payload) as { id?: unknown };
-        if (message.id === undefined) return;
-        resolveResponse?.(message);
-        resolveResponse = undefined;
-      },
-    };
-    startStagehandServiceWorker(scope);
+    const { chromeApi, send } = startConfiguredServiceWorker();
     expect(mocks.createController).toHaveBeenCalledWith(chromeApi);
-
-    const send = async (id: number, method: string, params: object) =>
-      await new Promise((resolve, reject) => {
-        resolveResponse = resolve;
-        void scope
-          .__stagehandReceiveFromHost?.(JSON.stringify({ jsonrpc: "2.0", id, method, params }))
-          .catch(reject);
-      });
 
     await send(1, "runtime.configure", {
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
@@ -100,5 +106,17 @@ describe("service worker agent indicator wiring", () => {
 
     await send(3, "stagehand.close", {});
     expect(mocks.setActive.mock.calls).toStrictEqual([[true], [false]]);
+  });
+
+  it("does not activate when agentIndicator is omitted", async () => {
+    const { send } = startConfiguredServiceWorker();
+
+    await send(1, "runtime.configure", {
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    });
+    await send(2, "stagehand.init", {});
+    await send(3, "stagehand.close", {});
+
+    expect(mocks.setActive).not.toHaveBeenCalled();
   });
 });

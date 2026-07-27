@@ -81,6 +81,7 @@ export function createAgentIndicatorController(
   let desiredActive = false;
   let transition = Promise.resolve();
   const styledTabs = new Set<number>();
+  const navigationGenerations = new Map<number, number>();
 
   const injectionFor = (tabId: number): AgentIndicatorCssInjection => ({
     target: { tabId },
@@ -89,11 +90,14 @@ export function createAgentIndicatorController(
   });
 
   const applyToTab = async (tabId: number, active: boolean): Promise<void> => {
+    const navigationGeneration = navigationGenerations.get(tabId) ?? 0;
     try {
       const injection = injectionFor(tabId);
       if (active) {
         await chromeApi.scripting.insertCSS(injection);
-        styledTabs.add(tabId);
+        if ((navigationGenerations.get(tabId) ?? 0) === navigationGeneration) {
+          styledTabs.add(tabId);
+        }
       } else {
         await chromeApi.scripting.removeCSS(injection);
         styledTabs.delete(tabId);
@@ -110,7 +114,13 @@ export function createAgentIndicatorController(
   };
 
   const applyToAllTabs = async (active: boolean): Promise<void> => {
-    const tabs = await chromeApi.tabs.query({});
+    let tabs: Array<{ id?: number }>;
+    try {
+      tabs = await chromeApi.tabs.query({});
+    } catch (error) {
+      if (active) throw error;
+      tabs = [...styledTabs].map((id) => ({ id }));
+    }
     if (desiredActive !== active) return;
     await Promise.all(
       tabs.flatMap((tab) =>
@@ -122,7 +132,10 @@ export function createAgentIndicatorController(
   };
 
   chromeApi.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    if (changeInfo.status === "loading") styledTabs.delete(tabId);
+    if (changeInfo.status === "loading") {
+      navigationGenerations.set(tabId, (navigationGenerations.get(tabId) ?? 0) + 1);
+      styledTabs.delete(tabId);
+    }
     if (!desiredActive || (changeInfo.status !== "loading" && changeInfo.status !== "complete")) {
       return;
     }
