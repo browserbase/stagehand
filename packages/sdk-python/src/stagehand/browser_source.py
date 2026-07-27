@@ -7,9 +7,9 @@ import signal
 import socket
 import sys
 import tempfile
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .client_models import LocalBrowserSource, StagehandClientInitParams
 
@@ -39,6 +39,37 @@ _DEFAULT_CHROME_FLAGS = (
     "--disable-prompt-on-repost",
     "--disable-domain-reliability",
     "--propagate-iph-for-testing",
+)
+
+_MAC_APPLICATIONS = (
+    ("Google Chrome.app", "Google Chrome"),
+    ("Google Chrome Beta.app", "Google Chrome Beta"),
+    ("Google Chrome Dev.app", "Google Chrome Dev"),
+    ("Google Chrome Canary.app", "Google Chrome Canary"),
+    ("Chromium.app", "Chromium"),
+)
+
+_WINDOWS_APPLICATIONS = (
+    ("Google", "Chrome"),
+    ("Google", "Chrome Beta"),
+    ("Google", "Chrome Dev"),
+    ("Google", "Chrome SxS"),
+    ("Chromium",),
+)
+
+_LINUX_EXECUTABLES = (
+    "google-chrome-stable",
+    "google-chrome",
+    "google-chrome-beta",
+    "google-chrome-unstable",
+    "chromium-browser",
+    "chromium",
+)
+
+_CHROME_NOT_FOUND_MESSAGE = (
+    "No supported local browser installation was found. Stagehand supports Chrome Stable, "
+    "Beta, Dev, Canary, and Chromium. Set browser.executable_path or CHROME_PATH to use a "
+    "custom executable."
 )
 
 
@@ -166,44 +197,69 @@ async def _launch_local_browser(options: LocalBrowserSource) -> ResolvedBrowserS
     )
 
 
-def _find_chrome_path() -> str:
-    configured = os.environ.get("CHROME_PATH")
-    if configured and Path(configured).is_file():
+def _chrome_file_candidates(
+    platform: str,
+    environ: Mapping[str, str],
+    home_directory: str,
+) -> tuple[str, ...]:
+    if platform == "darwin":
+        application_directories = (
+            PurePosixPath("/Applications"),
+            PurePosixPath(home_directory) / "Applications",
+        )
+        return tuple(
+            str(directory / bundle / "Contents" / "MacOS" / executable)
+            for bundle, executable in _MAC_APPLICATIONS
+            for directory in application_directories
+        )
+
+    if platform == "win32":
+        roots = tuple(
+            root
+            for key in ("LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)")
+            if (root := environ.get(key))
+        )
+        return tuple(
+            str(PureWindowsPath(root, *segments, "Application", "chrome.exe"))
+            for segments in _WINDOWS_APPLICATIONS
+            for root in roots
+        )
+
+    return ()
+
+
+def _find_chrome_path(
+    *,
+    platform: str | None = None,
+    environ: Mapping[str, str] | None = None,
+    home_directory: str | None = None,
+    is_file: Callable[[str], bool] | None = None,
+    which: Callable[[str], str | None] | None = None,
+) -> str:
+    current_platform = platform or sys.platform
+    current_environ = os.environ if environ is None else environ
+    current_home = str(Path.home()) if home_directory is None else home_directory
+    file_exists = (lambda candidate: Path(candidate).is_file()) if is_file is None else is_file
+    find_on_path = (
+        (lambda name: shutil.which(name, path=current_environ.get("PATH")))
+        if which is None
+        else which
+    )
+
+    configured = current_environ.get("CHROME_PATH")
+    if configured and file_exists(configured):
         return configured
 
-    if sys.platform == "darwin":
-        candidates = (
-            "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-        )
-    elif sys.platform == "win32":
-        roots = filter(
-            None,
-            (
-                os.environ.get("LOCALAPPDATA"),
-                os.environ.get("PROGRAMFILES"),
-                os.environ.get("PROGRAMFILES(X86)"),
-            ),
-        )
-        candidates = tuple(
-            str(Path(root) / "Google" / "Chrome" / "Application" / "chrome.exe") for root in roots
-        )
-    else:
-        candidates = tuple(
-            path
-            for name in (
-                "google-chrome-stable",
-                "google-chrome",
-                "chromium-browser",
-                "chromium",
-            )
-            if (path := shutil.which(name)) is not None
-        )
-
-    for candidate in candidates:
-        if Path(candidate).is_file():
+    for candidate in _chrome_file_candidates(current_platform, current_environ, current_home):
+        if file_exists(candidate):
             return candidate
-    raise RuntimeError("Chrome installation not found; set CHROME_PATH")
+
+    if current_platform not in ("darwin", "win32"):
+        for executable in _LINUX_EXECUTABLES:
+            if candidate := find_on_path(executable):
+                return candidate
+
+    raise RuntimeError(_CHROME_NOT_FOUND_MESSAGE)
 
 
 def _available_port() -> int:

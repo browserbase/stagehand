@@ -6,6 +6,7 @@ import {
   type BrowserbaseSessionClient,
   type BrowserbaseSessionClientFactory,
 } from "./browserbaseSession.js";
+import { findChromeExecutable, type ChromeExecutableResolverOptions } from "./chromeExecutable.js";
 
 export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
 
@@ -29,6 +30,10 @@ export type BrowserSourceResolverDependencies = {
   launchLocalBrowser?: LocalBrowserLauncher;
   browserbase?: BrowserbaseSessionClient;
   createBrowserbaseSessionClient?: BrowserbaseSessionClientFactory;
+};
+
+export type LocalBrowserLauncherDependencies = {
+  findChromeExecutable?: (options: ChromeExecutableResolverOptions) => string;
 };
 
 export async function resolveBrowserSource(
@@ -74,12 +79,18 @@ export async function resolveBrowserSource(
   };
 }
 
-async function launchLocalBrowser(
+export async function launchLocalBrowser(
   options: LocalBrowserLaunchOptions,
+  dependencies: LocalBrowserLauncherDependencies = {},
 ): Promise<{ cdpUrl: string; close: () => void }> {
-  const { getChromePath, launch, Launcher } = await import("chrome-launcher");
+  const { launch, Launcher } = await import("chrome-launcher");
+  const chromePath =
+    options.executablePath ??
+    (dependencies.findChromeExecutable ?? findChromeExecutable)({
+      legacyInstallations: () => Launcher.getInstallations(),
+    });
   const chrome = await launch({
-    chromePath: getChromePath(),
+    chromePath,
     startingUrl: "about:blank",
     ignoreDefaultFlags: true,
     chromeFlags: [
