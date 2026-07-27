@@ -1,0 +1,53 @@
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+
+export default defineBenchV4Task(
+  { name: "scroll_50" },
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+    try {
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+      );
+      await stagehand.act("Scroll 50% down the page");
+
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Get the current scroll position and total scroll height
+      const scrollInfo = await page.evaluate(() => {
+        return {
+          scrollTop: window.scrollY + window.innerHeight / 2,
+          scrollHeight: document.documentElement.scrollHeight,
+        };
+      });
+
+      const halfwayScroll = scrollInfo.scrollHeight / 2;
+      const halfwayReached =
+        Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
+      const evaluationResult = halfwayReached
+        ? {
+            _success: true,
+            logs: logger.getLogs(),
+            debugUrl,
+            sessionUrl,
+          }
+        : {
+            _success: false,
+            logs: logger.getLogs(),
+            debugUrl,
+            sessionUrl,
+            message: `Scroll position (${scrollInfo.scrollTop}px) is not halfway down the page (${halfwayScroll}px).`,
+          };
+
+      return evaluationResult;
+    } catch (error) {
+      return {
+        _success: false,
+        error: error,
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    } finally {
+      await stagehand.close();
+    }
+  },
+);
