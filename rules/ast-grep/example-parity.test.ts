@@ -126,16 +126,6 @@ async function examples(
   language: ExampleLanguage,
 ): Promise<Array<{ file: string; name: string; url: URL }>> {
   const extension = exampleExtensions[language];
-  if (language === "go") {
-    return (await readdir(exampleDirectories.go, { withFileTypes: true }))
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => ({
-        file: `${entry.name}/main.go`,
-        name: entry.name,
-        url: new URL(`${entry.name}/main.go`, exampleDirectories.go),
-      }))
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }
   return (await readdir(exampleDirectories[language]))
     .filter((file) => file.endsWith(extension))
     .map((file) => ({

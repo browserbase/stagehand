@@ -199,7 +199,7 @@ if errors.As(err, &rpcErr) {
 - Use `httptest`, in-memory transports, and deterministic fakes; do not require live credentials for unit tests.
 - Add race tests for send/response, cancellation, request-handler callbacks, and `Close`.
 - Fuzz JSON-RPC envelopes and generated union unmarshalling. Invalid input must return errors, not panic.
-- Put runnable examples in separate directories such as `examples/act/main.go`; several `package main` files with several `main` functions cannot share one directory.
+- Keep runnable examples as flat files such as `examples/act.go`, and validate each file independently because their `main` functions cannot be built as one package.
 - Keep the TypeScript, Python, and Go example inventory and public-operation inventory identical after normalizing file layout and naming.
 - Make the README's first example copy-pasteable, short, and explicit about context, errors, and cleanup.
 - Treat pkg.go.dev doc comments as the API reference; keep conceptual documentation and cross-language guides in the existing docs package.
