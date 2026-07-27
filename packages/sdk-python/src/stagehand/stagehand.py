@@ -447,7 +447,9 @@ class Stagehand:
                     raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(None if browser.resident_browser_connection else browser_cdp_url),
+                    self._worker_init_params(
+                        None if browser.resident_browser_connection else browser_cdp_url
+                    ),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
