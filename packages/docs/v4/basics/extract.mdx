@@ -15,7 +15,7 @@ Define the schema as a [Zod](https://zod.dev) object:
 ```typescript
 import { z } from "zod";
 
-const product = await stagehand.extract(
+const { data: product } = await stagehand.extract(
   "Extract the product name and price",
   z.object({
     name: z.string(),
@@ -50,7 +50,7 @@ values, and use field descriptions to guide the model.
 ```typescript
 import { z } from "zod";
 
-const results = await stagehand.extract(
+const { data: results } = await stagehand.extract(
   "Extract each search result",
   z.object({
     results: z.array(
@@ -66,25 +66,26 @@ const results = await stagehand.extract(
 
 ### Return value
 
-`extract()` resolves to data that matches your schema, with no wrapper object. In
-TypeScript the type is inferred from the Zod schema; in Python it's an instance of your
-Pydantic model. When the schema is an array or list, you get an array or list back.
+`extract()` resolves to an object with `data` and `metadata`. `data` matches your schema:
+in TypeScript its type is inferred from Zod, and in Python it is an instance of your
+Pydantic model. `metadata` contains Stagehand-owned information such as cache status and
+an optional action ID.
 
 ```typescript
-const product = await stagehand.extract(
+const extraction = await stagehand.extract(
   "Extract the product details",
   z.object({ name: z.string(), price: z.number(), inStock: z.boolean() }),
 );
-// product is typed as { name: string; price: number; inStock: boolean }
-// e.g. { name: "Wireless Mouse", price: 29.99, inStock: true }
+// extraction.data is typed as { name: string; price: number; inStock: boolean }
 
-console.log(product.name, product.price);
+console.log(extraction.data.name, extraction.data.price);
+console.log(extraction.metadata.cacheStatus);
 ```
 
 ## Advanced configuration
 
 ```typescript
-const data = await stagehand.extract("Extract the article body", schema, {
+const extraction = await stagehand.extract("Extract the article body", schema, {
   selector: "#main-content",
   ignoreSelectors: ["nav", ".cookie-banner"],
   screenshot: true,
@@ -108,7 +109,9 @@ with `ignoreSelectors`) is faster, cheaper, and more accurate than extracting fr
 whole document.
 
 ```typescript
-const { price } = await stagehand.extract(
+const {
+  data: { price },
+} = await stagehand.extract(
   "Extract the sale price",
   z.object({ price: z.number() }),
   { selector: "#product-summary", ignoreSelectors: [".related-products"] },
@@ -126,11 +129,12 @@ On Browserbase, turn on caching
 so repeated, identical extractions are served from a cache instead of calling the model again.
 
 ```typescript
-const product = await stagehand.extract(
+const extraction = await stagehand.extract(
   "Extract the product name and price",
   z.object({ name: z.string(), price: z.number() }),
   { cache: true },
 );
+console.log(extraction.data, extraction.metadata.cacheStatus);
 ```
 
 ## Best practices
@@ -155,7 +159,9 @@ Narrow with `selector`, exclude distractors with `ignoreSelectors`, or enable `s
 when the correct value is clear visually but ambiguous in the DOM.
 
 ```typescript
-const { price } = await stagehand.extract(
+const {
+  data: { price },
+} = await stagehand.extract(
   "Extract the sale price, not the original price",
   z.object({ price: z.number() }),
   { selector: "#product-summary", ignoreSelectors: [".related-products"] },
@@ -180,11 +186,11 @@ class Product(BaseModel):
     price: float
 
 
-product = await stagehand.extract(
+extraction = await stagehand.extract(
     instruction="Extract the product name and price",
     schema=Product,
 )
-# product.name -> str, product.price -> float
+# extraction.data.name -> str, extraction.data.price -> float
 ```
 
 ## Why use `extract()`?
@@ -223,7 +229,7 @@ class SearchResults(BaseModel):
     results: list[Result]
 
 
-results = await stagehand.extract(
+extraction = await stagehand.extract(
     instruction="Extract each search result",
     schema=SearchResults,
 )
@@ -231,9 +237,9 @@ results = await stagehand.extract(
 
 ### Return value
 
-`extract()` resolves to data that matches your schema, with no wrapper object. In
-TypeScript the type is inferred from the Zod schema; in Python it's an instance of your
-Pydantic model. When the schema is an array or list, you get an array or list back.
+`extract()` resolves to an object with `data` and `metadata`. `data` is an instance of
+your Pydantic model, while `metadata` contains Stagehand-owned information such as cache
+status and an optional action ID.
 
 ```python
 class Product(BaseModel):
@@ -242,13 +248,14 @@ class Product(BaseModel):
     in_stock: bool
 
 
-product = await stagehand.extract(
+extraction = await stagehand.extract(
     instruction="Extract the product details",
     schema=Product,
 )
-# product is a Product instance, e.g. Product(name="Wireless Mouse", price=29.99, in_stock=True)
+# extraction.data is a Product instance
 
-print(product.name, product.price)
+print(extraction.data.name, extraction.data.price)
+print(extraction.metadata.cache_status)
 ```
 
 ## Advanced configuration
@@ -257,7 +264,7 @@ print(product.name, product.price)
 from stagehand import ModelConfig
 
 
-data = await stagehand.extract(
+extraction = await stagehand.extract(
     instruction="Extract the article body",
     schema=schema,
     selector="#main-content",
@@ -302,11 +309,12 @@ On Browserbase, turn on caching
 so repeated, identical extractions are served from a cache instead of calling the model again.
 
 ```python
-product = await stagehand.extract(
+extraction = await stagehand.extract(
     instruction="Extract the product name and price",
     schema=Product,
     cache=True,
 )
+print(extraction.data, extraction.metadata.cache_status)
 ```
 
 ## Best practices

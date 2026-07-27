@@ -141,7 +141,7 @@ describe("act service", () => {
       2_000,
     );
     expect(result).toStrictEqual({
-      result: {
+      data: {
         success: true,
         message: "Action [fill] performed successfully on selector: xpath=/html/body/input",
         actionDescription: "Email field",
@@ -154,6 +154,7 @@ describe("act service", () => {
           },
         ],
       },
+      metadata: {},
     });
   });
 
@@ -196,8 +197,8 @@ describe("act service", () => {
 
     expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
     expect(performAction).toHaveBeenCalledTimes(2);
-    expect(result.result.success).toBe(true);
-    expect(result.result.actions).toHaveLength(2);
+    expect(result.data.success).toBe(true);
+    expect(result.data.actions).toHaveLength(2);
   });
 
   it("retries with a fresh selector when self-healing is enabled", async () => {
@@ -246,7 +247,7 @@ describe("act service", () => {
       expect.any(StagehandLogger),
       undefined,
     );
-    expect(result.result).toMatchObject({
+    expect(result.data).toMatchObject({
       success: true,
       actions: [{ selector: "xpath=/html/body/button[2]" }],
     });
@@ -267,7 +268,7 @@ describe("act service", () => {
     });
 
     expect(performAction).not.toHaveBeenCalled();
-    expect(result.result).toMatchObject({
+    expect(result.data).toMatchObject({
       success: false,
       message: "Failed to perform act: No action found",
     });

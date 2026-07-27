@@ -2,6 +2,7 @@
 
 from ._generated.models import (
     Action,
+    ActResult,
     ActResultData,
     Animations,
     BrowserbaseBrowserSettings,
@@ -23,6 +24,7 @@ from ._generated.models import (
     LoadState,
     ModelConfig,
     MouseButton,
+    ObserveResult,
     PageScreenshotClip,
     RgbaColor,
     RuntimeLoopbackStatusResult,
@@ -43,6 +45,7 @@ from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
     CacheOptions,
+    ExtractResult,
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,
@@ -54,6 +57,7 @@ from .stagehand import Stagehand
 
 __all__ = [
     "ActResultData",
+    "ActResult",
     "Action",
     "Animations",
     "BrowserGetVersionResult",
@@ -68,6 +72,7 @@ __all__ = [
     "CookieParam",
     "DomainPolicy",
     "ExternalProxyConfig",
+    "ExtractResult",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",
@@ -82,6 +87,7 @@ __all__ = [
     "Locator",
     "ModelConfig",
     "MouseButton",
+    "ObserveResult",
     "Page",
     "PageScreenshotClip",
     "ProtocolLocator",

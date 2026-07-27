@@ -185,6 +185,7 @@ import type {
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
+  StagehandResultMetadataSchema,
   SnapshotResultSchema,
   TelemetryConfigSchema,
   ThinkingEffortSchema,
@@ -324,6 +325,7 @@ export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventPa
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
 export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
+export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
 export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
 export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
 export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;

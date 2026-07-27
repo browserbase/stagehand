@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Literal
+from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -19,8 +19,18 @@ from ._generated.models import (
     ProxyConfig,
     StagehandInitParams,
     StagehandLog,
+    StagehandResultMetadata,
 )
 from ._validation import WireModel
+
+ExtractData = TypeVar("ExtractData", bound=BaseModel)
+
+
+class ExtractResult(WireModel, Generic[ExtractData]):
+    model_config = ConfigDict(extra="forbid")
+
+    data: ExtractData
+    metadata: StagehandResultMetadata
 
 
 class LocalProxyConfig(WireModel):

@@ -13,10 +13,8 @@ from typing import Literal, Self, TypeVar, overload
 from pydantic import BaseModel
 
 from ._generated.models import (
-    Action,
     ActOptions,
     ActResult,
-    ActResultData,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
@@ -25,7 +23,6 @@ from ._generated.models import (
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
-    ExtractResult,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
@@ -46,6 +43,9 @@ from ._generated.models import (
     Variables,
 )
 from ._generated.models import (
+    ExtractResult as WireExtractResult,
+)
+from ._generated.models import (
     Locator as ProtocolLocator,
 )
 from .browser_context import BrowserContext
@@ -56,6 +56,7 @@ from .client_models import (
     Cache,
     CdpBrowserSource,
     ClientLLM,
+    ExtractResult,
     LLMGenerateCallback,
     LocalBrowserSource,
     LocalProxyConfig,
@@ -472,7 +473,7 @@ class Stagehand:
         timeout: float | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> ActResultData:
+    ) -> ActResult:
         options = ActOptions.model_validate({
             name: value
             for name, value in (
@@ -491,7 +492,7 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
-        return result.result
+        return result
 
     async def observe(
         self,
@@ -505,7 +506,7 @@ class Stagehand:
         ignore_selectors: list[str] | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> list[Action]:
+    ) -> ObserveResult:
         options = ObserveOptions.model_validate({
             name: value
             for name, value in (
@@ -526,7 +527,7 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
-        return result.result
+        return result
 
     async def extract(
         self,
@@ -541,7 +542,7 @@ class Stagehand:
         screenshot: bool | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> ResultModel:
+    ) -> ExtractResult[ResultModel]:
         options = ExtractOptions.model_validate({
             name: value
             for name, value in (
@@ -565,11 +566,14 @@ class Stagehand:
         )
         if options.model_fields_set:
             params.options = options
-        result = await self._connected_rpc_client.send("stagehand.extract", params, ExtractResult)
-        value = (
-            result.result.model_dump() if isinstance(result.result, BaseModel) else result.result
+        result = await self._connected_rpc_client.send(
+            "stagehand.extract", params, WireExtractResult
         )
-        return schema.model_validate(value)
+        value = result.data.model_dump() if isinstance(result.data, BaseModel) else result.data
+        return ExtractResult(
+            data=schema.model_validate(value),
+            metadata=result.metadata,
+        )
 
     async def close(self) -> None:
         async with self._lifecycle_lock:

@@ -398,12 +398,12 @@ describe("JSON-RPC wire casing", () => {
   it("preserves arbitrary extraction result keys", () => {
     const definition = StagehandMethods.stagehandExtract;
     const apiValue = {
-      result: { userName: "Sam" },
-      actionId: "action_1",
+      data: { userName: "Sam" },
+      metadata: { actionId: "action_1", cacheStatus: "HIT" as const },
     };
     const wireValue = {
-      result: { userName: "Sam" },
-      action_id: "action_1",
+      data: { userName: "Sam" },
+      metadata: { action_id: "action_1", cache_status: "HIT" },
     };
 
     expect(encodeWireValue(apiValue, definition.resultWire)).toStrictEqual(wireValue);

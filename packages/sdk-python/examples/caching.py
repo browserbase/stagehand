@@ -5,7 +5,7 @@ from time import perf_counter
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand
+from stagehand import ExtractResult, Stagehand
 
 BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -41,7 +41,7 @@ async def main() -> None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://aigrant.com")
 
-        async def extract_companies() -> tuple[Companies, int]:
+        async def extract_companies() -> tuple[ExtractResult[Companies], int]:
             start = perf_counter()
             result = await stagehand.extract(
                 instruction=(
@@ -56,11 +56,13 @@ async def main() -> None:
 
         first, first_duration_ms = await extract_companies()
         print(f"First extraction ({first_duration_ms}ms):")
-        print(json.dumps(first.model_dump(mode="json"), indent=2))
+        print(json.dumps(first.data.model_dump(mode="json"), indent=2))
+        print(f"Cache status: {first.metadata.cache_status or 'disabled'}")
 
         second, second_duration_ms = await extract_companies()
         print(f"Second extraction ({second_duration_ms}ms):")
-        print(json.dumps(second.model_dump(mode="json"), indent=2))
+        print(json.dumps(second.data.model_dump(mode="json"), indent=2))
+        print(f"Cache status: {second.metadata.cache_status or 'disabled'}")
     finally:
         await stagehand.close()
 

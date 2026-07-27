@@ -57,21 +57,23 @@ try {
 ## Act: one action per call
 
 - `await stagehand.act("click the sign in button")` returns
-  `{ success, message, actionDescription, actions }`. Always check `result.success`.
+  `{ data, metadata }`; `data` contains `{ success, message, actionDescription, actions }`.
+  Always check `result.data.success`.
 - Keep instructions to a single step. Chain multiple `act` calls for multi-step flows.
 - Pass secrets through `variables`, referenced as `%name%` in the instruction:
   `await stagehand.act("type %password% into the password field", { variables: { password } })`.
 
 ## Extract: typed data with Zod
 
-- `await stagehand.extract("instruction", zodSchema)` returns data validated against the schema.
+- `await stagehand.extract("instruction", zodSchema)` returns `{ data, metadata }`; `data` is
+  validated against the schema.
 - Define the schema with `zod`: `z.object({ price: z.number() })`.
 - Scope large pages with `{ selector }` or `{ ignoreSelectors }`.
 
 ## Observe: plan before acting
 
-- `await stagehand.observe("find the submit button")` returns an array of
-  `{ selector, description, method?, arguments? }`.
+- `await stagehand.observe("find the submit button")` returns `{ data, metadata }`; `data` is
+  an array of `{ selector, description, method?, arguments? }`.
 - Use it to check an element exists or to preview what `act` will do.
 
 ## Don't
@@ -133,18 +135,19 @@ asyncio.run(main())
 
 ## Act
 
-- `result = await stagehand.act("click the sign in button")`; check `result.success`.
+- `result = await stagehand.act("click the sign in button")`; check `result.data.success`.
 - One action per call. Pass secrets via `variables` with `%name%` placeholders.
 
 ## Extract: typed data with Pydantic
 
 - Define a `pydantic.BaseModel` and pass it as `schema`:
   `await stagehand.extract(instruction="...", schema=MyModel)`.
+- Read the validated model from `.data` and Stagehand-owned information from `.metadata`.
 
 ## Observe
 
-- `actions = await stagehand.observe(instruction="find the submit button")` returns a list of
-  action objects. Use it to plan or verify before acting.
+- `actions = await stagehand.observe(instruction="find the submit button")` returns
+  `{ data, metadata }`; `data` is a list of action objects.
 
 ## Don't
 
