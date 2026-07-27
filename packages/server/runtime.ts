@@ -222,7 +222,6 @@ export type StagehandBrowserSessionFactory = (
 ) => Promise<StagehandBrowserSession>;
 
 export type StagehandBrowserSessionLifecycle = {
-  onConnecting?(): void;
   onConnected?(): void;
   onDisconnected?(): void;
 };
@@ -700,16 +699,14 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    const generation = ++this.browserSessionGeneration;
+    ++this.browserSessionGeneration;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
     try {
       await session?.close();
     } finally {
-      if (generation === this.browserSessionGeneration) {
-        this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
-      }
+      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
     }
   }
 

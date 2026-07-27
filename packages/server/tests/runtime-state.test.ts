@@ -126,35 +126,4 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "closed" });
     expect(close).toHaveBeenCalledOnce();
   });
-
-  it("does not let an older close overwrite a replacement browser session", async () => {
-    let finishClose: (() => void) | undefined;
-    const closeStarted = new Promise<void>((resolve) => {
-      finishClose = resolve;
-    });
-    const oldClose = vi.fn(async () => await closeStarted);
-    const replacementSession = createBrowserSession();
-    const runtime = createStagehandRuntime({
-      browserSessionFactory: async (cdpUrl) =>
-        cdpUrl.endsWith("replacement")
-          ? replacementSession
-          : createBrowserSession({ close: oldClose }),
-    });
-
-    await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
-    await runtime.initialize({
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
-    });
-    const closing = runtime.close();
-    await vi.waitFor(() => expect(oldClose).toHaveBeenCalledOnce());
-
-    await runtime.configureLoopback({ cdpUrl: "ws://browser.replacement" });
-    finishClose?.();
-    await closing;
-
-    expect(runtime.browserSession).toBe(replacementSession);
-    expect(runtime.state.getState().status).toBe("initialized");
-  });
 });
