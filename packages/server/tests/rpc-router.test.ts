@@ -4,7 +4,7 @@ import {
   SimpleSpanProcessor,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
@@ -136,6 +136,43 @@ describe("Stagehand RPC router", () => {
     expect(logSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId);
     expect(logSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
     await tracing.shutdown();
+  });
+
+  it("applies the init log level before logging and delegates lifecycle overrides", async () => {
+    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const logs: string[] = [];
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const closeStagehand = vi.fn(async () => {});
+    const runtime = createStagehandRuntime(
+      {
+        emitLog: (log) => logs.push(log.message),
+      },
+      tracing,
+    );
+    const router = new RPCRouter(runtime, { initializeStagehand, closeStagehand });
+    const initRequest = request({
+      id: 15,
+      method: "stagehand.init",
+      params: {
+        protocol_version: 4,
+        client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        browser_cdp_url: "ws://127.0.0.1:9222/devtools/browser/session",
+        log_level: "off",
+      },
+    });
+
+    await expect(router.handle(initRequest)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(logs).not.toContain("stagehand.init");
+    expect(initializeStagehand).toHaveBeenCalledOnce();
+    expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
+
+    await expect(
+      router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
+    ).resolves.toStrictEqual({ closed: true });
+    expect(closeStagehand).toHaveBeenCalledOnce();
   });
 });
 

@@ -99,6 +99,7 @@ class FakeBrowserSession implements StagehandBrowserSession {
   closed = false;
   connected = true;
   getVersionCalls = 0;
+  prepareForInitializationCalls = 0;
   readonly pageRefs: FakeUnderstudyRuntimePage[];
   activePageRef: UnderstudyRuntimePage | undefined;
   readonly setActivePageCalls: UnderstudyRuntimePage[] = [];
@@ -129,6 +130,10 @@ class FakeBrowserSession implements StagehandBrowserSession {
   async getVersion() {
     this.getVersionCalls += 1;
     return this.version;
+  }
+
+  async prepareForInitialization(): Promise<void> {
+    this.prepareForInitializationCalls += 1;
   }
 
   pages(): UnderstudyRuntimePage[] {
@@ -758,6 +763,7 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
 
     await expect(
       handle({

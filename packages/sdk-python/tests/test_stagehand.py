@@ -36,6 +36,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
+    TelemetryConfig,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
@@ -137,6 +138,77 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
         "[stagehand] WARN Selector fallback",
         '[stagehand] ERROR Action failed {"retryable":false}',
     ]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_forwards_client_initialization_options_and_resolved_cdp_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(
+        browser="cdp",
+        cdp_url="test://browser",
+        telemetry=TelemetryConfig.model_validate({
+            "traces": {
+                "endpoint": "https://telemetry.example/v1/traces",
+                "headers": {"authorization": "secret"},
+            }
+        }),
+        system_prompt="Use the test policy",
+        self_heal=True,
+        dom_settle_timeout_ms=2_500,
+        cache=CacheOptions(threshold=3),
+    )
+
+    await stagehand.init()
+
+    init_params = cast(StagehandInitParams, recording.calls[0][1])
+    assert init_params.browser_cdp_url == recording.browser_web_socket_debugger_url
+    assert init_params.telemetry.traces.endpoint == "https://telemetry.example/v1/traces"
+    assert init_params.telemetry.traces.headers == {"authorization": "secret"}
+    assert init_params.system_prompt == "Use the test policy"
+    assert init_params.self_heal is True
+    assert init_params.dom_settle_timeout_ms == 2_500
+    assert init_params.cache is not None
+    cache = init_params.cache.root
+    assert not isinstance(cache, bool)
+    assert cache.threshold == 3
+
+
+@pytest.mark.asyncio
+async def test_stagehand_rejects_missing_resolved_cdp_url_before_init(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+    recording.browser_web_socket_debugger_url = None
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+
+    with pytest.raises(RuntimeError, match="CDP WebSocket URL is unavailable"):
+        await stagehand.init()
+
+    assert recording.calls == []
 
 
 @pytest.mark.asyncio
