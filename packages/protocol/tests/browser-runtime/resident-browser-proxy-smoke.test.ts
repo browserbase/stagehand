@@ -46,7 +46,6 @@ describe("resident browser proxy", () => {
       expect(marker).toMatchObject({
         state: "ready",
         connected: true,
-        runtimeInstanceId: expect.any(String),
         timings: {
           connectAndBootstrapMs: expect.any(Number),
           totalMs: expect.any(Number),

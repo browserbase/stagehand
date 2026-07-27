@@ -4,7 +4,7 @@ import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/pro
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
 import { defineConfig, loadEnv } from "vite";
-import { STAGEHAND_PROTOCOL_VERSION } from "../protocol/schemas.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../protocol/schemas.js";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
 
@@ -40,34 +40,45 @@ function buildExtensionArtifacts(residentTransportConfigured: boolean) {
 
       await validateExtension(outDir);
       const archive = zipSync(await readExtensionFiles(outDir), { level: 9 });
-      await mkdir(artifactsDir, { recursive: true });
-      const temporaryArchivePath = `${extensionArchivePath}.${process.pid}.tmp`;
-      try {
-        await writeFile(temporaryArchivePath, archive);
-        await rename(temporaryArchivePath, extensionArchivePath);
-      } finally {
-        await rm(temporaryArchivePath, { force: true });
-      }
       const manifestKey = manifest.key;
       if (typeof manifestKey !== "string" || manifestKey.length === 0) {
         throw new Error("Stagehand extension manifest must contain a stable public key");
       }
-      await writeFile(
-        extensionMetadataPath,
-        `${JSON.stringify(
-          {
-            chromeExtensionId: chromeExtensionId(manifestKey),
-            extensionVersion: chromeManifestVersion(packageJson.version),
-            stagehandProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
-            residentTransportConfigured,
-            sha256: sha256(archive),
-            serviceWorkerPath: "service-worker.js",
-            sourceCommit: sourceCommit(),
-          },
-          null,
-          2,
-        )}\n`,
-      );
+      const metadata = `${JSON.stringify(
+        {
+          chromeExtensionId: chromeExtensionId(manifestKey),
+          extensionVersion: chromeManifestVersion(packageJson.version),
+          stagehandProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          residentTransportConfigured,
+          sha256: sha256(archive),
+          serviceWorkerPath: "service-worker.js",
+          sourceCommit: sourceCommit(),
+        },
+        null,
+        2,
+      )}\n`;
+      await mkdir(artifactsDir, { recursive: true });
+      const temporaryArchivePath = `${extensionArchivePath}.${process.pid}.tmp`;
+      const temporaryMetadataPath = `${extensionMetadataPath}.${process.pid}.tmp`;
+      try {
+        await Promise.all([
+          writeFile(temporaryArchivePath, archive),
+          writeFile(temporaryMetadataPath, metadata),
+        ]);
+        await rename(temporaryArchivePath, extensionArchivePath);
+        await rename(temporaryMetadataPath, extensionMetadataPath);
+      } catch (error) {
+        await Promise.all([
+          rm(extensionArchivePath, { force: true }),
+          rm(extensionMetadataPath, { force: true }),
+        ]);
+        throw error;
+      } finally {
+        await Promise.all([
+          rm(temporaryArchivePath, { force: true }),
+          rm(temporaryMetadataPath, { force: true }),
+        ]);
+      }
     },
   };
 }

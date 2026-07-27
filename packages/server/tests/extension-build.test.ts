@@ -6,7 +6,7 @@ import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { loadEnv } from "vite";
 import { z } from "zod/v4";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import serverPackageJson from "../package.json" with { type: "json" };
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
