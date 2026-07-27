@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "oxfmt --check . && oxlint . && tsc --noEmit -p packages/protocol/tsconfig.json",
+    "check": "oxfmt --check . && oxlint . && tsc --noEmit -p packages/protocol/tsconfig.json && pnpm --filter ./packages/docs check",
     "docs": "pnpm --filter ./packages/docs dev",
     "fmt": "oxfmt --write .",
     "test": "pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build && pnpm --recursive --if-present test && vitest run rules/ast-grep",
