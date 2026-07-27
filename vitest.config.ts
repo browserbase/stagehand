@@ -8,6 +8,7 @@ export default defineConfig({
       "packages/protocol/tests/**/*.test.ts",
       "packages/protocol/json-rpc/tests/**/*.test.ts",
       "packages/docs/tests/**/*.test.ts",
+      "packages/evals/tests/**/*.test.ts",
       "packages/server/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
