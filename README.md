@@ -56,3 +56,14 @@ request publishes the TypeScript SDK to npm and then publishes the synchronized
 Python SDK version to PyPI if it is not already present. The protocol package is
 versioned for compatibility tracking but is not published separately.
 Underscored `just` recipes are internal CI commands.
+
+### Pull request previews
+
+Add the `preview` label to build the TypeScript package, Python wheel, and
+extension ZIP without publishing them. The workflow keeps one authenticated
+artifact and one comment up to date with the pull request. Artifacts expire
+after 30 days; push a commit or remove and reapply the label to refresh one.
+Removing the label or closing the pull request removes both.
+
+Previews do not change committed versions or changelogs, publish releases, or
+deploy a Browserbase environment.
