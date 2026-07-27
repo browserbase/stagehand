@@ -952,6 +952,10 @@ export const BrowserbaseContextSchema = z
   .meta({ id: "BrowserbaseContext" });
 
 /** Browserbase browser settings for session creation. */
+export const BrowserbaseExtensionSchema = z
+  .enum(["onepassword", "browser-events", "stagehand"])
+  .meta({ id: "BrowserbaseExtension" });
+
 export const BrowserbaseBrowserSettingsSchema = z
   .object({
     advancedStealth: z.boolean().optional(),
@@ -959,7 +963,7 @@ export const BrowserbaseBrowserSettingsSchema = z
     captchaImageSelector: z.string().optional(),
     captchaInputSelector: z.string().optional(),
     context: BrowserbaseContextSchema.optional(),
-    extensionId: z.string().optional(),
+    extensions: z.array(BrowserbaseExtensionSchema).optional(),
     fingerprint: BrowserbaseFingerprintSchema.optional(),
     logSession: z.boolean().optional(),
     os: z.enum(["windows", "mac", "linux", "mobile", "tablet"]).optional(),

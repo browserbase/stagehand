@@ -24,7 +24,7 @@ describe("resolveBrowserSource", () => {
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       browserbaseSessionId: "new-session",
       preloadedExtension: true,
-      residentBrowserConnection: false,
+      residentBrowserConnection: true,
       keepAlive: false,
       close,
     });

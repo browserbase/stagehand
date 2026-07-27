@@ -55,7 +55,7 @@ export async function resolveBrowserSource(
       cdpUrl: session.cdpUrl,
       browserbaseSessionId: session.sessionId,
       preloadedExtension: true,
-      residentBrowserConnection: false,
+      residentBrowserConnection: true,
       keepAlive: browser.keepAlive ?? false,
       close: session.close,
     };

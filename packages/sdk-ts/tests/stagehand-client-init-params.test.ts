@@ -85,21 +85,45 @@ describe("Stagehand client browser sources", () => {
     ).toThrow();
   });
 
-  it("rejects Browserbase extension IDs because the SDK provisions its own extension", () => {
-    const browserSources = [
-      {
+  it("accepts an uploaded extension alongside the built-in Stagehand extension", () => {
+    expect(
+      StagehandClientInitParamsSchema.parse({
+        apiKey: "bb_key",
+        browser: {
+          type: "browserbase",
+          extensionId: "ext_caller",
+        },
+      }),
+    ).toMatchObject({
+      browser: {
         type: "browserbase",
         extensionId: "ext_caller",
       },
-      {
-        type: "browserbase",
-        browserSettings: { extensionId: "ext_caller" },
-      },
-    ];
+    });
+  });
 
-    for (const browser of browserSources) {
-      expect(() => StagehandClientInitParamsSchema.parse({ apiKey: "bb_key", browser })).toThrow();
-    }
+  it("rejects an uploaded extension ID nested in browser settings", () => {
+    expect(() =>
+      StagehandClientInitParamsSchema.parse({
+        apiKey: "bb_key",
+        browser: {
+          type: "browserbase",
+          browserSettings: { extensionId: "ext_caller" },
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unknown built-in extension names", () => {
+    expect(() =>
+      StagehandClientInitParamsSchema.parse({
+        apiKey: "bb_key",
+        browser: {
+          type: "browserbase",
+          browserSettings: { extensions: ["customer-extension"] },
+        },
+      }),
+    ).toThrow();
   });
 
   it("rejects a caller-provided Browserbase session ID", () => {

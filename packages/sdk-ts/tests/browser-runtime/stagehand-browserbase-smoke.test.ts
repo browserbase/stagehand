@@ -2,7 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Stagehand } from "../../src/index.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
-const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
+// Production Browserbase does not accept the built-in Stagehand extension until
+// the corresponding Core rollout lands. Keep this smoke explicitly opt-in so
+// the client stack can land first, then enable it as part of that rollout.
+const shouldRun = process.env.BROWSERBASE_RESIDENT_SMOKE === "1";
 
 describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
   let stagehand: Stagehand | undefined;

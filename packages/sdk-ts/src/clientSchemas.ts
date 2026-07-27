@@ -22,14 +22,11 @@ import {
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
 
-const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
-  extensionId: true,
-}).strict();
+const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.strict();
 
-/** Browserbase source fields exposed by the TS SDK. Stagehand provisions its own extension. */
+/** Browserbase source fields exposed by the TS SDK. */
 export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.omit({
   browserSettings: true,
-  extensionId: true,
 })
   .extend({
     type: z.literal("browserbase"),

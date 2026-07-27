@@ -1,9 +1,31 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from stagehand.browser_source import ResolvedBrowserSource, resolve_browser_source
 from stagehand.client_models import StagehandClientInitParams
+
+
+def test_browserbase_uploaded_extension_id_is_top_level_only() -> None:
+    params = StagehandClientInitParams.model_validate({
+        "api_key": "test",
+        "browser": {
+            "type": "browserbase",
+            "extension_id": "uploaded-extension",
+            "browser_settings": {"extensions": ["browser-events"]},
+        },
+    })
+
+    assert params.browser.extension_id == "uploaded-extension"
+    with pytest.raises(ValidationError):
+        StagehandClientInitParams.model_validate({
+            "api_key": "test",
+            "browser": {
+                "type": "browserbase",
+                "browser_settings": {"extension_id": "uploaded-extension"},
+            },
+        })
 
 
 @pytest.mark.asyncio
