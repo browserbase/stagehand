@@ -65,6 +65,9 @@ export async function observe({
       }
       return { result: actions };
     },
+    setCacheStatus: (result, cacheStatus) => {
+      result.cacheStatus = cacheStatus;
+    },
     execute: () => runObservation(),
   });
 

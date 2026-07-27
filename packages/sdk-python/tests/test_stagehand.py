@@ -255,7 +255,10 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         "context.active_page": PageRef(page_id="active-page"),
         "stagehand.act": ActResult(result=act_result),
         "stagehand.observe": ObserveResult(result=[action]),
-        "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
+        "stagehand.extract": ExtractResult(
+            data={"heading": "Example Domain"},
+            metadata={"cache_status": "HIT"},
+        ),
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")
@@ -291,7 +294,8 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
 
     assert action_result == act_result
     assert actions == [action]
-    assert page_info == PageInfo(heading="Example Domain")
+    assert page_info.data == PageInfo(heading="Example Domain")
+    assert page_info.metadata.cache_status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",
         "stagehand.act",

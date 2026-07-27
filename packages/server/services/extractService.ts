@@ -73,8 +73,11 @@ export async function extract({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => ({ result: value }),
+    onHit: (value) => ({ data: z.json().parse(value), metadata: {} }),
     execute: () => runExtraction(),
+    setCacheStatus: (result, cacheStatus) => {
+      result.metadata.cacheStatus = cacheStatus;
+    },
   });
 
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
@@ -147,7 +150,7 @@ export async function extract({
     );
 
     return {
-      result: { result: output },
+      result: { data: z.json().parse(output), metadata: {} },
       cacheValue: output,
       llmUsage: {
         inputTokens: prompt_tokens,

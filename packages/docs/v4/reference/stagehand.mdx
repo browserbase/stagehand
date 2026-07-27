@@ -410,6 +410,7 @@ Extract structured data from the page.
 
 ```typescript
 const product = await stagehand.extract("Extract the product", ProductSchema);
+console.log(product.data, product.metadata.cacheStatus);
 ```
 
 <ParamField path="instruction" type="string">
@@ -483,8 +484,20 @@ const product = await stagehand.extract("Extract the product", ProductSchema);
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="Promise<z.output<Schema>>">
-  The operation result.
+<ResponseField name="result" type="Promise<ExtractResult<Schema>>">
+  The extraction result.
+
+  <ResponseField name="result.data" type="z.output<Schema>">
+    Data validated against the caller's schema.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.cacheStatus" type='"HIT" | "MISS"' optional>
+    Whether server-side caching served or computed the result.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.actionId" type="string" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
 </ResponseField>
 
 </View>
@@ -887,6 +900,7 @@ Extract structured data from the page.
 
 ```python
 product = await stagehand.extract(instruction="Extract the product", schema=Product)
+print(product.data, product.metadata.cache_status)
 ```
 
 <ParamField path="instruction" type="str">
@@ -957,8 +971,20 @@ product = await stagehand.extract(instruction="Extract the product", schema=Prod
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="ResultModel">
-  The operation result.
+<ResponseField name="result" type="ExtractResult[ResultModel]">
+  The extraction result.
+
+  <ResponseField name="result.data" type="ResultModel">
+    Data validated against the caller's Pydantic model.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.cache_status" type='"HIT" | "MISS"' optional>
+    Whether server-side caching served or computed the result.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="str" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
 </ResponseField>
 
 </View>

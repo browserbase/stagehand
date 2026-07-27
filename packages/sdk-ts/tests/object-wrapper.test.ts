@@ -838,7 +838,8 @@ describe("Stagehand TS object wrapper", () => {
   it("sends the caller's Zod schema through stagehand.extract", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
-      result: { heading: "Example Domain" },
+      data: { heading: "Example Domain" },
+      metadata: { cacheStatus: "HIT" },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -847,7 +848,10 @@ describe("Stagehand TS object wrapper", () => {
 
     await expect(
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
-    ).resolves.toStrictEqual({ heading: "Example Domain" });
+    ).resolves.toStrictEqual({
+      data: { heading: "Example Domain" },
+      metadata: { cacheStatus: "HIT" },
+    });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
       requestCall(StagehandMethods.stagehandExtract, {
@@ -862,7 +866,8 @@ describe("Stagehand TS object wrapper", () => {
   it("validates stagehand.extract data with the caller's original Zod schema", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
-      result: { heading: 42 },
+      data: { heading: 42 },
+      metadata: {},
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();

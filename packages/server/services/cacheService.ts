@@ -155,7 +155,7 @@ export interface CacheExecuteOutcome<Result> {
  * or whenever any cache step fails, including `onHit` itself — falls back to
  * `execute` and then persists the outcome's `cacheValue`.
  */
-export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
+export async function withCache<Result>({
   method,
   page,
   data,
@@ -165,6 +165,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   logger,
   onHit,
   execute,
+  setCacheStatus,
 }: {
   method: CacheMethod;
   page: unknown;
@@ -178,6 +179,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   logger: StagehandLogger;
   onHit: (value: unknown) => Promise<Result> | Result;
   execute: () => Promise<CacheExecuteOutcome<Result>>;
+  setCacheStatus: (result: Result, status: CacheStatus) => void;
 }): Promise<Result> {
   const resolvedCaching = caching ?? context?.defaultCaching ?? false;
   const cachePage = resolvedCaching !== false ? asCachePage(page) : null;
@@ -212,7 +214,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   if (getResponse?.hit && getResponse.value !== undefined && getResponse.value !== null) {
     try {
       const result = await onHit(getResponse.value);
-      result.cacheStatus = "HIT";
+      setCacheStatus(result, "HIT");
       logger.debug("Cache hit", {
         category: "cache",
         method,
@@ -239,7 +241,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   }
 
   const outcome = await execute();
-  outcome.result.cacheStatus = "MISS";
+  setCacheStatus(outcome.result, "MISS");
 
   if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
     try {

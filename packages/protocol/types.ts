@@ -64,6 +64,7 @@ import type {
   EmptyParamsSchema,
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
+  ExtractMetadataSchema,
   ExtractResultSchema,
   CustomModelConfigSchema,
   GoogleModelIdSchema,
@@ -255,6 +256,7 @@ export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;
 export type ActResult = z.infer<typeof ActResultSchema>;
 export type ExtractOptions = z.infer<typeof ExtractOptionsSchema>;
+export type ExtractMetadata = z.infer<typeof ExtractMetadataSchema>;
 export type ExtractResult = z.infer<typeof ExtractResultSchema>;
 export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;

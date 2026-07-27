@@ -88,6 +88,9 @@ export async function act({
     context: cache,
     logger,
     onHit: (value) => replayCachedActions(value, input, variables, context),
+    setCacheStatus: (result, cacheStatus) => {
+      result.cacheStatus = cacheStatus;
+    },
     execute: async () => {
       const result = await runActPipeline();
       return {

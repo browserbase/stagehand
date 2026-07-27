@@ -43,6 +43,7 @@ from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
     CacheOptions,
+    ExtractResult,
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,
@@ -68,6 +69,7 @@ __all__ = [
     "CookieParam",
     "DomainPolicy",
     "ExternalProxyConfig",
+    "ExtractResult",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",

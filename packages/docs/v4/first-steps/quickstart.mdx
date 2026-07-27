@@ -63,7 +63,7 @@ try {
     "Extract the page heading and description",
     z.object({ heading: z.string(), description: z.string() }),
   );
-  console.log(info);
+  console.log(info.data);
 } finally {
   await stagehand.close();
 }
@@ -139,7 +139,7 @@ async def main() -> None:
             instruction="Extract the page heading and description",
             schema=PageInfo,
         )
-        print(info)
+        print(info.data)
     finally:
         await stagehand.close()
 

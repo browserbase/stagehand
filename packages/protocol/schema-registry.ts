@@ -151,7 +151,7 @@ export const StagehandMethods = {
     params: StagehandExtractParamsSchema,
     result: ExtractResultSchema,
     paramsWire: { opaqueKeys: ["schema"] },
-    resultWire: { opaqueKeys: ["result"] },
+    resultWire: { opaqueKeys: ["data"] },
   },
   stagehandMetrics: {
     name: "stagehand.metrics",

@@ -1200,20 +1200,23 @@ export const ExtractOptionsSchema = z
   .optional()
   .meta({ id: "ExtractOptions" });
 
-export const ExtractResultSchema = z
-  .object({
-    result: z.unknown().meta({
-      description: "Extracted data matching the requested schema",
-      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-        jsonSchema["x-stainless-any"] = true;
-      },
-    }),
+export const ExtractMetadataSchema = z
+  .strictObject({
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
     cacheStatus: CacheStatusSchema.optional().meta({
       description: "Server-side cache status for this result",
     }),
+  })
+  .meta({ id: "ExtractMetadata" });
+
+export const ExtractResultSchema = z
+  .strictObject({
+    data: z.json().meta({
+      description: "Extracted data matching the requested schema",
+    }),
+    metadata: ExtractMetadataSchema,
   })
   .meta({ id: "ExtractResult" });
 

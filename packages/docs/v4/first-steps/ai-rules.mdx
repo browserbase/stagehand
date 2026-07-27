@@ -64,7 +64,8 @@ try {
 
 ## Extract: typed data with Zod
 
-- `await stagehand.extract("instruction", zodSchema)` returns data validated against the schema.
+- `await stagehand.extract("instruction", zodSchema)` returns `{ data, metadata }`; `data` is
+  validated against the schema.
 - Define the schema with `zod`: `z.object({ price: z.number() })`.
 - Scope large pages with `{ selector }` or `{ ignoreSelectors }`.
 
@@ -140,6 +141,7 @@ asyncio.run(main())
 
 - Define a `pydantic.BaseModel` and pass it as `schema`:
   `await stagehand.extract(instruction="...", schema=MyModel)`.
+- Read the validated model from `.data` and Stagehand-owned information from `.metadata`.
 
 ## Observe
 

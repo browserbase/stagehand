@@ -552,6 +552,17 @@ class ExternalProxyConfig(WireModel):
     password: Optional[StrictStr] = None
 
 
+class ExtractMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    action_id: Optional[StrictStr] = None
+    """Action ID for tracking"""
+    cache_status: Optional[CacheStatus] = None
+    """Server-side cache status for this result"""
+
+
 class ExtractOptions(WireModel):
     model_config = ConfigDict(
         validate_by_name=True,
@@ -593,14 +604,12 @@ class ExtractOptions(WireModel):
 
 class ExtractResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
-    result: Any
+    data: Optional[FieldSchema1]
     """Extracted data matching the requested schema"""
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    metadata: ExtractMetadata
 
 
 class FieldSchema0(
@@ -619,6 +628,12 @@ class FieldSchema10(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
+
+
+class FieldSchema11(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
 class FieldSchema2(
@@ -708,7 +723,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema10] = None
+    data: Optional[FieldSchema11] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -788,7 +803,7 @@ class LLMJsonSchemaResponseFormat(WireModel):
     type: Literal["json_schema"]
     name: StrictStr
     description: Optional[StrictStr] = None
-    schema_: Annotated[Optional[FieldSchema3], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema4], Field(alias="schema")]
 
 
 class LLMMessage(WireModel):
@@ -820,7 +835,7 @@ class LLMMessageGenerateResult(WireModel):
         validate_by_name=True,
     )
     __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
+        "__pydantic_extra__": Dict[str, Optional[FieldSchema6]],
     }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
@@ -858,14 +873,14 @@ class LLMStructuredGenerateResult(WireModel):
         validate_by_name=True,
     )
     __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
+        "__pydantic_extra__": Dict[str, Optional[FieldSchema6]],
     }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
     stop_reason: Optional[StrictStr] = None
     usage: Optional[LLMUsage] = None
     output_format: Literal["json_schema"]
-    structured_content: Optional[FieldSchema6]
+    structured_content: Optional[FieldSchema7]
 
 
 class LLMGenerateResult(
@@ -939,7 +954,7 @@ class LLMToolJson(WireModel):
     )
     field_schema: Annotated[Optional[StrictStr], Field(alias="$schema")] = None
     type: Literal["object"]
-    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema4]]]] = (
+    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema5]]]] = (
         None
     )
     required: Optional[list[StrictStr]] = None
@@ -953,7 +968,7 @@ class LLMToolResultContent(WireModel):
     type: Literal["tool_result"]
     tool_use_id: StrictStr
     content: list[LLMToolResultContentBlock]
-    structured_content: Optional[dict[StrictStr, Optional[FieldSchema2]]] = None
+    structured_content: Optional[dict[StrictStr, Optional[FieldSchema3]]] = None
     is_error: Optional[StrictBool] = None
 
 
@@ -969,7 +984,7 @@ class LLMToolUseContent(WireModel):
     type: Literal["tool_use"]
     id: StrictStr
     name: StrictStr
-    input: dict[StrictStr, Optional[FieldSchema1]]
+    input: dict[StrictStr, Optional[FieldSchema2]]
 
 
 class LLMMessageContentBlock(
@@ -1468,7 +1483,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema7]
+    value: Optional[FieldSchema8]
 
 
 class PageGoBackParams(WireModel):
@@ -1943,8 +1958,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
-    root: dict[StrictStr, Optional[FieldSchema8]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
+    root: dict[StrictStr, Optional[FieldSchema9]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2056,6 +2071,7 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
+FieldSchema11.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

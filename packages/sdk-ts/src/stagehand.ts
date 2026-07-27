@@ -35,6 +35,12 @@ type StagehandAdapters = {
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 
+type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
+
+export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
+  data: z.output<Schema>;
+};
+
 export class Stagehand {
   browserContext: BrowserContext | undefined;
   isInitialized = false;
@@ -170,7 +176,7 @@ export class Stagehand {
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<z.output<Schema>> {
+  ): Promise<ExtractResult<Schema>> {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -182,7 +188,10 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return schema.parse(response.result);
+    return {
+      ...response,
+      data: schema.parse(response.data),
+    };
   }
 
   close(): Promise<void> {
