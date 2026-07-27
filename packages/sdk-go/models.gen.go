@@ -8,28 +8,28 @@ import "encoding/json"
 
 type ActOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
-	Cache *Caching `json:"cache,omitempty,omitzero"`
+	Cache *Caching `json:"cache,omitempty"`
 
 	// Serializable element locator for the action target
-	Locator *Locator `json:"locator,omitempty,omitzero"`
+	Locator *Locator `json:"locator,omitempty"`
 
 	// Model corresponds to the JSON schema field "model".
-	Model *ModelConfig `json:"model,omitempty,omitzero"`
+	Model *ModelConfig `json:"model,omitempty"`
 
 	// Timeout in ms for the action
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+	Timeout *float64 `json:"timeout,omitempty"`
 
 	// Variables to substitute in the action instruction. Accepts flat primitives or {
 	// value, description? } objects.
-	Variables Variables `json:"variables,omitempty,omitzero"`
+	Variables Variables `json:"variables,omitempty"`
 }
 
 type ActResult struct {
 	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	ActionID *string `json:"action_id,omitempty"`
 
 	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	CacheStatus *CacheStatus `json:"cache_status,omitempty"`
 
 	// Result corresponds to the JSON schema field "result".
 	Result ActResultData `json:"result"`
@@ -52,13 +52,13 @@ type ActResultData struct {
 // Action object returned by observe and used by act
 type Action struct {
 	// Arguments to pass to the method
-	Arguments []string `json:"arguments,omitempty,omitzero"`
+	Arguments []string `json:"arguments,omitempty"`
 
 	// Human-readable description of the action
 	Description string `json:"description"`
 
 	// The method to execute (click, fill, etc.)
-	Method *string `json:"method,omitempty,omitzero"`
+	Method *string `json:"method,omitempty"`
 
 	// CSS selector or XPath for the element
 	Selector string `json:"selector"`
@@ -68,62 +68,62 @@ type AnthropicModelName string
 
 type BrowserGetVersionResult struct {
 	// JSVersion corresponds to the JSON schema field "js_version".
-	JSVersion *string `json:"js_version,omitempty,omitzero"`
+	JSVersion *string `json:"js_version,omitempty"`
 
 	// Product corresponds to the JSON schema field "product".
-	Product *string `json:"product,omitempty,omitzero"`
+	Product *string `json:"product,omitempty"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *string `json:"protocol_version,omitempty,omitzero"`
+	ProtocolVersion *string `json:"protocol_version,omitempty"`
 
 	// Revision corresponds to the JSON schema field "revision".
-	Revision *string `json:"revision,omitempty,omitzero"`
+	Revision *string `json:"revision,omitempty"`
 
 	// UserAgent corresponds to the JSON schema field "user_agent".
-	UserAgent *string `json:"user_agent,omitempty,omitzero"`
+	UserAgent *string `json:"user_agent,omitempty"`
 }
 
 type BrowserbaseBrowserSettings struct {
 	// AdvancedStealth corresponds to the JSON schema field "advanced_stealth".
-	AdvancedStealth *bool `json:"advanced_stealth,omitempty,omitzero"`
+	AdvancedStealth *bool `json:"advanced_stealth,omitempty"`
 
 	// BlockAds corresponds to the JSON schema field "block_ads".
-	BlockAds *bool `json:"block_ads,omitempty,omitzero"`
+	BlockAds *bool `json:"block_ads,omitempty"`
 
 	// CaptchaImageSelector corresponds to the JSON schema field
 	// "captcha_image_selector".
-	CaptchaImageSelector *string `json:"captcha_image_selector,omitempty,omitzero"`
+	CaptchaImageSelector *string `json:"captcha_image_selector,omitempty"`
 
 	// CaptchaInputSelector corresponds to the JSON schema field
 	// "captcha_input_selector".
-	CaptchaInputSelector *string `json:"captcha_input_selector,omitempty,omitzero"`
+	CaptchaInputSelector *string `json:"captcha_input_selector,omitempty"`
 
 	// Context corresponds to the JSON schema field "context".
-	Context *BrowserbaseContext `json:"context,omitempty,omitzero"`
+	Context *BrowserbaseContext `json:"context,omitempty"`
 
 	// ExtensionID corresponds to the JSON schema field "extension_id".
-	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
+	ExtensionID *string `json:"extension_id,omitempty"`
 
 	// Fingerprint corresponds to the JSON schema field "fingerprint".
-	Fingerprint *BrowserbaseFingerprint `json:"fingerprint,omitempty,omitzero"`
+	Fingerprint *BrowserbaseFingerprint `json:"fingerprint,omitempty"`
 
 	// LogSession corresponds to the JSON schema field "log_session".
-	LogSession *bool `json:"log_session,omitempty,omitzero"`
+	LogSession *bool `json:"log_session,omitempty"`
 
 	// OS corresponds to the JSON schema field "os".
-	OS *BrowserbaseBrowserSettingsOS `json:"os,omitempty,omitzero"`
+	OS *BrowserbaseBrowserSettingsOS `json:"os,omitempty"`
 
 	// RecordSession corresponds to the JSON schema field "record_session".
-	RecordSession *bool `json:"record_session,omitempty,omitzero"`
+	RecordSession *bool `json:"record_session,omitempty"`
 
 	// SolveCaptchas corresponds to the JSON schema field "solve_captchas".
-	SolveCaptchas *bool `json:"solve_captchas,omitempty,omitzero"`
+	SolveCaptchas *bool `json:"solve_captchas,omitempty"`
 
 	// Verified corresponds to the JSON schema field "verified".
-	Verified *bool `json:"verified,omitempty,omitzero"`
+	Verified *bool `json:"verified,omitempty"`
 
 	// Viewport corresponds to the JSON schema field "viewport".
-	Viewport *BrowserbaseViewport `json:"viewport,omitempty,omitzero"`
+	Viewport *BrowserbaseViewport `json:"viewport,omitempty"`
 }
 
 type BrowserbaseBrowserSettingsOS string
@@ -136,31 +136,31 @@ const BrowserbaseBrowserSettingsOSWindows BrowserbaseBrowserSettingsOS = "window
 
 type BrowserbaseBrowserSource struct {
 	// BrowserSettings corresponds to the JSON schema field "browser_settings".
-	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
+	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty"`
 
 	// ExtensionID corresponds to the JSON schema field "extension_id".
-	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
+	ExtensionID *string `json:"extension_id,omitempty"`
 
 	// KeepAlive corresponds to the JSON schema field "keep_alive".
-	KeepAlive *bool `json:"keep_alive,omitempty,omitzero"`
+	KeepAlive *bool `json:"keep_alive,omitempty"`
 
 	// Proxies corresponds to the JSON schema field "proxies".
-	Proxies *BrowserbaseProxies `json:"proxies,omitempty,omitzero"`
+	Proxies *BrowserbaseProxies `json:"proxies,omitempty"`
 
 	// Region corresponds to the JSON schema field "region".
-	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
+	Region *BrowserbaseRegion `json:"region,omitempty"`
 
 	// SessionID corresponds to the JSON schema field "session_id".
 	SessionID string `json:"session_id"`
 
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+	Timeout *float64 `json:"timeout,omitempty"`
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
 
 	// UserMetadata corresponds to the JSON schema field "user_metadata".
-	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
+	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty"`
 }
 
 type BrowserbaseContext struct {
@@ -168,27 +168,27 @@ type BrowserbaseContext struct {
 	ID string `json:"id"`
 
 	// Persist corresponds to the JSON schema field "persist".
-	Persist *bool `json:"persist,omitempty,omitzero"`
+	Persist *bool `json:"persist,omitempty"`
 }
 
 type BrowserbaseFingerprint struct {
 	// Browsers corresponds to the JSON schema field "browsers".
-	Browsers []BrowserbaseFingerprintBrowsersElem `json:"browsers,omitempty,omitzero"`
+	Browsers []BrowserbaseFingerprintBrowsersElem `json:"browsers,omitempty"`
 
 	// Devices corresponds to the JSON schema field "devices".
-	Devices []BrowserbaseFingerprintDevicesElem `json:"devices,omitempty,omitzero"`
+	Devices []BrowserbaseFingerprintDevicesElem `json:"devices,omitempty"`
 
 	// HTTPVersion corresponds to the JSON schema field "http_version".
-	HTTPVersion *BrowserbaseFingerprintHTTPVersion `json:"http_version,omitempty,omitzero"`
+	HTTPVersion *BrowserbaseFingerprintHTTPVersion `json:"http_version,omitempty"`
 
 	// Locales corresponds to the JSON schema field "locales".
-	Locales []string `json:"locales,omitempty,omitzero"`
+	Locales []string `json:"locales,omitempty"`
 
 	// OperatingSystems corresponds to the JSON schema field "operating_systems".
-	OperatingSystems []BrowserbaseFingerprintOperatingSystemsElem `json:"operating_systems,omitempty,omitzero"`
+	OperatingSystems []BrowserbaseFingerprintOperatingSystemsElem `json:"operating_systems,omitempty"`
 
 	// Screen corresponds to the JSON schema field "screen".
-	Screen *BrowserbaseFingerprintScreen `json:"screen,omitempty,omitzero"`
+	Screen *BrowserbaseFingerprintScreen `json:"screen,omitempty"`
 }
 
 type BrowserbaseFingerprintBrowsersElem string
@@ -218,24 +218,24 @@ const BrowserbaseFingerprintOperatingSystemsElemWindows BrowserbaseFingerprintOp
 
 type BrowserbaseFingerprintScreen struct {
 	// MaxHeight corresponds to the JSON schema field "max_height".
-	MaxHeight *float64 `json:"max_height,omitempty,omitzero"`
+	MaxHeight *float64 `json:"max_height,omitempty"`
 
 	// MaxWidth corresponds to the JSON schema field "max_width".
-	MaxWidth *float64 `json:"max_width,omitempty,omitzero"`
+	MaxWidth *float64 `json:"max_width,omitempty"`
 
 	// MinHeight corresponds to the JSON schema field "min_height".
-	MinHeight *float64 `json:"min_height,omitempty,omitzero"`
+	MinHeight *float64 `json:"min_height,omitempty"`
 
 	// MinWidth corresponds to the JSON schema field "min_width".
-	MinWidth *float64 `json:"min_width,omitempty,omitzero"`
+	MinWidth *float64 `json:"min_width,omitempty"`
 }
 
 type BrowserbaseProxyConfig struct {
 	// DomainPattern corresponds to the JSON schema field "domain_pattern".
-	DomainPattern *string `json:"domain_pattern,omitempty,omitzero"`
+	DomainPattern *string `json:"domain_pattern,omitempty"`
 
 	// Geolocation corresponds to the JSON schema field "geolocation".
-	Geolocation *BrowserbaseProxyGeolocation `json:"geolocation,omitempty,omitzero"`
+	Geolocation *BrowserbaseProxyGeolocation `json:"geolocation,omitempty"`
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
@@ -243,13 +243,13 @@ type BrowserbaseProxyConfig struct {
 
 type BrowserbaseProxyGeolocation struct {
 	// City corresponds to the JSON schema field "city".
-	City *string `json:"city,omitempty,omitzero"`
+	City *string `json:"city,omitempty"`
 
 	// Country corresponds to the JSON schema field "country".
 	Country string `json:"country"`
 
 	// State corresponds to the JSON schema field "state".
-	State *string `json:"state,omitempty,omitzero"`
+	State *string `json:"state,omitempty"`
 }
 
 type BrowserbaseRegion string
@@ -261,10 +261,10 @@ const BrowserbaseRegionUSWest2 BrowserbaseRegion = "us-west-2"
 
 type BrowserbaseViewport struct {
 	// Height corresponds to the JSON schema field "height".
-	Height *float64 `json:"height,omitempty,omitzero"`
+	Height *float64 `json:"height,omitempty"`
 
 	// Width corresponds to the JSON schema field "width".
-	Width *float64 `json:"width,omitempty,omitzero"`
+	Width *float64 `json:"width,omitempty"`
 }
 
 type CacheStatus string
@@ -276,13 +276,13 @@ type CerebrasModelName string
 
 type ClearCookieOptions struct {
 	// Domain corresponds to the JSON schema field "domain".
-	Domain *CookieFilter `json:"domain,omitempty,omitzero"`
+	Domain *CookieFilter `json:"domain,omitempty"`
 
 	// Name corresponds to the JSON schema field "name".
-	Name *CookieFilter `json:"name,omitempty,omitzero"`
+	Name *CookieFilter `json:"name,omitempty"`
 
 	// Path corresponds to the JSON schema field "path".
-	Path *CookieFilter `json:"path,omitempty,omitzero"`
+	Path *CookieFilter `json:"path,omitempty"`
 }
 
 type ClientModelReference struct {
@@ -302,15 +302,15 @@ type ContextAddInitScriptParams struct {
 
 type ContextClearCookiesParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *ClearCookieOptions `json:"options,omitempty,omitzero"`
+	Options *ClearCookieOptions `json:"options,omitempty"`
 }
 
 type ContextClipboardPasteParams struct {
 	// PageID corresponds to the JSON schema field "page_id".
-	PageID *string `json:"page_id,omitempty,omitzero"`
+	PageID *string `json:"page_id,omitempty"`
 
 	// Shortcut corresponds to the JSON schema field "shortcut".
-	Shortcut *ContextClipboardPasteParamsShortcut `json:"shortcut,omitempty,omitzero"`
+	Shortcut *ContextClipboardPasteParamsShortcut `json:"shortcut,omitempty"`
 }
 
 type ContextClipboardPasteParamsShortcut string
@@ -326,12 +326,12 @@ type ContextClipboardReadTextResult struct {
 
 type ContextClipboardTarget struct {
 	// PageID corresponds to the JSON schema field "page_id".
-	PageID *string `json:"page_id,omitempty,omitzero"`
+	PageID *string `json:"page_id,omitempty"`
 }
 
 type ContextClipboardWriteTextParams struct {
 	// PageID corresponds to the JSON schema field "page_id".
-	PageID *string `json:"page_id,omitempty,omitzero"`
+	PageID *string `json:"page_id,omitempty"`
 
 	// Text corresponds to the JSON schema field "text".
 	Text string `json:"text"`
@@ -344,7 +344,7 @@ type ContextCloseResult struct {
 
 type ContextCookiesParams struct {
 	// Urls corresponds to the JSON schema field "urls".
-	Urls *StringList `json:"urls,omitempty,omitzero"`
+	Urls *StringList `json:"urls,omitempty"`
 }
 
 type ContextCookiesResult struct {
@@ -359,7 +359,7 @@ type ContextGetDomainPolicyResult struct {
 
 type ContextNewPageParams struct {
 	// URL corresponds to the JSON schema field "url".
-	URL *string `json:"url,omitempty,omitzero"`
+	URL *string `json:"url,omitempty"`
 }
 
 type ContextPagesResult []PageRef
@@ -414,28 +414,28 @@ type Cookie struct {
 
 type CookieParam struct {
 	// Domain corresponds to the JSON schema field "domain".
-	Domain *string `json:"domain,omitempty,omitzero"`
+	Domain *string `json:"domain,omitempty"`
 
 	// Expires corresponds to the JSON schema field "expires".
-	Expires *float64 `json:"expires,omitempty,omitzero"`
+	Expires *float64 `json:"expires,omitempty"`
 
 	// HTTPOnly corresponds to the JSON schema field "http_only".
-	HTTPOnly *bool `json:"http_only,omitempty,omitzero"`
+	HTTPOnly *bool `json:"http_only,omitempty"`
 
 	// Name corresponds to the JSON schema field "name".
 	Name string `json:"name"`
 
 	// Path corresponds to the JSON schema field "path".
-	Path *string `json:"path,omitempty,omitzero"`
+	Path *string `json:"path,omitempty"`
 
 	// SameSite corresponds to the JSON schema field "same_site".
-	SameSite *CookieParamSameSite `json:"same_site,omitempty,omitzero"`
+	SameSite *CookieParamSameSite `json:"same_site,omitempty"`
 
 	// Secure corresponds to the JSON schema field "secure".
-	Secure *bool `json:"secure,omitempty,omitzero"`
+	Secure *bool `json:"secure,omitempty"`
 
 	// URL corresponds to the JSON schema field "url".
-	URL *string `json:"url,omitempty,omitzero"`
+	URL *string `json:"url,omitempty"`
 
 	// Value corresponds to the JSON schema field "value".
 	Value string `json:"value"`
@@ -449,7 +449,7 @@ const CookieParamSameSiteStrict CookieParamSameSite = "Strict"
 
 type CookieRegex struct {
 	// Flags corresponds to the JSON schema field "flags".
-	Flags *string `json:"flags,omitempty,omitzero"`
+	Flags *string `json:"flags,omitempty"`
 
 	// Source corresponds to the JSON schema field "source".
 	Source string `json:"source"`
@@ -463,13 +463,13 @@ const CookieSameSiteStrict CookieSameSite = "Strict"
 
 type CustomModelConfig struct {
 	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
+	APIKey *string `json:"api_key,omitempty"`
 
 	// Base URL for the custom OpenAI-compatible endpoint
 	BaseURL string `json:"base_url"`
 
 	// Custom headers sent with every request to the model provider
-	Headers CustomModelConfigHeaders `json:"headers,omitempty,omitzero"`
+	Headers CustomModelConfigHeaders `json:"headers,omitempty"`
 
 	// Model name accepted by the custom OpenAI-compatible endpoint
 	ModelName string `json:"model_name"`
@@ -480,7 +480,7 @@ type CustomModelConfigHeaders map[string]string
 
 type DescribedVariableValue struct {
 	// Description corresponds to the JSON schema field "description".
-	Description *string `json:"description,omitempty,omitzero"`
+	Description *string `json:"description,omitempty"`
 
 	// Value corresponds to the JSON schema field "value".
 	Value VariablePrimitive `json:"value"`
@@ -488,18 +488,18 @@ type DescribedVariableValue struct {
 
 type DomainPolicy struct {
 	// AllowedDomains corresponds to the JSON schema field "allowed_domains".
-	AllowedDomains []string `json:"allowed_domains,omitempty,omitzero"`
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
 
 	// BlockedDomains corresponds to the JSON schema field "blocked_domains".
-	BlockedDomains []string `json:"blocked_domains,omitempty,omitzero"`
+	BlockedDomains []string `json:"blocked_domains,omitempty"`
 }
 
 type ExternalProxyConfig struct {
 	// DomainPattern corresponds to the JSON schema field "domain_pattern".
-	DomainPattern *string `json:"domain_pattern,omitempty,omitzero"`
+	DomainPattern *string `json:"domain_pattern,omitempty"`
 
 	// Password corresponds to the JSON schema field "password".
-	Password *string `json:"password,omitempty,omitzero"`
+	Password *string `json:"password,omitempty"`
 
 	// Server corresponds to the JSON schema field "server".
 	Server string `json:"server"`
@@ -508,39 +508,39 @@ type ExternalProxyConfig struct {
 	Type string `json:"type"`
 
 	// Username corresponds to the JSON schema field "username".
-	Username *string `json:"username,omitempty,omitzero"`
+	Username *string `json:"username,omitempty"`
 }
 
 type ExtractOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
-	Cache *Caching `json:"cache,omitempty,omitzero"`
+	Cache *Caching `json:"cache,omitempty"`
 
 	// Selectors for elements and subtrees that should be excluded from extraction
-	IgnoreSelectors []string `json:"ignore_selectors,omitempty,omitzero"`
+	IgnoreSelectors []string `json:"ignore_selectors,omitempty"`
 
 	// Serializable element locator for the extraction target
-	Locator *Locator `json:"locator,omitempty,omitzero"`
+	Locator *Locator `json:"locator,omitempty"`
 
 	// Model corresponds to the JSON schema field "model".
-	Model *ModelConfig `json:"model,omitempty,omitzero"`
+	Model *ModelConfig `json:"model,omitempty"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
 	// call. Defaults to false.
-	Screenshot *bool `json:"screenshot,omitempty,omitzero"`
+	Screenshot *bool `json:"screenshot,omitempty"`
 
 	// CSS selector to scope extraction to a specific element
-	Selector *string `json:"selector,omitempty,omitzero"`
+	Selector *string `json:"selector,omitempty"`
 
 	// Timeout in ms for the extraction
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+	Timeout *float64 `json:"timeout,omitempty"`
 }
 
 type ExtractResult struct {
 	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	ActionID *string `json:"action_id,omitempty"`
 
 	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	CacheStatus *CacheStatus `json:"cache_status,omitempty"`
 
 	// Result corresponds to the JSON schema field "result".
 	Result json.RawMessage `json:"result"`
@@ -560,10 +560,10 @@ type ImplementationInfo struct {
 
 type KnownModelConfig struct {
 	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
+	APIKey *string `json:"api_key,omitempty"`
 
 	// Custom headers sent with every request to the model provider
-	Headers KnownModelConfigHeaders `json:"headers,omitempty,omitzero"`
+	Headers KnownModelConfigHeaders `json:"headers,omitempty"`
 
 	// ModelName corresponds to the JSON schema field "model_name".
 	ModelName ModelName `json:"model_name"`
@@ -574,27 +574,27 @@ type KnownModelConfigHeaders map[string]string
 
 type LLMAnnotations struct {
 	// Audience corresponds to the JSON schema field "audience".
-	Audience []LLMRole `json:"audience,omitempty,omitzero"`
+	Audience []LLMRole `json:"audience,omitempty"`
 
 	// LastModified corresponds to the JSON schema field "last_modified".
-	LastModified *string `json:"last_modified,omitempty,omitzero"`
+	LastModified *string `json:"last_modified,omitempty"`
 
 	// Priority corresponds to the JSON schema field "priority".
-	Priority *float64 `json:"priority,omitempty,omitzero"`
+	Priority *float64 `json:"priority,omitempty"`
 }
 
 type LLMClientTool struct {
 	// Annotations corresponds to the JSON schema field "annotations".
-	Annotations *LLMToolAnnotations `json:"annotations,omitempty,omitzero"`
+	Annotations *LLMToolAnnotations `json:"annotations,omitempty"`
 
 	// Description corresponds to the JSON schema field "description".
-	Description *string `json:"description,omitempty,omitzero"`
+	Description *string `json:"description,omitempty"`
 
 	// Execution corresponds to the JSON schema field "execution".
-	Execution *LLMToolExecution `json:"execution,omitempty,omitzero"`
+	Execution *LLMToolExecution `json:"execution,omitempty"`
 
 	// Icons corresponds to the JSON schema field "icons".
-	Icons []LLMToolIcon `json:"icons,omitempty,omitzero"`
+	Icons []LLMToolIcon `json:"icons,omitempty"`
 
 	// InputSchema corresponds to the JSON schema field "input_schema".
 	InputSchema LLMToolJSON `json:"input_schema"`
@@ -603,15 +603,15 @@ type LLMClientTool struct {
 	Name string `json:"name"`
 
 	// OutputSchema corresponds to the JSON schema field "output_schema".
-	OutputSchema *LLMToolJSON `json:"output_schema,omitempty,omitzero"`
+	OutputSchema *LLMToolJSON `json:"output_schema,omitempty"`
 
 	// Title corresponds to the JSON schema field "title".
-	Title *string `json:"title,omitempty,omitzero"`
+	Title *string `json:"title,omitempty"`
 }
 
 type LLMImageContent struct {
 	// Annotations corresponds to the JSON schema field "annotations".
-	Annotations *LLMAnnotations `json:"annotations,omitempty,omitzero"`
+	Annotations *LLMAnnotations `json:"annotations,omitempty"`
 
 	// Data corresponds to the JSON schema field "data".
 	Data string `json:"data"`
@@ -625,7 +625,7 @@ type LLMImageContent struct {
 
 type LLMJSONSchemaResponseFormat struct {
 	// Description corresponds to the JSON schema field "description".
-	Description *string `json:"description,omitempty,omitzero"`
+	Description *string `json:"description,omitempty"`
 
 	// Name corresponds to the JSON schema field "name".
 	Name string `json:"name"`
@@ -650,22 +650,22 @@ type LLMMessageGenerateParams struct {
 	Messages []LLMMessage `json:"messages"`
 
 	// ResponseFormat corresponds to the JSON schema field "response_format".
-	ResponseFormat *LLMTextResponseFormat `json:"response_format,omitempty,omitzero"`
+	ResponseFormat *LLMTextResponseFormat `json:"response_format,omitempty"`
 
 	// StopSequences corresponds to the JSON schema field "stop_sequences".
-	StopSequences []string `json:"stop_sequences,omitempty,omitzero"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
 
 	// SystemPrompt corresponds to the JSON schema field "system_prompt".
-	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
+	SystemPrompt *string `json:"system_prompt,omitempty"`
 
 	// Temperature corresponds to the JSON schema field "temperature".
-	Temperature *float64 `json:"temperature,omitempty,omitzero"`
+	Temperature *float64 `json:"temperature,omitempty"`
 
 	// ToolChoice corresponds to the JSON schema field "tool_choice".
-	ToolChoice *LLMToolChoice `json:"tool_choice,omitempty,omitzero"`
+	ToolChoice *LLMToolChoice `json:"tool_choice,omitempty"`
 
 	// Tools corresponds to the JSON schema field "tools".
-	Tools []LLMClientTool `json:"tools,omitempty,omitzero"`
+	Tools []LLMClientTool `json:"tools,omitempty"`
 }
 
 type LLMRole string
@@ -681,18 +681,18 @@ type LLMStructuredGenerateParams struct {
 	ResponseFormat LLMJSONSchemaResponseFormat `json:"response_format"`
 
 	// StopSequences corresponds to the JSON schema field "stop_sequences".
-	StopSequences []string `json:"stop_sequences,omitempty,omitzero"`
+	StopSequences []string `json:"stop_sequences,omitempty"`
 
 	// SystemPrompt corresponds to the JSON schema field "system_prompt".
-	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
+	SystemPrompt *string `json:"system_prompt,omitempty"`
 
 	// Temperature corresponds to the JSON schema field "temperature".
-	Temperature *float64 `json:"temperature,omitempty,omitzero"`
+	Temperature *float64 `json:"temperature,omitempty"`
 }
 
 type LLMTextContent struct {
 	// Annotations corresponds to the JSON schema field "annotations".
-	Annotations *LLMAnnotations `json:"annotations,omitempty,omitzero"`
+	Annotations *LLMAnnotations `json:"annotations,omitempty"`
 
 	// Text corresponds to the JSON schema field "text".
 	Text string `json:"text"`
@@ -708,24 +708,24 @@ type LLMTextResponseFormat struct {
 
 type LLMToolAnnotations struct {
 	// DestructiveHint corresponds to the JSON schema field "destructive_hint".
-	DestructiveHint *bool `json:"destructive_hint,omitempty,omitzero"`
+	DestructiveHint *bool `json:"destructive_hint,omitempty"`
 
 	// IdempotentHint corresponds to the JSON schema field "idempotent_hint".
-	IdempotentHint *bool `json:"idempotent_hint,omitempty,omitzero"`
+	IdempotentHint *bool `json:"idempotent_hint,omitempty"`
 
 	// OpenWorldHint corresponds to the JSON schema field "open_world_hint".
-	OpenWorldHint *bool `json:"open_world_hint,omitempty,omitzero"`
+	OpenWorldHint *bool `json:"open_world_hint,omitempty"`
 
 	// ReadOnlyHint corresponds to the JSON schema field "read_only_hint".
-	ReadOnlyHint *bool `json:"read_only_hint,omitempty,omitzero"`
+	ReadOnlyHint *bool `json:"read_only_hint,omitempty"`
 
 	// Title corresponds to the JSON schema field "title".
-	Title *string `json:"title,omitempty,omitzero"`
+	Title *string `json:"title,omitempty"`
 }
 
 type LLMToolChoice struct {
 	// Mode corresponds to the JSON schema field "mode".
-	Mode *LLMToolChoiceMode `json:"mode,omitempty,omitzero"`
+	Mode *LLMToolChoiceMode `json:"mode,omitempty"`
 }
 
 type LLMToolChoiceMode string
@@ -736,7 +736,7 @@ const LLMToolChoiceModeRequired LLMToolChoiceMode = "required"
 
 type LLMToolExecution struct {
 	// TaskSupport corresponds to the JSON schema field "task_support".
-	TaskSupport *LLMToolExecutionTaskSupport `json:"task_support,omitempty,omitzero"`
+	TaskSupport *LLMToolExecutionTaskSupport `json:"task_support,omitempty"`
 }
 
 type LLMToolExecutionTaskSupport string
@@ -747,16 +747,16 @@ const LLMToolExecutionTaskSupportRequired LLMToolExecutionTaskSupport = "require
 
 type LLMToolIcon struct {
 	// MIMEType corresponds to the JSON schema field "mime_type".
-	MIMEType *string `json:"mime_type,omitempty,omitzero"`
+	MIMEType *string `json:"mime_type,omitempty"`
 
 	// Sizes corresponds to the JSON schema field "sizes".
-	Sizes []string `json:"sizes,omitempty,omitzero"`
+	Sizes []string `json:"sizes,omitempty"`
 
 	// Src corresponds to the JSON schema field "src".
 	Src string `json:"src"`
 
 	// Theme corresponds to the JSON schema field "theme".
-	Theme *LLMToolIconTheme `json:"theme,omitempty,omitzero"`
+	Theme *LLMToolIconTheme `json:"theme,omitempty"`
 }
 
 type LLMToolIconTheme string
@@ -766,13 +766,13 @@ const LLMToolIconThemeLight LLMToolIconTheme = "light"
 
 type LLMToolJSON struct {
 	// Schema corresponds to the JSON schema field "$schema".
-	Schema *string `json:"$schema,omitempty,omitzero"`
+	Schema *string `json:"$schema,omitempty"`
 
 	// Properties corresponds to the JSON schema field "properties".
-	Properties LLMToolJSONProperties `json:"properties,omitempty,omitzero"`
+	Properties LLMToolJSONProperties `json:"properties,omitempty"`
 
 	// Required corresponds to the JSON schema field "required".
-	Required []string `json:"required,omitempty,omitzero"`
+	Required []string `json:"required,omitempty"`
 
 	// Type corresponds to the JSON schema field "type".
 	Type string `json:"type"`
@@ -785,10 +785,10 @@ type LLMToolResultContent struct {
 	Content []LLMToolResultContentBlock `json:"content"`
 
 	// IsError corresponds to the JSON schema field "is_error".
-	IsError *bool `json:"is_error,omitempty,omitzero"`
+	IsError *bool `json:"is_error,omitempty"`
 
 	// StructuredContent corresponds to the JSON schema field "structured_content".
-	StructuredContent LLMToolResultContentStructuredContent `json:"structured_content,omitempty,omitzero"`
+	StructuredContent LLMToolResultContentStructuredContent `json:"structured_content,omitempty"`
 
 	// ToolUseID corresponds to the JSON schema field "tool_use_id".
 	ToolUseID string `json:"tool_use_id"`
@@ -817,7 +817,7 @@ type LLMToolUseContentInput map[string]json.RawMessage
 
 type LLMUsage struct {
 	// CachedInputTokens corresponds to the JSON schema field "cached_input_tokens".
-	CachedInputTokens *int `json:"cached_input_tokens,omitempty,omitzero"`
+	CachedInputTokens *int `json:"cached_input_tokens,omitempty"`
 
 	// InputTokens corresponds to the JSON schema field "input_tokens".
 	InputTokens int `json:"input_tokens"`
@@ -826,7 +826,7 @@ type LLMUsage struct {
 	OutputTokens int `json:"output_tokens"`
 
 	// ReasoningTokens corresponds to the JSON schema field "reasoning_tokens".
-	ReasoningTokens *int `json:"reasoning_tokens,omitempty,omitzero"`
+	ReasoningTokens *int `json:"reasoning_tokens,omitempty"`
 
 	// TotalTokens corresponds to the JSON schema field "total_tokens".
 	TotalTokens int `json:"total_tokens"`
@@ -834,7 +834,7 @@ type LLMUsage struct {
 
 type Locator struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// Selector corresponds to the JSON schema field "selector".
 	Selector string `json:"selector"`
@@ -850,18 +850,18 @@ type LocatorCentroidResult struct {
 
 type LocatorClickOptions struct {
 	// Button corresponds to the JSON schema field "button".
-	Button *MouseButton `json:"button,omitempty,omitzero"`
+	Button *MouseButton `json:"button,omitempty"`
 
 	// ClickCount corresponds to the JSON schema field "click_count".
-	ClickCount *int `json:"click_count,omitempty,omitzero"`
+	ClickCount *int `json:"click_count,omitempty"`
 }
 
 type LocatorClickParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *LocatorClickOptions `json:"options,omitempty,omitzero"`
+	Options *LocatorClickOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -882,7 +882,7 @@ type LocatorCountResult struct {
 
 type LocatorDescriptor struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -893,7 +893,7 @@ type LocatorDescriptor struct {
 
 type LocatorFillParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -912,21 +912,21 @@ type LocatorFillResult struct {
 
 type LocatorHighlightOptions struct {
 	// BorderColor corresponds to the JSON schema field "border_color".
-	BorderColor *RgbaColor `json:"border_color,omitempty,omitzero"`
+	BorderColor *RgbaColor `json:"border_color,omitempty"`
 
 	// ContentColor corresponds to the JSON schema field "content_color".
-	ContentColor *RgbaColor `json:"content_color,omitempty,omitzero"`
+	ContentColor *RgbaColor `json:"content_color,omitempty"`
 
 	// DurationMs corresponds to the JSON schema field "duration_ms".
-	DurationMs *int `json:"duration_ms,omitempty,omitzero"`
+	DurationMs *int `json:"duration_ms,omitempty"`
 }
 
 type LocatorHighlightParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *LocatorHighlightOptions `json:"options,omitempty,omitzero"`
+	Options *LocatorHighlightOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -972,7 +972,7 @@ type LocatorIsVisibleResult struct {
 
 type LocatorScrollToParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -991,7 +991,7 @@ type LocatorScrollToResult struct {
 
 type LocatorSelectOptionParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1010,24 +1010,24 @@ type LocatorSelectOptionResult struct {
 
 type LocatorSendClickEventOptions struct {
 	// Bubbles corresponds to the JSON schema field "bubbles".
-	Bubbles *bool `json:"bubbles,omitempty,omitzero"`
+	Bubbles *bool `json:"bubbles,omitempty"`
 
 	// Cancelable corresponds to the JSON schema field "cancelable".
-	Cancelable *bool `json:"cancelable,omitempty,omitzero"`
+	Cancelable *bool `json:"cancelable,omitempty"`
 
 	// Composed corresponds to the JSON schema field "composed".
-	Composed *bool `json:"composed,omitempty,omitzero"`
+	Composed *bool `json:"composed,omitempty"`
 
 	// Detail corresponds to the JSON schema field "detail".
-	Detail *float64 `json:"detail,omitempty,omitzero"`
+	Detail *float64 `json:"detail,omitempty"`
 }
 
 type LocatorSendClickEventParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *LocatorSendClickEventOptions `json:"options,omitempty,omitzero"`
+	Options *LocatorSendClickEventOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1048,15 +1048,15 @@ type LocatorTextContentResult struct {
 
 type LocatorTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
-	Delay *float64 `json:"delay,omitempty,omitzero"`
+	Delay *float64 `json:"delay,omitempty"`
 }
 
 type LocatorTypeParams struct {
 	// Nth corresponds to the JSON schema field "nth".
-	Nth *int `json:"nth,omitempty,omitzero"`
+	Nth *int `json:"nth,omitempty"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *LocatorTypeOptions `json:"options,omitempty,omitzero"`
+	Options *LocatorTypeOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1081,35 +1081,35 @@ const MouseButtonRight MouseButton = "right"
 
 type ObserveOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
-	Cache *Caching `json:"cache,omitempty,omitzero"`
+	Cache *Caching `json:"cache,omitempty"`
 
 	// Selectors for elements and subtrees that should be excluded from observation
-	IgnoreSelectors []string `json:"ignore_selectors,omitempty,omitzero"`
+	IgnoreSelectors []string `json:"ignore_selectors,omitempty"`
 
 	// Serializable element locator for the observation target
-	Locator *Locator `json:"locator,omitempty,omitzero"`
+	Locator *Locator `json:"locator,omitempty"`
 
 	// Model corresponds to the JSON schema field "model".
-	Model *ModelConfig `json:"model,omitempty,omitzero"`
+	Model *ModelConfig `json:"model,omitempty"`
 
 	// CSS selector to scope observation to a specific element
-	Selector *string `json:"selector,omitempty,omitzero"`
+	Selector *string `json:"selector,omitempty"`
 
 	// Timeout in ms for the observation
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+	Timeout *float64 `json:"timeout,omitempty"`
 
 	// Variables whose names are exposed to the model so observe() returns
 	// %variableName% placeholders in suggested action arguments instead of literal
 	// values. Accepts flat primitives or { value, description? } objects.
-	Variables Variables `json:"variables,omitempty,omitzero"`
+	Variables Variables `json:"variables,omitempty"`
 }
 
 type ObserveResult struct {
 	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	ActionID *string `json:"action_id,omitempty"`
 
 	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	CacheStatus *CacheStatus `json:"cache_status,omitempty"`
 
 	// Result corresponds to the JSON schema field "result".
 	Result []Action `json:"result"`
@@ -1127,18 +1127,18 @@ type PageAddInitScriptParams struct {
 
 type PageClickOptions struct {
 	// Button corresponds to the JSON schema field "button".
-	Button *MouseButton `json:"button,omitempty,omitzero"`
+	Button *MouseButton `json:"button,omitempty"`
 
 	// ClickCount corresponds to the JSON schema field "click_count".
-	ClickCount *int `json:"click_count,omitempty,omitzero"`
+	ClickCount *int `json:"click_count,omitempty"`
 
 	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
+	ReturnXPath *bool `json:"return_xpath,omitempty"`
 }
 
 type PageClickParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageClickOptions `json:"options,omitempty,omitzero"`
+	Options *PageClickOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1162,16 +1162,16 @@ type PageCoordinateResult struct {
 
 type PageDragAndDropOptions struct {
 	// Button corresponds to the JSON schema field "button".
-	Button *MouseButton `json:"button,omitempty,omitzero"`
+	Button *MouseButton `json:"button,omitempty"`
 
 	// Delay corresponds to the JSON schema field "delay".
-	Delay *float64 `json:"delay,omitempty,omitzero"`
+	Delay *float64 `json:"delay,omitempty"`
 
 	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
+	ReturnXPath *bool `json:"return_xpath,omitempty"`
 
 	// Steps corresponds to the JSON schema field "steps".
-	Steps *int `json:"steps,omitempty,omitzero"`
+	Steps *int `json:"steps,omitempty"`
 }
 
 type PageDragAndDropParams struct {
@@ -1182,7 +1182,7 @@ type PageDragAndDropParams struct {
 	FromY float64 `json:"from_y"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *PageDragAndDropOptions `json:"options,omitempty,omitzero"`
+	Options *PageDragAndDropOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1217,7 +1217,7 @@ type PageEvaluateResult struct {
 
 type PageGoBackParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageNavigationOptions `json:"options,omitempty,omitzero"`
+	Options *PageNavigationOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1225,7 +1225,7 @@ type PageGoBackParams struct {
 
 type PageGoForwardParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageNavigationOptions `json:"options,omitempty,omitzero"`
+	Options *PageNavigationOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1233,7 +1233,7 @@ type PageGoForwardParams struct {
 
 type PageGotoParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageNavigationOptions `json:"options,omitempty,omitzero"`
+	Options *PageNavigationOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1244,12 +1244,12 @@ type PageGotoParams struct {
 
 type PageHoverOptions struct {
 	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
+	ReturnXPath *bool `json:"return_xpath,omitempty"`
 }
 
 type PageHoverParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageHoverOptions `json:"options,omitempty,omitzero"`
+	Options *PageHoverOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1268,7 +1268,7 @@ type PageIDParams struct {
 
 type PageKeyPressOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
-	Delay *float64 `json:"delay,omitempty,omitzero"`
+	Delay *float64 `json:"delay,omitempty"`
 }
 
 type PageKeyPressParams struct {
@@ -1276,7 +1276,7 @@ type PageKeyPressParams struct {
 	Key string `json:"key"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *PageKeyPressOptions `json:"options,omitempty,omitzero"`
+	Options *PageKeyPressOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1284,10 +1284,10 @@ type PageKeyPressParams struct {
 
 type PageNavigationOptions struct {
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *int `json:"timeout,omitempty,omitzero"`
+	Timeout *int `json:"timeout,omitempty"`
 
 	// WaitUntil corresponds to the JSON schema field "wait_until".
-	WaitUntil *LoadState `json:"wait_until,omitempty,omitzero"`
+	WaitUntil *LoadState `json:"wait_until,omitempty"`
 }
 
 type PageRef struct {
@@ -1295,26 +1295,26 @@ type PageRef struct {
 	PageID string `json:"page_id"`
 
 	// Title corresponds to the JSON schema field "title".
-	Title *string `json:"title,omitempty,omitzero"`
+	Title *string `json:"title,omitempty"`
 
 	// URL corresponds to the JSON schema field "url".
-	URL *string `json:"url,omitempty,omitzero"`
+	URL *string `json:"url,omitempty"`
 }
 
 type PageReloadOptions struct {
 	// IgnoreCache corresponds to the JSON schema field "ignore_cache".
-	IgnoreCache *bool `json:"ignore_cache,omitempty,omitzero"`
+	IgnoreCache *bool `json:"ignore_cache,omitempty"`
 
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *int `json:"timeout,omitempty,omitzero"`
+	Timeout *int `json:"timeout,omitempty"`
 
 	// WaitUntil corresponds to the JSON schema field "wait_until".
-	WaitUntil *LoadState `json:"wait_until,omitempty,omitzero"`
+	WaitUntil *LoadState `json:"wait_until,omitempty"`
 }
 
 type PageReloadParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageReloadOptions `json:"options,omitempty,omitzero"`
+	Options *PageReloadOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1336,40 +1336,40 @@ type PageScreenshotClip struct {
 
 type PageScreenshotOptions struct {
 	// Animations corresponds to the JSON schema field "animations".
-	Animations *PageScreenshotOptionsAnimations `json:"animations,omitempty,omitzero"`
+	Animations *PageScreenshotOptionsAnimations `json:"animations,omitempty"`
 
 	// Caret corresponds to the JSON schema field "caret".
-	Caret *PageScreenshotOptionsCaret `json:"caret,omitempty,omitzero"`
+	Caret *PageScreenshotOptionsCaret `json:"caret,omitempty"`
 
 	// Clip corresponds to the JSON schema field "clip".
-	Clip *PageScreenshotClip `json:"clip,omitempty,omitzero"`
+	Clip *PageScreenshotClip `json:"clip,omitempty"`
 
 	// FullPage corresponds to the JSON schema field "full_page".
-	FullPage *bool `json:"full_page,omitempty,omitzero"`
+	FullPage *bool `json:"full_page,omitempty"`
 
 	// Mask corresponds to the JSON schema field "mask".
-	Mask []LocatorDescriptor `json:"mask,omitempty,omitzero"`
+	Mask []LocatorDescriptor `json:"mask,omitempty"`
 
 	// MaskColor corresponds to the JSON schema field "mask_color".
-	MaskColor *string `json:"mask_color,omitempty,omitzero"`
+	MaskColor *string `json:"mask_color,omitempty"`
 
 	// OmitBackground corresponds to the JSON schema field "omit_background".
-	OmitBackground *bool `json:"omit_background,omitempty,omitzero"`
+	OmitBackground *bool `json:"omit_background,omitempty"`
 
 	// Quality corresponds to the JSON schema field "quality".
-	Quality *int `json:"quality,omitempty,omitzero"`
+	Quality *int `json:"quality,omitempty"`
 
 	// Scale corresponds to the JSON schema field "scale".
-	Scale *PageScreenshotOptionsScale `json:"scale,omitempty,omitzero"`
+	Scale *PageScreenshotOptionsScale `json:"scale,omitempty"`
 
 	// Style corresponds to the JSON schema field "style".
-	Style *string `json:"style,omitempty,omitzero"`
+	Style *string `json:"style,omitempty"`
 
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+	Timeout *float64 `json:"timeout,omitempty"`
 
 	// Type corresponds to the JSON schema field "type".
-	Type *PageScreenshotOptionsType `json:"type,omitempty,omitzero"`
+	Type *PageScreenshotOptionsType `json:"type,omitempty"`
 }
 
 type PageScreenshotOptionsAnimations string
@@ -1394,7 +1394,7 @@ const PageScreenshotOptionsTypePNG PageScreenshotOptionsType = "png"
 
 type PageScreenshotParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageScreenshotOptions `json:"options,omitempty,omitzero"`
+	Options *PageScreenshotOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1415,7 +1415,7 @@ const PageScreenshotResultTypePNG PageScreenshotResultType = "png"
 
 type PageScrollOptions struct {
 	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
+	ReturnXPath *bool `json:"return_xpath,omitempty"`
 }
 
 type PageScrollParams struct {
@@ -1426,7 +1426,7 @@ type PageScrollParams struct {
 	DeltaY float64 `json:"delta_y"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *PageScrollOptions `json:"options,omitempty,omitzero"`
+	Options *PageScrollOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1450,7 +1450,7 @@ type PageSetExtraHTTPHeadersParamsHeaders map[string]string
 
 type PageSetViewportSizeOptions struct {
 	// DeviceScaleFactor corresponds to the JSON schema field "device_scale_factor".
-	DeviceScaleFactor *float64 `json:"device_scale_factor,omitempty,omitzero"`
+	DeviceScaleFactor *float64 `json:"device_scale_factor,omitempty"`
 }
 
 type PageSetViewportSizeParams struct {
@@ -1458,7 +1458,7 @@ type PageSetViewportSizeParams struct {
 	Height int `json:"height"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *PageSetViewportSizeOptions `json:"options,omitempty,omitzero"`
+	Options *PageSetViewportSizeOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1469,12 +1469,12 @@ type PageSetViewportSizeParams struct {
 
 type PageSnapshotOptions struct {
 	// IncludeIframes corresponds to the JSON schema field "include_iframes".
-	IncludeIframes *bool `json:"include_iframes,omitempty,omitzero"`
+	IncludeIframes *bool `json:"include_iframes,omitempty"`
 }
 
 type PageSnapshotParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageSnapshotOptions `json:"options,omitempty,omitzero"`
+	Options *PageSnapshotOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1487,15 +1487,15 @@ type PageTitleResult struct {
 
 type PageTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
-	Delay *float64 `json:"delay,omitempty,omitzero"`
+	Delay *float64 `json:"delay,omitempty"`
 
 	// WithMistakes corresponds to the JSON schema field "with_mistakes".
-	WithMistakes *bool `json:"with_mistakes,omitempty,omitzero"`
+	WithMistakes *bool `json:"with_mistakes,omitempty"`
 }
 
 type PageTypeParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageTypeOptions `json:"options,omitempty,omitzero"`
+	Options *PageTypeOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1522,18 +1522,18 @@ type PageWaitForLoadStateParams struct {
 	State LoadState `json:"state"`
 
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *int `json:"timeout,omitempty,omitzero"`
+	Timeout *int `json:"timeout,omitempty"`
 }
 
 type PageWaitForSelectorOptions struct {
 	// PierceShadow corresponds to the JSON schema field "pierce_shadow".
-	PierceShadow *bool `json:"pierce_shadow,omitempty,omitzero"`
+	PierceShadow *bool `json:"pierce_shadow,omitempty"`
 
 	// State corresponds to the JSON schema field "state".
-	State *PageWaitForSelectorOptionsState `json:"state,omitempty,omitzero"`
+	State *PageWaitForSelectorOptionsState `json:"state,omitempty"`
 
 	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *int `json:"timeout,omitempty,omitzero"`
+	Timeout *int `json:"timeout,omitempty"`
 }
 
 type PageWaitForSelectorOptionsState string
@@ -1545,7 +1545,7 @@ const PageWaitForSelectorOptionsStateVisible PageWaitForSelectorOptionsState = "
 
 type PageWaitForSelectorParams struct {
 	// Options corresponds to the JSON schema field "options".
-	Options *PageWaitForSelectorOptions `json:"options,omitempty,omitzero"`
+	Options *PageWaitForSelectorOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1569,7 +1569,7 @@ type PageWaitForTimeoutParams struct {
 
 type RgbaColor struct {
 	// A corresponds to the JSON schema field "a".
-	A *float64 `json:"a,omitempty,omitzero"`
+	A *float64 `json:"a,omitempty"`
 
 	// B corresponds to the JSON schema field "b".
 	B float64 `json:"b"`
@@ -1586,16 +1586,16 @@ type RuntimeConfigureParams struct {
 	CDPURL string `json:"cdp_url"`
 
 	// ClientInfo corresponds to the JSON schema field "client_info".
-	ClientInfo *ImplementationInfo `json:"client_info,omitempty,omitzero"`
+	ClientInfo *ImplementationInfo `json:"client_info,omitempty"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
-	LogLevel RuntimeConfigureParamsLogLevel `json:"log_level,omitempty,omitzero"`
+	LogLevel RuntimeConfigureParamsLogLevel `json:"log_level,omitempty"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *int `json:"protocol_version,omitempty,omitzero"`
+	ProtocolVersion *int `json:"protocol_version,omitempty"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
-	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
 }
 
 type RuntimeConfigureParamsLogLevel string
@@ -1639,7 +1639,7 @@ type StagehandActParams struct {
 	Input string `json:"input"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *ActOptions `json:"options,omitempty,omitzero"`
+	Options *ActOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1655,7 +1655,7 @@ type StagehandExtractParams struct {
 	Instruction string `json:"instruction"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *ExtractOptions `json:"options,omitempty,omitzero"`
+	Options *ExtractOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1666,29 +1666,29 @@ type StagehandExtractParams struct {
 
 type StagehandInitParams struct {
 	// APIKey corresponds to the JSON schema field "api_key".
-	APIKey *string `json:"api_key,omitempty,omitzero"`
+	APIKey *string `json:"api_key,omitempty"`
 
 	// Browser corresponds to the JSON schema field "browser".
-	Browser *BrowserbaseBrowserSource `json:"browser,omitempty,omitzero"`
+	Browser *BrowserbaseBrowserSource `json:"browser,omitempty"`
 
 	// Cache corresponds to the JSON schema field "cache".
-	Cache *Caching `json:"cache,omitempty,omitzero"`
+	Cache *Caching `json:"cache,omitempty"`
 
 	// DOMSettleTimeoutMs corresponds to the JSON schema field
 	// "dom_settle_timeout_ms".
-	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
+	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty"`
 
 	// Model corresponds to the JSON schema field "model".
-	Model *StagehandInitModel `json:"model,omitempty,omitzero"`
+	Model *StagehandInitModel `json:"model,omitempty"`
 
 	// SelfHeal corresponds to the JSON schema field "self_heal".
-	SelfHeal *bool `json:"self_heal,omitempty,omitzero"`
+	SelfHeal *bool `json:"self_heal,omitempty"`
 
 	// SystemPrompt corresponds to the JSON schema field "system_prompt".
-	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
+	SystemPrompt *string `json:"system_prompt,omitempty"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
-	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty"`
 }
 
 type StagehandInitResult struct {
@@ -1800,10 +1800,10 @@ type StagehandMetrics struct {
 
 type StagehandObserveParams struct {
 	// Instruction corresponds to the JSON schema field "instruction".
-	Instruction *string `json:"instruction,omitempty,omitzero"`
+	Instruction *string `json:"instruction,omitempty"`
 
 	// Options corresponds to the JSON schema field "options".
-	Options *ObserveOptions `json:"options,omitempty,omitzero"`
+	Options *ObserveOptions `json:"options,omitempty"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1827,7 +1827,7 @@ type TelemetryTraces struct {
 	Endpoint string `json:"endpoint"`
 
 	// Headers corresponds to the JSON schema field "headers".
-	Headers TelemetryTracesHeaders `json:"headers,omitempty,omitzero"`
+	Headers TelemetryTracesHeaders `json:"headers,omitempty"`
 }
 
 type TelemetryTracesHeaders map[string]string
@@ -1836,636 +1836,636 @@ type Variables map[string]VariableValue
 
 type generatedModelCatalog struct {
 	// ActOptions corresponds to the JSON schema field "ActOptions".
-	ActOptions *ActOptions `json:"ActOptions,omitempty,omitzero"`
+	ActOptions *ActOptions `json:"ActOptions,omitempty"`
 
 	// ActResult corresponds to the JSON schema field "ActResult".
-	ActResult *ActResult `json:"ActResult,omitempty,omitzero"`
+	ActResult *ActResult `json:"ActResult,omitempty"`
 
 	// ActResultData corresponds to the JSON schema field "ActResultData".
-	ActResultData *ActResultData `json:"ActResultData,omitempty,omitzero"`
+	ActResultData *ActResultData `json:"ActResultData,omitempty"`
 
 	// Action corresponds to the JSON schema field "Action".
-	Action *Action `json:"Action,omitempty,omitzero"`
+	Action *Action `json:"Action,omitempty"`
 
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
-	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
+	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty"`
 
 	// BrowserGetVersionResult corresponds to the JSON schema field
 	// "BrowserGetVersionResult".
-	BrowserGetVersionResult *BrowserGetVersionResult `json:"BrowserGetVersionResult,omitempty,omitzero"`
+	BrowserGetVersionResult *BrowserGetVersionResult `json:"BrowserGetVersionResult,omitempty"`
 
 	// BrowserbaseBrowserSettings corresponds to the JSON schema field
 	// "BrowserbaseBrowserSettings".
-	BrowserbaseBrowserSettings *BrowserbaseBrowserSettings `json:"BrowserbaseBrowserSettings,omitempty,omitzero"`
+	BrowserbaseBrowserSettings *BrowserbaseBrowserSettings `json:"BrowserbaseBrowserSettings,omitempty"`
 
 	// BrowserbaseBrowserSource corresponds to the JSON schema field
 	// "BrowserbaseBrowserSource".
-	BrowserbaseBrowserSource *BrowserbaseBrowserSource `json:"BrowserbaseBrowserSource,omitempty,omitzero"`
+	BrowserbaseBrowserSource *BrowserbaseBrowserSource `json:"BrowserbaseBrowserSource,omitempty"`
 
 	// BrowserbaseContext corresponds to the JSON schema field "BrowserbaseContext".
-	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty,omitzero"`
+	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty"`
 
 	// BrowserbaseFingerprint corresponds to the JSON schema field
 	// "BrowserbaseFingerprint".
-	BrowserbaseFingerprint *BrowserbaseFingerprint `json:"BrowserbaseFingerprint,omitempty,omitzero"`
+	BrowserbaseFingerprint *BrowserbaseFingerprint `json:"BrowserbaseFingerprint,omitempty"`
 
 	// BrowserbaseFingerprintScreen corresponds to the JSON schema field
 	// "BrowserbaseFingerprintScreen".
-	BrowserbaseFingerprintScreen *BrowserbaseFingerprintScreen `json:"BrowserbaseFingerprintScreen,omitempty,omitzero"`
+	BrowserbaseFingerprintScreen *BrowserbaseFingerprintScreen `json:"BrowserbaseFingerprintScreen,omitempty"`
 
 	// BrowserbaseProxyConfig corresponds to the JSON schema field
 	// "BrowserbaseProxyConfig".
-	BrowserbaseProxyConfig *BrowserbaseProxyConfig `json:"BrowserbaseProxyConfig,omitempty,omitzero"`
+	BrowserbaseProxyConfig *BrowserbaseProxyConfig `json:"BrowserbaseProxyConfig,omitempty"`
 
 	// BrowserbaseProxyGeolocation corresponds to the JSON schema field
 	// "BrowserbaseProxyGeolocation".
-	BrowserbaseProxyGeolocation *BrowserbaseProxyGeolocation `json:"BrowserbaseProxyGeolocation,omitempty,omitzero"`
+	BrowserbaseProxyGeolocation *BrowserbaseProxyGeolocation `json:"BrowserbaseProxyGeolocation,omitempty"`
 
 	// BrowserbaseRegion corresponds to the JSON schema field "BrowserbaseRegion".
-	BrowserbaseRegion *BrowserbaseRegion `json:"BrowserbaseRegion,omitempty,omitzero"`
+	BrowserbaseRegion *BrowserbaseRegion `json:"BrowserbaseRegion,omitempty"`
 
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
-	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
+	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty"`
 
 	// CacheStatus corresponds to the JSON schema field "CacheStatus".
-	CacheStatus *CacheStatus `json:"CacheStatus,omitempty,omitzero"`
+	CacheStatus *CacheStatus `json:"CacheStatus,omitempty"`
 
 	// Caching corresponds to the JSON schema field "Caching".
-	Caching *Caching `json:"Caching,omitempty,omitzero"`
+	Caching *Caching `json:"Caching,omitempty"`
 
 	// CerebrasModelName corresponds to the JSON schema field "CerebrasModelName".
-	CerebrasModelName *CerebrasModelName `json:"CerebrasModelName,omitempty,omitzero"`
+	CerebrasModelName *CerebrasModelName `json:"CerebrasModelName,omitempty"`
 
 	// ClearCookieOptions corresponds to the JSON schema field "ClearCookieOptions".
-	ClearCookieOptions *ClearCookieOptions `json:"ClearCookieOptions,omitempty,omitzero"`
+	ClearCookieOptions *ClearCookieOptions `json:"ClearCookieOptions,omitempty"`
 
 	// ClientModelReference corresponds to the JSON schema field
 	// "ClientModelReference".
-	ClientModelReference *ClientModelReference `json:"ClientModelReference,omitempty,omitzero"`
+	ClientModelReference *ClientModelReference `json:"ClientModelReference,omitempty"`
 
 	// ContextActivePageResult corresponds to the JSON schema field
 	// "ContextActivePageResult".
-	ContextActivePageResult *ContextActivePageResult `json:"ContextActivePageResult,omitempty,omitzero"`
+	ContextActivePageResult *ContextActivePageResult `json:"ContextActivePageResult,omitempty"`
 
 	// ContextAddCookiesParams corresponds to the JSON schema field
 	// "ContextAddCookiesParams".
-	ContextAddCookiesParams *ContextAddCookiesParams `json:"ContextAddCookiesParams,omitempty,omitzero"`
+	ContextAddCookiesParams *ContextAddCookiesParams `json:"ContextAddCookiesParams,omitempty"`
 
 	// ContextAddInitScriptParams corresponds to the JSON schema field
 	// "ContextAddInitScriptParams".
-	ContextAddInitScriptParams *ContextAddInitScriptParams `json:"ContextAddInitScriptParams,omitempty,omitzero"`
+	ContextAddInitScriptParams *ContextAddInitScriptParams `json:"ContextAddInitScriptParams,omitempty"`
 
 	// ContextClearCookiesParams corresponds to the JSON schema field
 	// "ContextClearCookiesParams".
-	ContextClearCookiesParams *ContextClearCookiesParams `json:"ContextClearCookiesParams,omitempty,omitzero"`
+	ContextClearCookiesParams *ContextClearCookiesParams `json:"ContextClearCookiesParams,omitempty"`
 
 	// ContextClipboardPasteParams corresponds to the JSON schema field
 	// "ContextClipboardPasteParams".
-	ContextClipboardPasteParams *ContextClipboardPasteParams `json:"ContextClipboardPasteParams,omitempty,omitzero"`
+	ContextClipboardPasteParams *ContextClipboardPasteParams `json:"ContextClipboardPasteParams,omitempty"`
 
 	// ContextClipboardReadTextResult corresponds to the JSON schema field
 	// "ContextClipboardReadTextResult".
-	ContextClipboardReadTextResult *ContextClipboardReadTextResult `json:"ContextClipboardReadTextResult,omitempty,omitzero"`
+	ContextClipboardReadTextResult *ContextClipboardReadTextResult `json:"ContextClipboardReadTextResult,omitempty"`
 
 	// ContextClipboardTarget corresponds to the JSON schema field
 	// "ContextClipboardTarget".
-	ContextClipboardTarget *ContextClipboardTarget `json:"ContextClipboardTarget,omitempty,omitzero"`
+	ContextClipboardTarget *ContextClipboardTarget `json:"ContextClipboardTarget,omitempty"`
 
 	// ContextClipboardWriteTextParams corresponds to the JSON schema field
 	// "ContextClipboardWriteTextParams".
-	ContextClipboardWriteTextParams *ContextClipboardWriteTextParams `json:"ContextClipboardWriteTextParams,omitempty,omitzero"`
+	ContextClipboardWriteTextParams *ContextClipboardWriteTextParams `json:"ContextClipboardWriteTextParams,omitempty"`
 
 	// ContextCloseResult corresponds to the JSON schema field "ContextCloseResult".
-	ContextCloseResult *ContextCloseResult `json:"ContextCloseResult,omitempty,omitzero"`
+	ContextCloseResult *ContextCloseResult `json:"ContextCloseResult,omitempty"`
 
 	// ContextCookiesParams corresponds to the JSON schema field
 	// "ContextCookiesParams".
-	ContextCookiesParams *ContextCookiesParams `json:"ContextCookiesParams,omitempty,omitzero"`
+	ContextCookiesParams *ContextCookiesParams `json:"ContextCookiesParams,omitempty"`
 
 	// ContextCookiesResult corresponds to the JSON schema field
 	// "ContextCookiesResult".
-	ContextCookiesResult *ContextCookiesResult `json:"ContextCookiesResult,omitempty,omitzero"`
+	ContextCookiesResult *ContextCookiesResult `json:"ContextCookiesResult,omitempty"`
 
 	// ContextGetDomainPolicyResult corresponds to the JSON schema field
 	// "ContextGetDomainPolicyResult".
-	ContextGetDomainPolicyResult *ContextGetDomainPolicyResult `json:"ContextGetDomainPolicyResult,omitempty,omitzero"`
+	ContextGetDomainPolicyResult *ContextGetDomainPolicyResult `json:"ContextGetDomainPolicyResult,omitempty"`
 
 	// ContextNewPageParams corresponds to the JSON schema field
 	// "ContextNewPageParams".
-	ContextNewPageParams *ContextNewPageParams `json:"ContextNewPageParams,omitempty,omitzero"`
+	ContextNewPageParams *ContextNewPageParams `json:"ContextNewPageParams,omitempty"`
 
 	// ContextPagesResult corresponds to the JSON schema field "ContextPagesResult".
-	ContextPagesResult ContextPagesResult `json:"ContextPagesResult,omitempty,omitzero"`
+	ContextPagesResult ContextPagesResult `json:"ContextPagesResult,omitempty"`
 
 	// ContextSetActivePageParams corresponds to the JSON schema field
 	// "ContextSetActivePageParams".
-	ContextSetActivePageParams *ContextSetActivePageParams `json:"ContextSetActivePageParams,omitempty,omitzero"`
+	ContextSetActivePageParams *ContextSetActivePageParams `json:"ContextSetActivePageParams,omitempty"`
 
 	// ContextSetDomainPolicyParams corresponds to the JSON schema field
 	// "ContextSetDomainPolicyParams".
-	ContextSetDomainPolicyParams *ContextSetDomainPolicyParams `json:"ContextSetDomainPolicyParams,omitempty,omitzero"`
+	ContextSetDomainPolicyParams *ContextSetDomainPolicyParams `json:"ContextSetDomainPolicyParams,omitempty"`
 
 	// ContextSetExtraHTTPHeadersParams corresponds to the JSON schema field
 	// "ContextSetExtraHTTPHeadersParams".
-	ContextSetExtraHTTPHeadersParams *ContextSetExtraHTTPHeadersParams `json:"ContextSetExtraHTTPHeadersParams,omitempty,omitzero"`
+	ContextSetExtraHTTPHeadersParams *ContextSetExtraHTTPHeadersParams `json:"ContextSetExtraHTTPHeadersParams,omitempty"`
 
 	// ContextVoidResult corresponds to the JSON schema field "ContextVoidResult".
-	ContextVoidResult *ContextVoidResult `json:"ContextVoidResult,omitempty,omitzero"`
+	ContextVoidResult *ContextVoidResult `json:"ContextVoidResult,omitempty"`
 
 	// Cookie corresponds to the JSON schema field "Cookie".
-	Cookie *Cookie `json:"Cookie,omitempty,omitzero"`
+	Cookie *Cookie `json:"Cookie,omitempty"`
 
 	// CookieFilter corresponds to the JSON schema field "CookieFilter".
-	CookieFilter *CookieFilter `json:"CookieFilter,omitempty,omitzero"`
+	CookieFilter *CookieFilter `json:"CookieFilter,omitempty"`
 
 	// CookieParam corresponds to the JSON schema field "CookieParam".
-	CookieParam *CookieParam `json:"CookieParam,omitempty,omitzero"`
+	CookieParam *CookieParam `json:"CookieParam,omitempty"`
 
 	// CookieRegex corresponds to the JSON schema field "CookieRegex".
-	CookieRegex *CookieRegex `json:"CookieRegex,omitempty,omitzero"`
+	CookieRegex *CookieRegex `json:"CookieRegex,omitempty"`
 
 	// CustomModelConfig corresponds to the JSON schema field "CustomModelConfig".
-	CustomModelConfig *CustomModelConfig `json:"CustomModelConfig,omitempty,omitzero"`
+	CustomModelConfig *CustomModelConfig `json:"CustomModelConfig,omitempty"`
 
 	// DescribedVariableValue corresponds to the JSON schema field
 	// "DescribedVariableValue".
-	DescribedVariableValue *DescribedVariableValue `json:"DescribedVariableValue,omitempty,omitzero"`
+	DescribedVariableValue *DescribedVariableValue `json:"DescribedVariableValue,omitempty"`
 
 	// DomainPolicy corresponds to the JSON schema field "DomainPolicy".
-	DomainPolicy *DomainPolicy `json:"DomainPolicy,omitempty,omitzero"`
+	DomainPolicy *DomainPolicy `json:"DomainPolicy,omitempty"`
 
 	// EmptyParams corresponds to the JSON schema field "EmptyParams".
-	EmptyParams *EmptyParams `json:"EmptyParams,omitempty,omitzero"`
+	EmptyParams *EmptyParams `json:"EmptyParams,omitempty"`
 
 	// ExternalProxyConfig corresponds to the JSON schema field "ExternalProxyConfig".
-	ExternalProxyConfig *ExternalProxyConfig `json:"ExternalProxyConfig,omitempty,omitzero"`
+	ExternalProxyConfig *ExternalProxyConfig `json:"ExternalProxyConfig,omitempty"`
 
 	// ExtractOptions corresponds to the JSON schema field "ExtractOptions".
-	ExtractOptions *ExtractOptions `json:"ExtractOptions,omitempty,omitzero"`
+	ExtractOptions *ExtractOptions `json:"ExtractOptions,omitempty"`
 
 	// ExtractResult corresponds to the JSON schema field "ExtractResult".
-	ExtractResult *ExtractResult `json:"ExtractResult,omitempty,omitzero"`
+	ExtractResult *ExtractResult `json:"ExtractResult,omitempty"`
 
 	// GoogleModelName corresponds to the JSON schema field "GoogleModelName".
-	GoogleModelName *GoogleModelName `json:"GoogleModelName,omitempty,omitzero"`
+	GoogleModelName *GoogleModelName `json:"GoogleModelName,omitempty"`
 
 	// GroqModelName corresponds to the JSON schema field "GroqModelName".
-	GroqModelName *GroqModelName `json:"GroqModelName,omitempty,omitzero"`
+	GroqModelName *GroqModelName `json:"GroqModelName,omitempty"`
 
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
-	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
+	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty"`
 
 	// KnownModelConfig corresponds to the JSON schema field "KnownModelConfig".
-	KnownModelConfig *KnownModelConfig `json:"KnownModelConfig,omitempty,omitzero"`
+	KnownModelConfig *KnownModelConfig `json:"KnownModelConfig,omitempty"`
 
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
-	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`
+	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty"`
 
 	// LLMClientTool corresponds to the JSON schema field "LLMClientTool".
-	LLMClientTool *LLMClientTool `json:"LLMClientTool,omitempty,omitzero"`
+	LLMClientTool *LLMClientTool `json:"LLMClientTool,omitempty"`
 
 	// LLMGenerateParams corresponds to the JSON schema field "LLMGenerateParams".
-	LLMGenerateParams *LLMGenerateParams `json:"LLMGenerateParams,omitempty,omitzero"`
+	LLMGenerateParams *LLMGenerateParams `json:"LLMGenerateParams,omitempty"`
 
 	// LLMGenerateResult corresponds to the JSON schema field "LLMGenerateResult".
-	LLMGenerateResult *LLMGenerateResult `json:"LLMGenerateResult,omitempty,omitzero"`
+	LLMGenerateResult *LLMGenerateResult `json:"LLMGenerateResult,omitempty"`
 
 	// LLMImageContent corresponds to the JSON schema field "LLMImageContent".
-	LLMImageContent *LLMImageContent `json:"LLMImageContent,omitempty,omitzero"`
+	LLMImageContent *LLMImageContent `json:"LLMImageContent,omitempty"`
 
 	// LLMJsonSchemaResponseFormat corresponds to the JSON schema field
 	// "LLMJsonSchemaResponseFormat".
-	LLMJsonSchemaResponseFormat *LLMJSONSchemaResponseFormat `json:"LLMJsonSchemaResponseFormat,omitempty,omitzero"`
+	LLMJsonSchemaResponseFormat *LLMJSONSchemaResponseFormat `json:"LLMJsonSchemaResponseFormat,omitempty"`
 
 	// LLMMessage corresponds to the JSON schema field "LLMMessage".
-	LLMMessage *LLMMessage `json:"LLMMessage,omitempty,omitzero"`
+	LLMMessage *LLMMessage `json:"LLMMessage,omitempty"`
 
 	// LLMMessageContentBlock corresponds to the JSON schema field
 	// "LLMMessageContentBlock".
-	LLMMessageContentBlock *LLMMessageContentBlock `json:"LLMMessageContentBlock,omitempty,omitzero"`
+	LLMMessageContentBlock *LLMMessageContentBlock `json:"LLMMessageContentBlock,omitempty"`
 
 	// LLMMessageGenerateParams corresponds to the JSON schema field
 	// "LLMMessageGenerateParams".
-	LLMMessageGenerateParams *LLMMessageGenerateParams `json:"LLMMessageGenerateParams,omitempty,omitzero"`
+	LLMMessageGenerateParams *LLMMessageGenerateParams `json:"LLMMessageGenerateParams,omitempty"`
 
 	// LLMMessageGenerateResult corresponds to the JSON schema field
 	// "LLMMessageGenerateResult".
-	LLMMessageGenerateResult *LLMMessageGenerateResult `json:"LLMMessageGenerateResult,omitempty,omitzero"`
+	LLMMessageGenerateResult *LLMMessageGenerateResult `json:"LLMMessageGenerateResult,omitempty"`
 
 	// LLMRole corresponds to the JSON schema field "LLMRole".
-	LLMRole *LLMRole `json:"LLMRole,omitempty,omitzero"`
+	LLMRole *LLMRole `json:"LLMRole,omitempty"`
 
 	// LLMStructuredGenerateParams corresponds to the JSON schema field
 	// "LLMStructuredGenerateParams".
-	LLMStructuredGenerateParams *LLMStructuredGenerateParams `json:"LLMStructuredGenerateParams,omitempty,omitzero"`
+	LLMStructuredGenerateParams *LLMStructuredGenerateParams `json:"LLMStructuredGenerateParams,omitempty"`
 
 	// LLMStructuredGenerateResult corresponds to the JSON schema field
 	// "LLMStructuredGenerateResult".
-	LLMStructuredGenerateResult *LLMStructuredGenerateResult `json:"LLMStructuredGenerateResult,omitempty,omitzero"`
+	LLMStructuredGenerateResult *LLMStructuredGenerateResult `json:"LLMStructuredGenerateResult,omitempty"`
 
 	// LLMTextContent corresponds to the JSON schema field "LLMTextContent".
-	LLMTextContent *LLMTextContent `json:"LLMTextContent,omitempty,omitzero"`
+	LLMTextContent *LLMTextContent `json:"LLMTextContent,omitempty"`
 
 	// LLMTextResponseFormat corresponds to the JSON schema field
 	// "LLMTextResponseFormat".
-	LLMTextResponseFormat *LLMTextResponseFormat `json:"LLMTextResponseFormat,omitempty,omitzero"`
+	LLMTextResponseFormat *LLMTextResponseFormat `json:"LLMTextResponseFormat,omitempty"`
 
 	// LLMToolAnnotations corresponds to the JSON schema field "LLMToolAnnotations".
-	LLMToolAnnotations *LLMToolAnnotations `json:"LLMToolAnnotations,omitempty,omitzero"`
+	LLMToolAnnotations *LLMToolAnnotations `json:"LLMToolAnnotations,omitempty"`
 
 	// LLMToolChoice corresponds to the JSON schema field "LLMToolChoice".
-	LLMToolChoice *LLMToolChoice `json:"LLMToolChoice,omitempty,omitzero"`
+	LLMToolChoice *LLMToolChoice `json:"LLMToolChoice,omitempty"`
 
 	// LLMToolExecution corresponds to the JSON schema field "LLMToolExecution".
-	LLMToolExecution *LLMToolExecution `json:"LLMToolExecution,omitempty,omitzero"`
+	LLMToolExecution *LLMToolExecution `json:"LLMToolExecution,omitempty"`
 
 	// LLMToolIcon corresponds to the JSON schema field "LLMToolIcon".
-	LLMToolIcon *LLMToolIcon `json:"LLMToolIcon,omitempty,omitzero"`
+	LLMToolIcon *LLMToolIcon `json:"LLMToolIcon,omitempty"`
 
 	// LLMToolJSON corresponds to the JSON schema field "LLMToolJson".
-	LLMToolJSON *LLMToolJSON `json:"LLMToolJson,omitempty,omitzero"`
+	LLMToolJSON *LLMToolJSON `json:"LLMToolJson,omitempty"`
 
 	// LLMToolResultContent corresponds to the JSON schema field
 	// "LLMToolResultContent".
-	LLMToolResultContent *LLMToolResultContent `json:"LLMToolResultContent,omitempty,omitzero"`
+	LLMToolResultContent *LLMToolResultContent `json:"LLMToolResultContent,omitempty"`
 
 	// LLMToolResultContentBlock corresponds to the JSON schema field
 	// "LLMToolResultContentBlock".
-	LLMToolResultContentBlock *LLMToolResultContentBlock `json:"LLMToolResultContentBlock,omitempty,omitzero"`
+	LLMToolResultContentBlock *LLMToolResultContentBlock `json:"LLMToolResultContentBlock,omitempty"`
 
 	// LLMToolUseContent corresponds to the JSON schema field "LLMToolUseContent".
-	LLMToolUseContent *LLMToolUseContent `json:"LLMToolUseContent,omitempty,omitzero"`
+	LLMToolUseContent *LLMToolUseContent `json:"LLMToolUseContent,omitempty"`
 
 	// LLMUsage corresponds to the JSON schema field "LLMUsage".
-	LLMUsage *LLMUsage `json:"LLMUsage,omitempty,omitzero"`
+	LLMUsage *LLMUsage `json:"LLMUsage,omitempty"`
 
 	// LoadState corresponds to the JSON schema field "LoadState".
-	LoadState *LoadState `json:"LoadState,omitempty,omitzero"`
+	LoadState *LoadState `json:"LoadState,omitempty"`
 
 	// Locator corresponds to the JSON schema field "Locator".
-	Locator *Locator `json:"Locator,omitempty,omitzero"`
+	Locator *Locator `json:"Locator,omitempty"`
 
 	// LocatorCentroidResult corresponds to the JSON schema field
 	// "LocatorCentroidResult".
-	LocatorCentroidResult *LocatorCentroidResult `json:"LocatorCentroidResult,omitempty,omitzero"`
+	LocatorCentroidResult *LocatorCentroidResult `json:"LocatorCentroidResult,omitempty"`
 
 	// LocatorClickOptions corresponds to the JSON schema field "LocatorClickOptions".
-	LocatorClickOptions *LocatorClickOptions `json:"LocatorClickOptions,omitempty,omitzero"`
+	LocatorClickOptions *LocatorClickOptions `json:"LocatorClickOptions,omitempty"`
 
 	// LocatorClickParams corresponds to the JSON schema field "LocatorClickParams".
-	LocatorClickParams *LocatorClickParams `json:"LocatorClickParams,omitempty,omitzero"`
+	LocatorClickParams *LocatorClickParams `json:"LocatorClickParams,omitempty"`
 
 	// LocatorClickResult corresponds to the JSON schema field "LocatorClickResult".
-	LocatorClickResult *LocatorClickResult `json:"LocatorClickResult,omitempty,omitzero"`
+	LocatorClickResult *LocatorClickResult `json:"LocatorClickResult,omitempty"`
 
 	// LocatorCountResult corresponds to the JSON schema field "LocatorCountResult".
-	LocatorCountResult *LocatorCountResult `json:"LocatorCountResult,omitempty,omitzero"`
+	LocatorCountResult *LocatorCountResult `json:"LocatorCountResult,omitempty"`
 
 	// LocatorDescriptor corresponds to the JSON schema field "LocatorDescriptor".
-	LocatorDescriptor *LocatorDescriptor `json:"LocatorDescriptor,omitempty,omitzero"`
+	LocatorDescriptor *LocatorDescriptor `json:"LocatorDescriptor,omitempty"`
 
 	// LocatorFillParams corresponds to the JSON schema field "LocatorFillParams".
-	LocatorFillParams *LocatorFillParams `json:"LocatorFillParams,omitempty,omitzero"`
+	LocatorFillParams *LocatorFillParams `json:"LocatorFillParams,omitempty"`
 
 	// LocatorFillResult corresponds to the JSON schema field "LocatorFillResult".
-	LocatorFillResult *LocatorFillResult `json:"LocatorFillResult,omitempty,omitzero"`
+	LocatorFillResult *LocatorFillResult `json:"LocatorFillResult,omitempty"`
 
 	// LocatorHighlightOptions corresponds to the JSON schema field
 	// "LocatorHighlightOptions".
-	LocatorHighlightOptions *LocatorHighlightOptions `json:"LocatorHighlightOptions,omitempty,omitzero"`
+	LocatorHighlightOptions *LocatorHighlightOptions `json:"LocatorHighlightOptions,omitempty"`
 
 	// LocatorHighlightParams corresponds to the JSON schema field
 	// "LocatorHighlightParams".
-	LocatorHighlightParams *LocatorHighlightParams `json:"LocatorHighlightParams,omitempty,omitzero"`
+	LocatorHighlightParams *LocatorHighlightParams `json:"LocatorHighlightParams,omitempty"`
 
 	// LocatorHighlightResult corresponds to the JSON schema field
 	// "LocatorHighlightResult".
-	LocatorHighlightResult *LocatorHighlightResult `json:"LocatorHighlightResult,omitempty,omitzero"`
+	LocatorHighlightResult *LocatorHighlightResult `json:"LocatorHighlightResult,omitempty"`
 
 	// LocatorHoverResult corresponds to the JSON schema field "LocatorHoverResult".
-	LocatorHoverResult *LocatorHoverResult `json:"LocatorHoverResult,omitempty,omitzero"`
+	LocatorHoverResult *LocatorHoverResult `json:"LocatorHoverResult,omitempty"`
 
 	// LocatorInnerHTMLResult corresponds to the JSON schema field
 	// "LocatorInnerHtmlResult".
-	LocatorInnerHTMLResult *LocatorInnerHTMLResult `json:"LocatorInnerHtmlResult,omitempty,omitzero"`
+	LocatorInnerHTMLResult *LocatorInnerHTMLResult `json:"LocatorInnerHtmlResult,omitempty"`
 
 	// LocatorInnerTextResult corresponds to the JSON schema field
 	// "LocatorInnerTextResult".
-	LocatorInnerTextResult *LocatorInnerTextResult `json:"LocatorInnerTextResult,omitempty,omitzero"`
+	LocatorInnerTextResult *LocatorInnerTextResult `json:"LocatorInnerTextResult,omitempty"`
 
 	// LocatorInputValueResult corresponds to the JSON schema field
 	// "LocatorInputValueResult".
-	LocatorInputValueResult *LocatorInputValueResult `json:"LocatorInputValueResult,omitempty,omitzero"`
+	LocatorInputValueResult *LocatorInputValueResult `json:"LocatorInputValueResult,omitempty"`
 
 	// LocatorIsCheckedResult corresponds to the JSON schema field
 	// "LocatorIsCheckedResult".
-	LocatorIsCheckedResult *LocatorIsCheckedResult `json:"LocatorIsCheckedResult,omitempty,omitzero"`
+	LocatorIsCheckedResult *LocatorIsCheckedResult `json:"LocatorIsCheckedResult,omitempty"`
 
 	// LocatorIsVisibleResult corresponds to the JSON schema field
 	// "LocatorIsVisibleResult".
-	LocatorIsVisibleResult *LocatorIsVisibleResult `json:"LocatorIsVisibleResult,omitempty,omitzero"`
+	LocatorIsVisibleResult *LocatorIsVisibleResult `json:"LocatorIsVisibleResult,omitempty"`
 
 	// LocatorScrollToParams corresponds to the JSON schema field
 	// "LocatorScrollToParams".
-	LocatorScrollToParams *LocatorScrollToParams `json:"LocatorScrollToParams,omitempty,omitzero"`
+	LocatorScrollToParams *LocatorScrollToParams `json:"LocatorScrollToParams,omitempty"`
 
 	// LocatorScrollToResult corresponds to the JSON schema field
 	// "LocatorScrollToResult".
-	LocatorScrollToResult *LocatorScrollToResult `json:"LocatorScrollToResult,omitempty,omitzero"`
+	LocatorScrollToResult *LocatorScrollToResult `json:"LocatorScrollToResult,omitempty"`
 
 	// LocatorSelectOptionParams corresponds to the JSON schema field
 	// "LocatorSelectOptionParams".
-	LocatorSelectOptionParams *LocatorSelectOptionParams `json:"LocatorSelectOptionParams,omitempty,omitzero"`
+	LocatorSelectOptionParams *LocatorSelectOptionParams `json:"LocatorSelectOptionParams,omitempty"`
 
 	// LocatorSelectOptionResult corresponds to the JSON schema field
 	// "LocatorSelectOptionResult".
-	LocatorSelectOptionResult *LocatorSelectOptionResult `json:"LocatorSelectOptionResult,omitempty,omitzero"`
+	LocatorSelectOptionResult *LocatorSelectOptionResult `json:"LocatorSelectOptionResult,omitempty"`
 
 	// LocatorSendClickEventOptions corresponds to the JSON schema field
 	// "LocatorSendClickEventOptions".
-	LocatorSendClickEventOptions *LocatorSendClickEventOptions `json:"LocatorSendClickEventOptions,omitempty,omitzero"`
+	LocatorSendClickEventOptions *LocatorSendClickEventOptions `json:"LocatorSendClickEventOptions,omitempty"`
 
 	// LocatorSendClickEventParams corresponds to the JSON schema field
 	// "LocatorSendClickEventParams".
-	LocatorSendClickEventParams *LocatorSendClickEventParams `json:"LocatorSendClickEventParams,omitempty,omitzero"`
+	LocatorSendClickEventParams *LocatorSendClickEventParams `json:"LocatorSendClickEventParams,omitempty"`
 
 	// LocatorSendClickEventResult corresponds to the JSON schema field
 	// "LocatorSendClickEventResult".
-	LocatorSendClickEventResult *LocatorSendClickEventResult `json:"LocatorSendClickEventResult,omitempty,omitzero"`
+	LocatorSendClickEventResult *LocatorSendClickEventResult `json:"LocatorSendClickEventResult,omitempty"`
 
 	// LocatorTextContentResult corresponds to the JSON schema field
 	// "LocatorTextContentResult".
-	LocatorTextContentResult *LocatorTextContentResult `json:"LocatorTextContentResult,omitempty,omitzero"`
+	LocatorTextContentResult *LocatorTextContentResult `json:"LocatorTextContentResult,omitempty"`
 
 	// LocatorTypeOptions corresponds to the JSON schema field "LocatorTypeOptions".
-	LocatorTypeOptions *LocatorTypeOptions `json:"LocatorTypeOptions,omitempty,omitzero"`
+	LocatorTypeOptions *LocatorTypeOptions `json:"LocatorTypeOptions,omitempty"`
 
 	// LocatorTypeParams corresponds to the JSON schema field "LocatorTypeParams".
-	LocatorTypeParams *LocatorTypeParams `json:"LocatorTypeParams,omitempty,omitzero"`
+	LocatorTypeParams *LocatorTypeParams `json:"LocatorTypeParams,omitempty"`
 
 	// LocatorTypeResult corresponds to the JSON schema field "LocatorTypeResult".
-	LocatorTypeResult *LocatorTypeResult `json:"LocatorTypeResult,omitempty,omitzero"`
+	LocatorTypeResult *LocatorTypeResult `json:"LocatorTypeResult,omitempty"`
 
 	// ModelConfig corresponds to the JSON schema field "ModelConfig".
-	ModelConfig *ModelConfig `json:"ModelConfig,omitempty,omitzero"`
+	ModelConfig *ModelConfig `json:"ModelConfig,omitempty"`
 
 	// ModelName corresponds to the JSON schema field "ModelName".
-	ModelName *ModelName `json:"ModelName,omitempty,omitzero"`
+	ModelName *ModelName `json:"ModelName,omitempty"`
 
 	// MouseButton corresponds to the JSON schema field "MouseButton".
-	MouseButton *MouseButton `json:"MouseButton,omitempty,omitzero"`
+	MouseButton *MouseButton `json:"MouseButton,omitempty"`
 
 	// ObserveOptions corresponds to the JSON schema field "ObserveOptions".
-	ObserveOptions *ObserveOptions `json:"ObserveOptions,omitempty,omitzero"`
+	ObserveOptions *ObserveOptions `json:"ObserveOptions,omitempty"`
 
 	// ObserveResult corresponds to the JSON schema field "ObserveResult".
-	ObserveResult *ObserveResult `json:"ObserveResult,omitempty,omitzero"`
+	ObserveResult *ObserveResult `json:"ObserveResult,omitempty"`
 
 	// OpenAIModelName corresponds to the JSON schema field "OpenAIModelName".
-	OpenAIModelName *OpenAIModelName `json:"OpenAIModelName,omitempty,omitzero"`
+	OpenAIModelName *OpenAIModelName `json:"OpenAIModelName,omitempty"`
 
 	// PageAddInitScriptParams corresponds to the JSON schema field
 	// "PageAddInitScriptParams".
-	PageAddInitScriptParams *PageAddInitScriptParams `json:"PageAddInitScriptParams,omitempty,omitzero"`
+	PageAddInitScriptParams *PageAddInitScriptParams `json:"PageAddInitScriptParams,omitempty"`
 
 	// PageClickOptions corresponds to the JSON schema field "PageClickOptions".
-	PageClickOptions *PageClickOptions `json:"PageClickOptions,omitempty,omitzero"`
+	PageClickOptions *PageClickOptions `json:"PageClickOptions,omitempty"`
 
 	// PageClickParams corresponds to the JSON schema field "PageClickParams".
-	PageClickParams *PageClickParams `json:"PageClickParams,omitempty,omitzero"`
+	PageClickParams *PageClickParams `json:"PageClickParams,omitempty"`
 
 	// PageCloseResult corresponds to the JSON schema field "PageCloseResult".
-	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty,omitzero"`
+	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty"`
 
 	// PageCoordinateResult corresponds to the JSON schema field
 	// "PageCoordinateResult".
-	PageCoordinateResult *PageCoordinateResult `json:"PageCoordinateResult,omitempty,omitzero"`
+	PageCoordinateResult *PageCoordinateResult `json:"PageCoordinateResult,omitempty"`
 
 	// PageDragAndDropOptions corresponds to the JSON schema field
 	// "PageDragAndDropOptions".
-	PageDragAndDropOptions *PageDragAndDropOptions `json:"PageDragAndDropOptions,omitempty,omitzero"`
+	PageDragAndDropOptions *PageDragAndDropOptions `json:"PageDragAndDropOptions,omitempty"`
 
 	// PageDragAndDropParams corresponds to the JSON schema field
 	// "PageDragAndDropParams".
-	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty,omitzero"`
+	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty"`
 
 	// PageDragAndDropResult corresponds to the JSON schema field
 	// "PageDragAndDropResult".
-	PageDragAndDropResult *PageDragAndDropResult `json:"PageDragAndDropResult,omitempty,omitzero"`
+	PageDragAndDropResult *PageDragAndDropResult `json:"PageDragAndDropResult,omitempty"`
 
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
-	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
+	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty"`
 
 	// PageEvaluateResult corresponds to the JSON schema field "PageEvaluateResult".
-	PageEvaluateResult *PageEvaluateResult `json:"PageEvaluateResult,omitempty,omitzero"`
+	PageEvaluateResult *PageEvaluateResult `json:"PageEvaluateResult,omitempty"`
 
 	// PageGoBackParams corresponds to the JSON schema field "PageGoBackParams".
-	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty,omitzero"`
+	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty"`
 
 	// PageGoForwardParams corresponds to the JSON schema field "PageGoForwardParams".
-	PageGoForwardParams *PageGoForwardParams `json:"PageGoForwardParams,omitempty,omitzero"`
+	PageGoForwardParams *PageGoForwardParams `json:"PageGoForwardParams,omitempty"`
 
 	// PageGotoParams corresponds to the JSON schema field "PageGotoParams".
-	PageGotoParams *PageGotoParams `json:"PageGotoParams,omitempty,omitzero"`
+	PageGotoParams *PageGotoParams `json:"PageGotoParams,omitempty"`
 
 	// PageHoverOptions corresponds to the JSON schema field "PageHoverOptions".
-	PageHoverOptions *PageHoverOptions `json:"PageHoverOptions,omitempty,omitzero"`
+	PageHoverOptions *PageHoverOptions `json:"PageHoverOptions,omitempty"`
 
 	// PageHoverParams corresponds to the JSON schema field "PageHoverParams".
-	PageHoverParams *PageHoverParams `json:"PageHoverParams,omitempty,omitzero"`
+	PageHoverParams *PageHoverParams `json:"PageHoverParams,omitempty"`
 
 	// PageIDParams corresponds to the JSON schema field "PageIdParams".
-	PageIDParams *PageIDParams `json:"PageIdParams,omitempty,omitzero"`
+	PageIDParams *PageIDParams `json:"PageIdParams,omitempty"`
 
 	// PageKeyPressOptions corresponds to the JSON schema field "PageKeyPressOptions".
-	PageKeyPressOptions *PageKeyPressOptions `json:"PageKeyPressOptions,omitempty,omitzero"`
+	PageKeyPressOptions *PageKeyPressOptions `json:"PageKeyPressOptions,omitempty"`
 
 	// PageKeyPressParams corresponds to the JSON schema field "PageKeyPressParams".
-	PageKeyPressParams *PageKeyPressParams `json:"PageKeyPressParams,omitempty,omitzero"`
+	PageKeyPressParams *PageKeyPressParams `json:"PageKeyPressParams,omitempty"`
 
 	// PageNavigationOptions corresponds to the JSON schema field
 	// "PageNavigationOptions".
-	PageNavigationOptions *PageNavigationOptions `json:"PageNavigationOptions,omitempty,omitzero"`
+	PageNavigationOptions *PageNavigationOptions `json:"PageNavigationOptions,omitempty"`
 
 	// PageRef corresponds to the JSON schema field "PageRef".
-	PageRef *PageRef `json:"PageRef,omitempty,omitzero"`
+	PageRef *PageRef `json:"PageRef,omitempty"`
 
 	// PageReloadOptions corresponds to the JSON schema field "PageReloadOptions".
-	PageReloadOptions *PageReloadOptions `json:"PageReloadOptions,omitempty,omitzero"`
+	PageReloadOptions *PageReloadOptions `json:"PageReloadOptions,omitempty"`
 
 	// PageReloadParams corresponds to the JSON schema field "PageReloadParams".
-	PageReloadParams *PageReloadParams `json:"PageReloadParams,omitempty,omitzero"`
+	PageReloadParams *PageReloadParams `json:"PageReloadParams,omitempty"`
 
 	// PageScreenshotClip corresponds to the JSON schema field "PageScreenshotClip".
-	PageScreenshotClip *PageScreenshotClip `json:"PageScreenshotClip,omitempty,omitzero"`
+	PageScreenshotClip *PageScreenshotClip `json:"PageScreenshotClip,omitempty"`
 
 	// PageScreenshotOptions corresponds to the JSON schema field
 	// "PageScreenshotOptions".
-	PageScreenshotOptions *PageScreenshotOptions `json:"PageScreenshotOptions,omitempty,omitzero"`
+	PageScreenshotOptions *PageScreenshotOptions `json:"PageScreenshotOptions,omitempty"`
 
 	// PageScreenshotParams corresponds to the JSON schema field
 	// "PageScreenshotParams".
-	PageScreenshotParams *PageScreenshotParams `json:"PageScreenshotParams,omitempty,omitzero"`
+	PageScreenshotParams *PageScreenshotParams `json:"PageScreenshotParams,omitempty"`
 
 	// PageScreenshotResult corresponds to the JSON schema field
 	// "PageScreenshotResult".
-	PageScreenshotResult *PageScreenshotResult `json:"PageScreenshotResult,omitempty,omitzero"`
+	PageScreenshotResult *PageScreenshotResult `json:"PageScreenshotResult,omitempty"`
 
 	// PageScrollOptions corresponds to the JSON schema field "PageScrollOptions".
-	PageScrollOptions *PageScrollOptions `json:"PageScrollOptions,omitempty,omitzero"`
+	PageScrollOptions *PageScrollOptions `json:"PageScrollOptions,omitempty"`
 
 	// PageScrollParams corresponds to the JSON schema field "PageScrollParams".
-	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty,omitzero"`
+	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty"`
 
 	// PageSetExtraHTTPHeadersParams corresponds to the JSON schema field
 	// "PageSetExtraHTTPHeadersParams".
-	PageSetExtraHTTPHeadersParams *PageSetExtraHTTPHeadersParams `json:"PageSetExtraHTTPHeadersParams,omitempty,omitzero"`
+	PageSetExtraHTTPHeadersParams *PageSetExtraHTTPHeadersParams `json:"PageSetExtraHTTPHeadersParams,omitempty"`
 
 	// PageSetViewportSizeOptions corresponds to the JSON schema field
 	// "PageSetViewportSizeOptions".
-	PageSetViewportSizeOptions *PageSetViewportSizeOptions `json:"PageSetViewportSizeOptions,omitempty,omitzero"`
+	PageSetViewportSizeOptions *PageSetViewportSizeOptions `json:"PageSetViewportSizeOptions,omitempty"`
 
 	// PageSetViewportSizeParams corresponds to the JSON schema field
 	// "PageSetViewportSizeParams".
-	PageSetViewportSizeParams *PageSetViewportSizeParams `json:"PageSetViewportSizeParams,omitempty,omitzero"`
+	PageSetViewportSizeParams *PageSetViewportSizeParams `json:"PageSetViewportSizeParams,omitempty"`
 
 	// PageSnapshotOptions corresponds to the JSON schema field "PageSnapshotOptions".
-	PageSnapshotOptions *PageSnapshotOptions `json:"PageSnapshotOptions,omitempty,omitzero"`
+	PageSnapshotOptions *PageSnapshotOptions `json:"PageSnapshotOptions,omitempty"`
 
 	// PageSnapshotParams corresponds to the JSON schema field "PageSnapshotParams".
-	PageSnapshotParams *PageSnapshotParams `json:"PageSnapshotParams,omitempty,omitzero"`
+	PageSnapshotParams *PageSnapshotParams `json:"PageSnapshotParams,omitempty"`
 
 	// PageTitleResult corresponds to the JSON schema field "PageTitleResult".
-	PageTitleResult *PageTitleResult `json:"PageTitleResult,omitempty,omitzero"`
+	PageTitleResult *PageTitleResult `json:"PageTitleResult,omitempty"`
 
 	// PageTypeOptions corresponds to the JSON schema field "PageTypeOptions".
-	PageTypeOptions *PageTypeOptions `json:"PageTypeOptions,omitempty,omitzero"`
+	PageTypeOptions *PageTypeOptions `json:"PageTypeOptions,omitempty"`
 
 	// PageTypeParams corresponds to the JSON schema field "PageTypeParams".
-	PageTypeParams *PageTypeParams `json:"PageTypeParams,omitempty,omitzero"`
+	PageTypeParams *PageTypeParams `json:"PageTypeParams,omitempty"`
 
 	// PageURLResult corresponds to the JSON schema field "PageUrlResult".
-	PageURLResult *PageURLResult `json:"PageUrlResult,omitempty,omitzero"`
+	PageURLResult *PageURLResult `json:"PageUrlResult,omitempty"`
 
 	// PageVoidResult corresponds to the JSON schema field "PageVoidResult".
-	PageVoidResult *PageVoidResult `json:"PageVoidResult,omitempty,omitzero"`
+	PageVoidResult *PageVoidResult `json:"PageVoidResult,omitempty"`
 
 	// PageWaitForLoadStateParams corresponds to the JSON schema field
 	// "PageWaitForLoadStateParams".
-	PageWaitForLoadStateParams *PageWaitForLoadStateParams `json:"PageWaitForLoadStateParams,omitempty,omitzero"`
+	PageWaitForLoadStateParams *PageWaitForLoadStateParams `json:"PageWaitForLoadStateParams,omitempty"`
 
 	// PageWaitForSelectorOptions corresponds to the JSON schema field
 	// "PageWaitForSelectorOptions".
-	PageWaitForSelectorOptions *PageWaitForSelectorOptions `json:"PageWaitForSelectorOptions,omitempty,omitzero"`
+	PageWaitForSelectorOptions *PageWaitForSelectorOptions `json:"PageWaitForSelectorOptions,omitempty"`
 
 	// PageWaitForSelectorParams corresponds to the JSON schema field
 	// "PageWaitForSelectorParams".
-	PageWaitForSelectorParams *PageWaitForSelectorParams `json:"PageWaitForSelectorParams,omitempty,omitzero"`
+	PageWaitForSelectorParams *PageWaitForSelectorParams `json:"PageWaitForSelectorParams,omitempty"`
 
 	// PageWaitForSelectorResult corresponds to the JSON schema field
 	// "PageWaitForSelectorResult".
-	PageWaitForSelectorResult *PageWaitForSelectorResult `json:"PageWaitForSelectorResult,omitempty,omitzero"`
+	PageWaitForSelectorResult *PageWaitForSelectorResult `json:"PageWaitForSelectorResult,omitempty"`
 
 	// PageWaitForTimeoutParams corresponds to the JSON schema field
 	// "PageWaitForTimeoutParams".
-	PageWaitForTimeoutParams *PageWaitForTimeoutParams `json:"PageWaitForTimeoutParams,omitempty,omitzero"`
+	PageWaitForTimeoutParams *PageWaitForTimeoutParams `json:"PageWaitForTimeoutParams,omitempty"`
 
 	// ProxyConfig corresponds to the JSON schema field "ProxyConfig".
-	ProxyConfig *ProxyConfig `json:"ProxyConfig,omitempty,omitzero"`
+	ProxyConfig *ProxyConfig `json:"ProxyConfig,omitempty"`
 
 	// RgbaColor corresponds to the JSON schema field "RgbaColor".
-	RgbaColor *RgbaColor `json:"RgbaColor,omitempty,omitzero"`
+	RgbaColor *RgbaColor `json:"RgbaColor,omitempty"`
 
 	// RuntimeConfigureParams corresponds to the JSON schema field
 	// "RuntimeConfigureParams".
-	RuntimeConfigureParams *RuntimeConfigureParams `json:"RuntimeConfigureParams,omitempty,omitzero"`
+	RuntimeConfigureParams *RuntimeConfigureParams `json:"RuntimeConfigureParams,omitempty"`
 
 	// RuntimeConfigureResult corresponds to the JSON schema field
 	// "RuntimeConfigureResult".
-	RuntimeConfigureResult *RuntimeConfigureResult `json:"RuntimeConfigureResult,omitempty,omitzero"`
+	RuntimeConfigureResult *RuntimeConfigureResult `json:"RuntimeConfigureResult,omitempty"`
 
 	// RuntimeLoopbackStatusResult corresponds to the JSON schema field
 	// "RuntimeLoopbackStatusResult".
-	RuntimeLoopbackStatusResult *RuntimeLoopbackStatusResult `json:"RuntimeLoopbackStatusResult,omitempty,omitzero"`
+	RuntimeLoopbackStatusResult *RuntimeLoopbackStatusResult `json:"RuntimeLoopbackStatusResult,omitempty"`
 
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
-	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
+	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty"`
 
 	// StagehandActParams corresponds to the JSON schema field "StagehandActParams".
-	StagehandActParams *StagehandActParams `json:"StagehandActParams,omitempty,omitzero"`
+	StagehandActParams *StagehandActParams `json:"StagehandActParams,omitempty"`
 
 	// StagehandCloseResult corresponds to the JSON schema field
 	// "StagehandCloseResult".
-	StagehandCloseResult *StagehandCloseResult `json:"StagehandCloseResult,omitempty,omitzero"`
+	StagehandCloseResult *StagehandCloseResult `json:"StagehandCloseResult,omitempty"`
 
 	// StagehandExtractParams corresponds to the JSON schema field
 	// "StagehandExtractParams".
-	StagehandExtractParams *StagehandExtractParams `json:"StagehandExtractParams,omitempty,omitzero"`
+	StagehandExtractParams *StagehandExtractParams `json:"StagehandExtractParams,omitempty"`
 
 	// StagehandInitParams corresponds to the JSON schema field "StagehandInitParams".
-	StagehandInitParams *StagehandInitParams `json:"StagehandInitParams,omitempty,omitzero"`
+	StagehandInitParams *StagehandInitParams `json:"StagehandInitParams,omitempty"`
 
 	// StagehandInitResult corresponds to the JSON schema field "StagehandInitResult".
-	StagehandInitResult *StagehandInitResult `json:"StagehandInitResult,omitempty,omitzero"`
+	StagehandInitResult *StagehandInitResult `json:"StagehandInitResult,omitempty"`
 
 	// StagehandLog corresponds to the JSON schema field "StagehandLog".
-	StagehandLog *StagehandLog `json:"StagehandLog,omitempty,omitzero"`
+	StagehandLog *StagehandLog `json:"StagehandLog,omitempty"`
 
 	// StagehandLogData corresponds to the JSON schema field "StagehandLogData".
-	StagehandLogData StagehandLogData `json:"StagehandLogData,omitempty,omitzero"`
+	StagehandLogData StagehandLogData `json:"StagehandLogData,omitempty"`
 
 	// StagehandLogLevel corresponds to the JSON schema field "StagehandLogLevel".
-	StagehandLogLevel *StagehandLogLevel `json:"StagehandLogLevel,omitempty,omitzero"`
+	StagehandLogLevel *StagehandLogLevel `json:"StagehandLogLevel,omitempty"`
 
 	// StagehandMetrics corresponds to the JSON schema field "StagehandMetrics".
-	StagehandMetrics *StagehandMetrics `json:"StagehandMetrics,omitempty,omitzero"`
+	StagehandMetrics *StagehandMetrics `json:"StagehandMetrics,omitempty"`
 
 	// StagehandObserveParams corresponds to the JSON schema field
 	// "StagehandObserveParams".
-	StagehandObserveParams *StagehandObserveParams `json:"StagehandObserveParams,omitempty,omitzero"`
+	StagehandObserveParams *StagehandObserveParams `json:"StagehandObserveParams,omitempty"`
 
 	// StagehandPingResult corresponds to the JSON schema field "StagehandPingResult".
-	StagehandPingResult *StagehandPingResult `json:"StagehandPingResult,omitempty,omitzero"`
+	StagehandPingResult *StagehandPingResult `json:"StagehandPingResult,omitempty"`
 
 	// TelemetryConfig corresponds to the JSON schema field "TelemetryConfig".
-	TelemetryConfig *TelemetryConfig `json:"TelemetryConfig,omitempty,omitzero"`
+	TelemetryConfig *TelemetryConfig `json:"TelemetryConfig,omitempty"`
 
 	// TelemetryTraces corresponds to the JSON schema field "TelemetryTraces".
-	TelemetryTraces *TelemetryTraces `json:"TelemetryTraces,omitempty,omitzero"`
+	TelemetryTraces *TelemetryTraces `json:"TelemetryTraces,omitempty"`
 
 	// VariablePrimitive corresponds to the JSON schema field "VariablePrimitive".
-	VariablePrimitive *VariablePrimitive `json:"VariablePrimitive,omitempty,omitzero"`
+	VariablePrimitive *VariablePrimitive `json:"VariablePrimitive,omitempty"`
 
 	// VariableValue corresponds to the JSON schema field "VariableValue".
-	VariableValue *VariableValue `json:"VariableValue,omitempty,omitzero"`
+	VariableValue *VariableValue `json:"VariableValue,omitempty"`
 
 	// Variables corresponds to the JSON schema field "Variables".
-	Variables Variables `json:"Variables,omitempty,omitzero"`
+	Variables Variables `json:"Variables,omitempty"`
 
 	// Schema0 corresponds to the JSON schema field "__schema0".
-	Schema0 json.RawMessage `json:"__schema0,omitempty,omitzero"`
+	Schema0 json.RawMessage `json:"__schema0,omitempty"`
 
 	// Schema1 corresponds to the JSON schema field "__schema1".
-	Schema1 json.RawMessage `json:"__schema1,omitempty,omitzero"`
+	Schema1 json.RawMessage `json:"__schema1,omitempty"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
-	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`
+	Schema2 json.RawMessage `json:"__schema2,omitempty"`
 
 	// Schema3 corresponds to the JSON schema field "__schema3".
-	Schema3 json.RawMessage `json:"__schema3,omitempty,omitzero"`
+	Schema3 json.RawMessage `json:"__schema3,omitempty"`
 
 	// Schema4 corresponds to the JSON schema field "__schema4".
-	Schema4 json.RawMessage `json:"__schema4,omitempty,omitzero"`
+	Schema4 json.RawMessage `json:"__schema4,omitempty"`
 
 	// Schema5 corresponds to the JSON schema field "__schema5".
-	Schema5 json.RawMessage `json:"__schema5,omitempty,omitzero"`
+	Schema5 json.RawMessage `json:"__schema5,omitempty"`
 
 	// Schema6 corresponds to the JSON schema field "__schema6".
-	Schema6 json.RawMessage `json:"__schema6,omitempty,omitzero"`
+	Schema6 json.RawMessage `json:"__schema6,omitempty"`
 
 	// Schema7 corresponds to the JSON schema field "__schema7".
-	Schema7 json.RawMessage `json:"__schema7,omitempty,omitzero"`
+	Schema7 json.RawMessage `json:"__schema7,omitempty"`
 
 	// Schema8 corresponds to the JSON schema field "__schema8".
-	Schema8 json.RawMessage `json:"__schema8,omitempty,omitzero"`
+	Schema8 json.RawMessage `json:"__schema8,omitempty"`
 }

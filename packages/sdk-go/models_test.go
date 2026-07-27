@@ -82,6 +82,59 @@ func TestGeneratedModelsContainNoEmptyInterfaceFallbacks(t *testing.T) {
 	}
 }
 
+func TestOptionalTelemetryOmissionAndExplicitDefault(t *testing.T) {
+	t.Parallel()
+
+	defaultTelemetry := &TelemetryConfig{
+		Traces: TelemetryTraces{
+			Endpoint: "https://example.com/v1/traces",
+			Headers:  TelemetryTracesHeaders{},
+		},
+	}
+	for _, test := range []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{
+			name:  "stagehand init omitted",
+			value: StagehandInitParams{},
+			want:  `{}`,
+		},
+		{
+			name:  "stagehand init explicit default",
+			value: StagehandInitParams{Telemetry: defaultTelemetry},
+			want:  `{"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}}`,
+		},
+		{
+			name:  "runtime configure omitted",
+			value: RuntimeConfigureParams{CDPURL: "ws://runtime.test"},
+			want:  `{"cdp_url":"ws://runtime.test"}`,
+		},
+		{
+			name: "runtime configure explicit default",
+			value: RuntimeConfigureParams{
+				CDPURL:    "ws://runtime.test",
+				Telemetry: defaultTelemetry,
+			},
+			want: `{
+				"cdp_url":"ws://runtime.test",
+				"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}
+			}`,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := json.Marshal(test.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !jsonEqual([]byte(test.want), data) {
+				t.Fatalf("telemetry JSON mismatch:\nwant %s\n got %s", test.want, data)
+			}
+		})
+	}
+}
+
 func TestObjectUnionsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -275,10 +328,16 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 	}
 }
 
-func TestCachingVariantsRoundTrip(t *testing.T) {
+func TestCachingVariantsAndBounds(t *testing.T) {
 	t.Parallel()
 
-	for _, input := range []string{`true`, `false`, `{}`, `{"threshold":1}`} {
+	for _, input := range []string{
+		`true`,
+		`false`,
+		`{}`,
+		`{"threshold":1}`,
+		`{"threshold":9007199254740991}`,
+	} {
 		var value Caching
 		if err := json.Unmarshal([]byte(input), &value); err != nil {
 			t.Fatalf("Unmarshal(%s) error = %v", input, err)
@@ -292,10 +351,21 @@ func TestCachingVariantsRoundTrip(t *testing.T) {
 		}
 	}
 
-	for _, input := range []string{`null`, `{"threshold":0}`, `{"threshold":-1}`} {
+	for _, input := range []string{
+		`null`,
+		`{"threshold":0}`,
+		`{"threshold":-1}`,
+		`{"threshold":9007199254740992}`,
+	} {
 		var value Caching
 		if err := json.Unmarshal([]byte(input), &value); err == nil {
 			t.Fatalf("expected %s to fail", input)
+		}
+	}
+
+	for _, threshold := range []int{0, -1, 9007199254740992} {
+		if _, err := json.Marshal(CacheWithThreshold(threshold)); err == nil {
+			t.Fatalf("expected threshold %d to fail marshaling", threshold)
 		}
 	}
 }
