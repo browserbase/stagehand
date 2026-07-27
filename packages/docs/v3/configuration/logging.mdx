@@ -1,0 +1,641 @@
+---
+title: Logging
+sidebarTitle: Logging
+description: Set up logging, debugging, and error tracking for Stagehand workflows
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
+
+## Quick Start
+
+Choose your logging setup based on your environment:
+
+<CodeGroup>
+```typescript Development
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 2,  // Full debug output
+  // restOfYourConfiguration...
+});
+```
+
+```typescript Production
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,  // Standard logging - less noise
+  disablePino: true,  // Disable default console logging - no console spam
+  // logger: yourProductionLogger,  // Send to observability platform like Sentry or DataDog
+  // restOfYourConfiguration...
+});
+```
+
+```typescript Testing
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 1,
+  // Pino automatically disabled in test environments - no worker thread issues
+  // logger: yourTestLogger,  // Send to test logging framework like Jest
+  // restOfYourConfiguration...
+});
+```
+</CodeGroup>
+
+---
+
+## Operational Logging
+
+Real-time event logging during automation execution.
+
+### Verbosity Level
+
+Control how much detail you see in logs:
+
+<Tabs>
+<Tab title="Level 2: Debug">
+**Use for:** Development, debugging specific issues
+
+```typescript
+const stagehand = new Stagehand({
+  verbose: 2,  // Maximum detail
+  // restOfYourConfiguration...
+});
+```
+
+<Accordion title="Example Output">
+
+```
+[12:34:56] DEBUG: Capturing DOM snapshot
+[12:34:57] DEBUG: DOM contains 847 elements
+[12:34:58] DEBUG: LLM inference started
+[12:34:59] DEBUG: LLM response: {"selector": "#btn-submit", "method": "click"}
+[12:35:00] INFO: act completed successfully
+```
+
+</Accordion>
+</Tab>
+
+<Tab title="Level 1: Info (Default)">
+**Use for:** Standard operations, staging, production
+
+```typescript
+const stagehand = new Stagehand({
+  verbose: 1,  // Default level
+  // restOfYourConfiguration...
+});
+```
+
+
+<Accordion title="Example Output">
+
+```
+[12:34:56] INFO: act started
+[12:35:00] INFO: act completed successfully
+[12:35:01] INFO: extract started
+[12:35:03] INFO: extract completed
+```
+
+</Accordion>
+</Tab>
+
+<Tab title="Level 0: Errors Only">
+**Use for:** Production with external monitoring, minimal noise
+
+```typescript
+const stagehand = new Stagehand({
+  verbose: 0,  // Errors only
+  // restOfYourConfiguration...
+});
+```
+
+<Accordion title="Example Output">
+
+```
+[12:35:05] ERROR: act failed: element not found
+[12:35:10] ERROR: navigation timeout exceeded
+```
+
+</Accordion>
+</Tab>
+</Tabs>
+
+---
+
+### Log Destinations
+
+Logs can be sent to different destinations, including your console and external observability platforms:
+
+<Tabs>
+<Tab title="Pino (Default)">
+Fast, structured, colorized JSON logger with console output.
+
+**When to use:** Development, staging, or production without external observability; can manage multiple Stagehand instances
+
+```typescript
+// Enabled by default - Pino handles console output automatically
+const stagehand = new Stagehand({
+  verbose: 1,
+  // restOfYourConfiguration...
+});
+```
+
+<Accordion title="Auto-disabled when">
+- `process.env.NODE_ENV === "test"`
+- `process.env.JEST_WORKER_ID !== undefined` (Jest tests)
+- `process.env.PLAYWRIGHT_TEST_BASE_DIR !== undefined` (Playwright tests)
+- `process.env.CI === "true"` (CI/CD environments)
+
+**Why auto-disable?** Pino uses worker threads for pretty-printing, which can cause issues in test runners.
+</Accordion>
+</Tab>
+
+<Tab title="Console Fallback">
+Simple console.log/error output.
+
+**When to use:** Automatically activated in tests, or when `disablePino: true` without setting an external logger
+
+```typescript
+const stagehand = new Stagehand({
+  verbose: 1,
+  disablePino: true, // Set to true automatically when a test is detected
+  // restOfYourConfiguration...
+});
+```
+
+<Accordion title="Auto-disabled when">
+- `process.env.NODE_ENV === "test"`
+- `process.env.JEST_WORKER_ID !== undefined` (Jest tests)
+- `process.env.PLAYWRIGHT_TEST_BASE_DIR !== undefined` (Playwright tests)
+- `process.env.CI === "true"` (CI/CD environments)
+
+**Why auto-disable?** Pino uses worker threads for pretty-printing, which can cause issues in test runners.
+</Accordion>
+</Tab>
+<Tab title="Custom Logger">
+Your custom logging function to receive all logs. Works independently of Pino - receives logs regardless of Pino setting.
+
+**When to use:** Development, debugging, or when you don't need querying
+capabilities.
+
+<Steps>
+
+<Step title="Create a simple logger">
+```typescript
+// Simple logger without parsing (for basic console output)
+const simpleLogger = (logLine: LogLine) => {
+  console.log(`[${logLine.level}] ${logLine.message}`);
+
+  // Optional: log raw auxiliary data
+  if (logLine.auxiliary) {
+    console.log('  Context:', logLine.auxiliary);
+  }
+};
+```
+</Step>
+
+<Step title="Pass the logger in your Stagehand instance">
+Then pass the logger in your Stagehand instance:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,
+  logger: simpleLogger,
+  disablePino: true,  // Avoid duplicate processing
+  // restOfYourConfiguration...
+})
+```
+
+</Step>
+</Steps>
+</Tab>
+
+<Tab title="External Logger (Production)">
+Your custom logging function to receive all logs. Works independently of Pino - receives logs regardless of Pino setting.
+
+**When to use:** Production with DataDog, Sentry, CloudWatch, or custom observability platforms for centralized monitoring and enable error alerting. Here's examples using Sentry and DataDog:
+
+<Steps>
+
+<Step title="Create a production logger">
+
+<Tabs>
+
+<Tab title="Sentry">
+
+```typescript
+import * as Sentry from "@sentry/node";
+
+const productionLogger = (logLine: LogLine) => {
+  // Send errors to Sentry
+  if (logLine.level === 0) {
+    Sentry.captureMessage(logLine.message, {
+      level: 'error',
+      extra: aux,
+    });
+  }
+}
+
+// Helper to parse auxiliary data to be flat, numeric, and filterable
+function parseAuxiliary(aux?: LogLine['auxiliary']): Record<string, any> {
+  if (!aux) return {};
+  const parsed: Record<string, any> = {};
+  for (const [key, entry] of Object.entries(aux)) {
+    parsed[key] = entry.type === 'object'
+      ? JSON.parse(entry.value)
+      : entry.value;
+  }
+  return parsed;
+}
+```
+
+</Tab>
+<Tab title="DataDog">
+
+```typescript
+import { datadogLogs } from "@datadog/browser-logs";
+
+const productionLogger = (logLine: LogLine) => {
+  // Send all logs to DataDog
+  datadogLogs.logger.log(logLine.message, {
+    status: logLine.level === 0 ? 'error' : 'info',
+    service: 'stagehand-automation',
+    category: logLine.category,
+    ...aux,
+  });
+}
+
+// Helper to parse auxiliary data to be flat, numeric, and filterable
+function parseAuxiliary(aux?: LogLine['auxiliary']): Record<string, any> {
+  if (!aux) return {};
+  const parsed: Record<string, any> = {};
+  for (const [key, entry] of Object.entries(aux)) {
+    parsed[key] = entry.type === 'object'
+      ? JSON.parse(entry.value)
+      : entry.value;
+  }
+  return parsed;
+}
+```
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step title="Pass the logger in your Stagehand instance">
+
+```typescript
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  verbose: 1,
+  logger: productionLogger,
+  disablePino: true,  // Avoid duplicate processing
+  // restOfYourConfiguration...
+})
+```
+
+</Step>
+</Steps>
+
+</Tab>
+</Tabs>
+
+---
+
+## File-Based Session Logging
+
+Enable detailed file-based logging for all Stagehand operations by setting a config directory. This creates comprehensive logs for `agent.execute`, `act`, `observe`, `extract`, CDP events, and LLM requests/responses.
+
+### Setup
+
+Add to your shell configuration (`~/.zshrc`, `~/.bashrc`, etc.):
+
+```bash
+export BROWSERBASE_CONFIG_DIR=~/.config/browserbase
+```
+
+Then reload your shell or run `source ~/.zshrc`.
+
+### Usage
+
+Run your Stagehand script as normal:
+
+```bash
+tsx run_some_script_that_imports_stagehand.ts
+```
+
+Logs are written to `~/.config/browserbase/sessions/<session-id>/` with a `latest` symlink pointing to the most recent session.
+
+### Viewing Logs
+
+<Tabs>
+<Tab title="Real-time Monitoring">
+Follow all logs as they happen:
+
+```bash
+tail -f ~/.config/browserbase/sessions/latest/*.log
+```
+
+Or watch specific log types:
+
+```bash
+# LLM requests and responses only
+tail -f ~/.config/browserbase/sessions/latest/llm_events.log
+
+# CDP (Chrome DevTools Protocol) events only
+tail -f ~/.config/browserbase/sessions/latest/cdp_events.log
+```
+</Tab>
+
+<Tab title="Chronological Review">
+View unified output sorted by timestamp:
+
+```bash
+cat ~/.config/browserbase/sessions/latest/*.log | sort
+```
+</Tab>
+
+<Tab title="Historical Sessions">
+Browse previous session logs:
+
+```bash
+ls ~/.config/browserbase/sessions/
+# Output: 2025-01-06_14-30-45_abc123  2025-01-06_15-45-12_def456  latest
+
+cat ~/.config/browserbase/sessions/2025-01-06_14-30-45_abc123/*.log | sort
+```
+</Tab>
+</Tabs>
+
+### Log Files
+
+Each session directory contains:
+
+| File | Contents |
+|------|----------|
+| `llm_events.log` | LLM requests and responses for act, extract, observe, and agent operations |
+| `cdp_events.log` | Chrome DevTools Protocol calls and events |
+| `stagehand.log` | General Stagehand operations and state changes |
+
+<Note>
+This is especially useful for debugging agent workflows where you need to trace the full sequence of LLM decisions, browser actions, and CDP interactions.
+</Note>
+
+---
+
+## LLM Inference Debugging
+
+<Warning>
+**Development only** - Creates large files and contains page content. Do not use in production.
+</Warning>
+
+Save complete LLM request/response dumps to disk for offline analysis. See exactly what DOM was sent to the LLM and why it chose the wrong element.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  verbose: 2,
+  logInferenceToFile: true,  // Writes files to ./inference_summary/
+});
+```
+
+Creates timestamped files for each LLM call:
+
+```
+./inference_summary/
+├── act_summary/
+│   ├── act_summary.json                      # Aggregate metrics
+│   ├── 20250127_123456_act_call.txt          # LLM request
+│   ├── 20250127_123456_act_response.txt      # LLM response
+│   ├── 20250127_123501_act_call.txt
+│   └── 20250127_123501_act_response.txt
+├── extract_summary/
+│   ├── extract_summary.json
+│   ├── 20250127_123510_extract_call.txt
+│   ├── 20250127_123510_extract_response.txt
+│   ├── 20250127_123511_metadata_call.txt
+│   └── 20250127_123511_metadata_response.txt
+└── observe_summary/
+    ├── observe_summary.json
+    └── ...
+```
+
+**File Types:**
+
+<AccordionGroup>
+<Accordion title="Call File">
+Contains the complete LLM request:
+
+```json
+{
+  "modelCall": "act",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a browser automation assistant. You have access to these actions:\n- click\n- type\n- scroll\n..."
+    },
+    {
+      "role": "user",
+      "content": "Click the sign in button\n\nDOM:\n<html>\n  <body>\n    <button id=\"btn-1\">Sign In</button>\n    <button id=\"btn-2\">Sign Up</button>\n  </body>\n</html>"
+    }
+  ]
+}
+```
+</Accordion>
+
+<Accordion title="Response File">
+Contains the LLM output:
+
+```json
+{
+  "modelResponse": "act",
+  "rawResponse": {
+    "selector": "#btn-1",
+    "method": "click",
+    "reasoning": "Found sign in button with ID btn-1"
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Summary File">
+Aggregates all calls with metrics:
+
+```json
+{
+  "act_summary": [
+    {
+      "act_inference_type": "act",
+      "timestamp": "20250127_123456",
+      "LLM_input_file": "20250127_123456_act_call.txt",
+      "LLM_output_file": "20250127_123456_act_response.txt",
+      "prompt_tokens": 3451,
+      "completion_tokens": 45,
+      "inference_time_ms": 951
+    },
+    {
+      "act_inference_type": "act",
+      "timestamp": "20250127_123501",
+      "LLM_input_file": "20250127_123501_act_call.txt",
+      "LLM_output_file": "20250127_123501_act_response.txt",
+      "prompt_tokens": 2890,
+      "completion_tokens": 38,
+      "inference_time_ms": 823
+    }
+  ]
+}
+```
+</Accordion>
+</AccordionGroup>
+
+---
+
+## Reference
+
+### Logging Configuration
+
+All logging options are passed to the Stagehand constructor:
+
+```typescript
+const stagehand = new Stagehand({
+  // ... your other configurations (env, model, etc.)
+
+  // Logging options:
+  verbose?: 0 | 1 | 2;                   // Log level (default: 1)
+  logger?: (line: LogLine) => void;      // External logger function
+  disablePino?: boolean;                 // Disable Pino backend (default: false)
+  logInferenceToFile?: boolean;          // Save LLM requests to disk (default: false)
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `verbose` | `1` | Log level: `0` = errors only, `1` = info, `2` = debug |
+| `logger` | `undefined` | Custom logger function for external platforms |
+| `disablePino` | `false` | Disable Pino (auto `true` in tests) |
+| `logInferenceToFile` | `false` | Save LLM requests to disk (default: false) |
+
+### Log Structure
+
+Each log entry follows a structured format:
+
+```typescript
+interface LogLine {
+  message: string;              // "act completed successfully"
+  level?: 0 | 1 | 2;            // error | info | debug
+  category?: string;            // "action", "llm", "browser", "cache"
+  timestamp?: string;           // ISO 8601 timestamp
+  auxiliary?: {                 // Additional structured metadata
+    [key: string]: {
+      value: string;             // Serialized value
+      type: "object" | "string" | "integer" | "float" | "boolean";
+    };
+  };
+}
+```
+
+<Accordion title="Log Examples">
+
+<Tabs>
+<Tab title="Successful Action">
+```json
+{
+  "category": "action",
+  "message": "act completed successfully",
+  "level": 1,
+  "timestamp": "2025-01-27T12:35:00.123Z",
+  "auxiliary": {
+    "selector": {
+      "value": "#btn-submit",
+      "type": "string"
+    },
+    "executionTime": {
+      "value": "1250",
+      "type": "integer"
+    }
+  }
+}
+```
+</Tab>
+
+<Tab title="LLM Inference">
+```json
+{
+  "category": "llm",
+  "message": "inference completed",
+  "level": 1,
+  "timestamp": "2025-01-27T12:34:58.456Z",
+  "auxiliary": {
+    "model": {
+      "value": "gpt-4o",
+      "type": "string"
+    },
+    "promptTokens": {
+      "value": "3451",
+      "type": "integer"
+    },
+    "completionTokens": {
+      "value": "45",
+      "type": "integer"
+    }
+  }
+}
+```
+</Tab>
+
+<Tab title="Error">
+```json
+{
+  "category": "action",
+  "message": "action failed: element not found",
+  "level": 0,
+  "timestamp": "2025-01-27T12:35:05.789Z",
+  "auxiliary": {
+    "selector": {
+      "value": "#missing-btn",
+      "type": "string"
+    },
+    "url": {
+      "value": "https://example.com/form",
+      "type": "string"
+    }
+  }
+}
+```
+</Tab>
+</Tabs>
+
+</Accordion>
+
+---
+
+## Next Steps
+
+Now that you have logging configured, explore additional debugging and monitoring tools in [the Observability guide](/v3/configuration/observability):
+
+<CardGroup cols={2}>
+<Card title="History API" icon="clock-rotate-left" href="/v3/best-practices/history">
+Track all LLM operations (act, extract, observe, agent) with parameters, results, and timestamps. Perfect for debugging sequences and replaying workflows.
+</Card>
+
+<Card title="Metrics API" icon="chart-line" href="/v3/configuration/observability#real-time-metrics-%26-monitoring">
+Monitor token usage and performance in real-time. Track costs per operation, identify expensive calls, and optimize resource usage.
+</Card>
+
+<Card title="LLM Inference Debugging" icon="microscope" href="/v3/configuration/logging#llm-inference-debugging">
+Save complete LLM request/response dumps to disk. See exactly what DOM was sent to the LLM and why it made specific decisions.
+</Card>
+
+<Card title="Browserbase Session Monitoring" icon="video" href="/v3/configuration/observability#browserbase-session-monitoring">
+Watch your automation visually with session recordings, network monitoring, and real-time browser inspection (Browserbase only).
+</Card>
+</CardGroup>

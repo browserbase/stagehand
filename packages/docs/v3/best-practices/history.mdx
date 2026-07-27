@@ -1,0 +1,189 @@
+---
+title: History Tracking
+sidebarTitle: History Tracking
+description: Track and analyze Stagehand operations with the history API
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+The history API captures every Stagehand operation for debugging, auditing, and workflow analysis.
+
+## Basic Usage
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({ env: "BROWSERBASE" });
+await stagehand.init();
+const page = stagehand.context.pages()[0];
+
+await page.goto("https://example.com");
+await stagehand.act("click login button");
+
+// Get complete history
+const history = await stagehand.history;
+
+console.log(`Total operations: ${history.length}`);
+history.forEach((entry, i) => {
+  console.log(`${i + 1}. ${entry.method} at ${entry.timestamp}`);
+});
+
+await stagehand.close();
+```
+
+## History Entry Structure
+
+```typescript
+interface HistoryEntry {
+  method: "act" | "extract" | "observe" | "navigate" | "agent";
+  parameters: unknown;  // Input parameters
+  result: unknown;      // Output/result
+  timestamp: string;    // ISO 8601 timestamp
+}
+```
+
+## Common Use Cases
+
+### Debugging Failures
+
+```typescript
+try {
+  await stagehand.act("click login button");
+} catch (error) {
+  const history = await stagehand.history;
+
+  history.forEach((entry, i) => {
+    const status = entry.result && 'error' in entry.result ? "FAILED" : "SUCCESS";
+    console.log(`${i + 1}. ${status} - ${entry.method}`);
+  });
+}
+```
+
+### Analyzing Timing
+
+```typescript
+const history = await stagehand.history;
+
+const timings = history.map((entry, i) => {
+  if (i === 0) return null;
+  const duration = new Date(entry.timestamp).getTime() -
+                   new Date(history[i - 1].timestamp).getTime();
+  return { operation: entry.method, duration };
+}).filter(Boolean);
+
+console.log("Slowest operations:",
+  timings.sort((a, b) => b.duration - a.duration).slice(0, 3)
+);
+```
+
+### Operation Statistics
+
+```typescript
+const history = await stagehand.history;
+
+const stats = history.reduce((acc, entry) => {
+  acc[entry.method] = (acc[entry.method] || 0) + 1;
+  return acc;
+}, {} as Record<string, number>);
+
+console.log("Operations:", stats);
+// { act: 5, extract: 2, observe: 3, navigate: 1 }
+```
+
+### Saving History
+
+```typescript
+import fs from "fs/promises";
+
+const history = await stagehand.history;
+const metrics = await stagehand.metrics;
+
+await fs.writeFile(
+  `workflow-report.json`,
+  JSON.stringify({
+    history,
+    totalOps: history.length,
+    totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens
+  }, null, 2)
+);
+```
+
+## Filtering by Operation Type
+
+```typescript
+const history = await stagehand.history;
+
+const actions = history.filter(e => e.method === 'act');
+const extractions = history.filter(e => e.method === 'extract');
+const agentOps = history.filter(e => e.method === 'agent');
+
+console.log(`Actions: ${actions.length}`);
+console.log(`Extractions: ${extractions.length}`);
+console.log(`Agent executions: ${agentOps.length}`);
+```
+
+## Combining with Metrics
+
+```typescript
+const history = await stagehand.history;
+const metrics = await stagehand.metrics;
+
+const report = {
+  totalOps: history.length,
+  successful: history.filter(e => !e.result || !('error' in e.result)).length,
+  failed: history.filter(e => e.result && 'error' in e.result).length,
+  totalTokens: metrics.totalPromptTokens + metrics.totalCompletionTokens,
+  avgTimePerOp: `${(metrics.totalInferenceTimeMs / history.length).toFixed(0)}ms`
+};
+
+console.log(report);
+```
+
+<Card title="Observability Guide" icon="chart-line" href="/configuration/observability">
+  Learn more about metrics, logging, and monitoring
+</Card>
+
+## What's Tracked?
+
+Only Stagehand methods are tracked in history:
+
+```typescript
+// Tracked
+await stagehand.act("click button");              // ✓
+await stagehand.extract({ instruction: "..." }); // ✓
+await stagehand.observe("find elements");         // ✓
+await page.goto("https://example.com");      // ✓
+
+// Not tracked
+await page.locator("button").click();        // ✗ Native Playwright
+await page.click("button");                  // ✗ Native Playwright
+```
+
+## Best Practices
+
+- **Save history for critical workflows** - Maintain audit trails for production
+- **Inspect history when debugging** - Check the last operations to identify failures
+- **Analyze timing periodically** - Find slow operations and optimize
+- **Combine with metrics** - Get complete visibility into performance and cost
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deterministic Agent" icon="robot" href="/best-practices/deterministic-agent">
+    Build fast, cached agent workflows
+  </Card>
+
+  <Card title="Observability" icon="chart-line" href="/configuration/observability">
+    Combine history with metrics
+  </Card>
+
+  <Card title="Caching" icon="database" href="/best-practices/caching">
+    Speed up workflows with caching
+  </Card>
+
+  <Card title="Logging" icon="file-lines" href="/configuration/logging">
+    Configure detailed execution traces
+  </Card>
+</CardGroup>
