@@ -1,18 +1,22 @@
 package stagehand
 
-import "context"
+import (
+	"context"
+	"sync"
+)
 
 // BrowserContext exposes browser-wide protocol operations.
 type BrowserContext struct {
-	rpc       protocolClient
-	clipboard *BrowserClipboard
+	rpc           protocolClient
+	clipboardOnce sync.Once
+	clipboard     *BrowserClipboard
 }
 
 // Clipboard returns the context clipboard helper.
 func (c *BrowserContext) Clipboard() *BrowserClipboard {
-	if c.clipboard == nil {
+	c.clipboardOnce.Do(func() {
 		c.clipboard = &BrowserClipboard{rpc: c.rpc}
-	}
+	})
 	return c.clipboard
 }
 

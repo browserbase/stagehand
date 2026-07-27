@@ -86,7 +86,7 @@ describe("All language examples remain in sync", () => {
         expect(
           publicImport,
           `${language} ${example.file} must import the public SDK`,
-        ).not.toBeNull();
+        ).toBeDefined();
         if (language !== "go") {
           expect(
             publicImport?.getMultipleMatches("IMPORTS").some((node) => node.text() === "Stagehand"),

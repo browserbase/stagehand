@@ -1,6 +1,9 @@
 package stagehand
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // PageLocator is the client wrapper named Locator in the TypeScript and Python
 // SDKs. The Go protocol already exports a different generated Locator value.
@@ -177,12 +180,19 @@ func (l *PageLocator) SelectOption(ctx context.Context, values StringList) ([]st
 
 // First returns a locator restricted to the first match.
 func (l *PageLocator) First() *PageLocator {
-	return l.Nth(0)
-}
-
-// Nth returns a locator restricted to one zero-based match.
-func (l *PageLocator) Nth(index int) *PageLocator {
+	index := 0
 	descriptor := l.descriptor
 	descriptor.Nth = &index
 	return &PageLocator{rpc: l.rpc, descriptor: descriptor}
+}
+
+// Nth returns a locator restricted to one zero-based match. It returns an
+// error when index is negative.
+func (l *PageLocator) Nth(index int) (*PageLocator, error) {
+	if index < 0 {
+		return nil, fmt.Errorf("stagehand locator index must be non-negative: %d", index)
+	}
+	descriptor := l.descriptor
+	descriptor.Nth = &index
+	return &PageLocator{rpc: l.rpc, descriptor: descriptor}, nil
 }

@@ -30,6 +30,33 @@ type fakeCDPWebSocket struct {
 	writeHook func([]byte)
 }
 
+type gatedCDPWebSocket struct {
+	*fakeCDPWebSocket
+	firstWrite sync.Once
+	started    chan struct{}
+	release    chan struct{}
+}
+
+func (s *gatedCDPWebSocket) Write(
+	ctx context.Context,
+	messageType websocket.MessageType,
+	message []byte,
+) error {
+	wait := false
+	s.firstWrite.Do(func() {
+		wait = true
+		close(s.started)
+	})
+	if wait {
+		select {
+		case <-s.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return s.fakeCDPWebSocket.Write(ctx, messageType, message)
+}
+
 func newFakeCDPWebSocket() *fakeCDPWebSocket {
 	return &fakeCDPWebSocket{
 		writes: make(chan []byte, 64),
@@ -468,16 +495,92 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		time.Second,
 		&ignored,
 	)
-	var commandError *CDPCommandError
+	var commandError *cdpCommandError
 	if !errors.As(err, &commandError) {
-		t.Fatalf("command error = %T %v, want *CDPCommandError", err, err)
+		t.Fatalf("command error = %T %v, want *cdpCommandError", err, err)
 	}
 	if commandError.Method != "Extensions.loadUnpacked" ||
 		commandError.Code != -32601 ||
 		commandError.Message != "Method not found" {
-		t.Fatalf("CDPCommandError = %#v", commandError)
+		t.Fatalf("cdpCommandError = %#v", commandError)
 	}
 	assertJSONEqual(t, commandError.Data, `{"detail":"missing"}`)
+}
+
+func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T) {
+	t.Parallel()
+
+	socket := &gatedCDPWebSocket{
+		fakeCDPWebSocket: newFakeCDPWebSocket(),
+		started:          make(chan struct{}),
+		release:          make(chan struct{}),
+	}
+	socket.writeHook = func(message []byte) {
+		var command struct {
+			ID     uint64 `json:"id"`
+			Method string `json:"method"`
+		}
+		if err := json.Unmarshal(message, &command); err != nil {
+			t.Errorf("decode CDP command: %v", err)
+			return
+		}
+		if command.Method != "Browser.getVersion" {
+			return
+		}
+		response, _ := json.Marshal(map[string]any{
+			"id":     command.ID,
+			"result": map[string]any{"product": "Chrome/test"},
+		})
+		socket.reads <- fakeCDPRead{message: response}
+	}
+	client := newTestCDPClient(
+		t,
+		socket,
+		"ws://127.0.0.1/devtools/browser/test",
+		time.Second,
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	firstDone := make(chan error, 1)
+	go func() {
+		var ignored map[string]any
+		firstDone <- client.sendCommand(
+			ctx,
+			"Target.getTargets",
+			map[string]any{},
+			"",
+			time.Second,
+			&ignored,
+		)
+	}()
+	<-socket.started
+	cancel()
+	select {
+	case err := <-firstDone:
+		t.Fatalf("command returned while shared socket write was blocked: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(socket.release)
+	if err := <-firstDone; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled command error = %v", err)
+	}
+
+	var version struct {
+		Product string `json:"product"`
+	}
+	if err := client.sendCommand(
+		context.Background(),
+		"Browser.getVersion",
+		map[string]any{},
+		"",
+		time.Second,
+		&version,
+	); err != nil {
+		t.Fatalf("later command on shared socket error = %v", err)
+	}
+	if version.Product != "Chrome/test" {
+		t.Fatalf("later command result = %#v", version)
+	}
 }
 
 func TestCDPClientCloseRejectsPendingAndReceive(t *testing.T) {

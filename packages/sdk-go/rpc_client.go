@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -52,8 +51,7 @@ type rpcTransport interface {
 }
 
 type rpcClient struct {
-	transport      rpcTransport
-	requestTimeout time.Duration
+	transport rpcTransport
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -66,6 +64,8 @@ type rpcClient struct {
 	requestHandlers      map[string]registeredRequestHandler
 	notificationHandlers map[string][]registeredNotificationHandler
 	pendingNotifications []bufferedRPCNotification
+	notificationQueue    []rpcNotificationDelivery
+	notificationWake     chan struct{}
 	closed               bool
 	closeReason          error
 	transportCloseError  error
@@ -98,6 +98,11 @@ type bufferedRPCNotification struct {
 	params json.RawMessage
 }
 
+type rpcNotificationDelivery struct {
+	handlers     []func(StagehandLog)
+	notification StagehandLog
+}
+
 type rpcRequestEnvelope struct {
 	JSONRPC     string          `json:"jsonrpc"`
 	ID          uint64          `json:"id"`
@@ -125,18 +130,14 @@ type rpcWireErrorObject struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-func newRPCClient(transport rpcTransport, requestTimeout time.Duration) (*rpcClient, error) {
+func newRPCClient(transport rpcTransport) (*rpcClient, error) {
 	if transport == nil {
 		return nil, errors.New("stagehand RPC transport is required")
-	}
-	if requestTimeout <= 0 {
-		return nil, errors.New("stagehand RPC request timeout must be positive")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &rpcClient{
 		transport:            transport,
-		requestTimeout:       requestTimeout,
 		ctx:                  ctx,
 		cancel:               cancel,
 		readerDone:           make(chan struct{}),
@@ -145,7 +146,9 @@ func newRPCClient(transport rpcTransport, requestTimeout time.Duration) (*rpcCli
 		pending:              make(map[uint64]*pendingRPCRequest),
 		requestHandlers:      make(map[string]registeredRequestHandler),
 		notificationHandlers: make(map[string][]registeredNotificationHandler),
+		notificationWake:     make(chan struct{}, 1),
 	}
+	go client.deliverNotifications()
 	go client.read()
 	return client, nil
 }
@@ -193,9 +196,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		return fmt.Errorf("send RPC request for %s: %w", method, err)
 	}
 
-	timer := time.NewTimer(c.requestTimeout)
-	defer timer.Stop()
-
 	select {
 	case response := <-pending.response:
 		if response.err != nil {
@@ -207,8 +207,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
-	case <-timer.C:
-		return fmt.Errorf("RPC request timed out: %s", method)
 	}
 }
 
@@ -243,24 +241,23 @@ func (c *rpcClient) onNotification(method string, handler func(StagehandLog)) fu
 	c.nextRegistrationID++
 	c.notificationHandlers[method] = append(c.notificationHandlers[method], registration)
 
-	pending := make([]bufferedRPCNotification, 0)
 	retained := c.pendingNotifications[:0]
 	for _, notification := range c.pendingNotifications {
 		if notification.method == method {
-			pending = append(pending, notification)
+			var params StagehandLog
+			if decodeStrictJSON(notification.params, &params) == nil {
+				c.enqueueNotificationLocked(rpcNotificationDelivery{
+					handlers:     []func(StagehandLog){handler},
+					notification: params,
+				})
+			}
 		} else {
 			retained = append(retained, notification)
 		}
 	}
 	c.pendingNotifications = retained
 	c.mu.Unlock()
-
-	for _, notification := range pending {
-		var params StagehandLog
-		if decodeStrictJSON(notification.params, &params) == nil {
-			handler(params)
-		}
-	}
+	c.wakeNotificationDelivery()
 
 	return func() {
 		c.mu.Lock()
@@ -475,11 +472,58 @@ func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 		if len(c.pendingNotifications) > maxPendingNotifications {
 			c.pendingNotifications = c.pendingNotifications[len(c.pendingNotifications)-maxPendingNotifications:]
 		}
+		c.mu.Unlock()
+		return
 	}
-	c.mu.Unlock()
 
-	for _, registration := range handlers {
-		registration.handler(notification)
+	delivery := rpcNotificationDelivery{
+		handlers:     make([]func(StagehandLog), len(handlers)),
+		notification: notification,
+	}
+	for index, registration := range handlers {
+		delivery.handlers[index] = registration.handler
+	}
+	c.enqueueNotificationLocked(delivery)
+	c.mu.Unlock()
+	c.wakeNotificationDelivery()
+}
+
+func (c *rpcClient) enqueueNotificationLocked(delivery rpcNotificationDelivery) {
+	c.notificationQueue = append(c.notificationQueue, delivery)
+	if len(c.notificationQueue) > maxPendingNotifications {
+		dropped := len(c.notificationQueue) - maxPendingNotifications
+		clear(c.notificationQueue[:dropped])
+		c.notificationQueue = c.notificationQueue[dropped:]
+	}
+}
+
+func (c *rpcClient) wakeNotificationDelivery() {
+	select {
+	case c.notificationWake <- struct{}{}:
+	default:
+	}
+}
+
+func (c *rpcClient) deliverNotifications() {
+	for {
+		c.mu.Lock()
+		if len(c.notificationQueue) > 0 {
+			delivery := c.notificationQueue[0]
+			c.notificationQueue[0] = rpcNotificationDelivery{}
+			c.notificationQueue = c.notificationQueue[1:]
+			c.mu.Unlock()
+			for _, handler := range delivery.handlers {
+				handler(delivery.notification)
+			}
+			continue
+		}
+		c.mu.Unlock()
+
+		select {
+		case <-c.notificationWake:
+		case <-c.ctx.Done():
+			return
+		}
 	}
 }
 
@@ -557,6 +601,7 @@ func (c *rpcClient) shutdown(reason error) {
 	clear(c.requestHandlers)
 	clear(c.notificationHandlers)
 	c.pendingNotifications = nil
+	c.notificationQueue = nil
 	c.cancel()
 	c.mu.Unlock()
 
