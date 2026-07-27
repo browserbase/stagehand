@@ -12,7 +12,6 @@ from typing import Literal, Self, TypeVar, overload
 
 from pydantic import BaseModel
 
-from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from ._generated.models import (
     Action,
     ActOptions,
@@ -49,6 +48,7 @@ from ._generated.models import (
 from ._generated.models import (
     Locator as ProtocolLocator,
 )
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
