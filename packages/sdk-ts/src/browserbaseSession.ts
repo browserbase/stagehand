@@ -7,6 +7,7 @@ import {
   type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "./browserbaseExtension.js";
+import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
 
 export type BrowserbaseSessionClient = {
   createSession(
@@ -38,11 +39,6 @@ type BrowserbaseSdk = BrowserbaseExtensionSdk & {
 };
 
 type BrowserbaseSdkFactory = (apiKey: string) => BrowserbaseSdk;
-
-const STAGEHAND_SESSION_METADATA = {
-  stagehand: "true",
-  stagehand_sdk_language: "typescript",
-} as const;
 
 export function createBrowserbaseSessionClient(
   apiKey: string,
