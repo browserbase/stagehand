@@ -49,7 +49,7 @@ describe("V3Context active page", () => {
     try {
       const { context } = createContext("unregistered-target");
       const activePage = expect(context.activePage()).rejects.toThrow(
-        "activePage: active target not registered (unregistered-target) timed out after 5000ms",
+        "activePage: active target not registered (unregistered-target) timed out after 3000ms",
       );
 
       await vi.advanceTimersByTimeAsync(5000);
