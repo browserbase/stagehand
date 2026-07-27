@@ -140,6 +140,33 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "created" });
   });
 
+  it("rejects a concurrent initialization before creating another browser session", async () => {
+    let releaseInitialization!: () => void;
+    const initializationGate = new Promise<void>((resolve) => {
+      releaseInitialization = resolve;
+    });
+    const browserSessionFactory = vi.fn(async () =>
+      createBrowserSession({ prepareForInitialization: async () => await initializationGate }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const params = {
+      ...clientMetadata,
+      browserCdpUrl: "ws://browser.example",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+
+    const firstInitialization = runtime.initialize(params);
+    await expect(runtime.initialize(params)).rejects.toThrow(
+      "Stagehand initialization is already in progress",
+    );
+    expect(browserSessionFactory).toHaveBeenCalledOnce();
+
+    releaseInitialization();
+    await expect(firstInitialization).resolves.toMatchObject({ initialized: true });
+  });
+
   it("clears initialized configuration when Stagehand closes", async () => {
     const close = vi.fn();
     const runtime = createStagehandRuntime({

@@ -136,7 +136,9 @@ class StagehandClientInitParams(WireModel):
     telemetry: TelemetryConfig | None = None
     system_prompt: str | None = None
     self_heal: bool | None = None
-    dom_settle_timeout_ms: Annotated[int | None, Field(gt=0)] = None
+    dom_settle_timeout_ms: Annotated[
+        int | None, Field(gt=0, le=9_007_199_254_740_991, strict=True)
+    ] = None
     cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
