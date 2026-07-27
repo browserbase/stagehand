@@ -181,7 +181,7 @@ if errors.As(err, &rpcErr) {
 - Keep dynamic JSON as `json.RawMessage` at the wire boundary. Avoid eagerly spreading `any` throughout the public API.
 - `additionalProperties: false` must be tested; ordinary `json.Unmarshal` does not by itself make the entire generated model contract obvious to users.
 - Validate both inbound results and outbound params at the RPC boundary if generated types do not enforce the full schema in both directions.
-- Add golden tests for every difficult schema shape, then run whole-protocol round trips. Current schema pressure points are substantial: 67 methods, 195 definitions, 52 `anyOf` uses, 4 `oneOf` uses, 167 `const` uses, 23 enums, and 304 `additionalProperties` uses.
+- Add golden tests for every difficult schema shape, then run whole-protocol round trips. Current schema pressure points are substantial: 67 methods, 196 definitions, 31 `anyOf` uses, 4 `oneOf` uses, 167 `const` uses, 24 enums, and 305 `additionalProperties` uses.
 
 ### Dynamic JSON and Go-specific API gaps
 
@@ -251,7 +251,7 @@ The `add-go` model PR adopts the narrow hybrid, without modifying the canonical 
 - The projection converts only the schema's `T | null` pairs to Go pointers. It routes real unions through the generator's custom-type extension and fails generation if any unhandled `anyOf` or `oneOf` remains. This prevents a future schema change from silently becoming `interface{}`.
 - Handwritten wrappers cover the irreducible Go cases: model, proxy, variable, cookie, LLM, boolean-or-list, string-or-list, and string-or-number unions. Constructors set known discriminators, JSON decoding rejects unknown discriminators, and zero-value unions fail to marshal.
 - `json.RawMessage` is used for intentionally arbitrary JSON. LLM callback results preserve allowed unknown properties in an explicit `AdditionalProperties` map.
-- The generator lives in a nested module because the pinned tool requires Go 1.25. The generated SDK module currently targets Go 1.22 and does not import Omissis.
+- The generator lives in a nested module to keep its dependencies out of the SDK runtime. Both modules target Go 1.26, and the generated SDK does not import Omissis.
 - Tests compare the generated catalog with the complete reachable protocol definition graph, forbid `interface{}` fallbacks, and round-trip representative union and open-object values. CI also checks generator staleness, formatting, vet, tests, and build.
 
 This is deliberately schema projection, not output patching: Omissis output is accepted as generated or generation fails. The only custom logic is the part Go cannot express as native tagged unions.

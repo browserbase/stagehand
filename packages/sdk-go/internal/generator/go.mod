@@ -1,8 +1,8 @@
 module github.com/browserbase/stagehand/packages/sdk-go/internal/generator
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.10
+toolchain go1.26.5
 
 require github.com/atombender/go-jsonschema v0.23.1
 
