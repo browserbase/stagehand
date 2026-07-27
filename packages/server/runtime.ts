@@ -710,14 +710,16 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
-    ++this.browserSessionGeneration;
+    const generation = ++this.browserSessionGeneration;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
     try {
       await session?.close();
     } finally {
-      this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+      if (generation === this.browserSessionGeneration) {
+        this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
+      }
     }
   }
 

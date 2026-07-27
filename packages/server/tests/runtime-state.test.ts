@@ -149,4 +149,25 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "created" });
     expect(runtime.loopbackStatus()).toStrictEqual({ configured: false, connected: false });
   });
+
+  it("does not let an older close overwrite a reservation reset", async () => {
+    let finishClose: (() => void) | undefined;
+    const closeStarted = new Promise<void>((resolve) => {
+      finishClose = resolve;
+    });
+    const close = vi.fn(async () => await closeStarted);
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession({ close }),
+    });
+
+    await runtime.configureLoopback({ cdpUrl: "ws://browser.example" });
+    const closing = runtime.close();
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+
+    await runtime.resetForReservation();
+    finishClose?.();
+    await closing;
+
+    expect(runtime.state.getState()).toStrictEqual({ status: "created" });
+  });
 });

@@ -172,7 +172,12 @@ export class V3Context {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
       if (opts.onDisconnected) {
-        conn.onTransportClosed(() => opts.onDisconnected?.());
+        let disconnected = false;
+        conn.onTransportClosed(() => {
+          if (disconnected) return;
+          disconnected = true;
+          opts.onDisconnected?.();
+        });
       }
       try {
         opts.onConnected?.();
