@@ -39,6 +39,11 @@ type BrowserbaseSdk = BrowserbaseExtensionSdk & {
 
 type BrowserbaseSdkFactory = (apiKey: string) => BrowserbaseSdk;
 
+const STAGEHAND_SESSION_METADATA = {
+  stagehand: "true",
+  stagehand_sdk_language: "typescript",
+} as const;
+
 export function createBrowserbaseSessionClient(
   apiKey: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
@@ -55,6 +60,10 @@ export function createBrowserbaseSessionClient(
         session = await browserbase.createSession({
           ...params,
           extensionId: extension.extensionId,
+          userMetadata: {
+            ...params.userMetadata,
+            ...STAGEHAND_SESSION_METADATA,
+          },
         });
       } catch (error) {
         await extension.cleanup().catch(() => undefined);
