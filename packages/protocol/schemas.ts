@@ -1856,14 +1856,6 @@ export const StagehandPingResultSchema = z
   .strict()
   .meta({ id: "StagehandPingResult" });
 
-export const RuntimeLoopbackStatusResultSchema = z
-  .object({
-    configured: z.boolean(),
-    connected: z.boolean(),
-  })
-  .strict()
-  .meta({ id: "RuntimeLoopbackStatusResult" });
-
 export const BrowserGetVersionResultSchema = z
   .object({
     protocolVersion: z.string().optional(),

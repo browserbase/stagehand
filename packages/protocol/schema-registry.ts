@@ -89,7 +89,6 @@ import {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
-  RuntimeLoopbackStatusResultSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -109,11 +108,6 @@ export const StagehandSendToHostBindingSchema = z
 
 export const StagehandMethods = {
   ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
-  runtimeLoopbackStatus: {
-    name: "runtime.loopback_status",
-    params: EmptyParamsSchema,
-    result: RuntimeLoopbackStatusResultSchema,
-  },
   browserGetVersion: {
     name: "browser.get_version",
     params: EmptyParamsSchema,

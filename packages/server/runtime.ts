@@ -86,7 +86,6 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
-  RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
@@ -264,14 +263,14 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  loopbackStatus(): RuntimeLoopbackStatusResult {
+  browserConnectionStatus(): { configured: boolean; connected: boolean } {
     return {
       configured: this.browserSession !== undefined,
       connected: this.browserSession?.connected ?? false,
     };
   }
 
-  async configureLoopback(params: { cdpUrl: string }): Promise<void> {
+  async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
@@ -297,7 +296,7 @@ export class StagehandRuntime {
       if (!params.browserCdpUrl) {
         throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
       }
-      await this.configureLoopback({ cdpUrl: params.browserCdpUrl });
+      await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
     }
     await this.browserSession?.prepareForInitialization?.();
     const pages = await this.contextPages();

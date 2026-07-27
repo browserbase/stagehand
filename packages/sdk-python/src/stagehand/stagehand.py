@@ -34,7 +34,6 @@ from ._generated.models import (
     ObserveOptions,
     ObserveResult,
     ProxyConfig,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -392,13 +391,6 @@ class Stagehand:
             StagehandPingResult,
         )
 
-    async def runtime_loopback_status(self) -> RuntimeLoopbackStatusResult:
-        return await self._connected_rpc_client.send(
-            "runtime.loopback_status",
-            EmptyParams(),
-            RuntimeLoopbackStatusResult,
-        )
-
     async def browser_get_version(self) -> BrowserGetVersionResult:
         return await self._connected_rpc_client.send(
             "browser.get_version",
@@ -451,11 +443,11 @@ class Stagehand:
                     )
 
                 browser_cdp_url = rpc_client.browser_web_socket_debugger_url
-                if not browser.auto_attach and browser_cdp_url is None:
+                if not browser.resident_browser_connection and browser_cdp_url is None:
                     raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(None if browser.auto_attach else browser_cdp_url),
+                    self._worker_init_params(None if browser.resident_browser_connection else browser_cdp_url),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)

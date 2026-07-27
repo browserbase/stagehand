@@ -26,7 +26,6 @@ from stagehand._generated.models import (
     ModelConfig,
     ObserveResult,
     PageRef,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -267,10 +266,6 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
     })
     recording = RecordingRPCClient({
         "ping": StagehandPingResult(ok=True, runtime="service_worker"),
-        "runtime.loopback_status": RuntimeLoopbackStatusResult(
-            configured=True,
-            connected=True,
-        ),
         "browser.get_version": BrowserGetVersionResult(
             protocol_version="1.3",
             product="Chrome/1",
@@ -292,10 +287,6 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
 
     assert stagehand.browser.cdp_url == "test://browser"
     assert await stagehand.ping() == StagehandPingResult(ok=True, runtime="service_worker")
-    assert await stagehand.runtime_loopback_status() == RuntimeLoopbackStatusResult(
-        configured=True,
-        connected=True,
-    )
     assert await stagehand.browser_get_version() == BrowserGetVersionResult(
         protocol_version="1.3",
         product="Chrome/1",
@@ -303,7 +294,6 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
     assert await stagehand.metrics() == metrics
     assert [method for method, _, _ in recording.calls[1:]] == [
         "ping",
-        "runtime.loopback_status",
         "browser.get_version",
         "stagehand.metrics",
     ]

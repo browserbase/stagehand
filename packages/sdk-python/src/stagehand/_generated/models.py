@@ -1815,15 +1815,6 @@ class RgbaColor(WireModel):
     a: Optional[StrictFloat] = None
 
 
-class RuntimeLoopbackStatusResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: StrictBool
-    connected: StrictBool
-
-
 class SameSite(StrEnum):
     strict = "Strict"
     lax = "Lax"

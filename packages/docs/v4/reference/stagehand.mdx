@@ -61,26 +61,6 @@ const status = await stagehand.ping();
   </ResponseField>
 </ResponseField>
 
-## runtimeLoopbackStatus()
-
-Inspect the runtime loopback connection status.
-
-```typescript
-const status = await stagehand.runtimeLoopbackStatus();
-```
-
-<ResponseField name="result" type="Promise<RuntimeLoopbackStatusResult>">
-  The operation result.
-
-<ResponseField name="result.configured" type="boolean">
-  Whether loopback is configured.
-</ResponseField>
-
-  <ResponseField name="result.connected" type="boolean">
-    Whether loopback is connected.
-  </ResponseField>
-</ResponseField>
-
 ## browserGetVersion()
 
 Read version information from the connected browser.
@@ -544,25 +524,6 @@ status = await stagehand.ping()
   </ResponseField>
 </ResponseField>
 
-## runtime_loopback_status()
-
-Inspect the runtime loopback connection status.
-
-```python
-status = await stagehand.runtime_loopback_status()
-```
-
-<ResponseField name="result" type="RuntimeLoopbackStatusResult">
-  The operation result.
-
-<ResponseField name="result.configured" type="bool">
-  Whether loopback is configured.
-</ResponseField>
-
-  <ResponseField name="result.connected" type="bool">
-    Whether loopback is connected.
-  </ResponseField>
-</ResponseField>
 
 ## browser_get_version()
 

@@ -48,7 +48,7 @@ describe("Stagehand runtime state", () => {
     });
     const configureTracing = vi.spyOn(runtime.tracing, "configure").mockImplementation(() => {});
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
@@ -96,7 +96,7 @@ describe("Stagehand runtime state", () => {
         }),
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
     });
 
@@ -117,7 +117,7 @@ describe("Stagehand runtime state", () => {
       browserSessionFactory: async () => createBrowserSession({ close }),
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({

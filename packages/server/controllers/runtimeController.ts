@@ -11,13 +11,7 @@ export function createRuntimeController(runtime: StagehandRuntime) {
     };
   }
 
-  async function loopbackStatus(_params: EmptyParams, { logger }: HandlerContext) {
-    logger.debug("runtime.loopback_status", {});
-    return runtime.loopbackStatus();
-  }
-
   return {
     ping,
-    loopbackStatus,
   };
 }

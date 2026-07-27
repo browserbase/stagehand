@@ -170,7 +170,6 @@ import type {
   PageWaitForTimeoutParamsSchema,
   ProxyConfigSchema,
   RuntimeDescriptorSchema,
-  RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
@@ -321,7 +320,6 @@ export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventPa
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
 export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
-export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
 export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;

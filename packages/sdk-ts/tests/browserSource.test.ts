@@ -24,7 +24,7 @@ describe("resolveBrowserSource", () => {
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       browserbaseSessionId: "new-session",
       preloadedExtension: true,
-      autoAttach: false,
+      residentBrowserConnection: false,
       keepAlive: false,
       close,
     });
@@ -96,7 +96,7 @@ describe("resolveBrowserSource", () => {
       ),
     ).resolves.toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
-      autoAttach: false,
+      residentBrowserConnection: false,
       keepAlive: true,
       close,
     });
@@ -116,7 +116,7 @@ describe("resolveBrowserSource", () => {
       resolveBrowserSource({ browser: { type: "local", port: 9333 } }, { launchLocalBrowser }),
     ).resolves.toMatchObject({
       cdpUrl: "http://127.0.0.1:9333",
-      autoAttach: false,
+      residentBrowserConnection: false,
     });
   });
 
@@ -132,7 +132,7 @@ describe("resolveBrowserSource", () => {
     ).resolves.toStrictEqual({
       cdpUrl: "wss://browser.example/devtools/browser/session",
       cdpHeaders: { Authorization: "Bearer secret" },
-      autoAttach: false,
+      residentBrowserConnection: false,
       keepAlive: true,
     });
   });

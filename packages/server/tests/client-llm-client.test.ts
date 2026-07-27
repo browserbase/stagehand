@@ -80,7 +80,7 @@ describe("client LLM generation", () => {
       clientLLMGenerate: request,
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({

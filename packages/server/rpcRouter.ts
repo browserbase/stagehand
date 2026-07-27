@@ -104,11 +104,6 @@ export class RPCRouter {
           parseParams(StagehandMethods.ping, request.params),
           context,
         );
-      case "runtime.loopback_status":
-        return this.runtimeController.loopbackStatus(
-          parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),
-          context,
-        );
       case "browser.get_version":
         return this.browserController.getVersion(
           parseParams(StagehandMethods.browserGetVersion, request.params),

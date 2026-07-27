@@ -99,7 +99,7 @@ describe("Stagehand", () => {
     const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
       return {
         cdpUrl: "http://127.0.0.1:9222",
-        autoAttach: false,
+        residentBrowserConnection: false,
         keepAlive: true,
       };
     });
@@ -186,7 +186,7 @@ describe("Stagehand", () => {
           cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
           browserbaseSessionId: "session_123",
           preloadedExtension: true,
-          autoAttach: true,
+          residentBrowserConnection: true,
           keepAlive: true,
         }),
         connectRpcClient,
@@ -246,7 +246,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: false,
+          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient,
@@ -277,15 +277,11 @@ describe("Stagehand", () => {
     });
   });
 
-  it("routes public runtime status and metrics methods through the protocol", async () => {
+  it("routes public runtime and metrics methods through the protocol", async () => {
     const rpcClient = new FakeRPCClient();
     rpcClient.queueResponse(StagehandMethods.ping, {
       ok: true,
       runtime: "service_worker",
-    });
-    rpcClient.queueResponse(StagehandMethods.runtimeLoopbackStatus, {
-      configured: true,
-      connected: true,
     });
     rpcClient.queueResponse(StagehandMethods.browserGetVersion, {
       protocolVersion: "1.3",
@@ -319,7 +315,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: false,
+          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -332,10 +328,6 @@ describe("Stagehand", () => {
       ok: true,
       runtime: "service_worker",
     });
-    await expect(stagehand.runtimeLoopbackStatus()).resolves.toStrictEqual({
-      configured: true,
-      connected: true,
-    });
     await expect(stagehand.browserGetVersion()).resolves.toStrictEqual({
       protocolVersion: "1.3",
       product: "Chrome/1",
@@ -343,7 +335,6 @@ describe("Stagehand", () => {
     await expect(stagehand.metrics()).resolves.toStrictEqual(metrics);
     expect(rpcClient.calls.slice(1)).toStrictEqual([
       { method: "ping", params: {} },
-      { method: "runtime.loopback_status", params: {} },
       { method: "browser.get_version", params: {} },
       { method: "stagehand.metrics", params: {} },
     ]);
@@ -368,7 +359,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: false,
+          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -409,7 +400,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: true,
+          residentBrowserConnection: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -457,7 +448,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: false,
+          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -534,7 +525,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: false,
+          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -573,7 +564,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: true,
+          residentBrowserConnection: true,
           keepAlive: true,
           close: closeBrowser,
         }),
@@ -597,7 +588,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: true,
+          residentBrowserConnection: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -622,7 +613,7 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          autoAttach: true,
+          residentBrowserConnection: true,
           keepAlive: false,
           close: async () => {
             throw cleanupError;

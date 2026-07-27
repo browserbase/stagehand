@@ -5,7 +5,6 @@ import type {
   ActResultData,
   Action,
   BrowserGetVersionResult,
-  RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
   StagehandRpcNotification,
@@ -71,10 +70,6 @@ export class Stagehand {
 
   async ping(): Promise<StagehandPingResult> {
     return this.connectedRpcClient.send(StagehandMethods.ping, {});
-  }
-
-  async runtimeLoopbackStatus(): Promise<RuntimeLoopbackStatusResult> {
-    return this.connectedRpcClient.send(StagehandMethods.runtimeLoopbackStatus, {});
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {
@@ -242,7 +237,7 @@ function stagehandInitParamsForWorker(
   if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
     throw new Error("Resolved Browserbase source is missing its session ID");
   }
-  if (!resolvedBrowser.autoAttach && !rpcClient.browserWebSocketDebuggerUrl) {
+  if (!resolvedBrowser.residentBrowserConnection && !rpcClient.browserWebSocketDebuggerUrl) {
     throw new Error("The browser CDP WebSocket URL is unavailable");
   }
 
@@ -250,7 +245,7 @@ function stagehandInitParamsForWorker(
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     clientInfo: STAGEHAND_SDK_CLIENT_INFO,
     logLevel: logging.level,
-    ...(resolvedBrowser.autoAttach
+    ...(resolvedBrowser.residentBrowserConnection
       ? {}
       : {
           browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl,
@@ -279,7 +274,7 @@ export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
     {
       resolveBrowserSource: async () => ({
         cdpUrl: "test://stagehand",
-        autoAttach: false,
+        residentBrowserConnection: false,
         keepAlive: true,
       }),
       connectRpcClient: async () => client,

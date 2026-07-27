@@ -16,19 +16,6 @@ describe("Stagehand loopback protocol", () => {
     ).toThrow();
   });
 
-  it("defines runtime.loopback_status as a JSON-RPC method", () => {
-    expect(StagehandMethods.runtimeLoopbackStatus.params.parse({})).toStrictEqual({});
-    expect(
-      StagehandMethods.runtimeLoopbackStatus.result.parse({
-        configured: true,
-        connected: false,
-      }),
-    ).toStrictEqual({
-      configured: true,
-      connected: false,
-    });
-  });
-
   it("defines browser.get_version as a JSON-RPC method", () => {
     expect(StagehandMethods.browserGetVersion.params.parse({})).toStrictEqual({});
     expect(

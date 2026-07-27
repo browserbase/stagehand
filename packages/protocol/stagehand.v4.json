@@ -19,19 +19,6 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
-        "runtime.loopback_status": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/RuntimeLoopbackStatusResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "browser.get_version": {
           "type": "object",
           "properties": {
@@ -867,7 +854,6 @@
       },
       "required": [
         "ping",
-        "runtime.loopback_status",
         "browser.get_version",
         "stagehand.init",
         "stagehand.close",
@@ -994,19 +980,6 @@
         }
       },
       "required": ["ok", "runtime"],
-      "additionalProperties": false
-    },
-    "RuntimeLoopbackStatusResult": {
-      "type": "object",
-      "properties": {
-        "configured": {
-          "type": "boolean"
-        },
-        "connected": {
-          "type": "boolean"
-        }
-      },
-      "required": ["configured", "connected"],
       "additionalProperties": false
     },
     "BrowserGetVersionResult": {
@@ -4340,33 +4313,6 @@
             "method": {
               "type": "string",
               "const": "ping"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "runtime.loopback_status"
             },
             "params": {
               "$ref": "#/$defs/EmptyParams"

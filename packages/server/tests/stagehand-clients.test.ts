@@ -567,7 +567,7 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
     browserSessionFactory: async () => session,
   });
 
-  await runtime.configureLoopback({
+  await runtime.replaceBrowserConnection({
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
   });
 
@@ -717,27 +717,7 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("reports unconfigured loopback status", async () => {
-    const handle = createHandle();
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
-  });
-
-  it("configures the browser session during stagehand.init and reports connected status", async () => {
+  it("configures the browser session during stagehand.init", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -765,22 +745,6 @@ describe("Stagehand worker clients", () => {
 
     expect(sessions).toHaveLength(1);
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 4,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 4,
-      result: {
-        configured: true,
-        connected: true,
-      },
-    });
   });
 
   it("rejects a second stagehand.init without replacing the browser session", async () => {
@@ -841,22 +805,6 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(session.closed).toBe(true);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
   });
 
   it("calls Browser.getVersion through the browser session", async () => {
