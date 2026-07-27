@@ -8,7 +8,10 @@ import {
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.ts";
-import { startStagehandServiceWorker } from "../service-worker.ts";
+import {
+  startStagehandServiceWorker,
+  type StagehandServiceWorkerScope,
+} from "../service-worker.ts";
 import type {
   StagehandBrowserSession,
   UnderstudyRuntimeClipboardOptions,
@@ -605,6 +608,88 @@ describe("Stagehand worker clients", () => {
       },
       __stagehandReceiveFromHost: expect.any(Function),
     });
+  });
+
+  it("does not auto-bootstrap a public build without resident configuration", async () => {
+    const browserSessionFactory = vi.fn(async () => new FakeBrowserSession());
+    const runtime = createStagehandRuntime({ browserSessionFactory }, testTracing);
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime);
+    await Promise.resolve();
+
+    expect(browserSessionFactory).not.toHaveBeenCalled();
+    expect(scope.__stagehand_runtime?.failure).toBeUndefined();
+  });
+
+  it("retries resident bootstrap after a bounded resolver failure", async () => {
+    const session = new FakeBrowserSession();
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_url, _logger, lifecycle) => {
+          lifecycle?.onConnected?.();
+          return session;
+        },
+      },
+      testTracing,
+    );
+    const resolveResidentWebSocketUrl = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(new Error("resident browser proxy is still starting"))
+      .mockResolvedValueOnce("ws://browser-proxy.test/session");
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime, {
+      autoBootstrap: true,
+      resolveResidentWebSocketUrl,
+    });
+
+    await vi.waitFor(() => {
+      expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
+    });
+    expect(resolveResidentWebSocketUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not publish ready while bootstrap is pending even though the receiver is installed", async () => {
+    const session = new FakeBrowserSession();
+    let finishBootstrap: (() => void) | undefined;
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_url, _logger, lifecycle) => {
+          lifecycle?.onConnected?.();
+          await new Promise<void>((resolve) => {
+            finishBootstrap = resolve;
+          });
+          return session;
+        },
+      },
+      testTracing,
+    );
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime, {
+      autoBootstrap: true,
+      resolveResidentWebSocketUrl: async () => "ws://browser-proxy.test/session",
+    });
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("bootstrapping"));
+
+    expect(scope.__stagehandReceiveFromHost).toEqual(expect.any(Function));
+    expect(scope.__stagehand_runtime?.state).not.toBe("ready");
+
+    finishBootstrap?.();
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("ready"));
   });
 
   it("returns responses without streaming debug logs at the default info level", async () => {

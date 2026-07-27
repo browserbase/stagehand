@@ -41,7 +41,36 @@ function createBrowserSession(
   };
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("Stagehand runtime state", () => {
+  it("does not start a superseded browser session after an earlier close settles", async () => {
+    const previousClosed = deferred();
+    const createdUrls: string[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async (url) => {
+        createdUrls.push(url);
+        return createBrowserSession({
+          close: url === "ws://initial" ? () => previousClosed.promise : async () => {},
+        });
+      },
+    });
+
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://initial" });
+    const stale = runtime.replaceBrowserConnection({ cdpUrl: "ws://stale" });
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://current" });
+    previousClosed.resolve();
+
+    await expect(stale).rejects.toThrow("superseded");
+    expect(createdUrls).toStrictEqual(["ws://initial", "ws://current"]);
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),

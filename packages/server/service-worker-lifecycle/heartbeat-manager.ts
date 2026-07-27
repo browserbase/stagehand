@@ -47,7 +47,6 @@ export function createServiceWorkerHeartbeatManager(
   let creatingDocument: Promise<void> | null = null;
   let heartbeatPort: RuntimePort | null = null;
   let installed = false;
-
   async function ensure(): Promise<void> {
     const offscreen = chromeApi.offscreen;
     if (offscreen == null) return;

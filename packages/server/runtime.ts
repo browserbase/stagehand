@@ -216,7 +216,14 @@ export type StagehandBrowserSession = {
 export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
+  lifecycle?: StagehandBrowserSessionLifecycle,
 ) => Promise<StagehandBrowserSession>;
+
+export type StagehandBrowserSessionLifecycle = {
+  bootstrapMode?: "resident";
+  onConnected?(): void;
+  onDisconnected?(): void;
+};
 
 export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
@@ -255,6 +262,19 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private browserSessionGeneration = 0;
+  private readonly contextInitScripts: string[] = [];
+  private contextExtraHTTPHeaders?: ContextSetExtraHTTPHeadersParams["headers"];
+  private contextDomainPolicy?: DomainPolicy | null;
+  private readonly pageInitScriptsById = new Map<string, string[]>();
+  private readonly pageExtraHTTPHeadersById = new Map<
+    string,
+    PageSetExtraHTTPHeadersParams["headers"]
+  >();
+  private readonly pageViewportById = new Map<
+    string,
+    Pick<PageSetViewportSizeParams, "width" | "height" | "options">
+  >();
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -270,18 +290,30 @@ export class StagehandRuntime {
     };
   }
 
-  async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
+  async replaceBrowserConnection(
+    params: { cdpUrl: string },
+    lifecycle?: StagehandBrowserSessionLifecycle,
+  ): Promise<void> {
     const { cdpUrl } = params;
+    const generation = ++this.browserSessionGeneration;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
     await previousSession?.close();
 
+    let browserSession: StagehandBrowserSession | undefined;
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger);
+      if (generation !== this.browserSessionGeneration) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
+      browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger, lifecycle);
+      if (generation !== this.browserSessionGeneration) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
+      this.browserSession = browserSession;
     } catch (error) {
-      await this.browserSession?.close();
-      this.browserSession = undefined;
+      await browserSession?.close();
+      if (generation === this.browserSessionGeneration) this.browserSession = undefined;
       throw error;
     }
   }
@@ -292,12 +324,6 @@ export class StagehandRuntime {
     }
 
     this.logger.setLevel(params.logLevel);
-    if (!this.browserSession) {
-      if (!params.browserCdpUrl) {
-        throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
-      }
-      await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
-    }
     await this.browserSession?.prepareForInitialization?.();
     const pages = await this.contextPages();
     this.tracing.configure(params.telemetry);
@@ -313,6 +339,32 @@ export class StagehandRuntime {
       initialized: true,
       pages,
     };
+  }
+
+  /** Restores initialization-dependent browser instrumentation after replacing a CDP session. */
+  async restoreInitializedBrowserSession(): Promise<void> {
+    if (this.state.getState().status !== "initialized") return;
+    const session = this.requireBrowserSession();
+    await session.prepareForInitialization?.();
+    for (const source of this.contextInitScripts) await session.addInitScript(source);
+    if (this.contextExtraHTTPHeaders) {
+      await session.setExtraHTTPHeaders(this.contextExtraHTTPHeaders);
+    }
+    if (this.contextDomainPolicy !== undefined) {
+      await session.setDomainPolicy(this.contextDomainPolicy);
+    }
+    await this.contextPages();
+    for (const [pageId, page] of this.pagesById) {
+      for (const source of this.pageInitScriptsById.get(pageId) ?? []) {
+        await page.addInitScript(source);
+      }
+      const headers = this.pageExtraHTTPHeadersById.get(pageId);
+      if (headers) await page.setExtraHTTPHeaders(headers);
+      const viewport = this.pageViewportById.get(pageId);
+      if (viewport) {
+        await page.setViewportSize(viewport.width, viewport.height, viewport.options);
+      }
+    }
   }
 
   async browserGetVersion(): Promise<BrowserGetVersionResult> {
@@ -361,6 +413,8 @@ export class StagehandRuntime {
 
   async contextAddInitScript(params: ContextAddInitScriptParams): Promise<ContextVoidResult> {
     await this.requireBrowserSession().addInitScript(params.source);
+    if (!this.contextInitScripts.includes(params.source))
+      this.contextInitScripts.push(params.source);
     return { ok: true };
   }
 
@@ -368,6 +422,7 @@ export class StagehandRuntime {
     params: ContextSetExtraHTTPHeadersParams,
   ): Promise<ContextVoidResult> {
     await this.requireBrowserSession().setExtraHTTPHeaders(params.headers);
+    this.contextExtraHTTPHeaders = { ...params.headers };
     return { ok: true };
   }
 
@@ -377,6 +432,7 @@ export class StagehandRuntime {
 
   async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
     await this.requireBrowserSession().setDomainPolicy(params.policy);
+    this.contextDomainPolicy = params.policy;
     return { ok: true };
   }
 
@@ -513,11 +569,15 @@ export class StagehandRuntime {
 
   async pageAddInitScript(params: PageAddInitScriptParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).addInitScript(params.source);
+    const sources = this.pageInitScriptsById.get(params.pageId) ?? [];
+    if (!sources.includes(params.source)) sources.push(params.source);
+    this.pageInitScriptsById.set(params.pageId, sources);
     return { ok: true };
   }
 
   async pageSetExtraHTTPHeaders(params: PageSetExtraHTTPHeadersParams): Promise<PageVoidResult> {
     await this.resolvePage(params.pageId).setExtraHTTPHeaders(params.headers);
+    this.pageExtraHTTPHeadersById.set(params.pageId, { ...params.headers });
     return { ok: true };
   }
 
@@ -527,6 +587,11 @@ export class StagehandRuntime {
       params.height,
       params.options,
     );
+    this.pageViewportById.set(params.pageId, {
+      width: params.width,
+      height: params.height,
+      ...(params.options === undefined ? {} : { options: { ...params.options } }),
+    });
     return { ok: true };
   }
 
@@ -593,6 +658,9 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await page.close();
     this.pagesById.delete(params.pageId);
+    this.pageInitScriptsById.delete(params.pageId);
+    this.pageExtraHTTPHeadersById.delete(params.pageId);
+    this.pageViewportById.delete(params.pageId);
     return { closed: true };
   }
 
@@ -686,9 +754,13 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
+    ++this.browserSessionGeneration;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
+    this.pageInitScriptsById.clear();
+    this.pageExtraHTTPHeadersById.clear();
+    this.pageViewportById.clear();
     try {
       await session?.close();
     } finally {
