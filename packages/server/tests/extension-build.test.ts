@@ -6,6 +6,7 @@ import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { loadEnv } from "vite";
 import { z } from "zod/v4";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import serverPackageJson from "../package.json" with { type: "json" };
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
@@ -150,7 +151,7 @@ describe("extension build", () => {
       .object({
         chromeExtensionId: z.string().regex(/^[a-p]{32}$/u),
         extensionVersion: z.literal(expectedManifestVersion),
-        stagehandProtocolVersion: z.literal(4),
+        stagehandProtocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
         residentTransportConfigured: z.boolean(),
         sha256: z.string().regex(/^[0-9a-f]{64}$/u),
         serviceWorkerPath: z.literal("service-worker.js"),
