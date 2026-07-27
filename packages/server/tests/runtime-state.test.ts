@@ -35,6 +35,63 @@ function createBrowserSession(
 }
 
 describe("Stagehand runtime state", () => {
+  it("keeps the agent indicator active for the initialized session lifetime", async () => {
+    const setAgentIndicatorActive = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+      setAgentIndicatorActive,
+    });
+
+    await runtime.configureLoopback({
+      cdpUrl: "ws://browser.example",
+      logLevel: "info",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+    await runtime.initialize({
+      agentIndicator: true,
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+
+    expect(setAgentIndicatorActive).toHaveBeenCalledTimes(1);
+    expect(setAgentIndicatorActive).toHaveBeenLastCalledWith(true);
+
+    await runtime.contextPages();
+    expect(setAgentIndicatorActive).toHaveBeenCalledTimes(1);
+
+    await runtime.close();
+    expect(setAgentIndicatorActive.mock.calls).toStrictEqual([[true], [false]]);
+  });
+
+  it("does not activate the agent indicator unless it is enabled", async () => {
+    const setAgentIndicatorActive = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+      setAgentIndicatorActive,
+    });
+
+    await runtime.configureLoopback({
+      cdpUrl: "ws://browser.example",
+      logLevel: "info",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+    await runtime.initialize({
+      agentIndicator: false,
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+
+    expect(setAgentIndicatorActive).not.toHaveBeenCalled();
+    await runtime.close();
+    expect(setAgentIndicatorActive).not.toHaveBeenCalled();
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
@@ -48,6 +105,7 @@ describe("Stagehand runtime state", () => {
       },
     });
     await runtime.initialize({
+      agentIndicator: false,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
         traces: {
@@ -61,6 +119,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
       initParams: {
+        agentIndicator: false,
         model: { modelName: "openai/gpt-5" },
         telemetry: {
           traces: {
@@ -93,6 +152,7 @@ describe("Stagehand runtime state", () => {
 
     await expect(
       runtime.initialize({
+        agentIndicator: false,
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
         },
@@ -115,6 +175,7 @@ describe("Stagehand runtime state", () => {
       },
     });
     await runtime.initialize({
+      agentIndicator: false,
       model: { modelName: "openai/gpt-5", apiKey: "secret" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

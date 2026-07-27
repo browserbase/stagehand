@@ -335,6 +335,7 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandInit;
     const apiValue = {
       apiKey: "bb_key",
+      agentIndicator: true,
       browser: {
         type: "browserbase" as const,
         sessionId: "session_123",
@@ -355,6 +356,7 @@ describe("JSON-RPC wire casing", () => {
 
     const wireValue = {
       api_key: "bb_key",
+      agent_indicator: true,
       browser: {
         type: "browserbase",
         session_id: "session_123",

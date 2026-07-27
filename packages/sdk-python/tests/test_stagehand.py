@@ -66,6 +66,7 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
         viewport_height=800,
         model="openai/gpt-5.4-mini",
         model_api_key="model-key",
+        agent_indicator=True,
         cache=True,
     )
     cdp = Stagehand(
@@ -83,6 +84,8 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
     assert isinstance(local.init_params.model.root, KnownModelConfig)
     assert local.init_params.cache is not None
     assert local.init_params.cache.root is True
+    assert local.init_params.agent_indicator is True
+    assert cdp.init_params.agent_indicator is False
     assert local.init_params.model.root.model_name.model_dump() == "openai/gpt-5.4-mini"
     assert local.init_params.model.root.api_key == "model-key"
     assert isinstance(cdp.init_params.browser, CdpBrowserSource)

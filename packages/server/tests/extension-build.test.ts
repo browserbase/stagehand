@@ -99,6 +99,14 @@ describe("extension build", () => {
     expect(contentScript).toContain("__stagehandExtensionWorld");
     expect(contentScript).toContain("stagehand.v4");
     expect(contentScript).toContain("installCursorOverlay");
+    expect(contentScript).toContain("__stagehand_agent_indicator__");
+    expect(contentScript).toContain("stagehand:agent-indicator:get");
+    expect(contentScript).toContain("prefers-reduced-motion");
+    expect(contentScript).toContain("rgba(255, 69, 0, .82)");
+    expect(contentScript).toContain("translate3d(68vw, 0, 0)");
+    expect(contentScript).not.toContain("translate3d(148vw, 0, 0)");
+    expect(contentScript).toContain("respondAfterIndicatorPaint");
+    expect(contentScript).toContain("requestAnimationFrame");
     expect(contentScript).not.toContain("fillElementValue");
     expect(contentScript).not.toContain("__v3Cursor");
     expect(contentScript).not.toMatch(/^import\s/m);
@@ -115,6 +123,9 @@ describe("extension build", () => {
     expect(serviceWorker).not.toContain("__vite_browser_external");
     expect(serviceWorker).not.toContain("Node WebSocket transport is unavailable");
     expect(serviceWorker).not.toContain("__v3Cursor");
+    expect(serviceWorker).not.toContain("AgentActivityTracker");
+    expect(serviceWorker).not.toContain("quietPeriodMs");
+    expect(serviceWorker).not.toContain("scheduleIdle");
     expect(JSON.stringify(manifest)).not.toContain("stagehand-smoke-worker");
   });
 

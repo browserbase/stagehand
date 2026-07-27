@@ -353,7 +353,8 @@ export class ExecutionContextRegistry {
     });
     if (installed.exceptionDetails) {
       throw new Error(
-        installed.exceptionDetails.text ??
+        installed.exceptionDetails.exception?.description ??
+          installed.exceptionDetails.text ??
           `Failed to install Stagehand locator fallback for frame ${frameId}`,
       );
     }

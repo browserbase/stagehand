@@ -87,6 +87,7 @@ describe("client LLM generation", () => {
       },
     });
     await runtime.initialize({
+      agentIndicator: false,
       model: { source: "client" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

@@ -2,6 +2,10 @@ import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/pro
 import path from "node:path";
 import { zipSync, type Zippable } from "fflate";
 import { defineConfig } from "vite";
+import {
+  AGENT_INDICATOR_GET_MESSAGE,
+  AGENT_INDICATOR_SET_MESSAGE,
+} from "./agentIndicatorMessages.ts";
 import { instrumentedDecoratorBuild } from "./instrumentedDecoratorBuild.ts";
 import packageJson from "./package.json" with { type: "json" };
 
@@ -107,6 +111,10 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
 }
 
 export default defineConfig({
+  define: {
+    __STAGEHAND_AGENT_INDICATOR_GET_MESSAGE__: JSON.stringify(AGENT_INDICATOR_GET_MESSAGE),
+    __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__: JSON.stringify(AGENT_INDICATOR_SET_MESSAGE),
+  },
   build: {
     emptyOutDir: true,
     minify: false,

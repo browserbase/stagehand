@@ -33,3 +33,6 @@ await stagehand.close();
 - `Locator` routes `click`, `fill`, `isVisible`, and `textContent` to locator protocol methods
 
 Locators are not remote handles. They store `{ pageId, selector }` and send that descriptor when an action is invoked.
+
+Set `agentIndicator: true` in the `Stagehand` constructor to show orange viewport waves from
+`stagehand.init()` until `stagehand.close()`.

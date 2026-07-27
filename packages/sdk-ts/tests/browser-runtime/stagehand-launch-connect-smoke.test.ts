@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
 import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
+import { screenshotHasOrangeViewportEdge } from "./png.js";
 
 type FixtureServer = {
   url: string;
@@ -16,6 +17,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
     stagehand = new Stagehand({
+      agentIndicator: true,
       browser: {
         type: "local",
         headless: true,
@@ -130,6 +132,31 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
 
     await page.goto(activeFixtureServer.url);
+    await expect(page.locator("#__stagehand_agent_indicator__").count()).resolves.toBe(0);
+    await expect(
+      page.locator("xpath=//*[@id='__stagehand_agent_indicator__']").count(),
+    ).resolves.toBe(0);
+    await expect(page.locator(".wave").count()).resolves.toBe(0);
+    await expect(page.waitForSelector("div", { state: "attached", timeout: 5_000 })).resolves.toBe(
+      true,
+    );
+
+    await page.evaluate(`(() => {
+      const collision = document.createElement("div");
+      collision.id = "__stagehand_agent_indicator__";
+      collision.textContent = "page-owned collision";
+      document.body.prepend(collision);
+    })()`);
+    await expect(
+      page.evaluate<number>(`document.querySelectorAll("#__stagehand_agent_indicator__").length`),
+    ).resolves.toBe(2);
+    await expect(page.locator("#__stagehand_agent_indicator__").count()).resolves.toBe(1);
+    await expect(page.locator("#__stagehand_agent_indicator__").innerText()).resolves.toBe(
+      "page-owned collision",
+    );
+    await expect(
+      page.locator("xpath=//*[@id='__stagehand_agent_indicator__']").count(),
+    ).resolves.toBe(1);
     await page.locator("#locator-input").fill("user@example.com");
     await page.locator("#locator-button").click();
 
@@ -150,6 +177,9 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.locator("#locator-output").textContent()).resolves.toBe(
       "clicked:user@example.com",
     );
+
+    const screenshot = await page.screenshot();
+    expect(screenshotHasOrangeViewportEdge(screenshot)).toBe(true);
   });
 
   it("navigates and runs scripts through the page wrapper", async () => {

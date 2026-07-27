@@ -9,8 +9,16 @@
 
 import { resolveXPathFirst } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { isAgentIndicatorHost } from "../agentIndicator.js";
 
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
+
+const firstNonIndicatorMatch = (root: Document | ShadowRoot, selector: string): Element | null => {
+  for (const element of root.querySelectorAll(selector)) {
+    if (!isAgentIndicatorHost(element)) return element;
+  }
+  return null;
+};
 
 /**
  * Check if a selector is an XPath expression.
@@ -29,8 +37,8 @@ const deepQuerySelector = (
 ): Element | null => {
   // Try regular querySelector first
   try {
-    const el = root.querySelector(selector);
-    if (el) return el;
+    const element = firstNonIndicatorMatch(root, selector);
+    if (element) return element;
   } catch {
     // ignore query errors
   }
@@ -48,8 +56,8 @@ const deepQuerySelector = (
 
     // Try querySelector on this root
     try {
-      const found = currentRoot.querySelector(selector);
-      if (found) return found;
+      const element = firstNonIndicatorMatch(currentRoot, selector);
+      if (element) return element;
     } catch {
       // ignore query errors
     }

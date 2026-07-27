@@ -1406,6 +1406,9 @@ export const StagehandInitParamsSchema = z
   .object({
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
+    agentIndicator: z.boolean().default(false).meta({
+      description: "Show a viewport-edge indicator from Stagehand initialization until close",
+    }),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     systemPrompt: z.string().optional(),

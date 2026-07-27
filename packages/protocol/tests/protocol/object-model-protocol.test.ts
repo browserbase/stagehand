@@ -8,6 +8,10 @@ import {
 } from "../../schema-registry.js";
 
 describe("Stagehand object-model protocol", () => {
+  it("disables the agent indicator by default", () => {
+    expect(StagehandMethods.stagehandInit.params.parse({}).agentIndicator).toBe(false);
+  });
+
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),
@@ -24,6 +28,7 @@ describe("Stagehand object-model protocol", () => {
         userMetadata: { suite: "smoke" },
       },
       model: { modelName: "openai/gpt-5-mini" },
+      agentIndicator: true,
     });
 
     expect(params).toStrictEqual({
@@ -35,6 +40,7 @@ describe("Stagehand object-model protocol", () => {
         userMetadata: { suite: "smoke" },
       },
       model: { modelName: "openai/gpt-5-mini" },
+      agentIndicator: true,
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",

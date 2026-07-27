@@ -1,5 +1,6 @@
 import { resolveXPathAtIndex } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { isAgentIndicatorHost } from "../agentIndicator.js";
 
 const parseTargetIndex = (value: unknown): number => {
   const num = Number(value ?? 0);
@@ -21,6 +22,7 @@ const collectCssMatches = (selector: string, limit: number): Element[] => {
     try {
       const matches = root.querySelectorAll(selector);
       for (const element of matches) {
+        if (isAgentIndicatorHost(element)) continue;
         if (seenElements.has(element)) continue;
         seenElements.add(element);
         results.push(element);
@@ -83,6 +85,7 @@ export function resolveTextSelector(rawNeedle: string, targetIndexRaw?: number):
 
   const shouldSkip = (node: Element | null | undefined): boolean => {
     if (!node) return false;
+    if (isAgentIndicatorHost(node)) return true;
     const tag = node.tagName?.toUpperCase() ?? "";
     return skipTags.has(tag);
   };

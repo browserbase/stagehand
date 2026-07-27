@@ -36,6 +36,23 @@ describe("Stagehand client method options", () => {
 });
 
 describe("Stagehand client browser sources", () => {
+  it("accepts the opt-in agent activity indicator", () => {
+    expect(
+      StagehandClientInitParamsSchema.parse({
+        browser: { type: "local" },
+        agentIndicator: true,
+      }),
+    ).toMatchObject({ agentIndicator: true });
+  });
+
+  it("disables the agent indicator by default", () => {
+    expect(
+      StagehandClientInitParamsSchema.parse({
+        browser: { type: "local" },
+      }).agentIndicator,
+    ).toBe(false);
+  });
+
   it("uses Browserbase by default when an API key is provided", () => {
     expect(
       StagehandClientInitParamsSchema.parse({
@@ -43,6 +60,7 @@ describe("Stagehand client browser sources", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      agentIndicator: false,
       browser: { type: "browserbase" },
       logging: defaultLogging,
       telemetry: defaultTelemetry,
@@ -62,6 +80,7 @@ describe("Stagehand client browser sources", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      agentIndicator: false,
       browser: {
         type: "browserbase",
         keepAlive: true,
@@ -125,6 +144,7 @@ describe("Stagehand client browser sources", () => {
         },
       }),
     ).toStrictEqual({
+      agentIndicator: false,
       browser: {
         type: "local",
         headless: false,
@@ -146,6 +166,7 @@ describe("Stagehand client browser sources", () => {
         },
       }),
     ).toStrictEqual({
+      agentIndicator: false,
       browser: {
         type: "cdp",
         cdpUrl: "wss://browser.example/devtools/browser/session",
@@ -172,6 +193,7 @@ describe("Stagehand client browser sources", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      agentIndicator: false,
       browser: { type: "local" },
       logging: defaultLogging,
       telemetry: defaultTelemetry,
@@ -189,6 +211,7 @@ describe("Stagehand client browser sources", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      agentIndicator: false,
       browser: {
         type: "cdp",
         cdpUrl: "wss://browser.example/devtools/browser/session",
@@ -273,6 +296,7 @@ describe("Stagehand client browser sources", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      agentIndicator: false,
       browser: {
         type: "browserbase",
         region: "eu-central-1",

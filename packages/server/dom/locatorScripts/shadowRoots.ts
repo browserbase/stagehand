@@ -1,4 +1,8 @@
+import { isAgentIndicatorHost } from "../agentIndicator.js";
+
 export function getOpenOrClosedShadowRoot(element: Element): ShadowRoot | null {
+  if (isAgentIndicatorHost(element)) return null;
+
   try {
     if (element instanceof HTMLElement) {
       const root = globalThis.chrome?.dom?.openOrClosedShadowRoot(element);

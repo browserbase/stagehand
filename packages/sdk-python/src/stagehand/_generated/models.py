@@ -1911,6 +1911,8 @@ class StagehandInitParams(WireModel):
     )
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserbaseBrowserSource] = None
+    agent_indicator: StrictBool = False
+    """Show a viewport-edge indicator from Stagehand initialization until close"""
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}

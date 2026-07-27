@@ -1,5 +1,6 @@
 import { countXPathMatches } from "./xpathResolver.js";
 import { getOpenOrClosedShadowRoot } from "./shadowRoots.js";
+import { isAgentIndicatorHost } from "../agentIndicator.js";
 
 export interface TextMatchSample {
   tag: string;
@@ -30,7 +31,9 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
         querySelectorAll?: Document["querySelectorAll"];
       };
       if (typeof queryable.querySelectorAll === "function") {
-        total += queryable.querySelectorAll(selector).length;
+        total += Array.from(queryable.querySelectorAll(selector)).filter(
+          (element) => !isAgentIndicatorHost(element),
+        ).length;
       }
     } catch {
       // ignore query errors
@@ -57,7 +60,9 @@ export function countCssMatchesPrimary(selectorRaw: string): number {
     return visit(document);
   } catch {
     try {
-      return document.querySelectorAll(selector).length;
+      return Array.from(document.querySelectorAll(selector)).filter(
+        (element) => !isAgentIndicatorHost(element),
+      ).length;
     } catch {
       return 0;
     }
@@ -86,6 +91,7 @@ export function countTextMatches(rawNeedle: string): TextMatchResult {
 
   const shouldSkip = (node: Element | null | undefined): boolean => {
     if (!node) return false;
+    if (isAgentIndicatorHost(node)) return true;
     const tag = node.tagName?.toUpperCase() ?? "";
     return skipTags.has(tag);
   };

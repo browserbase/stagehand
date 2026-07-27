@@ -1,4 +1,5 @@
 import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
+import { isAgentIndicatorHost } from "../agentIndicator.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -185,12 +186,13 @@ function composedChildren(node: TraversalRoot, getShadowRoot: ShadowRootGetter |
   }
 
   if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []));
+    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
     return out;
   }
 
   if (node instanceof Element) {
-    out.push(...Array.from(node.children ?? []));
+    if (isAgentIndicatorHost(node)) return out;
+    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
     const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
     if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
     return out;
@@ -208,12 +210,13 @@ function domChildren(node: TraversalRoot): Element[] {
   }
 
   if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []));
+    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
     return out;
   }
 
   if (node instanceof Element) {
-    out.push(...Array.from(node.children ?? []));
+    if (isAgentIndicatorHost(node)) return out;
+    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
     return out;
   }
 
@@ -225,7 +228,7 @@ function shadowRootChildren(
   getShadowRoot: ShadowRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
-  if (!(node instanceof Element)) return out;
+  if (!(node instanceof Element) || isAgentIndicatorHost(node)) return out;
 
   const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
   if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
@@ -268,10 +271,14 @@ function resolveNativeAtIndexWithError(
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
     );
-    return {
-      value: snapshot.snapshotItem(index) as Element | null,
-      error: false,
-    };
+    let visibleIndex = 0;
+    for (let i = 0; i < snapshot.snapshotLength; i += 1) {
+      const element = snapshot.snapshotItem(i) as Element | null;
+      if (!element || isAgentIndicatorHost(element)) continue;
+      if (visibleIndex === index) return { value: element, error: false };
+      visibleIndex += 1;
+    }
+    return { value: null, error: false };
   } catch {
     return { value: null, error: true };
   }
@@ -289,7 +296,12 @@ function resolveNativeCountWithError(xp: string): {
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
     );
-    return { count: snapshot.snapshotLength, error: false };
+    let count = 0;
+    for (let i = 0; i < snapshot.snapshotLength; i += 1) {
+      const element = snapshot.snapshotItem(i) as Element | null;
+      if (element && !isAgentIndicatorHost(element)) count += 1;
+    }
+    return { count, error: false };
   } catch {
     return { count: 0, error: true };
   }

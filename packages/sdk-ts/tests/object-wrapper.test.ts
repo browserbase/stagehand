@@ -68,6 +68,7 @@ function requestCall<Method extends RPCMethod>(
 }
 
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
+  agentIndicator: false,
   telemetry: {
     traces: {
       endpoint: "https://example.com/v1/traces",
