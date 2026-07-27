@@ -9,8 +9,6 @@ from typing import Annotated, Literal, Protocol, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 
-from ._generated import models
-
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
 
@@ -105,6 +103,11 @@ class RPCClient:
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
+
+    @property
+    def browser_web_socket_debugger_url(self) -> str | None:
+        value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
+        return value if isinstance(value, str) else None
 
     async def send(
         self,
@@ -463,8 +466,6 @@ async def connect_rpc_client(
     discovery_timeout_ms: int = 10_000,
     command_timeout_ms: int = 10_000,
     cdp_connect_timeout_ms: int = 10_000,
-    telemetry: models.TelemetryConfig | None = None,
-    log_level: str = "info",
 ) -> RPCClient:
     from .cdp_client import CDPClient
 
@@ -477,16 +478,4 @@ async def connect_rpc_client(
         command_timeout_ms=command_timeout_ms,
         cdp_connect_timeout_ms=cdp_connect_timeout_ms,
     )
-    client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
-    configure = models.RuntimeConfigureParams(
-        cdp_url=cdp.web_socket_debugger_url,
-        **({"telemetry": telemetry} if telemetry is not None else {}),
-        log_level=models.LogLevel(log_level),
-    )
-
-    try:
-        await client.send("runtime.configure", configure, models.RuntimeConfigureResult)
-    except BaseException:
-        await client.close()
-        raise
-    return client
+    return RPCClient(cdp, request_timeout_ms=command_timeout_ms)

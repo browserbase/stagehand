@@ -17,8 +17,8 @@ from ._generated.models import (
     LLMStructuredGenerateResult,
     ModelConfig,
     ProxyConfig,
-    StagehandInitParams,
     StagehandLog,
+    TelemetryConfig,
 )
 from ._validation import WireModel
 
@@ -127,9 +127,17 @@ class StagehandClientLoggingConfig(WireModel):
     on_log: StagehandOnLog | None = None
 
 
-class StagehandClientInitParams(StagehandInitParams):
+class StagehandClientInitParams(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: Annotated[str | None, Field(min_length=1)] = None
     browser: BrowserSource = BrowserbaseBrowserSource(type="browserbase")
     model: ModelConfig | ClientLLM | None = None
+    telemetry: TelemetryConfig | None = None
+    system_prompt: str | None = None
+    self_heal: bool | None = None
+    dom_settle_timeout_ms: Annotated[int | None, Field(gt=0)] = None
+    cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
     @model_validator(mode="after")

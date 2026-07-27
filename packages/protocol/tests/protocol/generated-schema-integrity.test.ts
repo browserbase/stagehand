@@ -92,7 +92,7 @@ describe("generated Stagehand schema integrity", () => {
     const methods = asRecord(asRecord(asRecord(protocol.properties).methods).properties);
     const telemetryDefault = DEFAULT_TELEMETRY_CONFIG;
 
-    for (const methodName of ["runtime.configure", "stagehand.init"]) {
+    for (const methodName of ["stagehand.init"]) {
       const method = asRecord(methods[methodName]);
       const params = resolveLocalReference(
         protocol,

@@ -162,8 +162,6 @@ import type {
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
   ProxyConfigSchema,
-  RuntimeConfigureParamsSchema,
-  RuntimeConfigureResultSchema,
   RuntimeDescriptorSchema,
   RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
@@ -323,7 +321,6 @@ export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 export type ImplementationInfo = z.infer<typeof ImplementationInfoSchema>;
 export type RuntimeDescriptor = z.infer<typeof RuntimeDescriptorSchema>;
-export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
 export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema>;
@@ -374,7 +371,6 @@ export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventPa
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
 export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
-export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
 export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
 export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;

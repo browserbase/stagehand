@@ -1314,10 +1314,14 @@ export const TelemetryConfigSchema = z
 
 export const StagehandInitParamsSchema = z
   .object({
+    protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+    clientInfo: ImplementationInfoSchema,
+    browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
@@ -1328,17 +1332,6 @@ export const StagehandInitParamsSchema = z
   })
   .strict()
   .meta({ id: "StagehandInitParams" });
-
-export const RuntimeConfigureParamsSchema = z
-  .object({
-    protocolVersion: z.int().positive().optional(),
-    clientInfo: ImplementationInfoSchema.optional(),
-    cdpUrl: z.string().min(1),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
-    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
-  })
-  .strict()
-  .meta({ id: "RuntimeConfigureParams" });
 
 export const StagehandActParamsSchema = z
   .object({
@@ -1772,13 +1765,6 @@ export const StagehandPingResultSchema = z
   })
   .strict()
   .meta({ id: "StagehandPingResult" });
-
-export const RuntimeConfigureResultSchema = z
-  .object({
-    configured: z.literal(true),
-  })
-  .strict()
-  .meta({ id: "RuntimeConfigureResult" });
 
 export const RuntimeLoopbackStatusResultSchema = z
   .object({

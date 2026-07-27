@@ -86,8 +86,6 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
-  RuntimeConfigureParams,
-  RuntimeConfigureResult,
   RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
@@ -199,6 +197,7 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
+  prepareForInitialization?(): Promise<void>;
   getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
@@ -272,8 +271,7 @@ export class StagehandRuntime {
     };
   }
 
-  async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
-    this.logger.setLevel(params.logLevel);
+  async configureLoopback(params: { cdpUrl: string }): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
@@ -287,8 +285,6 @@ export class StagehandRuntime {
       this.browserSession = undefined;
       throw error;
     }
-
-    return { configured: true };
   }
 
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
@@ -296,7 +292,16 @@ export class StagehandRuntime {
       throw new Error("Stagehand has already been initialized");
     }
 
+    this.logger.setLevel(params.logLevel);
+    if (!this.browserSession) {
+      if (!params.browserCdpUrl) {
+        throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+      }
+      await this.configureLoopback({ cdpUrl: params.browserCdpUrl });
+    }
+    await this.browserSession?.prepareForInitialization?.();
     const pages = await this.contextPages();
+    this.tracing.configure(params.telemetry);
     this.state.setState(
       StagehandRuntimeStateSchema.parse({
         status: "initialized",

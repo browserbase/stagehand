@@ -10,7 +10,11 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods } from "../protocol/schema-registry.js";
-import type { StagehandRpcRequest } from "../protocol/types.js";
+import type {
+  StagehandInitParams,
+  StagehandInitResult,
+  StagehandRpcRequest,
+} from "../protocol/types.js";
 import { z } from "zod/v4";
 import { createBrowserController } from "./controllers/browserController.js";
 import { createContextController } from "./controllers/contextController.js";
@@ -27,6 +31,11 @@ export type HandlerContext = {
   logger: StagehandLogger;
 };
 
+export type RPCRouterOptions = {
+  initializeStagehand?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  closeStagehand?: () => Promise<void>;
+};
+
 export class RPCRouter {
   readonly runtimeController;
   readonly browserController;
@@ -35,10 +44,16 @@ export class RPCRouter {
   readonly pageController;
   readonly locatorController;
 
-  constructor(readonly runtime: StagehandRuntime) {
+  constructor(
+    readonly runtime: StagehandRuntime,
+    options: RPCRouterOptions = {},
+  ) {
     this.runtimeController = createRuntimeController(runtime);
     this.browserController = createBrowserController(runtime);
-    this.stagehandController = createStagehandController(runtime);
+    this.stagehandController = createStagehandController(runtime, {
+      ...(options.initializeStagehand ? { initialize: options.initializeStagehand } : {}),
+      ...(options.closeStagehand ? { close: options.closeStagehand } : {}),
+    });
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
@@ -87,11 +102,6 @@ export class RPCRouter {
       case "ping":
         return this.runtimeController.ping(
           parseParams(StagehandMethods.ping, request.params),
-          context,
-        );
-      case "runtime.configure":
-        return this.runtimeController.configure(
-          parseParams(StagehandMethods.runtimeConfigure, request.params),
           context,
         );
       case "runtime.loopback_status":

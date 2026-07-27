@@ -81,12 +81,11 @@ describe("client LLM generation", () => {
 
     await runtime.configureLoopback({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      protocolVersion: 4,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      logLevel: "info",
       model: { source: "client" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

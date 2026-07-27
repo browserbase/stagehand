@@ -109,13 +109,11 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
     })
-    connect_args: dict[str, object] = {}
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
-    async def connect(**kwargs: object) -> RPCClient:
-        connect_args.update(kwargs)
+    async def connect(**_: object) -> RPCClient:
         return cast(RPCClient, recording)
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
@@ -133,7 +131,7 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
     ]:
         await notification_listener(StagehandLog.model_validate(log))
 
-    assert connect_args["log_level"] == "info"
+    assert cast(StagehandInitParams, recording.calls[0][1]).log_level == "info"
     assert capsys.readouterr().err.splitlines() == [
         '[stagehand] INFO Page opened {"pageId":"page-1"}',
         "[stagehand] WARN Selector fallback",

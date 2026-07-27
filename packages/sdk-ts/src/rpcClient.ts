@@ -30,15 +30,8 @@ import type {
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
 import {
   StagehandNotifications,
-  StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
-import {
-  DEFAULT_TELEMETRY_CONFIG,
-  RuntimeConfigureParamsSchema,
-  STAGEHAND_PROTOCOL_VERSION,
-  TelemetryConfigSchema,
-} from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
@@ -58,11 +51,6 @@ type RegisteredRequestHandler = {
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
-const STAGEHAND_SDK_CLIENT_INFO = {
-  name: "stagehand-sdk-ts",
-  version: "4.0.0",
-} as const;
-
 const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),
@@ -70,8 +58,6 @@ const RPCClientOptionsBaseSchema = z
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
-    logLevel: RuntimeConfigureParamsSchema.shape.logLevel,
   })
   .strict();
 
@@ -97,6 +83,7 @@ export type RPCClientOptions = z.input<typeof RPCClientOptionsSchema>;
 
 export type CDPTransport = {
   readonly serviceWorker: ServiceWorkerInfo;
+  readonly webSocketDebuggerUrl?: string;
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
@@ -106,6 +93,7 @@ export type CDPTransport = {
 
 export class RPCClient {
   readonly serviceWorker: ServiceWorkerInfo;
+  readonly browserWebSocketDebuggerUrl?: string;
   nextRequestId = 1;
   pending = new Map<number, PendingRequest>();
   requestHandlers = new Map<string, RegisteredRequestHandler>();
@@ -119,6 +107,7 @@ export class RPCClient {
     this.cdp = cdp;
     this.requestTimeoutMs = requestTimeoutMs;
     this.serviceWorker = cdp.serviceWorker;
+    this.browserWebSocketDebuggerUrl = cdp.webSocketDebuggerUrl;
     this.cdp.onmessage = (message) => this.receive(message);
     this.cdp.onclose = (reason) => this.close(reason);
     this.cdp.onerror = (error) => this.close(error);
@@ -415,19 +404,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   });
   const client = new RPCClient(cdpClient, commandTimeoutMs);
 
-  try {
-    await client.send(StagehandMethods.runtimeConfigure, {
-      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-      cdpUrl: cdpClient.webSocketDebuggerUrl,
-      telemetry: options.telemetry,
-      logLevel: options.logLevel,
-    });
-    return client;
-  } catch (error) {
-    client.close();
-    throw error;
-  }
+  return client;
 }
 
 export function getTraceContextFields(requestContext: Context): {

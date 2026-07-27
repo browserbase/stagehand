@@ -39,6 +39,8 @@ describe("client-side LLM protocol", () => {
   it("selects a serializable client model during Stagehand initialization", () => {
     expect(
       StagehandInitParamsSchema.parse({
+        protocolVersion: 4,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         model: {
           source: "client",
         },

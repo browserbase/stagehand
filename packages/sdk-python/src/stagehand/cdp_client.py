@@ -145,7 +145,7 @@ class CDPClient:
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
             )
-            await client._wait_for_runtime_ready(session_id, discovery_timeout_ms)
+            await client._wait_for_runtime_receiver(session_id, discovery_timeout_ms)
             return client
         except BaseException:
             await client.close()
@@ -409,7 +409,7 @@ class CDPClient:
             f"Observed targets: {observed}"
         )
 
-    async def _wait_for_runtime_ready(self, session_id: str, timeout_ms: int) -> None:
+    async def _wait_for_runtime_receiver(self, session_id: str, timeout_ms: int) -> None:
         started = time.monotonic()
         last_error = ""
 

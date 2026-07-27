@@ -15,10 +15,12 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
+    const browserPort = await availablePort();
     stagehand = new Stagehand({
       browser: {
         type: "local",
         headless: true,
+        port: browserPort,
       },
       model: {
         generate: async (params): Promise<LLMGenerateResult> => {
@@ -477,6 +479,22 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });
 });
+
+async function availablePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
+  if (!address || typeof address === "string") {
+    throw new Error("Failed to reserve a local Chrome debugging port");
+  }
+  return address.port;
+}
 
 function requireStagehand(value: Stagehand | undefined): Stagehand {
   if (!value) {

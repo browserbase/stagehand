@@ -19,6 +19,7 @@ def _ready_marker() -> dict[str, object]:
         "marker": {
             "protocolVersion": 4,
             "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "state": "ready",
         },
         "hasReceiver": True,
     }

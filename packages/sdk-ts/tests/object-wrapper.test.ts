@@ -18,6 +18,7 @@ class FakeProtocolClient extends RPCClient {
   constructor() {
     super(
       {
+        webSocketDebuggerUrl: "test://stagehand",
         serviceWorker: {
           targetId: "worker-target",
           url: "chrome-extension://stagehand/service-worker.js",
@@ -68,6 +69,10 @@ function requestCall<Method extends RPCMethod>(
 }
 
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
+  protocolVersion: 4,
+  clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+  logLevel: "info",
+  browserCdpUrl: "test://stagehand",
   telemetry: {
     traces: {
       endpoint: "https://example.com/v1/traces",
