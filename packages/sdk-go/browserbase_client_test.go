@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -165,7 +166,10 @@ func TestBrowserbaseHTTPClientRetriesReplayableRequests(t *testing.T) {
 			http.Error(writer, "rate limited", http.StatusTooManyRequests)
 			return
 		}
-		writeBrowserbaseTestJSON(writer, browserbaseTestCreateSessionResponse("session_retry"))
+		writeBrowserbaseTestJSON(
+			writer,
+			browserbaseTestSessionResponse("session_retry", "COMPLETED"),
+		)
 	}))
 	defer server.Close()
 
@@ -181,12 +185,9 @@ func TestBrowserbaseHTTPClientRetriesReplayableRequests(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
 	}
-	response, err := client.createSession(
-		context.Background(),
-		browserbaseCreateSessionRequest{},
-	)
+	response, err := client.releaseSession(context.Background(), "session_retry")
 	if err != nil {
-		t.Fatalf("createSession() error = %v", err)
+		t.Fatalf("releaseSession() error = %v", err)
 	}
 	if response.ID == nil || *response.ID != "session_retry" {
 		t.Fatalf("response ID = %#v", response.ID)
@@ -196,6 +197,115 @@ func TestBrowserbaseHTTPClientRetriesReplayableRequests(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sleeps, []time.Duration{0}) {
 		t.Fatalf("sleeps = %#v, want [0]", sleeps)
+	}
+}
+
+func TestBrowserbaseHTTPClientDoesNotReplayResourceCreation(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		requests++
+		http.Error(writer, "temporarily unavailable", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	var sleeps []time.Duration
+	client, err := newBrowserbaseHTTPClient("bb_test", browserbaseHTTPClientOptions{
+		baseURL:    server.URL,
+		httpClient: server.Client(),
+		sleep: func(_ context.Context, duration time.Duration) error {
+			sleeps = append(sleeps, duration)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
+	}
+	_, err = client.createSession(context.Background(), browserbaseCreateSessionRequest{})
+	var apiErr *BrowserbaseAPIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("createSession() error = %v, want 503 BrowserbaseAPIError", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+	if len(sleeps) != 0 {
+		t.Fatalf("retry sleeps = %#v, want none", sleeps)
+	}
+}
+
+func TestBrowserbaseHTTPClientDoesNotReplayCreationAfterLostResponse(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(
+		writer http.ResponseWriter,
+		request *http.Request,
+	) {
+		requests.Add(1)
+		hijacker, ok := writer.(http.Hijacker)
+		if !ok {
+			t.Error("response writer does not support hijacking")
+			return
+		}
+		connection, _, err := hijacker.Hijack()
+		if err != nil {
+			t.Errorf("hijack response: %v", err)
+			return
+		}
+		_ = connection.Close()
+	}))
+	defer server.Close()
+
+	client, err := newBrowserbaseHTTPClient("bb_test", browserbaseHTTPClientOptions{
+		baseURL:    server.URL,
+		httpClient: server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
+	}
+	if _, err := client.createSession(
+		context.Background(),
+		browserbaseCreateSessionRequest{},
+	); err == nil || !strings.Contains(err.Error(), "send Browserbase request") {
+		t.Fatalf("createSession() error = %v, want transport error", err)
+	}
+	if requests.Load() != 1 {
+		t.Fatalf("requests = %d, want 1", requests.Load())
+	}
+}
+
+func TestBrowserbaseRetryDelayCapsServerValues(t *testing.T) {
+	tests := []struct {
+		name    string
+		headers http.Header
+		want    time.Duration
+	}{
+		{
+			name:    "milliseconds overflow",
+			headers: http.Header{"Retry-After-Ms": []string{"1e100"}},
+			want:    maxBrowserbaseRetryDelay,
+		},
+		{
+			name:    "seconds overflow",
+			headers: http.Header{"Retry-After": []string{"1e100"}},
+			want:    maxBrowserbaseRetryDelay,
+		},
+		{
+			name: "non-finite milliseconds use seconds",
+			headers: http.Header{
+				"Retry-After-Ms": []string{"+Inf"},
+				"Retry-After":    []string{"2"},
+			},
+			want: 2 * time.Second,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := browserbaseRetryDelay(test.headers, 0); got != test.want {
+				t.Fatalf("browserbaseRetryDelay() = %s, want %s", got, test.want)
+			}
+		})
 	}
 }
 

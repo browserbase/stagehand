@@ -74,9 +74,17 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with existing CDP error = %v", err)
 	}
-	assertExtensionDirectoryRemoved(t, extensionDir)
 
-	response, err := http.Get(launched.cdpURL + "/json/version")
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		launched.cdpURL+"/json/version",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("create kept-alive existing CDP browser request: %v", err)
+	}
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		t.Fatalf("kept-alive existing CDP browser is unavailable: %v", err)
 	}
@@ -87,6 +95,14 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 			response.StatusCode,
 		)
 	}
+	if _, err := os.Stat(extensionDir); err != nil {
+		t.Fatalf("kept-alive extension directory is unavailable: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(extensionDir); err != nil {
+			t.Errorf("remove kept-alive extension directory: %v", err)
+		}
+	})
 }
 
 func TestStagehandBrowserbaseIntegration(t *testing.T) {

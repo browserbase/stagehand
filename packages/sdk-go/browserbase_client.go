@@ -21,6 +21,7 @@ const (
 	defaultBrowserbaseBaseURL      = "https://api.browserbase.com"
 	defaultBrowserbaseHTTPTimeout  = 60 * time.Second
 	defaultBrowserbaseMaxRetries   = 2
+	maxBrowserbaseRetryDelay       = defaultBrowserbaseHTTPTimeout
 	maxBrowserbaseAPIResponseBytes = 4 << 20
 	stagehandExtensionUploadName   = "stagehand-extension.zip"
 )
@@ -180,6 +181,7 @@ type browserbaseEncodedRequest struct {
 	body        []byte
 	contentType string
 	accept      string
+	replaySafe  bool
 }
 
 type browserbaseEndpointRequest interface {
@@ -233,7 +235,7 @@ func sendBrowserbaseRequest[Response browserbaseEndpointResponse](
 			if ctx.Err() != nil {
 				return zero, ctx.Err()
 			}
-			if attempt >= client.maxRetries {
+			if !encoded.replaySafe || attempt >= client.maxRetries {
 				return zero, fmt.Errorf("send Browserbase request: %w", requestErr)
 			}
 			if err := client.sleep(ctx, browserbaseDefaultRetryDelay(attempt)); err != nil {
@@ -247,7 +249,9 @@ func sendBrowserbaseRequest[Response browserbaseEndpointResponse](
 		if readErr != nil || closeErr != nil {
 			return zero, errors.Join(readErr, closeErr)
 		}
-		if browserbaseShouldRetry(httpResponse) && attempt < client.maxRetries {
+		if encoded.replaySafe &&
+			browserbaseShouldRetry(httpResponse) &&
+			attempt < client.maxRetries {
 			if err := client.sleep(
 				ctx,
 				browserbaseRetryDelay(httpResponse.Header, attempt),
@@ -331,21 +335,35 @@ func browserbaseRetryDelay(headers http.Header, attempt int) time.Duration {
 	if milliseconds, err := strconv.ParseFloat(
 		strings.TrimSpace(headers.Get("retry-after-ms")),
 		64,
-	); err == nil && milliseconds >= 0 {
-		return time.Duration(milliseconds * float64(time.Millisecond))
+	); err == nil {
+		if delay, ok := browserbaseRetryDuration(milliseconds, time.Millisecond); ok {
+			return delay
+		}
 	}
 
 	retryAfter := strings.TrimSpace(headers.Get("Retry-After"))
-	if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil && seconds >= 0 {
-		return time.Duration(seconds * float64(time.Second))
+	if seconds, err := strconv.ParseFloat(retryAfter, 64); err == nil {
+		if delay, ok := browserbaseRetryDuration(seconds, time.Second); ok {
+			return delay
+		}
 	}
 	if retryTime, err := http.ParseTime(retryAfter); err == nil {
 		if delay := time.Until(retryTime); delay > 0 {
-			return delay
+			return min(delay, maxBrowserbaseRetryDelay)
 		}
 		return 0
 	}
 	return browserbaseDefaultRetryDelay(attempt)
+}
+
+func browserbaseRetryDuration(value float64, unit time.Duration) (time.Duration, bool) {
+	if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	if value >= float64(maxBrowserbaseRetryDelay)/float64(unit) {
+		return maxBrowserbaseRetryDelay, true
+	}
+	return time.Duration(value * float64(unit)), true
 }
 
 func browserbaseDefaultRetryDelay(attempt int) time.Duration {
@@ -418,9 +436,10 @@ type browserbaseDeleteExtensionRequest struct {
 
 func (request browserbaseDeleteExtensionRequest) encode() (browserbaseEncodedRequest, error) {
 	encoded := browserbaseEncodedRequest{
-		method: http.MethodDelete,
-		path:   "/v1/extensions/" + url.PathEscape(request.ExtensionID),
-		accept: "*/*",
+		method:     http.MethodDelete,
+		path:       "/v1/extensions/" + url.PathEscape(request.ExtensionID),
+		accept:     "*/*",
+		replaySafe: true,
 	}
 	if strings.TrimSpace(request.ExtensionID) == "" {
 		return encoded, errors.New("extension ID is required")
@@ -437,8 +456,9 @@ const browserbaseSessionReleaseStatus = "REQUEST_RELEASE"
 
 func (request browserbaseReleaseSessionRequest) encode() (browserbaseEncodedRequest, error) {
 	encoded := browserbaseEncodedRequest{
-		method: http.MethodPost,
-		path:   "/v1/sessions/" + url.PathEscape(request.SessionID),
+		method:     http.MethodPost,
+		path:       "/v1/sessions/" + url.PathEscape(request.SessionID),
+		replaySafe: true,
 	}
 	if strings.TrimSpace(request.SessionID) == "" {
 		return encoded, errors.New("session ID is required")

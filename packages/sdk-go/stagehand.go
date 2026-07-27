@@ -208,7 +208,7 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	if err != nil {
 		return errors.Join(
 			fmt.Errorf("connect protocol: %w", err),
-			s.releaseBrowser(ctx),
+			s.releaseBrowser(ctx, false),
 		)
 	}
 	s.rpc = rpc
@@ -245,7 +245,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 			closeErr = nil
 		}
 	}
-	cleanupErr := s.release(ctx)
+	cleanupErr := s.release(ctx, true)
 	return errors.Join(closeErr, cleanupErr)
 }
 
@@ -339,14 +339,14 @@ func pageFromExtractOptions(options *StagehandClientExtractOptions) *Page {
 }
 
 func (s *Stagehand) initFailure(ctx context.Context, cause error) error {
-	cleanupErr := s.release(ctx)
+	cleanupErr := s.release(ctx, false)
 	if cleanupErr != nil {
 		return errors.Join(cause, cleanupErr)
 	}
 	return cause
 }
 
-func (s *Stagehand) release(ctx context.Context) error {
+func (s *Stagehand) release(ctx context.Context, preserveKeepAlive bool) error {
 	if s.removeLLMHandler != nil {
 		s.removeLLMHandler()
 		s.removeLLMHandler = nil
@@ -360,21 +360,24 @@ func (s *Stagehand) release(ctx context.Context) error {
 		rpcErr = s.rpc.close()
 		s.rpc = nil
 	}
-	browserErr := s.releaseBrowser(ctx)
+	browserErr := s.releaseBrowser(ctx, preserveKeepAlive)
 	s.context = nil
 	s.initialized = false
 	return errors.Join(rpcErr, browserErr)
 }
 
-func (s *Stagehand) releaseBrowser(ctx context.Context) error {
+func (s *Stagehand) releaseBrowser(ctx context.Context, preserveKeepAlive bool) error {
 	if s.browser == nil {
 		return nil
 	}
 	browser := s.browser
 	s.browser = nil
 
+	if preserveKeepAlive && browser.keepAlive {
+		return nil
+	}
 	var browserErr error
-	if !browser.keepAlive && browser.close != nil {
+	if browser.close != nil {
 		browserErr = browser.close(ctx)
 	}
 	var cleanupErr error

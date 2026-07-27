@@ -151,7 +151,8 @@ func resolveCDPSource(
 	source CDPBrowserSource,
 	dependencies browserSourceResolverDependencies,
 ) (resolvedBrowserSource, error) {
-	if strings.TrimSpace(source.CDPURL) == "" {
+	cdpURL := strings.TrimSpace(source.CDPURL)
+	if cdpURL == "" {
 		return resolvedBrowserSource{}, errors.New("stagehand CDP URL is required")
 	}
 	extensionDir, cleanup, err := materializeStagehandExtension(dependencies)
@@ -170,7 +171,7 @@ func resolveCDPSource(
 		headers.Set(name, value)
 	}
 	return resolvedBrowserSource{
-		cdpURL:       source.CDPURL,
+		cdpURL:       cdpURL,
 		cdpHeaders:   headers,
 		extensionDir: extensionDir,
 		keepAlive:    true,

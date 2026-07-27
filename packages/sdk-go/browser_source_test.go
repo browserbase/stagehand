@@ -145,7 +145,7 @@ func TestResolveBrowserSourceSupportsEveryClientMode(t *testing.T) {
 		resolved, err := resolveBrowserSourceWithDependencies(
 			context.Background(),
 			StagehandClientInitParams{Browser: CDPBrowserSource{
-				CDPURL: "http://browser.test:9222",
+				CDPURL: "  http://browser.test:9222  ",
 				Headers: map[string]string{
 					"X-Browser-Token": "secret",
 				},
@@ -257,29 +257,45 @@ func TestResolveBrowserSourceValidatesClientInputs(t *testing.T) {
 	}
 }
 
-func TestStagehandReleaseCleansSDKResourcesForKeepAliveBrowser(t *testing.T) {
+func TestStagehandReleasePreservesSuccessfulKeepAliveBrowser(t *testing.T) {
 	closeCalls := 0
 	cleanupCalls := 0
 	client := New(StagehandClientInitParams{})
-	client.browser = &resolvedBrowserSource{
-		keepAlive: true,
-		close: func(context.Context) error {
-			closeCalls++
-			return nil
-		},
-		cleanup: func() error {
-			cleanupCalls++
-			return nil
-		},
+	newBrowser := func() *resolvedBrowserSource {
+		return &resolvedBrowserSource{
+			keepAlive: true,
+			close: func(context.Context) error {
+				closeCalls++
+				return nil
+			},
+			cleanup: func() error {
+				cleanupCalls++
+				return nil
+			},
+		}
 	}
 
-	if err := client.releaseBrowser(context.Background()); err != nil {
-		t.Fatalf("releaseBrowser() error = %v", err)
+	client.browser = newBrowser()
+	if err := client.releaseBrowser(context.Background(), true); err != nil {
+		t.Fatalf("releaseBrowser(preserve keepAlive) error = %v", err)
 	}
-	if closeCalls != 0 {
-		t.Fatalf("browser close calls = %d, want 0", closeCalls)
+	if closeCalls != 0 || cleanupCalls != 0 {
+		t.Fatalf(
+			"preserved browser close calls = %d, cleanup calls = %d; want 0 and 0",
+			closeCalls,
+			cleanupCalls,
+		)
 	}
-	if cleanupCalls != 1 {
-		t.Fatalf("SDK cleanup calls = %d, want 1", cleanupCalls)
+
+	client.browser = newBrowser()
+	if err := client.releaseBrowser(context.Background(), false); err != nil {
+		t.Fatalf("releaseBrowser(after failed init) error = %v", err)
+	}
+	if closeCalls != 1 || cleanupCalls != 1 {
+		t.Fatalf(
+			"failed-init close calls = %d, cleanup calls = %d; want 1 and 1",
+			closeCalls,
+			cleanupCalls,
+		)
 	}
 }
