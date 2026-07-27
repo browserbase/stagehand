@@ -18,11 +18,11 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		{
 			name: "compatible",
 			marker: `{
-				"protocolVersion": 4,
+				"protocolVersion": 1,
 				"serverInfo": {"name": "stagehand", "version": "4.0.0"}
 			}`,
 			compatible: true,
-			detail:     "protocolVersion=4",
+			detail:     "protocolVersion=1",
 		},
 		{
 			name:       "missing marker",
@@ -33,8 +33,8 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		{
 			name: "below range",
 			marker: `{
-				"protocolVersion": 3,
-				"serverInfo": {"name": "stagehand", "version": "3.0.0"}
+				"protocolVersion": 0,
+				"serverInfo": {"name": "stagehand", "version": "4.0.0"}
 			}`,
 			compatible: false,
 			detail:     "below",
@@ -42,8 +42,8 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		{
 			name: "above range",
 			marker: `{
-				"protocolVersion": 5,
-				"serverInfo": {"name": "stagehand", "version": "5.0.0"}
+				"protocolVersion": 2,
+				"serverInfo": {"name": "stagehand", "version": "4.0.0"}
 			}`,
 			compatible: false,
 			detail:     "above",
@@ -51,7 +51,7 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		{
 			name: "wrong runtime",
 			marker: `{
-				"protocolVersion": 4,
+				"protocolVersion": 1,
 				"serverInfo": {"name": "other", "version": "4.0.0"}
 			}`,
 			compatible: false,
@@ -60,11 +60,11 @@ func TestNegotiateRuntimeCompatibility(t *testing.T) {
 		{
 			name: "invalid protocol version",
 			marker: `{
-				"protocolVersion": "4",
+				"protocolVersion": "1",
 				"serverInfo": {"name": "stagehand", "version": "4.0.0"}
 			}`,
 			compatible: false,
-			detail:     "protocolVersion=4",
+			detail:     "protocolVersion=1",
 		},
 	}
 

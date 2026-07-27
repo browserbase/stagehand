@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	stagehandProtocolVersion = 4
+	stagehandProtocolVersion = 1
 	stagehandRuntimeName     = "stagehand"
 	stagehandSDKClientName   = "stagehand-sdk-go"
 	stagehandSDKVersion      = "4.0.0"
