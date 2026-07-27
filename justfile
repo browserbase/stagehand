@@ -13,6 +13,9 @@ generate:
     go -C {{go_dir}} generate ./...
 
 check:
+    pnpm exec tsx scripts/release/check-changesets.ts
+    pnpm exec tsx scripts/release/consolidate-changelogs.ts --check
+    pnpm exec tsx scripts/release/sync-python-version.ts --check
     pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
@@ -49,3 +52,23 @@ build:
     uv --directory {{python_dir}} run --locked python scripts/build.py
     go -C {{go_dir}} build ./...
     go -C {{go_generator_dir}} build ./...
+
+changeset:
+    pnpm exec changeset
+
+# Prefixed with `_` because this internal recipe is only used to generate release versions and changelogs.
+_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        export GITHUB_TOKEN="$(gh auth token)"
+    fi
+    pnpm exec changeset version
+    pnpm exec tsx scripts/release/consolidate-changelogs.ts
+    pnpm exec tsx scripts/release/sync-python-version.ts
+    uv --directory "{{python_dir}}" lock
+    pnpm exec tsx scripts/release/sync-python-version.ts --check
+
+_publish-typescript:
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec changeset publish
