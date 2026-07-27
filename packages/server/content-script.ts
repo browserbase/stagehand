@@ -1,14 +1,4 @@
 import { locatorScripts } from "./dom/locatorScripts/registry.js";
-import { setAgentIndicatorActive } from "./dom/agentIndicator.js";
-import {
-  createAgentIndicatorBootstrapGuard,
-  handleAgentIndicatorSetMessage,
-  isAgentIndicatorSetMessage,
-  type AgentIndicatorPaintResponse,
-} from "./dom/agentIndicatorMessaging.js";
-
-declare const __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__: string;
-declare const __STAGEHAND_AGENT_INDICATOR_GET_MESSAGE__: string;
 
 type StagehandExtensionWorldGlobal = typeof globalThis & {
   __stagehandExtensionWorld?: {
@@ -56,47 +46,4 @@ if (!scope.__stagehandLocatorWorld) {
       closedShadowRoots,
     }),
   });
-}
-
-const extensionRuntime = globalThis.chrome?.runtime;
-const agentIndicatorBootstrap = createAgentIndicatorBootstrapGuard();
-
-if (window.top === window && extensionRuntime?.onMessage) {
-  extensionRuntime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-    if (isAgentIndicatorSetMessage(message, __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__)) {
-      agentIndicatorBootstrap.markSetReceived();
-    }
-    return handleAgentIndicatorSetMessage(
-      message,
-      __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__,
-      setAgentIndicatorActive,
-      respondAfterIndicatorPaint,
-      sendResponse,
-    );
-  });
-  void extensionRuntime
-    .sendMessage({ type: __STAGEHAND_AGENT_INDICATOR_GET_MESSAGE__ })
-    .then((response: unknown) => {
-      if (response && typeof response === "object") {
-        const active = Reflect.get(response, "active");
-        if (typeof active === "boolean") {
-          agentIndicatorBootstrap.apply(active, setAgentIndicatorActive);
-        }
-      }
-    })
-    .catch(() => {});
-}
-
-function respondAfterIndicatorPaint(
-  sendResponse: (response: AgentIndicatorPaintResponse) => void,
-): void {
-  let responded = false;
-  const respond = () => {
-    if (responded) return;
-    responded = true;
-    sendResponse({ painted: true });
-  };
-
-  requestAnimationFrame(() => requestAnimationFrame(respond));
-  globalThis.setTimeout(respond, 100);
 }

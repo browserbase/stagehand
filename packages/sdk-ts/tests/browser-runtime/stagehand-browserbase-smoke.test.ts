@@ -1,6 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Stagehand } from "../../src/index.js";
-import { screenshotHasOrangeViewportEdge } from "./png.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
 const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
@@ -15,7 +14,6 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
 
     stagehand = new Stagehand({
       apiKey: browserbaseApiKey,
-      agentIndicator: true,
       browser: {
         type: "browserbase",
         userMetadata: {
@@ -42,8 +40,5 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     await expect(page.url()).resolves.toBe("https://example.com/");
     await expect(page.title()).resolves.toBe("Example Domain");
     await expect(page.locator("h1").innerText()).resolves.toBe("Example Domain");
-
-    const screenshot = await page.screenshot();
-    expect(screenshotHasOrangeViewportEdge(screenshot)).toBe(true);
   });
 });

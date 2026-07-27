@@ -1,5 +1,4 @@
 import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
-import { isAgentIndicatorHost, isAgentIndicatorInstalled } from "../agentIndicator.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -186,13 +185,12 @@ function composedChildren(node: TraversalRoot, getShadowRoot: ShadowRootGetter |
   }
 
   if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
+    out.push(...Array.from(node.children ?? []));
     return out;
   }
 
   if (node instanceof Element) {
-    if (isAgentIndicatorHost(node)) return out;
-    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
+    out.push(...Array.from(node.children ?? []));
     const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
     if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
     return out;
@@ -210,13 +208,12 @@ function domChildren(node: TraversalRoot): Element[] {
   }
 
   if (node instanceof ShadowRoot || node instanceof DocumentFragment) {
-    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
+    out.push(...Array.from(node.children ?? []));
     return out;
   }
 
   if (node instanceof Element) {
-    if (isAgentIndicatorHost(node)) return out;
-    out.push(...Array.from(node.children ?? []).filter((child) => !isAgentIndicatorHost(child)));
+    out.push(...Array.from(node.children ?? []));
     return out;
   }
 
@@ -228,7 +225,7 @@ function shadowRootChildren(
   getShadowRoot: ShadowRootGetter | null,
 ): Element[] {
   const out: Element[] = [];
-  if (!(node instanceof Element) || isAgentIndicatorHost(node)) return out;
+  if (!(node instanceof Element)) return out;
 
   const shadowRoot = getShadowRoot?.(node) ?? getOpenOrClosedShadowRoot(node);
   if (shadowRoot) out.push(...Array.from(shadowRoot.children ?? []));
@@ -264,17 +261,15 @@ function resolveNativeAtIndexWithError(
   index: number,
 ): { value: Element | null; error: boolean } {
   try {
-    const evaluation = createNativeXPathEvaluationContext();
-    const snapshot = evaluation.document.evaluate(
+    const snapshot = document.evaluate(
       xp,
-      evaluation.document,
+      document,
       null,
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
     );
-    const result = snapshot.snapshotItem(index);
     return {
-      value: evaluation.toOriginal(result) as Element | null,
+      value: snapshot.snapshotItem(index) as Element | null,
       error: false,
     };
   } catch {
@@ -287,10 +282,9 @@ function resolveNativeCountWithError(xp: string): {
   error: boolean;
 } {
   try {
-    const evaluation = createNativeXPathEvaluationContext();
-    const snapshot = evaluation.document.evaluate(
+    const snapshot = document.evaluate(
       xp,
-      evaluation.document,
+      document,
       null,
       XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
       null,
@@ -299,272 +293,4 @@ function resolveNativeCountWithError(xp: string): {
   } catch {
     return { count: 0, error: true };
   }
-}
-
-type NativeXPathEvaluationContext = {
-  document: Document;
-  toOriginal: (node: Node | null) => Node | null;
-};
-
-type NativeXPathMirrorCache = {
-  source: Document;
-  context: NativeXPathEvaluationContext;
-  observer: MutationObserver;
-  synchronize: (records: MutationRecord[]) => boolean;
-  pendingRecords: MutationRecord[];
-  pendingMutationCost: number;
-};
-
-let nativeXPathMirrorCache: NativeXPathMirrorCache | null = null;
-const MAX_INCREMENTAL_MIRROR_MUTATION_COST = 256;
-
-function disposeNativeXPathMirror(cache: NativeXPathMirrorCache | null): void {
-  if (!cache) return;
-  // Drain pending records before disconnecting so they cannot retain removed
-  // subtrees through the observer's delivery queue.
-  cache.observer.takeRecords();
-  cache.observer.disconnect();
-  cache.pendingRecords.length = 0;
-  if (nativeXPathMirrorCache === cache) nativeXPathMirrorCache = null;
-}
-
-/**
- * Native XPath applies positional predicates before callers can filter the
- * result. When the indicator is present, evaluate against a detached mirror
- * that omits its host so the page never observes locator-time DOM mutations.
- */
-function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
-  if (!isAgentIndicatorInstalled()) {
-    disposeNativeXPathMirror(nativeXPathMirrorCache);
-    return { document, toOriginal: (node) => node };
-  }
-
-  const cached = nativeXPathMirrorCache;
-  if (cached?.source === document) {
-    const records = cached.pendingRecords.splice(0).concat(cached.observer.takeRecords());
-    cached.pendingMutationCost = 0;
-    if (records.length === 0 || cached.synchronize(records)) return cached.context;
-    disposeNativeXPathMirror(cached);
-  } else if (cached) {
-    disposeNativeXPathMirror(cached);
-  }
-
-  // createHTMLDocument preserves Chromium's HTML XPath rules, including
-  // ASCII-case-insensitive HTML element name tests. It has no browsing
-  // context, so cloning custom elements cannot run page constructors.
-  const mirror = document.implementation.createHTMLDocument("");
-  while (mirror.firstChild) mirror.removeChild(mirror.firstChild);
-  const originals = new WeakMap<Node, Node>();
-  const mirrors = new WeakMap<Node, Node>();
-  originals.set(mirror, document);
-  mirrors.set(document, mirror);
-
-  const cloneIntoMirror = (source: Node): Node | null => {
-    if (source instanceof Element) {
-      if (isAgentIndicatorHost(source)) return null;
-      const qualifiedName = source.prefix
-        ? `${source.prefix}:${source.localName}`
-        : source.localName;
-      const clone = mirror.createElementNS(source.namespaceURI, qualifiedName);
-      originals.set(clone, source);
-      mirrors.set(source, clone);
-      for (const attribute of source.attributes) {
-        try {
-          clone.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
-          const clonedAttribute = clone.getAttributeNodeNS(
-            attribute.namespaceURI,
-            attribute.localName,
-          );
-          if (clonedAttribute) originals.set(clonedAttribute, attribute);
-        } catch {
-          // A malformed namespaced attribute cannot affect supported element locators.
-        }
-      }
-      for (const child of source.childNodes) {
-        const childClone = cloneIntoMirror(child);
-        if (childClone) clone.appendChild(childClone);
-      }
-      return clone;
-    }
-
-    let clone: Node | null = null;
-    if (source.nodeType === Node.TEXT_NODE) clone = mirror.createTextNode(source.nodeValue ?? "");
-    else if (source.nodeType === Node.CDATA_SECTION_NODE)
-      clone = mirror.createCDATASection(source.nodeValue ?? "");
-    else if (source.nodeType === Node.COMMENT_NODE)
-      clone = mirror.createComment(source.nodeValue ?? "");
-    else if (source.nodeType === Node.DOCUMENT_TYPE_NODE) {
-      const doctype = source as DocumentType;
-      clone = mirror.implementation.createDocumentType(
-        doctype.name,
-        doctype.publicId,
-        doctype.systemId,
-      );
-    }
-
-    if (clone) originals.set(clone, source);
-    if (clone) mirrors.set(source, clone);
-    return clone;
-  };
-
-  for (const child of document.childNodes) {
-    const clone = cloneIntoMirror(child);
-    if (clone) mirror.appendChild(clone);
-  }
-
-  const context: NativeXPathEvaluationContext = {
-    document: mirror,
-    toOriginal: (node) => (node ? (originals.get(node) ?? null) : null),
-  };
-
-  // Bring the detached tree current in proportion to the mutations made by
-  // the page. Synchronization is deferred until the next XPath lookup so pages
-  // that stop using XPath do not pay a permanent mutation-time cost.
-  const synchronize = (records: MutationRecord[]): boolean => {
-    try {
-      const clonedSourceRoots: Node[] = [];
-      const detachPreviouslyMirroredSubtree = (source: Node): void => {
-        const previousMirror = mirrors.get(source);
-        if (previousMirror?.parentNode) previousMirror.parentNode.removeChild(previousMirror);
-        for (const child of source.childNodes) detachPreviouslyMirroredSubtree(child);
-      };
-
-      for (const record of records) {
-        // Added subtrees are cloned from their final live state. Later records
-        // inside one would replay changes already captured by that clone (and
-        // can otherwise duplicate children).
-        if (clonedSourceRoots.some((root) => root.contains(record.target))) continue;
-
-        const mirroredTarget = mirrors.get(record.target);
-        // The indicator host and everything below it is deliberately absent.
-        if (!mirroredTarget) continue;
-
-        if (record.type === "attributes") {
-          const source = record.target as Element;
-          const target = mirroredTarget as Element;
-          const namespace = record.attributeNamespace;
-          const localName = record.attributeName!;
-          const sourceAttribute = source.getAttributeNodeNS(namespace, localName);
-          if (!sourceAttribute) {
-            target.removeAttributeNS(namespace, localName);
-            continue;
-          }
-          target.setAttributeNS(namespace, sourceAttribute.name, sourceAttribute.value);
-          const targetAttribute = target.getAttributeNodeNS(namespace, sourceAttribute.localName);
-          if (targetAttribute) {
-            originals.set(targetAttribute, sourceAttribute);
-            mirrors.set(sourceAttribute, targetAttribute);
-          }
-          continue;
-        }
-
-        if (record.type === "characterData") {
-          mirroredTarget.nodeValue = record.target.nodeValue;
-          continue;
-        }
-
-        for (const removed of record.removedNodes) {
-          const mirroredRemoved = mirrors.get(removed);
-          if (mirroredRemoved?.parentNode === mirroredTarget) {
-            mirroredTarget.removeChild(mirroredRemoved);
-          }
-        }
-
-        for (const added of record.addedNodes) {
-          // Descendants may have moved here from elsewhere in the document.
-          // Detach their old mirror nodes before cloneIntoMirror remaps them.
-          detachPreviouslyMirroredSubtree(added);
-
-          const mirroredAdded = cloneIntoMirror(added);
-          if (!mirroredAdded) continue;
-          clonedSourceRoots.push(added);
-          let sourceNext = record.nextSibling;
-          let mirroredNext: Node | null = null;
-          while (sourceNext) {
-            const candidate = mirrors.get(sourceNext);
-            if (candidate?.parentNode === mirroredTarget) {
-              mirroredNext = candidate;
-              break;
-            }
-            sourceNext = sourceNext.nextSibling;
-          }
-          mirroredTarget.insertBefore(mirroredAdded, mirroredNext);
-        }
-      }
-      return true;
-    } catch {
-      // A rare DOM shape that cannot be mirrored safely falls back to a fresh
-      // snapshot on this lookup rather than returning stale XPath results.
-      return false;
-    }
-  };
-
-  const mutationCostWithinLimit = (records: MutationRecord[], limit: number): number | null => {
-    let cost = 0;
-    const visitAddedNode = (node: Node): boolean => {
-      cost += 1;
-      if (node instanceof Element) cost += node.attributes.length;
-      if (cost > limit) return false;
-      for (const child of node.childNodes) {
-        if (!visitAddedNode(child)) return false;
-      }
-      return true;
-    };
-
-    for (const record of records) {
-      cost += 1 + record.removedNodes.length;
-      if (cost > limit) return null;
-      for (const added of record.addedNodes) {
-        if (!visitAddedNode(added)) return null;
-      }
-    }
-    return cost;
-  };
-
-  let cache: NativeXPathMirrorCache;
-  const observer = new MutationObserver((records) => {
-    // Mutations inside a newly added subtree are already represented by the
-    // eventual clone of its queued ancestor. The indicator is absent too.
-    const relevantRecords = records.filter((record) => mirrors.has(record.target));
-    if (relevantRecords.length === 0) return;
-
-    const remainingBudget = MAX_INCREMENTAL_MIRROR_MUTATION_COST - cache.pendingMutationCost;
-    const cost = mutationCostWithinLimit(relevantRecords, remainingBudget);
-    if (cost === null) {
-      disposeNativeXPathMirror(cache);
-      return;
-    }
-
-    const containsRemovedNodes = relevantRecords.some(
-      (record) => record.type === "childList" && record.removedNodes.length > 0,
-    );
-    if (containsRemovedNodes) {
-      // Apply removal batches immediately so records cannot retain detached
-      // subtrees. This is still proportional to the changed subtree, and also
-      // covers common SPA list reconciliation without rebuilding the document.
-      const pending = cache.pendingRecords.splice(0);
-      cache.pendingMutationCost = 0;
-      if (!synchronize(pending.concat(relevantRecords))) disposeNativeXPathMirror(cache);
-      return;
-    }
-
-    cache.pendingRecords.push(...relevantRecords);
-    cache.pendingMutationCost += cost;
-  });
-  cache = {
-    source: document,
-    context,
-    observer,
-    synchronize,
-    pendingRecords: [],
-    pendingMutationCost: 0,
-  };
-  observer.observe(document, {
-    attributes: true,
-    characterData: true,
-    childList: true,
-    subtree: true,
-  });
-  nativeXPathMirrorCache = cache;
-  return context;
 }

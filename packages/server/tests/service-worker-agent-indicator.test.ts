@@ -1,16 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { STAGEHAND_SEND_TO_HOST_BINDING } from "../../protocol/schema-registry.js";
 
-const mocks = vi.hoisted(() => ({
-  setActive: vi.fn(async (_active: boolean) => {}),
-  browserSession: undefined as unknown,
-}));
+const mocks = vi.hoisted(() => {
+  const setActive = vi.fn(async (_active: boolean) => {});
+  return {
+    setActive,
+    createController: vi.fn(() => ({ setActive })),
+    browserSession: undefined as unknown,
+  };
+});
 
 vi.mock("../agentIndicatorController.ts", () => ({
-  createAgentIndicatorController: () => ({
-    active: () => false,
-    setActive: mocks.setActive,
-  }),
+  createAgentIndicatorController: mocks.createController,
 }));
 
 vi.mock("../understudy/context.ts", () => ({
@@ -61,9 +62,10 @@ describe("service worker agent indicator wiring", () => {
 
   it("activates on initialization and deactivates on close", async () => {
     mocks.browserSession = createBrowserSession();
-    vi.stubGlobal("chrome", {
+    const chromeApi = {
       runtime: { getURL: (path: string) => `chrome-extension://stagehand/${path}` },
-    });
+    };
+    vi.stubGlobal("chrome", chromeApi);
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => ({ ok: true, text: async () => "locator runtime" })),
@@ -79,6 +81,7 @@ describe("service worker agent indicator wiring", () => {
       },
     };
     startStagehandServiceWorker(scope);
+    expect(mocks.createController).toHaveBeenCalledWith(chromeApi);
 
     const send = async (id: number, method: string, params: object) =>
       await new Promise((resolve, reject) => {

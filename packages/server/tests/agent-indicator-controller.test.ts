@@ -1,76 +1,69 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  AGENT_INDICATOR_GET_MESSAGE,
-  AGENT_INDICATOR_SET_MESSAGE,
-} from "../agentIndicatorMessages.ts";
-import {
   createAgentIndicatorController,
   type AgentIndicatorChrome,
 } from "../agentIndicatorController.ts";
 
 function createChromeApi() {
-  let messageListener:
-    | ((
-        message: unknown,
-        sender: unknown,
-        sendResponse: (response: { active: boolean }) => void,
-      ) => boolean | undefined)
+  let updatedListener:
+    | ((tabId: number, changeInfo: { status?: string }, tab: unknown) => void)
     | undefined;
-  const query = vi.fn(async () => [{ id: 12 }, {}, { id: 34 }]);
-  const sendMessage = vi.fn(async () => {});
+  const query = vi.fn<AgentIndicatorChrome["tabs"]["query"]>(async () => [
+    { id: 12 },
+    {},
+    { id: 34 },
+  ]);
+  const insertCSS = vi.fn<AgentIndicatorChrome["scripting"]["insertCSS"]>(async (_injection) => {});
+  const removeCSS = vi.fn<AgentIndicatorChrome["scripting"]["removeCSS"]>(async (_injection) => {});
   const chromeApi: AgentIndicatorChrome = {
-    runtime: {
-      onMessage: {
+    scripting: { insertCSS, removeCSS },
+    tabs: {
+      query,
+      onUpdated: {
         addListener(listener) {
-          messageListener = listener;
+          updatedListener = listener;
         },
       },
     },
-    tabs: { query, sendMessage },
   };
   return {
     chromeApi,
+    insertCSS,
     query,
-    sendMessage,
-    message: (value: unknown) => {
-      let response: { active: boolean } | undefined;
-      messageListener?.(value, {}, (value) => {
-        response = value;
-      });
-      return response;
-    },
+    removeCSS,
+    update: (tabId: number, status: "loading" | "complete") =>
+      updatedListener?.(tabId, { status }, {}),
   };
 }
 
 describe("agent indicator controller", () => {
-  it("broadcasts state changes and answers document-start status requests", async () => {
-    const { chromeApi, query, sendMessage, message } = createChromeApi();
+  it("injects and removes the same user-origin stylesheet in every tab", async () => {
+    const { chromeApi, insertCSS, query, removeCSS } = createChromeApi();
     const controller = createAgentIndicatorController(chromeApi);
 
-    expect(message({ type: AGENT_INDICATOR_GET_MESSAGE })).toStrictEqual({ active: false });
     await controller.setActive(true);
 
-    expect(controller.active()).toBe(true);
     expect(query).toHaveBeenCalledWith({});
-    expect(sendMessage.mock.calls).toStrictEqual([
-      [12, { type: AGENT_INDICATOR_SET_MESSAGE, active: true }],
-      [34, { type: AGENT_INDICATOR_SET_MESSAGE, active: true }],
+    expect(insertCSS).toHaveBeenCalledTimes(2);
+    const firstInjection = insertCSS.mock.calls[0]![0];
+    expect(firstInjection).toMatchObject({
+      target: { tabId: 12 },
+      origin: "USER",
+      css: expect.stringContaining(":root::after"),
+    });
+    expect(firstInjection.css).toContain("position: fixed !important");
+    expect(firstInjection.css).toContain("pointer-events: none !important");
+
+    await controller.setActive(false);
+
+    expect(removeCSS.mock.calls).toStrictEqual([
+      [firstInjection],
+      [{ ...firstInjection, target: { tabId: 34 } }],
     ]);
-    expect(message({ type: AGENT_INDICATOR_GET_MESSAGE })).toStrictEqual({ active: true });
   });
 
-  it("ignores duplicate states and tab delivery failures", async () => {
-    const { chromeApi, query, sendMessage } = createChromeApi();
-    sendMessage.mockRejectedValueOnce(new Error("restricted tab"));
-    const controller = createAgentIndicatorController(chromeApi);
-
-    await expect(controller.setActive(true)).resolves.toBeUndefined();
-    await expect(controller.setActive(true)).resolves.toBeUndefined();
-    expect(query).toHaveBeenCalledTimes(1);
-  });
-
-  it("serializes overlapping transitions so the final broadcast matches the final state", async () => {
-    const { chromeApi, query, sendMessage } = createChromeApi();
+  it("serializes rapid transitions so stale activation is skipped", async () => {
+    const { chromeApi, insertCSS, query, removeCSS } = createChromeApi();
     let resolveFirstQuery: ((tabs: Array<{ id?: number }>) => void) | undefined;
     query.mockImplementationOnce(
       () =>
@@ -86,27 +79,52 @@ describe("agent indicator controller", () => {
     resolveFirstQuery?.([{ id: 12 }]);
     await Promise.all([activate, deactivate]);
 
-    expect(controller.active()).toBe(false);
-    expect(sendMessage.mock.calls).toStrictEqual([
-      [12, { type: AGENT_INDICATOR_SET_MESSAGE, active: true }],
-      [12, { type: AGENT_INDICATOR_SET_MESSAGE, active: false }],
-      [34, { type: AGENT_INDICATOR_SET_MESSAGE, active: false }],
-    ]);
+    expect(insertCSS).not.toHaveBeenCalled();
+    expect(removeCSS).toHaveBeenCalledTimes(2);
   });
 
-  it("retries the same desired state after a tab query failure", async () => {
-    const { chromeApi, query, sendMessage } = createChromeApi();
+  it("reapplies after navigation only while active", async () => {
+    const { chromeApi, insertCSS, update } = createChromeApi();
+    const controller = createAgentIndicatorController(chromeApi);
+
+    update(12, "loading");
+    await Promise.resolve();
+    expect(insertCSS).not.toHaveBeenCalled();
+
+    await controller.setActive(true);
+    insertCSS.mockClear();
+    update(12, "loading");
+    await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(1));
+
+    update(12, "complete");
+    await Promise.resolve();
+    expect(insertCSS).toHaveBeenCalledTimes(1);
+
+    await controller.setActive(false);
+    insertCSS.mockClear();
+    update(12, "loading");
+    await Promise.resolve();
+    expect(insertCSS).not.toHaveBeenCalled();
+  });
+
+  it("ignores restricted-tab failures", async () => {
+    const { chromeApi, insertCSS } = createChromeApi();
+    insertCSS.mockRejectedValueOnce(new Error("Cannot access a chrome:// URL"));
+    const controller = createAgentIndicatorController(chromeApi);
+
+    await expect(controller.setActive(true)).resolves.toBeUndefined();
+    expect(insertCSS).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries the same state after a tab query failure", async () => {
+    const { chromeApi, insertCSS, query } = createChromeApi();
     query.mockRejectedValueOnce(new Error("temporary tabs.query failure"));
     const controller = createAgentIndicatorController(chromeApi);
 
     await expect(controller.setActive(true)).rejects.toThrow("temporary tabs.query failure");
-    expect(controller.active()).toBe(true);
     await expect(controller.setActive(true)).resolves.toBeUndefined();
 
     expect(query).toHaveBeenCalledTimes(2);
-    expect(sendMessage).toHaveBeenCalledWith(12, {
-      type: AGENT_INDICATOR_SET_MESSAGE,
-      active: true,
-    });
+    expect(insertCSS).toHaveBeenCalledTimes(2);
   });
 });

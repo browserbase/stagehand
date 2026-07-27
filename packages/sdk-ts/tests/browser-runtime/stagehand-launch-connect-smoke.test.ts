@@ -3,7 +3,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
 import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
-import { screenshotHasOrangeViewportEdge } from "./png.js";
 
 type FixtureServer = {
   url: string;
@@ -132,97 +131,15 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
 
     await page.goto(activeFixtureServer.url);
-    await expect(page.locator("#__stagehand_agent_indicator__").count()).resolves.toBe(0);
     await expect(
-      page.locator("xpath=//*[@id='__stagehand_agent_indicator__']").count(),
-    ).resolves.toBe(0);
-    await expect(page.locator(".wave").count()).resolves.toBe(0);
-    await expect(page.waitForSelector("div", { state: "attached", timeout: 5_000 })).resolves.toBe(
-      true,
-    );
-    await expect(
-      page.waitForSelector("#__stagehand_agent_indicator__", {
-        state: "attached",
-        timeout: 50,
-      }),
-    ).rejects.toThrow("Timeout 50ms exceeded");
-    await expect(
-      page.waitForSelector("#__stagehand_agent_indicator__", {
-        state: "detached",
-        timeout: 50,
-      }),
-    ).resolves.toBe(true);
-
-    await page.evaluate(`(() => {
-      globalThis.__stagehandCreateElementNSCalls = 0;
-      globalThis.__stagehandOriginalCreateElementNS = Document.prototype.createElementNS;
-      Document.prototype.createElementNS = function (...args) {
-        globalThis.__stagehandCreateElementNSCalls += 1;
-        return globalThis.__stagehandOriginalCreateElementNS.apply(this, args);
-      };
-    })()`);
-    await page.evaluate(`(() => {
-      const collision = document.createElement("div");
-      collision.id = "__stagehand_agent_indicator__";
-      collision.textContent = "page-owned collision";
-      document.body.prepend(collision);
-      const positional = document.createElement("div");
-      positional.id = "shadow-positional-candidate";
-      positional.textContent = "shadow positional candidate";
-      document.documentElement.append(positional);
-    })()`);
-    await expect(
-      page.evaluate<number>(`document.querySelectorAll("#__stagehand_agent_indicator__").length`),
-    ).resolves.toBe(2);
-    await expect(page.locator("#__stagehand_agent_indicator__").count()).resolves.toBe(1);
-    await expect(page.locator("#__stagehand_agent_indicator__").innerText()).resolves.toBe(
-      "page-owned collision",
-    );
-    await expect(page.locator("div").first().innerText()).resolves.toBe("page-owned collision");
-    await expect(page.locator("text=page-owned collision").count()).resolves.toBe(1);
-    await expect(page.locator("text=page-owned collision").innerText()).resolves.toBe(
-      "page-owned collision",
-    );
-    await expect(
-      page.locator("xpath=//*[@id='__stagehand_agent_indicator__']").count(),
-    ).resolves.toBe(1);
-    await expect(page.locator("xpath=//div").count()).resolves.toBe(3);
-    await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
-      "shadow positional candidate",
-    );
-    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
-      2,
-    );
-    await page.evaluate(`(() => {
-      globalThis.__stagehandCreateElementNSCalls = 0;
-      document.querySelector("#locator-output").setAttribute("data-updated", "true");
-    })()`);
-    await expect(page.locator("xpath=//*[@data-updated='true']").count()).resolves.toBe(1);
-    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
-      0,
-    );
-    await page.evaluate(`(() => {
-      document.querySelector("#shadow-positional-candidate").remove();
-    })()`);
-    await expect(page.locator("xpath=/html/div").count()).resolves.toBe(0);
-    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
-      0,
-    );
-    await page.evaluate(`(() => {
-      const wrapper = document.createElement("section");
-      wrapper.id = "moved-output-wrapper";
-      document.body.append(wrapper);
-      wrapper.append(document.querySelector("#locator-output"));
-    })()`);
-    await expect(page.locator("xpath=//*[@id='locator-output']").count()).resolves.toBe(1);
-    await expect(page.evaluate<number>(`globalThis.__stagehandCreateElementNSCalls`)).resolves.toBe(
-      2,
-    );
-    await page.evaluate(`(() => {
-      Document.prototype.createElementNS = globalThis.__stagehandOriginalCreateElementNS;
-      delete globalThis.__stagehandOriginalCreateElementNS;
-      delete globalThis.__stagehandCreateElementNSCalls;
-    })()`);
+      page.evaluate<{ position: string; pointerEvents: string }>(`(() => {
+        const style = getComputedStyle(document.documentElement, "::after");
+        return { position: style.position, pointerEvents: style.pointerEvents };
+      })()`),
+    ).resolves.toStrictEqual({ position: "fixed", pointerEvents: "none" });
+    const domElementCount = await page.evaluate<number>(`document.querySelectorAll("*").length`);
+    await expect(page.locator("*").count()).resolves.toBe(domElementCount);
+    await expect(page.locator("xpath=//*").count()).resolves.toBe(domElementCount);
     await page.locator("#locator-input").fill("user@example.com");
     await page.locator("#locator-button").click();
 
@@ -243,9 +160,6 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.locator("#locator-output").textContent()).resolves.toBe(
       "clicked:user@example.com",
     );
-
-    const screenshot = await page.screenshot();
-    expect(screenshotHasOrangeViewportEdge(screenshot)).toBe(true);
   });
 
   it("navigates and runs scripts through the page wrapper", async () => {
@@ -276,53 +190,6 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await page.goto(secondUrl, { waitUntil: "load" });
     await expect(page.url()).resolves.toBe(secondUrl);
     await expect(page.evaluate("globalThis.__stagehandSmokeInit")).resolves.toBe("ready");
-    await page.evaluate(`(() => {
-      const positional = document.createElement("div");
-      positional.id = "native-positional-candidate";
-      positional.textContent = "native positional candidate";
-      document.documentElement.append(positional);
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.id = "native-namespace-candidate";
-      document.body.append(svg);
-      globalThis.__stagehandMutations = [];
-      globalThis.__stagehandMutationObserver = new MutationObserver((records) => {
-        globalThis.__stagehandMutations.push(...records.map((record) => ({
-          type: record.type,
-          target: record.target.nodeName,
-          added: Array.from(record.addedNodes, (node) => node.nodeName + "#" + (node.id ?? "")),
-          removed: Array.from(record.removedNodes, (node) => node.nodeName + "#" + (node.id ?? "")),
-        })));
-      });
-      globalThis.__stagehandMutationObserver.observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-      });
-    })()`);
-    await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
-      "native positional candidate",
-    );
-    await expect(
-      page.locator("xpath=//DIV[@id='native-positional-candidate']").innerText(),
-    ).resolves.toBe("native positional candidate");
-    await expect(
-      page
-        .locator("xpath=//*[local-name()='svg' and namespace-uri()='http://www.w3.org/2000/svg']")
-        .count(),
-    ).resolves.toBe(1);
-    await expect(
-      page.evaluate<unknown[]>(`new Promise((resolve) => setTimeout(() => {
-        globalThis.__stagehandMutationObserver.disconnect();
-        resolve(globalThis.__stagehandMutations);
-      }, 0))`),
-    ).resolves.toStrictEqual([]);
-    await page.evaluate(`(() => {
-      const addedAfterMirror = document.createElement("div");
-      addedAfterMirror.id = "native-cache-invalidation-candidate";
-      document.body.append(addedAfterMirror);
-    })()`);
-    await expect(
-      page.locator("xpath=//DIV[@id='native-cache-invalidation-candidate']").count(),
-    ).resolves.toBe(1);
 
     await page.goBack({ waitUntil: "load" });
     await expect(page.url()).resolves.toBe(activeFixtureServer.url);

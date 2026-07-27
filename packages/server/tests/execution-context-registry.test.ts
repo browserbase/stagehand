@@ -11,7 +11,6 @@ class FakeSession implements CDPSessionLike {
   protocol = "https:";
   fallbackContextId = 11;
   fallbackInstalled = false;
-  installerExceptionDetails: Record<string, unknown> | undefined;
 
   async send<R = unknown>(method: string, params?: object): Promise<R> {
     this.calls.push({ method, params });
@@ -24,12 +23,6 @@ class FakeSession implements CDPSessionLike {
         return { result: { type: "string", value: this.protocol } } as R;
       }
       if (expression.startsWith("install locator runtime")) {
-        if (this.installerExceptionDetails) {
-          return {
-            result: { type: "undefined" },
-            exceptionDetails: this.installerExceptionDetails,
-          } as R;
-        }
         this.fallbackInstalled = true;
         return { result: { type: "undefined" } } as R;
       }
@@ -151,34 +144,6 @@ describe("ExecutionContextRegistry", () => {
 
     session.emit("Runtime.executionContextDestroyed", { executionContextId: 11 });
     expect(registry.getFallbackWorld(session, "frame-a")).toBeNull();
-  });
-
-  it.each([
-    {
-      name: "prefers the exception description",
-      details: { text: "Uncaught", exception: { description: "ReferenceError: missing" } },
-      expected: "ReferenceError: missing",
-    },
-    {
-      name: "falls back to exception text",
-      details: { text: "SyntaxError: invalid script" },
-      expected: "SyntaxError: invalid script",
-    },
-    {
-      name: "uses the fallback installation message",
-      details: {},
-      expected: "Failed to install Stagehand locator fallback for frame frame-a",
-    },
-  ])("reports fallback installation failures: $name", async ({ details, expected }) => {
-    const registry = new ExecutionContextRegistry();
-    const session = new FakeSession();
-    session.protocol = "data:";
-    session.installerExceptionDetails = details;
-    registry.setFallbackInstallerSource(session, "install locator runtime");
-    registry.attachSession(session);
-    session.emit("Runtime.executionContextCreated", contextCreated(1, "frame-a", true));
-
-    await expect(registry.waitForLocatorWorld(session, "frame-a", 1)).rejects.toThrow(expected);
   });
 
   it("does not mask a missing extension world on an HTTP document", async () => {

@@ -34,5 +34,6 @@ await stagehand.close();
 
 Locators are not remote handles. They store `{ pageId, selector }` and send that descriptor when an action is invoked.
 
-Set `agentIndicator: true` in the `Stagehand` constructor to show orange viewport waves from
-`stagehand.init()` until `stagehand.close()`.
+Set `agentIndicator: true` in the `Stagehand` constructor to show a decorative orange viewport
+halo from `stagehand.init()` until `stagehand.close()`. The indicator is best-effort and does not
+affect page interaction or locator results.

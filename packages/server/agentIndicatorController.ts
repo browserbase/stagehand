@@ -1,86 +1,109 @@
-import {
-  AGENT_INDICATOR_GET_MESSAGE,
-  AGENT_INDICATOR_SET_MESSAGE,
-} from "./agentIndicatorMessages.js";
+const AGENT_INDICATOR_CSS = `
+:root::after {
+  content: "" !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  border: 2px solid rgba(255, 157, 91, .82) !important;
+  box-shadow:
+    inset 0 0 3px rgba(255, 235, 209, .94),
+    inset 0 0 12px rgba(255, 198, 114, .72),
+    inset 0 0 34px rgba(255, 69, 0, .36) !important;
+}
+`;
 
-export type AgentIndicatorMessage =
-  | { type: typeof AGENT_INDICATOR_SET_MESSAGE; active: boolean }
-  | { type: typeof AGENT_INDICATOR_GET_MESSAGE };
+type AgentIndicatorCssInjection = {
+  target: { tabId: number };
+  css: string;
+  origin: "USER";
+};
 
 type ChromeEvent<Listener extends (...args: never[]) => unknown> = {
   addListener(listener: Listener): void;
 };
 
 export type AgentIndicatorChrome = {
-  runtime: {
-    onMessage: ChromeEvent<
-      (
-        message: unknown,
-        sender: unknown,
-        sendResponse: (response: { active: boolean }) => void,
-      ) => boolean | undefined
-    >;
+  scripting: {
+    insertCSS(injection: AgentIndicatorCssInjection): Promise<void>;
+    removeCSS(injection: AgentIndicatorCssInjection): Promise<void>;
   };
   tabs: {
     query(queryInfo: Record<string, never>): Promise<Array<{ id?: number }>>;
-    sendMessage(tabId: number, message: AgentIndicatorMessage): Promise<unknown>;
+    onUpdated: ChromeEvent<(tabId: number, changeInfo: { status?: string }, tab: unknown) => void>;
   };
 };
 
 export type AgentIndicatorController = {
-  active(): boolean;
   setActive(active: boolean): Promise<void>;
 };
 
-/** Synchronizes the session-wide indicator state with every extension-enabled tab. */
+/** Owns the session indicator's state, tab fan-out, and navigation reapplication. */
 export function createAgentIndicatorController(
   chromeApi: AgentIndicatorChrome,
 ): AgentIndicatorController {
   let desiredActive = false;
-  let deliveredActive = false;
   let transition = Promise.resolve();
+  const styledTabs = new Set<number>();
 
-  chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (isAgentIndicatorMessage(message) && message.type === AGENT_INDICATOR_GET_MESSAGE) {
-      sendResponse({ active: desiredActive });
-      return false;
+  const injectionFor = (tabId: number): AgentIndicatorCssInjection => ({
+    target: { tabId },
+    css: AGENT_INDICATOR_CSS,
+    origin: "USER",
+  });
+
+  const applyToTab = async (tabId: number, active: boolean): Promise<void> => {
+    try {
+      const injection = injectionFor(tabId);
+      if (active) {
+        await chromeApi.scripting.insertCSS(injection);
+        styledTabs.add(tabId);
+      } else {
+        await chromeApi.scripting.removeCSS(injection);
+        styledTabs.delete(tabId);
+      }
+    } catch {
+      // Restricted pages and tabs that disappear during fan-out are expected.
+      styledTabs.delete(tabId);
     }
-    return undefined;
+  };
+
+  const enqueue = (operation: () => Promise<void>): Promise<void> => {
+    transition = transition.catch(() => {}).then(operation);
+    return transition;
+  };
+
+  const applyToAllTabs = async (active: boolean): Promise<void> => {
+    const tabs = await chromeApi.tabs.query({});
+    if (desiredActive !== active) return;
+    await Promise.all(
+      tabs.flatMap((tab) =>
+        tab.id === undefined || (active && styledTabs.has(tab.id))
+          ? []
+          : [applyToTab(tab.id, active)],
+      ),
+    );
+  };
+
+  chromeApi.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === "loading") styledTabs.delete(tabId);
+    if (!desiredActive || (changeInfo.status !== "loading" && changeInfo.status !== "complete")) {
+      return;
+    }
+
+    void enqueue(async () => {
+      if (!desiredActive || styledTabs.has(tabId)) return;
+      await applyToTab(tabId, true);
+    });
   });
 
   return {
-    active: () => desiredActive,
     setActive(active) {
       desiredActive = active;
-      transition = transition
-        .catch(() => {})
-        .then(async () => {
-          while (deliveredActive !== desiredActive) {
-            const nextActive = desiredActive;
-            const tabs = await chromeApi.tabs.query({});
-            await Promise.allSettled(
-              tabs.flatMap((tab) =>
-                tab.id === undefined
-                  ? []
-                  : [
-                      chromeApi.tabs.sendMessage(tab.id, {
-                        type: AGENT_INDICATOR_SET_MESSAGE,
-                        active: nextActive,
-                      }),
-                    ],
-              ),
-            );
-            deliveredActive = nextActive;
-          }
-        });
-      return transition;
+      return enqueue(() => applyToAllTabs(active));
     },
   };
-}
-
-function isAgentIndicatorMessage(value: unknown): value is AgentIndicatorMessage {
-  if (!value || typeof value !== "object") return false;
-  const type = Reflect.get(value, "type");
-  if (type === AGENT_INDICATOR_GET_MESSAGE) return true;
-  return type === AGENT_INDICATOR_SET_MESSAGE && typeof Reflect.get(value, "active") === "boolean";
 }

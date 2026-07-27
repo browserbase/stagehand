@@ -1146,7 +1146,7 @@
         },
         "agent_indicator": {
           "default": false,
-          "description": "Show a viewport-edge indicator from Stagehand initialization until close",
+          "description": "Show a decorative viewport halo from Stagehand initialization until close",
           "type": "boolean"
         },
         "model": {
