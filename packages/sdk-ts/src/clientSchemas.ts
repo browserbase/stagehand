@@ -26,10 +26,9 @@ const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.
   extensionId: true,
 }).strict();
 
-/** Browserbase source fields exposed by the TS SDK. Stagehand provisions its own extension. */
+/** Browserbase source fields exposed by the TS SDK. */
 export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.omit({
   browserSettings: true,
-  extensionId: true,
 })
   .extend({
     type: z.literal("browserbase"),

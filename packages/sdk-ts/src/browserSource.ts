@@ -53,7 +53,7 @@ export async function resolveBrowserSource(
       cdpUrl: session.cdpUrl,
       browserbaseSessionId: session.sessionId,
       preloadedExtension: true,
-      autoAttach: false,
+      autoAttach: true,
       keepAlive: browser.keepAlive ?? false,
       close: session.close,
     };

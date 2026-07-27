@@ -170,6 +170,7 @@ class BrowserbaseBrowserSettings(WireModel):
     captcha_input_selector: Optional[StrictStr] = None
     context: Optional[BrowserbaseContext] = None
     extension_id: Optional[StrictStr] = None
+    extensions: Optional[list[BrowserbaseExtension]] = None
     fingerprint: Optional[BrowserbaseFingerprint] = None
     log_session: Optional[StrictBool] = None
     os: Optional[Os] = None
@@ -201,6 +202,12 @@ class BrowserbaseContext(WireModel):
     )
     id: StrictStr
     persist: Optional[StrictBool] = None
+
+
+class BrowserbaseExtension(StrEnum):
+    onepassword = "onepassword"
+    browser_events = "browser-events"
+    stagehand = "stagehand"
 
 
 class BrowserbaseFingerprint(WireModel):
