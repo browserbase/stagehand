@@ -14,7 +14,7 @@ generate:
     pnpm --filter ./packages/server build
     go -C {{go_dir}} generate ./...
 
-check:
+check: check-go-examples
     pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
@@ -25,13 +25,16 @@ check:
     pnpm --filter ./packages/server build
     go -C {{go_dir}} run ./internal/extensionpack --check
     test -z "$(find {{go_dir}} -name '*.go' -type f -exec gofmt -l {} +)"
-    go -C {{go_dir}} vet ./...
+    go -C {{go_dir}} vet $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} vet ./...
+
+check-go-examples:
+    sh {{go_dir}}/scripts/check-examples.sh
 
 test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
-    go -C {{go_dir}} test ./...
+    go -C {{go_dir}} test $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} test ./...
 
 # TODO(docs-migration): Re-enable after restoring v3 docs in Stagehand.
@@ -56,5 +59,5 @@ build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
     go -C {{go_dir}} run ./internal/extensionpack --check
-    go -C {{go_dir}} build ./...
+    go -C {{go_dir}} build $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} build -o /dev/null .
