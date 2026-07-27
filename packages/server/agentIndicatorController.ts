@@ -36,34 +36,44 @@ export type AgentIndicatorController = {
 export function createAgentIndicatorController(
   chromeApi: AgentIndicatorChrome,
 ): AgentIndicatorController {
-  let isActive = false;
+  let desiredActive = false;
+  let deliveredActive = false;
+  let transition = Promise.resolve();
 
   chromeApi.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (isAgentIndicatorMessage(message) && message.type === AGENT_INDICATOR_GET_MESSAGE) {
-      sendResponse({ active: isActive });
+      sendResponse({ active: desiredActive });
       return false;
     }
     return undefined;
   });
 
   return {
-    active: () => isActive,
-    async setActive(active) {
-      if (isActive === active) return;
-      isActive = active;
-      const tabs = await chromeApi.tabs.query({});
-      await Promise.allSettled(
-        tabs.flatMap((tab) =>
-          tab.id === undefined
-            ? []
-            : [
-                chromeApi.tabs.sendMessage(tab.id, {
-                  type: AGENT_INDICATOR_SET_MESSAGE,
-                  active,
-                }),
-              ],
-        ),
-      );
+    active: () => desiredActive,
+    setActive(active) {
+      desiredActive = active;
+      transition = transition
+        .catch(() => {})
+        .then(async () => {
+          while (deliveredActive !== desiredActive) {
+            const nextActive = desiredActive;
+            const tabs = await chromeApi.tabs.query({});
+            await Promise.allSettled(
+              tabs.flatMap((tab) =>
+                tab.id === undefined
+                  ? []
+                  : [
+                      chromeApi.tabs.sendMessage(tab.id, {
+                        type: AGENT_INDICATOR_SET_MESSAGE,
+                        active: nextActive,
+                      }),
+                    ],
+              ),
+            );
+            deliveredActive = nextActive;
+          }
+        });
+      return transition;
     },
   };
 }

@@ -14,6 +14,9 @@ import { isAgentIndicatorHost } from "../agentIndicator.js";
 type WaitForSelectorState = "attached" | "detached" | "visible" | "hidden";
 
 const firstNonIndicatorMatch = (root: Document | ShadowRoot, selector: string): Element | null => {
+  const first = root.querySelector(selector);
+  if (!first || !isAgentIndicatorHost(first)) return first;
+
   for (const element of root.querySelectorAll(selector)) {
     if (!isAgentIndicatorHost(element)) return element;
   }

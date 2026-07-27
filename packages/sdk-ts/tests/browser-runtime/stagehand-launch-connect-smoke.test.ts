@@ -140,12 +140,22 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.waitForSelector("div", { state: "attached", timeout: 5_000 })).resolves.toBe(
       true,
     );
+    await expect(
+      page.waitForSelector("#__stagehand_agent_indicator__", {
+        state: "attached",
+        timeout: 50,
+      }),
+    ).rejects.toThrow("Timeout 50ms exceeded");
 
     await page.evaluate(`(() => {
       const collision = document.createElement("div");
       collision.id = "__stagehand_agent_indicator__";
       collision.textContent = "page-owned collision";
       document.body.prepend(collision);
+      const positional = document.createElement("div");
+      positional.id = "shadow-positional-candidate";
+      positional.textContent = "shadow positional candidate";
+      document.documentElement.append(positional);
     })()`);
     await expect(
       page.evaluate<number>(`document.querySelectorAll("#__stagehand_agent_indicator__").length`),
@@ -157,6 +167,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(
       page.locator("xpath=//*[@id='__stagehand_agent_indicator__']").count(),
     ).resolves.toBe(1);
+    await expect(page.locator("xpath=//div").count()).resolves.toBe(3);
+    await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
+      "shadow positional candidate",
+    );
     await page.locator("#locator-input").fill("user@example.com");
     await page.locator("#locator-button").click();
 
@@ -210,6 +224,15 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await page.goto(secondUrl, { waitUntil: "load" });
     await expect(page.url()).resolves.toBe(secondUrl);
     await expect(page.evaluate("globalThis.__stagehandSmokeInit")).resolves.toBe("ready");
+    await page.evaluate(`(() => {
+      const positional = document.createElement("div");
+      positional.id = "native-positional-candidate";
+      positional.textContent = "native positional candidate";
+      document.documentElement.append(positional);
+    })()`);
+    await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
+      "native positional candidate",
+    );
 
     await page.goBack({ waitUntil: "load" });
     await expect(page.url()).resolves.toBe(activeFixtureServer.url);

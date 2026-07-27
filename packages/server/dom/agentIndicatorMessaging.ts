@@ -1,5 +1,36 @@
 export type AgentIndicatorPaintResponse = { painted: boolean };
 
+export type AgentIndicatorBootstrapGuard = {
+  markSetReceived(): void;
+  apply(active: boolean, setActive: (active: boolean) => boolean): boolean;
+};
+
+export function createAgentIndicatorBootstrapGuard(): AgentIndicatorBootstrapGuard {
+  let setReceived = false;
+  return {
+    markSetReceived() {
+      setReceived = true;
+    },
+    apply(active, setActive) {
+      if (setReceived) return false;
+      setActive(active);
+      return true;
+    },
+  };
+}
+
+export function isAgentIndicatorSetMessage(
+  message: unknown,
+  setMessageType: string,
+): message is { type: string; active: boolean } {
+  return (
+    !!message &&
+    typeof message === "object" &&
+    Reflect.get(message, "type") === setMessageType &&
+    typeof Reflect.get(message, "active") === "boolean"
+  );
+}
+
 export function handleAgentIndicatorSetMessage(
   message: unknown,
   setMessageType: string,
@@ -7,12 +38,7 @@ export function handleAgentIndicatorSetMessage(
   respondAfterPaint: (sendResponse: (response: AgentIndicatorPaintResponse) => void) => void,
   sendResponse: (response: AgentIndicatorPaintResponse) => void,
 ): boolean | undefined {
-  if (
-    !message ||
-    typeof message !== "object" ||
-    Reflect.get(message, "type") !== setMessageType ||
-    typeof Reflect.get(message, "active") !== "boolean"
-  ) {
+  if (!isAgentIndicatorSetMessage(message, setMessageType)) {
     return undefined;
   }
 

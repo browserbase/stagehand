@@ -1,5 +1,5 @@
 import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
-import { isAgentIndicatorHost } from "../agentIndicator.js";
+import { isAgentIndicatorHost, withoutAgentIndicator } from "../agentIndicator.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -264,21 +264,19 @@ function resolveNativeAtIndexWithError(
   index: number,
 ): { value: Element | null; error: boolean } {
   try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    let visibleIndex = 0;
-    for (let i = 0; i < snapshot.snapshotLength; i += 1) {
-      const element = snapshot.snapshotItem(i) as Element | null;
-      if (!element || isAgentIndicatorHost(element)) continue;
-      if (visibleIndex === index) return { value: element, error: false };
-      visibleIndex += 1;
-    }
-    return { value: null, error: false };
+    return withoutAgentIndicator(() => {
+      const snapshot = document.evaluate(
+        xp,
+        document,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null,
+      );
+      return {
+        value: snapshot.snapshotItem(index) as Element | null,
+        error: false,
+      };
+    });
   } catch {
     return { value: null, error: true };
   }
@@ -289,19 +287,16 @@ function resolveNativeCountWithError(xp: string): {
   error: boolean;
 } {
   try {
-    const snapshot = document.evaluate(
-      xp,
-      document,
-      null,
-      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-      null,
-    );
-    let count = 0;
-    for (let i = 0; i < snapshot.snapshotLength; i += 1) {
-      const element = snapshot.snapshotItem(i) as Element | null;
-      if (element && !isAgentIndicatorHost(element)) count += 1;
-    }
-    return { count, error: false };
+    return withoutAgentIndicator(() => {
+      const snapshot = document.evaluate(
+        xp,
+        document,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null,
+      );
+      return { count: snapshot.snapshotLength, error: false };
+    });
   } catch {
     return { count: 0, error: true };
   }

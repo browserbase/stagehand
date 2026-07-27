@@ -1,7 +1,9 @@
 import { locatorScripts } from "./dom/locatorScripts/registry.js";
 import { setAgentIndicatorActive } from "./dom/agentIndicator.js";
 import {
+  createAgentIndicatorBootstrapGuard,
   handleAgentIndicatorSetMessage,
+  isAgentIndicatorSetMessage,
   type AgentIndicatorPaintResponse,
 } from "./dom/agentIndicatorMessaging.js";
 
@@ -57,9 +59,13 @@ if (!scope.__stagehandLocatorWorld) {
 }
 
 const extensionRuntime = globalThis.chrome?.runtime;
+const agentIndicatorBootstrap = createAgentIndicatorBootstrapGuard();
 
 if (window.top === window && extensionRuntime?.onMessage) {
   extensionRuntime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+    if (isAgentIndicatorSetMessage(message, __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__)) {
+      agentIndicatorBootstrap.markSetReceived();
+    }
     return handleAgentIndicatorSetMessage(
       message,
       __STAGEHAND_AGENT_INDICATOR_SET_MESSAGE__,
@@ -73,7 +79,9 @@ if (window.top === window && extensionRuntime?.onMessage) {
     .then((response: unknown) => {
       if (response && typeof response === "object") {
         const active = Reflect.get(response, "active");
-        if (typeof active === "boolean") setAgentIndicatorActive(active);
+        if (typeof active === "boolean") {
+          agentIndicatorBootstrap.apply(active, setAgentIndicatorActive);
+        }
       }
     })
     .catch(() => {});
