@@ -742,8 +742,8 @@ wheels = [
 ]
 
 [[package]]
-name = "stagehand-v4"
-version = "0.1.0"
+name = "stagehand"
+version = "4.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "pydantic" },

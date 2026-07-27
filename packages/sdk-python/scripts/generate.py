@@ -18,7 +18,9 @@ from datamodel_code_generator.enums import StrictTypes
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = SDK_ROOT.parent / "protocol" / "stagehand.v4.json"
+PROTOCOL_PACKAGE_PATH = SDK_ROOT.parent / "protocol" / "package.json"
 MODELS_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "models.py"
+PROTOCOL_VERSION_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "protocol_version.py"
 DATAMODEL_CONFIG = GenerateConfig(
     preset="practical-py311-20260619",
     input_file_type=InputFileType.JsonSchema,
@@ -90,16 +92,41 @@ def main() -> None:
     if not isinstance(models, str):
         raise TypeError("expected datamodel-code-generator to return one Python module")
     models = f"{models.rstrip()}\n"
+    protocol_version_module = generate_protocol_version_module()
 
     if check:
-        if not MODELS_PATH.exists() or MODELS_PATH.read_text() != models:
-            raise SystemExit(
-                f"generated Python models are stale: {MODELS_PATH.relative_to(SDK_ROOT)}"
+        stale_paths = [
+            path
+            for path, expected in (
+                (MODELS_PATH, models),
+                (PROTOCOL_VERSION_PATH, protocol_version_module),
             )
+            if not path.exists() or path.read_text() != expected
+        ]
+        if stale_paths:
+            stale = ", ".join(str(path.relative_to(SDK_ROOT)) for path in stale_paths)
+            raise SystemExit(f"generated Python files are stale: {stale}")
         return
 
     MODELS_PATH.parent.mkdir(parents=True, exist_ok=True)
     MODELS_PATH.write_text(models)
+    PROTOCOL_VERSION_PATH.write_text(protocol_version_module)
+
+
+def generate_protocol_version_module() -> str:
+    package = cast(dict[str, object], json.loads(PROTOCOL_PACKAGE_PATH.read_text()))
+    version = package.get("version")
+    if not isinstance(version, str):
+        raise TypeError("expected protocol package version to be a string")
+
+    major_text = version.split(".", 1)[0]
+    if not major_text.isdecimal() or int(major_text) <= 0:
+        raise ValueError(f"invalid Stagehand protocol package version: {version}")
+
+    return (
+        '"""Generated from packages/protocol/package.json. Do not edit."""\n\n'
+        f"STAGEHAND_PROTOCOL_VERSION = {int(major_text)}\n"
+    )
 
 
 def use_wire_urls(value: object) -> None:
