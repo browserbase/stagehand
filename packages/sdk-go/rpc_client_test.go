@@ -423,6 +423,41 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	}
 }
 
+func TestRPCClientLogCallbackCanMakeReentrantCall(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport, time.Second)
+	callbackDone := make(chan error, 1)
+	client.onNotification("stagehand.log", func(StagehandLog) {
+		var result StagehandPingResult
+		callbackDone <- client.call(context.Background(), "ping", EmptyParams{}, &result)
+	})
+
+	transport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"method": "stagehand.log",
+		"params": {"level": "info", "message": "reentrant", "data": {}}
+	}`)
+	request := receiveSentRPC(t, transport)
+	var envelope rpcRequestEnvelope
+	if err := json.Unmarshal(request, &envelope); err != nil {
+		t.Fatalf("decode reentrant request: %v", err)
+	}
+	if envelope.Method != "ping" {
+		t.Fatalf("reentrant method = %q, want ping", envelope.Method)
+	}
+	response, _ := json.Marshal(rpcSuccessEnvelope{
+		JSONRPC: jsonRPCVersion,
+		ID:      envelope.ID,
+		Result:  json.RawMessage(`{"ok":true,"runtime":"service_worker"}`),
+	})
+	transport.incoming <- rpcTransportReceive{message: response}
+	if err := receiveCallError(t, callbackDone); err != nil {
+		t.Fatalf("reentrant call error = %v", err)
+	}
+}
+
 func TestRPCClientSendsParseAndInvalidRequestErrors(t *testing.T) {
 	t.Parallel()
 
