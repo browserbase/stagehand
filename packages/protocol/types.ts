@@ -10,8 +10,6 @@ import type {
   ActOptionsSchema,
   ActResultDataSchema,
   ActResultSchema,
-  AnthropicModelIdSchema,
-  AnthropicModelNameSchema,
   ApiKeyAuthSchema,
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
@@ -21,8 +19,6 @@ import type {
   BrowserbaseBrowserSourceSchema,
   BrowserbaseModelConfigSchema,
   BrowserbaseModelNameSchema,
-  BrowserbaseUnlistedModelConfigSchema,
-  BrowserbaseUnlistedModelNameSchema,
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
@@ -32,8 +28,6 @@ import type {
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
   CachingSchema,
-  CerebrasModelIdSchema,
-  CerebrasModelNameSchema,
   ClientOptionsBaseSchema,
   ClientOptionsSchema,
   ClientModelReferenceSchema,
@@ -70,8 +64,6 @@ import type {
   ExtractOptionsSchema,
   ExtractResultSchema,
   CustomModelConfigSchema,
-  GoogleModelIdSchema,
-  GoogleModelNameSchema,
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   ImplementationInfoSchema,
@@ -129,14 +121,10 @@ import type {
   MouseButtonSchema,
   ModelAuthSchema,
   ModelConfigSchema,
-  ModelNameSchema,
   ModelProviderOptionsSchema,
   ModelProviderSchema,
-  GroqModelIdSchema,
-  GroqModelNameSchema,
-  KnownModelConfigSchema,
-  UnlistedModelConfigSchema,
-  UnlistedModelNameSchema,
+  DirectModelConfigSchema,
+  ProviderModelNameSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
@@ -194,8 +182,6 @@ import type {
   SnapshotResultSchema,
   TelemetryConfigSchema,
   ThinkingEffortSchema,
-  OpenAIModelIdSchema,
-  OpenAIModelNameSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
@@ -217,26 +203,12 @@ export type VertexProviderOptions = z.infer<typeof VertexProviderOptionsSchema>;
 export type AzureProviderOptions = z.infer<typeof AzureProviderOptionsSchema>;
 export type VertexModelProviderOptions = z.infer<typeof VertexModelProviderOptionsSchema>;
 export type AzureModelProviderOptions = z.infer<typeof AzureModelProviderOptionsSchema>;
-export type OpenAIModelId = z.infer<typeof OpenAIModelIdSchema>;
-export type AnthropicModelId = z.infer<typeof AnthropicModelIdSchema>;
-export type GoogleModelId = z.infer<typeof GoogleModelIdSchema>;
-export type GroqModelId = z.infer<typeof GroqModelIdSchema>;
-export type CerebrasModelId = z.infer<typeof CerebrasModelIdSchema>;
-export type OpenAIModelName = z.infer<typeof OpenAIModelNameSchema>;
-export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
-export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
-export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
-export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
-export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
-export type UnlistedModelConfig = z.infer<typeof UnlistedModelConfigSchema>;
+export type DirectModelConfig = z.infer<typeof DirectModelConfigSchema>;
 export type BrowserbaseModelConfig = z.infer<typeof BrowserbaseModelConfigSchema>;
-export type BrowserbaseUnlistedModelConfig = z.infer<typeof BrowserbaseUnlistedModelConfigSchema>;
 export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
-export type ModelName = z.infer<typeof ModelNameSchema>;
-export type UnlistedModelName = z.infer<typeof UnlistedModelNameSchema>;
+export type ProviderModelName = z.infer<typeof ProviderModelNameSchema>;
 export type BrowserbaseModelName = z.infer<typeof BrowserbaseModelNameSchema>;
-export type BrowserbaseUnlistedModelName = z.infer<typeof BrowserbaseUnlistedModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
 export type LLMAnnotations = z.infer<typeof LLMAnnotationsSchema>;
 export type LLMClientTool = z.infer<typeof LLMClientToolSchema>;

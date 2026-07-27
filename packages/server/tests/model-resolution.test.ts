@@ -1,50 +1,36 @@
 import { describe, expect, it } from "vitest";
 import {
-  AnthropicModelIdSchema,
-  CerebrasModelIdSchema,
   CustomModelConfigSchema,
-  GoogleModelIdSchema,
-  GroqModelIdSchema,
   ModelConfigSchema,
-  ModelNameSchema,
-  OpenAIModelIdSchema,
+  ProviderModelNameSchema,
 } from "../../protocol/schemas.js";
 
 describe("model configuration", () => {
-  describe("supported models", () => {
-    it("accepts every explicitly supported model", () => {
-      const providers = [
-        ["openai", OpenAIModelIdSchema.options],
-        ["anthropic", AnthropicModelIdSchema.options],
-        ["google", GoogleModelIdSchema.options],
-        ["groq", GroqModelIdSchema.options],
-        ["cerebras", CerebrasModelIdSchema.options],
-      ] as const;
-
-      for (const [provider, modelIds] of providers) {
-        for (const modelId of modelIds) {
-          expect(ModelNameSchema.safeParse(`${provider}/${modelId}`).success).toBe(true);
-        }
-      }
+  describe("provider model names", () => {
+    it("accepts model IDs from integrated providers without a catalog", () => {
+      expect(ProviderModelNameSchema.safeParse("openai/gpt-future-preview").success).toBe(true);
+      expect(ProviderModelNameSchema.safeParse("anthropic/claude-future").success).toBe(true);
     });
 
     it("accepts a provider model ID that contains additional slashes", () => {
-      expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
+      expect(ProviderModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
     });
 
     it("rejects a model from an unsupported provider", () => {
-      expect(ModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success).toBe(false);
+      expect(
+        ProviderModelNameSchema.safeParse("bedrock/anthropic.claude-sonnet-v1:0").success,
+      ).toBe(false);
     });
 
-    it("rejects an unsupported model from a supported provider", () => {
-      expect(ModelNameSchema.safeParse("openai/private-model").success).toBe(false);
+    it("rejects an empty model ID", () => {
+      expect(ProviderModelNameSchema.safeParse("openai/").success).toBe(false);
     });
 
-    it("rejects a model under the wrong provider prefix", () => {
-      expect(ModelNameSchema.safeParse("openai/claude-sonnet-4-6").success).toBe(false);
+    it("rejects a model name without a provider prefix", () => {
+      expect(ProviderModelNameSchema.safeParse("gpt-future-preview").success).toBe(false);
     });
 
-    it("accepts a known model with provider credentials and headers", () => {
+    it("accepts a direct provider model with credentials and headers", () => {
       expect(
         ModelConfigSchema.parse({
           modelName: "openai/gpt-5.4-mini",
@@ -64,6 +50,12 @@ describe("model configuration", () => {
           modelName: "openai/gpt-5.4-mini",
           apiKey: "",
         }).success,
+      ).toBe(false);
+    });
+
+    it("requires provider credentials for direct inference", () => {
+      expect(
+        ModelConfigSchema.safeParse({ modelName: "openai/gpt-future-preview" }).success,
       ).toBe(false);
     });
 

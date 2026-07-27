@@ -1,238 +1,28 @@
 import { z } from "zod/v4";
 import protocolPackageJson from "./package.json" with { type: "json" };
 
-// Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
-// Stagehand owns these allowlists: changes are reviewed and maintained here
-// rather than inherited automatically from the SDK.
-export const OpenAIModelIdSchema = z
-  .enum([
-    "gpt-4.1",
-    "gpt-4.1-2025-04-14",
-    "gpt-4.1-mini",
-    "gpt-4.1-mini-2025-04-14",
-    "gpt-4.1-nano",
-    "gpt-4.1-nano-2025-04-14",
-    "gpt-4o",
-    "gpt-4o-2024-05-13",
-    "gpt-4o-2024-08-06",
-    "gpt-4o-2024-11-20",
-    "gpt-4o-audio-preview",
-    "gpt-4o-audio-preview-2024-12-17",
-    "gpt-4o-search-preview",
-    "gpt-4o-search-preview-2025-03-11",
-    "gpt-4o-mini-search-preview",
-    "gpt-4o-mini-search-preview-2025-03-11",
-    "gpt-4o-mini",
-    "gpt-4o-mini-2024-07-18",
-    "gpt-3.5-turbo-0125",
-    "gpt-3.5-turbo",
-    "gpt-3.5-turbo-1106",
-    "gpt-5-chat-latest",
-    "o1",
-    "o1-2024-12-17",
-    "o3",
-    "o3-2025-04-16",
-    "o3-mini",
-    "o3-mini-2025-01-31",
-    "o4-mini",
-    "o4-mini-2025-04-16",
-    "gpt-5",
-    "gpt-5-2025-08-07",
-    "gpt-5-codex",
-    "gpt-5-mini",
-    "gpt-5-mini-2025-08-07",
-    "gpt-5-nano",
-    "gpt-5-nano-2025-08-07",
-    "gpt-5-pro",
-    "gpt-5-pro-2025-10-06",
-    "gpt-5.1",
-    "gpt-5.1-chat-latest",
-    "gpt-5.1-codex-mini",
-    "gpt-5.1-codex",
-    "gpt-5.1-codex-max",
-    "gpt-5.2",
-    "gpt-5.2-chat-latest",
-    "gpt-5.2-pro",
-    "gpt-5.2-codex",
-    "gpt-5.3-chat-latest",
-    "gpt-5.3-codex",
-    "gpt-5.4",
-    "gpt-5.4-2026-03-05",
-    "gpt-5.4-mini",
-    "gpt-5.4-mini-2026-03-17",
-    "gpt-5.4-nano",
-    "gpt-5.4-nano-2026-03-17",
-    "gpt-5.4-pro",
-    "gpt-5.4-pro-2026-03-05",
-    "gpt-5.5",
-    "gpt-5.5-2026-04-23",
-    "gpt-5.6",
-    "gpt-5.6-luna",
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-  ])
-  .meta({ id: "OpenAIModelId" });
-
-export const AnthropicModelIdSchema = z
-  .enum([
-    "claude-3-haiku-20240307",
-    "claude-haiku-4-5-20251001",
-    "claude-haiku-4-5",
-    "claude-opus-4-0",
-    "claude-opus-4-20250514",
-    "claude-opus-4-1-20250805",
-    "claude-opus-4-1",
-    "claude-opus-4-5",
-    "claude-opus-4-5-20251101",
-    "claude-sonnet-4-0",
-    "claude-sonnet-4-20250514",
-    "claude-sonnet-4-5-20250929",
-    "claude-sonnet-4-5",
-    "claude-sonnet-4-6",
-    "claude-opus-4-6",
-    "claude-opus-4-7",
-    "claude-opus-4-8",
-    "claude-fable-5",
-    "claude-sonnet-5",
-  ])
-  .meta({ id: "AnthropicModelId" });
-
-export const GoogleModelIdSchema = z
-  .enum([
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-001",
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash-lite-001",
-    "gemini-2.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-flash-image",
-    "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-preview-tts",
-    "gemini-2.5-pro-preview-tts",
-    "gemini-2.5-flash-native-audio-latest",
-    "gemini-2.5-flash-native-audio-preview-09-2025",
-    "gemini-2.5-flash-native-audio-preview-12-2025",
-    "gemini-2.5-computer-use-preview-10-2025",
-    "gemini-3-pro-preview",
-    "gemini-3-pro-image-preview",
-    "gemini-3-flash-preview",
-    "gemini-3.1-pro-preview",
-    "gemini-3.1-pro-preview-customtools",
-    "gemini-3.1-flash-image-preview",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-3.1-flash-tts-preview",
-    "gemini-3.5-flash",
-    "gemini-pro-latest",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest",
-    "deep-research-pro-preview-12-2025",
-    "deep-research-max-preview-04-2026",
-    "deep-research-preview-04-2026",
-    "nano-banana-pro-preview",
-    "aqa",
-    "gemini-robotics-er-1.5-preview",
-    "gemma-3-1b-it",
-    "gemma-3-4b-it",
-    "gemma-3n-e4b-it",
-    "gemma-3n-e2b-it",
-    "gemma-3-12b-it",
-    "gemma-3-27b-it",
-  ])
-  .meta({ id: "GoogleModelId" });
-
-export const GroqModelIdSchema = z
-  .enum([
-    "gemma2-9b-it",
-    "llama-3.1-8b-instant",
-    "llama-3.3-70b-versatile",
-    "meta-llama/llama-guard-4-12b",
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "deepseek-r1-distill-llama-70b",
-    "meta-llama/llama-4-maverick-17b-128e-instruct",
-    "meta-llama/llama-4-scout-17b-16e-instruct",
-    "meta-llama/llama-prompt-guard-2-22m",
-    "meta-llama/llama-prompt-guard-2-86m",
-    "moonshotai/kimi-k2-instruct-0905",
-    "qwen/qwen3-32b",
-    "llama-guard-3-8b",
-    "llama3-70b-8192",
-    "llama3-8b-8192",
-    "mixtral-8x7b-32768",
-    "qwen-qwq-32b",
-    "qwen-2.5-32b",
-    "deepseek-r1-distill-qwen-32b",
-  ])
-  .meta({ id: "GroqModelId" });
-
-export const CerebrasModelIdSchema = z
-  .enum([
-    "llama3.1-8b",
-    "gpt-oss-120b",
-    "qwen-3-235b-a22b-instruct-2507",
-    "qwen-3-235b-a22b-thinking-2507",
-    "zai-glm-4.6",
-    "zai-glm-4.7",
-  ])
-  .meta({ id: "CerebrasModelId" });
-
 export const ModelProviderSchema = z
   .enum(["openai", "anthropic", "google", "groq", "cerebras"])
   .meta({ id: "ModelProvider" });
 
-export const OpenAIModelNameSchema = z
-  .templateLiteral(["openai/", OpenAIModelIdSchema])
-  .meta({ id: "OpenAIModelName" });
-export const AnthropicModelNameSchema = z
-  .templateLiteral(["anthropic/", AnthropicModelIdSchema])
-  .meta({ id: "AnthropicModelName" });
-export const GoogleModelNameSchema = z
-  .templateLiteral(["google/", GoogleModelIdSchema])
-  .meta({ id: "GoogleModelName" });
-export const GroqModelNameSchema = z
-  .templateLiteral(["groq/", GroqModelIdSchema])
-  .meta({ id: "GroqModelName" });
-export const CerebrasModelNameSchema = z
-  .templateLiteral(["cerebras/", CerebrasModelIdSchema])
-  .meta({ id: "CerebrasModelName" });
-
-export const ModelNameSchema = z
-  .union([
-    OpenAIModelNameSchema,
-    AnthropicModelNameSchema,
-    GoogleModelNameSchema,
-    GroqModelNameSchema,
-    CerebrasModelNameSchema,
-  ])
+/** A model name that identifies an integrated provider and a non-empty provider model ID. */
+export const ProviderModelNameSchema = z
+  .templateLiteral([ModelProviderSchema, "/", z.string().min(1)])
   .meta({
-    id: "ModelName",
-    description: "An explicitly supported model name with its provider prefix",
+    id: "ProviderModelName",
+    description: "A provider-qualified model name, such as openai/gpt-5.4",
   });
 
-/** A Browserbase gateway model name with a cataloged upstream provider/model. */
+/** A Browserbase gateway model name with an upstream provider/model. */
 export const BrowserbaseModelNameSchema = z
-  .union([z.literal("browserbase/auto"), z.templateLiteral(["browserbase/", ModelNameSchema])])
+  .union([
+    z.literal("browserbase/auto"),
+    z.templateLiteral(["browserbase/", ProviderModelNameSchema]),
+  ])
   .meta({
     id: "BrowserbaseModelName",
     description:
       "A Browserbase-managed model name. The browserbase prefix selects the gateway; the remainder identifies the upstream model.",
-  });
-
-/** A provider-qualified model name that is not yet in Stagehand's catalog. */
-export const UnlistedModelNameSchema = z
-  .templateLiteral([ModelProviderSchema, "/", z.string().min(1)])
-  .meta({
-    id: "UnlistedModelName",
-    description: "A provider-qualified model name forwarded without Stagehand catalog metadata.",
-  });
-
-/** An unlisted upstream model routed through the Browserbase gateway. */
-export const BrowserbaseUnlistedModelNameSchema = z
-  .templateLiteral(["browserbase/", UnlistedModelNameSchema])
-  .meta({
-    id: "BrowserbaseUnlistedModelName",
-    description:
-      "A Browserbase-managed, provider-qualified model name that is not yet in Stagehand's catalog.",
   });
 
 export const CookieSchema = z
@@ -905,10 +695,10 @@ const ModelConnectionSchema = z
   .strict()
   .meta({ id: "ModelConnection" });
 
-/** A direct request to a cataloged model using the provider's API key. */
-export const KnownModelConfigSchema = ModelConnectionSchema.extend({
-  modelName: ModelNameSchema.meta({
-    description: "An explicitly supported model name with its provider prefix",
+/** A direct request to an integrated provider using the provider's API key. */
+export const DirectModelConfigSchema = ModelConnectionSchema.extend({
+  modelName: ProviderModelNameSchema.meta({
+    description: "A provider-qualified model name",
     example: "openai/gpt-5.4-mini",
   }),
   apiKey: z.string().min(1).meta({
@@ -917,36 +707,15 @@ export const KnownModelConfigSchema = ModelConnectionSchema.extend({
   }),
 })
   .strict()
-  .meta({ id: "KnownModelConfig" });
+  .meta({ id: "DirectModelConfig" });
 
-/** A direct request to a provider model that is not yet in Stagehand's catalog. */
-export const UnlistedModelConfigSchema = ModelConnectionSchema.extend({
-  type: z.literal("unlisted"),
-  modelName: UnlistedModelNameSchema,
-  apiKey: z.string().min(1).meta({
-    description: "API key for the model provider",
-    example: "sk-some-openai-api-key",
-  }),
-})
-  .strict()
-  .meta({ id: "UnlistedModelConfig" });
-
-/** A Browserbase-managed request to a cataloged upstream model. */
+/** A Browserbase-managed request to an upstream model. */
 export const BrowserbaseModelConfigSchema = z
   .object({
     modelName: BrowserbaseModelNameSchema,
   })
   .strict()
   .meta({ id: "BrowserbaseModelConfig" });
-
-/** A Browserbase-managed request to an upstream model outside Stagehand's catalog. */
-export const BrowserbaseUnlistedModelConfigSchema = z
-  .object({
-    type: z.literal("unlisted"),
-    modelName: BrowserbaseUnlistedModelNameSchema,
-  })
-  .strict()
-  .meta({ id: "BrowserbaseUnlistedModelConfig" });
 
 export const CustomModelConfigSchema = ModelConnectionSchema.extend({
   modelName: z.string().min(1).meta({
@@ -963,10 +732,8 @@ export const CustomModelConfigSchema = ModelConnectionSchema.extend({
 
 export const ModelConfigSchema = z
   .union([
-    KnownModelConfigSchema,
-    UnlistedModelConfigSchema,
+    DirectModelConfigSchema,
     BrowserbaseModelConfigSchema,
-    BrowserbaseUnlistedModelConfigSchema,
     CustomModelConfigSchema,
   ])
   .meta({ id: "ModelConfig" });
