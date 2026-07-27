@@ -3,6 +3,7 @@
 package stagehand
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"syscall"
@@ -24,6 +25,10 @@ func killChromeProcess(command *exec.Cmd) error {
 		return nil
 	}
 	return syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+}
+
+func isFinishedChromeProcessError(err error) bool {
+	return errors.Is(err, syscall.ESRCH)
 }
 
 func runningAsRoot() bool {

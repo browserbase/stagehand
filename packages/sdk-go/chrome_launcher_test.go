@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -224,6 +227,27 @@ func TestValidateLocalBrowserOptions(t *testing.T) {
 				return LocalBrowserSource{DeviceScaleFactor: &scale}
 			}(),
 		},
+		{
+			name: "NaN scale",
+			options: func() LocalBrowserSource {
+				scale := math.NaN()
+				return LocalBrowserSource{DeviceScaleFactor: &scale}
+			}(),
+		},
+		{
+			name: "positive infinite scale",
+			options: func() LocalBrowserSource {
+				scale := math.Inf(1)
+				return LocalBrowserSource{DeviceScaleFactor: &scale}
+			}(),
+		},
+		{
+			name: "negative infinite scale",
+			options: func() LocalBrowserSource {
+				scale := math.Inf(-1)
+				return LocalBrowserSource{DeviceScaleFactor: &scale}
+			}(),
+		},
 		{name: "empty proxy", options: LocalBrowserSource{Proxy: &LocalProxyConfig{}}},
 		{
 			name: "authenticated proxy",
@@ -246,6 +270,86 @@ func TestValidateLocalBrowserOptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLaunchChromeRejectsCanceledContextBeforeStarting(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := launchChrome(ctx, LocalBrowserSource{ExecutablePath: os.Args[0]})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("launchChrome() error = %v, want context.Canceled", err)
+	}
+}
+
+func TestWaitForChromeRequiresCDPVersionEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(
+		response http.ResponseWriter,
+		_ *http.Request,
+	) {
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{}`))
+	}))
+	defer server.Close()
+
+	process := &chromeProcess{done: make(chan struct{})}
+	err := waitForChrome(context.Background(), server.URL, process, 250*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("waitForChrome() error = %v, want context deadline exceeded", err)
+	}
+}
+
+func TestWaitForChromeAcceptsValidCDPVersionEndpoint(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(
+		response http.ResponseWriter,
+		request *http.Request,
+	) {
+		if request.URL.Path != "/json/version" {
+			t.Errorf("request path = %q, want /json/version", request.URL.Path)
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(
+			`{"webSocketDebuggerUrl":"ws://127.0.0.1/devtools/browser/test"}`,
+		))
+	}))
+	defer server.Close()
+
+	process := &chromeProcess{done: make(chan struct{})}
+	if err := waitForChrome(context.Background(), server.URL, process, time.Second); err != nil {
+		t.Fatalf("waitForChrome() error = %v", err)
+	}
+}
+
+func TestWaitForChromePrioritizesCancellationAndProcessExit(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(
+		response http.ResponseWriter,
+		_ *http.Request,
+	) {
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(
+			`{"webSocketDebuggerUrl":"ws://127.0.0.1/devtools/browser/test"}`,
+		))
+	}))
+	defer server.Close()
+
+	t.Run("canceled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		process := &chromeProcess{done: make(chan struct{})}
+		err := waitForChrome(ctx, server.URL, process, time.Second)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("waitForChrome() error = %v, want context.Canceled", err)
+		}
+	})
+
+	t.Run("exited process", func(t *testing.T) {
+		process := &chromeProcess{done: make(chan struct{}), err: errors.New("exit status 1")}
+		close(process.done)
+		err := waitForChrome(context.Background(), server.URL, process, time.Second)
+		if err == nil || !strings.Contains(err.Error(), "exited before") {
+			t.Fatalf("waitForChrome() error = %v, want exited-before-ready error", err)
+		}
+	})
 }
 
 func TestLaunchLocalBrowserAgainstInstalledChrome(t *testing.T) {

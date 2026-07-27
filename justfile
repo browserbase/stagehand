@@ -56,4 +56,4 @@ build:
     uv --directory {{python_dir}} run --locked python scripts/build.py
     go -C {{go_dir}} run ./internal/extensionpack --check
     go -C {{go_dir}} build $(go -C {{go_dir}} list ./... | grep -v '/examples$')
-    go -C {{go_generator_dir}} build -o /dev/null .
+    go -C {{go_generator_dir}} test -run '^$' ./...

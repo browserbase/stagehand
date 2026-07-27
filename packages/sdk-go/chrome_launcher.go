@@ -2,10 +2,13 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -100,6 +103,9 @@ func launchChrome(
 	if ctx == nil {
 		return nil, errors.New("stagehand Chrome launch context is required")
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("launch Chrome: %w", err)
+	}
 	if err := validateLocalBrowserOptions(options); err != nil {
 		return nil, err
 	}
@@ -143,6 +149,12 @@ func launchChrome(
 	command.Stdout = io.Discard
 	command.Stderr = io.Discard
 	configureChromeProcess(command)
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("launch Chrome: %w", err),
+			cleanupProfile(),
+		)
+	}
 	if err := command.Start(); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("start Chrome: %w", err),
@@ -173,8 +185,11 @@ func validateLocalBrowserOptions(options LocalBrowserSource) error {
 	if options.Viewport != nil && (options.Viewport.Width <= 0 || options.Viewport.Height <= 0) {
 		return errors.New("stagehand Chrome viewport dimensions must be positive")
 	}
-	if options.DeviceScaleFactor != nil && *options.DeviceScaleFactor <= 0 {
-		return errors.New("stagehand Chrome device scale factor must be positive")
+	if options.DeviceScaleFactor != nil &&
+		(*options.DeviceScaleFactor <= 0 ||
+			math.IsNaN(*options.DeviceScaleFactor) ||
+			math.IsInf(*options.DeviceScaleFactor, 0)) {
+		return errors.New("stagehand Chrome device scale factor must be positive and finite")
 	}
 	if options.Proxy != nil {
 		if options.Proxy.Server == "" {
@@ -365,30 +380,74 @@ func waitForChrome(
 	process *chromeProcess,
 	timeout time.Duration,
 ) error {
-	host := strings.TrimPrefix(cdpURL, "http://")
 	waitContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	client := &http.Client{Timeout: chromePollInterval}
 	ticker := time.NewTicker(chromePollInterval)
 	defer ticker.Stop()
 
 	for {
-		connection, err := net.DialTimeout("tcp4", host, chromePollInterval)
-		if err == nil {
-			_ = connection.Close()
+		if err := waitContext.Err(); err != nil {
+			return fmt.Errorf("wait for Chrome debugging port: %w", err)
+		}
+		select {
+		case <-process.done:
+			return chromeExitedBeforeReadyError(process)
+		default:
+		}
+
+		if chromeDebuggingReady(waitContext, client, cdpURL) {
+			if err := waitContext.Err(); err != nil {
+				return fmt.Errorf("wait for Chrome debugging port: %w", err)
+			}
+			select {
+			case <-process.done:
+				return chromeExitedBeforeReadyError(process)
+			default:
+			}
 			return nil
 		}
 
 		select {
 		case <-process.done:
-			if processErr := process.waitError(); processErr != nil {
-				return fmt.Errorf("Chrome exited before its debugging port was ready: %w", processErr)
-			}
-			return errors.New("Chrome exited before its debugging port was ready")
+			return chromeExitedBeforeReadyError(process)
 		case <-waitContext.Done():
 			return fmt.Errorf("wait for Chrome debugging port: %w", waitContext.Err())
 		case <-ticker.C:
 		}
 	}
+}
+
+func chromeDebuggingReady(ctx context.Context, client *http.Client, cdpURL string) bool {
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		strings.TrimRight(cdpURL, "/")+"/json/version",
+		nil,
+	)
+	if err != nil {
+		return false
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return false
+	}
+	var version struct {
+		WebSocketDebuggerURL string `json:"webSocketDebuggerUrl"`
+	}
+	return json.NewDecoder(response.Body).Decode(&version) == nil &&
+		strings.TrimSpace(version.WebSocketDebuggerURL) != ""
+}
+
+func chromeExitedBeforeReadyError(process *chromeProcess) error {
+	if processErr := process.waitError(); processErr != nil {
+		return fmt.Errorf("Chrome exited before its debugging port was ready: %w", processErr)
+	}
+	return errors.New("Chrome exited before its debugging port was ready")
 }
 
 func newChromeProcess(command *exec.Cmd) *chromeProcess {
@@ -457,7 +516,7 @@ func removeChromeProfile(path string) error {
 }
 
 func ignoreFinishedProcessError(err error) error {
-	if errors.Is(err, os.ErrProcessDone) {
+	if errors.Is(err, os.ErrProcessDone) || isFinishedChromeProcessError(err) {
 		return nil
 	}
 	return err

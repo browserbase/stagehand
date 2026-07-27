@@ -149,3 +149,25 @@ jobs:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - run: go -C internal/generator test ./...
       - run: go build $(go list ./... | grep -v '/examples$')
+
+  go-windows:
+    name: Go (Windows process management)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/sdk-go
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Test Windows process management
+        run: >-
+          go test
+          -run 'TestConfigureChromeProcessUsesDedicatedProcessGroupWindows|TestTaskkillArgsPreserveGracefulThenForcefulShutdown|TestIgnoreFinishedProcessErrorWindows'
+          .
