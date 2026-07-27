@@ -1,0 +1,14 @@
+{
+  "name": "@browserbasehq/stagehand-docs",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "mint validate && mint broken-links --check-anchors --check-redirects --check-snippets && mint a11y --skip-contrast",
+    "dev": "mint dev",
+    "sync-sdk": "node scripts/sync-sdk-docs.js"
+  },
+  "devDependencies": {
+    "mint": "catalog:"
+  }
+}

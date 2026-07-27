@@ -23,9 +23,8 @@ test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
 
-# TODO(docs-migration): Re-enable after restoring v3 docs in Stagehand.
-# docs:
-#     pnpm docs
+docs:
+    pnpm run docs
 
 example name="act":
     pnpm --filter ./packages/server build
