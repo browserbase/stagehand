@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from stagehand.browser_source import ResolvedBrowserSource, resolve_browser_source
-from stagehand.client_models import StagehandClientInitParams
+from stagehand.client_models import BrowserbaseBrowserSource, StagehandClientInitParams
 
 
 def test_browserbase_uploaded_extension_id_is_top_level_only() -> None:
@@ -17,6 +17,7 @@ def test_browserbase_uploaded_extension_id_is_top_level_only() -> None:
         },
     })
 
+    assert isinstance(params.browser, BrowserbaseBrowserSource)
     assert params.browser.extension_id == "uploaded-extension"
     with pytest.raises(ValidationError):
         StagehandClientInitParams.model_validate({
