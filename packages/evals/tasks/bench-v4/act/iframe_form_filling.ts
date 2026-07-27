@@ -14,51 +14,30 @@ export default defineBenchV4Task(
       await stagehand.act("click 'phone' as the preferred contact method");
       await stagehand.act("type 'yooooooooooooooo' into the message box");
 
-      // v3 used page.frameLocator("iframe") for these assertions; v4 has no
-      // frameLocator, so the same checks are re-expressed in-page via the
-      // same-origin iframe's contentDocument.
-      const {
-        firstNameValue,
-        lastNameValue,
-        emailValue,
-        contactValue,
-        messageValue,
-      } = await page.evaluate(() => {
-        const doc = document.querySelector("iframe")?.contentDocument;
-        if (!doc) throw new Error("could not access iframe contentDocument");
+      // The form lives in a cross-origin iframe, so main-frame evaluation
+      // cannot access its contentDocument. V4 locators resolve `>>` iframe
+      // hops server-side and can inspect the OOPIF directly.
+      const firstNameValue = await page
+        .locator('iframe >> input[placeholder="Jane"]')
+        .inputValue();
 
-        const firstName = doc.querySelector(
-          'input[placeholder="Jane"]',
-        ) as HTMLInputElement | null;
-        const lastName = doc.querySelector(
-          'input[placeholder="Doe"]',
-        ) as HTMLInputElement | null;
-        const email = doc.querySelector(
-          'input[placeholder="jane@example.com"]',
-        ) as HTMLInputElement | null;
-        const contact = doc.evaluate(
-          "/html/body/main/section[1]/form/fieldset/label[2]/input",
-          doc,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null,
-        ).singleNodeValue as HTMLInputElement | null;
-        const message = doc.querySelector(
-          'textarea[placeholder="Say hello…"]',
-        ) as HTMLTextAreaElement | null;
+      const lastNameValue = await page
+        .locator('iframe >> input[placeholder="Doe"]')
+        .inputValue();
 
-        if (!firstName || !lastName || !email || !contact || !message) {
-          throw new Error("could not resolve form fields inside the iframe");
-        }
+      const emailValue = await page
+        .locator('iframe >> input[placeholder="jane@example.com"]')
+        .inputValue();
 
-        return {
-          firstNameValue: firstName.value,
-          lastNameValue: lastName.value,
-          emailValue: email.value,
-          contactValue: contact.checked,
-          messageValue: message.value,
-        };
-      });
+      const contactValue = await page
+        .locator(
+          "iframe >> xpath=/html/body/main/section[1]/form/fieldset/label[2]/input",
+        )
+        .isChecked();
+
+      const messageValue = await page
+        .locator('iframe >> textarea[placeholder="Say hello…"]')
+        .inputValue();
 
       const passed: boolean =
         firstNameValue.toLowerCase().trim() === "nunya" &&
