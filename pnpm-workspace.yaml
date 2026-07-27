@@ -6,6 +6,8 @@ catalogMode: prefer
 catalog:
   "@ast-grep/lang-python": 0.0.6
   "@ast-grep/napi": 0.44.1
+  "@changesets/changelog-github": 0.7.0
+  "@changesets/cli": 2.31.1
   "@mdx-js/mdx": 3.1.1
   "@opentelemetry/api": 1.9.1
   "@opentelemetry/core": 2.9.0
