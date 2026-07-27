@@ -1,0 +1,74 @@
+---
+title: 'Using Multiple Tabs'
+description: 'Act on multiple tabs with Stagehand'
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+
+Many modern web applications open new tabs when users click certain buttons or links. Without proper multitab support, automation scripts break when expected content appears in a new tab rather than the current one. Stagehand's multitab capabilities ensure your automations work seamlessly across multitab workflows.
+
+## The Stagehand Page
+
+Stagehand automatically adapts to multitab workflows. The active page (accessed via `context.activePage()`) always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created.
+
+This means you can continue using familiar patterns:
+
+```typescript
+const page = stagehand.context.pages()[0];
+await page.goto("https://example.com");
+await stagehand.act("click the button that opens a new tab");
+// page now automatically points to the new tab
+await stagehand.extract("get data from new tab");
+```
+
+<Warning>
+**Important**: [Stagehand Agent](/v3/basics/agent) will always operate on the active page. If you need an agent to work across specific tabs, you'll need to manage page switching manually.
+</Warning>
+
+## Manual Page Management
+
+For more control or multitab workflows, you can manage multiple tabs explicitly:
+
+```typescript
+// Create a second page
+await stagehand.context.newPage();
+const pages = stagehand.context.pages();
+
+const githubPage = pages[0];
+const pythonPage = pages[1];
+
+// Navigate each page to different repositories
+await githubPage.goto("https://github.com/browserbase/stagehand");
+await pythonPage.goto("https://github.com/browserbase/stagehand-python");
+
+// Extract data from both pages simultaneously
+const [stagehandStars, stagehandPythonStars] = await Promise.all([
+  stagehand.extract("extract the repository stars", { page: githubPage }),
+  stagehand.extract("extract the repository stars", { page: pythonPage })
+]);
+
+console.log(`Stagehand stars: ${stagehandStars}`);
+console.log(`Stagehand-Python stars: ${stagehandPythonStars}`);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Orchestrate complex workflows with Agent" icon="robot" iconType="sharp-solid" href="/v3/basics/agent">
+    Use `Agent` to autonomously execute multi-step tasks and complex workflows.
+  </Card>
+
+  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/v3/best-practices/working-with-iframes">
+    Learn best practices for interacting with elements inside iframes.
+  </Card>
+
+  <Card title="Browser Configuration" icon="browser" iconType="sharp-solid" href="/v3/configuration/browser">
+    Manage browser contexts and sessions for complex automation scenarios.
+  </Card>
+
+  <Card title="Logging & Debugging" icon="bug" iconType="sharp-solid" href="/v3/configuration/logging">
+    Handle errors gracefully and debug automation issues effectively.
+  </Card>
+</CardGroup>
