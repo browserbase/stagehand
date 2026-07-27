@@ -15,7 +15,11 @@ func TestPageLocatorPropagatesDescriptorAndMapsResults(t *testing.T) {
 	locator := (&Page{
 		rpc: rpc,
 		ref: PageRef{PageID: "page-1"},
-	}).Locator("button").Nth(2)
+	}).Locator("button")
+	locator, err := locator.Nth(2)
+	if err != nil {
+		t.Fatalf("Nth(2) error = %v", err)
+	}
 
 	if err := locator.Click(context.Background(), nil); err != nil {
 		t.Fatalf("Click() error = %v", err)
@@ -58,7 +62,11 @@ func TestPageLocatorFirstAndNthReturnIndependentDescriptors(t *testing.T) {
 
 	base := &PageLocator{descriptor: LocatorDescriptor{PageID: "page-1", Selector: "button"}}
 	first := base.First().Descriptor()
-	third := base.Nth(3).Descriptor()
+	thirdLocator, err := base.Nth(3)
+	if err != nil {
+		t.Fatalf("Nth(3) error = %v", err)
+	}
+	third := thirdLocator.Descriptor()
 	original := base.Descriptor()
 	if first.Nth == nil || *first.Nth != 0 {
 		t.Fatalf("First().Descriptor() = %#v", first)
@@ -68,5 +76,13 @@ func TestPageLocatorFirstAndNthReturnIndependentDescriptors(t *testing.T) {
 	}
 	if original.Nth != nil {
 		t.Fatalf("base Descriptor() was mutated: %#v", original)
+	}
+
+	invalid, err := base.Nth(-1)
+	if err == nil || err.Error() != "stagehand locator index must be non-negative: -1" {
+		t.Fatalf("Nth(-1) error = %v", err)
+	}
+	if invalid != nil {
+		t.Fatalf("Nth(-1) locator = %#v, want nil", invalid)
 	}
 }

@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -52,8 +51,7 @@ type rpcTransport interface {
 }
 
 type rpcClient struct {
-	transport      rpcTransport
-	requestTimeout time.Duration
+	transport rpcTransport
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -132,18 +130,14 @@ type rpcWireErrorObject struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-func newRPCClient(transport rpcTransport, requestTimeout time.Duration) (*rpcClient, error) {
+func newRPCClient(transport rpcTransport) (*rpcClient, error) {
 	if transport == nil {
 		return nil, errors.New("stagehand RPC transport is required")
-	}
-	if requestTimeout <= 0 {
-		return nil, errors.New("stagehand RPC request timeout must be positive")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &rpcClient{
 		transport:            transport,
-		requestTimeout:       requestTimeout,
 		ctx:                  ctx,
 		cancel:               cancel,
 		readerDone:           make(chan struct{}),
@@ -202,9 +196,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		return fmt.Errorf("send RPC request for %s: %w", method, err)
 	}
 
-	timer := time.NewTimer(c.requestTimeout)
-	defer timer.Stop()
-
 	select {
 	case response := <-pending.response:
 		if response.err != nil {
@@ -216,8 +207,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
-	case <-timer.C:
-		return fmt.Errorf("RPC request timed out: %s", method)
 	}
 }
 

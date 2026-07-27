@@ -89,7 +89,7 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 
 	var result PageRef
 	callDone := make(chan error, 1)
@@ -187,7 +187,7 @@ func TestRPCClientRegistersPendingBeforeTransportCanRespond(t *testing.T) {
 			}`)
 		}
 	}
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 
 	var result StagehandPingResult
 	if err := client.call(context.Background(), "ping", EmptyParams{}, &result); err != nil {
@@ -202,7 +202,7 @@ func TestRPCClientHandlesNestedInboundRequestWhileCallIsPending(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	client.onRequest(
 		"test.uppercase",
 		newRequestHandler(func(
@@ -251,7 +251,7 @@ func TestRPCClientValidatesInboundRequestsAndHandlerResults(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	calls := 0
 	client.onRequest(
 		"test.uppercase",
@@ -309,7 +309,7 @@ func TestRPCClientReturnsMethodAndHandlerErrors(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
@@ -353,7 +353,7 @@ func TestRPCClientPreservesJSONRPCErrorCodeAndData(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	callDone := make(chan error, 1)
 	go func() {
 		var result StagehandPingResult
@@ -385,7 +385,7 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"method": "stagehand.log",
@@ -460,7 +460,7 @@ func TestRPCClientLogCallbackCanMakeReentrantCall(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	callbackDone := make(chan error, 1)
 	client.onNotification("stagehand.log", func(StagehandLog) {
 		var result StagehandPingResult
@@ -495,7 +495,7 @@ func TestRPCClientSendsParseAndInvalidRequestErrors(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	_ = newTestRPCClient(t, transport, time.Second)
+	_ = newTestRPCClient(t, transport)
 
 	transport.receiveJSON(`{`)
 	assertRPCJSON(t, receiveSentRPC(t, transport), `{
@@ -517,24 +517,33 @@ func TestRPCClientSendsParseAndInvalidRequestErrors(t *testing.T) {
 	}`)
 }
 
-func TestRPCClientTimeoutCancellationAndTransportFailureRejectCalls(t *testing.T) {
+func TestRPCClientWaitsForResponseAndRejectsCanceledOrFailedCalls(t *testing.T) {
 	t.Parallel()
 
-	timeoutTransport := newQueueRPCTransport()
-	timeoutClient := newTestRPCClient(t, timeoutTransport, 15*time.Millisecond)
-	var timeoutResult StagehandPingResult
-	err := timeoutClient.call(
-		context.Background(),
-		"ping",
-		EmptyParams{},
-		&timeoutResult,
-	)
-	if err == nil || err.Error() != "RPC request timed out: ping" {
-		t.Fatalf("timeout error = %v", err)
+	delayedTransport := newQueueRPCTransport()
+	delayedClient := newTestRPCClient(t, delayedTransport)
+	delayedDone := make(chan error, 1)
+	go func() {
+		var result StagehandPingResult
+		delayedDone <- delayedClient.call(context.Background(), "ping", EmptyParams{}, &result)
+	}()
+	_ = receiveSentRPC(t, delayedTransport)
+	select {
+	case err := <-delayedDone:
+		t.Fatalf("call returned before transport response: %v", err)
+	case <-time.After(25 * time.Millisecond):
+	}
+	delayedTransport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"id": 1,
+		"result": {"ok": true, "runtime": "service_worker"}
+	}`)
+	if err := receiveCallError(t, delayedDone); err != nil {
+		t.Fatalf("delayed call error = %v", err)
 	}
 
 	cancelTransport := newQueueRPCTransport()
-	cancelClient := newTestRPCClient(t, cancelTransport, time.Second)
+	cancelClient := newTestRPCClient(t, cancelTransport)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelDone := make(chan error, 1)
 	go func() {
@@ -548,7 +557,7 @@ func TestRPCClientTimeoutCancellationAndTransportFailureRejectCalls(t *testing.T
 	}
 
 	failingTransport := newQueueRPCTransport()
-	failingClient := newTestRPCClient(t, failingTransport, time.Second)
+	failingClient := newTestRPCClient(t, failingTransport)
 	failingDone := make(chan error, 1)
 	go func() {
 		var result StagehandPingResult
@@ -570,7 +579,7 @@ func TestRPCClientInvalidResponseClosesClientAndRejectsPendingCall(t *testing.T)
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client, err := newRPCClient(transport, time.Second)
+	client, err := newRPCClient(transport)
 	if err != nil {
 		t.Fatalf("newRPCClient() error = %v", err)
 	}
@@ -604,7 +613,7 @@ func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client := newTestRPCClient(t, transport, time.Second)
+	client := newTestRPCClient(t, transport)
 	inboundTrace := make(chan trace.SpanContext, 1)
 	client.onRequest(
 		"test.trace",
@@ -671,10 +680,9 @@ func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 func newTestRPCClient(
 	t *testing.T,
 	transport rpcTransport,
-	timeout time.Duration,
 ) *rpcClient {
 	t.Helper()
-	client, err := newRPCClient(transport, timeout)
+	client, err := newRPCClient(transport)
 	if err != nil {
 		t.Fatalf("newRPCClient() error = %v", err)
 	}

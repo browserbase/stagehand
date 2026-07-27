@@ -201,7 +201,7 @@ func connectRPCClient(
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := newRPCClient(cdp, options.commandTimeout)
+	rpc, err := newRPCClient(cdp)
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
