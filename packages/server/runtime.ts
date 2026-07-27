@@ -263,6 +263,7 @@ export class StagehandRuntime {
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
   private browserSessionGeneration = 0;
+  private initializationInProgress = false;
   private readonly contextInitScripts: string[] = [];
   private contextExtraHTTPHeaders?: ContextSetExtraHTTPHeadersParams["headers"];
   private contextDomainPolicy?: DomainPolicy | null;
@@ -322,23 +323,37 @@ export class StagehandRuntime {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
     }
+    if (this.initializationInProgress) {
+      throw new Error("Stagehand initialization is already in progress");
+    }
+    this.initializationInProgress = true;
 
-    this.logger.setLevel(params.logLevel);
-    await this.browserSession?.prepareForInitialization?.();
-    const pages = await this.contextPages();
-    this.tracing.configure(params.telemetry);
-    this.state.setState(
-      StagehandRuntimeStateSchema.parse({
-        status: "initialized",
-        initParams: params,
-      }),
-      true,
-    );
+    try {
+      this.logger.setLevel(params.logLevel);
+      if (!this.browserSession) {
+        if (!params.browserCdpUrl) {
+          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+        }
+        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+      }
+      await this.browserSession?.prepareForInitialization?.();
+      const pages = await this.contextPages();
+      this.tracing.configure(params.telemetry);
+      this.state.setState(
+        StagehandRuntimeStateSchema.parse({
+          status: "initialized",
+          initParams: params,
+        }),
+        true,
+      );
 
-    return {
-      initialized: true,
-      pages,
-    };
+      return {
+        initialized: true,
+        pages,
+      };
+    } finally {
+      this.initializationInProgress = false;
+    }
   }
 
   /** Restores initialization-dependent browser instrumentation after replacing a CDP session. */
