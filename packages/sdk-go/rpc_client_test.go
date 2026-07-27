@@ -397,17 +397,24 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 		return len(client.pendingNotifications) == 1
 	})
 
-	received := make(chan string, 2)
+	received := make(chan string, 3)
 	remove := client.onNotification("stagehand.log", func(log StagehandLog) {
 		received <- log.Message
 	})
-	select {
-	case message := <-received:
-		if message != "Browser started" {
-			t.Fatalf("notification = %q", message)
+	transport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"method": "stagehand.log",
+		"params": {"level": "info", "message": "Browser ready", "data": {}}
+	}`)
+	for _, want := range []string{"Browser started", "Browser ready"} {
+		select {
+		case message := <-received:
+			if message != want {
+				t.Fatalf("notification = %q, want %q", message, want)
+			}
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for notification %q", want)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for buffered notification")
 	}
 
 	remove()
@@ -420,6 +427,32 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	case message := <-received:
 		t.Fatalf("removed listener received %q", message)
 	case <-time.After(25 * time.Millisecond):
+	}
+}
+
+func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
+	t.Parallel()
+
+	client := &rpcClient{}
+	client.mu.Lock()
+	for index := range maxPendingNotifications + 50 {
+		client.enqueueNotificationLocked(rpcNotificationDelivery{
+			notification: StagehandLog{Message: strconv.Itoa(index)},
+		})
+	}
+	if len(client.notificationQueue) != maxPendingNotifications {
+		t.Fatalf(
+			"queued notifications = %d, want %d",
+			len(client.notificationQueue),
+			maxPendingNotifications,
+		)
+	}
+	first := client.notificationQueue[0].notification.Message
+	last := client.notificationQueue[len(client.notificationQueue)-1].notification.Message
+	client.mu.Unlock()
+
+	if first != "50" || last != "149" {
+		t.Fatalf("retained notification range = %s..%s, want 50..149", first, last)
 	}
 }
 
