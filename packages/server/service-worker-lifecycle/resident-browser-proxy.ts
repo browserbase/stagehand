@@ -46,7 +46,6 @@ function parseBrowserProxyUrl(rawUrl: string): URL {
   if (!isLoopbackHostname(url.hostname)) {
     throw new Error("Resident browser proxy URL must point to loopback");
   }
-  if (!url.port) throw new Error("Resident browser proxy URL must include a port");
   if (url.username || url.password || url.search || url.hash) {
     throw new Error("Resident browser proxy URL must not include credentials, query, or fragment");
   }
@@ -61,8 +60,8 @@ function rewriteDebuggerUrl(rawUrl: string, proxyUrl: URL): string {
   if (debuggerUrl.protocol !== "ws:") {
     throw new Error("Chromium webSocketDebuggerUrl must use ws:");
   }
-  if (!isLoopbackHostname(debuggerUrl.hostname) || !debuggerUrl.port) {
-    throw new Error("Chromium webSocketDebuggerUrl must point to a loopback port");
+  if (!isLoopbackHostname(debuggerUrl.hostname)) {
+    throw new Error("Chromium webSocketDebuggerUrl must point to loopback");
   }
   if (debuggerUrl.username || debuggerUrl.password || debuggerUrl.hash) {
     throw new Error("Chromium webSocketDebuggerUrl must not include credentials or a fragment");

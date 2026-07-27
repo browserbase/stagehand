@@ -27,6 +27,17 @@ describe("resident browser proxy resolver", () => {
     );
   });
 
+  it("uses secure WebSockets for an HTTPS proxy and supports default ports", async () => {
+    await expect(
+      resolveResidentBrowserWebSocketUrl("https://127.0.0.1", {
+        fetch: async () =>
+          response({
+            webSocketDebuggerUrl: "ws://localhost/devtools/browser/browser-id?token=one",
+          }),
+      }),
+    ).resolves.toBe("wss://127.0.0.1/devtools/browser/browser-id?token=one");
+  });
+
   it("rejects malformed JSON", async () => {
     const fetch = vi.fn(async () => ({
       ok: true,
@@ -44,8 +55,7 @@ describe("resident browser proxy resolver", () => {
   it.each([
     [{}, "webSocketDebuggerUrl"],
     [{ webSocketDebuggerUrl: "http://127.0.0.1:9222/devtools/browser/id" }, "must use ws:"],
-    [{ webSocketDebuggerUrl: "ws://browser.example:9222/devtools/browser/id" }, "loopback port"],
-    [{ webSocketDebuggerUrl: "ws://127.0.0.1/devtools/browser/id" }, "loopback port"],
+    [{ webSocketDebuggerUrl: "ws://browser.example:9222/devtools/browser/id" }, "loopback"],
     [{ webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/id" }, "browser target"],
   ])("rejects invalid version metadata %#", async (body, message) => {
     await expect(
@@ -81,7 +91,6 @@ describe("resident browser proxy resolver", () => {
   it.each([
     "ws://127.0.0.1:9333",
     "http://browser.example:9333",
-    "http://127.0.0.1",
     "http://127.0.0.1:9333/path",
     "http://user:secret@127.0.0.1:9333",
   ])("rejects invalid proxy configuration %s", async (browserProxyUrl) => {
