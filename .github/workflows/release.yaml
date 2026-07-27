@@ -35,6 +35,9 @@ jobs:
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
 
+      - name: Install npm
+        run: npm install --global npm@11.16.0
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
@@ -71,6 +74,8 @@ jobs:
     needs: release-typescript
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     outputs:
       should-publish: ${{ steps.status.outputs.should-publish }}
     steps:

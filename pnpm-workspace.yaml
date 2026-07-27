@@ -45,6 +45,7 @@ catalog:
   fflate: ^0.8.3
   mint: 4.2.742
   publint: ^0.3.8
+  smol-toml: 1.7.0
 overrides:
   vite: "catalog:"
 allowBuilds:

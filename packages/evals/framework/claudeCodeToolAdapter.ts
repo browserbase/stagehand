@@ -7,7 +7,12 @@ import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import { getRepoRootDir } from "../runtimePaths.js";
+import {
+  BROWSE_CLI_BUILD_ARTIFACTS,
+  BROWSE_CLI_ENTRYPOINT,
+  BROWSE_CLI_PACKAGE_JSON,
+  BROWSE_SKILL_SOURCE,
+} from "../browseCliPaths.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
 import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
@@ -55,20 +60,6 @@ export interface BrowseCliHarnessAdapterInput {
   logCategory: string;
 }
 
-const BROWSE_CLI_ENTRYPOINT = path.join(getRepoRootDir(), "packages", "cli", "bin", "run.js");
-const BROWSE_CLI_BUILD_ARTIFACTS = [
-  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
-  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
-];
-const BROWSE_CLI_PACKAGE_JSON = path.join(getRepoRootDir(), "packages", "cli", "package.json");
-const BROWSE_SKILL_SOURCE = path.join(
-  getRepoRootDir(),
-  "packages",
-  "cli",
-  "skills",
-  "browse",
-  "SKILL.md",
-);
 // The CLI skill below is written for interactive use and covers surface
 // (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
 // does not apply inside the eval harness. This addendum is inserted right
@@ -292,7 +283,7 @@ export async function prepareBrowseCliHarnessAdapter(
   const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find((artifact) => !fs.existsSync(artifact));
   if (missingArtifact) {
     throw new EvalsError(
-      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
+      `browse_cli dependency is incomplete; missing ${missingArtifact}. Reinstall workspace dependencies.`,
     );
   }
 

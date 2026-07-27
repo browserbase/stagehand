@@ -1,7 +1,6 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { promisify } from "node:util";
-import path from "node:path";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
@@ -15,6 +14,7 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
+import { BROWSE_CLI_BUILD_ARTIFACTS, BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
 import { getRepoRootDir } from "../../runtimePaths.js";
 
 const execFileAsync = promisify(execFile);
@@ -35,17 +35,11 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "representation",
 ];
 
-const BROWSE_CLI_ENTRYPOINT = path.join(getRepoRootDir(), "packages", "cli", "bin", "run.js");
-const BROWSE_CLI_BUILD_ARTIFACTS = [
-  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
-  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
-];
-
 function resolveBrowseCliEntrypoint(): string {
   const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find((artifact) => !fs.existsSync(artifact));
   if (missingArtifact) {
     throw new Error(
-      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
+      `browse_cli dependency is incomplete; missing ${missingArtifact}. Reinstall workspace dependencies.`,
     );
   }
 

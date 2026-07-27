@@ -273,7 +273,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
+      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
       agentMode: null,
       harnessConfig: {
         harness: "claude_code",
@@ -333,7 +333,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
+      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
       agentMode: null,
       harnessConfig: {
         harness: "codex",

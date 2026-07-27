@@ -1,5 +1,5 @@
 import path from "node:path";
-import { verifyPreviewBundle } from "./preview-contract.ts";
+import { verifyPreviewBundle } from "./preview-contract.js";
 
 const directory = process.argv[2];
 if (directory === undefined) {

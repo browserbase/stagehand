@@ -16,7 +16,6 @@ import {
   resolveCodexStartupProfile,
   resolveCodexToolSurface,
 } from "../../framework/codexToolAdapter.js";
-import { getRepoRootDir } from "../../runtimePaths.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
 
 describe("claude code tool adapter resolution", () => {
@@ -86,8 +85,8 @@ describe("claude code tool adapter resolution", () => {
   it("exposes browse cli metadata for Braintrust rows", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
-      browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringContaining("packages/cli/bin/run.js"),
+      browseCliVersion: "0.9.5",
+      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
     });
   });
 
@@ -185,9 +184,8 @@ describe("claude code tool adapter resolution", () => {
 
   it("keeps the installed skill's frontmatter byte-identical to the source SKILL.md", async () => {
     const sourcePath = path.join(
-      getRepoRootDir(),
-      "packages",
-      "cli",
+      path.dirname(getBrowseCliToolMetadata().browseCliEntrypoint),
+      "..",
       "skills",
       "browse",
       "SKILL.md",
