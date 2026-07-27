@@ -11,6 +11,7 @@ import { instrumentedDecoratorBuild } from "../../../server/instrumentedDecorato
 import { CDPClient } from "../../../sdk-ts/src/cdpClient.js";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
 import { StagehandMethods } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 const COMMAND_TIMEOUT_MS = 15_000;
 const serverDistDir = path.resolve(fileURLToPath(new URL("../../../server/dist", import.meta.url)));
@@ -54,7 +55,7 @@ describe("resident browser proxy", () => {
 
       await expect(
         rpcClient.send(StagehandMethods.stagehandInit, {
-          protocolVersion: 4,
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
           logLevel: "off",
           telemetry: { traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} } },
