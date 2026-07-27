@@ -15,6 +15,12 @@ export default defineConfig({
         "no-console": "off",
       },
     },
+    {
+      files: ["packages/docs/scripts/**/*.js"],
+      rules: {
+        "no-console": "off",
+      },
+    },
   ],
   options: { typeAware: true },
 });

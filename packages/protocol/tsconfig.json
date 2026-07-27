@@ -25,6 +25,7 @@
     "../sdk-ts/tests/**/*.ts",
     // TODO(docs-migration): Re-enable when the docs conformance tests return.
     // "../docs/tests/**/*.ts",
-    "../../rules/ast-grep/**/*.ts"
+    "../../rules/ast-grep/**/*.ts",
+    "../../scripts/release/**/*.ts"
   ]
 }
