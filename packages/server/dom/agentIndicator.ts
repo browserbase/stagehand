@@ -158,22 +158,6 @@ export function isAgentIndicatorHost(element: Element): boolean {
   return element === indicatorHost;
 }
 
-export function withoutAgentIndicator<T>(operation: () => T): T {
-  const host = indicatorHost;
-  const parent = host?.parentNode;
-  if (!host?.isConnected || !parent) return operation();
-
-  const nextSibling = host.nextSibling;
-  parent.removeChild(host);
-  try {
-    return operation();
-  } finally {
-    try {
-      if (nextSibling?.parentNode === parent) parent.insertBefore(host, nextSibling);
-      else parent.appendChild(host);
-    } catch {
-      // A page may mutate the parent while XPath evaluation is in progress.
-      scheduleInstall();
-    }
-  }
+export function isAgentIndicatorInstalled(): boolean {
+  return indicatorHost?.isConnected === true;
 }

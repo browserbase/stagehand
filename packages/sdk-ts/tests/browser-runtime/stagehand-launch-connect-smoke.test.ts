@@ -146,6 +146,12 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         timeout: 50,
       }),
     ).rejects.toThrow("Timeout 50ms exceeded");
+    await expect(
+      page.waitForSelector("#__stagehand_agent_indicator__", {
+        state: "detached",
+        timeout: 50,
+      }),
+    ).resolves.toBe(true);
 
     await page.evaluate(`(() => {
       const collision = document.createElement("div");
@@ -162,6 +168,11 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     ).resolves.toBe(2);
     await expect(page.locator("#__stagehand_agent_indicator__").count()).resolves.toBe(1);
     await expect(page.locator("#__stagehand_agent_indicator__").innerText()).resolves.toBe(
+      "page-owned collision",
+    );
+    await expect(page.locator("div").first().innerText()).resolves.toBe("page-owned collision");
+    await expect(page.locator("text=page-owned collision").count()).resolves.toBe(1);
+    await expect(page.locator("text=page-owned collision").innerText()).resolves.toBe(
       "page-owned collision",
     );
     await expect(
@@ -229,10 +240,48 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       positional.id = "native-positional-candidate";
       positional.textContent = "native positional candidate";
       document.documentElement.append(positional);
+      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+      svg.id = "native-namespace-candidate";
+      document.body.append(svg);
+      globalThis.__stagehandMutations = [];
+      globalThis.__stagehandMutationObserver = new MutationObserver((records) => {
+        globalThis.__stagehandMutations.push(...records.map((record) => ({
+          type: record.type,
+          target: record.target.nodeName,
+          added: Array.from(record.addedNodes, (node) => node.nodeName + "#" + (node.id ?? "")),
+          removed: Array.from(record.removedNodes, (node) => node.nodeName + "#" + (node.id ?? "")),
+        })));
+      });
+      globalThis.__stagehandMutationObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+      });
     })()`);
     await expect(page.locator("xpath=/html/div[1]").innerText()).resolves.toBe(
       "native positional candidate",
     );
+    await expect(
+      page.locator("xpath=//DIV[@id='native-positional-candidate']").innerText(),
+    ).resolves.toBe("native positional candidate");
+    await expect(
+      page
+        .locator("xpath=//*[local-name()='svg' and namespace-uri()='http://www.w3.org/2000/svg']")
+        .count(),
+    ).resolves.toBe(1);
+    await expect(
+      page.evaluate<unknown[]>(`new Promise((resolve) => setTimeout(() => {
+        globalThis.__stagehandMutationObserver.disconnect();
+        resolve(globalThis.__stagehandMutations);
+      }, 0))`),
+    ).resolves.toStrictEqual([]);
+    await page.evaluate(`(() => {
+      const addedAfterMirror = document.createElement("div");
+      addedAfterMirror.id = "native-cache-invalidation-candidate";
+      document.body.append(addedAfterMirror);
+    })()`);
+    await expect(
+      page.locator("xpath=//DIV[@id='native-cache-invalidation-candidate']").count(),
+    ).resolves.toBe(1);
 
     await page.goBack({ waitUntil: "load" });
     await expect(page.url()).resolves.toBe(activeFixtureServer.url);

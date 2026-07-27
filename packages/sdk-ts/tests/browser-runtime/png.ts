@@ -32,7 +32,7 @@ export function screenshotHasOrangeViewportEdge(png: Buffer): boolean {
   return orangePixels >= Math.max(50, Math.floor(edgePixels * 0.005));
 }
 
-function decodePng(png: Buffer): DecodedPng {
+export function decodePng(png: Buffer): DecodedPng {
   if (!png.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
     throw new TypeError("Expected a PNG screenshot");
   }
@@ -91,7 +91,7 @@ function decodePng(png: Buffer): DecodedPng {
   return { width, height, channels, pixels };
 }
 
-function unfilterByte(
+export function unfilterByte(
   filter: number,
   value: number,
   left: number,
@@ -114,7 +114,7 @@ function unfilterByte(
   }
 }
 
-function paeth(left: number, up: number, upperLeft: number): number {
+export function paeth(left: number, up: number, upperLeft: number): number {
   const estimate = left + up - upperLeft;
   const leftDistance = Math.abs(estimate - left);
   const upDistance = Math.abs(estimate - up);

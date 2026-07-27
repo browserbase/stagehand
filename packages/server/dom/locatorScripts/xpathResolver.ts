@@ -1,5 +1,5 @@
 import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
-import { isAgentIndicatorHost, withoutAgentIndicator } from "../agentIndicator.js";
+import { isAgentIndicatorHost, isAgentIndicatorInstalled } from "../agentIndicator.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -264,19 +264,19 @@ function resolveNativeAtIndexWithError(
   index: number,
 ): { value: Element | null; error: boolean } {
   try {
-    return withoutAgentIndicator(() => {
-      const snapshot = document.evaluate(
-        xp,
-        document,
-        null,
-        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-        null,
-      );
-      return {
-        value: snapshot.snapshotItem(index) as Element | null,
-        error: false,
-      };
-    });
+    const evaluation = createNativeXPathEvaluationContext();
+    const snapshot = evaluation.document.evaluate(
+      xp,
+      evaluation.document,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null,
+    );
+    const result = snapshot.snapshotItem(index);
+    return {
+      value: evaluation.toOriginal(result) as Element | null,
+      error: false,
+    };
   } catch {
     return { value: null, error: true };
   }
@@ -287,17 +287,138 @@ function resolveNativeCountWithError(xp: string): {
   error: boolean;
 } {
   try {
-    return withoutAgentIndicator(() => {
-      const snapshot = document.evaluate(
-        xp,
-        document,
-        null,
-        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
-        null,
-      );
-      return { count: snapshot.snapshotLength, error: false };
-    });
+    const evaluation = createNativeXPathEvaluationContext();
+    const snapshot = evaluation.document.evaluate(
+      xp,
+      evaluation.document,
+      null,
+      XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+      null,
+    );
+    return { count: snapshot.snapshotLength, error: false };
   } catch {
     return { count: 0, error: true };
   }
+}
+
+type NativeXPathEvaluationContext = {
+  document: Document;
+  toOriginal: (node: Node | null) => Node | null;
+};
+
+type NativeXPathMirrorCache = {
+  source: Document;
+  context: NativeXPathEvaluationContext;
+  observer: MutationObserver;
+};
+
+let nativeXPathMirrorCache: NativeXPathMirrorCache | null = null;
+
+function disposeNativeXPathMirror(cache: NativeXPathMirrorCache | null): void {
+  if (!cache) return;
+  // Drain pending records before disconnecting so they cannot retain removed
+  // subtrees through the observer's delivery queue.
+  cache.observer.takeRecords();
+  cache.observer.disconnect();
+  if (nativeXPathMirrorCache === cache) nativeXPathMirrorCache = null;
+}
+
+/**
+ * Native XPath applies positional predicates before callers can filter the
+ * result. When the indicator is present, evaluate against a detached mirror
+ * that omits its host so the page never observes locator-time DOM mutations.
+ */
+function createNativeXPathEvaluationContext(): NativeXPathEvaluationContext {
+  if (!isAgentIndicatorInstalled()) {
+    disposeNativeXPathMirror(nativeXPathMirrorCache);
+    return { document, toOriginal: (node) => node };
+  }
+
+  const cached = nativeXPathMirrorCache;
+  if (cached?.source === document) {
+    if (cached.observer.takeRecords().length === 0) return cached.context;
+    disposeNativeXPathMirror(cached);
+  } else if (cached) {
+    disposeNativeXPathMirror(cached);
+  }
+
+  // createHTMLDocument preserves Chromium's HTML XPath rules, including
+  // ASCII-case-insensitive HTML element name tests. It has no browsing
+  // context, so cloning custom elements cannot run page constructors.
+  const mirror = document.implementation.createHTMLDocument("");
+  while (mirror.firstChild) mirror.removeChild(mirror.firstChild);
+  const originals = new WeakMap<Node, Node>();
+
+  const cloneIntoMirror = (source: Node): Node | null => {
+    if (source instanceof Element) {
+      if (isAgentIndicatorHost(source)) return null;
+      const qualifiedName = source.prefix
+        ? `${source.prefix}:${source.localName}`
+        : source.localName;
+      const clone = mirror.createElementNS(source.namespaceURI, qualifiedName);
+      originals.set(clone, source);
+      for (const attribute of source.attributes) {
+        try {
+          clone.setAttributeNS(attribute.namespaceURI, attribute.name, attribute.value);
+          const clonedAttribute = clone.getAttributeNodeNS(
+            attribute.namespaceURI,
+            attribute.localName,
+          );
+          if (clonedAttribute) originals.set(clonedAttribute, attribute);
+        } catch {
+          // A malformed namespaced attribute cannot affect supported element locators.
+        }
+      }
+      for (const child of source.childNodes) {
+        const childClone = cloneIntoMirror(child);
+        if (childClone) clone.appendChild(childClone);
+      }
+      return clone;
+    }
+
+    let clone: Node | null = null;
+    if (source.nodeType === Node.TEXT_NODE) clone = mirror.createTextNode(source.nodeValue ?? "");
+    else if (source.nodeType === Node.CDATA_SECTION_NODE)
+      clone = mirror.createCDATASection(source.nodeValue ?? "");
+    else if (source.nodeType === Node.COMMENT_NODE)
+      clone = mirror.createComment(source.nodeValue ?? "");
+    else if (source.nodeType === Node.DOCUMENT_TYPE_NODE) {
+      const doctype = source as DocumentType;
+      clone = mirror.implementation.createDocumentType(
+        doctype.name,
+        doctype.publicId,
+        doctype.systemId,
+      );
+    }
+
+    if (clone) originals.set(clone, source);
+    return clone;
+  };
+
+  for (const child of document.childNodes) {
+    const clone = cloneIntoMirror(child);
+    if (clone) mirror.appendChild(clone);
+  }
+
+  const context: NativeXPathEvaluationContext = {
+    document: mirror,
+    toOriginal: (node) => (node ? (originals.get(node) ?? null) : null),
+  };
+  let cache: NativeXPathMirrorCache;
+  const observer = new MutationObserver(() => {
+    disposeNativeXPathMirror(cache);
+  });
+  cache = {
+    source: document,
+    context,
+    observer,
+  };
+  observer.observe(document, {
+    attributes: true,
+    characterData: true,
+    childList: true,
+    subtree: true,
+  });
+  nativeXPathMirrorCache = cache;
+  return context;
 }
