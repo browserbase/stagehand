@@ -9,6 +9,7 @@
     "sync-sdk": "node scripts/sync-sdk-docs.js"
   },
   "devDependencies": {
+    "@mdx-js/mdx": "catalog:",
     "mint": "catalog:"
   }
 }
