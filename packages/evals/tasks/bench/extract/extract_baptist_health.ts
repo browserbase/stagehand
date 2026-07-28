@@ -33,7 +33,7 @@ export default defineBenchTask(
       }> = [];
 
       const compareField = (actualVal: string, expectedVal: string, fieldName: string) => {
-        if (fieldName !== "Address") {
+        if (fieldName === "Phone number" || fieldName === "Fax number") {
           const matches = actualVal.replace(/\D/g, "") === expectedVal.replace(/\D/g, "");
           if (!matches) {
             failedFields.push({
