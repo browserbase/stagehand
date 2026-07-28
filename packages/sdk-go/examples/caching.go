@@ -88,7 +88,7 @@ func run(ctx context.Context) (err error) {
 	}
 	extractCompanies := func() (companies, time.Duration, error) {
 		start := time.Now()
-		raw, extractErr := client.Extract(
+		extractResult, extractErr := client.Extract(
 			ctx,
 			"Extract the names and descriptions of the first five companies listed on the page",
 			companiesSchema,
@@ -98,7 +98,7 @@ func run(ctx context.Context) (err error) {
 			return companies{}, time.Since(start), extractErr
 		}
 		var result companies
-		if decodeErr := json.Unmarshal(raw, &result); decodeErr != nil {
+		if decodeErr := json.Unmarshal(extractResult.Data, &result); decodeErr != nil {
 			return companies{}, time.Since(start), decodeErr
 		}
 		return result, time.Since(start), nil

@@ -81,7 +81,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
 		"page.goto":           PageRef{PageID: "page-1"},
-		"stagehand.act": ActResult{Result: ActResultData{
+		"stagehand.act": ActResult{Data: ActResultData{
 			Success: true, Message: "clicked", ActionDescription: "click", Actions: []Action{},
 		}},
 		"stagehand.close": StagehandCloseResult{Closed: true},

@@ -59,8 +59,8 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	fmt.Println(string(output))
-	if !result.Success {
-		return fmt.Errorf("act failed: %s", result.Message)
+	if !result.Data.Success {
+		return fmt.Errorf("act failed: %s", result.Data.Message)
 	}
 	return nil
 }

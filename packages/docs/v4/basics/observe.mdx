@@ -11,9 +11,10 @@ description: "Discover and plan executable actions on any web page."
 
 ```typescript
 const actions = await stagehand.observe("Find the sign in button");
-// [
+// actions.data -> [
 //   { selector: "xpath=/html/body/...", description: "Sign in", method: "click", arguments: [] }
 // ]
+// actions.metadata.cacheStatus -> "HIT", "MISS", or undefined
 ```
 
 The `instruction` is optional: call `observe()` with no argument to survey the page broadly.
@@ -53,7 +54,9 @@ The `instruction` is optional: call `observe()` with no argument to survey the p
 The most common pattern is to observe first, decide, then act.
 
 ```typescript
-const [candidate] = await stagehand.observe("Find the primary call-to-action");
+const {
+  data: [candidate],
+} = await stagehand.observe("Find the primary call-to-action");
 
 if (candidate) {
   console.log(candidate.description); // inspect before acting
@@ -93,12 +96,12 @@ await stagehand.observe("What is the page title?");
 
 ### Return value
 
-`observe()` resolves to an array of `Action` objects. Each action has a `selector`, a
-human-readable `description`, and an optional `method` and `arguments`.
+`observe()` resolves to an `ObserveResult`. Its `data` is an array of `Action` objects,
+and its `metadata` contains shared operation information such as cache status.
 
 ```typescript
 const actions = await stagehand.observe("Find the learn more button");
-// [
+// actions.data -> [
 //   {
 //     selector: "xpath=/html/body/shadow-demo/div[1]/button[1]",
 //     description: "Learn more button",
@@ -156,6 +159,7 @@ so repeated, identical observations are served from a cache instead of calling t
 
 ```typescript
 const actions = await stagehand.observe("Find the sign in button", { cache: true });
+console.log(actions.metadata.cacheStatus);
 ```
 
 ## Best practices
@@ -163,7 +167,7 @@ const actions = await stagehand.observe("Find the sign in button", { cache: true
 - **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
   then run `act()` with the same intent.
 - **Scope busy pages:** `selector` and `ignoreSelectors` cut noise and speed up planning.
-- **Handle empty results:** An empty array means nothing matched, so surface that instead
+- **Handle empty results:** An empty `data` array means nothing matched, so surface that instead
   of acting anyway.
 
 ### Scope downstream work
@@ -172,11 +176,14 @@ An observed action's `selector` can scope a follow-up `extract()`, narrowing the
 just the relevant region.
 
 ```typescript
-const [table] = await stagehand.observe("Find the pricing table");
+const {
+  data: [table],
+} = await stagehand.observe("Find the pricing table");
 if (table) {
   const pricing = await stagehand.extract("Extract each pricing tier", pricingSchema, {
     selector: table.selector,
   });
+  console.log(pricing.data);
 }
 ```
 
@@ -185,7 +192,9 @@ if (table) {
 Check that an observed action matches what you expect before running a critical step.
 
 ```typescript
-const [deleteButton] = await stagehand.observe("Find the delete account button");
+const {
+  data: [deleteButton],
+} = await stagehand.observe("Find the delete account button");
 if (deleteButton?.method === "click") {
   await stagehand.act("Click the delete account button");
 } else {
@@ -198,12 +207,12 @@ if (deleteButton?.method === "click") {
 <AccordionGroup>
   <Accordion title="No actions returned">
 
-An empty array means nothing matched. Loosen an over-specific instruction, make sure the
+An empty `data` array means nothing matched. Loosen an over-specific instruction, make sure the
 page has loaded, and confirm you're scoped to the right region.
 
 ```typescript
 let actions = await stagehand.observe("Find the checkout button");
-if (actions.length === 0) {
+if (actions.data.length === 0) {
   await page.waitForLoadState("domcontentloaded");
   actions = await stagehand.observe("Find the checkout button");
 }
@@ -231,7 +240,8 @@ const actions = await stagehand.observe("Find the form fields", {
 
 ```python
 actions = await stagehand.observe(instruction="Find the sign in button")
-# [ Action(selector="xpath=...", description="Sign in", method="click", arguments=[]) ]
+# actions.data -> [Action(selector="xpath=...", description="Sign in", method="click", arguments=[])]
+# actions.metadata.cache_status -> "HIT", "MISS", or None
 ```
 
 The `instruction` is optional: call `observe()` with no argument to survey the page broadly.
@@ -273,8 +283,8 @@ The most common pattern is to observe first, decide, then act.
 ```python
 candidates = await stagehand.observe(instruction="Find the primary call-to-action")
 
-if candidates:
-    print(candidates[0].description)  # inspect before acting
+if candidates.data:
+    print(candidates.data[0].description)  # inspect before acting
     await stagehand.act("Click the primary call-to-action")
 ```
 
@@ -310,12 +320,12 @@ await stagehand.observe(instruction="What is the page title?")
 
 ### Return value
 
-`observe()` resolves to an array of `Action` objects. Each action has a `selector`, a
-human-readable `description`, and an optional `method` and `arguments`.
+`observe()` resolves to an `ObserveResult`. Its `data` is a list of `Action` objects,
+and its `metadata` contains shared operation information such as cache status.
 
 ```python
 actions = await stagehand.observe(instruction="Find the learn more button")
-# [
+# actions.data -> [
 #     Action(
 #         selector="xpath=/html/body/shadow-demo/div[1]/button[1]",
 #         description="Learn more button",
@@ -378,6 +388,7 @@ so repeated, identical observations are served from a cache instead of calling t
 
 ```python
 actions = await stagehand.observe(instruction="Find the sign in button", cache=True)
+print(actions.metadata.cache_status)
 ```
 
 ## Best practices
@@ -385,7 +396,7 @@ actions = await stagehand.observe(instruction="Find the sign in button", cache=T
 - **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
   then run `act()` with the same intent.
 - **Scope busy pages:** `selector` and `ignore_selectors` cut noise and speed up planning.
-- **Handle empty results:** An empty array means nothing matched, so surface that instead
+- **Handle empty results:** An empty `data` list means nothing matched, so surface that instead
   of acting anyway.
 
 ### Scope downstream work
@@ -395,12 +406,13 @@ just the relevant region.
 
 ```python
 tables = await stagehand.observe(instruction="Find the pricing table")
-if tables:
+if tables.data:
     pricing = await stagehand.extract(
         instruction="Extract each pricing tier",
         schema=Pricing,
-        selector=tables[0].selector,
+        selector=tables.data[0].selector,
     )
+    print(pricing.data)
 ```
 
 ### Validate before acting
@@ -409,7 +421,7 @@ Check that an observed action matches what you expect before running a critical 
 
 ```python
 candidates = await stagehand.observe(instruction="Find the delete account button")
-if candidates and candidates[0].method == "click":
+if candidates.data and candidates.data[0].method == "click":
     await stagehand.act("Click the delete account button")
 else:
     raise RuntimeError("Delete button not found")
@@ -420,12 +432,12 @@ else:
 <AccordionGroup>
   <Accordion title="No actions returned">
 
-An empty array means nothing matched. Loosen an over-specific instruction, make sure the
+An empty `data` list means nothing matched. Loosen an over-specific instruction, make sure the
 page has loaded, and confirm you're scoped to the right region.
 
 ```python
 actions = await stagehand.observe(instruction="Find the checkout button")
-if not actions:
+if not actions.data:
     await page.wait_for_load_state("domcontentloaded")
     actions = await stagehand.observe(instruction="Find the checkout button")
 ```

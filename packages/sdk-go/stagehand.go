@@ -92,14 +92,14 @@ func (s *Stagehand) Act(
 	ctx context.Context,
 	input string,
 	options *StagehandClientActOptions,
-) (ActResultData, error) {
+) (ActResult, error) {
 	rpc, err := s.connectedProtocol()
 	if err != nil {
-		return ActResultData{}, err
+		return ActResult{}, err
 	}
 	page, err := s.targetPage(ctx, pageFromActOptions(options))
 	if err != nil {
-		return ActResultData{}, err
+		return ActResult{}, err
 	}
 	params := StagehandActParams{PageID: page.PageID(), Input: input}
 	if options != nil {
@@ -107,9 +107,9 @@ func (s *Stagehand) Act(
 	}
 	var result ActResult
 	if err := rpc.call(ctx, "stagehand.act", params, &result); err != nil {
-		return ActResultData{}, err
+		return ActResult{}, err
 	}
-	return result.Result, nil
+	return result, nil
 }
 
 // Observe finds actions on the selected or active page.
@@ -117,14 +117,14 @@ func (s *Stagehand) Observe(
 	ctx context.Context,
 	instruction *string,
 	options *StagehandClientObserveOptions,
-) ([]Action, error) {
+) (ObserveResult, error) {
 	rpc, err := s.connectedProtocol()
 	if err != nil {
-		return nil, err
+		return ObserveResult{}, err
 	}
 	page, err := s.targetPage(ctx, pageFromObserveOptions(options))
 	if err != nil {
-		return nil, err
+		return ObserveResult{}, err
 	}
 	params := StagehandObserveParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
@@ -132,9 +132,9 @@ func (s *Stagehand) Observe(
 	}
 	var result ObserveResult
 	if err := rpc.call(ctx, "stagehand.observe", params, &result); err != nil {
-		return nil, err
+		return ObserveResult{}, err
 	}
-	return result.Result, nil
+	return result, nil
 }
 
 // Extract returns the generated protocol's dynamic JSON result for the
@@ -144,14 +144,14 @@ func (s *Stagehand) Extract(
 	instruction string,
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
-) (json.RawMessage, error) {
+) (ExtractResult, error) {
 	rpc, err := s.connectedProtocol()
 	if err != nil {
-		return nil, err
+		return ExtractResult{}, err
 	}
 	page, err := s.targetPage(ctx, pageFromExtractOptions(options))
 	if err != nil {
-		return nil, err
+		return ExtractResult{}, err
 	}
 	params := StagehandExtractParams{
 		PageID: page.PageID(), Instruction: instruction, Schema: schema,
@@ -161,9 +161,9 @@ func (s *Stagehand) Extract(
 	}
 	var result ExtractResult
 	if err := rpc.call(ctx, "stagehand.extract", params, &result); err != nil {
-		return nil, err
+		return ExtractResult{}, err
 	}
-	return result.Result, nil
+	return result, nil
 }
 
 // ExtractAs decodes an Extract result into a caller-selected Go type.
@@ -175,11 +175,11 @@ func ExtractAs[T any](
 	options *StagehandClientExtractOptions,
 ) (T, error) {
 	var value T
-	raw, err := client.Extract(ctx, instruction, schema, options)
+	result, err := client.Extract(ctx, instruction, schema, options)
 	if err != nil {
 		return value, err
 	}
-	if err := json.Unmarshal(raw, &value); err != nil {
+	if err := json.Unmarshal(result.Data, &value); err != nil {
 		return value, fmt.Errorf("decode stagehand.extract result: %w", err)
 	}
 	return value, nil

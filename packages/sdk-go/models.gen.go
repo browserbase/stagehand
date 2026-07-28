@@ -25,14 +25,11 @@ type ActOptions struct {
 }
 
 type ActResult struct {
-	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	// Data corresponds to the JSON schema field "data".
+	Data ActResultData `json:"data"`
 
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
-
-	// Result corresponds to the JSON schema field "result".
-	Result ActResultData `json:"result"`
+	// Metadata corresponds to the JSON schema field "metadata".
+	Metadata StagehandResultMetadata `json:"metadata"`
 }
 
 type ActResultData struct {
@@ -536,14 +533,11 @@ type ExtractOptions struct {
 }
 
 type ExtractResult struct {
-	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	// Data corresponds to the JSON schema field "data".
+	Data json.RawMessage `json:"data"`
 
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
-
-	// Result corresponds to the JSON schema field "result".
-	Result json.RawMessage `json:"result"`
+	// Metadata corresponds to the JSON schema field "metadata".
+	Metadata StagehandResultMetadata `json:"metadata"`
 }
 
 type GoogleModelName string
@@ -1105,14 +1099,11 @@ type ObserveOptions struct {
 }
 
 type ObserveResult struct {
-	// Action ID for tracking
-	ActionID *string `json:"action_id,omitempty,omitzero"`
+	// Data corresponds to the JSON schema field "data".
+	Data []Action `json:"data"`
 
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
-
-	// Result corresponds to the JSON schema field "result".
-	Result []Action `json:"result"`
+	// Metadata corresponds to the JSON schema field "metadata".
+	Metadata StagehandResultMetadata `json:"metadata"`
 }
 
 type OpenAIModelName string
@@ -1817,6 +1808,14 @@ type StagehandPingResult struct {
 	Runtime string `json:"runtime"`
 }
 
+type StagehandResultMetadata struct {
+	// Action ID for tracking
+	ActionID *string `json:"action_id,omitempty,omitzero"`
+
+	// Server-side cache status for this result
+	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+}
+
 type TelemetryConfig struct {
 	// Traces corresponds to the JSON schema field "traces".
 	Traces TelemetryTraces `json:"traces"`
@@ -2426,6 +2425,10 @@ type generatedModelCatalog struct {
 
 	// StagehandPingResult corresponds to the JSON schema field "StagehandPingResult".
 	StagehandPingResult *StagehandPingResult `json:"StagehandPingResult,omitempty,omitzero"`
+
+	// StagehandResultMetadata corresponds to the JSON schema field
+	// "StagehandResultMetadata".
+	StagehandResultMetadata *StagehandResultMetadata `json:"StagehandResultMetadata,omitempty,omitzero"`
 
 	// TelemetryConfig corresponds to the JSON schema field "TelemetryConfig".
 	TelemetryConfig *TelemetryConfig `json:"TelemetryConfig,omitempty,omitzero"`

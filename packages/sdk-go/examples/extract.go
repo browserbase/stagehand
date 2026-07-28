@@ -61,12 +61,17 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	raw, err := client.Extract(ctx, "Extract the page heading and description", pageInfoSchema, nil)
+	result, err := client.Extract(
+		ctx,
+		"Extract the page heading and description",
+		pageInfoSchema,
+		nil,
+	)
 	if err != nil {
 		return err
 	}
 	var info pageInfo
-	if err := json.Unmarshal(raw, &info); err != nil {
+	if err := json.Unmarshal(result.Data, &info); err != nil {
 		return fmt.Errorf("decode extracted page info: %w", err)
 	}
 	output, err := json.MarshalIndent(info, "", "  ")

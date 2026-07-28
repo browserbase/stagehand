@@ -32,6 +32,12 @@ const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 
+// Extracted JSON is intentionally decoded through a dedicated wire model so
+// Pydantic receives raw JSON values instead of the generated JSON union.
+const pythonWireResultModels: Readonly<Record<string, string>> = {
+  "stagehand.extract": "_ExtractWireResult",
+};
+
 type SdkLanguage = "go" | "typescript" | "python";
 
 type ProtocolMethod = {
@@ -329,7 +335,9 @@ describe("All language SDK operations remain in sync", () => {
       if (!protocolMethod) continue;
 
       const expectedParams = referencedModel(protocolMethod.properties.params.$ref);
-      const expectedResult = referencedModel(protocolMethod.properties.result.$ref);
+      const expectedResult =
+        pythonWireResultModels[call.method] ??
+        referencedModel(protocolMethod.properties.result.$ref);
       const paramsModel = pythonModelName(call.params, call.scope, call.module);
       const resultModel = pythonModelName(call.result, call.scope, call.module);
 
@@ -880,16 +888,16 @@ function pythonModelName(
       .replace(/\.model_validate$/, "")
       .split(".")
       .at(-1);
-    return model && /^[A-Z]/u.test(model) ? model : undefined;
+    return model && /^_?[A-Z]/u.test(model) ? model : undefined;
   }
 
   if (expression.kind() === "attribute") {
     const model = expression.text().split(".").at(-1);
-    return model && /^[A-Z]/u.test(model) ? model : undefined;
+    return model && /^_?[A-Z]/u.test(model) ? model : undefined;
   }
 
   if (expression.kind() !== "identifier") return undefined;
-  if (/^[A-Z]/u.test(expression.text())) return expression.text();
+  if (/^_?[A-Z]/u.test(expression.text())) return expression.text();
   if (seen.has(expression.text())) return undefined;
   seen.add(expression.text());
   const assignment = [
