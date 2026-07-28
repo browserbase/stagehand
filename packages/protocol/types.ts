@@ -7,6 +7,7 @@ import type {
 } from "./schema-registry.js";
 import type {
   ActionSchema,
+  ActionTargetSchema,
   ActOptionsSchema,
   ActResultDataSchema,
   ActResultSchema,
@@ -196,7 +197,6 @@ import type {
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
 } from "./schemas.js";
-
 export type VariablePrimitive = z.infer<typeof VariablePrimitiveSchema>;
 export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
@@ -251,6 +251,7 @@ export type LLMGenerateParams = z.infer<typeof LLMGenerateParamsSchema>;
 export type LLMGenerateResult = z.infer<typeof LLMGenerateResultSchema>;
 export type ClientModelReference = z.infer<typeof ClientModelReferenceSchema>;
 export type Action = z.infer<typeof ActionSchema>;
+export type ActionTarget = z.infer<typeof ActionTargetSchema>;
 export type ActOptions = z.infer<typeof ActOptionsSchema>;
 export type ActResultData = z.infer<typeof ActResultDataSchema>;
 export type ActResult = z.infer<typeof ActResultSchema>;

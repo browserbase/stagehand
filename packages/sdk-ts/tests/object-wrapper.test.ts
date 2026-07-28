@@ -757,6 +757,8 @@ describe("Stagehand TS object wrapper", () => {
       description: "Submit button",
       method: "click",
       arguments: [],
+      target: { frameOrdinal: 0, backendNodeId: 12 },
+      argumentTargets: { "0": { frameOrdinal: 0, backendNodeId: 20 } },
     };
     client.queueResponse(StagehandMethods.stagehandObserve, {
       result: [observedAction],

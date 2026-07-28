@@ -7,9 +7,14 @@ import type {
   StagehandActParams,
   Variables,
 } from "../../protocol/types.js";
+import {
+  rebindActionTargetsToSnapshot,
+  selectorAndTargetForSnapshotElement,
+} from "../actionTarget.js";
 import { TimeoutError } from "../errors.js";
 import {
   performUnderstudyMethod,
+  type ActionTargetConstraints,
   waitForDomNetworkQuiet,
 } from "../handlers/handlerUtils/actHandlerUtils.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
@@ -22,7 +27,6 @@ import type { EncodedId } from "../types/private/internal.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
 import { diffCombinedTrees } from "../understudy/a11y/snapshot/index.js";
 import type { Page } from "../understudy/page.js";
-import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
 
@@ -214,8 +218,13 @@ async function replayCachedActions(
     throw new Error("Cached act value contained no usable actions");
   }
 
+  context.ensureTimeRemaining();
+  const { combinedXpathMap } = await context.page.captureSnapshot({});
+  context.ensureTimeRemaining();
+  const reboundActions = rebindActionTargetsToSnapshot(actions, combinedXpathMap);
+
   const results: ActResultData[] = [];
-  for (const action of actions) {
+  for (const action of reboundActions) {
     const result = await takeDeterministicAction({
       action,
       variables,
@@ -297,7 +306,7 @@ async function takeDeterministicAction({
 
   try {
     context.ensureTimeRemaining();
-    await performUnderstudyMethod(
+    const actionArgs = [
       context.page,
       context.page.mainFrame(),
       method,
@@ -305,7 +314,13 @@ async function takeDeterministicAction({
       resolvedArgs,
       context.logger,
       context.domSettleTimeoutMs,
-    );
+    ] as const;
+    const targetConstraints = targetConstraintsForAction(action);
+    if (targetConstraints) {
+      await performUnderstudyMethod(...actionArgs, targetConstraints);
+    } else {
+      await performUnderstudyMethod(...actionArgs);
+    }
     return successfulActionResult(action, method, action.selector, placeholderArgs);
   } catch (error) {
     if (error instanceof TimeoutError) throw error;
@@ -330,6 +345,7 @@ async function takeDeterministicAction({
       method,
       resolvedArgs,
       placeholderArgs,
+      variables,
       context,
     });
   }
@@ -340,12 +356,14 @@ async function selfHealAction({
   method,
   resolvedArgs,
   placeholderArgs,
+  variables,
   context,
 }: {
   action: Action;
   method: string;
   resolvedArgs: string[];
   placeholderArgs: string[];
+  variables?: Variables;
   context: ActContext;
 }): Promise<ActResultData> {
   const actionInstruction = action.description
@@ -373,18 +391,39 @@ async function selfHealAction({
       };
     }
 
-    const selector = inferenceResult.action?.selector ?? action.selector;
+    const healed = inferenceResult.action ?? action;
+    const selector = healed.selector;
+    // Drag-and-drop destinations are re-inferred as XPaths paired with
+    // argumentTargets. Other methods (e.g. fill) must keep the caller's
+    // already-substituted argument values.
+    const useHealedArgs =
+      method === SupportedUnderstudyAction.DRAG_AND_DROP &&
+      Array.isArray(inferenceResult.action?.arguments);
+    const healedPlaceholders = useHealedArgs
+      ? [...inferenceResult.action!.arguments!]
+      : placeholderArgs;
+    const healedResolvedArgs = useHealedArgs
+      ? (substituteVariablesInArguments(healedPlaceholders, variables) ?? healedPlaceholders)
+      : resolvedArgs;
     context.ensureTimeRemaining();
-    await performUnderstudyMethod(
+    const actionArgs = [
       context.page,
       context.page.mainFrame(),
       method,
       selector,
-      resolvedArgs,
+      healedResolvedArgs,
       context.logger,
       context.domSettleTimeoutMs,
-    );
-    return successfulActionResult(action, method, selector, placeholderArgs);
+    ] as const;
+    const targetConstraints = inferenceResult.action
+      ? targetConstraintsForAction(inferenceResult.action)
+      : undefined;
+    if (targetConstraints) {
+      await performUnderstudyMethod(...actionArgs, targetConstraints);
+    } else {
+      await performUnderstudyMethod(...actionArgs);
+    }
+    return successfulActionResult(healed, method, selector, healedPlaceholders);
   } catch (error) {
     if (error instanceof TimeoutError) throw error;
     const message = error instanceof Error ? error.message : String(error);
@@ -402,10 +441,11 @@ function normalizeActInferenceElement(
   xpathMap: Record<string, string>,
   logger: StagehandLogger,
 ): Action | undefined {
-  const xpath = trimTrailingTextNode(xpathMap[element.elementId as EncodedId]);
-  if (!xpath) return undefined;
+  const source = selectorAndTargetForSnapshotElement(element.elementId as EncodedId, xpathMap);
+  if (!source) return undefined;
 
   let args = element.arguments;
+  let argumentTargets: Action["argumentTargets"];
   if (element.method === SupportedUnderstudyAction.DRAG_AND_DROP && args.length > 0) {
     const targetElementId = args[0];
     if (!targetElementId || !/^\d+-\d+$/.test(targetElementId)) {
@@ -417,8 +457,8 @@ function normalizeActInferenceElement(
       return undefined;
     }
 
-    const targetXpath = trimTrailingTextNode(xpathMap[targetElementId as EncodedId]);
-    if (!targetXpath) {
+    const destination = selectorAndTargetForSnapshotElement(targetElementId as EncodedId, xpathMap);
+    if (!destination) {
       logger.debug("Drag-and-drop target element lookup failed", {
         category: "action",
         targetElementId,
@@ -426,14 +466,17 @@ function normalizeActInferenceElement(
       });
       return undefined;
     }
-    args = [`xpath=${targetXpath}`, ...args.slice(1)];
+    args = [destination.selector, ...args.slice(1)];
+    if (destination.target) argumentTargets = { "0": destination.target };
   }
 
   return {
-    selector: `xpath=${xpath}`,
+    selector: source.selector,
     description: element.description,
     method: element.method,
     arguments: args,
+    ...(source.target ? { target: source.target } : {}),
+    ...(argumentTargets ? { argumentTargets } : {}),
   };
 }
 
@@ -468,6 +511,8 @@ function successfulActionResult(
         description: action.description || `action (${method})`,
         method,
         arguments: arguments_,
+        ...(action.target ? { target: action.target } : {}),
+        ...(action.argumentTargets ? { argumentTargets: action.argumentTargets } : {}),
       },
     ],
   };
@@ -475,6 +520,14 @@ function successfulActionResult(
 
 function actResult(result: ActResultData): ActResult {
   return { result };
+}
+
+function targetConstraintsForAction(action: Action): ActionTargetConstraints | undefined {
+  if (!action.target && !action.argumentTargets) return undefined;
+  return {
+    ...(action.target ? { target: action.target } : {}),
+    ...(action.argumentTargets ? { argumentTargets: action.argumentTargets } : {}),
+  };
 }
 
 function describeAction(action: Action): string {

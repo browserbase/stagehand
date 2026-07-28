@@ -2,11 +2,14 @@
 import { Protocol } from "devtools-protocol";
 import { Frame } from "../../understudy/frame.js";
 import { Locator } from "../../understudy/locator.js";
-import type { MouseButton } from "../../../protocol/types.js";
+import type { Action, ActionTarget, MouseButton } from "../../../protocol/types.js";
 import { resolveLocatorWithHops } from "../../understudy/deepLocator.js";
 import type { Page } from "../../understudy/page.js";
 import type { StagehandLogger } from "../../logger.js";
 import { toTitleCase } from "../../utils.js";
+export { ActionTargetMismatchError } from "../../actionTarget.js";
+
+export type ActionTargetConstraints = Pick<Action, "target" | "argumentTargets">;
 
 export interface UnderstudyMethodHandlerContext {
   method: string;
@@ -18,13 +21,15 @@ export interface UnderstudyMethodHandlerContext {
   initialUrl: string;
   logger: StagehandLogger;
   domSettleTimeoutMs?: number;
+  argumentTargets?: Record<string, ActionTarget>;
 }
 
 // Normalize cases where the XPath is the root "/" to point to the HTML element.
+// Prefer `/html[1]` to match snapshot xpath maps built by buildChildXPathSegments.
 function normalizeRootXPath(input: string): string {
   const s = String(input ?? "").trim();
-  if (s === "/") return "/html";
-  if (/^xpath=\/$/i.test(s)) return "xpath=/html";
+  if (s === "/") return "/html[1]";
+  if (/^xpath=\/$/i.test(s)) return "xpath=/html[1]";
   return s;
 }
 
@@ -50,6 +55,7 @@ export async function performUnderstudyMethod(
   args: ReadonlyArray<unknown>,
   logger: StagehandLogger,
   domSettleTimeoutMs?: number,
+  targetConstraints?: ActionTargetConstraints,
 ): Promise<void> {
   const selectorRaw = normalizeRootXPath(rawXPath);
 
@@ -59,7 +65,8 @@ export async function performUnderstudyMethod(
       { target: selectorRaw },
       async (spanLogger) => {
         // Unified resolver: supports '>>' hops and XPath across iframes.
-        const locator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
+        const resolvedLocator: Locator = await resolveLocatorWithHops(page, frame, selectorRaw);
+        const locator = bindTargetGuard(page, resolvedLocator, targetConstraints?.target);
         const initialUrl = await getFrameUrl(frame);
 
         spanLogger.debug("Performing understudy method", {
@@ -79,6 +86,7 @@ export async function performUnderstudyMethod(
           initialUrl,
           logger: spanLogger,
           domSettleTimeoutMs,
+          argumentTargets: targetConstraints?.argumentTargets,
         };
         const handler = METHOD_HANDLER_MAP[method] ?? null;
 
@@ -107,6 +115,12 @@ export async function performUnderstudyMethod(
     });
     throw e;
   }
+}
+
+function bindTargetGuard(page: Page, locator: Locator, target?: ActionTarget): Locator {
+  return target
+    ? locator.withTargetGuard(target, page.getOrdinal(locator.getFrame().frameId))
+    : locator;
 }
 
 /* ===================== Handlers & Map ===================== */
@@ -183,7 +197,17 @@ async function scrollByPixelOffset(ctx: UnderstudyMethodHandlerContext): Promise
 }
 
 async function wheelScroll(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { frame, args, logger } = ctx;
+  const { locator, frame, args, logger } = ctx;
+  // Only resolve when an observed target guard is present; legacy wheel keeps
+  // the page-level (0,0) path without requiring the selector to resolve.
+  if (locator.targetGuard) {
+    const { objectId } = await locator.resolveNode();
+    await locator
+      .getFrame()
+      .session.send("Runtime.releaseObject", { objectId })
+      .catch(() => {});
+  }
+
   const deltaY = Number(args[0] ?? 200);
   logger.debug("Dispatching mouse wheel", {
     category: "action",
@@ -230,9 +254,25 @@ async function typeText(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function pressKey(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { args, xpath, page, logger } = ctx;
+  const { locator, args, xpath, page, logger } = ctx;
   const key = args[0] ?? "";
   try {
+    // Only resolve/focus when an observed target guard is present. Legacy
+    // targetless press must keep sending keys to the currently focused element.
+    if (locator.targetGuard) {
+      const session = locator.getFrame().session;
+      const { objectId } = await locator.resolveNode();
+      try {
+        await session.send<Protocol.Runtime.CallFunctionOnResponse>("Runtime.callFunctionOn", {
+          objectId,
+          functionDeclaration: "function() { this.focus?.(); }",
+          returnByValue: true,
+        });
+      } finally {
+        await session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+      }
+    }
+
     logger.debug("Pressing key", {
       category: "action",
       key,
@@ -282,14 +322,15 @@ async function doubleClick(ctx: UnderstudyMethodHandlerContext): Promise<void> {
 }
 
 async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
-  const { page, frame, locator, args, xpath, logger } = ctx;
+  const { page, frame, locator, args, xpath, logger, argumentTargets } = ctx;
   const toXPath = String(args[0] ?? "").trim();
   if (!toXPath) throw new Error("dragAndDrop requires a target XPath arg");
 
-  const targetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const resolvedTargetLocator = await resolveLocatorWithHops(page, frame, toXPath);
+  const targetLocator = bindTargetGuard(page, resolvedTargetLocator, argumentTargets?.["0"]);
 
   try {
-    // 1) Centers in local (owning-frame) viewport
+    // 1) Centers in local (owning-frame) viewport (hit-checks when guarded)
     const { x: fromLocalX, y: fromLocalY } = await locator.centroid();
     const { x: toLocalX, y: toLocalY } = await targetLocator.centroid();
 
@@ -333,6 +374,11 @@ async function dragAndDrop(ctx: UnderstudyMethodHandlerContext): Promise<void> {
         },
         { x: toLocalX, y: toLocalY },
       );
+
+    // Re-check immediately before coordinate drag — centroid alone leaves a
+    // window during abs conversion where a rerender can steal the drop.
+    await locator.assertPointerTargetAt(fromLocalX, fromLocalY);
+    await targetLocator.assertPointerTargetAt(toLocalX, toLocalY);
 
     // 3) Perform drag in main session
     await page.dragAndDrop(fromAbs.x, fromAbs.y, toAbs.x, toAbs.y, {

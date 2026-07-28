@@ -1665,11 +1665,46 @@
           "items": {
             "type": "string"
           }
+        },
+        "target": {
+          "description": "Optional observed target identity. When present, act validates it before mutating the page.",
+          "$ref": "#/$defs/ActionTarget"
+        },
+        "argument_targets": {
+          "description": "Optional observed identities for selector arguments, keyed by their argument index.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^\\d+$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/ActionTarget"
+          }
         }
       },
       "required": ["selector", "description"],
       "additionalProperties": false,
       "description": "Action object returned by observe and used by act"
+    },
+    "ActionTarget": {
+      "type": "object",
+      "properties": {
+        "frame_ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Stable frame ordinal assigned for the lifetime of the page"
+        },
+        "backend_node_id": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "CDP backend node ID captured when the action was observed"
+        }
+      },
+      "required": ["frame_ordinal", "backend_node_id"],
+      "additionalProperties": false,
+      "description": "Short-lived identity of the DOM node selected by an observed action"
     },
     "ActOptions": {
       "type": "object",

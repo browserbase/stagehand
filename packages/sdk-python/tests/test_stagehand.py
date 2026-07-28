@@ -8,7 +8,14 @@ from typing import TypeVar, cast
 import pytest
 from pydantic import BaseModel
 
-from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
+from stagehand import (
+    ActionTarget,
+    LLMGenerateInput,
+    LLMGenerateOutput,
+    Page,
+    ProtocolLocator,
+    Stagehand,
+)
 from stagehand._generated.models import (
     Action,
     ActResult,
@@ -243,7 +250,12 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
 async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    action = Action(selector="a", description="More information")
+    action = Action(
+        selector="a",
+        description="More information",
+        target=ActionTarget(frame_ordinal=0, backend_node_id=12),
+        argument_targets={"0": ActionTarget(frame_ordinal=0, backend_node_id=20)},
+    )
     act_result = ActResultData(
         success=True,
         message="Clicked the link",

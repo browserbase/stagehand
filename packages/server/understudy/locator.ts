@@ -19,11 +19,18 @@ import {
 import type { Frame } from "./frame.js";
 import { FrameSelectorResolver, type SelectorQuery } from "./selectorResolver.js";
 import { bytesToBase64, normalizeInputFiles } from "./fileUploadUtils.js";
-import type { MouseButton } from "../../protocol/types.js";
+import type { ActionTarget, MouseButton } from "../../protocol/types.js";
+import { ActionTargetMismatchError } from "../actionTarget.js";
 import type { SetInputFilesArgument } from "../types/private/fileUpload.js";
 import type { NormalizedFilePayload } from "../types/private/locator.js";
+import { executionContexts } from "./executionContextRegistry.js";
 
 const MAX_REMOTE_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB guard copied from Playwright
+
+type LocatorTargetGuard = {
+  expected: ActionTarget;
+  frameOrdinal: number;
+};
 
 /**
  * Locator
@@ -57,6 +64,7 @@ export class Locator {
     readonly selector: string,
     readonly options?: { deep?: boolean; depth?: number },
     nthIndex: number = -1,
+    readonly targetGuard?: LocatorTargetGuard,
   ) {
     this.selectorResolver = new FrameSelectorResolver(this.frame);
     this.selectorQuery = FrameSelectorResolver.parseSelector(selector);
@@ -67,6 +75,14 @@ export class Locator {
   /** Return the owning Frame for this locator (typed accessor, no private access). */
   public getFrame(): Frame {
     return this.frame;
+  }
+
+  /** Bind an observed identity to every subsequent resolution by this locator. */
+  public withTargetGuard(expected: ActionTarget, frameOrdinal: number): Locator {
+    return new Locator(this.frame, this.selector, this.options, this.nthIndex, {
+      expected,
+      frameOrdinal,
+    });
   }
 
   /**
@@ -180,6 +196,8 @@ export class Locator {
   /**
    * Return the center of the element's bounding box in the owning frame's viewport
    * (CSS pixels), rounded to integers. Scrolls into view best-effort.
+   * When a target guard is bound, also verifies the centroid still hit-tests
+   * this element before returning coordinates for pointer input.
    */
   public async centroid(): Promise<{ x: number; y: number }> {
     const session = this.frame.session;
@@ -191,9 +209,25 @@ export class Locator {
       });
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
+      await this.assertPointerTargetMatchesGuard(cx, cy, objectId);
       return { x: Math.round(cx), y: Math.round(cy) };
     } finally {
       await session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
+  }
+
+  /**
+   * When a target guard is bound, re-resolve and ensure (x, y) still hit-tests
+   * this element. No-op without a guard. Used immediately before coordinate
+   * pointer sequences (e.g. drag-and-drop) after geometry was computed earlier.
+   */
+  public async assertPointerTargetAt(x: number, y: number): Promise<void> {
+    if (!this.targetGuard) return;
+    const { objectId } = await this.resolveNode();
+    try {
+      await this.assertPointerTargetMatchesGuard(x, y, objectId);
+    } finally {
+      await this.frame.session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
     }
   }
 
@@ -285,6 +319,8 @@ export class Locator {
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
+      await this.assertPointerTargetMatchesGuard(cx, cy, objectId);
+
       await session.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
         x: cx,
@@ -321,6 +357,10 @@ export class Locator {
       });
       if (!box.model) throw new Error(`Element not visible (no box model): ${this.selector}`);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
+
+      // Coordinate clicks hit-test live pixels; re-check the guard against the
+      // node currently under the cursor before dispatching input.
+      await this.assertPointerTargetMatchesGuard(cx, cy, objectId);
 
       // Dispatch click events in a pipelined burst to reduce inter-click delay
       // from network/CPU jitter between round trips.
@@ -752,7 +792,7 @@ export class Locator {
       return this;
     }
 
-    return new Locator(this.frame, this.selector, this.options, nextIndex);
+    return new Locator(this.frame, this.selector, this.options, nextIndex, this.targetGuard);
   }
 
   // ---------- helpers ----------
@@ -776,7 +816,92 @@ export class Locator {
       throw new Error(`Could not find an element for the given xPath(s): ${this.selector}`);
     }
 
+    await this.validateTarget(resolved.objectId);
+
     return resolved;
+  }
+
+  private async validateTarget(objectId: Protocol.Runtime.RemoteObjectId): Promise<void> {
+    if (!this.targetGuard) return;
+
+    try {
+      const { node } = await this.frame.session.send<{ node: Protocol.DOM.Node }>(
+        "DOM.describeNode",
+        { objectId },
+      );
+      const actual: ActionTarget = {
+        frameOrdinal: this.targetGuard.frameOrdinal,
+        backendNodeId: node.backendNodeId,
+      };
+      const { expected } = this.targetGuard;
+      if (
+        actual.frameOrdinal !== expected.frameOrdinal ||
+        actual.backendNodeId !== expected.backendNodeId
+      ) {
+        throw new ActionTargetMismatchError(expected, actual);
+      }
+    } catch (error) {
+      await this.frame.session.send<never>("Runtime.releaseObject", { objectId }).catch(() => {});
+      throw error;
+    }
+  }
+
+  /**
+   * Coordinate-based input hit-tests live pixels. After geometry is computed,
+   * ensure the node under the cursor is still the guarded element (or a
+   * descendant), otherwise a rerender/overlay can steal the click.
+   */
+  private async assertPointerTargetMatchesGuard(
+    x: number,
+    y: number,
+    expectedObjectId: Protocol.Runtime.RemoteObjectId,
+  ): Promise<void> {
+    if (!this.targetGuard) return;
+
+    await this.validateTarget(expectedObjectId);
+
+    const hit = await this.frame.getNodeAtLocation(Math.round(x), Math.round(y));
+    const { contextId } = await executionContexts.waitForLocatorWorld(
+      this.frame.session,
+      this.frame.frameId,
+      1000,
+    );
+    const { object } = await this.frame.session.send<{
+      object: { objectId?: Protocol.Runtime.RemoteObjectId };
+    }>("DOM.resolveNode", {
+      backendNodeId: hit.backendNodeId,
+      executionContextId: contextId,
+    });
+    const hitObjectId = object.objectId;
+    if (!hitObjectId) {
+      throw new ActionTargetMismatchError(this.targetGuard.expected, {
+        frameOrdinal: this.targetGuard.frameOrdinal,
+        backendNodeId: hit.backendNodeId,
+      });
+    }
+
+    try {
+      const res = await this.frame.session.send<Protocol.Runtime.CallFunctionOnResponse>(
+        "Runtime.callFunctionOn",
+        {
+          objectId: expectedObjectId,
+          functionDeclaration:
+            "function(hit) { return this === hit || (typeof this.contains === 'function' && this.contains(hit)); }",
+          arguments: [{ objectId: hitObjectId }],
+          returnByValue: true,
+        },
+      );
+      if (!res.result?.value) {
+        throw new ActionTargetMismatchError(this.targetGuard.expected, {
+          frameOrdinal: this.targetGuard.frameOrdinal,
+          backendNodeId: hit.backendNodeId,
+        });
+      }
+    } finally {
+      await this.frame.session
+        .send<never>("Runtime.releaseObject", { objectId: hitObjectId })
+        .catch(() => {});
+    }
   }
 
   /**

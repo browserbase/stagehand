@@ -1,6 +1,8 @@
 import type { Protocol } from "devtools-protocol";
+import { ActionTargetSchema } from "../../protocol/schemas.js";
 import type {
   Action,
+  ActionTarget,
   Caching,
   StagehandActParams,
   StagehandExtractParams,
@@ -127,6 +129,8 @@ export function normalizeCachedActions(value: unknown): Action[] {
     if (entry === null || typeof entry !== "object") continue;
     const candidate = entry as Record<string, unknown>;
     if (typeof candidate.selector !== "string" || candidate.selector.length === 0) continue;
+    const target = normalizeCachedActionTarget(candidate.target);
+    const argumentTargets = normalizeCachedArgumentTargets(candidate.argumentTargets);
     actions.push({
       selector: candidate.selector,
       description: typeof candidate.description === "string" ? candidate.description : "",
@@ -134,9 +138,28 @@ export function normalizeCachedActions(value: unknown): Action[] {
       arguments: Array.isArray(candidate.arguments)
         ? candidate.arguments.filter((arg): arg is string => typeof arg === "string")
         : [],
+      ...(target ? { target } : {}),
+      ...(argumentTargets ? { argumentTargets } : {}),
     });
   }
   return actions;
+}
+
+function normalizeCachedActionTarget(value: unknown): ActionTarget | undefined {
+  const parsed = ActionTargetSchema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+function normalizeCachedArgumentTargets(value: unknown): Action["argumentTargets"] | undefined {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return undefined;
+
+  const argumentTargets: NonNullable<Action["argumentTargets"]> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!/^\d+$/u.test(key)) continue;
+    const target = normalizeCachedActionTarget(entry);
+    if (target) argumentTargets[key] = target;
+  }
+  return Object.keys(argumentTargets).length > 0 ? argumentTargets : undefined;
 }
 
 export interface CacheExecuteOutcome<Result> {

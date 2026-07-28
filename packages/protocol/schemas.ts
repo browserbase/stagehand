@@ -1001,6 +1001,20 @@ export const LocalBrowserLaunchOptionsSchema = z
   .meta({ id: "LocalBrowserLaunchOptions" });
 
 /** Action object returned by observe and used by act */
+export const ActionTargetSchema = z
+  .strictObject({
+    frameOrdinal: z.number().int().nonnegative().meta({
+      description: "Stable frame ordinal assigned for the lifetime of the page",
+    }),
+    backendNodeId: z.number().int().positive().meta({
+      description: "CDP backend node ID captured when the action was observed",
+    }),
+  })
+  .meta({
+    id: "ActionTarget",
+    description: "Short-lived identity of the DOM node selected by an observed action",
+  });
+
 export const ActionSchema = z
   .strictObject({
     selector: z.string().meta({
@@ -1022,6 +1036,14 @@ export const ActionSchema = z
         description: "Arguments to pass to the method",
         example: ["Hello World"],
       }),
+    target: ActionTargetSchema.optional().meta({
+      description:
+        "Optional observed target identity. When present, act validates it before mutating the page.",
+    }),
+    argumentTargets: z.record(z.string().regex(/^\d+$/), ActionTargetSchema).optional().meta({
+      description:
+        "Optional observed identities for selector arguments, keyed by their argument index.",
+    }),
   })
   .meta({
     id: "Action",
