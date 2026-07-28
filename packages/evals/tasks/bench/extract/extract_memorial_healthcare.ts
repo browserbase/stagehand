@@ -1,21 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
-import { compareStrings } from "../../../utils.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { compareStrings } from "../../../framework/textScoring.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_memorial_healthcare" },
-  async ({
-    logger,
-
-    debugUrl,
-    sessionUrl,
-    v3,
-  }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/");
 
-      const result = await v3.extract(
+      const result = await stagehand.extract(
         "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
         z.object({
           health_centers: z.array(
@@ -185,13 +178,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

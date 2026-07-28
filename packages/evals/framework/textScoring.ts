@@ -1,9 +1,9 @@
 /**
- * Shared text-scoring helpers for bench-v4 tasks.
+ * Shared text-scoring helpers for V4 bench tasks.
  *
  * Behavior-identical copies of `normalizeString`/`compareStrings` from
  * stagehand packages/evals/utils.ts and the `jaroWinkler` similarity from
- * string-comparison@1.3.0 — bench-v4 tasks cannot import utils.ts directly,
+ * string-comparison@1.3.0 — V4 bench tasks cannot import utils.ts directly,
  * so the implementations live here (previously inlined per-task). Pure
  * computation, no behavior change.
  */

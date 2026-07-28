@@ -1,29 +1,33 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { replayObservedAction } from "../../../framework/observeReplay.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_amazon_add_to_cart" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
 
-      const observations1 = await v3.observe("Find and click the 'Add to Cart' button");
+      const observations1 = await stagehand.observe("Find and click the 'Add to Cart' button");
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations1.length > 0) {
         const action1 = observations1[0];
-        await v3.act(action1);
+        // v3's act(observeResult) replay — consumer-side in v4
+        await replayObservedAction(page, action1);
       }
 
-      const observations2 = await v3.observe("Find and click the 'Proceed to checkout' button");
+      const observations2 = await stagehand.observe(
+        "Find and click the 'Proceed to checkout' button",
+      );
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations2.length > 0) {
         const action2 = observations2[0];
-        await v3.act(action2);
+        // v3's act(observeResult) replay — consumer-side in v4
+        await replayObservedAction(page, action2);
       }
 
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
       const expectedUrlPrefix =
         "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
@@ -37,13 +41,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

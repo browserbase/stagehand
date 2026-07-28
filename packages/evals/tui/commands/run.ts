@@ -180,10 +180,10 @@ export async function runCommand(
 ): Promise<void> {
   const resolvedTasksRoot = getRuntimeTasksRoot();
 
-  // A cached registry (e.g. from the REPL) is always v3-based; --sdk v4 must
-  // rediscover against the tasks/bench-v4 tree.
-  if (!registry || options.sdk === "v4") {
-    registry = await discoverTasks(resolvedTasksRoot, false, options.sdk ?? "v3");
+  // All SDK modes use the canonical tasks/bench tree, so a cached registry
+  // can be reused regardless of which harness executes the selected tasks.
+  if (!registry) {
+    registry = await discoverTasks(resolvedTasksRoot, false);
   }
 
   const planMode = options.dryRun || options.preview;

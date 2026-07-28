@@ -47,7 +47,7 @@ export function defineBenchTask(
 /**
  * Define a bench tier task ported to the Stagehand v4 SDK.
  * v4 bench tasks receive { stagehand, page, logger, input, ... } and return
- * TaskResult. They live under tasks/bench-v4/ and are selected via --sdk v4.
+ * TaskResult. They live under the canonical tasks/bench/ tree.
  */
 export function defineBenchV4Task(
   meta: BenchTaskMeta,

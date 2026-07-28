@@ -84,9 +84,9 @@ export interface ResolvedRunOptions {
   harness: Harness;
   /**
    * Which Stagehand SDK drives bench tasks. Only set when --sdk was passed
-   * explicitly: v4 selects the tasks/bench-v4 tree and the v4 harness path,
-   * and any explicit value (v3 or v4) switches the run to the SDK-comparison
-   * Braintrust experiment naming scheme.
+   * explicitly: v4 selects the v4 harness path, and any explicit value (v3
+   * or v4) switches the run to the SDK-comparison Braintrust experiment
+   * naming scheme.
    */
   sdk?: "v3" | "v4";
   agentMode?: AgentToolMode;

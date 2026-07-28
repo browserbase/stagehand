@@ -1,16 +1,16 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
-import { compareStrings } from "../../../utils.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { compareStrings } from "../../../framework/textScoring.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_hamilton_weather" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/");
+      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
       const xpath = "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
-      const weatherData = await v3.extract(
+      const weatherData = await stagehand.extract(
         "extract the weather data for Sun, Feb 23 at 11PM",
         z.object({
           temperature: z.string(),
@@ -57,13 +57,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

@@ -6,10 +6,7 @@
     "strict": false,
     "target": "ES2022",
     "types": ["node"],
-    "useUnknownInCatchVariables": false,
-    "paths": {
-      "@browserbasehq/stagehand-v4-spike-sdk-ts": ["./.v4-sdk-types/sdk-ts/src/index.d.ts"]
-    }
+    "useUnknownInCatchVariables": false
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules", "dist"]

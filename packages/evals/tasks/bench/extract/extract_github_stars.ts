@@ -1,14 +1,13 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_github_stars" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://github.com/facebook/react");
 
-      const { stars } = await v3.extract(
+      const { stars } = await stagehand.extract(
         "Extract the number of stars for the project",
         z.object({
           stars: z.number().describe("the number of stars for the project"),
@@ -37,13 +36,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

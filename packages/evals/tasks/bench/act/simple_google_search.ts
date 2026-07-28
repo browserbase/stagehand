@@ -1,20 +1,19 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "simple_google_search" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
 
-      await v3.act('type "OpenAI" into the search bar');
+      await stagehand.act('type "OpenAI" into the search bar');
 
-      await v3.act("press enter");
+      await stagehand.act("press enter");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
       return {
         _success: currentUrl.startsWith(expectedUrl),
@@ -26,13 +25,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

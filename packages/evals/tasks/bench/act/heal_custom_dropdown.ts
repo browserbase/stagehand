@@ -1,8 +1,8 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "heal_custom_dropdown" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
      * This eval is meant to test whether we do not incorrectly attempt
      * the selectOptionFromDropdown method (defined in actHandlerUtils.ts) on a
@@ -13,49 +13,29 @@ export default defineBenchTask(
      */
 
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
 
-      await v3.act({
-        description: "The 'Select a country' dropdown",
-        selector: "/html/not-a-dropdown",
-        arguments: [],
-        method: "click",
-      });
-
-      // we are expecting stagehand to click the dropdown to expand it,
-      // and therefore the available options should now be contained in the full
-      // a11y tree.
-
-      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
-      const extraction = await v3.extract();
-      const fullTree = extraction.pageText;
-
-      if (fullTree.includes("Canada")) {
-        return {
-          _success: true,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
-      return {
-        _success: false,
-        message: "unable to expand the dropdown",
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
+      // V4 GAP: this eval exercises v3's self-healing
+      // act(observeResult) path — v3 was given an intentionally invalid
+      // selector ("/html/not-a-dropdown") and expected to heal by
+      // re-locating "The 'Select a country' dropdown" and clicking it.
+      // v4's stagehand.act accepts a string only, and the
+      // replayObservedAction workaround replays via locators with no
+      // healing, so the behavior under test cannot be exercised on v4.
+      // Fail loudly rather than silently substitute a different behavior.
+      throw new Error(
+        "V4 GAP: v4 has no act(observeResult) self-healing replay (stagehand.act accepts a string only); heal_custom_dropdown cannot run on v4",
+      );
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to select an option from the dropdown: ${error.message}`,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

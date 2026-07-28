@@ -1,19 +1,19 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_regulations_table" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
       );
 
+      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
       const xpath =
         "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
 
-      const allottees = await v3.extract(
+      const allottees = await stagehand.extract(
         "Extract ALL of the Allottees and their corresponding name, area, and area code.",
         z.object({
           allottee_list: z.array(
@@ -67,13 +67,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

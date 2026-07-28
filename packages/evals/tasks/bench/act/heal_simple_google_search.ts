@@ -1,43 +1,35 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "heal_simple_google_search" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
 
-      await v3.act({
-        description: "The search bar",
-        selector: "/html/not-the-search-bar",
-        arguments: ["OpenAI"],
-        method: "fill",
-      });
-
-      await v3.act("press enter");
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-
-      const expectedUrl =
-        "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-      const currentUrl = page.url();
-
-      return {
-        _success: currentUrl.startsWith(expectedUrl),
-        currentUrl,
-        debugUrl,
-        sessionUrl,
-        logs: logger.getLogs(),
-      };
+      // V4 GAP: this eval exercises v3's self-healing
+      // act(observeResult) path — v3 was given a "fill" action with
+      // arguments ["OpenAI"] on an intentionally invalid selector
+      // ("/html/not-the-search-bar") and expected to heal by re-locating
+      // "The search bar" and filling it, then pressing enter. v4's
+      // stagehand.act accepts a string only, and the replayObservedAction
+      // workaround replays via locators with no healing, so the behavior
+      // under test cannot be exercised on v4. Fail loudly rather than
+      // silently substitute a different behavior. (v3 success criterion:
+      // after the healed fill and "press enter", the URL starts with
+      // https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html)
+      throw new Error(
+        "V4 GAP: v4 has no act(observeResult) self-healing replay (stagehand.act accepts a string only); heal_simple_google_search cannot run on v4",
+      );
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

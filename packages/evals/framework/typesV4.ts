@@ -7,7 +7,7 @@
  * the v4 Page makes any Playwright API usage in a ported task a type error.
  */
 import type { AvailableModel } from "stagehand-v3";
-import type { Page, Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import type { EvalLogger } from "../logger.js";
 
 export interface BenchV4TaskContext {

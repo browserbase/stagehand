@@ -1,28 +1,30 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { replayObservedAction } from "../../../framework/observeReplay.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_simple_google_search" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
-      const observation1 = await v3.observe("Find the search bar and type 'OpenAI'");
+      const observation1 = await stagehand.observe("Find the search bar and type 'OpenAI'");
 
       if (observation1.length > 0) {
         const action1 = observation1[0];
-        await v3.act(action1);
+        // v3's act(observeResult) replay — consumer-side in v4
+        await replayObservedAction(page, action1);
       }
-      const observation2 = await v3.observe("Press enter");
+      const observation2 = await stagehand.observe("Press enter");
 
       if (observation2.length > 0) {
         const action2 = observation2[0];
-        await v3.act(action2);
+        // v3's act(observeResult) replay — consumer-side in v4
+        await replayObservedAction(page, action2);
       }
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
       return {
         _success: currentUrl.startsWith(expectedUrl),
@@ -34,13 +36,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

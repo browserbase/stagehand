@@ -1,56 +1,34 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "heal_scroll_50" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      await v3.act({
-        description: "the element to scroll on",
-        selector: "/html/body/div/div/button",
-        arguments: ["50%"],
-        method: "scrollTo",
-      });
 
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-
-      // Get the current scroll position and total scroll height
-      const scrollInfo = await page.evaluate(() => {
-        return {
-          scrollTop: window.scrollY + window.innerHeight / 2,
-          scrollHeight: document.documentElement.scrollHeight,
-        };
-      });
-
-      const halfwayScroll = scrollInfo.scrollHeight / 2;
-      const halfwayReached = Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
-      const evaluationResult = halfwayReached
-        ? {
-            _success: true,
-            logs: logger.getLogs(),
-            debugUrl,
-            sessionUrl,
-          }
-        : {
-            _success: false,
-            logs: logger.getLogs(),
-            debugUrl,
-            sessionUrl,
-            message: `Scroll position (${scrollInfo.scrollTop}px) is not halfway down the page (${halfwayScroll}px).`,
-          };
-
-      return evaluationResult;
+      // V4 GAP: this eval exercises v3's self-healing
+      // act(observeResult) path — v3 was given a "scrollTo" action with
+      // arguments ["50%"] on selector "/html/body/div/div/button" and
+      // expected to heal and scroll halfway down the page. v4's
+      // stagehand.act accepts a string only, and the replayObservedAction
+      // workaround replays via locators with no healing (and does not
+      // support the "scrollTo" method), so the behavior under test cannot
+      // be exercised on v4. Fail loudly rather than silently substitute a
+      // different behavior. (v3 success criterion: scroll position within
+      // 200px of halfway down the page after a 5s wait.)
+      throw new Error(
+        "V4 GAP: v4 has no act(observeResult) self-healing replay (stagehand.act accepts a string only); heal_scroll_50 cannot run on v4",
+      );
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

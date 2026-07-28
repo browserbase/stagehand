@@ -1,15 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "checkboxes" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/");
 
-      await v3.act("click the 'baseball' option");
+      await stagehand.act("click the 'baseball' option");
 
-      await v3.act("click the 'netball' option");
+      await stagehand.act("click the 'netball' option");
 
       const baseballChecked = await page
         .locator('input[type="checkbox"][name="sports"][value="baseball"]')
@@ -28,13 +27,13 @@ export default defineBenchTask(
     } catch (e) {
       return {
         _success: false,
-        error: e,
+        error: e instanceof Error ? e.message : String(e),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

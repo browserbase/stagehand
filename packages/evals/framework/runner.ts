@@ -8,15 +8,11 @@
  * This module replaces the monolithic task execution logic in index.eval.ts
  * while preserving backward compatibility with legacy EvalFunction tasks.
  */
-import { execSync } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 import type { AvailableModel } from "stagehand-v3";
 import type { AgentToolMode } from "stagehand-v3";
 import { shouldPersistTrajectory } from "stagehand-v3";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
-import { resolveV4SdkPath } from "../v4SdkLoader.js";
 import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
@@ -113,27 +109,6 @@ async function assertBraintrustProjectReachable(projectName: string): Promise<vo
         `project "${projectName}" (the key may belong to the wrong org). ` +
         `Aborting before any tasks run.`,
     );
-  }
-}
-
-/**
- * Resolve the commit SHA of the v4-spike checkout pointed at by
- * STAGEHAND_V4_SDK_PATH so v4 experiments stay reproducible against a
- * moving SDK. Best-effort: returns "unknown" on any failure.
- */
-function resolveV4SpikeSha(): string {
-  try {
-    const sdkEntry = resolveV4SdkPath();
-    if (!sdkEntry) return "unknown";
-    // <checkout>/packages/sdk-ts/src/index.ts → checkout root
-    const sdkPackageRoot = fs.realpathSync(path.dirname(path.dirname(sdkEntry)));
-    const repoRoot = path.dirname(path.dirname(sdkPackageRoot));
-    return execSync("git rev-parse --short HEAD", {
-      cwd: repoRoot,
-      encoding: "utf8",
-    }).trim();
-  } catch {
-    return "unknown";
   }
 }
 
@@ -525,7 +500,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
       metadata: {
         environment,
         sdk: options.sdk ?? "v3",
-        ...(options.sdk === "v4" && { v4Sha: resolveV4SpikeSha() }),
         tier: hasCoreOnly ? "core" : "bench",
         ...(effectiveCoreToolSurface && {
           toolSurface: effectiveCoreToolSurface,

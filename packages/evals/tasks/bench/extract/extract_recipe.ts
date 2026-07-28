@@ -1,11 +1,10 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_recipe" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
         {
@@ -13,8 +12,9 @@ export default defineBenchTask(
         },
       );
 
+      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
       const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-      const recipeDetails = await v3.extract(
+      const recipeDetails = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
         z.object({
           tablespoons_olive_oil: z
@@ -39,7 +39,7 @@ export default defineBenchTask(
         if (tablespoons_olive_oil !== expectedTablespoons) {
           errors.push({
             message:
-              "Extracted tablespoons of olive oil do not match the extracted tablespoons of olive oil",
+              "Extracted tablespoons of olive oil do not match the expected tablespoons of olive oil",
             expected: expectedTablespoons.toString(),
             actual: tablespoons_olive_oil.toString(),
           });
@@ -47,7 +47,7 @@ export default defineBenchTask(
         if (teaspoons_lemon_juice !== expectedTeaspoons) {
           errors.push({
             message:
-              "Extracted teaspoons of lemon juice do not match the extracted teaspoons of lemon juice",
+              "Extracted teaspoons of lemon juice do not match the expected teaspoons of lemon juice",
             expected: expectedTeaspoons.toString(),
             actual: teaspoons_lemon_juice.toString(),
           });
@@ -86,13 +86,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

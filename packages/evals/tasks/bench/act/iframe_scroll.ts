@@ -1,25 +1,29 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "iframe_scroll" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc-scroll/",
       );
-      await v3.act("scroll down 50% inside the iframe");
-
-      const frames = page.frames();
-      const frame = frames[1];
+      await stagehand.act("scroll down 50% inside the iframe");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // Get the current scroll position and total scroll height
-      const scrollInfo = await frame.evaluate(() => {
+      // v3 evaluated inside page.frames()[1]; v4 exposes no frames() list,
+      // so the same measurement is re-expressed via the same-origin iframe's
+      // contentWindow/contentDocument.
+      const scrollInfo = await page.evaluate(() => {
+        const iframe = document.querySelector("iframe");
+        const win = iframe?.contentWindow;
+        const doc = iframe?.contentDocument;
+        if (!win || !doc) {
+          throw new Error("could not access iframe content");
+        }
         return {
-          scrollTop: window.scrollY + window.innerHeight / 2,
-          scrollHeight: document.documentElement.scrollHeight,
+          scrollTop: win.scrollY + win.innerHeight / 2,
+          scrollHeight: doc.documentElement.scrollHeight,
         };
       });
 
@@ -44,13 +48,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

@@ -4,7 +4,7 @@
  *
  * v3 evals assert element identity by comparing backendNodeIds between an
  * observed selector and known-good selectors; the v4 Locator exposes no node
- * identity (V4_API_LOGS.md #3), so the same check is re-expressed in-page:
+ * identity, so the same check is re-expressed in-page:
  * resolve both selectors in the main document and compare element
  * references. Selectors that fail to resolve never match, mirroring v3
  * (where an unresolvable locator yields no backendNodeId).
@@ -13,7 +13,7 @@
  * pointing inside iframes do not resolve (see observe_iframes1 for why that
  * preserves the v3 criterion there).
  */
-import type { Page } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import type { Page } from "@browserbasehq/stagehand";
 
 /**
  * Resolves `observedSelector` and each of `candidateSelectors` in the page's
