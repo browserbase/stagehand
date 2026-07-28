@@ -33,7 +33,7 @@ export default defineBenchTask(
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error instanceof Error ? error.message : String(error),
+            String(error),
           );
           continue;
         }

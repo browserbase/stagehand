@@ -15,7 +15,7 @@ export default defineBenchTask(
       } catch (err) {
         return {
           _success: false,
-          message: err instanceof Error ? err.message : String(err),
+          message: String(err),
           debugUrl,
           sessionUrl,
           logs: logger.getLogs(),
@@ -52,7 +52,7 @@ export default defineBenchTask(
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error instanceof Error ? error.message : String(error),
+            String(error),
           );
           continue;
         }

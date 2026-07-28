@@ -36,9 +36,7 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to expand the dropdown: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        message: `error attempting to expand the dropdown: ${String(error)}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
