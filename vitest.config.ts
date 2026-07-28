@@ -13,7 +13,7 @@ export default defineConfig({
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
-      "scripts/release/**/*.test.ts",
+      "scripts/**/*.test.ts",
     ],
   },
 });
