@@ -88,7 +88,7 @@ const stagehand = new Stagehand({
 
 ### Auto mode
 
-Auto mode delegates model selection to Model Gateway instead of pinning a single model yourself. Set `model: "auto"` (or simply omit `model`), and Browserbase picks the most accuracy-per-cost model for each Stagehand primitive — `act`, `extract`, `observe`, and `agent` are each routed independently based on our evals, rather than all sharing one model.
+Auto mode delegates model selection to Model Gateway instead of pinning a single model yourself. Set `model: "auto"` (or simply omit `model`), and Browserbase picks the most accuracy-per-cost model for each Stagehand primitive — `act`, `extract`, `observe`, and `agent` are each routed independently based on Browserbase's evals, rather than all sharing one model.
 
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
