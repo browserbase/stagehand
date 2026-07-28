@@ -86,6 +86,39 @@ const stagehand = new Stagehand({
   Need a provider that isn't listed? [Reach out](https://www.browserbase.com/contact) — we're happy to work with teams on additional model support.
 </Tip>
 
+### Auto mode
+
+Auto mode delegates model selection to Model Gateway instead of pinning a single model yourself. Set `model: "auto"` (or simply omit `model`), and Browserbase picks the most accuracy-per-cost model for each Stagehand primitive — `act`, `extract`, `observe`, and `agent` are each routed independently based on our evals, rather than all sharing one model.
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "auto",
+});
+
+await stagehand.init();
+
+// act, extract, and observe are each routed to the best model for that primitive
+await stagehand.act("click the sign in button");
+await stagehand.extract("get the page title");
+```
+
+You can also opt a single call into auto mode while pinning a concrete model everywhere else:
+
+```typescript
+await stagehand.act("click the sign in button", { model: "auto" });
+```
+
+<Note>
+  Auto mode is a Model Gateway feature: it requires `env: "BROWSERBASE"` and only applies when Stagehand is routing model requests for you (no custom `llmClient`, no per-call API key or provider `auth`, and not `experimental: true`). Passing a concrete model (e.g. `"openai/gpt-5"`) always opts that call out of auto mode.
+</Note>
+
+<Tip>
+  Auto mode works with Stagehand's [managed action caching](/v3/best-practices/caching) — once a routed action is cached, replays skip inference entirely regardless of which model handled the original call.
+</Tip>
+
 ---
 
 ## Configuration Setup
