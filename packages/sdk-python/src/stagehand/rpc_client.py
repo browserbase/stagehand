@@ -5,6 +5,7 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
+from importlib.metadata import version
 from typing import Annotated, Literal, Protocol, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
@@ -13,6 +14,10 @@ from ._generated import models
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
+_STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
+    name="stagehand-sdk-python",
+    version=version("stagehand"),
+)
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -479,6 +484,7 @@ async def connect_rpc_client(
     )
     client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
     configure = models.RuntimeConfigureParams(
+        client_info=_STAGEHAND_SDK_CLIENT_INFO,
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),
         log_level=models.LogLevel(log_level),

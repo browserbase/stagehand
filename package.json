@@ -21,6 +21,7 @@
     "build": "pnpm --filter ./packages/protocol build && pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build"
   },
   "devDependencies": {
+    "@ast-grep/lang-go": "catalog:",
     "@ast-grep/lang-python": "catalog:",
     "@ast-grep/napi": "catalog:",
     "@changesets/changelog-github": "catalog:",
