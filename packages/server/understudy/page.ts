@@ -8,14 +8,25 @@ import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot, resolveXpathForLocation } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
-import { WebMCPToolDescriptorSchema, WebMCPToolsOptionsSchema } from "../../protocol/schemas.js";
+import {
+  WebMCPInvocationDescriptorSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPResultOptionsSchema,
+  WebMCPToolDescriptorSchema,
+  WebMCPToolResponseSchema,
+  WebMCPToolsOptionsSchema,
+} from "../../protocol/schemas.js";
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
   WebMCPToolDescriptor,
+  WebMCPToolResponse,
   WebMCPToolsOptions,
 } from "../../protocol/types.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
@@ -64,6 +75,31 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 };
 
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (error: Error) => void;
+};
+
+type WebMCPInvocationRecord = {
+  descriptor: WebMCPInvocationDescriptor;
+  deferred: Deferred<WebMCPToolResponse>;
+  result?: WebMCPToolResponse;
+  retentionTimer?: ReturnType<typeof setTimeout>;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  void promise.catch(() => {});
+  return { promise, resolve, reject };
+}
 
 function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotation {
   return {
@@ -85,6 +121,16 @@ function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
     ...(tool.annotations === undefined ? {} : { annotations: webMCPAnnotation(tool.annotations) }),
     frameId: tool.frameId,
     ...(tool.backendNodeId === undefined ? {} : { backendNodeId: tool.backendNodeId }),
+  });
+}
+
+function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPToolResponse {
+  return WebMCPToolResponseSchema.parse({
+    invocationId: event.invocationId,
+    status: event.status,
+    ...(event.output === undefined ? {} : { output: event.output }),
+    ...(event.errorText === undefined ? {} : { errorText: event.errorText }),
+    ...(event.exception === undefined ? {} : { exception: event.exception }),
   });
 }
 
@@ -120,6 +166,22 @@ export class Page {
   /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
+  private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
+  private webMCPResponseListenerInstalled = false;
+
+  private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
+    const record = this.webMCPInvocations.get(event.invocationId);
+    if (!record || record.result !== undefined) return;
+
+    const result = webMCPToolResponse(event);
+    record.result = result;
+    record.deferred.resolve(result);
+    record.retentionTimer = setTimeout(() => {
+      if (this.webMCPInvocations.get(event.invocationId) === record) {
+        this.webMCPInvocations.delete(event.invocationId);
+      }
+    }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
+  };
 
   constructor(
     readonly conn: CdpConnection,
@@ -442,7 +504,9 @@ export class Page {
    * Enabling the domain emits `toolsAdded` for every currently registered tool. Keep the
    * listeners scoped to this call so tools from an earlier document or call are never cached.
    */
-  public async listWebMCPTools(options?: WebMCPToolsOptions): Promise<WebMCPToolDescriptor[]> {
+  public async listWebMCPTools(
+    options?: Partial<WebMCPToolsOptions>,
+  ): Promise<WebMCPToolDescriptor[]> {
     const { timeout } = WebMCPToolsOptionsSchema.parse(options ?? {});
     const quietWindowMs = Math.min(MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS, timeout);
     const tools = new Map<string, WebMCPToolDescriptor>();
@@ -526,6 +590,125 @@ export class Page {
     return [...tools.values()];
   }
 
+  public async invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor> {
+    const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
+    this.ensureWebMCPResponseListener();
+
+    let response: Protocol.WebMCP.InvokeToolResponse;
+    try {
+      response = await this.mainSession.send<Protocol.WebMCP.InvokeToolResponse>(
+        "WebMCP.invokeTool",
+        {
+          frameId,
+          toolName,
+          input,
+        },
+      );
+    } catch (error) {
+      this.removeWebMCPResponseListenerIfIdle();
+      throw error;
+    }
+
+    if (this.webMCPInvocations.has(response.invocationId)) {
+      throw new Error(`WebMCP returned duplicate invocation ID "${response.invocationId}".`);
+    }
+
+    const descriptor = WebMCPInvocationDescriptorSchema.parse({
+      invocationId: response.invocationId,
+      toolName,
+      frameId,
+      input,
+    });
+    this.webMCPInvocations.set(response.invocationId, {
+      descriptor,
+      deferred: createDeferred<WebMCPToolResponse>(),
+    });
+    return descriptor;
+  }
+
+  public async waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse> {
+    const { timeout } = WebMCPResultOptionsSchema.parse(options ?? {});
+    const record = this.webMCPInvocation(invocationId);
+    if (timeout === undefined) return await record.deferred.promise;
+
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutTimer = setTimeout(() => {
+        reject(
+          new Error(
+            `Timed out waiting for WebMCP tool "${record.descriptor.toolName}" invocation ` +
+              `"${invocationId}" after ${timeout}ms.`,
+          ),
+        );
+      }, timeout);
+    });
+
+    try {
+      return await Promise.race([record.deferred.promise, timeoutPromise]);
+    } finally {
+      if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+    }
+  }
+
+  public async cancelWebMCPInvocation(invocationId: string): Promise<void> {
+    this.webMCPInvocation(invocationId);
+    await this.mainSession.send("WebMCP.cancelInvocation", { invocationId });
+  }
+
+  private ensureWebMCPResponseListener(): void {
+    if (this.webMCPResponseListenerInstalled) return;
+    this.mainSession.on<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    this.webMCPResponseListenerInstalled = true;
+  }
+
+  private removeWebMCPResponseListenerIfIdle(): void {
+    if (this.webMCPInvocations.size > 0 || !this.webMCPResponseListenerInstalled) return;
+    this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    this.webMCPResponseListenerInstalled = false;
+  }
+
+  private webMCPInvocation(invocationId: string): WebMCPInvocationRecord {
+    const record = this.webMCPInvocations.get(invocationId);
+    if (record) return record;
+    throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.pageId}".`);
+  }
+
+  private teardownWebMCPInvocations(): void {
+    if (this.webMCPResponseListenerInstalled) {
+      this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+        "WebMCP.toolResponded",
+        this.onWebMCPToolResponded,
+      );
+      this.webMCPResponseListenerInstalled = false;
+    }
+
+    for (const [invocationId, record] of this.webMCPInvocations) {
+      if (record.retentionTimer !== undefined) clearTimeout(record.retentionTimer);
+      if (record.result === undefined) {
+        record.deferred.reject(
+          new Error(
+            `WebMCP invocation "${invocationId}" was disposed before it completed on page ` +
+              `"${this.pageId}".`,
+          ),
+        );
+      }
+    }
+    this.webMCPInvocations.clear();
+  }
+
   /** Seed the cached URL before navigation events converge. */
   public seedCurrentUrl(url: string | undefined | null): void {
     if (!url) return;
@@ -546,10 +729,17 @@ export class Page {
     return this.mainFrameWrapper;
   }
 
+  /** Release page-scoped listeners, pending work, and network tracking. */
+  public dispose(): void {
+    this.teardownWebMCPInvocations();
+    this.networkManager.dispose();
+  }
+
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
   public async close(): Promise<void> {
+    this.teardownWebMCPInvocations();
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
     } catch {
@@ -560,7 +750,7 @@ export class Page {
       try {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
-          this.networkManager.dispose();
+          this.dispose();
           return;
         }
       } catch {
@@ -568,7 +758,7 @@ export class Page {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    this.networkManager.dispose();
+    this.dispose();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {

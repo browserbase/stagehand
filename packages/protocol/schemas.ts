@@ -1377,6 +1377,45 @@ export const WebMCPToolsOptionsSchema = z
   })
   .meta({ id: "WebMCPToolsOptions" });
 
+export const WebMCPInvokeOptionsSchema = z
+  .strictObject({
+    input: z.record(z.string(), z.json()).default({}),
+  })
+  .meta({ id: "WebMCPInvokeOptions" });
+
+export const WebMCPResultOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPResultOptions" });
+
+export const WebMCPInvocationDescriptorSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    toolName: z.string().min(1),
+    frameId: z.string().min(1),
+    input: z.record(z.string(), z.json()),
+  })
+  .meta({ id: "WebMCPInvocationDescriptor" });
+
+export const WebMCPInvocationStatusSchema = z
+  .enum(["Completed", "Canceled", "Error"])
+  .meta({ id: "WebMCPInvocationStatus" });
+
+export const WebMCPRemoteObjectSchema = z
+  .record(z.string(), z.json())
+  .meta({ id: "WebMCPRemoteObject" });
+
+export const WebMCPToolResponseSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    status: WebMCPInvocationStatusSchema,
+    output: z.json().optional(),
+    errorText: z.string().optional(),
+    exception: WebMCPRemoteObjectSchema.optional(),
+  })
+  .meta({ id: "WebMCPToolResponse" });
+
 export const LocatorDescriptorSchema = z
   .object({
     pageId: z.string(),

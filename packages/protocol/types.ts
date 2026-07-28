@@ -196,7 +196,13 @@ import type {
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
   WebMCPAnnotationSchema,
+  WebMCPInvocationDescriptorSchema,
+  WebMCPInvocationStatusSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPRemoteObjectSchema,
+  WebMCPResultOptionsSchema,
   WebMCPToolDescriptorSchema,
+  WebMCPToolResponseSchema,
   WebMCPToolsOptionsSchema,
 } from "./schemas.js";
 
@@ -273,7 +279,13 @@ export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
 export type WebMCPAnnotation = z.infer<typeof WebMCPAnnotationSchema>;
 export type WebMCPToolDescriptor = z.infer<typeof WebMCPToolDescriptorSchema>;
-export type WebMCPToolsOptions = z.input<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
+export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;
+export type WebMCPInvocationDescriptor = z.infer<typeof WebMCPInvocationDescriptorSchema>;
+export type WebMCPInvocationStatus = z.infer<typeof WebMCPInvocationStatusSchema>;
+export type WebMCPRemoteObject = z.infer<typeof WebMCPRemoteObjectSchema>;
+export type WebMCPToolResponse = z.infer<typeof WebMCPToolResponseSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
