@@ -1517,10 +1517,11 @@ export const PageIdParamsSchema = z
   })
   .meta({ id: "PageIdParams" });
 
-export const PageWebMCPToolsParamsSchema = PageIdParamsSchema.extend({
-  options: WebMCPToolsOptionsSchema.optional(),
-})
-  .strict()
+export const PageWebMCPToolsParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    options: WebMCPToolsOptionsSchema.optional(),
+  })
   .meta({ id: "PageWebMCPToolsParams" });
 
 export const PageWebMCPToolsResultSchema = z
@@ -1529,25 +1530,28 @@ export const PageWebMCPToolsResultSchema = z
   })
   .meta({ id: "PageWebMCPToolsResult" });
 
-export const PageWebMCPInvokeToolParamsSchema = PageIdParamsSchema.extend({
-  frameId: z.string().min(1),
-  toolName: z.string().min(1),
-  ...WebMCPInvokeOptionsSchema.shape,
-})
-  .strict()
+export const PageWebMCPInvokeToolParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    frameId: z.string().min(1),
+    toolName: z.string().min(1),
+    ...WebMCPInvokeOptionsSchema.shape,
+  })
   .meta({ id: "PageWebMCPInvokeToolParams" });
 
-export const PageWebMCPInvocationResultParamsSchema = PageIdParamsSchema.extend({
-  invocationId: z.string().min(1),
-  options: WebMCPResultOptionsSchema.optional(),
-})
-  .strict()
+export const PageWebMCPInvocationResultParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+    options: WebMCPResultOptionsSchema.optional(),
+  })
   .meta({ id: "PageWebMCPInvocationResultParams" });
 
-export const PageWebMCPCancelInvocationParamsSchema = PageIdParamsSchema.extend({
-  invocationId: z.string().min(1),
-})
-  .strict()
+export const PageWebMCPCancelInvocationParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+  })
   .meta({ id: "PageWebMCPCancelInvocationParams" });
 
 export const MouseButtonSchema = z.enum(["left", "right", "middle"]).meta({ id: "MouseButton" });

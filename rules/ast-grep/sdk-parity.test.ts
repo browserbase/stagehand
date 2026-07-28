@@ -35,6 +35,7 @@ const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import
 // Extracted JSON is intentionally decoded through a dedicated wire model so
 // Pydantic receives raw JSON values instead of the generated JSON union.
 const pythonWireResultModels: Readonly<Record<string, string>> = {
+  "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
 };
 
