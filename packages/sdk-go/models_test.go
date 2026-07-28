@@ -145,6 +145,29 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 		check func(*testing.T, any)
 	}{
 		{
+			name:  "act instruction",
+			value: ActInstruction("click the link"),
+			new:   func() any { return new(ActInput) },
+			check: func(t *testing.T, value any) {
+				if instruction, ok := value.(*ActInput).AsInstruction(); !ok || instruction != "click the link" {
+					t.Fatal("decoded the wrong act input variant")
+				}
+			},
+		},
+		{
+			name: "observed action",
+			value: ObservedAction(Action{
+				Selector:    "xpath=/html/body/button",
+				Description: "Submit button",
+			}),
+			new: func() any { return new(ActInput) },
+			check: func(t *testing.T, value any) {
+				if action, ok := value.(*ActInput).AsAction(); !ok || action.Description != "Submit button" {
+					t.Fatal("decoded the wrong act input variant")
+				}
+			},
+		},
+		{
 			name:  "known model",
 			value: KnownModel(KnownModelConfig{ModelName: ModelName("openai/gpt-5.6")}),
 			new:   func() any { return new(ModelConfig) },

@@ -18,6 +18,66 @@ const (
 	outputFormatJSONSchema = "json_schema"
 )
 
+type actInputValue interface {
+	isActInput()
+}
+
+type actInstruction string
+
+func (actInstruction) isActInput() {}
+func (Action) isActInput()         {}
+
+// ActInput is either a natural-language instruction or an observed action.
+type ActInput struct {
+	value actInputValue
+}
+
+// ActInstruction constructs a natural-language act input.
+func ActInstruction(value string) ActInput {
+	return ActInput{value: actInstruction(value)}
+}
+
+// ObservedAction constructs an act input from an action returned by Observe.
+func ObservedAction(value Action) ActInput {
+	return ActInput{value: value}
+}
+
+// AsInstruction returns the instruction variant, if present.
+func (value ActInput) AsInstruction() (string, bool) {
+	instruction, ok := value.value.(actInstruction)
+	return string(instruction), ok
+}
+
+// AsAction returns the observed-action variant, if present.
+func (value ActInput) AsAction() (Action, bool) {
+	action, ok := value.value.(Action)
+	return action, ok
+}
+
+func (value ActInput) MarshalJSON() ([]byte, error) {
+	if value.value == nil {
+		return nil, errors.New("stagehand.ActInput is unset")
+	}
+	return json.Marshal(value.value)
+}
+
+func (value *ActInput) UnmarshalJSON(data []byte) error {
+	if value == nil {
+		return errors.New("stagehand.ActInput: UnmarshalJSON on nil pointer")
+	}
+	var instruction string
+	if err := json.Unmarshal(data, &instruction); err == nil {
+		*value = ActInstruction(instruction)
+		return nil
+	}
+	var action Action
+	if err := json.Unmarshal(data, &action); err != nil {
+		return fmt.Errorf("decode act input: %w", err)
+	}
+	*value = ObservedAction(action)
+	return nil
+}
+
 type modelConfigValue interface {
 	isModelConfig()
 }

@@ -2,6 +2,7 @@ import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcCl
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
+  Action,
   ActResult,
   BrowserGetVersionResult,
   ObserveResult,
@@ -146,7 +147,9 @@ export class Stagehand {
     this.closePromise = undefined;
   }
 
-  async act(input: string, options?: StagehandClientActOptions): Promise<ActResult> {
+  async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(action: Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(input: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");

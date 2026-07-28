@@ -62,6 +62,7 @@ var customProperties = map[string]string{
 	"$defs/LLMMessage/properties/content":                     "LLMMessageContent",
 	"$defs/LocatorScrollToParams/properties/percent":          "ScrollPercent",
 	"$defs/LocatorSelectOptionParams/properties/values":       "StringList",
+	"$defs/StagehandActParams/properties/input":               "ActInput",
 	"$defs/StagehandInitParams/properties/model":              "StagehandInitModel",
 }
 

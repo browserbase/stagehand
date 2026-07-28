@@ -752,6 +752,54 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("passes an Action returned by observe back to act unchanged", async () => {
+    const client = new FakeProtocolClient();
+    const observedAction = {
+      selector: "xpath=/html/body/button",
+      description: "Submit button",
+      method: "click",
+      arguments: [],
+    };
+    client.queueResponse(StagehandMethods.stagehandObserve, {
+      data: [observedAction],
+      metadata: {},
+    });
+    client.queueResponse(StagehandMethods.stagehandAct, {
+      data: {
+        success: true,
+        message: "Clicked the submit button",
+        actionDescription: "Submit button",
+        actions: [observedAction],
+      },
+      metadata: {},
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    await stagehand.init();
+    const page = new Page(client, { pageId: "page-1" });
+
+    const actions = await stagehand.observe("Find the submit button", { page });
+    await expect(stagehand.act(actions.data[0]!, { page })).resolves.toMatchObject({
+      data: {
+        success: true,
+        actions: [observedAction],
+      },
+    });
+
+    expect(client.calls).toStrictEqual([
+      stagehandInitCall,
+      requestCall(StagehandMethods.stagehandObserve, {
+        pageId: "page-1",
+        instruction: "Find the submit button",
+        options: {},
+      }),
+      requestCall(StagehandMethods.stagehandAct, {
+        pageId: "page-1",
+        input: observedAction,
+        options: {},
+      }),
+    ]);
+  });
+
   it("routes stagehand.observe with an explicit page and options", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandObserve, {

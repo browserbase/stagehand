@@ -159,6 +159,67 @@ describe("act service", () => {
     });
   });
 
+  it("self-heals a supplied Action after deterministic replay fails", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async () => snapshot("0-20", "/html/body/button[2]"));
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-20",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+    performAction.mockRejectedValueOnce(new Error("Element detached")).mockResolvedValueOnce();
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        input: {
+          selector: "xpath=/html/body/button[1]",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      selfHeal: true,
+    });
+
+    expect(waitForQuiet).not.toHaveBeenCalled();
+    expect(captureSnapshot).toHaveBeenCalledOnce();
+    expect(clientLLMGenerate).toHaveBeenCalledOnce();
+    expect(performAction).toHaveBeenNthCalledWith(
+      1,
+      page,
+      frame,
+      "click",
+      "xpath=/html/body/button[1]",
+      [],
+      expect.any(StagehandLogger),
+      undefined,
+    );
+    expect(performAction).toHaveBeenNthCalledWith(
+      2,
+      page,
+      frame,
+      "click",
+      "xpath=/html/body/button[2]",
+      [],
+      expect.any(StagehandLogger),
+      undefined,
+    );
+    expect(result.data).toMatchObject({
+      success: true,
+      actions: [{ selector: "xpath=/html/body/button[2]" }],
+    });
+  });
+
   it("preserves two-step action behavior", async () => {
     const frame = {};
     const captureSnapshot = vi

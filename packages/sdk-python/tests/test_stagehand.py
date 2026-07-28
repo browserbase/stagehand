@@ -301,6 +301,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         cache=CacheOptions(threshold=1),
     )
     actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    replay_result = await stagehand.act(actions.data[0], page=page)
     page_info = await stagehand.extract(
         instruction="Extract the heading",
         schema=PageInfo,
@@ -314,6 +315,8 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert action_result.metadata.cache_status == "HIT"
     assert actions.data == [action]
     assert actions.metadata.cache_status == "MISS"
+    assert replay_result.data == act_result
+    assert replay_result.metadata.cache_status == "HIT"
     assert page_info.data == PageInfo(heading="Example Domain", count=1)
     assert isinstance(page_info.data.count, int)
     assert page_info.metadata.cache_status == "HIT"
@@ -322,6 +325,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         "stagehand.act",
         "context.active_page",
         "stagehand.observe",
+        "stagehand.act",
         "stagehand.extract",
     ]
     act_params = recording.calls[1][1]
@@ -340,7 +344,10 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.options is not None
     assert observe_params.options.model == model
     assert observe_params.options.locator == locator
-    extract_params = recording.calls[4][1]
+    replay_params = recording.calls[4][1]
+    assert isinstance(replay_params, StagehandActParams)
+    assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
+    extract_params = recording.calls[5][1]
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None

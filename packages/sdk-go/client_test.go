@@ -290,6 +290,39 @@ func TestClientSerializesConcurrentInitAndClose(t *testing.T) {
 	}
 }
 
+func TestActAcceptsObservedAction(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"runtime.configure":   RuntimeConfigureResult{Configured: true},
+		"stagehand.init":      StagehandInitResult{Initialized: true},
+		"context.active_page": PageRef{PageID: "page-1"},
+		"stagehand.act": ActResult{Data: ActResultData{
+			Success: true, Message: "clicked", ActionDescription: "Submit button", Actions: []Action{},
+		}},
+	}}
+	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	action := Action{
+		Selector:    "xpath=/html/body/button",
+		Description: "Submit button",
+	}
+
+	if err := client.Init(context.Background()); err != nil {
+		t.Fatalf("Init() error = %v", err)
+	}
+	if _, err := client.Act(context.Background(), action, nil); err != nil {
+		t.Fatalf("Act() error = %v", err)
+	}
+	params, ok := rpc.calls[3].params.(StagehandActParams)
+	if !ok {
+		t.Fatalf("stagehand.act params = %T", rpc.calls[3].params)
+	}
+	got, ok := params.Input.AsAction()
+	if !ok || !reflect.DeepEqual(got, action) {
+		t.Fatalf("Act() input = %#v, want %#v", got, action)
+	}
+}
+
 func TestClientCloseWaitsForInFlightInit(t *testing.T) {
 	t.Parallel()
 

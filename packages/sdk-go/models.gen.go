@@ -1586,7 +1586,7 @@ type SnapshotResultXPathMap map[string]string
 
 type StagehandActParams struct {
 	// Input corresponds to the JSON schema field "input".
-	Input string `json:"input"`
+	Input ActInput `json:"input"`
 
 	// Options corresponds to the JSON schema field "options".
 	Options *ActOptions `json:"options,omitempty,omitzero"`

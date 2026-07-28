@@ -1347,7 +1347,7 @@ export const RuntimeConfigureParamsSchema = z
 export const StagehandActParamsSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    input: z.string().min(1),
+    input: z.union([z.string().min(1), ActionSchema]),
     options: ActOptionsSchema.optional(),
   })
   .meta({ id: "StagehandActParams" });
