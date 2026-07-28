@@ -1,4 +1,4 @@
-import { V3 as VerifierClient, normalizeRubric, type TaskSpec } from "stagehand-v3";
+import { V3, normalizeRubric, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { StagehandInitResult } from "../initStagehand.js";
@@ -62,8 +62,8 @@ function isAgentTask(task: DiscoveredTask): boolean {
  * Build the lightweight client required by the rubric verifier. It is never
  * initialized and never drives a browser.
  */
-function buildVerifierCarrier(logger: EvalLogger): VerifierClient {
-  return new VerifierClient({
+function buildVerifierCarrier(logger: EvalLogger): V3 {
+  return new V3({
     env: "LOCAL",
     logger: logger.log.bind(logger),
     disablePino: true,

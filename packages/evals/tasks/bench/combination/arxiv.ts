@@ -2,11 +2,7 @@ import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 const paperDetailsSchema = z.object({
-  category: z
-    .string()
-    .describe(
-      "One of: Benchmark, Dataset, Model, Framework, System, or Other",
-    ),
+  category: z.string().describe("One of: Benchmark, Dataset, Model, Framework, System, or Other"),
   problem: z.string().describe("The problem the paper addresses in one sentence").nullable(),
   methodology: z.string().describe("The methodology in one sentence").nullable(),
   results: z.string().describe("The results in one sentence").nullable(),
