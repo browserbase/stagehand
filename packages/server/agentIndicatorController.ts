@@ -83,6 +83,8 @@ export function createAgentIndicatorController(
   let transition = Promise.resolve();
   const styledTabs = new Set<number>();
   const navigationGenerations = new Map<number, number>();
+  const inFlightByTab = new Map<number, number>();
+  const closedTabs = new Set<number>();
 
   const injectionFor = (tabId: number): AgentIndicatorCssInjection => ({
     target: { tabId },
@@ -92,11 +94,15 @@ export function createAgentIndicatorController(
 
   const applyToTab = async (tabId: number, active: boolean): Promise<void> => {
     const navigationGeneration = navigationGenerations.get(tabId) ?? 0;
+    inFlightByTab.set(tabId, (inFlightByTab.get(tabId) ?? 0) + 1);
     try {
       const injection = injectionFor(tabId);
       if (active) {
         await chromeApi.scripting.insertCSS(injection);
-        if ((navigationGenerations.get(tabId) ?? 0) === navigationGeneration) {
+        if (
+          !closedTabs.has(tabId) &&
+          (navigationGenerations.get(tabId) ?? 0) === navigationGeneration
+        ) {
           styledTabs.add(tabId);
         }
       } else {
@@ -106,6 +112,18 @@ export function createAgentIndicatorController(
     } catch {
       // Restricted pages and tabs that disappear during fan-out are expected.
       styledTabs.delete(tabId);
+    } finally {
+      const remaining = (inFlightByTab.get(tabId) ?? 1) - 1;
+      if (remaining > 0) {
+        inFlightByTab.set(tabId, remaining);
+      } else {
+        inFlightByTab.delete(tabId);
+        if (closedTabs.has(tabId)) {
+          closedTabs.delete(tabId);
+          navigationGenerations.delete(tabId);
+          styledTabs.delete(tabId);
+        }
+      }
     }
   };
 
@@ -148,8 +166,16 @@ export function createAgentIndicatorController(
   });
 
   chromeApi.tabs.onRemoved.addListener((tabId) => {
-    navigationGenerations.delete(tabId);
     styledTabs.delete(tabId);
+    if ((inFlightByTab.get(tabId) ?? 0) > 0) {
+      // Keep a distinct invalidated generation so an in-flight insert that
+      // captured the default 0 cannot re-cache this tab after delete-as-reset.
+      closedTabs.add(tabId);
+      navigationGenerations.set(tabId, (navigationGenerations.get(tabId) ?? 0) + 1);
+    } else {
+      closedTabs.delete(tabId);
+      navigationGenerations.delete(tabId);
+    }
   });
 
   return {

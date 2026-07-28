@@ -184,4 +184,28 @@ describe("agent indicator controller", () => {
 
     expect(removeCSS.mock.calls.map(([injection]) => injection.target.tabId)).toStrictEqual([34]);
   });
+
+  it("does not re-cache a tab closed while insertion is in flight", async () => {
+    const { chromeApi, insertCSS, query, removeCSS, remove } = createChromeApi();
+    query.mockResolvedValue([{ id: 12 }]);
+    let resolveInsertion: (() => void) | undefined;
+    insertCSS.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveInsertion = resolve;
+        }),
+    );
+    const controller = createAgentIndicatorController(chromeApi);
+
+    const activation = controller.setActive(true);
+    await vi.waitFor(() => expect(insertCSS).toHaveBeenCalledTimes(1));
+    remove(12);
+    resolveInsertion?.();
+    await activation;
+
+    query.mockRejectedValueOnce(new Error("temporary tabs.query failure"));
+    await expect(controller.setActive(false)).resolves.toBeUndefined();
+
+    expect(removeCSS).not.toHaveBeenCalled();
+  });
 });
