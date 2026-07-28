@@ -2465,7 +2465,4 @@ type generatedModelCatalog struct {
 
 	// Schema7 corresponds to the JSON schema field "__schema7".
 	Schema7 json.RawMessage `json:"__schema7,omitempty,omitzero"`
-
-	// Schema8 corresponds to the JSON schema field "__schema8".
-	Schema8 json.RawMessage `json:"__schema8,omitempty,omitzero"`
 }
