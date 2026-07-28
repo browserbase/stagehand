@@ -33,7 +33,7 @@ class ExtractResult(WireModel, Generic[ExtractData]):
     metadata: StagehandResultMetadata
 
 
-class ExtractWireResult(WireModel):
+class _ExtractWireResult(WireModel):
     """Internal extract response model that preserves arbitrary JSON values."""
 
     model_config = ConfigDict(extra="forbid")

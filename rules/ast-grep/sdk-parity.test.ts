@@ -35,7 +35,7 @@ const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import
 // Extracted JSON is intentionally decoded through a dedicated wire model so
 // Pydantic receives raw JSON values instead of the generated JSON union.
 const pythonWireResultModels: Readonly<Record<string, string>> = {
-  "stagehand.extract": "ExtractWireResult",
+  "stagehand.extract": "_ExtractWireResult",
 };
 
 type SdkLanguage = "go" | "typescript" | "python";
@@ -888,16 +888,16 @@ function pythonModelName(
       .replace(/\.model_validate$/, "")
       .split(".")
       .at(-1);
-    return model && /^[A-Z]/u.test(model) ? model : undefined;
+    return model && /^_?[A-Z]/u.test(model) ? model : undefined;
   }
 
   if (expression.kind() === "attribute") {
     const model = expression.text().split(".").at(-1);
-    return model && /^[A-Z]/u.test(model) ? model : undefined;
+    return model && /^_?[A-Z]/u.test(model) ? model : undefined;
   }
 
   if (expression.kind() !== "identifier") return undefined;
-  if (/^[A-Z]/u.test(expression.text())) return expression.text();
+  if (/^_?[A-Z]/u.test(expression.text())) return expression.text();
   if (seen.has(expression.text())) return undefined;
   seen.add(expression.text());
   const assignment = [

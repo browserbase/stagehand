@@ -78,11 +78,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	fmt.Println(string(output))
-	if len(actions) == 0 {
+	if len(actions.Data) == 0 {
 		return errors.New("observe returned no matching actions")
 	}
-	if !actionResult.Success {
-		return fmt.Errorf("act failed: %s", actionResult.Message)
+	if !actionResult.Data.Success {
+		return fmt.Errorf("act failed: %s", actionResult.Data.Message)
 	}
 	return nil
 }

@@ -54,7 +54,6 @@ from .client_models import (
     CdpBrowserSource,
     ClientLLM,
     ExtractResult,
-    ExtractWireResult,
     LLMGenerateCallback,
     LocalBrowserSource,
     LocalProxyConfig,
@@ -62,6 +61,7 @@ from .client_models import (
     StagehandClientInitParams,
     StagehandClientLoggingConfig,
     _cache_config,
+    _ExtractWireResult,
     _model_config,
 )
 from .page import Page
@@ -565,7 +565,7 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(
-            "stagehand.extract", params, ExtractWireResult
+            "stagehand.extract", params, _ExtractWireResult
         )
         return ExtractResult(
             data=schema.model_validate(result.data),
