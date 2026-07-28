@@ -50,17 +50,11 @@ export const CdpBrowserSourceSchema = z
   })
   .meta({ id: "CdpBrowserSource" });
 
-export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial().meta({
-  id: "WebMCPToolsOptions",
-});
+export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial();
 
-export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial().meta({
-  id: "WebMCPInvokeOptions",
-});
+export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial();
 
-export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema.meta({
-  id: "WebMCPResultOptions",
-});
+export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema;
 
 export const BrowserSourceSchema = z
   .discriminatedUnion("type", [
