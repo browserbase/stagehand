@@ -21,7 +21,7 @@ export function normalizeTechnicalValue(value: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/~/g, " ")
-    .replace(/[;/#!$%^&*:{}=_`~()]/g, "")
+    .replace(/[;/#!$%^&*:{}=_`()]/g, "")
     .replace(/\s+/g, " ")
     .replace(/\s*,\s*/g, ", ")
     .trim();

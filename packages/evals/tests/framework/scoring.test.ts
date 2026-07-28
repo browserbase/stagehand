@@ -56,6 +56,11 @@ describe("task text scoring", () => {
     expect(normalizeTechnicalValue("-40°C to +125°C")).toBe("-40°c to +125°c");
   });
 
+  it("normalizes tildes as separators in technical values", () => {
+    expect(normalizeTechnicalValue("-40°C~+125°C")).toBe("-40°c +125°c");
+    expect(normalizeTechnicalValue("-40°C~(+125°C)")).toBe("-40°c +125°c");
+  });
+
   it("treats the fuzzy-match threshold as inclusive", () => {
     const { similarity } = compareStrings("MARTHA", "MARHTA");
 
