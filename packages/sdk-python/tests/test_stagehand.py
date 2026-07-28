@@ -6,16 +6,23 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
-from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
+from stagehand import (
+    LLMGenerateInput,
+    LLMGenerateOutput,
+    LLMImageContent,
+    Page,
+    ProtocolLocator,
+    Stagehand,
+)
 from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
     BrowserGetVersionResult,
+    CacheStatus,
     ClientModelReference,
-    ExtractResult,
     KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -36,6 +43,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
+    StagehandResultMetadata,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
@@ -56,6 +64,7 @@ BlockingResultT = TypeVar("BlockingResultT", bound=BaseModel)
 
 class PageInfo(BaseModel):
     heading: str
+    count: StrictInt
 
 
 def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
@@ -253,9 +262,20 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
-        "stagehand.act": ActResult(result=act_result),
-        "stagehand.observe": ObserveResult(result=[action]),
-        "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
+        "stagehand.act": ActResult.model_validate({
+            "data": act_result,
+            "metadata": {"cache_status": "HIT"},
+        }),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache_status": "MISS"},
+        }),
+        # Keep this as raw wire JSON: extract() must preserve integer values
+        # until the caller's Pydantic schema validates them.
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+        },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")
@@ -281,22 +301,31 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         cache=CacheOptions(threshold=1),
     )
     actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    replay_result = await stagehand.act(actions.data[0], page=page)
     page_info = await stagehand.extract(
         instruction="Extract the heading",
         schema=PageInfo,
         page=page,
         model=model,
+        screenshot=True,
         locator=locator,
     )
 
-    assert action_result == act_result
-    assert actions == [action]
-    assert page_info == PageInfo(heading="Example Domain")
+    assert action_result.data == act_result
+    assert action_result.metadata.cache_status == "HIT"
+    assert actions.data == [action]
+    assert actions.metadata.cache_status == "MISS"
+    assert replay_result.data == act_result
+    assert replay_result.metadata.cache_status == "HIT"
+    assert page_info.data == PageInfo(heading="Example Domain", count=1)
+    assert isinstance(page_info.data.count, int)
+    assert page_info.metadata.cache_status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",
         "stagehand.act",
         "context.active_page",
         "stagehand.observe",
+        "stagehand.act",
         "stagehand.extract",
     ]
     act_params = recording.calls[1][1]
@@ -315,11 +344,15 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.options is not None
     assert observe_params.options.model == model
     assert observe_params.options.locator == locator
-    extract_params = recording.calls[4][1]
+    replay_params = recording.calls[4][1]
+    assert isinstance(replay_params, StagehandActParams)
+    assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
+    extract_params = recording.calls[5][1]
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
     assert extract_params.options.model == model
+    assert extract_params.options.screenshot is True
     assert extract_params.options.locator == locator
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
@@ -419,7 +452,19 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     callback_result = await handler(
         LLMGenerateParams.model_validate({
-            "messages": [{"role": "user", "content": {"type": "text", "text": "Answer"}}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Answer"},
+                        {
+                            "type": "image",
+                            "data": "iVBORw0KGgo=",
+                            "mime_type": "image/png",
+                        },
+                    ],
+                }
+            ],
             "response_format": {
                 "type": "json_schema",
                 "name": "answer",
@@ -429,6 +474,10 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     assert len(callback_params) == 1
     assert isinstance(callback_params[0], LLMStructuredGenerateParams)
+    callback_content = callback_params[0].messages[0].content
+    assert isinstance(callback_content, list)
+    assert isinstance(callback_content[1].root, LLMImageContent)
+    assert callback_content[1].root.mime_type == "image/png"
     assert isinstance(callback_result.root, LLMStructuredGenerateResult)
     init_params = recording.calls[0][1]
     assert isinstance(init_params, StagehandInitParams)

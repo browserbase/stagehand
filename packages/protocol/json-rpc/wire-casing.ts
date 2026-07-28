@@ -16,6 +16,11 @@ const defaultOpaqueKeys = new Set([
 export type WireCasingOptions = {
   /** API-side container keys whose nested, user-controlled keys must retain their casing. */
   readonly opaqueKeys?: readonly string[];
+  /**
+   * API-side container keys whose nested fields use normal protocol casing,
+   * even when the key is opaque by default.
+   */
+  readonly transformKeys?: readonly string[];
 };
 
 export function wireSchema<TSchema extends z.ZodType>(
@@ -28,7 +33,7 @@ export function wireSchema<TSchema extends z.ZodType>(
         ? camelcaseKeys(preserveApiAcronyms(value, options.opaqueKeys), {
             deep: true,
             preserveConsecutiveUppercase: true,
-            stopPaths: findOpaquePaths(value, options.opaqueKeys),
+            stopPaths: findOpaquePaths(value, options),
           })
         : value,
     schema,
@@ -36,7 +41,7 @@ export function wireSchema<TSchema extends z.ZodType>(
 }
 
 export function encodeWireValue(value: unknown, options: WireCasingOptions = {}) {
-  const opaqueKeys = new Set([...defaultOpaqueKeys, ...(options.opaqueKeys ?? [])]);
+  const opaqueKeys = resolveOpaqueKeys(options);
   return z.json().parse(
     isCaseable(value)
       ? snakecaseKeys(value, {
@@ -87,15 +92,11 @@ function toWirePropertyName(key: string): string {
   return Object.keys(snakecaseKeys({ [key]: null }, { deep: false }))[0] ?? key;
 }
 
-function findOpaquePaths(value: unknown, additionalOpaqueKeys: readonly string[] = []): string[] {
+function findOpaquePaths(value: unknown, options: WireCasingOptions = {}): string[] {
   const paths: string[] = [];
   const opaqueKeys = new Set(
     Object.keys(
-      snakecaseKeys(
-        Object.fromEntries(
-          [...defaultOpaqueKeys, ...additionalOpaqueKeys].map((key) => [key, null]),
-        ),
-      ),
+      snakecaseKeys(Object.fromEntries([...resolveOpaqueKeys(options)].map((key) => [key, null]))),
     ),
   );
 
@@ -118,6 +119,14 @@ function findOpaquePaths(value: unknown, additionalOpaqueKeys: readonly string[]
 
   visit(value, "");
   return paths;
+}
+
+function resolveOpaqueKeys(options: WireCasingOptions): Set<string> {
+  const opaqueKeys = new Set([...defaultOpaqueKeys, ...(options.opaqueKeys ?? [])]);
+  for (const key of options.transformKeys ?? []) {
+    opaqueKeys.delete(key);
+  }
+  return opaqueKeys;
 }
 
 function preserveApiAcronyms(

@@ -21,12 +21,11 @@ class BrowserClipboard:
         self._rpc_client = rpc_client
 
     async def read_text(self, *, page: Page | None = None) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "context.clipboard_read_text",
             _clipboard_target(page),
             ContextClipboardReadTextResult,
         )
-        return result.text
 
     async def write_text(self, text: str, *, page: Page | None = None) -> None:
         params = ContextClipboardWriteTextParams(text=text)

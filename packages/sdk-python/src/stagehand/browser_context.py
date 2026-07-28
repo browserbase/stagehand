@@ -50,7 +50,7 @@ class BrowserContext:
             EmptyParams(),
             ContextPagesResult,
         )
-        return [Page(self._rpc_client, page_ref) for page_ref in result.root]
+        return [Page(self._rpc_client, page_ref) for page_ref in result]
 
     async def new_page(self, *, url: str | None = None) -> Page:
         params = ContextNewPageParams()
@@ -65,7 +65,7 @@ class BrowserContext:
             EmptyParams(),
             ContextActivePageResult,
         )
-        return None if result.root is None else Page(self._rpc_client, result.root)
+        return None if result is None else Page(self._rpc_client, result)
 
     async def set_active_page(self, page: Page) -> None:
         await self._rpc_client.send(
@@ -102,12 +102,11 @@ class BrowserContext:
         )
 
     async def get_domain_policy(self) -> DomainPolicy | None:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "context.get_domain_policy",
             EmptyParams(),
             ContextGetDomainPolicyResult,
         )
-        return result.policy
 
     async def set_domain_policy(self, policy: DomainPolicy | None) -> None:
         await self._rpc_client.send(
@@ -120,12 +119,11 @@ class BrowserContext:
         params = ContextCookiesParams()
         if urls is not None:
             params.urls = list(urls) if not isinstance(urls, str) else urls
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "context.cookies",
             params,
             ContextCookiesResult,
         )
-        return result.cookies
 
     async def add_cookies(self, cookies: Sequence[CookieParam]) -> None:
         await self._rpc_client.send(

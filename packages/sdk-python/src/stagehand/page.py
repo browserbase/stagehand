@@ -440,20 +440,18 @@ class Page:
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def url(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "page.url",
             PageIdParams(page_id=self.page_id),
             PageUrlResult,
         )
-        return result.url
 
     async def title(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "page.title",
             PageIdParams(page_id=self.page_id),
             PageTitleResult,
         )
-        return result.title
 
     async def close(self) -> None:
         await self._rpc_client.send(
