@@ -20,7 +20,9 @@ export function normalizeTechnicalValue(value: string): string {
   return value
     .toLowerCase()
     .replace(/\s+/g, " ")
+    .replace(/~/g, " ")
     .replace(/[;/#!$%^&*:{}=_`~()]/g, "")
+    .replace(/\s+/g, " ")
     .replace(/\s*,\s*/g, ", ")
     .trim();
 }
