@@ -603,6 +603,27 @@ const snapshot = await page.snapshot();
   </ResponseField>
 </ResponseField>
 
+## tools()
+
+Return the WebMCP tools registered on the page.
+
+```typescript
+const tools = await page.tools();
+const invocation = await tools[0].invoke({ input: { query: "Stagehand" } });
+```
+
+<ParamField path="options" type="WebMCPToolsOptions" optional>
+  Options that configure tool discovery.
+
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum time in milliseconds to wait for registered tools.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<WebMCPTool[]>">
+  The callable WebMCP tools registered on the page.
+</ResponseField>
+
 ## url()
 
 Return the page's current URL.
@@ -1208,6 +1229,23 @@ snapshot = await page.snapshot()
   <ResponseField name="result.xpath_map" type="dict[str, object]">
     The snapshot XPath lookup.
   </ResponseField>
+</ResponseField>
+
+## tools()
+
+Return the WebMCP tools registered on the page.
+
+```python
+tools = await page.tools()
+invocation = await tools[0].invoke(input={"query": "Stagehand"})
+```
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum time in milliseconds to wait for registered tools.
+</ParamField>
+
+<ResponseField name="result" type="list[WebMCPTool]">
+  The callable WebMCP tools registered on the page.
 </ResponseField>
 
 ## url()
