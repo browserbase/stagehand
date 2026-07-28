@@ -1,10 +1,19 @@
 [project]
-name = "stagehand-v4"
-version = "0.1.0"
-description = "Stagehand V4 Python SDK"
+name = "stagehand"
+version = "4.0.0"
+description = "Browserbase's SDK for building browser agents"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["pydantic>=2.12,<3", "websockets>=16.1.1"]
+license = "MIT"
+authors = [{ name = "Browserbase" }]
+keywords = ["ai", "browser", "automation", "web-scraping", "testing"]
+
+[project.urls]
+Homepage = "https://stagehand.dev"
+Documentation = "https://docs.stagehand.dev"
+Repository = "https://github.com/browserbase/stagehand"
+Issues = "https://github.com/browserbase/stagehand/issues"
 
 [build-system]
 requires = ["uv_build>=0.11.29,<0.12.0"]

@@ -10,7 +10,19 @@ export default defineConfig({
   },
   overrides: [
     {
+      files: ["packages/evals/**/*.ts"],
+      rules: {
+        "no-console": "off",
+      },
+    },
+    {
       files: ["packages/sdk-ts/examples/**/*.ts"],
+      rules: {
+        "no-console": "off",
+      },
+    },
+    {
+      files: ["packages/docs/scripts/**/*.js"],
       rules: {
         "no-console": "off",
       },

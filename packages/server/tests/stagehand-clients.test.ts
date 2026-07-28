@@ -592,7 +592,7 @@ describe("Stagehand worker clients", () => {
 
     expect(scope).toMatchObject({
       __stagehand_runtime: {
-        protocolVersion: 4,
+        protocolVersion: 1,
         serverInfo: {
           name: "stagehand",
           version: "4.0.0",

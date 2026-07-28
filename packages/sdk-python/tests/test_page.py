@@ -8,7 +8,9 @@ from pydantic import BaseModel
 from stagehand._generated.models import (
     PageEvaluateResult,
     PageGotoParams,
+    PageIdParams,
     PageRef,
+    PageUrlResult,
 )
 from stagehand.page import Page
 from stagehand.rpc_client import RPCClient
@@ -46,6 +48,17 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
         "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
     assert result_model is PageRef
+
+
+@pytest.mark.asyncio
+async def test_page_url_returns_a_scalar_string() -> None:
+    recording = RecordingRPCClient({"page.url": "https://example.com/path"})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    assert await page.url() == "https://example.com/path"
+    assert recording.calls == [
+        ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
+    ]
 
 
 def test_page_locator_keeps_the_page_identifier_internal() -> None:

@@ -9,6 +9,9 @@ generate:
     uv --directory {{python_dir}} run --locked python scripts/generate.py
 
 check:
+    pnpm exec tsx scripts/release/check-changesets.ts
+    pnpm exec tsx scripts/release/consolidate-changelogs.ts --check
+    pnpm exec tsx scripts/release/sync-python-version.ts --check
     pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
@@ -20,9 +23,8 @@ test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
 
-# TODO(docs-migration): Re-enable after restoring v3 docs in Stagehand.
-# docs:
-#     pnpm docs
+docs:
+    pnpm run docs
 
 example name="act":
     pnpm --filter ./packages/server build
@@ -37,3 +39,27 @@ fmt:
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
+
+changeset:
+    pnpm exec changeset
+
+# Prefixed with `_` because this internal recipe is only used to generate release versions and changelogs.
+_version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+        export GITHUB_TOKEN="$(gh auth token)"
+    fi
+    pnpm exec changeset version
+    pnpm exec tsx scripts/release/consolidate-changelogs.ts
+    pnpm exec tsx scripts/release/sync-python-version.ts
+    uv --directory "{{python_dir}}" lock
+    pnpm exec tsx scripts/release/sync-python-version.ts --check
+
+# Builds the commit-addressed bundle used by labeled pull request previews.
+_preview commit:
+    pnpm exec tsx scripts/release/build-preview.ts "{{commit}}"
+
+_publish-typescript:
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec changeset publish
