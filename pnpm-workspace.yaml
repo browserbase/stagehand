@@ -4,6 +4,7 @@ packages:
 catalogMode: prefer
 
 catalog:
+  "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
   "@ast-grep/napi": 0.44.1
   "@changesets/changelog-github": 0.7.0
@@ -49,6 +50,7 @@ catalog:
 overrides:
   vite: "catalog:"
 allowBuilds:
+  "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false
   "@scarf/scarf": false

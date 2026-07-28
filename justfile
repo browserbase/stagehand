@@ -12,7 +12,7 @@ generate:
     uv --directory {{python_dir}} run --locked python scripts/generate.py
     go -C {{go_dir}} generate ./...
 
-check:
+check: check-go-examples
     pnpm exec tsx scripts/release/check-changesets.ts
     pnpm exec tsx scripts/release/consolidate-changelogs.ts --check
     pnpm exec tsx scripts/release/sync-python-version.ts --check
@@ -24,13 +24,16 @@ check:
     uv --directory {{python_dir}} run --locked ty check
     go -C {{go_generator_dir}} run . --check
     test -z "$(find {{go_dir}} -name '*.go' -type f -exec gofmt -l {} +)"
-    go -C {{go_dir}} vet ./...
+    go -C {{go_dir}} vet $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} vet ./...
+
+check-go-examples:
+    sh {{go_dir}}/scripts/check-examples.sh
 
 test:
     pnpm test
     uv --directory {{python_dir}} run --locked pytest
-    go -C {{go_dir}} test ./...
+    go -C {{go_dir}} test $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} test ./...
 
 docs:
@@ -50,7 +53,7 @@ fmt:
 build:
     pnpm build
     uv --directory {{python_dir}} run --locked python scripts/build.py
-    go -C {{go_dir}} build ./...
+    go -C {{go_dir}} build $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} build ./...
 
 changeset:
