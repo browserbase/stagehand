@@ -40,8 +40,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
-      # TODO(docs-migration): Restore Mintlify validation, link/a11y checks,
-      # and SDK-reference conformance tests after v3 docs are added in Stagehand.
       - run: pnpm check
       - run: pnpm exec vitest run
         env:

@@ -1,0 +1,217 @@
+name: Preview
+
+on:
+  pull_request:
+    types:
+      - labeled
+      - reopened
+      - synchronize
+      - unlabeled
+      - closed
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build preview
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        (github.event.action == 'labeled' && github.event.label.name == 'preview') ||
+        (
+          (github.event.action == 'reopened' || github.event.action == 'synchronize') &&
+          contains(github.event.pull_request.labels.*.name, 'preview')
+        )
+      )
+    concurrency:
+      group: preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_ARTIFACT: stagehand-preview-pr-${{ github.event.pull_request.number }}
+      PREVIEW_REPOSITORY: ${{ github.repository }}
+      PREVIEW_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.10.0"
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: packages/sdk-python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - uses: extractions/setup-just@v3
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build preview
+        run: just _preview "$PREVIEW_SHA"
+        env:
+          STAGEHAND_PREVIEW_PULL_REQUEST: ${{ github.event.pull_request.number }}
+
+      - run: pnpm exec tsx scripts/release/verify-preview.ts dist/preview
+
+      - name: Read preview manifest
+        id: preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          MANIFEST="$(find dist/preview -maxdepth 1 -type f -name 'stagehand-preview.json' -print -quit)"
+          test -n "$MANIFEST"
+          echo "typescript-install=$(jq -r '.artifacts.typescript.install' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+          echo "python-install=$(jq -r '.artifacts.python.install' "$MANIFEST")" >> "$GITHUB_OUTPUT"
+
+      - name: Remove previous artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            "repos/$PREVIEW_REPOSITORY/actions/artifacts?name=$PREVIEW_ARTIFACT&per_page=100" \
+            --jq '.artifacts[].id' |
+            while read -r ARTIFACT_ID; do
+              gh api --method DELETE "repos/$PREVIEW_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+            done
+
+      - name: Upload preview
+        id: artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PREVIEW_ARTIFACT }}
+          path: dist/preview
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Update pull request comment
+        uses: actions/github-script@v8
+        env:
+          ARTIFACT_ID: ${{ steps.artifact.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
+          PYTHON_INSTALL: ${{ steps.preview.outputs.python-install }}
+          TYPESCRIPT_INSTALL: ${{ steps.preview.outputs.typescript-install }}
+        with:
+          script: |
+            const marker = "<!-- stagehand-preview -->";
+            const { data: artifact } = await github.rest.actions.getArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: Number(process.env.ARTIFACT_ID),
+            });
+            const expiresOn = artifact.expires_at
+              ? new Date(artifact.expires_at).toISOString().slice(0, 10)
+              : undefined;
+            const availability = expiresOn
+              ? `This artifact expires on ${expiresOn}.`
+              : "This artifact is retained for up to 30 days.";
+            const body = [
+              marker,
+              "## Stagehand preview",
+              "",
+              `[Download preview bundle](${process.env.ARTIFACT_URL})`,
+              "",
+              `- TypeScript: \`${process.env.TYPESCRIPT_INSTALL}\``,
+              `- Python: \`${process.env.PYTHON_INSTALL}\``,
+              "- Extension: `stagehand-extension.zip`",
+              "",
+              `This artifact is available to signed-in repository users. ${availability}`,
+              "Push a commit or remove and reapply the `preview` label to refresh it. Removing the label or closing the pull request removes the artifact and this comment.",
+            ].join("\n");
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  cleanup:
+    name: Remove preview
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (
+        github.event.action == 'closed' ||
+        (github.event.action == 'unlabeled' && github.event.label.name == 'preview')
+      )
+    concurrency:
+      group: preview-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PREVIEW_ARTIFACT: stagehand-preview-pr-${{ github.event.pull_request.number }}
+      PREVIEW_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Delete preview artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            "repos/$PREVIEW_REPOSITORY/actions/artifacts?name=$PREVIEW_ARTIFACT&per_page=100" \
+            --jq '.artifacts[].id' |
+            while read -r ARTIFACT_ID; do
+              gh api --method DELETE "repos/$PREVIEW_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+            done
+
+      - name: Delete pull request comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = "<!-- stagehand-preview -->";
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.deleteComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+              });
+            }

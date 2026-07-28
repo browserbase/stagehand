@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any, Dict, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
@@ -25,6 +25,7 @@ from stagehand._validation import (
 
 class ActOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -54,6 +55,7 @@ class ActOptions(WireModel):
 
 class ActResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     result: ActResultData
@@ -65,6 +67,7 @@ class ActResult(WireModel):
 
 class ActResultData(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     success: Annotated[StrictBool, Field(examples=[True])]
@@ -97,6 +100,7 @@ class Action(WireModel):
     """Action object returned by observe and used by act"""
 
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     selector: Annotated[StrictStr, Field(examples=["[data-testid='submit-button']"])]
@@ -162,6 +166,7 @@ class BrowserGetVersionResult(WireModel):
 
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     advanced_stealth: Optional[StrictBool] = None
@@ -197,6 +202,7 @@ class BrowserbaseBrowserSource(WireModel):
 
 class BrowserbaseContext(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     id: StrictStr
@@ -205,6 +211,7 @@ class BrowserbaseContext(WireModel):
 
 class BrowserbaseFingerprint(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     browsers: Optional[list[Browser]] = None
@@ -217,6 +224,7 @@ class BrowserbaseFingerprint(WireModel):
 
 class BrowserbaseFingerprintScreen(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     max_height: Optional[StrictFloat] = None
@@ -227,6 +235,7 @@ class BrowserbaseFingerprintScreen(WireModel):
 
 class BrowserbaseProxyConfig(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     type: Literal["browserbase"]
@@ -236,6 +245,7 @@ class BrowserbaseProxyConfig(WireModel):
 
 class BrowserbaseProxyGeolocation(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     country: StrictStr
@@ -252,6 +262,7 @@ class BrowserbaseRegion(StrEnum):
 
 class BrowserbaseViewport(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     width: Optional[StrictFloat] = None
@@ -543,6 +554,7 @@ class EmptyParams(WireModel):
 
 class ExternalProxyConfig(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     type: Literal["external"]
@@ -554,6 +566,7 @@ class ExternalProxyConfig(WireModel):
 
 class ExtractOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -593,6 +606,7 @@ class ExtractOptions(WireModel):
 
 class ExtractResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     result: Any
@@ -613,12 +627,6 @@ class FieldSchema1(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
-
-
-class FieldSchema10(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
 class FieldSchema2(
@@ -708,7 +716,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema10] = None
+    data: Optional[FieldSchema9] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -816,12 +824,9 @@ class LLMMessageGenerateParams(WireModel):
 
 class LLMMessageGenerateResult(WireModel):
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
         validate_by_name=True,
     )
-    __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
-    }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
     stop_reason: Optional[StrictStr] = None
@@ -854,18 +859,15 @@ class LLMGenerateParams(
 
 class LLMStructuredGenerateResult(WireModel):
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
         validate_by_name=True,
     )
-    __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
-    }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
     stop_reason: Optional[StrictStr] = None
     usage: Optional[LLMUsage] = None
     output_format: Literal["json_schema"]
-    structured_content: Optional[FieldSchema6]
+    structured_content: Optional[FieldSchema5]
 
 
 class LLMGenerateResult(
@@ -1290,6 +1292,7 @@ class MouseButton(StrEnum):
 
 class ObserveOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -1334,6 +1337,7 @@ class ObserveOptions(WireModel):
 
 class ObserveResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     result: list[Action]
@@ -1468,7 +1472,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema7]
+    value: Optional[FieldSchema6]
 
 
 class PageGoBackParams(WireModel):
@@ -1943,8 +1947,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
-    root: dict[StrictStr, Optional[FieldSchema8]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema7]]]):
+    root: dict[StrictStr, Optional[FieldSchema7]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2055,7 +2059,6 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
 
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
-FieldSchema10.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()
