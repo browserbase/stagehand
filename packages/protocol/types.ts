@@ -195,6 +195,9 @@ import type {
   VariableValueSchema,
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
+  WebMCPAnnotationSchema,
+  WebMCPToolDescriptorSchema,
+  WebMCPToolsOptionsSchema,
 } from "./schemas.js";
 
 export type VariablePrimitive = z.infer<typeof VariablePrimitiveSchema>;
@@ -268,6 +271,9 @@ export type PageCoordinateResult = z.infer<typeof PageCoordinateResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
+export type WebMCPAnnotation = z.infer<typeof WebMCPAnnotationSchema>;
+export type WebMCPToolDescriptor = z.infer<typeof WebMCPToolDescriptorSchema>;
+export type WebMCPToolsOptions = z.input<typeof WebMCPToolsOptionsSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;

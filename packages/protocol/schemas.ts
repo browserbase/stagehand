@@ -1352,6 +1352,31 @@ export const PageRefSchema = z
   .strict()
   .meta({ id: "PageRef" });
 
+export const WebMCPAnnotationSchema = z
+  .strictObject({
+    readOnly: z.boolean().optional(),
+    untrustedContent: z.boolean().optional(),
+    autosubmit: z.boolean().optional(),
+  })
+  .meta({ id: "WebMCPAnnotation" });
+
+export const WebMCPToolDescriptorSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    description: z.string(),
+    inputSchema: z.record(z.string(), z.json()).optional(),
+    annotations: WebMCPAnnotationSchema.optional(),
+    frameId: z.string().min(1),
+    backendNodeId: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPToolDescriptor" });
+
+export const WebMCPToolsOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().default(1_000),
+  })
+  .meta({ id: "WebMCPToolsOptions" });
+
 export const LocatorDescriptorSchema = z
   .object({
     pageId: z.string(),

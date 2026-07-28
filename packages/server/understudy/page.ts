@@ -8,11 +8,15 @@ import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
 import { captureHybridSnapshot, resolveXpathForLocation } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import { WebMCPToolDescriptorSchema, WebMCPToolsOptionsSchema } from "../../protocol/schemas.js";
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
   PageSnapshotOptions,
   SnapshotResult,
+  WebMCPAnnotation,
+  WebMCPToolDescriptor,
+  WebMCPToolsOptions,
 } from "../../protocol/types.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
@@ -58,6 +62,31 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   domcontentloaded: "DOMContentLoaded",
   networkidle: "networkIdle",
 };
+
+const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+
+function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotation {
+  return {
+    ...(annotation.readOnly === undefined ? {} : { readOnly: annotation.readOnly }),
+    ...(annotation.untrustedContent === undefined
+      ? {}
+      : { untrustedContent: annotation.untrustedContent }),
+    ...(annotation.autosubmit === undefined ? {} : { autosubmit: annotation.autosubmit }),
+  };
+}
+
+function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
+  return WebMCPToolDescriptorSchema.parse({
+    name: tool.name,
+    description: tool.description,
+    ...(tool.inputSchema === undefined
+      ? {}
+      : { inputSchema: tool.inputSchema as Record<string, unknown> }),
+    ...(tool.annotations === undefined ? {} : { annotations: webMCPAnnotation(tool.annotations) }),
+    frameId: tool.frameId,
+    ...(tool.backendNodeId === undefined ? {} : { backendNodeId: tool.backendNodeId }),
+  });
+}
 
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
@@ -405,6 +434,96 @@ export class Page {
 
   sendInternalCDP<T = unknown>(method: string, params?: object): Promise<T> {
     return this.mainSession.send<T>(method, params);
+  }
+
+  /**
+   * Return a fresh snapshot of the WebMCP tools registered by the current page.
+   *
+   * Enabling the domain emits `toolsAdded` for every currently registered tool. Keep the
+   * listeners scoped to this call so tools from an earlier document or call are never cached.
+   */
+  public async listWebMCPTools(options?: WebMCPToolsOptions): Promise<WebMCPToolDescriptor[]> {
+    const { timeout } = WebMCPToolsOptionsSchema.parse(options ?? {});
+    const quietWindowMs = Math.min(MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS, timeout);
+    const tools = new Map<string, WebMCPToolDescriptor>();
+    let toolsVersion = 0;
+    let lastUpdatedAt: number | undefined;
+    let scheduleQuietWindow: (() => void) | undefined;
+
+    const toolKey = (tool: Pick<WebMCPToolDescriptor, "frameId" | "name">): string =>
+      `${tool.frameId}\u0000${tool.name}`;
+
+    const onToolsAdded = (event: Protocol.WebMCP.ToolsAddedEvent): void => {
+      for (const tool of event.tools) {
+        const normalized = webMCPTool(tool);
+        tools.set(toolKey(normalized), normalized);
+      }
+      if (event.tools.length === 0) return;
+      toolsVersion += 1;
+      lastUpdatedAt = Date.now();
+      scheduleQuietWindow?.();
+    };
+
+    const onToolsRemoved = (event: Protocol.WebMCP.ToolsRemovedEvent): void => {
+      let changed = false;
+      for (const tool of event.tools) {
+        changed = tools.delete(toolKey(tool)) || changed;
+      }
+      if (!changed) return;
+      toolsVersion += 1;
+      lastUpdatedAt = Date.now();
+      scheduleQuietWindow?.();
+    };
+
+    const deadline = Date.now() + timeout;
+    this.mainSession.on("WebMCP.toolsAdded", onToolsAdded);
+    this.mainSession.on("WebMCP.toolsRemoved", onToolsRemoved);
+
+    try {
+      await this.mainSession.send("WebMCP.enable");
+      if (quietWindowMs === 0) return [...tools.values()];
+
+      await new Promise<void>((resolve) => {
+        const versionAfterEnable = toolsVersion;
+        let quietTimer: ReturnType<typeof setTimeout> | undefined;
+        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        let settled = false;
+
+        const finish = (): void => {
+          if (settled) return;
+          settled = true;
+          if (quietTimer !== undefined) clearTimeout(quietTimer);
+          if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+          resolve();
+        };
+
+        scheduleQuietWindow = (): void => {
+          if (settled) return;
+          if (quietTimer !== undefined) clearTimeout(quietTimer);
+
+          const now = Date.now();
+          if (now >= deadline) {
+            finish();
+            return;
+          }
+
+          const updatedAfterEnable = toolsVersion > versionAfterEnable;
+          const quietRemaining =
+            updatedAfterEnable && lastUpdatedAt !== undefined
+              ? Math.max(0, quietWindowMs - (now - lastUpdatedAt))
+              : quietWindowMs;
+          quietTimer = setTimeout(finish, Math.min(quietRemaining, deadline - now));
+        };
+
+        deadlineTimer = setTimeout(finish, Math.max(0, deadline - Date.now()));
+        scheduleQuietWindow();
+      });
+    } finally {
+      this.mainSession.off("WebMCP.toolsAdded", onToolsAdded);
+      this.mainSession.off("WebMCP.toolsRemoved", onToolsRemoved);
+    }
+
+    return [...tools.values()];
   }
 
   /** Seed the cached URL before navigation events converge. */
