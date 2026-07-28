@@ -1,6 +1,12 @@
 import type { Page } from "@browserbasehq/stagehand";
 
-/** Checks whether an observed selector and any expected selector identify the same element. */
+/**
+ * Checks whether an observed selector and any expected selector identify the same element.
+ * Selectors may be CSS or XPath (bare `/...`/`(...)` or `xpath=`-prefixed).
+ *
+ * Main-frame only: `page.evaluate` runs in the top document, so selectors
+ * pointing inside iframes do not resolve.
+ */
 export async function selectorsResolveToSameElement(
   page: Page,
   observedSelector: string,
