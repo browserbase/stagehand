@@ -439,6 +439,66 @@ describe("JSON-RPC wire casing", () => {
     );
   });
 
+  it("cases structured act and observe result data while preserving extracted JSON", () => {
+    const act = StagehandMethods.stagehandAct;
+    const actApiValue = {
+      data: {
+        success: true,
+        message: "Clicked the button",
+        actionDescription: "Clicked submit",
+        actions: [{ selector: "#submit", description: "Submit" }],
+      },
+      metadata: { cacheStatus: "MISS" as const },
+    };
+    const actWireValue = {
+      data: {
+        success: true,
+        message: "Clicked the button",
+        action_description: "Clicked submit",
+        actions: [{ selector: "#submit", description: "Submit" }],
+      },
+      metadata: { cache_status: "MISS" },
+    };
+
+    expect(encodeWireValue(actApiValue, act.resultWire)).toStrictEqual(actWireValue);
+    expect(wireSchema(act.result, act.resultWire).parse(actWireValue)).toStrictEqual(actApiValue);
+
+    const observe = StagehandMethods.stagehandObserve;
+    const observeApiValue = {
+      data: [
+        {
+          selector: "#submit",
+          description: "Submit",
+          method: "click",
+          arguments: ["withValue"],
+        },
+      ],
+      metadata: { actionId: "action_1" },
+    };
+    const observeWireValue = {
+      data: [
+        {
+          selector: "#submit",
+          description: "Submit",
+          method: "click",
+          arguments: ["withValue"],
+        },
+      ],
+      metadata: { action_id: "action_1" },
+    };
+
+    expect(encodeWireValue(observeApiValue, observe.resultWire)).toStrictEqual(observeWireValue);
+    expect(wireSchema(observe.result, observe.resultWire).parse(observeWireValue)).toStrictEqual(
+      observeApiValue,
+    );
+
+    const extract = StagehandMethods.stagehandExtract;
+    const extractWireValue = { data: { callerChosenKey: 1 }, metadata: {} };
+    expect(wireSchema(extract.result, extract.resultWire).parse(extractWireValue)).toStrictEqual(
+      extractWireValue,
+    );
+  });
+
   it("keeps every generated method and notification shape snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
     const properties = asRecord(protocol.properties);

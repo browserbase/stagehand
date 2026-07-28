@@ -18,6 +18,12 @@ const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 
+// Extracted JSON is intentionally decoded through a dedicated wire model so
+// Pydantic receives raw JSON values instead of the generated JSON union.
+const pythonWireResultModels: Readonly<Record<string, string>> = {
+  "stagehand.extract": "ExtractWireResult",
+};
+
 type SdkLanguage = "typescript" | "python";
 
 type ProtocolMethod = {
@@ -270,7 +276,9 @@ describe("All language SDK operations remain in sync", () => {
       if (!protocolMethod) continue;
 
       const expectedParams = referencedModel(protocolMethod.properties.params.$ref);
-      const expectedResult = referencedModel(protocolMethod.properties.result.$ref);
+      const expectedResult =
+        pythonWireResultModels[call.method] ??
+        referencedModel(protocolMethod.properties.result.$ref);
       const paramsModel = pythonModelName(call.params, call.scope, call.module);
       const resultModel = pythonModelName(call.result, call.scope, call.module);
 

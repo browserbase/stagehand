@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { CacheClient } from "../clients/cacheClient.js";
 import {
   performUnderstudyMethod,
   waitForDomNetworkQuiet,
@@ -272,6 +273,63 @@ describe("act service", () => {
       success: false,
       message: "Failed to perform act: No action found",
     });
+  });
+
+  it("persists successful actions and replays them from cache", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
+    const page = {
+      ...actPage(frame, captureSnapshot),
+      url: () => "https://example.com",
+      frames: () => [frame],
+    } as unknown as Page;
+    const get = vi.fn().mockResolvedValueOnce({ hit: false, cacheKey: "key" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
+    const cache = {
+      sessionId: "session-1",
+      client: { get, set } as unknown as CacheClient,
+      defaultCaching: true as const,
+    };
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    const miss = await actService.act({
+      params: { pageId: "page-1", input: "Click submit" },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache,
+    });
+
+    expect(miss.metadata.cacheStatus).toBe("MISS");
+    expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: miss.data.actions }));
+
+    get.mockResolvedValueOnce({ hit: true, value: miss.data.actions, cacheKey: "key" });
+    clientLLMGenerate.mockClear();
+
+    const hit = await actService.act({
+      params: { pageId: "page-1", input: "Click submit" },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache,
+    });
+
+    expect(hit.metadata.cacheStatus).toBe("HIT");
+    expect(hit.data.actions).toStrictEqual(miss.data.actions);
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
   it("respects the act timeout across page preparation", async () => {

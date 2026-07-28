@@ -17,10 +17,12 @@ export { Stagehand, type ExtractResult } from "./stagehand.js";
 export type {
   ActResult,
   BrowserGetVersionResult,
+  CacheStatus,
   ObserveResult,
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
+  StagehandResultMetadata,
 } from "../../protocol/types.js";
 export {
   BrowserSourceSchema,

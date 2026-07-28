@@ -12,7 +12,6 @@ from typing import Literal, Self, TypeVar, overload
 
 from pydantic import BaseModel
 
-from ._generated import models as generated_models
 from ._generated.models import (
     ActOptions,
     ActResult,
@@ -55,6 +54,7 @@ from .client_models import (
     CdpBrowserSource,
     ClientLLM,
     ExtractResult,
+    ExtractWireResult,
     LLMGenerateCallback,
     LocalBrowserSource,
     LocalProxyConfig,
@@ -565,11 +565,10 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(
-            "stagehand.extract", params, generated_models.ExtractResult
+            "stagehand.extract", params, ExtractWireResult
         )
-        value = result.data.model_dump() if isinstance(result.data, BaseModel) else result.data
         return ExtractResult(
-            data=schema.model_validate(value),
+            data=schema.model_validate(result.data),
             metadata=result.metadata,
         )
 

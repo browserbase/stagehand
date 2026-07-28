@@ -146,8 +146,8 @@ asyncio.run(main())
 
 ## Observe
 
-- `actions = await stagehand.observe(instruction="find the submit button")` returns
-  `{ data, metadata }`; `data` is a list of action objects.
+- `result = await stagehand.observe(instruction="find the submit button")` returns
+  `{ data, metadata }`; iterate over `result.data` to use the action objects.
 
 ## Don't
 

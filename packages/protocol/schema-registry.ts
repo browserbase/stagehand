@@ -140,11 +140,13 @@ export const StagehandMethods = {
     name: "stagehand.act",
     params: StagehandActParamsSchema,
     result: ActResultSchema,
+    resultWire: { transformKeys: ["data"] },
   },
   stagehandObserve: {
     name: "stagehand.observe",
     params: StagehandObserveParamsSchema,
     result: ObserveResultSchema,
+    resultWire: { transformKeys: ["data"] },
   },
   stagehandExtract: {
     name: "stagehand.extract",

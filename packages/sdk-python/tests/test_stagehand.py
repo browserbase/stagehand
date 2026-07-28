@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
 from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
 from stagehand._generated.models import (
@@ -14,8 +14,8 @@ from stagehand._generated.models import (
     ActResult,
     ActResultData,
     BrowserGetVersionResult,
+    CacheStatus,
     ClientModelReference,
-    ExtractResult,
     KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -36,6 +36,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
+    StagehandResultMetadata,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
@@ -56,6 +57,7 @@ BlockingResultT = TypeVar("BlockingResultT", bound=BaseModel)
 
 class PageInfo(BaseModel):
     heading: str
+    count: StrictInt
 
 
 def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
@@ -261,10 +263,12 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
             "data": [action],
             "metadata": {"cache_status": "MISS"},
         }),
-        "stagehand.extract": ExtractResult.model_validate({
-            "data": {"heading": "Example Domain"},
-            "metadata": {"cache_status": "HIT"},
-        }),
+        # Keep this as raw wire JSON: extract() must preserve integer values
+        # until the caller's Pydantic schema validates them.
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+        },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")
@@ -302,7 +306,8 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert action_result.metadata.cache_status == "HIT"
     assert actions.data == [action]
     assert actions.metadata.cache_status == "MISS"
-    assert page_info.data == PageInfo(heading="Example Domain")
+    assert page_info.data == PageInfo(heading="Example Domain", count=1)
+    assert isinstance(page_info.data.count, int)
     assert page_info.metadata.cache_status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -30,6 +30,15 @@ class ExtractResult(WireModel, Generic[ExtractData]):
     model_config = ConfigDict(extra="forbid")
 
     data: ExtractData
+    metadata: StagehandResultMetadata
+
+
+class ExtractWireResult(WireModel):
+    """Internal extract response model that preserves arbitrary JSON values."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: Any
     metadata: StagehandResultMetadata
 
 
