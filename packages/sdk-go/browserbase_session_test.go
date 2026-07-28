@@ -2,7 +2,9 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -254,6 +256,40 @@ func TestBrowserbaseSessionClientValidatesBeforeUploadingExtension(t *testing.T)
 	}
 	if uploads != 0 {
 		t.Fatalf("extension uploads = %d, want 0", uploads)
+	}
+}
+
+func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
+	var gotUserMetadata map[string]json.RawMessage
+	api := &fakeBrowserbaseAPI{
+		createSessionFunc: func(
+			_ context.Context,
+			request browserbaseCreateSessionRequest,
+		) (browserbaseCreateSessionResponse, error) {
+			gotUserMetadata = request.UserMetadata
+			return validBrowserbaseCreateSessionResponse("session_123"), nil
+		},
+	}
+	client := newBrowserbaseTestSessionClient(t, api)
+
+	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{
+		UserMetadata: map[string]json.RawMessage{
+			"suite":                  json.RawMessage(`"go-browserbase-session"`),
+			"stagehand":              json.RawMessage(`"false"`),
+			"stagehand_sdk_language": json.RawMessage(`"python"`),
+		},
+	})
+	if err != nil {
+		t.Fatalf("createSession() error = %v", err)
+	}
+
+	want := map[string]json.RawMessage{
+		"suite":                  json.RawMessage(`"go-browserbase-session"`),
+		"stagehand":              json.RawMessage(`"true"`),
+		"stagehand_sdk_language": json.RawMessage(`"go"`),
+	}
+	if !reflect.DeepEqual(gotUserMetadata, want) {
+		t.Fatalf("userMetadata = %#v, want %#v", gotUserMetadata, want)
 	}
 }
 

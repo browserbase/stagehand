@@ -10,6 +10,7 @@ const (
 	stagehandProtocolVersion = 1
 	stagehandRuntimeName     = "stagehand"
 	stagehandSDKClientName   = "stagehand-sdk-go"
+	stagehandSDKLanguage     = "go"
 	stagehandSDKVersion      = "4.0.0"
 )
 
