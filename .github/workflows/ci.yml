@@ -114,6 +114,13 @@ jobs:
 
   extension-drift:
     name: Extension drift (Go embed vs server build)
+    # Same fork gate as go-windows: this job installs dependencies and builds the server, so
+    # it should not burn hosted-runner time on an unreviewed fork PR. The safe-to-test label
+    # lets a maintainer opt a specific external PR in.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
