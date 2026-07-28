@@ -1,6 +1,8 @@
 import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSchemas.js";
-import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
-import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import {
+  BrowserbaseSessionCreateParamsSchema,
+  LocalBrowserLaunchOptionsSchema,
+} from "../../protocol/schemas.js";
 import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,

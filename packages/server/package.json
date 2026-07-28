@@ -1,5 +1,5 @@
 {
-  "name": "@browserbasehq/stagehand-v4-spike-server",
+  "name": "@browserbasehq/stagehand-server",
   "version": "4.0.0",
   "private": true,
   "type": "module",

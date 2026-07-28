@@ -6,12 +6,22 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
+import { PageLocatorSchema } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),
     );
+  });
+
+  it("rejects unknown page locator fields", () => {
+    expect(() =>
+      PageLocatorSchema.parse({
+        pageIdx: 0,
+        page: { targetId: "target-1" },
+      }),
+    ).toThrow();
   });
 
   it("defines stagehand init as a JSON-RPC method", () => {
@@ -297,6 +307,16 @@ describe("Stagehand object-model protocol", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
         input: "Click the submit button",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects unknown action option fields", () => {
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: "Click the submit button",
+        options: { tiemout: 1_000 },
       }),
     ).toThrow();
   });

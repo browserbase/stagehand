@@ -17,7 +17,7 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
       browser: {
         type: "browserbase",
         userMetadata: {
-          suite: "stagehand-v4-browserbase-smoke",
+          suite: "stagehand-browserbase-smoke",
         },
       },
     });
