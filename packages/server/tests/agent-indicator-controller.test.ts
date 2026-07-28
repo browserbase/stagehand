@@ -8,6 +8,7 @@ function createChromeApi() {
   let updatedListener:
     | ((tabId: number, changeInfo: { status?: string }, tab: unknown) => void)
     | undefined;
+  let removedListener: ((tabId: number) => void) | undefined;
   const query = vi.fn<AgentIndicatorChrome["tabs"]["query"]>(async () => [
     { id: 12 },
     {},
@@ -24,6 +25,11 @@ function createChromeApi() {
           updatedListener = listener;
         },
       },
+      onRemoved: {
+        addListener(listener) {
+          removedListener = listener;
+        },
+      },
     },
   };
   return {
@@ -33,6 +39,7 @@ function createChromeApi() {
     removeCSS,
     update: (tabId: number, status: "loading" | "complete") =>
       updatedListener?.(tabId, { status }, {}),
+    remove: (tabId: number) => removedListener?.(tabId),
   };
 }
 
@@ -164,5 +171,17 @@ describe("agent indicator controller", () => {
     expect(removeCSS.mock.calls.map(([injection]) => injection.target.tabId)).toStrictEqual([
       12, 34,
     ]);
+  });
+
+  it("drops closed-tab cache so deactivation does not target them", async () => {
+    const { chromeApi, query, removeCSS, remove } = createChromeApi();
+    const controller = createAgentIndicatorController(chromeApi);
+    await controller.setActive(true);
+    remove(12);
+    query.mockRejectedValueOnce(new Error("temporary tabs.query failure"));
+
+    await expect(controller.setActive(false)).resolves.toBeUndefined();
+
+    expect(removeCSS.mock.calls.map(([injection]) => injection.target.tabId)).toStrictEqual([34]);
   });
 });

@@ -67,6 +67,7 @@ export type AgentIndicatorChrome = {
   tabs: {
     query(queryInfo: Record<string, never>): Promise<Array<{ id?: number }>>;
     onUpdated: ChromeEvent<(tabId: number, changeInfo: { status?: string }, tab: unknown) => void>;
+    onRemoved: ChromeEvent<(tabId: number) => void>;
   };
 };
 
@@ -144,6 +145,11 @@ export function createAgentIndicatorController(
       if (!desiredActive || styledTabs.has(tabId)) return;
       await applyToTab(tabId, true);
     });
+  });
+
+  chromeApi.tabs.onRemoved.addListener((tabId) => {
+    navigationGenerations.delete(tabId);
+    styledTabs.delete(tabId);
   });
 
   return {
