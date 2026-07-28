@@ -2,6 +2,7 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -54,6 +55,11 @@ func (client *browserbaseSessionClient) createSession(
 	if err != nil {
 		return resolvedBrowserSource{}, fmt.Errorf("build Browserbase session request: %w", err)
 	}
+	if request.UserMetadata == nil {
+		request.UserMetadata = make(map[string]json.RawMessage, 2)
+	}
+	request.UserMetadata["stagehand"] = json.RawMessage(`"true"`)
+	request.UserMetadata["stagehand_sdk_language"] = json.RawMessage(`"go"`)
 	archive := client.archive()
 	if len(archive) == 0 {
 		return resolvedBrowserSource{}, errors.New(

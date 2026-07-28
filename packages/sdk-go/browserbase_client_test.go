@@ -520,8 +520,10 @@ func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
 		Region:  testPointer(BrowserbaseRegionEUCentral1),
 		Timeout: testPointer(300.0),
 		UserMetadata: map[string]json.RawMessage{
-			"suite":   json.RawMessage(`"go-browserbase-client"`),
-			"attempt": json.RawMessage(`3`),
+			"suite":                  json.RawMessage(`"go-browserbase-client"`),
+			"attempt":                json.RawMessage(`3`),
+			"stagehand":              json.RawMessage(`"false"`),
+			"stagehand_sdk_language": json.RawMessage(`"python"`),
 		},
 	}
 }
@@ -575,8 +577,10 @@ func browserbaseExpectedSessionRequest() map[string]any {
 		"region":  "eu-central-1",
 		"timeout": 300.0,
 		"userMetadata": map[string]any{
-			"suite":   "go-browserbase-client",
-			"attempt": 3.0,
+			"suite":                  "go-browserbase-client",
+			"attempt":                3.0,
+			"stagehand":              "true",
+			"stagehand_sdk_language": "go",
 		},
 	}
 }
