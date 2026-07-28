@@ -8,7 +8,14 @@ from typing import TypeVar, cast
 import pytest
 from pydantic import BaseModel, StrictInt
 
-from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
+from stagehand import (
+    LLMGenerateInput,
+    LLMGenerateOutput,
+    LLMImageContent,
+    Page,
+    ProtocolLocator,
+    Stagehand,
+)
 from stagehand._generated.models import (
     Action,
     ActResult,
@@ -299,6 +306,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         schema=PageInfo,
         page=page,
         model=model,
+        screenshot=True,
         locator=locator,
     )
 
@@ -337,6 +345,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
     assert extract_params.options.model == model
+    assert extract_params.options.screenshot is True
     assert extract_params.options.locator == locator
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
@@ -436,7 +445,19 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     callback_result = await handler(
         LLMGenerateParams.model_validate({
-            "messages": [{"role": "user", "content": {"type": "text", "text": "Answer"}}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Answer"},
+                        {
+                            "type": "image",
+                            "data": "iVBORw0KGgo=",
+                            "mime_type": "image/png",
+                        },
+                    ],
+                }
+            ],
             "response_format": {
                 "type": "json_schema",
                 "name": "answer",
@@ -446,6 +467,10 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     assert len(callback_params) == 1
     assert isinstance(callback_params[0], LLMStructuredGenerateParams)
+    callback_content = callback_params[0].messages[0].content
+    assert isinstance(callback_content, list)
+    assert isinstance(callback_content[1].root, LLMImageContent)
+    assert callback_content[1].root.mime_type == "image/png"
     assert isinstance(callback_result.root, LLMStructuredGenerateResult)
     init_params = recording.calls[0][1]
     assert isinstance(init_params, StagehandInitParams)

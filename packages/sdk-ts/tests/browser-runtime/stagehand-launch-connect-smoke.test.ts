@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
-import type { LLMGenerateResult } from "../../../protocol/types.js";
+import type { LLMGenerateResult, LLMImageContent } from "../../../protocol/types.js";
 import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
 
 type FixtureServer = {
@@ -12,6 +12,7 @@ type FixtureServer = {
 describe("Stagehand TS SDK launch/connect smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let stagehand: Stagehand | undefined;
+  const extractionScreenshots: LLMImageContent[] = [];
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
@@ -103,6 +104,13 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
             };
           }
 
+          const extractionBlocks = params.messages.flatMap((message) =>
+            Array.isArray(message.content) ? message.content : [message.content],
+          );
+          const extractionScreenshot = extractionBlocks.find(
+            (block): block is LLMImageContent => block.type === "image",
+          );
+          if (extractionScreenshot) extractionScreenshots.push(extractionScreenshot);
           return {
             role: "assistant",
             content: { type: "text", text: "structured extraction" },
@@ -247,15 +255,26 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const page =
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
     await page.goto(activeFixtureServer.url);
+    extractionScreenshots.length = 0;
 
     await expect(
       activeStagehand.extract("Extract the page heading", z.object({ heading: z.string() }), {
         page,
+        screenshot: true,
       }),
     ).resolves.toStrictEqual({
       data: { heading: "Stagehand SDK Smoke" },
       metadata: {},
     });
+    const extractionScreenshot = extractionScreenshots[0];
+    expect(extractionScreenshot).toMatchObject({
+      type: "image",
+      mimeType: "image/png",
+    });
+    if (!extractionScreenshot) throw new Error("Extraction screenshot was not received");
+    expect([...Buffer.from(extractionScreenshot.data, "base64").subarray(0, 8)]).toStrictEqual([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+    ]);
   });
 
   it("observes actionable elements on a real page through the connected SDK", async () => {
