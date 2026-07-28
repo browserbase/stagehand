@@ -308,10 +308,17 @@ jobs:
 
   extension-drift:
     name: Extension drift (Go embed vs server build)
+    # Same fork gate as go-windows: installs dependencies and builds the server, so it should
+    # not burn hosted-runner time on an unreviewed fork PR. safe-to-test lets a maintainer opt
+    # a specific external PR in.
+    if: >-
+      needs.determine-changes.outputs.sdk-go == 'true' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository ||
+       contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [build, determine-changes]
-    if: needs.determine-changes.outputs.sdk-go == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -340,7 +347,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [extension-drift, determine-changes]
-    if: needs.determine-changes.outputs.sdk-go == 'true'
+    # extension-drift is fork-gated, so it is *skipped* rather than failed on external PRs.
+    # A skipped dependency skips its dependents by default, which would silently stop running
+    # the Go suite on fork PRs. Run unless the drift check actually failed.
+    if: >-
+      !cancelled() &&
+      needs.extension-drift.result != 'failure' &&
+      needs.determine-changes.outputs.sdk-go == 'true'
     defaults:
       run:
         working-directory: packages/sdk-go
