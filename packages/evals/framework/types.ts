@@ -17,6 +17,7 @@ import type {
   ToolSurface,
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
+import type { BenchV4TaskContext } from "./typesV4.js";
 
 /** Page type inferred from V3.context.pages()[0] */
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -128,7 +129,7 @@ export interface TaskDefinition {
   /** User-provided metadata. */
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
-  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>;
+  fn: (ctx: CoreTaskContext | BenchTaskContext | BenchV4TaskContext) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }

@@ -1,3 +1,7 @@
 {
-  "ignorePatterns": ["packages/docs/**/*.md", "packages/docs/**/*.mdx"]
+  "ignorePatterns": [
+    "packages/docs/**/*.md",
+    "packages/docs/**/*.mdx",
+    "packages/evals/.v4-sdk-types/**"
+  ]
 }
