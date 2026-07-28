@@ -119,6 +119,19 @@ describe("RPCClientOptionsSchema", () => {
     ).toThrow();
   });
 
+  it("bounds requestTimeoutMs to the maximum timer duration", () => {
+    const base = {
+      cdpUrl: "http://127.0.0.1:9222",
+      extensionDir: "/tmp/stagehand-extension",
+    };
+    // setTimeout clamps delays above 2^31 - 1 ms to ~1 ms, so larger values
+    // would make every request time out almost immediately.
+    expect(RPCClientOptionsSchema.parse({ ...base, requestTimeoutMs: 2 ** 31 - 1 })).toMatchObject({
+      requestTimeoutMs: 2_147_483_647,
+    });
+    expect(() => RPCClientOptionsSchema.parse({ ...base, requestTimeoutMs: 2 ** 31 })).toThrow();
+  });
+
   it("validates options at the RPC client boundary before opening CDP", async () => {
     await expect(
       connectRPCClient({

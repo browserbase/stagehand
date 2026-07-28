@@ -372,3 +372,67 @@ describe("RPCClient", () => {
     expect(cdp.sent).toStrictEqual([]);
   });
 });
+
+describe("RPC request timeout", () => {
+  it("defaults RPC requests to a 180s cap, independent of commandTimeoutMs", async () => {
+    const cdp = new FakeCDPTransport({ configured: true });
+    const connect = vi.spyOn(CDPClient, "connect").mockResolvedValue(cdp as unknown as CDPClient);
+
+    try {
+      const client = await connectRPCClient({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
+        extensionId: "stagehand",
+        commandTimeoutMs: 10_000,
+      });
+      try {
+        expect(client.requestTimeoutMs).toBe(180_000);
+        expect(connect).toHaveBeenCalledWith(
+          expect.objectContaining({ commandTimeoutMs: 10_000 }),
+        );
+      } finally {
+        client.close();
+      }
+    } finally {
+      connect.mockRestore();
+    }
+  });
+
+  it("passes a requestTimeoutMs override through to the RPC client", async () => {
+    const cdp = new FakeCDPTransport({ configured: true });
+    const connect = vi.spyOn(CDPClient, "connect").mockResolvedValue(cdp as unknown as CDPClient);
+
+    try {
+      const client = await connectRPCClient({
+        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
+        extensionId: "stagehand",
+        requestTimeoutMs: 30_000,
+      });
+      try {
+        expect(client.requestTimeoutMs).toBe(30_000);
+      } finally {
+        client.close();
+      }
+    } finally {
+      connect.mockRestore();
+    }
+  });
+
+  it("rejects a pending request once requestTimeoutMs elapses", async () => {
+    vi.useFakeTimers();
+    try {
+      const cdp = new ManualCDPTransport();
+      const client = new RPCClient(cdp, 5_000);
+
+      const outcome = client.send(UppercaseMethod, { value: "never answered" }).then(
+        () => "resolved",
+        (error: Error) => error.message,
+      );
+
+      await vi.advanceTimersByTimeAsync(4_999);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(outcome).resolves.toBe("RPC request timed out: test.uppercase");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

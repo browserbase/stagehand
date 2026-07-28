@@ -64,13 +64,17 @@ const STAGEHAND_SDK_CLIENT_INFO = {
   version: STAGEHAND_SDK_VERSION,
 } as const;
 
+// setTimeout clamps delays above 2^31 - 1 ms to ~1 ms (Node and browsers
+// alike), so a longer configured cap would time out almost immediately.
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
+
 const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
-    requestTimeoutMs: z.number().int().positive().optional(),
+    requestTimeoutMs: z.number().int().positive().max(MAX_TIMEOUT_MS).optional(),
     cdpConnectTimeoutMs: z.number().int().positive().optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: RuntimeConfigureParamsSchema.shape.logLevel,

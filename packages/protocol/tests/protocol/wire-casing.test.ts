@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { encodeWireValue, toWireJsonSchema, wireSchema } from "../../json-rpc/wire-casing.js";
-import { StagehandNotifications, StagehandMethods } from "../../schema-registry.js";
+import {
+  StagehandNotifications,
+  StagehandMethods,
+  StagehandRpcRequestSchema,
+} from "../../schema-registry.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const snakeCaseMethodSegment = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -567,3 +571,38 @@ function isWirePropertyName(key: string): boolean {
 function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
+
+describe("StagehandRpcRequestSchema paramsWire handling", () => {
+  it("preserves user extract-schema keys as opaque through request parsing", () => {
+    // The extract method declares paramsWire opaqueKeys: ["schema"] — user
+    // schema property names are data, not protocol fields, and must survive
+    // wire decoding verbatim (snake_case keys were previously camelCased in
+    // `properties` but not `required`, producing an inconsistent JSON schema
+    // that structured-output providers reject).
+    const parsed = StagehandRpcRequestSchema.parse({
+      jsonrpc: "2.0",
+      id: 7,
+      method: "stagehand.extract",
+      params: {
+        page_id: "page-1",
+        instruction: "extract the company",
+        schema: {
+          type: "object",
+          properties: { company_name: { type: "string" } },
+          required: ["company_name"],
+          additionalProperties: false,
+        },
+      },
+    });
+
+    expect(parsed.method).toBe("stagehand.extract");
+    expect(parsed.params).toMatchObject({
+      pageId: "page-1",
+      schema: {
+        type: "object",
+        properties: { company_name: { type: "string" } },
+        required: ["company_name"],
+      },
+    });
+  });
+});
