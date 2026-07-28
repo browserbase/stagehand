@@ -168,6 +168,11 @@ import type {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
+  PageWebMCPCancelInvocationParamsSchema,
+  PageWebMCPInvocationResultParamsSchema,
+  PageWebMCPInvokeToolParamsSchema,
+  PageWebMCPToolsParamsSchema,
+  PageWebMCPToolsResultSchema,
   ProxyConfigSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
@@ -333,6 +338,15 @@ export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParams
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
 export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
 export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;
+export type PageWebMCPToolsParams = z.infer<typeof PageWebMCPToolsParamsSchema>;
+export type PageWebMCPToolsResult = z.infer<typeof PageWebMCPToolsResultSchema>;
+export type PageWebMCPInvokeToolParams = z.infer<typeof PageWebMCPInvokeToolParamsSchema>;
+export type PageWebMCPInvocationResultParams = z.infer<
+  typeof PageWebMCPInvocationResultParamsSchema
+>;
+export type PageWebMCPCancelInvocationParams = z.infer<
+  typeof PageWebMCPCancelInvocationParamsSchema
+>;
 export type LocatorClickParams = z.infer<typeof LocatorClickParamsSchema>;
 export type LocatorFillParams = z.infer<typeof LocatorFillParamsSchema>;
 export type LocatorScrollToParams = z.infer<typeof LocatorScrollToParamsSchema>;

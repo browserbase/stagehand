@@ -319,6 +319,26 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageSnapshot, request.params),
           context,
         );
+      case "page.webmcp_tools":
+        return this.pageController.webMCPTools(
+          parseParams(StagehandMethods.pageWebMCPTools, request.params),
+          context,
+        );
+      case "page.webmcp_invoke_tool":
+        return this.pageController.webMCPInvokeTool(
+          parseParams(StagehandMethods.pageWebMCPInvokeTool, request.params),
+          context,
+        );
+      case "page.webmcp_invocation_result":
+        return this.pageController.webMCPInvocationResult(
+          parseParams(StagehandMethods.pageWebMCPInvocationResult, request.params),
+          context,
+        );
+      case "page.webmcp_cancel_invocation":
+        return this.pageController.webMCPCancelInvocation(
+          parseParams(StagehandMethods.pageWebMCPCancelInvocation, request.params),
+          context,
+        );
       case "page.url":
         return this.pageController.url(
           parseParams(StagehandMethods.pageUrl, request.params),

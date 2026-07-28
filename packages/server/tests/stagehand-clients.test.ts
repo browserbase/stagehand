@@ -45,10 +45,16 @@ import type {
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
-  SnapshotResult,
   PageTypeParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
+  SnapshotResult,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../../protocol/types.ts";
 
 vi.mock("../understudy/context.js", () => ({
@@ -235,6 +241,18 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
+  readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
+  readonly invokeWebMCPToolCalls: Array<{
+    frameId: string;
+    toolName: string;
+    options?: Partial<WebMCPInvokeOptions>;
+  }> = [];
+  readonly waitForWebMCPInvocationResultCalls: Array<{
+    invocationId: string;
+    options?: WebMCPResultOptions;
+  }> = [];
+  readonly cancelWebMCPInvocationCalls: string[] = [];
+  readonly webMCPInvocations = new Set<string>();
   readonly locatorRefs: FakeUnderstudyRuntimeLocator[] = [];
   readonly locatorsBySelector = new Map<string, FakeUnderstudyRuntimeLocator>();
   closed = false;
@@ -252,6 +270,22 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     formattedTree: "root",
     xpathMap: { frameOne: "/html/body" },
     urlMap: { frameOne: "https://example.test" },
+  };
+  webMCPTools: WebMCPToolDescriptor[] = [
+    {
+      name: "search",
+      description: "Search this site",
+      inputSchema: {
+        type: "object",
+        properties: { searchQuery: { type: "string" } },
+      },
+      frameId: "frame-1",
+    },
+  ];
+  webMCPToolResponse: WebMCPToolResponse = {
+    invocationId: "page-a-invocation-1",
+    status: "Completed",
+    output: { resultValue: "done" },
   };
 
   constructor(
@@ -369,6 +403,45 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
     this.snapshotCalls.push(options);
     return this.snapshotResult;
+  }
+
+  async listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]> {
+    this.listWebMCPToolsCalls.push(options);
+    return this.webMCPTools;
+  }
+
+  async invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor> {
+    this.invokeWebMCPToolCalls.push({ frameId, toolName, options });
+    const invocationId = `${this.id}-invocation-${this.webMCPInvocations.size + 1}`;
+    this.webMCPInvocations.add(invocationId);
+    return {
+      invocationId,
+      toolName,
+      frameId,
+      input: options?.input ?? {},
+    };
+  }
+
+  async waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse> {
+    this.waitForWebMCPInvocationResultCalls.push({ invocationId, options });
+    if (!this.webMCPInvocations.has(invocationId)) {
+      throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.id}".`);
+    }
+    return { ...this.webMCPToolResponse, invocationId };
+  }
+
+  async cancelWebMCPInvocation(invocationId: string): Promise<void> {
+    this.cancelWebMCPInvocationCalls.push(invocationId);
+    if (!this.webMCPInvocations.has(invocationId)) {
+      throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.id}".`);
+    }
   }
 
   targetId(): string {
@@ -1835,6 +1908,140 @@ describe("Stagehand worker clients", () => {
       },
     ]);
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
+  });
+
+  it("routes WebMCP discovery and invocation operations through the owning page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 40,
+        method: "page.webmcp_tools",
+        params: {
+          page_id: "page-a",
+          options: { timeout: 250 },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 40,
+      result: {
+        tools: [
+          {
+            name: "search",
+            description: "Search this site",
+            input_schema: {
+              type: "object",
+              properties: { searchQuery: { type: "string" } },
+            },
+            frame_id: "frame-1",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 41,
+        method: "page.webmcp_invoke_tool",
+        params: {
+          page_id: "page-a",
+          frame_id: "frame-1",
+          tool_name: "search",
+          input: { searchQuery: "Stagehand" },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 41,
+      result: {
+        invocation_id: "page-a-invocation-1",
+        tool_name: "search",
+        frame_id: "frame-1",
+        input: { searchQuery: "Stagehand" },
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "page.webmcp_invocation_result",
+        params: {
+          page_id: "page-a",
+          invocation_id: "page-a-invocation-1",
+          options: { timeout: 5_000 },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 42,
+      result: {
+        invocation_id: "page-a-invocation-1",
+        status: "Completed",
+        output: { resultValue: "done" },
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 43,
+        method: "page.webmcp_cancel_invocation",
+        params: {
+          page_id: "page-a",
+          invocation_id: "page-a-invocation-1",
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 43,
+      result: { ok: true },
+    });
+
+    expect(page.listWebMCPToolsCalls).toStrictEqual([{ timeout: 250 }]);
+    expect(page.invokeWebMCPToolCalls).toStrictEqual([
+      {
+        frameId: "frame-1",
+        toolName: "search",
+        options: { input: { searchQuery: "Stagehand" } },
+      },
+    ]);
+    expect(page.waitForWebMCPInvocationResultCalls).toStrictEqual([
+      {
+        invocationId: "page-a-invocation-1",
+        options: { timeout: 5_000 },
+      },
+    ]);
+    expect(page.cancelWebMCPInvocationCalls).toStrictEqual(["page-a-invocation-1"]);
+  });
+
+  it("rejects use of a WebMCP invocation through another page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const otherPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/other");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page, otherPage]));
+    const invocation = await runtime.pageWebMCPInvokeTool({
+      pageId: "page-a",
+      frameId: "frame-1",
+      toolName: "search",
+      input: {},
+    });
+
+    await expect(
+      runtime.pageWebMCPInvocationResult({
+        pageId: "page-b",
+        invocationId: invocation.invocationId,
+      }),
+    ).rejects.toThrow(
+      `WebMCP invocation "${invocation.invocationId}" was not found on page "page-b".`,
+    );
+    expect(page.waitForWebMCPInvocationResultCalls).toStrictEqual([]);
+    expect(otherPage.waitForWebMCPInvocationResultCalls).toStrictEqual([
+      { invocationId: invocation.invocationId, options: undefined },
+    ]);
   });
 
   it("rejects screenshot masks from another page", async () => {

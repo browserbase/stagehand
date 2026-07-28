@@ -8,6 +8,7 @@ import {
   WebMCPToolResponseSchema,
   WebMCPToolsOptionsSchema,
 } from "../../schemas.js";
+import { StagehandMethods } from "../../schema-registry.js";
 
 describe("WebMCP protocol data", () => {
   it("validates serializable tool descriptors", () => {
@@ -142,5 +143,98 @@ describe("WebMCP protocol data", () => {
     expect(WebMCPResultOptionsSchema.parse({ timeout: 0 })).toStrictEqual({ timeout: 0 });
     expect(() => WebMCPResultOptionsSchema.parse({ timeout: -1 })).toThrow();
     expect(() => WebMCPResultOptionsSchema.parse({ timeout: Number.POSITIVE_INFINITY })).toThrow();
+  });
+
+  it("registers all WebMCP page methods with strict params and results", () => {
+    expect(StagehandMethods.pageWebMCPTools.name).toBe("page.webmcp_tools");
+    expect(StagehandMethods.pageWebMCPInvokeTool.name).toBe("page.webmcp_invoke_tool");
+    expect(StagehandMethods.pageWebMCPInvocationResult.name).toBe("page.webmcp_invocation_result");
+    expect(StagehandMethods.pageWebMCPCancelInvocation.name).toBe("page.webmcp_cancel_invocation");
+
+    expect(
+      StagehandMethods.pageWebMCPTools.params.parse({
+        pageId: "page-1",
+        options: {},
+      }),
+    ).toStrictEqual({
+      pageId: "page-1",
+      options: { timeout: 1_000 },
+    });
+    expect(
+      StagehandMethods.pageWebMCPTools.result.parse({
+        tools: [{ name: "search", description: "Search", frameId: "frame-1" }],
+      }),
+    ).toStrictEqual({
+      tools: [{ name: "search", description: "Search", frameId: "frame-1" }],
+    });
+
+    expect(
+      StagehandMethods.pageWebMCPInvokeTool.params.parse({
+        pageId: "page-1",
+        frameId: "frame-1",
+        toolName: "search",
+      }),
+    ).toStrictEqual({
+      pageId: "page-1",
+      frameId: "frame-1",
+      toolName: "search",
+      input: {},
+    });
+    expect(
+      StagehandMethods.pageWebMCPInvokeTool.result.parse({
+        invocationId: "invocation-1",
+        toolName: "search",
+        frameId: "frame-1",
+        input: {},
+      }),
+    ).toStrictEqual({
+      invocationId: "invocation-1",
+      toolName: "search",
+      frameId: "frame-1",
+      input: {},
+    });
+
+    expect(
+      StagehandMethods.pageWebMCPInvocationResult.params.parse({
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 5_000 },
+      }),
+    ).toStrictEqual({
+      pageId: "page-1",
+      invocationId: "invocation-1",
+      options: { timeout: 5_000 },
+    });
+    expect(
+      StagehandMethods.pageWebMCPInvocationResult.result.parse({
+        invocationId: "invocation-1",
+        status: "Completed",
+        output: { resultValue: "done" },
+      }),
+    ).toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "done" },
+    });
+
+    expect(
+      StagehandMethods.pageWebMCPCancelInvocation.params.parse({
+        pageId: "page-1",
+        invocationId: "invocation-1",
+      }),
+    ).toStrictEqual({
+      pageId: "page-1",
+      invocationId: "invocation-1",
+    });
+    expect(StagehandMethods.pageWebMCPCancelInvocation.result.parse({ ok: true })).toStrictEqual({
+      ok: true,
+    });
+    expect(() =>
+      StagehandMethods.pageWebMCPCancelInvocation.params.parse({
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        toolName: "search",
+      }),
+    ).toThrow();
   });
 });

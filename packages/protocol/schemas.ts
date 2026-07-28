@@ -1621,6 +1621,39 @@ export const PageIdParamsSchema = z
   .strict()
   .meta({ id: "PageIdParams" });
 
+export const PageWebMCPToolsParamsSchema = PageIdParamsSchema.extend({
+  options: WebMCPToolsOptionsSchema.optional(),
+})
+  .strict()
+  .meta({ id: "PageWebMCPToolsParams" });
+
+export const PageWebMCPToolsResultSchema = z
+  .strictObject({
+    tools: z.array(WebMCPToolDescriptorSchema),
+  })
+  .meta({ id: "PageWebMCPToolsResult" });
+
+export const PageWebMCPInvokeToolParamsSchema = PageIdParamsSchema.extend({
+  frameId: z.string().min(1),
+  toolName: z.string().min(1),
+  ...WebMCPInvokeOptionsSchema.shape,
+})
+  .strict()
+  .meta({ id: "PageWebMCPInvokeToolParams" });
+
+export const PageWebMCPInvocationResultParamsSchema = PageIdParamsSchema.extend({
+  invocationId: z.string().min(1),
+  options: WebMCPResultOptionsSchema.optional(),
+})
+  .strict()
+  .meta({ id: "PageWebMCPInvocationResultParams" });
+
+export const PageWebMCPCancelInvocationParamsSchema = PageIdParamsSchema.extend({
+  invocationId: z.string().min(1),
+})
+  .strict()
+  .meta({ id: "PageWebMCPCancelInvocationParams" });
+
 export const MouseButtonSchema = z.enum(["left", "right", "middle"]).meta({ id: "MouseButton" });
 
 export const PageReloadParamsSchema = PageIdParamsSchema.extend({

@@ -89,6 +89,11 @@ import {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
+  PageWebMCPCancelInvocationParamsSchema,
+  PageWebMCPInvocationResultParamsSchema,
+  PageWebMCPInvokeToolParamsSchema,
+  PageWebMCPToolsParamsSchema,
+  PageWebMCPToolsResultSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
   RuntimeLoopbackStatusResultSchema,
@@ -102,6 +107,8 @@ import {
   StagehandObserveParamsSchema,
   StagehandPingResultSchema,
   SnapshotResultSchema,
+  WebMCPInvocationDescriptorSchema,
+  WebMCPToolResponseSchema,
 } from "./schemas.ts";
 
 export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
@@ -342,6 +349,30 @@ export const StagehandMethods = {
     name: "page.wait_for_selector",
     params: PageWaitForSelectorParamsSchema,
     result: PageWaitForSelectorResultSchema,
+  },
+  pageWebMCPTools: {
+    name: "page.webmcp_tools",
+    params: PageWebMCPToolsParamsSchema,
+    result: PageWebMCPToolsResultSchema,
+    resultWire: { opaqueKeys: ["inputSchema"] },
+  },
+  pageWebMCPInvokeTool: {
+    name: "page.webmcp_invoke_tool",
+    params: PageWebMCPInvokeToolParamsSchema,
+    result: WebMCPInvocationDescriptorSchema,
+    paramsWire: { opaqueKeys: ["input"] },
+    resultWire: { opaqueKeys: ["input"] },
+  },
+  pageWebMCPInvocationResult: {
+    name: "page.webmcp_invocation_result",
+    params: PageWebMCPInvocationResultParamsSchema,
+    result: WebMCPToolResponseSchema,
+    resultWire: { opaqueKeys: ["output", "exception"] },
+  },
+  pageWebMCPCancelInvocation: {
+    name: "page.webmcp_cancel_invocation",
+    params: PageWebMCPCancelInvocationParamsSchema,
+    result: PageVoidResultSchema,
   },
   locatorClick: {
     name: "locator.click",
