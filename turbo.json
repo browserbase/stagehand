@@ -147,6 +147,16 @@
         "BROWSERBASE_API_KEY",
         "BROWSERBASE_PROJECT_ID"
       ]
+    },
+    "@browserbasehq/stagehand-protocol#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-protocol#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "json-rpc/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
     }
   }
 }
