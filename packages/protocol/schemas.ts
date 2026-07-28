@@ -1222,24 +1222,21 @@ export const PageNavigationOptionsSchema = z
   .meta({ id: "PageNavigationOptions" });
 
 export const PageVoidResultSchema = z
-  .object({
+  .strictObject({
     ok: z.literal(true),
   })
-  .strict()
   .meta({ id: "PageVoidResult" });
 
 export const ContextVoidResultSchema = z
-  .object({
+  .strictObject({
     ok: z.literal(true),
   })
-  .strict()
   .meta({ id: "ContextVoidResult" });
 
 export const ContextCloseResultSchema = z
-  .object({
+  .strictObject({
     closed: z.literal(true),
   })
-  .strict()
   .meta({ id: "ContextCloseResult" });
 
 export const PageCoordinateResultSchema = z
@@ -1734,10 +1731,9 @@ export const StagehandInitResultSchema = z
   .meta({ id: "StagehandInitResult" });
 
 export const StagehandCloseResultSchema = z
-  .object({
+  .strictObject({
     closed: z.literal(true),
   })
-  .strict()
   .meta({ id: "StagehandCloseResult" });
 
 export const ContextPagesResultSchema = z.array(PageRefSchema).meta({ id: "ContextPagesResult" });
@@ -1777,10 +1773,9 @@ export const PageTitleResultSchema = z
   .meta({ id: "PageTitleResult" });
 
 export const PageCloseResultSchema = z
-  .object({
+  .strictObject({
     closed: z.literal(true),
   })
-  .strict()
   .meta({ id: "PageCloseResult" });
 
 export const PageDragAndDropResultSchema = z
@@ -1810,24 +1805,21 @@ export const PageWaitForSelectorResultSchema = z
   .meta({ id: "PageWaitForSelectorResult" });
 
 export const LocatorClickResultSchema = z
-  .object({
+  .strictObject({
     clicked: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorClickResult" });
 
 export const LocatorFillResultSchema = z
-  .object({
+  .strictObject({
     filled: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorFillResult" });
 
 export const LocatorHoverResultSchema = z
-  .object({
+  .strictObject({
     hovered: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorHoverResult" });
 
 export const LocatorCountResultSchema = z
@@ -1873,10 +1865,9 @@ export const LocatorTextContentResultSchema = z
   .meta({ id: "LocatorTextContentResult" });
 
 export const LocatorScrollToResultSchema = z
-  .object({
+  .strictObject({
     scrolled: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorScrollToResult" });
 
 export const LocatorCentroidResultSchema = z
@@ -1887,24 +1878,21 @@ export const LocatorCentroidResultSchema = z
   .meta({ id: "LocatorCentroidResult" });
 
 export const LocatorHighlightResultSchema = z
-  .object({
+  .strictObject({
     highlighted: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorHighlightResult" });
 
 export const LocatorSendClickEventResultSchema = z
-  .object({
+  .strictObject({
     clicked: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorSendClickEventResult" });
 
 export const LocatorTypeResultSchema = z
-  .object({
+  .strictObject({
     typed: z.literal(true),
   })
-  .strict()
   .meta({ id: "LocatorTypeResult" });
 
 export const LocatorSelectOptionResultSchema = z
