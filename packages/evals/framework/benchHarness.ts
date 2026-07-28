@@ -128,7 +128,7 @@ export const stagehandHarness: BenchHarness = {
         logger,
         stagehand: result.stagehand,
         page: result.page,
-        debugUrl: "",
+        debugUrl: result.sessionUrl ?? "",
         sessionUrl: result.sessionUrl ?? "",
       },
       cleanup: async () => {

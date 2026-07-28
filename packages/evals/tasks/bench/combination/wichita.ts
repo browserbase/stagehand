@@ -13,8 +13,10 @@ export default defineBenchTask(
         z.object({ total_results: z.number() }),
       );
 
+      const success = data.total_results === 430;
       return {
-        _success: data.total_results === 430,
+        _success: success,
+        ...(success ? {} : { error: "Incorrect number of bids extracted" }),
         total_results: data.total_results,
         debugUrl,
         sessionUrl,

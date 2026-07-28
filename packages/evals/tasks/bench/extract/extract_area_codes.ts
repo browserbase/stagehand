@@ -37,7 +37,7 @@ export default defineBenchTask(
 
       const expectedPrimaryCenters = await page.evaluate(() => {
         const table = document.querySelector(".field--name-body table");
-        if (!table) return [];
+        if (!table) throw new Error("Area-code table not found");
         let zone = "";
         return Array.from(table.querySelectorAll("tr")).flatMap((row) => {
           const header = row.querySelector(":scope > th")?.textContent?.trim();
@@ -51,6 +51,9 @@ export default defineBenchTask(
           return [{ zone_name: zone, primary_center_name, area_code }];
         });
       });
+      if (expectedPrimaryCenters.length === 0) {
+        throw new Error("Area-code table contained no primary centers");
+      }
       const key = (item: { zone_name: string; primary_center_name: string; area_code: string }) =>
         [
           normalizeString(item.zone_name),

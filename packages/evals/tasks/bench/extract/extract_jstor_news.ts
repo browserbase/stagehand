@@ -30,6 +30,9 @@ export default defineBenchTask(
           publish_date: article.querySelector(".meta.date")?.textContent?.trim() ?? "",
         })),
       );
+      if (expectedReports.length === 0) {
+        throw new Error("Expected JSTOR news reports not found");
+      }
       const key = (report: { report_name: string; publish_date: string }) =>
         `${normalizeString(report.report_name)}|${normalizeString(report.publish_date)}`;
       const actualKeys = reports.map(key).sort();

@@ -26,6 +26,9 @@ export default defineBenchTask(
           job_title: tile.querySelector("h4")?.textContent?.trim() ?? "",
         })),
       );
+      if (expectedStaff.length === 0) {
+        throw new Error("Expected staff list contained no staff members");
+      }
       const key = (member: { name: string; job_title: string }) =>
         `${normalizeString(member.name)}|${normalizeString(member.job_title)}`;
       const actualKeys = result.staff_members.map(key).sort();

@@ -37,6 +37,9 @@ export default defineBenchTask(
           ];
         }),
       );
+      if (expectedPublications.length === 0) {
+        throw new Error("Expected CSA publications table contained no publications");
+      }
       const key = (publication: {
         publication_date: string;
         session_type: string;

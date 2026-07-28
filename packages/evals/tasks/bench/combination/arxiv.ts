@@ -31,7 +31,7 @@ export default defineBenchTask(
       );
 
       const papers = [];
-      for (const paper of paperLinks.papers.slice(0, 2)) {
+      for (const paper of paperLinks.papers) {
         await page.goto(paper.link);
         const { data: abstract } = await stagehand.extract(
           "Extract details of the paper from the abstract",

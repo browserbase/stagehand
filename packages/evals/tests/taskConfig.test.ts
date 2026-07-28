@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { StagehandClientInitParamsSchema } from "@browserbasehq/stagehand";
 import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "stagehand-v3";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
@@ -19,6 +18,7 @@ async function loadTaskConfig(): Promise<TaskConfigModule> {
 }
 
 beforeEach(() => {
+  vi.resetModules();
   originalEnv.clear();
   for (const key of ENV_KEYS) {
     originalEnv.set(key, process.env[key]);
@@ -62,36 +62,18 @@ describe("getModelList", () => {
   });
 
   it("filters by provider when EVAL_PROVIDER is set", async () => {
+    process.env.EVAL_MODELS = "openai/custom-model,google/custom-model";
     process.env.EVAL_PROVIDER = "openai";
     const { getModelList } = await loadTaskConfig();
-    const models = getModelList();
-    expect(models.every((m) => m.toLowerCase().startsWith("openai/"))).toBe(true);
+    expect(getModelList()).toEqual(["openai/custom-model"]);
   });
 
-  it("only plans model names accepted by the current Stagehand client", async () => {
+  it("does not restrict configured models to a local provider allowlist", async () => {
+    process.env.EVAL_MODELS = "new-provider/new-model,openai/custom-model";
+    process.env.EVAL_PROVIDER = "new-provider";
     const { getModelList } = await loadTaskConfig();
 
-    for (const provider of ["openai", "anthropic", "google", "groq", "cerebras"]) {
-      process.env.EVAL_PROVIDER = provider;
-      const models = getModelList();
-      expect(models.length).toBeGreaterThan(0);
-      for (const modelName of models) {
-        expect(
-          StagehandClientInitParamsSchema.safeParse({
-            browser: { type: "local" },
-            model: { modelName, apiKey: "test-key" },
-          }).success,
-          `${modelName} should be accepted by StagehandClientInitParamsSchema`,
-        ).toBe(true);
-      }
-    }
-  });
-
-  it("rejects providers unsupported by the current Stagehand client", async () => {
-    process.env.EVAL_PROVIDER = "together";
-    const { getModelList } = await loadTaskConfig();
-
-    expect(() => getModelList()).toThrow(/Unsupported Stagehand provider "together"/);
+    expect(getModelList()).toEqual(["new-provider/new-model"]);
   });
 });
 

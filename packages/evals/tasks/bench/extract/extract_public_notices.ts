@@ -29,23 +29,26 @@ export default defineBenchTask(
 
       const publicNotices = result.public_notices;
       const expectedNotices = await page.evaluate(() => {
-        const table = Array.from(document.querySelectorAll("table")).find((candidate) => {
-          const text = candidate.textContent ?? "";
-          return text.includes("GG 51526") && text.includes("GG 43495");
-        });
-        if (!table) return [];
-        return Array.from(table.querySelectorAll(":scope > tbody > tr")).flatMap((row) => {
-          const cells = Array.from(row.querySelectorAll(":scope > td"));
-          if (cells.length !== 4) return [];
-          const publication_date = (cells[0]?.textContent ?? "")
-            .replace(/New!/gi, "")
-            .replace(/\u00a0/g, " ")
-            .trim();
-          const gg_number = (cells[1]?.textContent ?? "").match(/GG\s+\d+/)?.[0] ?? "";
-          const year = Number(publication_date.match(/\b(20\d{2})\b/)?.[1]);
-          return year >= 2020 && year <= 2024 ? [{ gg_number, publication_date }] : [];
-        });
+        const tables = Array.from(document.querySelectorAll("table")).filter(
+          (table) => !table.parentElement?.closest("table"),
+        );
+        return tables.flatMap((table) =>
+          Array.from(table.querySelectorAll(":scope > tbody > tr")).flatMap((row) => {
+            const cells = Array.from(row.querySelectorAll(":scope > td"));
+            if (cells.length !== 4) return [];
+            const publication_date = (cells[0]?.textContent ?? "")
+              .replace(/New!/gi, "")
+              .replace(/\u00a0/g, " ")
+              .trim();
+            const gg_number = (cells[1]?.textContent ?? "").match(/GG\s+\d+/)?.[0] ?? "";
+            const year = Number(publication_date.match(/\b(20\d{2})\b/)?.[1]);
+            return year >= 2020 && year <= 2024 ? [{ gg_number, publication_date }] : [];
+          }),
+        );
       });
+      if (expectedNotices.length === 0) {
+        throw new Error("Expected public notices were not found");
+      }
       const key = (notice: { gg_number: string; publication_date: string }) =>
         `${normalizeString(notice.gg_number)}|${normalizeString(notice.publication_date)}`;
       const actualKeys = publicNotices.map(key).sort();

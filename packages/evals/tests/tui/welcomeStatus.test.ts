@@ -50,7 +50,10 @@ function restoreProviderKeys(): void {
 
 describe("snapshotEnv", () => {
   beforeEach(() => clearProviderKeys());
-  afterEach(() => restoreProviderKeys());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    restoreProviderKeys();
+  });
 
   it("reports all missing when no provider keys are set", () => {
     const s = snapshotEnv();
@@ -72,9 +75,9 @@ describe("snapshotEnv", () => {
 
   it("loads package-local dotenv values while preferring process.env", () => {
     delete process.env.EVALS_DISABLE_PACKAGE_ENV;
-    const readFile = vi
-      .spyOn(fs, "readFileSync")
-      .mockReturnValue("OPENAI_API_KEY=package-key\nBROWSERBASE_API_KEY=package-browserbase-key\n");
+    vi.spyOn(fs, "readFileSync").mockReturnValue(
+      "OPENAI_API_KEY=package-key\nBROWSERBASE_API_KEY=package-browserbase-key\n",
+    );
     __resetPackageEnvCacheForTests();
 
     expect(resolveKey("OPENAI_API_KEY")).toEqual({
@@ -91,7 +94,6 @@ describe("snapshotEnv", () => {
       value: "process-key",
       source: "process-env",
     });
-    readFile.mockRestore();
   });
 
   it("prefers GOOGLE_GENERATIVE_AI_API_KEY over GEMINI_API_KEY", () => {

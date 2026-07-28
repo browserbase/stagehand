@@ -51,6 +51,7 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   closeMock.mockClear();
   initStagehandMock.mockClear();
   while (tempDirs.length > 0) {
@@ -114,6 +115,7 @@ describe("bench runner", () => {
     );
     expect(result).toMatchObject({
       _success: true,
+      debugUrl: "https://www.browserbase.com/sessions/session-123",
       sessionUrl: "https://www.browserbase.com/sessions/session-123",
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
@@ -166,6 +168,5 @@ describe("bench runner", () => {
       `Warning: Error closing Stagehand for ${task.name}:`,
       expect.any(Error),
     );
-    consoleError.mockRestore();
   });
 });

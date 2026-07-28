@@ -22,6 +22,7 @@ export default defineBenchTask(
 
       return {
         _success: success,
+        ...(success ? {} : { error: "Total number of results is not within the expected range" }),
         extractedNumber,
         debugUrl,
         sessionUrl,

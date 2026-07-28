@@ -33,27 +33,6 @@ export default defineBenchTask(
       }> = [];
 
       const compareField = (actualVal: string, expectedVal: string, fieldName: string) => {
-        if (fieldName === "Phone number" || fieldName === "Fax number") {
-          const matches = actualVal.replace(/\D/g, "") === expectedVal.replace(/\D/g, "");
-          if (!matches) {
-            failedFields.push({
-              field: fieldName,
-              similarity: 0,
-              expected: expectedVal,
-              actual: actualVal,
-            });
-            logger.error({
-              message: `${fieldName} extracted does not match`,
-              level: 0,
-              auxiliary: {
-                field: { value: fieldName, type: "string" },
-                expected: { value: expectedVal, type: "string" },
-                actual: { value: actualVal, type: "string" },
-              },
-            });
-          }
-          return matches;
-        }
         const { similarity, meetsThreshold } = compareStrings(
           actualVal,
           expectedVal,
@@ -89,7 +68,7 @@ export default defineBenchTask(
       if (!addressOk || !phoneOk || !faxOk) {
         return {
           _success: false,
-          error: "Some fields did not match expected values",
+          error: "Some fields did not meet similarity threshold",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,

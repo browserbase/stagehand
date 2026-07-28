@@ -19,27 +19,6 @@ import {
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
-const EVAL_MODELS_BY_PROVIDER = {
-  openai: ["openai/gpt-4o-mini", "openai/gpt-4o", "openai/o3", "openai/o3-mini", "openai/o4-mini"],
-  anthropic: ["anthropic/claude-sonnet-4-6"],
-  google: [
-    "google/gemini-2.0-flash",
-    "google/gemini-2.0-flash-lite",
-    "google/gemini-2.5-flash",
-    "google/gemini-2.5-pro",
-  ],
-  groq: [
-    "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-    "groq/llama-3.3-70b-versatile",
-    "groq/llama3-70b-8192",
-    "groq/qwen-qwq-32b",
-    "groq/qwen-2.5-32b",
-    "groq/deepseek-r1-distill-qwen-32b",
-    "groq/deepseek-r1-distill-llama-70b",
-  ],
-  cerebras: ["cerebras/llama3.1-8b"],
-} as const;
-
 // ---------------------------------------------------------------------------
 // Auto-discover tasks from filesystem
 // ---------------------------------------------------------------------------
@@ -272,13 +251,7 @@ const getModelList = (category?: string): string[] => {
   }
 
   if (provider) {
-    const models = EVAL_MODELS_BY_PROVIDER[provider as keyof typeof EVAL_MODELS_BY_PROVIDER];
-    if (!models) {
-      throw new Error(
-        `Unsupported Stagehand provider "${provider}". Supported providers: ${Object.keys(EVAL_MODELS_BY_PROVIDER).join(", ")}.`,
-      );
-    }
-    return [...models];
+    return DEFAULT_EVAL_MODELS.filter((model) => model.toLowerCase().startsWith(`${provider}/`));
   }
 
   return DEFAULT_EVAL_MODELS;

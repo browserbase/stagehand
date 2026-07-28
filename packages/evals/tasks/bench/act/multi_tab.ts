@@ -30,11 +30,8 @@ export default defineBenchTask(
         };
       }
 
-      // try acting on the first page again
-      const pages = await stagehand.context.pages();
-      const page1 = pages[0];
-      // Switch pages explicitly to exercise active-page tracking.
-      await stagehand.context.setActivePage(page1);
+      // Act on the original page again.
+      await stagehand.context.setActivePage(page);
       await stagehand.act("click the button to open the other page");
 
       activePage = await stagehand.context.activePage();
