@@ -9,61 +9,9 @@
  */
 import fs from "fs";
 import { LogLine } from "stagehand-v3";
-import stringComparison from "string-comparison";
 import type { AgentModelEntry } from "./types/evals.js";
 import { inferDefaultStagehandAgentMode } from "./framework/agentModelModes.js";
-const { jaroWinkler } = stringComparison;
-
-/**
- * normalizeString:
- * Prepares a string for comparison by:
- * - Converting to lowercase
- * - Collapsing multiple spaces to a single space
- * - Removing punctuation and special characters that are not alphabetic or numeric
- * - Normalizing spacing around commas
- * - Trimming leading and trailing whitespace
- *
- * This helps create a stable string representation to compare against expected outputs,
- * even if the actual output contains minor formatting differences.
- */
-export function normalizeString(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[;/#!$%^&*:{}=\-_`~()]/g, "")
-    .replace(/\s*,\s*/g, ", ")
-    .trim();
-}
-
-/**
- * compareStrings:
- * Compares two strings (actual vs. expected) using a similarity metric (Jaro-Winkler).
- *
- * Arguments:
- * - actual: The actual output string to be checked.
- * - expected: The expected string we want to match against.
- * - similarityThreshold: A number between 0 and 1. Default is 0.85.
- *   If the computed similarity is greater than or equal to this threshold,
- *   we consider the strings sufficiently similar.
- *
- * Returns:
- * - similarity: A number indicating how similar the two strings are.
- * - meetsThreshold: A boolean indicating if the similarity meets or exceeds the threshold.
- *
- * This function is useful for tasks where exact string matching is too strict,
- * allowing for fuzzy matching that tolerates minor differences in formatting or spelling.
- */
-export function compareStrings(
-  actual: string,
-  expected: string,
-  similarityThreshold: number = 0.85,
-): { similarity: number; meetsThreshold: boolean } {
-  const similarity = jaroWinkler.similarity(normalizeString(actual), normalizeString(expected));
-  return {
-    similarity,
-    meetsThreshold: similarity >= similarityThreshold,
-  };
-}
+export { compareStrings, normalizeString } from "./scoring.js";
 
 /**
  * generateTimestamp:

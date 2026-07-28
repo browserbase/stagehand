@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_yc_startup" },
@@ -30,14 +30,16 @@ export default defineBenchTask(
 
       // Compare the observed elements against the accepted container elements.
       let foundMatch = false;
-      let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const matched = await findMatchingSelector(page, observation.selector, possibleLocators);
+          const matched = await selectorsResolveToSameElement(
+            page,
+            observation.selector,
+            possibleLocators,
+          );
           if (matched) {
             foundMatch = true;
-            matchedLocator = matched;
             break;
           }
         } catch (error) {
@@ -51,7 +53,6 @@ export default defineBenchTask(
 
       return {
         _success: foundMatch,
-        matchedLocator,
         observations,
         debugUrl,
         sessionUrl,

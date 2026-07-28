@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { normalizeString, normalizeTechnicalValue } from "../../../framework/textScoring.js";
+import { normalizeString, normalizeTechnicalValue } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_resistor_info" },

@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_taxes" },
@@ -32,7 +32,7 @@ export default defineBenchTask(
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          if (await findMatchingSelector(page, observation.selector, ["#tpWages"])) {
+          if (await selectorsResolveToSameElement(page, observation.selector, ["#tpWages"])) {
             foundMatch = true;
             break;
           }

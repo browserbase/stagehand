@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 import type { Action } from "@browserbasehq/stagehand";
 
 export default defineBenchTask(
@@ -37,14 +37,16 @@ export default defineBenchTask(
       // Both candidate selectors live in the main frame. An observation
       // inside the cross-origin iframe will not resolve to either candidate.
       let foundMatch = false;
-      let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const matched = await findMatchingSelector(page, observation.selector, possibleLocators);
+          const matched = await selectorsResolveToSameElement(
+            page,
+            observation.selector,
+            possibleLocators,
+          );
           if (matched) {
             foundMatch = true;
-            matchedLocator = matched;
             break;
           }
         } catch (error) {
@@ -58,7 +60,6 @@ export default defineBenchTask(
 
       return {
         _success: foundMatch,
-        matchedLocator,
         observations,
         debugUrl,
         sessionUrl,

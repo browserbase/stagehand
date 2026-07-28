@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_vantechjournal" },
@@ -24,9 +24,11 @@ export default defineBenchTask(
         "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
       ];
 
-      // Compare element identity rather than visible text, which may be duplicated.
-      const foundMatch =
-        (await findMatchingSelector(page, observations[0].selector, expectedLocators)) !== null;
+      const foundMatch = await selectorsResolveToSameElement(
+        page,
+        observations[0].selector,
+        expectedLocators,
+      );
 
       return {
         _success: foundMatch,

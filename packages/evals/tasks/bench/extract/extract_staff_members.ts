@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { normalizeString } from "../../../framework/textScoring.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_staff_members" },

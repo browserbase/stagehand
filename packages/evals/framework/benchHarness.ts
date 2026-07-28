@@ -45,7 +45,6 @@ export interface StartedBenchHarness {
 export interface BenchHarness {
   harness: Harness;
   supportedTaskKinds: BenchTaskKind[];
-  supportsApi: boolean;
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
   start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
 }
@@ -93,7 +92,6 @@ function buildExternalHarnessTaskSpec(
 export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
   supportedTaskKinds: ["act", "extract", "observe", "combination"],
-  supportsApi: false,
   async start({
     task,
     input,
@@ -147,7 +145,6 @@ export const stagehandHarness: BenchHarness = {
 export const claudeCodeHarness: BenchHarness = {
   harness: "claude_code",
   supportedTaskKinds: ["agent", "suite"],
-  supportsApi: false,
   async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "claude_code") {
@@ -195,7 +192,6 @@ export const claudeCodeHarness: BenchHarness = {
 export const codexHarness: BenchHarness = {
   harness: "codex",
   supportedTaskKinds: ["agent", "suite"],
-  supportsApi: false,
   async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "codex") {

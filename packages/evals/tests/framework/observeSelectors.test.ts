@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Page } from "@browserbasehq/stagehand";
-import { findMatchingSelector } from "../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../framework/observeSelectors.js";
 
 const first = {};
 const second = {};
@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("findMatchingSelector", () => {
+describe("selectorsResolveToSameElement", () => {
   it("matches CSS selectors that resolve to the same element", async () => {
     vi.stubGlobal("document", {
       querySelector: (selector: string) =>
@@ -25,8 +25,8 @@ describe("findMatchingSelector", () => {
     vi.stubGlobal("XPathResult", { FIRST_ORDERED_NODE_TYPE: 9 });
 
     await expect(
-      findMatchingSelector(buildPage(), "#observed", ["#other", "[data-match]"]),
-    ).resolves.toBe("[data-match]");
+      selectorsResolveToSameElement(buildPage(), "#observed", ["#other", "[data-match]"]),
+    ).resolves.toBe(true);
   });
 
   it.each(["/html/body/button", "xpath=/html/body/button", "(//button)[1]"])(
@@ -39,8 +39,8 @@ describe("findMatchingSelector", () => {
       vi.stubGlobal("XPathResult", { FIRST_ORDERED_NODE_TYPE: 9 });
 
       await expect(
-        findMatchingSelector(buildPage(), observedSelector, ["#candidate"]),
-      ).resolves.toBe("#candidate");
+        selectorsResolveToSameElement(buildPage(), observedSelector, ["#candidate"]),
+      ).resolves.toBe(true);
     },
   );
 
@@ -55,10 +55,12 @@ describe("findMatchingSelector", () => {
     });
     vi.stubGlobal("XPathResult", { FIRST_ORDERED_NODE_TYPE: 9 });
 
-    await expect(findMatchingSelector(buildPage(), "#missing", ["#observed"])).resolves.toBeNull();
     await expect(
-      findMatchingSelector(buildPage(), "#observed", ["#other", "#missing"]),
-    ).resolves.toBeNull();
+      selectorsResolveToSameElement(buildPage(), "#missing", ["#observed"]),
+    ).resolves.toBe(false);
+    await expect(
+      selectorsResolveToSameElement(buildPage(), "#observed", ["#other", "#missing"]),
+    ).resolves.toBe(false);
   });
 
   it("treats malformed selectors as unresolved and continues matching", async () => {
@@ -75,9 +77,13 @@ describe("findMatchingSelector", () => {
     vi.stubGlobal("XPathResult", { FIRST_ORDERED_NODE_TYPE: 9 });
 
     await expect(
-      findMatchingSelector(buildPage(), "#observed", ["[", "xpath=(", "#candidate"]),
-    ).resolves.toBe("#candidate");
-    await expect(findMatchingSelector(buildPage(), "[", ["#candidate"])).resolves.toBeNull();
-    await expect(findMatchingSelector(buildPage(), "xpath=(", ["#candidate"])).resolves.toBeNull();
+      selectorsResolveToSameElement(buildPage(), "#observed", ["[", "xpath=(", "#candidate"]),
+    ).resolves.toBe(true);
+    await expect(selectorsResolveToSameElement(buildPage(), "[", ["#candidate"])).resolves.toBe(
+      false,
+    );
+    await expect(
+      selectorsResolveToSameElement(buildPage(), "xpath=(", ["#candidate"]),
+    ).resolves.toBe(false);
   });
 });

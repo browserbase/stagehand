@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
-import { exactMatch, passRate } from "../../scoring.js";
+import {
+  compareStrings,
+  exactMatch,
+  normalizeString,
+  normalizeTechnicalValue,
+  passRate,
+} from "../../scoring.js";
 
 describe("core scoring", () => {
   it("reports Pass for successful core outputs", () => {
@@ -33,5 +39,29 @@ describe("core scoring", () => {
       name: "Exact match",
       score: 1,
     });
+  });
+});
+
+describe("task text scoring", () => {
+  it.each([
+    ["  Hello---WORLD  ", "helloworld"],
+    ["A, B", "a, b"],
+    ["semi;colon_and-dash", "semicolonanddash"],
+    ["", ""],
+  ])("normalizes %j", (input, expected) => {
+    expect(normalizeString(input)).toBe(expected);
+  });
+
+  it("preserves signs in technical values", () => {
+    expect(normalizeTechnicalValue("-40°C to +125°C")).toBe("-40°c to +125°c");
+  });
+
+  it("treats the fuzzy-match threshold as inclusive", () => {
+    const { similarity } = compareStrings("MARTHA", "MARHTA");
+
+    expect(compareStrings("MARTHA", "MARHTA", similarity).meetsThreshold).toBe(true);
+    expect(compareStrings("MARTHA", "MARHTA", similarity + Number.EPSILON).meetsThreshold).toBe(
+      false,
+    );
   });
 });

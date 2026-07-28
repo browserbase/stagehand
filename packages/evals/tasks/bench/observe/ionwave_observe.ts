@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "ionwave_observe" },
@@ -23,7 +23,7 @@ export default defineBenchTask(
       for (const observation of observations) {
         try {
           if (
-            await findMatchingSelector(page, observation.selector, [
+            await selectorsResolveToSameElement(page, observation.selector, [
               "#Form1 > div:nth-child(5) > div:nth-child(1) > a",
             ])
           ) {

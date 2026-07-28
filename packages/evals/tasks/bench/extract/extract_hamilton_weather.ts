@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { compareStrings } from "../../../framework/textScoring.js";
+import { compareStrings } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_hamilton_weather" },

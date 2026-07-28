@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_file_uploads" },
@@ -22,8 +22,9 @@ export default defineBenchTask(
 
       const expectedLocator = `xpath=/html/body/input`;
 
-      const foundMatch =
-        (await findMatchingSelector(page, observations[0].selector, [expectedLocator])) !== null;
+      const foundMatch = await selectorsResolveToSameElement(page, observations[0].selector, [
+        expectedLocator,
+      ]);
 
       return {
         _success: foundMatch,

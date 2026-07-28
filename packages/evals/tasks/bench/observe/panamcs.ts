@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "panamcs" },
@@ -23,7 +23,9 @@ export default defineBenchTask(
       for (const observation of observations) {
         try {
           if (
-            await findMatchingSelector(page, observation.selector, ["#menu > li:nth-child(1) > a"])
+            await selectorsResolveToSameElement(page, observation.selector, [
+              "#menu > li:nth-child(1) > a",
+            ])
           ) {
             foundMatch = true;
             break;
