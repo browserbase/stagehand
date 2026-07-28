@@ -122,6 +122,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -137,5 +143,32 @@ jobs:
       - name: Check examples
         run: sh scripts/check-examples.sh
       - run: go test $(go list ./... | grep -v '/examples$')
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - run: go -C internal/generator test ./...
       - run: go build $(go list ./... | grep -v '/examples$')
+
+  go-windows:
+    name: Go (Windows process management)
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/sdk-go
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Test Windows process management
+        run: >-
+          go test
+          -run 'TestConfigureChromeProcessUsesDedicatedProcessGroupWindows|TestTaskkillArgsPreserveGracefulThenForcefulShutdown|TestIgnoreFinishedProcessErrorWindows'
+          .
