@@ -51,7 +51,7 @@ func (l *PageLocator) Count(ctx context.Context) (int, error) {
 	if err := l.rpc.call(ctx, "locator.count", params, &result); err != nil {
 		return 0, err
 	}
-	return result.Count, nil
+	return int(result), nil
 }
 
 // IsChecked reports whether the matching control is checked.
@@ -61,7 +61,7 @@ func (l *PageLocator) IsChecked(ctx context.Context) (bool, error) {
 	if err := l.rpc.call(ctx, "locator.is_checked", params, &result); err != nil {
 		return false, err
 	}
-	return result.Checked, nil
+	return bool(result), nil
 }
 
 // InputValue returns the matching input's value.
@@ -71,7 +71,7 @@ func (l *PageLocator) InputValue(ctx context.Context) (string, error) {
 	if err := l.rpc.call(ctx, "locator.input_value", params, &result); err != nil {
 		return "", err
 	}
-	return result.Value, nil
+	return string(result), nil
 }
 
 // IsVisible reports whether the matching element is visible.
@@ -81,7 +81,7 @@ func (l *PageLocator) IsVisible(ctx context.Context) (bool, error) {
 	if err := l.rpc.call(ctx, "locator.is_visible", params, &result); err != nil {
 		return false, err
 	}
-	return result.Visible, nil
+	return bool(result), nil
 }
 
 // InnerText returns the matching element's rendered text.
@@ -91,7 +91,7 @@ func (l *PageLocator) InnerText(ctx context.Context) (string, error) {
 	if err := l.rpc.call(ctx, "locator.inner_text", params, &result); err != nil {
 		return "", err
 	}
-	return result.Text, nil
+	return string(result), nil
 }
 
 // InnerHTML returns the matching element's HTML.
@@ -101,7 +101,7 @@ func (l *PageLocator) InnerHTML(ctx context.Context) (string, error) {
 	if err := l.rpc.call(ctx, "locator.inner_html", params, &result); err != nil {
 		return "", err
 	}
-	return result.HTML, nil
+	return string(result), nil
 }
 
 // TextContent returns the matching element's text content.
@@ -111,7 +111,7 @@ func (l *PageLocator) TextContent(ctx context.Context) (string, error) {
 	if err := l.rpc.call(ctx, "locator.text_content", params, &result); err != nil {
 		return "", err
 	}
-	return result.TextContent, nil
+	return string(result), nil
 }
 
 // ScrollTo scrolls the matching element to a generated percentage value.
@@ -175,7 +175,7 @@ func (l *PageLocator) SelectOption(ctx context.Context, values StringList) ([]st
 	if err := l.rpc.call(ctx, "locator.select_option", params, &result); err != nil {
 		return nil, err
 	}
-	return result.Values, nil
+	return []string(result), nil
 }
 
 // First returns a locator restricted to the first match.

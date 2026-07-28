@@ -10,7 +10,7 @@ func TestBrowserClipboardMapsScopedAndUnscopedCalls(t *testing.T) {
 
 	shortcut := ContextClipboardPasteParamsShortcutControlOrMetaV
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"context.clipboard_read_text": ContextClipboardReadTextResult{Text: "copied"},
+		"context.clipboard_read_text": ContextClipboardReadTextResult("copied"),
 	}}
 	clipboard := &BrowserClipboard{rpc: rpc}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}

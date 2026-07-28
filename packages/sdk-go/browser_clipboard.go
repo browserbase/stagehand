@@ -25,7 +25,7 @@ func (c *BrowserClipboard) ReadText(ctx context.Context, options *ClipboardOptio
 	if err := c.rpc.call(ctx, "context.clipboard_read_text", params, &result); err != nil {
 		return "", err
 	}
-	return result.Text, nil
+	return string(result), nil
 }
 
 // WriteText replaces the current clipboard text.

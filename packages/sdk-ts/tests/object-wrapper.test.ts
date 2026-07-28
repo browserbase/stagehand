@@ -225,12 +225,10 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextSetExtraHTTPHeaders, { ok: true });
     client.queueResponse(StagehandMethods.contextGetDomainPolicy, {
-      policy: {
-        allowedDomains: ["example.com"],
-        blockedDomains: ["blocked.example.com"],
-      },
+      allowedDomains: ["example.com"],
+      blockedDomains: ["blocked.example.com"],
     });
-    client.queueResponse(StagehandMethods.contextGetDomainPolicy, { policy: null });
+    client.queueResponse(StagehandMethods.contextGetDomainPolicy, null);
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
@@ -274,8 +272,8 @@ describe("Stagehand TS object wrapper", () => {
       secure: true,
       sameSite: "Lax" as const,
     };
-    client.queueResponse(StagehandMethods.contextCookies, { cookies: [cookie] });
-    client.queueResponse(StagehandMethods.contextCookies, { cookies: [] });
+    client.queueResponse(StagehandMethods.contextCookies, [cookie]);
+    client.queueResponse(StagehandMethods.contextCookies, []);
     client.queueResponse(StagehandMethods.contextAddCookies, { ok: true });
     client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
     client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
@@ -321,7 +319,7 @@ describe("Stagehand TS object wrapper", () => {
 
   it("lazily exposes a clipboard facade and routes all clipboard operations", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.contextClipboardReadText, { text: "clipboard text" });
+    client.queueResponse(StagehandMethods.contextClipboardReadText, "clipboard text");
     client.queueResponse(StagehandMethods.contextClipboardWriteText, { ok: true });
     client.queueResponse(StagehandMethods.contextClipboardClear, { ok: true });
     client.queueResponse(StagehandMethods.contextClipboardPaste, { ok: true });
@@ -663,9 +661,9 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes page.url and unwraps the result", async () => {
+  it("routes page.url", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageUrl, { url: "https://example.com" });
+    client.queueResponse(StagehandMethods.pageUrl, "https://example.com");
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.url()).resolves.toBe("https://example.com");
@@ -674,9 +672,9 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes page.title and unwraps the result", async () => {
+  it("routes page.title", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageTitle, { title: "Example" });
+    client.queueResponse(StagehandMethods.pageTitle, "Example");
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.title()).resolves.toBe("Example");
@@ -943,9 +941,9 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes locator.isVisible and unwraps the result", async () => {
+  it("routes locator.isVisible", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorIsVisible, { visible: true });
+    client.queueResponse(StagehandMethods.locatorIsVisible, true);
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.locator("#message").isVisible()).resolves.toBe(true);
@@ -957,9 +955,9 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes locator.textContent and unwraps the result", async () => {
+  it("routes locator.textContent", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorTextContent, { textContent: "hello" });
+    client.queueResponse(StagehandMethods.locatorTextContent, "hello");
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(page.locator("#message").textContent()).resolves.toBe("hello");
@@ -971,13 +969,13 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes read locator methods and unwraps their results", async () => {
+  it("routes read locator methods", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.locatorCount, { count: 2 });
-    client.queueResponse(StagehandMethods.locatorIsChecked, { checked: true });
-    client.queueResponse(StagehandMethods.locatorInputValue, { value: "user@example.com" });
-    client.queueResponse(StagehandMethods.locatorInnerText, { text: "visible text" });
-    client.queueResponse(StagehandMethods.locatorInnerHtml, { html: "<span>visible text</span>" });
+    client.queueResponse(StagehandMethods.locatorCount, 2);
+    client.queueResponse(StagehandMethods.locatorIsChecked, true);
+    client.queueResponse(StagehandMethods.locatorInputValue, "user@example.com");
+    client.queueResponse(StagehandMethods.locatorInnerText, "visible text");
+    client.queueResponse(StagehandMethods.locatorInnerHtml, "<span>visible text</span>");
     client.queueResponse(StagehandMethods.locatorCentroid, { x: 12, y: 34 });
     const page = new Page(client, { pageId: "page-1" });
     const locator = page.locator("#field");
@@ -1006,7 +1004,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.locatorHighlight, { highlighted: true });
     client.queueResponse(StagehandMethods.locatorSendClickEvent, { clicked: true });
     client.queueResponse(StagehandMethods.locatorType, { typed: true });
-    client.queueResponse(StagehandMethods.locatorSelectOption, { values: ["pro"] });
+    client.queueResponse(StagehandMethods.locatorSelectOption, ["pro"]);
     const page = new Page(client, { pageId: "page-1" });
     const locator = page.locator("#field");
 

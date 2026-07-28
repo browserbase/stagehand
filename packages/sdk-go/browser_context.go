@@ -90,7 +90,7 @@ func (c *BrowserContext) GetDomainPolicy(ctx context.Context) (*DomainPolicy, er
 	if err := c.rpc.call(ctx, "context.get_domain_policy", EmptyParams{}, &result); err != nil {
 		return nil, err
 	}
-	return result.Policy, nil
+	return result, nil
 }
 
 // SetDomainPolicy changes the current domain policy.
@@ -107,7 +107,7 @@ func (c *BrowserContext) Cookies(ctx context.Context, urls *StringList) ([]Cooki
 	if err := c.rpc.call(ctx, "context.cookies", params, &result); err != nil {
 		return nil, err
 	}
-	return result.Cookies, nil
+	return []Cookie(result), nil
 }
 
 // AddCookies adds cookies to the context.

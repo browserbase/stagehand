@@ -270,7 +270,7 @@ func (p *Page) URL(ctx context.Context) (string, error) {
 	if err := p.rpc.call(ctx, "page.url", params, &result); err != nil {
 		return "", err
 	}
-	return result.URL, nil
+	return string(result), nil
 }
 
 // Title returns the page title.
@@ -280,7 +280,7 @@ func (p *Page) Title(ctx context.Context) (string, error) {
 	if err := p.rpc.call(ctx, "page.title", params, &result); err != nil {
 		return "", err
 	}
-	return result.Title, nil
+	return string(result), nil
 }
 
 // Close closes the page.

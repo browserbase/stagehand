@@ -348,12 +348,8 @@ class ContextClipboardPasteParams(WireModel):
     shortcut: Optional[Shortcut] = None
 
 
-class ContextClipboardReadTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class ContextClipboardReadTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class ContextClipboardTarget(WireModel):
@@ -387,22 +383,6 @@ class ContextCookiesParams(WireModel):
         validate_by_name=True,
     )
     urls: Optional[Union[StrictStr, list[StrictStr]]] = None
-
-
-class ContextCookiesResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    cookies: list[Cookie]
-
-
-class ContextGetDomainPolicyResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    policy: Optional[DomainPolicy]
 
 
 class ContextNewPageParams(WireModel):
@@ -458,6 +438,10 @@ class Cookie(WireModel):
     http_only: StrictBool
     secure: StrictBool
     same_site: SameSite
+
+
+class ContextCookiesResult(RootModel[list[Cookie]]):
+    root: list[Cookie]
 
 
 class CookieParam(WireModel):
@@ -540,6 +524,10 @@ class DomainPolicy(WireModel):
     )
     allowed_domains: Optional[list[StrictStr]] = None
     blocked_domains: Optional[list[StrictStr]] = None
+
+
+class ContextGetDomainPolicyResult(RootModel[Optional[DomainPolicy]]):
+    root: Optional[DomainPolicy]
 
 
 class EmptyParams(WireModel):
@@ -1048,12 +1036,8 @@ class LocatorClickResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorCountResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    count: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+class LocatorCountResult(RootModel[StrictInt]):
+    root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
 class LocatorDescriptor(WireModel):
@@ -1122,44 +1106,24 @@ class LocatorHoverResult(WireModel):
     hovered: Literal[True]
 
 
-class LocatorInnerHtmlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    html: StrictStr
+class LocatorInnerHtmlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInnerTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class LocatorInnerTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInputValueResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    value: StrictStr
+class LocatorInputValueResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorIsCheckedResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    checked: StrictBool
+class LocatorIsCheckedResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
-class LocatorIsVisibleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    visible: StrictBool
+class LocatorIsVisibleResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
 class LocatorScrollToParams(WireModel):
@@ -1192,12 +1156,8 @@ class LocatorSelectOptionParams(WireModel):
     values: Union[StrictStr, list[StrictStr]]
 
 
-class LocatorSelectOptionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    values: list[StrictStr]
+class LocatorSelectOptionResult(RootModel[list[StrictStr]]):
+    root: list[StrictStr]
 
 
 class LocatorSendClickEventOptions(WireModel):
@@ -1230,12 +1190,8 @@ class LocatorSendClickEventResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorTextContentResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text_content: StrictStr
+class LocatorTextContentResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class LocatorTypeOptions(WireModel):
@@ -1711,12 +1667,8 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
-class PageTitleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    title: StrictStr
+class PageTitleResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageTypeOptions(WireModel):
@@ -1738,12 +1690,8 @@ class PageTypeParams(WireModel):
     options: Optional[PageTypeOptions] = None
 
 
-class PageUrlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    url: StrictStr
+class PageUrlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageVoidResult(WireModel):

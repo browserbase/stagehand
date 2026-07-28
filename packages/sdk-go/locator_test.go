@@ -9,8 +9,8 @@ func TestPageLocatorPropagatesDescriptorAndMapsResults(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"locator.count":         LocatorCountResult{Count: 3},
-		"locator.select_option": LocatorSelectOptionResult{Values: []string{"one"}},
+		"locator.count":         LocatorCountResult(3),
+		"locator.select_option": LocatorSelectOptionResult{"one"},
 	}}
 	locator := (&Page{
 		rpc: rpc,

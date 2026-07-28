@@ -1735,35 +1735,21 @@ export const ContextActivePageResultSchema = PageRefSchema.nullable().meta({
   id: "ContextActivePageResult",
 });
 
-export const ContextGetDomainPolicyResultSchema = z
-  .strictObject({
-    policy: DomainPolicySchema.nullable(),
-  })
-  .meta({ id: "ContextGetDomainPolicyResult" });
+export const ContextGetDomainPolicyResultSchema = DomainPolicySchema.nullable().meta({
+  id: "ContextGetDomainPolicyResult",
+});
 
 export const ContextCookiesResultSchema = z
-  .strictObject({
-    cookies: z.array(CookieSchema),
-  })
+  .array(CookieSchema)
   .meta({ id: "ContextCookiesResult" });
 
 export const ContextClipboardReadTextResultSchema = z
-  .strictObject({
-    text: z.string(),
-  })
+  .string()
   .meta({ id: "ContextClipboardReadTextResult" });
 
-export const PageUrlResultSchema = z
-  .strictObject({
-    url: z.string(),
-  })
-  .meta({ id: "PageUrlResult" });
+export const PageUrlResultSchema = z.string().meta({ id: "PageUrlResult" });
 
-export const PageTitleResultSchema = z
-  .strictObject({
-    title: z.string(),
-  })
-  .meta({ id: "PageTitleResult" });
+export const PageTitleResultSchema = z.string().meta({ id: "PageTitleResult" });
 
 export const PageCloseResultSchema = z
   .strictObject({
@@ -1816,46 +1802,24 @@ export const LocatorHoverResultSchema = z
   .meta({ id: "LocatorHoverResult" });
 
 export const LocatorCountResultSchema = z
-  .strictObject({
-    count: z.number().int().nonnegative(),
-  })
+  .number()
+  .int()
+  .nonnegative()
   .meta({ id: "LocatorCountResult" });
 
-export const LocatorIsCheckedResultSchema = z
-  .strictObject({
-    checked: z.boolean(),
-  })
-  .meta({ id: "LocatorIsCheckedResult" });
+export const LocatorIsCheckedResultSchema = z.boolean().meta({ id: "LocatorIsCheckedResult" });
 
-export const LocatorInputValueResultSchema = z
-  .strictObject({
-    value: z.string(),
-  })
-  .meta({ id: "LocatorInputValueResult" });
+export const LocatorInputValueResultSchema = z.string().meta({ id: "LocatorInputValueResult" });
 
-export const LocatorIsVisibleResultSchema = z
-  .strictObject({
-    visible: z.boolean(),
-  })
-  .meta({ id: "LocatorIsVisibleResult" });
+export const LocatorIsVisibleResultSchema = z.boolean().meta({ id: "LocatorIsVisibleResult" });
 
-export const LocatorInnerTextResultSchema = z
-  .strictObject({
-    text: z.string(),
-  })
-  .meta({ id: "LocatorInnerTextResult" });
+export const LocatorInnerTextResultSchema = z.string().meta({ id: "LocatorInnerTextResult" });
 
-export const LocatorInnerHtmlResultSchema = z
-  .strictObject({
-    html: z.string(),
-  })
-  .meta({ id: "LocatorInnerHtmlResult" });
+export const LocatorInnerHtmlResultSchema = z.string().meta({ id: "LocatorInnerHtmlResult" });
 
-export const LocatorTextContentResultSchema = z
-  .strictObject({
-    textContent: z.string(),
-  })
-  .meta({ id: "LocatorTextContentResult" });
+export const LocatorTextContentResultSchema = z.string().meta({
+  id: "LocatorTextContentResult",
+});
 
 export const LocatorScrollToResultSchema = z
   .strictObject({
@@ -1889,9 +1853,7 @@ export const LocatorTypeResultSchema = z
   .meta({ id: "LocatorTypeResult" });
 
 export const LocatorSelectOptionResultSchema = z
-  .strictObject({
-    values: z.array(z.string()),
-  })
+  .array(z.string())
   .meta({ id: "LocatorSelectOptionResult" });
 
 export const StagehandLogLevelSchema = z

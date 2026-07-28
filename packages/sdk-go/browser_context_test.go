@@ -14,10 +14,10 @@ func TestBrowserContextMapsPagesAndCookies(t *testing.T) {
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"context.pages":    ContextPagesResult{{PageID: "page-1"}},
 		"context.new_page": PageRef{PageID: "page-2", URL: &pageURL},
-		"context.cookies": ContextCookiesResult{Cookies: []Cookie{{
+		"context.cookies": ContextCookiesResult{{
 			Name: "session", Value: "value", Domain: "example.com", Path: "/",
 			SameSite: CookieSameSiteLax,
-		}}},
+		}},
 	}}
 	browserContext := &BrowserContext{rpc: rpc}
 

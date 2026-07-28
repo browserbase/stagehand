@@ -248,34 +248,30 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(clipboard.params).parse(clipboardWireParams)).toStrictEqual(clipboardParams);
 
     const cookies = StagehandMethods.contextCookies;
-    const cookiesResult = {
-      cookies: [
-        {
-          name: "session",
-          value: "abc123",
-          domain: "example.com",
-          path: "/",
-          expires: -1,
-          httpOnly: true,
-          secure: true,
-          sameSite: "Lax" as const,
-        },
-      ],
-    };
-    const cookiesWireResult = {
-      cookies: [
-        {
-          name: "session",
-          value: "abc123",
-          domain: "example.com",
-          path: "/",
-          expires: -1,
-          http_only: true,
-          secure: true,
-          same_site: "Lax" as const,
-        },
-      ],
-    };
+    const cookiesResult = [
+      {
+        name: "session",
+        value: "abc123",
+        domain: "example.com",
+        path: "/",
+        expires: -1,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax" as const,
+      },
+    ];
+    const cookiesWireResult = [
+      {
+        name: "session",
+        value: "abc123",
+        domain: "example.com",
+        path: "/",
+        expires: -1,
+        http_only: true,
+        secure: true,
+        same_site: "Lax" as const,
+      },
+    ];
     expect(encodeWireValue(cookiesResult)).toStrictEqual(cookiesWireResult);
     expect(wireSchema(cookies.result).parse(cookiesWireResult)).toStrictEqual(cookiesResult);
   });

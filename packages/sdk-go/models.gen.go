@@ -316,10 +316,7 @@ const ContextClipboardPasteParamsShortcutControlOrMetaV ContextClipboardPastePar
 const ContextClipboardPasteParamsShortcutControlV ContextClipboardPasteParamsShortcut = "Control+V"
 const ContextClipboardPasteParamsShortcutMetaV ContextClipboardPasteParamsShortcut = "Meta+V"
 
-type ContextClipboardReadTextResult struct {
-	// Text corresponds to the JSON schema field "text".
-	Text string `json:"text"`
-}
+type ContextClipboardReadTextResult string
 
 type ContextClipboardTarget struct {
 	// PageID corresponds to the JSON schema field "page_id".
@@ -344,15 +341,7 @@ type ContextCookiesParams struct {
 	Urls *StringList `json:"urls,omitempty,omitzero"`
 }
 
-type ContextCookiesResult struct {
-	// Cookies corresponds to the JSON schema field "cookies".
-	Cookies []Cookie `json:"cookies"`
-}
-
-type ContextGetDomainPolicyResult struct {
-	// Policy corresponds to the JSON schema field "policy".
-	Policy *DomainPolicy `json:"policy"`
-}
+type ContextCookiesResult []Cookie
 
 type ContextNewPageParams struct {
 	// URL corresponds to the JSON schema field "url".
@@ -869,10 +858,7 @@ type LocatorClickResult struct {
 	Clicked bool `json:"clicked"`
 }
 
-type LocatorCountResult struct {
-	// Count corresponds to the JSON schema field "count".
-	Count int `json:"count"`
-}
+type LocatorCountResult int
 
 type LocatorDescriptor struct {
 	// Nth corresponds to the JSON schema field "nth".
@@ -939,30 +925,15 @@ type LocatorHoverResult struct {
 	Hovered bool `json:"hovered"`
 }
 
-type LocatorInnerHTMLResult struct {
-	// HTML corresponds to the JSON schema field "html".
-	HTML string `json:"html"`
-}
+type LocatorInnerHTMLResult string
 
-type LocatorInnerTextResult struct {
-	// Text corresponds to the JSON schema field "text".
-	Text string `json:"text"`
-}
+type LocatorInnerTextResult string
 
-type LocatorInputValueResult struct {
-	// Value corresponds to the JSON schema field "value".
-	Value string `json:"value"`
-}
+type LocatorInputValueResult string
 
-type LocatorIsCheckedResult struct {
-	// Checked corresponds to the JSON schema field "checked".
-	Checked bool `json:"checked"`
-}
+type LocatorIsCheckedResult bool
 
-type LocatorIsVisibleResult struct {
-	// Visible corresponds to the JSON schema field "visible".
-	Visible bool `json:"visible"`
-}
+type LocatorIsVisibleResult bool
 
 type LocatorScrollToParams struct {
 	// Nth corresponds to the JSON schema field "nth".
@@ -997,10 +968,7 @@ type LocatorSelectOptionParams struct {
 	Values StringList `json:"values"`
 }
 
-type LocatorSelectOptionResult struct {
-	// Values corresponds to the JSON schema field "values".
-	Values []string `json:"values"`
-}
+type LocatorSelectOptionResult []string
 
 type LocatorSendClickEventOptions struct {
 	// Bubbles corresponds to the JSON schema field "bubbles".
@@ -1035,10 +1003,7 @@ type LocatorSendClickEventResult struct {
 	Clicked bool `json:"clicked"`
 }
 
-type LocatorTextContentResult struct {
-	// TextContent corresponds to the JSON schema field "text_content".
-	TextContent string `json:"text_content"`
-}
+type LocatorTextContentResult string
 
 type LocatorTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
@@ -1471,10 +1436,7 @@ type PageSnapshotParams struct {
 	PageID string `json:"page_id"`
 }
 
-type PageTitleResult struct {
-	// Title corresponds to the JSON schema field "title".
-	Title string `json:"title"`
-}
+type PageTitleResult string
 
 type PageTypeOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
@@ -1495,10 +1457,7 @@ type PageTypeParams struct {
 	Text string `json:"text"`
 }
 
-type PageURLResult struct {
-	// URL corresponds to the JSON schema field "url".
-	URL string `json:"url"`
-}
+type PageURLResult string
 
 type PageVoidResult struct {
 	// Ok corresponds to the JSON schema field "ok".
@@ -1943,7 +1902,7 @@ type generatedModelCatalog struct {
 
 	// ContextCookiesResult corresponds to the JSON schema field
 	// "ContextCookiesResult".
-	ContextCookiesResult *ContextCookiesResult `json:"ContextCookiesResult,omitempty,omitzero"`
+	ContextCookiesResult ContextCookiesResult `json:"ContextCookiesResult,omitempty,omitzero"`
 
 	// ContextGetDomainPolicyResult corresponds to the JSON schema field
 	// "ContextGetDomainPolicyResult".
@@ -2178,7 +2137,7 @@ type generatedModelCatalog struct {
 
 	// LocatorSelectOptionResult corresponds to the JSON schema field
 	// "LocatorSelectOptionResult".
-	LocatorSelectOptionResult *LocatorSelectOptionResult `json:"LocatorSelectOptionResult,omitempty,omitzero"`
+	LocatorSelectOptionResult LocatorSelectOptionResult `json:"LocatorSelectOptionResult,omitempty,omitzero"`
 
 	// LocatorSendClickEventOptions corresponds to the JSON schema field
 	// "LocatorSendClickEventOptions".

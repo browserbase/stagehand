@@ -117,6 +117,9 @@ const (
 // ContextActivePageResult is either the active page or JSON null.
 type ContextActivePageResult = *PageRef
 
+// ContextGetDomainPolicyResult is either the current domain policy or JSON null.
+type ContextGetDomainPolicyResult = *DomainPolicy
+
 // StringList accepts either a single JSON string or an array of strings and
 // always marshals as an array.
 type StringList []string
