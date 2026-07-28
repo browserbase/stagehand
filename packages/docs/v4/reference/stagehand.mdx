@@ -257,7 +257,7 @@ const result = await stagehand.act("Click the sign in button");
       Additional model provider headers.
     </ParamField>
 
-    <ParamField path="options.model.modelName" type="ModelName">
+    <ParamField path="options.model.modelName" type="ProviderModelName">
       The model identifier.
     </ParamField>
 
@@ -365,7 +365,7 @@ const actions = await stagehand.observe("Find the sign in button");
       Additional model provider headers.
     </ParamField>
 
-    <ParamField path="options.model.modelName" type="ModelName">
+    <ParamField path="options.model.modelName" type="ProviderModelName">
       The model identifier.
     </ParamField>
 
@@ -464,7 +464,7 @@ const product = await stagehand.extract("Extract the product", ProductSchema);
       Additional model provider headers.
     </ParamField>
 
-    <ParamField path="options.model.modelName" type="ModelName">
+    <ParamField path="options.model.modelName" type="ProviderModelName">
       The model identifier.
     </ParamField>
 
@@ -719,7 +719,7 @@ result = await stagehand.act("Click the sign in button")
   Additional model provider headers.
 </ParamField>
 
-  <ParamField path="model.model_name" type="ModelName">
+  <ParamField path="model.model_name" type="ProviderModelName">
     The model identifier.
   </ParamField>
 </ParamField>
@@ -820,7 +820,7 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   Additional model provider headers.
 </ParamField>
 
-  <ParamField path="model.model_name" type="ModelName">
+  <ParamField path="model.model_name" type="ProviderModelName">
     The model identifier.
   </ParamField>
 </ParamField>
@@ -916,7 +916,7 @@ product = await stagehand.extract(instruction="Extract the product", schema=Prod
   Additional model provider headers.
 </ParamField>
 
-  <ParamField path="model.model_name" type="ModelName">
+  <ParamField path="model.model_name" type="ProviderModelName">
     The model identifier.
   </ParamField>
 </ParamField>

@@ -10,7 +10,7 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseRegion,
     CustomModelConfig,
-    KnownModelConfig,
+    DirectModelConfig,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
@@ -156,7 +156,7 @@ def _model_config(
     }
     if base_url is None:
         return ModelConfig(
-            root=KnownModelConfig.model_validate({"model_name": model, **connection})
+            root=DirectModelConfig.model_validate({"model_name": model, **connection})
         )
     return ModelConfig(
         root=CustomModelConfig.model_validate({

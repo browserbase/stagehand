@@ -1,6 +1,6 @@
 import type { LanguageModel, LanguageModelMiddleware } from "ai";
-import type { ClientOptions, ModelName, ModelProvider } from "../../protocol/types.js";
-import { ClientOptionsSchema, ModelNameSchema } from "../../protocol/schemas.js";
+import type { ClientOptions, ModelProvider, ProviderModelName } from "../../protocol/types.js";
+import { ClientOptionsSchema, ProviderModelNameSchema } from "../../protocol/schemas.js";
 import { AISdkClient } from "./aisdk.js";
 import { LLMClient } from "./LLMClient.js";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -79,7 +79,7 @@ export class LLMProvider {
   }
 
   getClient(
-    modelName: ModelName,
+    modelName: ProviderModelName,
     clientOptions?: ClientOptions,
     options?: {
       experimental?: boolean;
@@ -88,7 +88,7 @@ export class LLMProvider {
     },
   ): LLMClient {
     const parsedClientOptions = parseClientOptions(clientOptions);
-    const parsedModelName = ModelNameSchema.parse(modelName);
+    const parsedModelName = ProviderModelNameSchema.parse(modelName);
     const firstSlashIndex = parsedModelName.indexOf("/");
     const subProvider = parsedModelName.substring(0, firstSlashIndex) as ModelProvider;
     const subModelName = parsedModelName.substring(firstSlashIndex + 1);

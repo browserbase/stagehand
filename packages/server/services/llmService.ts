@@ -24,9 +24,9 @@ export async function generate(
     throw new Error("Custom OpenAI-compatible inference is not implemented yet");
   }
 
-  if (!model.apiKey) {
+  if (!("apiKey" in model)) {
     // TODO: Send configurations without direct credentials through Browserbase Model Gateway.
-    throw new Error("Direct model inference requires an API key");
+    throw new Error("Browserbase Model Gateway inference is not implemented yet");
   }
 
   return await generateWithAiSdk(createAiSdkLanguageModel(model), params);

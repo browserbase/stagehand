@@ -54,9 +54,9 @@ describe("model configuration", () => {
     });
 
     it("requires provider credentials for direct inference", () => {
-      expect(
-        ModelConfigSchema.safeParse({ modelName: "openai/gpt-future-preview" }).success,
-      ).toBe(false);
+      expect(ModelConfigSchema.safeParse({ modelName: "openai/gpt-future-preview" }).success).toBe(
+        false,
+      );
     });
 
     it("rejects the removed provider and provider options fields", () => {

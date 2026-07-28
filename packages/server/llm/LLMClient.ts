@@ -9,7 +9,7 @@ import {
 } from "ai";
 import type { LanguageModel } from "ai";
 import type { z } from "zod/v4";
-import type { ModelName } from "../../protocol/types.js";
+import type { ProviderModelName } from "../../protocol/types.js";
 import type { StagehandLogger } from "../logger.js";
 import type { ChatCompletionOptionsSchema } from "./schemas.js";
 
@@ -102,13 +102,13 @@ export interface LLMParsedResponse<T> {
 
 export abstract class LLMClient {
   public abstract type: "openai" | "anthropic" | "cerebras" | "groq" | (string & {});
-  public modelName: ModelName;
+  public modelName: ProviderModelName;
   public hasVision = false;
   // Compile-only bridge: provider SDK option types diverge from V3's shared options.
   public clientOptions: unknown;
   public userProvidedInstructions?: string;
 
-  constructor(modelName: ModelName, userProvidedInstructions?: string) {
+  constructor(modelName: ProviderModelName, userProvidedInstructions?: string) {
     this.modelName = modelName;
     this.userProvidedInstructions = userProvidedInstructions;
   }

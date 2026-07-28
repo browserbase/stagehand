@@ -15,8 +15,8 @@ from stagehand._generated.models import (
     ActResultData,
     BrowserGetVersionResult,
     ClientModelReference,
+    DirectModelConfig,
     ExtractResult,
-    KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
     LLMRole,
@@ -80,7 +80,7 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
     assert local.init_params.browser.viewport is not None
     assert local.init_params.browser.viewport.width == 1280
     assert isinstance(local.init_params.model, ModelConfig)
-    assert isinstance(local.init_params.model.root, KnownModelConfig)
+    assert isinstance(local.init_params.model.root, DirectModelConfig)
     assert local.init_params.cache is not None
     assert local.init_params.cache.root is True
     assert local.init_params.model.root.model_name.model_dump() == "openai/gpt-5.4-mini"
