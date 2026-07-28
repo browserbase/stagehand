@@ -60,4 +60,24 @@ describe("findMatchingSelector", () => {
       findMatchingSelector(buildPage(), "#observed", ["#other", "#missing"]),
     ).resolves.toBeNull();
   });
+
+  it("treats malformed selectors as unresolved and continues matching", async () => {
+    vi.stubGlobal("document", {
+      querySelector: (selector: string) => {
+        if (selector === "[") throw new SyntaxError("Invalid CSS selector");
+        if (selector === "#observed" || selector === "#candidate") return first;
+        return null;
+      },
+      evaluate: () => {
+        throw new DOMException("Invalid XPath expression");
+      },
+    });
+    vi.stubGlobal("XPathResult", { FIRST_ORDERED_NODE_TYPE: 9 });
+
+    await expect(
+      findMatchingSelector(buildPage(), "#observed", ["[", "xpath=(", "#candidate"]),
+    ).resolves.toBe("#candidate");
+    await expect(findMatchingSelector(buildPage(), "[", ["#candidate"])).resolves.toBeNull();
+    await expect(findMatchingSelector(buildPage(), "xpath=(", ["#candidate"])).resolves.toBeNull();
+  });
 });

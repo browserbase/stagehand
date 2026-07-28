@@ -30,18 +30,22 @@ export async function findMatchingSelector(
       candidateSelectors: string[];
     }) => {
       const resolve = (selector: string): Element | null => {
-        const raw = selector.startsWith("xpath=") ? selector.slice("xpath=".length) : selector;
-        if (raw.startsWith("/") || raw.startsWith("(")) {
-          const result = document.evaluate(
-            raw,
-            document,
-            null,
-            XPathResult.FIRST_ORDERED_NODE_TYPE,
-            null,
-          );
-          return result.singleNodeValue as Element | null;
+        try {
+          const raw = selector.startsWith("xpath=") ? selector.slice("xpath=".length) : selector;
+          if (raw.startsWith("/") || raw.startsWith("(")) {
+            const result = document.evaluate(
+              raw,
+              document,
+              null,
+              XPathResult.FIRST_ORDERED_NODE_TYPE,
+              null,
+            );
+            return result.singleNodeValue as Element | null;
+          }
+          return document.querySelector(raw);
+        } catch {
+          return null;
         }
-        return document.querySelector(raw);
       };
 
       const observed = resolve(observedSelector);
