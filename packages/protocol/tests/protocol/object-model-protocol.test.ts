@@ -85,7 +85,7 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           model: {
             modelName: "anthropic/claude-sonnet-4-6",
@@ -105,7 +105,7 @@ describe("Stagehand object-model protocol", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { model: { apiKey: "test-key" } },
       }),
     ).toThrow();
@@ -115,12 +115,12 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { cache: { threshold: 2 } },
       }),
     ).toStrictEqual({
       pageId: "target-1",
-      input: "Click the submit button",
+      instruction: "Click the submit button",
       options: { cache: { threshold: 2 } },
     });
     expect(
@@ -257,7 +257,7 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           timeout: 1_000,
           variables: { accountEmail: "user@example.com" },
@@ -265,7 +265,7 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toStrictEqual({
       pageId: "target-1",
-      input: "Click the submit button",
+      instruction: "Click the submit button",
       options: {
         timeout: 1_000,
         variables: { accountEmail: "user@example.com" },
@@ -276,7 +276,7 @@ describe("Stagehand object-model protocol", () => {
   it("rejects actions without a page identity", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
-        input: "Click the submit button",
+        instruction: "Click the submit button",
       }),
     ).toThrow();
   });
@@ -285,7 +285,7 @@ describe("Stagehand object-model protocol", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { tiemout: 1_000 },
       }),
     ).toThrow();

@@ -743,7 +743,7 @@ describe("Stagehand TS object wrapper", () => {
       stagehandInitCall,
       requestCall(StagehandMethods.stagehandAct, {
         pageId: "page-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           timeout: 5_000,
           variables: { accountEmail: "user@example.com" },
@@ -794,7 +794,7 @@ describe("Stagehand TS object wrapper", () => {
       }),
       requestCall(StagehandMethods.stagehandAct, {
         pageId: "page-1",
-        input: observedAction,
+        instruction: observedAction,
         options: {},
       }),
     ]);
