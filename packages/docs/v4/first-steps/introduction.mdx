@@ -45,12 +45,15 @@ try {
 
   // Observe: discover the available actions
   const actions = await stagehand.observe("Find the primary call-to-action");
+  console.log(actions.data);
 
   // Act: perform a natural-language action
   await stagehand.act("Click the primary call-to-action");
 
   // Extract: pull structured data
-  const { heading } = await stagehand.extract(
+  const {
+    data: { heading },
+  } = await stagehand.extract(
     "Extract the page heading",
     z.object({ heading: z.string() }),
   );
@@ -83,6 +86,7 @@ async def main() -> None:
 
         # Observe: discover the available actions
         actions = await stagehand.observe(instruction="Find the primary call-to-action")
+        print(actions.data)
 
         # Act: perform a natural-language action
         await stagehand.act("Click the primary call-to-action")
@@ -92,6 +96,7 @@ async def main() -> None:
             instruction="Extract the page heading",
             schema=PageInfo,
         )
+        print(page_info.data.heading)
     finally:
         await stagehand.close()
 

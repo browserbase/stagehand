@@ -58,11 +58,8 @@ class ActResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    result: ActResultData
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    data: ActResultData
+    metadata: StagehandResultMetadata
 
 
 class ActResultData(WireModel):
@@ -351,12 +348,8 @@ class ContextClipboardPasteParams(WireModel):
     shortcut: Optional[Shortcut] = None
 
 
-class ContextClipboardReadTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class ContextClipboardReadTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class ContextClipboardTarget(WireModel):
@@ -390,22 +383,6 @@ class ContextCookiesParams(WireModel):
         validate_by_name=True,
     )
     urls: Optional[Union[StrictStr, list[StrictStr]]] = None
-
-
-class ContextCookiesResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    cookies: list[Cookie]
-
-
-class ContextGetDomainPolicyResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    policy: Optional[DomainPolicy]
 
 
 class ContextNewPageParams(WireModel):
@@ -461,6 +438,10 @@ class Cookie(WireModel):
     http_only: StrictBool
     secure: StrictBool
     same_site: SameSite
+
+
+class ContextCookiesResult(RootModel[list[Cookie]]):
+    root: list[Cookie]
 
 
 class CookieParam(WireModel):
@@ -545,6 +526,10 @@ class DomainPolicy(WireModel):
     blocked_domains: Optional[list[StrictStr]] = None
 
 
+class ContextGetDomainPolicyResult(RootModel[Optional[DomainPolicy]]):
+    root: Optional[DomainPolicy]
+
+
 class EmptyParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -609,12 +594,9 @@ class ExtractResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    result: Any
+    data: Optional[FieldSchema1]
     """Extracted data matching the requested schema"""
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    metadata: StagehandResultMetadata
 
 
 class FieldSchema0(
@@ -627,6 +609,12 @@ class FieldSchema1(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
+
+
+class FieldSchema10(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
 class FieldSchema2(
@@ -720,7 +708,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema9] = None
+    data: Optional[FieldSchema10] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -800,7 +788,7 @@ class LLMJsonSchemaResponseFormat(WireModel):
     type: Literal["json_schema"]
     name: StrictStr
     description: Optional[StrictStr] = None
-    schema_: Annotated[Optional[FieldSchema3], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema4], Field(alias="schema")]
 
 
 class LLMMessage(WireModel):
@@ -871,7 +859,7 @@ class LLMStructuredGenerateResult(WireModel):
     stop_reason: Optional[StrictStr] = None
     usage: Optional[LLMUsage] = None
     output_format: Literal["json_schema"]
-    structured_content: Optional[FieldSchema5]
+    structured_content: Optional[FieldSchema6]
 
 
 class LLMGenerateResult(
@@ -945,7 +933,7 @@ class LLMToolJson(WireModel):
     )
     field_schema: Annotated[Optional[StrictStr], Field(alias="$schema")] = None
     type: Literal["object"]
-    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema4]]]] = (
+    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema5]]]] = (
         None
     )
     required: Optional[list[StrictStr]] = None
@@ -959,7 +947,7 @@ class LLMToolResultContent(WireModel):
     type: Literal["tool_result"]
     tool_use_id: StrictStr
     content: list[LLMToolResultContentBlock]
-    structured_content: Optional[dict[StrictStr, Optional[FieldSchema2]]] = None
+    structured_content: Optional[dict[StrictStr, Optional[FieldSchema3]]] = None
     is_error: Optional[StrictBool] = None
 
 
@@ -975,7 +963,7 @@ class LLMToolUseContent(WireModel):
     type: Literal["tool_use"]
     id: StrictStr
     name: StrictStr
-    input: dict[StrictStr, Optional[FieldSchema1]]
+    input: dict[StrictStr, Optional[FieldSchema2]]
 
 
 class LLMMessageContentBlock(
@@ -1052,12 +1040,8 @@ class LocatorClickResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorCountResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    count: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+class LocatorCountResult(RootModel[StrictInt]):
+    root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
 class LocatorDescriptor(WireModel):
@@ -1126,44 +1110,24 @@ class LocatorHoverResult(WireModel):
     hovered: Literal[True]
 
 
-class LocatorInnerHtmlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    html: StrictStr
+class LocatorInnerHtmlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInnerTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class LocatorInnerTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInputValueResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    value: StrictStr
+class LocatorInputValueResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorIsCheckedResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    checked: StrictBool
+class LocatorIsCheckedResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
-class LocatorIsVisibleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    visible: StrictBool
+class LocatorIsVisibleResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
 class LocatorScrollToParams(WireModel):
@@ -1196,12 +1160,8 @@ class LocatorSelectOptionParams(WireModel):
     values: Union[StrictStr, list[StrictStr]]
 
 
-class LocatorSelectOptionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    values: list[StrictStr]
+class LocatorSelectOptionResult(RootModel[list[StrictStr]]):
+    root: list[StrictStr]
 
 
 class LocatorSendClickEventOptions(WireModel):
@@ -1234,12 +1194,8 @@ class LocatorSendClickEventResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorTextContentResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text_content: StrictStr
+class LocatorTextContentResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class LocatorTypeOptions(WireModel):
@@ -1344,11 +1300,8 @@ class ObserveResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    result: list[Action]
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    data: list[Action]
+    metadata: StagehandResultMetadata
 
 
 class OpenAIModelName(RootModel[StrictStr]):
@@ -1476,7 +1429,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema6]
+    value: Optional[FieldSchema7]
 
 
 class PageGoBackParams(WireModel):
@@ -1718,12 +1671,8 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
-class PageTitleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    title: StrictStr
+class PageTitleResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageTypeOptions(WireModel):
@@ -1745,12 +1694,8 @@ class PageTypeParams(WireModel):
     options: Optional[PageTypeOptions] = None
 
 
-class PageUrlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    url: StrictStr
+class PageUrlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageVoidResult(WireModel):
@@ -1951,8 +1896,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema7]]]):
-    root: dict[StrictStr, Optional[FieldSchema7]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
+    root: dict[StrictStr, Optional[FieldSchema8]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2006,6 +1951,17 @@ class StagehandPingResult(WireModel):
     )
     ok: Literal[True]
     runtime: Literal["service_worker"]
+
+
+class StagehandResultMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    action_id: Optional[StrictStr] = None
+    """Action ID for tracking"""
+    cache_status: Optional[CacheStatus] = None
+    """Server-side cache status for this result"""
 
 
 class State(StrEnum):
@@ -2063,6 +2019,7 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
 
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
+FieldSchema10.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

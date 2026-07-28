@@ -49,11 +49,13 @@ try {
 
   const first = await extractCompanies();
   console.log(`First extraction (expected cache miss, ${first.durationMs}ms):`);
-  console.log(JSON.stringify(first.result, null, 2));
+  console.log(JSON.stringify(first.result.data, null, 2));
+  console.log(`Cache status: ${first.result.metadata.cacheStatus ?? "disabled"}`);
 
   const second = await extractCompanies();
   console.log(`Second extraction (expected cache hit, ${second.durationMs}ms):`);
-  console.log(JSON.stringify(second.result, null, 2));
+  console.log(JSON.stringify(second.result.data, null, 2));
+  console.log(`Cache status: ${second.result.metadata.cacheStatus ?? "disabled"}`);
 } finally {
   await stagehand.close();
 }

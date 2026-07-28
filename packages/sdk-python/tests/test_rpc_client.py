@@ -1,4 +1,5 @@
 import asyncio
+from importlib.metadata import version
 from typing import ClassVar, cast
 
 import pytest
@@ -86,7 +87,7 @@ async def test_send_strictly_validates_root_model_results() -> None:
         "id": request["id"],
         "result": [{"page_id": "page-1"}],
     })
-    assert (await asyncio.wait_for(call, timeout=1)).root == [models.PageRef(page_id="page-1")]
+    assert await asyncio.wait_for(call, timeout=1) == [models.PageRef(page_id="page-1")]
 
     invalid_call = asyncio.create_task(
         client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
@@ -130,7 +131,7 @@ async def test_send_revalidates_mutated_params_and_strictly_validates_results() 
         await transport.incoming.put({
             "jsonrpc": "2.0",
             "id": request["id"],
-            "result": {"count": "1"},
+            "result": "1",
         })
         with pytest.raises(ValidationError):
             await call
@@ -487,6 +488,10 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "id": 1,
             "method": "runtime.configure",
             "params": {
+                "client_info": {
+                    "name": "stagehand-sdk-python",
+                    "version": version("stagehand"),
+                },
                 "cdp_url": "ws://resolved.example/devtools/browser/1",
                 "log_level": "info",
                 "telemetry": {

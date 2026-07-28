@@ -42,7 +42,7 @@ import {
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
-import { STAGEHAND_SDK_VERSION } from "./version.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -59,10 +59,6 @@ type RegisteredRequestHandler = {
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
-const STAGEHAND_SDK_CLIENT_INFO = {
-  name: "stagehand-sdk-ts",
-  version: STAGEHAND_SDK_VERSION,
-} as const;
 
 const RPCClientOptionsBaseSchema = z
   .object({

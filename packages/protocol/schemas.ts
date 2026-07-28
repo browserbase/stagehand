@@ -645,7 +645,7 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
-const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
+export const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -1032,6 +1032,17 @@ export const ActionSchema = z
 // Act
 // =============================================================================
 
+export const StagehandResultMetadataSchema = z
+  .strictObject({
+    actionId: z.string().optional().meta({
+      description: "Action ID for tracking",
+    }),
+    cacheStatus: CacheStatusSchema.optional().meta({
+      description: "Server-side cache status for this result",
+    }),
+  })
+  .meta({ id: "StagehandResultMetadata" });
+
 export const ActOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
@@ -1085,13 +1096,8 @@ export const ActResultDataSchema = z
 
 export const ActResultSchema = z
   .strictObject({
-    result: ActResultDataSchema,
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    data: ActResultDataSchema,
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ActResult" });
 
@@ -1136,18 +1142,10 @@ export const ExtractOptionsSchema = z
 
 export const ExtractResultSchema = z
   .strictObject({
-    result: z.unknown().meta({
+    data: z.json().meta({
       description: "Extracted data matching the requested schema",
-      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-        jsonSchema["x-stainless-any"] = true;
-      },
     }),
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ExtractResult" });
 
@@ -1198,13 +1196,8 @@ export const ObserveOptionsSchema = z
 
 export const ObserveResultSchema = z
   .strictObject({
-    result: z.array(ActionSchema),
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    data: z.array(ActionSchema),
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ObserveResult" });
 
@@ -1742,35 +1735,21 @@ export const ContextActivePageResultSchema = PageRefSchema.nullable().meta({
   id: "ContextActivePageResult",
 });
 
-export const ContextGetDomainPolicyResultSchema = z
-  .strictObject({
-    policy: DomainPolicySchema.nullable(),
-  })
-  .meta({ id: "ContextGetDomainPolicyResult" });
+export const ContextGetDomainPolicyResultSchema = DomainPolicySchema.nullable().meta({
+  id: "ContextGetDomainPolicyResult",
+});
 
 export const ContextCookiesResultSchema = z
-  .strictObject({
-    cookies: z.array(CookieSchema),
-  })
+  .array(CookieSchema)
   .meta({ id: "ContextCookiesResult" });
 
 export const ContextClipboardReadTextResultSchema = z
-  .strictObject({
-    text: z.string(),
-  })
+  .string()
   .meta({ id: "ContextClipboardReadTextResult" });
 
-export const PageUrlResultSchema = z
-  .strictObject({
-    url: z.string(),
-  })
-  .meta({ id: "PageUrlResult" });
+export const PageUrlResultSchema = z.string().meta({ id: "PageUrlResult" });
 
-export const PageTitleResultSchema = z
-  .strictObject({
-    title: z.string(),
-  })
-  .meta({ id: "PageTitleResult" });
+export const PageTitleResultSchema = z.string().meta({ id: "PageTitleResult" });
 
 export const PageCloseResultSchema = z
   .strictObject({
@@ -1823,46 +1802,24 @@ export const LocatorHoverResultSchema = z
   .meta({ id: "LocatorHoverResult" });
 
 export const LocatorCountResultSchema = z
-  .strictObject({
-    count: z.number().int().nonnegative(),
-  })
+  .number()
+  .int()
+  .nonnegative()
   .meta({ id: "LocatorCountResult" });
 
-export const LocatorIsCheckedResultSchema = z
-  .strictObject({
-    checked: z.boolean(),
-  })
-  .meta({ id: "LocatorIsCheckedResult" });
+export const LocatorIsCheckedResultSchema = z.boolean().meta({ id: "LocatorIsCheckedResult" });
 
-export const LocatorInputValueResultSchema = z
-  .strictObject({
-    value: z.string(),
-  })
-  .meta({ id: "LocatorInputValueResult" });
+export const LocatorInputValueResultSchema = z.string().meta({ id: "LocatorInputValueResult" });
 
-export const LocatorIsVisibleResultSchema = z
-  .strictObject({
-    visible: z.boolean(),
-  })
-  .meta({ id: "LocatorIsVisibleResult" });
+export const LocatorIsVisibleResultSchema = z.boolean().meta({ id: "LocatorIsVisibleResult" });
 
-export const LocatorInnerTextResultSchema = z
-  .strictObject({
-    text: z.string(),
-  })
-  .meta({ id: "LocatorInnerTextResult" });
+export const LocatorInnerTextResultSchema = z.string().meta({ id: "LocatorInnerTextResult" });
 
-export const LocatorInnerHtmlResultSchema = z
-  .strictObject({
-    html: z.string(),
-  })
-  .meta({ id: "LocatorInnerHtmlResult" });
+export const LocatorInnerHtmlResultSchema = z.string().meta({ id: "LocatorInnerHtmlResult" });
 
-export const LocatorTextContentResultSchema = z
-  .strictObject({
-    textContent: z.string(),
-  })
-  .meta({ id: "LocatorTextContentResult" });
+export const LocatorTextContentResultSchema = z.string().meta({
+  id: "LocatorTextContentResult",
+});
 
 export const LocatorScrollToResultSchema = z
   .strictObject({
@@ -1896,9 +1853,7 @@ export const LocatorTypeResultSchema = z
   .meta({ id: "LocatorTypeResult" });
 
 export const LocatorSelectOptionResultSchema = z
-  .strictObject({
-    values: z.array(z.string()),
-  })
+  .array(z.string())
   .meta({ id: "LocatorSelectOptionResult" });
 
 export const StagehandLogLevelSchema = z

@@ -1769,19 +1769,14 @@
     "ActResult": {
       "type": "object",
       "properties": {
-        "result": {
+        "data": {
           "$ref": "#/$defs/ActResultData"
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"],
+      "required": ["data", "metadata"],
       "additionalProperties": false
     },
     "ActResultData": {
@@ -1811,6 +1806,20 @@
         }
       },
       "required": ["success", "message", "action_description", "actions"],
+      "additionalProperties": false
+    },
+    "StagehandResultMetadata": {
+      "type": "object",
+      "properties": {
+        "action_id": {
+          "description": "Action ID for tracking",
+          "type": "string"
+        },
+        "cache_status": {
+          "description": "Server-side cache status for this result",
+          "$ref": "#/$defs/CacheStatus"
+        }
+      },
       "additionalProperties": false
     },
     "CacheStatus": {
@@ -1884,22 +1893,17 @@
     "ObserveResult": {
       "type": "object",
       "properties": {
-        "result": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Action"
           }
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"],
+      "required": ["data", "metadata"],
       "additionalProperties": false
     },
     "StagehandExtractParams": {
@@ -1998,20 +2002,47 @@
     "ExtractResult": {
       "type": "object",
       "properties": {
-        "result": {
-          "description": "Extracted data matching the requested schema"
+        "data": {
+          "description": "Extracted data matching the requested schema",
+          "$ref": "#/$defs/__schema1"
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"],
+      "required": ["data", "metadata"],
       "additionalProperties": false
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          }
+        }
+      ]
     },
     "StagehandMetrics": {
       "type": "object",
@@ -2261,85 +2292,12 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema1"
+            "$ref": "#/$defs/__schema2"
           }
         }
       },
       "required": ["type", "id", "name", "input"],
       "additionalProperties": false
-    },
-    "__schema1": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema1"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema1"
-          }
-        }
-      ]
-    },
-    "LLMToolResultContent": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "tool_result"
-        },
-        "tool_use_id": {
-          "type": "string"
-        },
-        "content": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMToolResultContentBlock"
-          }
-        },
-        "structured_content": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema2"
-          }
-        },
-        "is_error": {
-          "type": "boolean"
-        }
-      },
-      "required": ["type", "tool_use_id", "content"],
-      "additionalProperties": false
-    },
-    "LLMToolResultContentBlock": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/LLMTextContent"
-        },
-        {
-          "$ref": "#/$defs/LLMImageContent"
-        }
-      ]
     },
     "__schema2": {
       "anyOf": [
@@ -2372,25 +2330,47 @@
         }
       ]
     },
-    "LLMJsonSchemaResponseFormat": {
+    "LLMToolResultContent": {
       "type": "object",
       "properties": {
         "type": {
           "type": "string",
-          "const": "json_schema"
+          "const": "tool_result"
         },
-        "name": {
+        "tool_use_id": {
           "type": "string"
         },
-        "description": {
-          "type": "string"
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LLMToolResultContentBlock"
+          }
         },
-        "schema": {
-          "$ref": "#/$defs/__schema3"
+        "structured_content": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "is_error": {
+          "type": "boolean"
         }
       },
-      "required": ["type", "name", "schema"],
+      "required": ["type", "tool_use_id", "content"],
       "additionalProperties": false
+    },
+    "LLMToolResultContentBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LLMTextContent"
+        },
+        {
+          "$ref": "#/$defs/LLMImageContent"
+        }
+      ]
     },
     "__schema3": {
       "anyOf": [
@@ -2419,6 +2399,57 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/__schema3"
+          }
+        }
+      ]
+    },
+    "LLMJsonSchemaResponseFormat": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "json_schema"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/__schema4"
+        }
+      },
+      "required": ["type", "name", "schema"],
+      "additionalProperties": false
+    },
+    "__schema4": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema4"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema4"
           }
         }
       ]
@@ -2539,7 +2570,7 @@
               "type": "string"
             },
             "additionalProperties": {
-              "$ref": "#/$defs/__schema4"
+              "$ref": "#/$defs/__schema5"
             }
           }
         },
@@ -2553,7 +2584,7 @@
       "required": ["type"],
       "additionalProperties": false
     },
-    "__schema4": {
+    "__schema5": {
       "anyOf": [
         {
           "type": "string"
@@ -2570,7 +2601,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema5"
           }
         },
         {
@@ -2579,7 +2610,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema5"
           }
         }
       ]
@@ -2741,13 +2772,13 @@
           "const": "json_schema"
         },
         "structured_content": {
-          "$ref": "#/$defs/__schema5"
+          "$ref": "#/$defs/__schema6"
         }
       },
       "required": ["role", "content", "output_format", "structured_content"],
       "additionalProperties": false
     },
-    "__schema5": {
+    "__schema6": {
       "anyOf": [
         {
           "type": "string"
@@ -2764,7 +2795,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema5"
+            "$ref": "#/$defs/__schema6"
           }
         },
         {
@@ -2773,7 +2804,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema5"
+            "$ref": "#/$defs/__schema6"
           }
         }
       ]
@@ -2862,21 +2893,14 @@
       "additionalProperties": false
     },
     "ContextGetDomainPolicyResult": {
-      "type": "object",
-      "properties": {
-        "policy": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DomainPolicy"
-            },
-            {
-              "type": "null"
-            }
-          ]
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DomainPolicy"
+        },
+        {
+          "type": "null"
         }
-      },
-      "required": ["policy"],
-      "additionalProperties": false
+      ]
     },
     "DomainPolicy": {
       "type": "object",
@@ -2933,17 +2957,10 @@
       "additionalProperties": false
     },
     "ContextCookiesResult": {
-      "type": "object",
-      "properties": {
-        "cookies": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Cookie"
-          }
-        }
-      },
-      "required": ["cookies"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Cookie"
+      }
     },
     "Cookie": {
       "type": "object",
@@ -3092,14 +3109,7 @@
       "additionalProperties": false
     },
     "ContextClipboardReadTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "ContextClipboardWriteTextParams": {
       "type": "object",
@@ -3173,24 +3183,10 @@
       "additionalProperties": false
     },
     "PageUrlResult": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": ["url"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageTitleResult": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": ["title"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageCloseResult": {
       "type": "object",
@@ -3514,13 +3510,13 @@
       "type": "object",
       "properties": {
         "value": {
-          "$ref": "#/$defs/__schema6"
+          "$ref": "#/$defs/__schema7"
         }
       },
       "required": ["value"],
       "additionalProperties": false
     },
-    "__schema6": {
+    "__schema7": {
       "anyOf": [
         {
           "type": "string"
@@ -3537,7 +3533,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema7"
           }
         },
         {
@@ -3546,7 +3542,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema6"
+            "$ref": "#/$defs/__schema7"
           }
         }
       ]
@@ -3958,76 +3954,27 @@
       "additionalProperties": false
     },
     "LocatorCountResult": {
-      "type": "object",
-      "properties": {
-        "count": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        }
-      },
-      "required": ["count"],
-      "additionalProperties": false
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
     },
     "LocatorIsCheckedResult": {
-      "type": "object",
-      "properties": {
-        "checked": {
-          "type": "boolean"
-        }
-      },
-      "required": ["checked"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInputValueResult": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string"
-        }
-      },
-      "required": ["value"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorIsVisibleResult": {
-      "type": "object",
-      "properties": {
-        "visible": {
-          "type": "boolean"
-        }
-      },
-      "required": ["visible"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInnerTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorInnerHtmlResult": {
-      "type": "object",
-      "properties": {
-        "html": {
-          "type": "string"
-        }
-      },
-      "required": ["html"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorTextContentResult": {
-      "type": "object",
-      "properties": {
-        "text_content": {
-          "type": "string"
-        }
-      },
-      "required": ["text_content"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorScrollToParams": {
       "type": "object",
@@ -4281,17 +4228,10 @@
       "additionalProperties": false
     },
     "LocatorSelectOptionResult": {
-      "type": "object",
-      "properties": {
-        "values": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": ["values"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "StagehandLog": {
       "type": "object",
@@ -4320,10 +4260,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema7"
+        "$ref": "#/$defs/__schema8"
       }
     },
-    "__schema7": {
+    "__schema8": {
       "anyOf": [
         {
           "type": "string"
@@ -4340,7 +4280,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema7"
+            "$ref": "#/$defs/__schema8"
           }
         },
         {
@@ -4349,7 +4289,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema7"
+            "$ref": "#/$defs/__schema8"
           }
         }
       ]
@@ -6198,7 +6138,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema8"
+          "$ref": "#/$defs/__schema9"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6207,7 +6147,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema8": {
+    "__schema9": {
       "anyOf": [
         {
           "type": "string"
@@ -6224,7 +6164,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         },
         {
@@ -6233,7 +6173,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         }
       ]
@@ -6267,13 +6207,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema9"
+          "$ref": "#/$defs/__schema10"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema9": {
+    "__schema10": {
       "anyOf": [
         {
           "type": "string"
@@ -6290,7 +6230,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         },
         {
@@ -6299,7 +6239,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]

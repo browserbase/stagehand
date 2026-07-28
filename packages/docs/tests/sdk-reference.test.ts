@@ -685,7 +685,12 @@ describe("SDK reference surface", () => {
         for (const field of projectedResultFields(method, language, protocol)) {
           const actual = documented.get(field.key);
           if (!actual) continue;
-          const expectedType = canonicalSchemaType(field.schema, language, protocol);
+          const expectedType =
+            method.operationName === "stagehand.extract" && field.key === "result.data"
+              ? language === "TypeScript"
+                ? "z.output<Schema>"
+                : "ResultModel"
+              : canonicalSchemaType(field.schema, language, protocol);
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,

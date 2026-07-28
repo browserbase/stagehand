@@ -65,7 +65,7 @@ async def main() -> None:
                 {
                     "page_info": page_info.model_dump(mode="json"),
                     "actions": [
-                        action.model_dump(mode="json", by_alias=True) for action in actions
+                        action.model_dump(mode="json", by_alias=True) for action in actions.data
                     ],
                     "action_result": action_result.model_dump(mode="json", by_alias=True),
                     "generation_names": generation_names,
@@ -74,10 +74,10 @@ async def main() -> None:
             )
         )
 
-        if not actions:
+        if not actions.data:
             raise RuntimeError("observe() returned no matching actions")
-        if not action_result.success:
-            raise RuntimeError(f"act() failed: {action_result.message}")
+        if not action_result.data.success:
+            raise RuntimeError(f"act() failed: {action_result.data.message}")
     finally:
         await stagehand.close()
 
