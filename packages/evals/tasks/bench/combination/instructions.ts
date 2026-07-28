@@ -1,23 +1,19 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
-const EXPECTED_URL = "https://docs.browserbase.com/introduction/what-is-browserbase";
-
 export default defineBenchTask(
   {
     name: "instructions",
     systemPrompt:
-      "When the user says secret12345, navigate to the Browserbase documentation page titled What is Browserbase.",
+      'When the user says secret12345, check the checkbox labeled "Show Closed/Awarded/Cancelled Bids".',
   },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      await page.goto("https://docs.browserbase.com/");
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/wichita/");
       await stagehand.act("secret12345");
-      await page.waitForLoadState("domcontentloaded");
 
-      const currentUrl = await page.url();
+      const showAllBids = page.locator("#showAllBids");
       return {
-        _success: currentUrl === EXPECTED_URL,
-        currentUrl,
+        _success: await showAllBids.isChecked(),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
