@@ -1,0 +1,63 @@
+name: Setup Node and pnpm
+description: Configure pnpm and Node.js with caching, restore Turbo cache, and install dependencies.
+inputs:
+  node-version:
+    description: Node.js version to use.
+    required: false
+    default: "24"
+  use-prebuilt-artifacts:
+    description: Whether to download pre-built package from build artifacts.
+    required: false
+    default: "true"
+  restore-turbo-cache:
+    description: Whether to restore the local .turbo cache.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # Corepack ignores devEngines.packageManager, so pnpm 11.10.0 must be explicit to protect the lockfile.
+    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      with:
+        version: "11.10.0"
+        run_install: false
+
+    - name: Set up Node.js
+      uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'pnpm'
+        cache-dependency-path: '**/pnpm-lock.yaml'
+
+    - name: Restore Turbo cache
+      if: ${{ inputs.restore-turbo-cache == 'true' }}
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: .turbo
+        key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-
+
+    - name: Install dependencies
+      shell: bash
+      # Anchored at the workspace root on purpose: the python job defaults its run steps to
+      # packages/sdk-python, and the workspace install must not inherit that.
+      working-directory: ${{ github.workspace }}
+      run: pnpm install --frozen-lockfile --prefer-offline
+
+    - name: Download build artifacts
+      if: ${{ inputs.use-prebuilt-artifacts == 'true' }}
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: build-artifacts
+        path: .
+        merge-multiple: true
+
+    - name: Prepare test output directories
+      shell: bash
+      run: |
+        mkdir -p "${GITHUB_WORKSPACE}/ctrf"
+        if [ -n "${NODE_V8_COVERAGE:-}" ]; then
+          mkdir -p "$NODE_V8_COVERAGE"
+        fi
