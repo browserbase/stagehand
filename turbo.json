@@ -1,0 +1,152 @@
+{
+  "$schema": "https://v2-8-10.turborepo.dev/schema.json",
+  "globalDependencies": [
+    "package.json",
+    "packages/*/package.json",
+    "tsconfig.json",
+    "pnpm-workspace.yaml",
+    "turbo.json",
+    "oxlint.config.ts",
+    ".oxfmtrc.json",
+    ".github/workflows/ci.yml"
+  ],
+  "globalEnv": ["CI"],
+  "tasks": {
+    "@browserbasehq/stagehand-protocol#build": {
+      "inputs": ["$TURBO_DEFAULT$", "!stagehand.v4.json"],
+      "outputs": ["stagehand.v4.json"]
+    },
+    "@browserbasehq/stagehand-server#build": {
+      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
+      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+    },
+    "@browserbasehq/stagehand#build": {
+      "dependsOn": ["@browserbasehq/stagehand-server#build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
+    "@browserbasehq/stagehand-evals#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
+    "//#generate:python": {
+      "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
+      "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/src/stagehand/_generated/**"],
+      "outputs": ["packages/sdk-python/src/stagehand/_generated/**"]
+    },
+    "//#generate:go": {
+      "dependsOn": [
+        "@browserbasehq/stagehand-protocol#build",
+        "@browserbasehq/stagehand-server#build"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!packages/sdk-go/models.gen.go",
+        "!packages/sdk-go/internal/extensionassets/**"
+      ],
+      "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
+    },
+    "//#build:wheel": {
+      "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-server#build"],
+      "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/dist/**"],
+      "outputs": ["packages/sdk-python/dist/*.whl", "packages/sdk-python/dist/*.tar.gz"]
+    },
+    "//#fmt:check": {},
+    "//#lint": {},
+    "@browserbasehq/stagehand-protocol#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-evals#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-docs#typecheck": {},
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "@browserbasehq/stagehand-server#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-server#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "@browserbasehq/stagehand#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "//#test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "tests/**", "src/**", "**/*.test.ts", "vitest.config.ts"]
+    },
+    "@browserbasehq/stagehand-protocol#test:browser": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "passThroughEnv": [
+        "CHROME_PATH",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SMOKE"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/browser-runtime/**",
+        "src/**",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "@browserbasehq/stagehand#test:browser": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand#build"],
+      "cache": false,
+      "passThroughEnv": [
+        "CHROME_PATH",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID",
+        "BROWSERBASE_SMOKE"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/browser-runtime/**",
+        "src/**",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
+    },
+    "test:integration": {
+      "cache": false,
+      "passThroughEnv": [
+        "CHROME_PATH",
+        "NODE_V8_COVERAGE",
+        "CTRF_JUNIT_PATH",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID"
+      ]
+    },
+    "test:e2e": {
+      "cache": false,
+      "passThroughEnv": [
+        "CHROME_PATH",
+        "NODE_V8_COVERAGE",
+        "CTRF_JUNIT_PATH",
+        "BROWSERBASE_API_KEY",
+        "BROWSERBASE_PROJECT_ID"
+      ]
+    }
+  }
+}
