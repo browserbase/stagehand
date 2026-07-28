@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"time"
 )
 
 var (
 	// ErrNotInitialized is returned when an operation needs an initialized client.
 	ErrNotInitialized = errors.New("stagehand is not initialized; call Init first")
-	// ErrBrowserSourceNotImplemented marks the intentionally deferred browser bootstrap.
-	ErrBrowserSourceNotImplemented = errors.New("stagehand Go browser source setup is not implemented")
 )
 
 type requestHandler struct {
@@ -30,9 +30,14 @@ type protocolClient interface {
 
 type resolvedBrowserSource struct {
 	cdpURL               string
+	cdpHeaders           http.Header
 	browserbaseSessionID string
+	extensionDir         string
+	preloadedExtension   bool
+	connectTimeout       time.Duration
 	keepAlive            bool
 	close                func(context.Context) error
+	cleanup              func() error
 }
 
 type clientAdapters struct {
@@ -46,18 +51,8 @@ type clientAdapters struct {
 
 func defaultClientAdapters() clientAdapters {
 	return clientAdapters{
-		resolveBrowserSource: func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error) {
-			// TODO(go-client): launch/connect local, CDP, and Browserbase sources.
-			return resolvedBrowserSource{}, ErrBrowserSourceNotImplemented
-		},
-		connectProtocol: func(
-			context.Context,
-			resolvedBrowserSource,
-			TelemetryConfig,
-		) (protocolClient, error) {
-			// Browser setup will also construct the CDP-backed JSON-RPC transport.
-			return nil, ErrBrowserSourceNotImplemented
-		},
+		resolveBrowserSource: resolveBrowserSource,
+		connectProtocol:      connectResolvedBrowser,
 	}
 }
 

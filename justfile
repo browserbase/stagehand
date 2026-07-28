@@ -5,6 +5,7 @@ go_generator_dir := "packages/sdk-go/internal/generator"
 install:
     pnpm install
     uv --directory {{python_dir}} sync --locked
+    go -C {{go_dir}} mod download
     go -C {{go_generator_dir}} mod download
 
 generate:
@@ -46,6 +47,9 @@ example name="act":
     pnpm --filter ./packages/server build
     pnpm --filter ./packages/sdk-ts build
     pnpm exec tsx "packages/sdk-ts/examples/{{name}}.ts"
+
+go-example name="act":
+    go -C {{go_dir}} run "./examples/{{name}}"
 
 fmt:
     pnpm fmt

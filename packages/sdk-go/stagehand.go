@@ -206,8 +206,10 @@ func (s *Stagehand) Init(ctx context.Context) error {
 
 	rpc, err := s.adapters.connectProtocol(ctx, browser, s.initParams.Telemetry)
 	if err != nil {
-		_ = s.releaseBrowser(ctx)
-		return fmt.Errorf("connect protocol: %w", err)
+		return errors.Join(
+			fmt.Errorf("connect protocol: %w", err),
+			s.releaseBrowser(ctx, false),
+		)
 	}
 	s.rpc = rpc
 	onLog := func(StagehandLog) {}
@@ -243,7 +245,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 			closeErr = nil
 		}
 	}
-	cleanupErr := s.release(ctx)
+	cleanupErr := s.release(ctx, true)
 	return errors.Join(closeErr, cleanupErr)
 }
 
@@ -272,7 +274,16 @@ func (s *Stagehand) workerInitParams(browser resolvedBrowserSource) StagehandIni
 		model := ServerModel(*s.initParams.Model)
 		params.Model = &model
 	}
-	if source, ok := s.initParams.Browser.(BrowserbaseClientBrowserSource); ok {
+	var source *BrowserbaseClientBrowserSource
+	switch browser := s.initParams.Browser.(type) {
+	case BrowserbaseClientBrowserSource:
+		source = &browser
+	case *BrowserbaseClientBrowserSource:
+		source = browser
+	case nil:
+		source = &BrowserbaseClientBrowserSource{}
+	}
+	if source != nil {
 		params.Browser = &BrowserbaseBrowserSource{
 			BrowserSettings: source.BrowserSettings,
 			ExtensionID:     source.ExtensionID,
@@ -328,14 +339,14 @@ func pageFromExtractOptions(options *StagehandClientExtractOptions) *Page {
 }
 
 func (s *Stagehand) initFailure(ctx context.Context, cause error) error {
-	cleanupErr := s.release(ctx)
+	cleanupErr := s.release(ctx, false)
 	if cleanupErr != nil {
 		return errors.Join(cause, cleanupErr)
 	}
 	return cause
 }
 
-func (s *Stagehand) release(ctx context.Context) error {
+func (s *Stagehand) release(ctx context.Context, preserveKeepAlive bool) error {
 	if s.removeLLMHandler != nil {
 		s.removeLLMHandler()
 		s.removeLLMHandler = nil
@@ -349,22 +360,31 @@ func (s *Stagehand) release(ctx context.Context) error {
 		rpcErr = s.rpc.close()
 		s.rpc = nil
 	}
-	browserErr := s.releaseBrowser(ctx)
+	browserErr := s.releaseBrowser(ctx, preserveKeepAlive)
 	s.context = nil
 	s.initialized = false
 	return errors.Join(rpcErr, browserErr)
 }
 
-func (s *Stagehand) releaseBrowser(ctx context.Context) error {
+func (s *Stagehand) releaseBrowser(ctx context.Context, preserveKeepAlive bool) error {
 	if s.browser == nil {
 		return nil
 	}
 	browser := s.browser
 	s.browser = nil
-	if browser.keepAlive || browser.close == nil {
+
+	if preserveKeepAlive && browser.keepAlive {
 		return nil
 	}
-	return browser.close(ctx)
+	var browserErr error
+	if browser.close != nil {
+		browserErr = browser.close(ctx)
+	}
+	var cleanupErr error
+	if browser.cleanup != nil {
+		cleanupErr = browser.cleanup()
+	}
+	return errors.Join(browserErr, cleanupErr)
 }
 
 func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolClient) *Stagehand {
