@@ -89,11 +89,18 @@ if (isDirectExecution) {
     const entries = discoverIntegrationTests(repoRoot, testsDir);
     const output =
       shardFlag.count === null ? entries : shardIntegrationTests(entries, shardFlag.count);
+    // Deliberately not process.exit(): stdout is async when piped, which is exactly how CI
+    // reads this, so exiting here can truncate the matrix mid-JSON. Setting exitCode lets
+    // Node flush and exit on its own.
+    process.exitCode = 0;
     process.stdout.write(`${JSON.stringify(output)}\n`);
-    process.exit(0);
+  } else {
+    runVitest(shardFlag.args);
   }
+}
 
-  const { paths, extra } = splitArgs(shardFlag.args);
+function runVitest(args: string[]): void {
+  const { paths, extra } = splitArgs(args);
   const require = createRequire(import.meta.url);
   const vitestCliPath = path.join(path.dirname(require.resolve("vitest")), "vitest.mjs");
   const configPath = path.join(repoRoot, "vitest.integration.config.ts");
@@ -102,5 +109,5 @@ if (isDirectExecution) {
     [vitestCliPath, "run", "--config", configPath, ...extra, ...paths],
     { stdio: "inherit", cwd: repoRoot },
   );
-  process.exit(result.status ?? 1);
+  process.exitCode = result.status ?? 1;
 }
