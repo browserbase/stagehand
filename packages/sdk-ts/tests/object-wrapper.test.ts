@@ -5,7 +5,14 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { BrowserClipboard, BrowserContext, Locator, Page } from "../src/index.js";
+import {
+  BrowserClipboard,
+  BrowserContext,
+  Locator,
+  Page,
+  WebMCPInvocation,
+  WebMCPTool,
+} from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
 import { createStagehandWithClientForTest } from "../src/stagehand.js";
 
@@ -34,7 +41,7 @@ class FakeProtocolClient extends RPCClient {
 
   queueResponse<Method extends RPCMethod>(
     method: Method,
-    response: z.input<Method["result"]>,
+    response: z.input<Method["result"]> | Error,
   ): void {
     const responses = this.responses.get(method.name) ?? [];
     responses.push(response);
@@ -50,7 +57,9 @@ class FakeProtocolClient extends RPCClient {
     if (!responses?.length) {
       throw new Error(`No fake response queued for ${method.name}`);
     }
-    return method.result.parse(responses.shift()) as z.output<Method["result"]>;
+    const response = responses.shift();
+    if (response instanceof Error) throw response;
+    return method.result.parse(response) as z.output<Method["result"]>;
   }
 
   onNotification(): () => void {
@@ -659,6 +668,117 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.pageSnapshot, {
         pageId: "page-1",
         options: { includeIframes: true },
+      }),
+    ]);
+  });
+
+  it("wraps callable WebMCP tools and invocations with their owned identity", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageWebMCPTools, {
+      tools: [
+        {
+          name: "search",
+          description: "Search this site",
+          inputSchema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          annotations: { readOnly: true },
+          frameId: "frame-1",
+          backendNodeId: 42,
+        },
+      ],
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-1",
+      toolName: "search",
+      frameId: "frame-1",
+      input: { searchQuery: "Stagehand" },
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-2",
+      toolName: "search",
+      frameId: "frame-1",
+      input: {},
+    });
+    client.queueResponse(
+      StagehandMethods.pageWebMCPInvocationResult,
+      new Error("RPC request timed out: page.webmcp_invocation_result"),
+    );
+    client.queueResponse(StagehandMethods.pageWebMCPInvocationResult, {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "done" },
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPCancelInvocation, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    const [tool] = await page.tools({ timeout: 250 });
+    expect(tool).toBeInstanceOf(WebMCPTool);
+    expect(tool).toMatchObject({
+      name: "search",
+      description: "Search this site",
+      inputSchema: {
+        type: "object",
+        properties: { searchQuery: { type: "string" } },
+      },
+      annotations: { readOnly: true },
+      frameId: "frame-1",
+      backendNodeId: 42,
+    });
+
+    const invocation = await tool!.invoke({ input: { searchQuery: "Stagehand" } });
+    expect(invocation).toBeInstanceOf(WebMCPInvocation);
+    expect(invocation).toMatchObject({
+      invocationId: "invocation-1",
+      toolName: "search",
+      frameId: "frame-1",
+      input: { searchQuery: "Stagehand" },
+    });
+    await tool!.invoke();
+
+    await expect(invocation.result({ timeout: 1 })).rejects.toThrow(
+      "RPC request timed out: page.webmcp_invocation_result",
+    );
+    const result = await invocation.result({ timeout: 5_000 });
+    await expect(invocation.result({ timeout: 1 })).resolves.toBe(result);
+    expect(result).toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "done" },
+    });
+    await invocation.cancel();
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageWebMCPTools, {
+        pageId: "page-1",
+        options: { timeout: 250 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "frame-1",
+        toolName: "search",
+        input: { searchQuery: "Stagehand" },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "frame-1",
+        toolName: "search",
+        input: {},
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvocationResult, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 1 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvocationResult, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 5_000 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPCancelInvocation, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
       }),
     ]);
   });

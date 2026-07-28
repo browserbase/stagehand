@@ -12,6 +12,7 @@ export {
 } from "./browserClipboard.js";
 export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
+export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand } from "./stagehand.js";
 export type {
@@ -19,6 +20,10 @@ export type {
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
+  WebMCPAnnotation,
+  WebMCPInvocationStatus,
+  WebMCPRemoteObject,
+  WebMCPToolResponse,
 } from "../../protocol/types.js";
 export {
   BrowserSourceSchema,
@@ -30,10 +35,16 @@ export {
   StagehandClientLoggingConfigSchema,
   StagehandClientLogLevelSchema,
   StagehandClientInitParamsSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPResultOptionsSchema,
+  WebMCPToolsOptionsSchema,
   type BrowserSource,
   type ClientLLM,
   type ResolvedStagehandClientLoggingConfig,
   type ResolvedStagehandClientInitParams,
   type StagehandClientLoggingConfig,
   type StagehandClientInitParams,
+  type WebMCPInvokeOptions,
+  type WebMCPResultOptions,
+  type WebMCPToolsOptions,
 } from "./clientSchemas.js";

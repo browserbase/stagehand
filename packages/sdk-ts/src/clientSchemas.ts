@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod/v4";
+import * as ProtocolSchemas from "../../protocol/schemas.js";
 import {
   ActOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
@@ -52,6 +53,18 @@ export const CdpBrowserSourceSchema = z
   })
   .strict()
   .meta({ id: "CdpBrowserSource" });
+
+export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial().meta({
+  id: "WebMCPToolsOptions",
+});
+
+export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial().meta({
+  id: "WebMCPInvokeOptions",
+});
+
+export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema.meta({
+  id: "WebMCPResultOptions",
+});
 
 export const BrowserSourceSchema = z
   .discriminatedUnion("type", [
@@ -147,3 +160,6 @@ export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtrac
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
+export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
+export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;
