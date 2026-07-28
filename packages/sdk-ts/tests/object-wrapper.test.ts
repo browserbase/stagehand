@@ -698,7 +698,7 @@ describe("Stagehand TS object wrapper", () => {
   it("routes stagehand.act with an explicit page and returns the action result", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandAct, {
-      result: {
+      data: {
         success: true,
         message: "Clicked the submit button",
         actionDescription: "Click the submit button",
@@ -711,6 +711,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
+      metadata: { cacheStatus: "HIT" },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -723,17 +724,20 @@ describe("Stagehand TS object wrapper", () => {
         variables: { accountEmail: "user@example.com" },
       }),
     ).resolves.toStrictEqual({
-      success: true,
-      message: "Clicked the submit button",
-      actionDescription: "Click the submit button",
-      actions: [
-        {
-          selector: "xpath=/html/body/button",
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        },
-      ],
+      data: {
+        success: true,
+        message: "Clicked the submit button",
+        actionDescription: "Click the submit button",
+        actions: [
+          {
+            selector: "xpath=/html/body/button",
+            description: "Submit button",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      },
+      metadata: { cacheStatus: "HIT" },
     });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
@@ -751,7 +755,7 @@ describe("Stagehand TS object wrapper", () => {
   it("routes stagehand.observe with an explicit page and options", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandObserve, {
-      result: [
+      data: [
         {
           selector: "xpath=/html/body/button",
           description: "Submit button",
@@ -759,6 +763,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
+      metadata: { cacheStatus: "MISS" },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -776,14 +781,17 @@ describe("Stagehand TS object wrapper", () => {
           },
         },
       }),
-    ).resolves.toStrictEqual([
-      {
-        selector: "xpath=/html/body/button",
-        description: "Submit button",
-        method: "click",
-        arguments: [],
-      },
-    ]);
+    ).resolves.toStrictEqual({
+      data: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      ],
+      metadata: { cacheStatus: "MISS" },
+    });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
       requestCall(StagehandMethods.stagehandObserve, {
@@ -806,11 +814,11 @@ describe("Stagehand TS object wrapper", () => {
   it("uses the active page when stagehand.observe has no explicit page or instruction", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
-    client.queueResponse(StagehandMethods.stagehandObserve, { result: [] });
+    client.queueResponse(StagehandMethods.stagehandObserve, { data: [], metadata: {} });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
 
-    await expect(stagehand.observe()).resolves.toStrictEqual([]);
+    await expect(stagehand.observe()).resolves.toStrictEqual({ data: [], metadata: {} });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
       requestCall(StagehandMethods.contextActivePage, {}),
@@ -836,7 +844,8 @@ describe("Stagehand TS object wrapper", () => {
   it("sends the caller's Zod schema through stagehand.extract", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
-      result: { heading: "Example Domain" },
+      data: { heading: "Example Domain" },
+      metadata: { cacheStatus: "HIT" },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -845,7 +854,10 @@ describe("Stagehand TS object wrapper", () => {
 
     await expect(
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
-    ).resolves.toStrictEqual({ heading: "Example Domain" });
+    ).resolves.toStrictEqual({
+      data: { heading: "Example Domain" },
+      metadata: { cacheStatus: "HIT" },
+    });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
       requestCall(StagehandMethods.stagehandExtract, {
@@ -860,7 +872,8 @@ describe("Stagehand TS object wrapper", () => {
   it("validates stagehand.extract data with the caller's original Zod schema", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
-      result: { heading: 42 },
+      data: { heading: 42 },
+      metadata: {},
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();

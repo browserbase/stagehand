@@ -252,7 +252,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       activeStagehand.extract("Extract the page heading", z.object({ heading: z.string() }), {
         page,
       }),
-    ).resolves.toStrictEqual({ heading: "Stagehand SDK Smoke" });
+    ).resolves.toStrictEqual({
+      data: { heading: "Stagehand SDK Smoke" },
+      metadata: {},
+    });
   });
 
   it("observes actionable elements on a real page through the connected SDK", async () => {
@@ -264,8 +267,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     const actions = await activeStagehand.observe("Find the Submit button", { page });
 
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({
+    expect(actions.data).toHaveLength(1);
+    expect(actions.data[0]).toMatchObject({
       selector: expect.stringMatching(/^xpath=/),
       description: "Submit button",
       method: "click",
@@ -466,16 +469,19 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const result = await activeStagehand.act("Click the Submit button", { page });
 
     expect(result).toMatchObject({
-      success: true,
-      actionDescription: "Submit button",
-      actions: [
-        {
-          selector: expect.stringMatching(/^xpath=/),
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        },
-      ],
+      data: {
+        success: true,
+        actionDescription: "Submit button",
+        actions: [
+          {
+            selector: expect.stringMatching(/^xpath=/),
+            description: "Submit button",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      },
+      metadata: {},
     });
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });

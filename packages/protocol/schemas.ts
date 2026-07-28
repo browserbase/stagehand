@@ -645,7 +645,7 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
-const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
+export const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -1032,6 +1032,17 @@ export const ActionSchema = z
 // Act
 // =============================================================================
 
+export const StagehandResultMetadataSchema = z
+  .strictObject({
+    actionId: z.string().optional().meta({
+      description: "Action ID for tracking",
+    }),
+    cacheStatus: CacheStatusSchema.optional().meta({
+      description: "Server-side cache status for this result",
+    }),
+  })
+  .meta({ id: "StagehandResultMetadata" });
+
 export const ActOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
@@ -1085,13 +1096,8 @@ export const ActResultDataSchema = z
 
 export const ActResultSchema = z
   .strictObject({
-    result: ActResultDataSchema,
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    data: ActResultDataSchema,
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ActResult" });
 
@@ -1136,18 +1142,10 @@ export const ExtractOptionsSchema = z
 
 export const ExtractResultSchema = z
   .strictObject({
-    result: z.unknown().meta({
+    data: z.json().meta({
       description: "Extracted data matching the requested schema",
-      override: ({ jsonSchema }: { jsonSchema: Record<string, unknown> }) => {
-        jsonSchema["x-stainless-any"] = true;
-      },
     }),
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ExtractResult" });
 
@@ -1198,13 +1196,8 @@ export const ObserveOptionsSchema = z
 
 export const ObserveResultSchema = z
   .strictObject({
-    result: z.array(ActionSchema),
-    actionId: z.string().optional().meta({
-      description: "Action ID for tracking",
-    }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
+    data: z.array(ActionSchema),
+    metadata: StagehandResultMetadataSchema,
   })
   .meta({ id: "ObserveResult" });
 

@@ -63,7 +63,7 @@ export async function observe({
       if (actions.length === 0) {
         throw new Error("Cached observe value contained no usable actions");
       }
-      return { result: actions };
+      return { data: actions, metadata: {} };
     },
     execute: () => runObservation(),
   });
@@ -147,7 +147,7 @@ export async function observe({
     });
 
     return {
-      result: { result: actions },
+      result: { data: actions, metadata: {} },
       cacheValue: actions.length > 0 ? actions : undefined,
       llmUsage: {
         inputTokens: observation.prompt_tokens,

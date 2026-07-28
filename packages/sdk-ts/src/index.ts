@@ -13,12 +13,16 @@ export {
 export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
 export type { InitScriptSource } from "./pageScripts.js";
-export { Stagehand } from "./stagehand.js";
+export { Stagehand, type ExtractResult } from "./stagehand.js";
 export type {
+  ActResult,
   BrowserGetVersionResult,
+  CacheStatus,
+  ObserveResult,
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
+  StagehandResultMetadata,
 } from "../../protocol/types.js";
 export {
   BrowserSourceSchema,

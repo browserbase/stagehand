@@ -93,9 +93,7 @@ export async function act({
       return {
         result,
         cacheValue:
-          result.result.success && result.result.actions.length > 0
-            ? result.result.actions
-            : undefined,
+          result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
       };
     },
   });
@@ -459,7 +457,7 @@ function successfulActionResult(
 }
 
 function actResult(result: ActResultData): ActResult {
-  return { result };
+  return { data: result, metadata: {} };
 }
 
 function describeAction(action: Action): string {

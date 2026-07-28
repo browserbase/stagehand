@@ -1,4 +1,5 @@
 import asyncio
+from importlib.metadata import version
 from typing import ClassVar, cast
 
 import pytest
@@ -487,6 +488,10 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "id": 1,
             "method": "runtime.configure",
             "params": {
+                "client_info": {
+                    "name": "stagehand-sdk-python",
+                    "version": version("stagehand"),
+                },
                 "cdp_url": "ws://resolved.example/devtools/browser/1",
                 "log_level": "info",
                 "telemetry": {
