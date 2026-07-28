@@ -1,4 +1,19 @@
-# @browserbasehq/stagehand
+# Stagehand
+
+This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
+describe the TypeScript SDK.
+
+## TypeScript SDK 4.0.0
+
+### Major Changes
+
+- Rebuilt Stagehand around its v4 browser protocol and TypeScript SDK.
+
+## Python SDK 4.0.0
+
+### Major Changes
+
+- Rebuilt the Stagehand Python SDK around the v4 browser protocol.
 
 ## 3.0.0
 

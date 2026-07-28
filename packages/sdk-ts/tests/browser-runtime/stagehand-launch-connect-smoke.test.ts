@@ -262,7 +262,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         page,
         screenshot: true,
       }),
-    ).resolves.toStrictEqual({ heading: "Stagehand SDK Smoke" });
+    ).resolves.toStrictEqual({
+      data: { heading: "Stagehand SDK Smoke" },
+      metadata: {},
+    });
     const extractionScreenshot = extractionScreenshots[0];
     expect(extractionScreenshot).toMatchObject({
       type: "image",
@@ -283,8 +286,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     const actions = await activeStagehand.observe("Find the Submit button", { page });
 
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({
+    expect(actions.data).toHaveLength(1);
+    expect(actions.data[0]).toMatchObject({
       selector: expect.stringMatching(/^xpath=/),
       description: "Submit button",
       method: "click",
@@ -357,7 +360,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     }
   }, 20_000);
 
-  it("tracks a user-gesture popup as it opens, activates, and closes", async () => {
+  it("waits for an active popup to be registered before returning it", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const createdPages: Page[] = [];
@@ -373,14 +376,17 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       );
       await opener.locator("#popup-button").click();
 
-      const popup = await waitForNewPage(activeStagehand.context, pageIdsBeforePopup);
+      const popup = await activeStagehand.context.activePage();
+      if (!popup) {
+        throw new Error("Stagehand did not resolve the active popup");
+      }
       createdPages.push(popup);
       await popup.waitForLoadState("load");
 
       expect(popup.pageId).not.toBe(opener.pageId);
+      expect(pageIdsBeforePopup.has(popup.pageId)).toBe(false);
       await expect(popup.url()).resolves.toBe(activeFixtureServer.url);
       await expect(popup.title()).resolves.toBe("Stagehand SDK Smoke");
-      await waitForActivePageId(activeStagehand.context, popup.pageId);
 
       await popup.close();
       await waitForPageRemoval(activeStagehand.context, popup.pageId);
@@ -482,16 +488,19 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const result = await activeStagehand.act("Click the Submit button", { page });
 
     expect(result).toMatchObject({
-      success: true,
-      actionDescription: "Submit button",
-      actions: [
-        {
-          selector: expect.stringMatching(/^xpath=/),
-          description: "Submit button",
-          method: "click",
-          arguments: [],
-        },
-      ],
+      data: {
+        success: true,
+        actionDescription: "Submit button",
+        actions: [
+          {
+            selector: expect.stringMatching(/^xpath=/),
+            description: "Submit button",
+            method: "click",
+            arguments: [],
+          },
+        ],
+      },
+      metadata: {},
     });
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });
@@ -630,19 +639,6 @@ async function waitForActivePageOtherThan(
     () => context.activePage(),
     (page): page is Page => page !== undefined && page.pageId !== excludedPageId,
     `an active page other than ${excludedPageId}`,
-    timeoutMs,
-  );
-}
-
-async function waitForNewPage(
-  context: BrowserContext,
-  existingPageIds: ReadonlySet<string>,
-  timeoutMs = 10_000,
-): Promise<Page> {
-  return await pollUntil(
-    async () => (await context.pages()).find((page) => !existingPageIds.has(page.pageId)),
-    (page): page is Page => page !== undefined,
-    "a newly opened popup page",
     timeoutMs,
   );
 }

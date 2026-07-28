@@ -424,7 +424,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
       innerHtml?: string;
       count?: number;
       centroid?: LocatorCentroidResult;
-      selectedValues?: LocatorSelectOptionResult["values"];
+      selectedValues?: LocatorSelectOptionResult;
     } = {},
   ) {}
 
@@ -592,7 +592,7 @@ describe("Stagehand worker clients", () => {
 
     expect(scope).toMatchObject({
       __stagehand_runtime: {
-        protocolVersion: 4,
+        protocolVersion: 1,
         serverInfo: {
           name: "stagehand",
           version: "4.0.0",
@@ -1197,10 +1197,8 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 15,
       result: {
-        policy: {
-          allowed_domains: ["example.test"],
-          blocked_domains: ["blocked.example.test"],
-        },
+        allowed_domains: ["example.test"],
+        blocked_domains: ["blocked.example.test"],
       },
     });
 
@@ -1238,7 +1236,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 17,
-      result: { policy: null },
+      result: null,
     });
 
     expect(context.setDomainPolicyCalls).toStrictEqual([null]);
@@ -1270,20 +1268,18 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 18,
-      result: {
-        cookies: [
-          {
-            name: "session-id",
-            value: "abc123",
-            domain: "example.test",
-            path: "/",
-            expires: -1,
-            http_only: true,
-            secure: true,
-            same_site: "Lax",
-          },
-        ],
-      },
+      result: [
+        {
+          name: "session-id",
+          value: "abc123",
+          domain: "example.test",
+          path: "/",
+          expires: -1,
+          http_only: true,
+          secure: true,
+          same_site: "Lax",
+        },
+      ],
     });
     await expect(
       handle({
@@ -1360,7 +1356,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 22,
-      result: { text: "clipboard text" },
+      result: "clipboard text",
     });
     await expect(
       handle({
@@ -1870,9 +1866,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 10,
-      result: {
-        url: "https://example.test/current",
-      },
+      result: "https://example.test/current",
     });
   });
 
@@ -1895,9 +1889,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 11,
-      result: {
-        title: "Current Title",
-      },
+      result: "Current Title",
     });
   });
 
@@ -2030,9 +2022,7 @@ describe("Stagehand worker clients", () => {
         pageId: "page-a",
         selector: "section.visible",
       }),
-    ).resolves.toStrictEqual({
-      visible: true,
-    });
+    ).resolves.toBe(true);
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("section.visible");
@@ -2051,9 +2041,7 @@ describe("Stagehand worker clients", () => {
         pageId: "page-a",
         selector: "p.message",
       }),
-    ).resolves.toStrictEqual({
-      textContent: "hello from locator",
-    });
+    ).resolves.toBe("hello from locator");
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("p.message");
@@ -2071,9 +2059,7 @@ describe("Stagehand worker clients", () => {
         selector: "li.item",
         nth: 2,
       }),
-    ).resolves.toStrictEqual({
-      count: 1,
-    });
+    ).resolves.toBe(1);
 
     expect(locator.nthCalls).toStrictEqual([2]);
   });
@@ -2097,17 +2083,11 @@ describe("Stagehand worker clients", () => {
       selector: "input.email",
     };
 
-    await expect(runtime.locatorCount(descriptor)).resolves.toStrictEqual({ count: 3 });
-    await expect(runtime.locatorIsChecked(descriptor)).resolves.toStrictEqual({ checked: true });
-    await expect(runtime.locatorInputValue(descriptor)).resolves.toStrictEqual({
-      value: "user@example.com",
-    });
-    await expect(runtime.locatorInnerText(descriptor)).resolves.toStrictEqual({
-      text: "visible text",
-    });
-    await expect(runtime.locatorInnerHtml(descriptor)).resolves.toStrictEqual({
-      html: "<span>visible text</span>",
-    });
+    await expect(runtime.locatorCount(descriptor)).resolves.toBe(3);
+    await expect(runtime.locatorIsChecked(descriptor)).resolves.toBe(true);
+    await expect(runtime.locatorInputValue(descriptor)).resolves.toBe("user@example.com");
+    await expect(runtime.locatorInnerText(descriptor)).resolves.toBe("visible text");
+    await expect(runtime.locatorInnerHtml(descriptor)).resolves.toBe("<span>visible text</span>");
     await expect(runtime.locatorCentroid(descriptor)).resolves.toStrictEqual({ x: 12, y: 34 });
   });
 
@@ -2141,7 +2121,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({ typed: true });
     await expect(
       runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
-    ).resolves.toStrictEqual({ values: ["b"] });
+    ).resolves.toStrictEqual(["b"]);
 
     expect(locator.scrollToCalls).toStrictEqual([50]);
     expect(locator.highlightCalls).toStrictEqual([
@@ -2259,9 +2239,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 15,
-      result: {
-        visible: true,
-      },
+      result: true,
     });
   });
 
@@ -2286,9 +2264,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 16,
-      result: {
-        text_content: "hello from locator",
-      },
+      result: "hello from locator",
     });
   });
 
@@ -2315,9 +2291,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 17,
-      result: {
-        count: 2,
-      },
+      result: 2,
     });
 
     await expect(
@@ -2334,9 +2308,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 18,
-      result: {
-        values: ["pro"],
-      },
+      result: ["pro"],
     });
 
     expect(locator.nthCalls).toStrictEqual([0]);

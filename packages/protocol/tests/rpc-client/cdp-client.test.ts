@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
@@ -234,7 +235,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const readiness = [
       {
         marker: {
-          protocolVersion: 4,
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           serverInfo: { name: "other", version: "1" },
         },
         hasReceiver: false,
@@ -429,7 +430,7 @@ describe("waitForRuntimeReady", () => {
     let now = 0;
     const readiness = [
       {
-        marker: runtimeMarker(4),
+        marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
         hasReceiver: false,
       },
       readyRuntime(),
@@ -460,7 +461,7 @@ describe("waitForRuntimeReady", () => {
       result: {
         value: {
           marker: {
-            protocolVersion: 4,
+            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
             serverInfo: { name: "other-extension", version: "1" },
           },
           hasReceiver: false,
@@ -570,11 +571,12 @@ describe("waitForRuntimeReady", () => {
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });
 
-  it("accepts compatible markers with unknown descriptor fields", async () => {
+  it("does not accept markers with unknown descriptor fields", async () => {
+    let now = 0;
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          marker: { ...runtimeMarker(4), status: "ready" },
+          marker: { ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION), status: "ready" },
           hasReceiver: true,
         },
       },
@@ -582,10 +584,14 @@ describe("waitForRuntimeReady", () => {
 
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
-        timeout: 1_000,
-        delayFn: async () => {},
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime to become ready");
   });
 });
 
@@ -600,7 +606,7 @@ function target(targetId: string, url: string): TargetInfo {
 
 function readyRuntime(): Record<string, unknown> {
   return {
-    marker: runtimeMarker(4),
+    marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
     hasReceiver: true,
   };
 }

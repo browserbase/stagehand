@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
 from stagehand import (
     LLMGenerateInput,
@@ -21,8 +21,8 @@ from stagehand._generated.models import (
     ActResult,
     ActResultData,
     BrowserGetVersionResult,
+    CacheStatus,
     ClientModelReference,
-    ExtractResult,
     KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -43,6 +43,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
+    StagehandResultMetadata,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
@@ -63,6 +64,7 @@ BlockingResultT = TypeVar("BlockingResultT", bound=BaseModel)
 
 class PageInfo(BaseModel):
     heading: str
+    count: StrictInt
 
 
 def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
@@ -260,9 +262,20 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
-        "stagehand.act": ActResult(result=act_result),
-        "stagehand.observe": ObserveResult(result=[action]),
-        "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
+        "stagehand.act": ActResult.model_validate({
+            "data": act_result,
+            "metadata": {"cache_status": "HIT"},
+        }),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache_status": "MISS"},
+        }),
+        # Keep this as raw wire JSON: extract() must preserve integer values
+        # until the caller's Pydantic schema validates them.
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+        },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")
@@ -297,9 +310,13 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         locator=locator,
     )
 
-    assert action_result == act_result
-    assert actions == [action]
-    assert page_info == PageInfo(heading="Example Domain")
+    assert action_result.data == act_result
+    assert action_result.metadata.cache_status == "HIT"
+    assert actions.data == [action]
+    assert actions.metadata.cache_status == "MISS"
+    assert page_info.data == PageInfo(heading="Example Domain", count=1)
+    assert isinstance(page_info.data.count, int)
+    assert page_info.metadata.cache_status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",
         "stagehand.act",

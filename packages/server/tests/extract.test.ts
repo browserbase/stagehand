@@ -273,6 +273,49 @@ describe("extract service", () => {
       now.mockRestore();
     }
   });
+
+  it("returns the standard data and metadata result shape", async () => {
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
+      const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
+      if (name === "Extraction") {
+        return {
+          role: "assistant",
+          content: { type: "text", text: "structured extraction" },
+          outputFormat: "json_schema",
+          structuredContent: { count: 1 },
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        };
+      }
+      return {
+        role: "assistant",
+        content: { type: "text", text: "metadata" },
+        outputFormat: "json_schema",
+        structuredContent: { progress: "Extracted the count", completed: true },
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      };
+    });
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the count",
+        schema: z.json().parse(z.toJSONSchema(z.object({ count: z.number() }))),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-1] text: 1",
+          combinedXpathMap: {},
+          combinedUrlMap: {},
+        }),
+        screenshot: async () => new Uint8Array(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate: generate,
+      logger: new StagehandLogger({ tracer: trace.getTracer("extract-service-test") }, () => {}),
+    });
+
+    expect(result).toStrictEqual({ data: { count: 1 }, metadata: {} });
+  });
 });
 
 function structuredResult(

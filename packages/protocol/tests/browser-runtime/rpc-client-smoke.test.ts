@@ -154,7 +154,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#blank-page-button",
         }),
-      ).resolves.toStrictEqual({ textContent: "Clicked" });
+      ).resolves.toBe("Clicked");
     } finally {
       await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
@@ -174,7 +174,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#locator-message",
         }),
-      ).resolves.toStrictEqual({ textContent: "locator text" });
+      ).resolves.toBe("locator text");
     } finally {
       await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
@@ -201,7 +201,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#data-button",
         }),
-      ).resolves.toStrictEqual({ textContent: "Clicked" });
+      ).resolves.toBe("Clicked");
 
       await activeRpcClient.send(StagehandMethods.pageEvaluate, {
         pageId: page.pageId,
@@ -217,7 +217,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#data-shadow-text",
         }),
-      ).resolves.toStrictEqual({ textContent: "Open shadow" });
+      ).resolves.toBe("Open shadow");
       await expect(
         activeRpcClient.send(StagehandMethods.pageEvaluate, {
           pageId: page.pageId,
@@ -243,7 +243,7 @@ describe("Stagehand service worker RPC client smoke", () => {
           pageId: page.pageId,
           selector: "#locator-message",
         }),
-      ).resolves.toStrictEqual({ textContent: "locator text" });
+      ).resolves.toBe("locator text");
     } finally {
       await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
     }
@@ -273,12 +273,10 @@ describe("Stagehand service worker RPC client smoke", () => {
 
     await expect(
       activeRpcClient.send(StagehandMethods.pageUrl, { pageId: page.pageId }),
-    ).resolves.toStrictEqual({ url: activeFixtureServer.url });
+    ).resolves.toBe(activeFixtureServer.url);
     await expect(
       activeRpcClient.send(StagehandMethods.pageTitle, { pageId: page.pageId }),
-    ).resolves.toStrictEqual({
-      title: "Stagehand Smoke",
-    });
+    ).resolves.toBe("Stagehand Smoke");
   });
 
   it("closes a throwaway PageRef in a browser session", async () => {
@@ -310,18 +308,14 @@ describe("Stagehand service worker RPC client smoke", () => {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
-    ).resolves.toStrictEqual({
-      visible: true,
-    });
+    ).resolves.toBe(true);
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: "#locator-message",
       }),
-    ).resolves.toStrictEqual({
-      textContent: "locator text",
-    });
+    ).resolves.toBe("locator text");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
@@ -347,9 +341,7 @@ describe("Stagehand service worker RPC client smoke", () => {
         pageId: page.pageId,
         selector: "#locator-output",
       }),
-    ).resolves.toStrictEqual({
-      textContent: "clicked:user@example.com",
-    });
+    ).resolves.toBe("clicked:user@example.com");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorFill, {
@@ -363,26 +355,26 @@ describe("Stagehand service worker RPC client smoke", () => {
         pageId: page.pageId,
         selector: "#locator-date",
       }),
-    ).resolves.toStrictEqual({ value: "2026-07-21" });
+    ).resolves.toBe("2026-07-21");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorIsVisible, {
         pageId: page.pageId,
         selector: "#closed-message",
       }),
-    ).resolves.toStrictEqual({ visible: true });
+    ).resolves.toBe(true);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: "xpath=//div[@id='closed-host']//p[1]",
       }),
-    ).resolves.toStrictEqual({ textContent: "closed root text" });
+    ).resolves.toBe("closed root text");
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: "#shadow-frame >> #frame-closed-message",
       }),
-    ).resolves.toStrictEqual({ textContent: "closed root iframe text" });
+    ).resolves.toBe("closed root iframe text");
 
     await activeRpcClient.send(StagehandMethods.locatorFill, {
       pageId: page.pageId,
@@ -398,21 +390,21 @@ describe("Stagehand service worker RPC client smoke", () => {
         pageId: page.pageId,
         selector: "#closed-output",
       }),
-    ).resolves.toStrictEqual({ textContent: "clicked:inside closed root" });
+    ).resolves.toBe("clicked:inside closed root");
 
     await expect(
       activeRpcClient.send(StagehandMethods.locatorCount, {
         pageId: page.pageId,
         selector: ".mixed-shadow",
       }),
-    ).resolves.toStrictEqual({ count: 3 });
+    ).resolves.toBe(3);
     await expect(
       activeRpcClient.send(StagehandMethods.locatorTextContent, {
         pageId: page.pageId,
         selector: ".mixed-shadow",
         nth: 1,
       }),
-    ).resolves.toStrictEqual({ textContent: "closed" });
+    ).resolves.toBe("closed");
 
     await activeRpcClient.send(StagehandMethods.pageHover, {
       pageId: page.pageId,

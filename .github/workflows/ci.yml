@@ -40,8 +40,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
-      # TODO(docs-migration): Restore Mintlify validation, link/a11y checks,
-      # and SDK-reference conformance tests after v3 docs are added in Stagehand.
       - run: pnpm check
       - run: pnpm exec vitest run
         env:
@@ -113,3 +111,64 @@ jobs:
           python scripts/smoke.py
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+  go:
+    name: Go
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: packages/sdk-go
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: browser-actions/setup-chrome@v2
+        id: setup-chrome
+        with:
+          chrome-version: stable
+          install-dependencies: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: packages/sdk-go/internal/generator/go.sum
+
+      - run: go -C internal/generator mod download
+      - run: go -C internal/generator run . --check
+      - name: Check formatting
+        run: test -z "$(gofmt -l $(find . -name '*.go' -type f))"
+      - run: go vet $(go list ./... | grep -v '/examples$')
+      - run: go -C internal/generator vet ./...
+      - name: Check examples
+        run: sh scripts/check-examples.sh
+      - run: go test $(go list ./... | grep -v '/examples$')
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+      - run: go -C internal/generator test ./...
+      - run: go build $(go list ./... | grep -v '/examples$')
+
+  go-windows:
+    name: Go (Windows process management)
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: packages/sdk-go
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - name: Test Windows process management
+        run: >-
+          go test
+          -run 'TestConfigureChromeProcessUsesDedicatedProcessGroupWindows|TestTaskkillArgsPreserveGracefulThenForcefulShutdown|TestIgnoreFinishedProcessErrorWindows'
+          .

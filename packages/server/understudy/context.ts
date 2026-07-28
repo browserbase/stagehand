@@ -73,6 +73,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 }
 
 const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
+const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
 const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no top-level Page)";
 
 /**
@@ -267,8 +268,25 @@ export class V3Context {
 
   /** Return the understudy Page for Chrome's active tab in its last-focused window. */
   public async activePage(): Promise<Page | undefined> {
-    const targetId = await this.chromeTabs.activeTargetId();
-    return targetId === undefined ? undefined : this.pagesByTarget.get(targetId);
+    const deadline = Date.now() + DEFAULT_ACTIVE_PAGE_TIMEOUT_MS;
+    let targetId: string | undefined;
+
+    while (Date.now() < deadline) {
+      targetId = await this.chromeTabs.activeTargetId();
+      if (targetId === undefined) return undefined;
+
+      const page = this.pagesByTarget.get(targetId);
+      if (page) return page;
+
+      // Chrome can activate a popup before its auto-attached target has
+      // completed Page creation and registration in pagesByTarget.
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    throw new TimeoutError(
+      `activePage: active target not registered (${targetId ?? "unknown"})`,
+      DEFAULT_ACTIVE_PAGE_TIMEOUT_MS,
+    );
   }
 
   /** Select the Chrome tab that owns a known understudy Page. */

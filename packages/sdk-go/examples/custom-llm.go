@@ -1,0 +1,122 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+var pageInfoSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "heading": {"type": "string"},
+    "description": {"type": "string"}
+  },
+  "required": ["heading", "description"],
+  "additionalProperties": false
+}`)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		Browser:  stagehand.LocalBrowserSource{Headless: true},
+		Generate: generateWithHTTP,
+	})
+	if err := client.Init(ctx); err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := client.Context()
+	if err != nil {
+		return err
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		return err
+	}
+	if page == nil {
+		return errors.New("Stagehand initialized without an active page")
+	}
+	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+		return err
+	}
+
+	pageInfo, err := client.Extract(ctx, "Extract the page heading and description", pageInfoSchema, nil)
+	if err != nil {
+		return err
+	}
+	instruction := "Find the link that provides more information about Example Domain"
+	actions, err := client.Observe(ctx, &instruction, nil)
+	if err != nil {
+		return err
+	}
+	actionResult, err := client.Act(
+		ctx,
+		"Click the link that provides more information about Example Domain",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	output, err := json.MarshalIndent(map[string]any{
+		"page_info": pageInfo, "actions": actions, "action_result": actionResult,
+	}, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	if len(actions.Data) == 0 {
+		return errors.New("observe returned no matching actions")
+	}
+	if !actionResult.Data.Success {
+		return fmt.Errorf("act failed: %s", actionResult.Data.Message)
+	}
+	return nil
+}
+
+// generateWithHTTP delegates the generated Stagehand LLM union directly to a
+// user-operated HTTP endpoint and decodes the same generated result union.
+func generateWithHTTP(
+	ctx context.Context,
+	params stagehand.LLMGenerateParams,
+) (stagehand.LLMGenerateResult, error) {
+	endpoint := os.Getenv("CUSTOM_LLM_URL")
+	if endpoint == "" {
+		return stagehand.LLMGenerateResult{}, errors.New("CUSTOM_LLM_URL is required")
+	}
+	body, err := json.Marshal(params)
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return stagehand.LLMGenerateResult{}, fmt.Errorf("custom LLM returned %s", response.Status)
+	}
+	var result stagehand.LLMGenerateResult
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+	return result, nil
+}

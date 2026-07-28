@@ -368,7 +368,7 @@ export class StagehandRuntime {
   }
 
   contextGetDomainPolicy(): ContextGetDomainPolicyResult {
-    return { policy: this.requireBrowserSession().getDomainPolicy() };
+    return this.requireBrowserSession().getDomainPolicy();
   }
 
   async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
@@ -377,7 +377,7 @@ export class StagehandRuntime {
   }
 
   async contextCookies(params: ContextCookiesParams): Promise<ContextCookiesResult> {
-    return { cookies: await this.requireBrowserSession().cookies(params.urls) };
+    return await this.requireBrowserSession().cookies(params.urls);
   }
 
   async contextAddCookies(params: ContextAddCookiesParams): Promise<ContextVoidResult> {
@@ -394,7 +394,7 @@ export class StagehandRuntime {
     params: ContextClipboardReadTextParams,
   ): Promise<ContextClipboardReadTextResult> {
     const clipboard = this.requireBrowserSession().clipboard;
-    return { text: await clipboard.readText(this.clipboardOptions(params.pageId)) };
+    return await clipboard.readText(this.clipboardOptions(params.pageId));
   }
 
   async contextClipboardWriteText(
@@ -574,15 +574,11 @@ export class StagehandRuntime {
   }
 
   pageUrl(params: PageIdParams): PageUrlResult {
-    return {
-      url: this.resolvePage(params.pageId).url(),
-    };
+    return this.resolvePage(params.pageId).url();
   }
 
   async pageTitle(params: PageIdParams): Promise<PageTitleResult> {
-    return {
-      title: await this.resolvePage(params.pageId).title(),
-    };
+    return await this.resolvePage(params.pageId).title();
   }
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
@@ -608,45 +604,31 @@ export class StagehandRuntime {
   }
 
   async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
-    return {
-      count: await this.resolveLocator(params).count(),
-    };
+    return await this.resolveLocator(params).count();
   }
 
   async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
-    return {
-      checked: await this.resolveLocator(params).isChecked(),
-    };
+    return await this.resolveLocator(params).isChecked();
   }
 
   async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
-    return {
-      value: await this.resolveLocator(params).inputValue(),
-    };
+    return await this.resolveLocator(params).inputValue();
   }
 
   async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
-    return {
-      visible: await this.resolveLocator(params).isVisible(),
-    };
+    return await this.resolveLocator(params).isVisible();
   }
 
   async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
-    return {
-      text: await this.resolveLocator(params).innerText(),
-    };
+    return await this.resolveLocator(params).innerText();
   }
 
   async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
-    return {
-      html: await this.resolveLocator(params).innerHtml(),
-    };
+    return await this.resolveLocator(params).innerHtml();
   }
 
   async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
-    return {
-      textContent: await this.resolveLocator(params).textContent(),
-    };
+    return await this.resolveLocator(params).textContent();
   }
 
   async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
@@ -676,9 +658,7 @@ export class StagehandRuntime {
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
-    return {
-      values: await this.resolveLocator(params).selectOption(params.values),
-    };
+    return await this.resolveLocator(params).selectOption(params.values);
   }
 
   async close(): Promise<void> {
