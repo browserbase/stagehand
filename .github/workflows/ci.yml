@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -101,7 +100,6 @@ jobs:
       # still compares freshly generated output with the committed schema.
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
-      - run: pnpm exec turbo run fmt:check lint typecheck
       - run: pnpm check
       - run: uv lock --check
         working-directory: packages/sdk-python
@@ -131,6 +129,11 @@ jobs:
   cancel-after-check-failure:
     name: Cancel after check failure
     runs-on: ubuntu-latest
+    # Scoped here rather than workflow-wide: this is the only job that needs to write to the
+    # Actions API, and the fan-out means ~60 other jobs would otherwise inherit the privilege.
+    permissions:
+      contents: read
+      actions: write
     needs: [check]
     if: failure()
     continue-on-error: true
