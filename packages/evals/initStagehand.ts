@@ -7,6 +7,7 @@ import {
 } from "@browserbasehq/stagehand";
 import { getEnv } from "./env.js";
 import type { EvalLogger } from "./logger.js";
+import { resolveKey } from "./tui/welcomeStatus.js";
 
 export type InitStagehandArgs = {
   logger: EvalLogger;
@@ -39,11 +40,18 @@ const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
   cerebras: ["CEREBRAS_API_KEY"],
 };
 
-function resolveModelApiKey(modelName: string): string {
-  const provider = modelName.includes("/") ? modelName.split("/")[0] : undefined;
+type KeyLookup = (name: string) => string;
+
+const resolvePackageAwareKey: KeyLookup = (name) => resolveKey(name).value;
+
+export function resolveModelApiKey(
+  modelName: string,
+  lookup: KeyLookup = resolvePackageAwareKey,
+): string {
+  const provider = modelName.includes("/") ? modelName.split("/")[0].toLowerCase() : undefined;
   const candidates = provider ? (PROVIDER_API_KEY_ENV[provider] ?? []) : [];
   for (const envVar of candidates) {
-    const value = process.env[envVar];
+    const value = lookup(envVar);
     if (value) return value;
   }
   throw new Error(
@@ -53,10 +61,12 @@ function resolveModelApiKey(modelName: string): string {
   );
 }
 
-function requireBrowserbaseApiKey(): string {
-  const apiKey = process.env.BROWSERBASE_API_KEY;
+export function requireBrowserbaseApiKey(lookup: KeyLookup = resolvePackageAwareKey): string {
+  const apiKey = lookup("BROWSERBASE_API_KEY") || lookup("BB_API_KEY");
   if (!apiKey) {
-    throw new Error("Stagehand init: BROWSERBASE_API_KEY is required for BROWSERBASE runs");
+    throw new Error(
+      "Stagehand init: BROWSERBASE_API_KEY or BB_API_KEY is required for BROWSERBASE runs",
+    );
   }
   return apiKey;
 }

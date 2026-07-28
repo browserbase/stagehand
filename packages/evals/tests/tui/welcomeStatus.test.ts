@@ -1,9 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   snapshotEnv,
   renderInlineWarning,
   hasZeroProviderKeys,
   __resetPackageEnvCacheForTests,
+  resolveKey,
 } from "../../tui/welcomeStatus.js";
 
 const PROVIDER_KEYS = [
@@ -66,6 +68,30 @@ describe("snapshotEnv", () => {
     const s = snapshotEnv();
     expect(s.openai.state).toBe("set");
     expect(s.openai.source).toBe("process-env");
+  });
+
+  it("loads package-local dotenv values while preferring process.env", () => {
+    delete process.env.EVALS_DISABLE_PACKAGE_ENV;
+    const readFile = vi
+      .spyOn(fs, "readFileSync")
+      .mockReturnValue("OPENAI_API_KEY=package-key\nBROWSERBASE_API_KEY=package-browserbase-key\n");
+    __resetPackageEnvCacheForTests();
+
+    expect(resolveKey("OPENAI_API_KEY")).toEqual({
+      value: "package-key",
+      source: "package-dotenv",
+    });
+    expect(resolveKey("BROWSERBASE_API_KEY")).toEqual({
+      value: "package-browserbase-key",
+      source: "package-dotenv",
+    });
+
+    process.env.OPENAI_API_KEY = "process-key";
+    expect(resolveKey("OPENAI_API_KEY")).toEqual({
+      value: "process-key",
+      source: "process-env",
+    });
+    readFile.mockRestore();
   });
 
   it("prefers GOOGLE_GENERATIVE_AI_API_KEY over GEMINI_API_KEY", () => {

@@ -3,8 +3,32 @@ import {
   buildStagehandInitParams,
   buildStagehandLoggingParams,
   createStagehandOnLog,
+  requireBrowserbaseApiKey,
+  resolveModelApiKey,
 } from "../initStagehand.js";
 import { EvalLogger } from "../logger.js";
+
+describe("Stagehand eval API keys", () => {
+  const lookup =
+    (values: Record<string, string>) =>
+    (name: string): string =>
+      values[name] ?? "";
+
+  it("resolves provider keys through a package-aware lookup", () => {
+    const keys = lookup({ OPENAI_API_KEY: "openai-key" });
+
+    expect(resolveModelApiKey("openai/gpt-4.1-mini", keys)).toBe("openai-key");
+  });
+
+  it("resolves canonical and alias Browserbase keys through the same lookup", () => {
+    expect(requireBrowserbaseApiKey(lookup({ BROWSERBASE_API_KEY: "browserbase-key" }))).toBe(
+      "browserbase-key",
+    );
+    expect(requireBrowserbaseApiKey(lookup({ BB_API_KEY: "browserbase-alias-key" }))).toBe(
+      "browserbase-alias-key",
+    );
+  });
+});
 
 describe("Stagehand eval logging", () => {
   it("forwards severity and structured data into the eval logger", () => {

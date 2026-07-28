@@ -19,44 +19,26 @@ import {
 import { AgentModelEntry } from "./types/evals.js";
 import { getCurrentDirPath } from "./runtimePaths.js";
 
-const ALL_EVAL_MODELS = [
-  // GOOGLE
-  "gemini-2.0-flash",
-  "gemini-2.0-flash-lite",
-  "gemini-1.5-flash",
-  "gemini-2.5-pro-exp-03-25",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash-8b",
-  "gemini-2.5-flash-preview-04-17",
-  "gemini-2.5-pro-preview-03-25",
-  // ANTHROPIC
-  "claude-sonnet-4-6",
-  // OPENAI
-  "gpt-4o-mini",
-  "gpt-4o",
-  "gpt-4.5-preview",
-  "o3",
-  "o3-mini",
-  "o4-mini",
-  // TOGETHER - META
-  "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-  "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-  "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-  "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-  // TOGETHER - DEEPSEEK
-  "deepseek-ai/DeepSeek-V3",
-  "Qwen/Qwen2.5-7B-Instruct-Turbo",
-  // GROQ
-  "groq/meta-llama/llama-4-scout-17b-16e-instruct",
-  "groq/llama-3.3-70b-versatile",
-  "groq/llama3-70b-8192",
-  "groq/qwen-qwq-32b",
-  "groq/qwen-2.5-32b",
-  "groq/deepseek-r1-distill-qwen-32b",
-  "groq/deepseek-r1-distill-llama-70b",
-  // CEREBRAS
-  "cerebras/llama3.3-70b",
-];
+const EVAL_MODELS_BY_PROVIDER = {
+  openai: ["openai/gpt-4o-mini", "openai/gpt-4o", "openai/o3", "openai/o3-mini", "openai/o4-mini"],
+  anthropic: ["anthropic/claude-sonnet-4-6"],
+  google: [
+    "google/gemini-2.0-flash",
+    "google/gemini-2.0-flash-lite",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+  ],
+  groq: [
+    "groq/meta-llama/llama-4-scout-17b-16e-instruct",
+    "groq/llama-3.3-70b-versatile",
+    "groq/llama3-70b-8192",
+    "groq/qwen-qwq-32b",
+    "groq/qwen-2.5-32b",
+    "groq/deepseek-r1-distill-qwen-32b",
+    "groq/deepseek-r1-distill-llama-70b",
+  ],
+  cerebras: ["cerebras/llama3.1-8b"],
+} as const;
 
 // ---------------------------------------------------------------------------
 // Auto-discover tasks from filesystem
@@ -290,34 +272,16 @@ const getModelList = (category?: string): string[] => {
   }
 
   if (provider) {
-    return ALL_EVAL_MODELS.filter((model) => filterModelByProvider(model, provider));
+    const models = EVAL_MODELS_BY_PROVIDER[provider as keyof typeof EVAL_MODELS_BY_PROVIDER];
+    if (!models) {
+      throw new Error(
+        `Unsupported Stagehand provider "${provider}". Supported providers: ${Object.keys(EVAL_MODELS_BY_PROVIDER).join(", ")}.`,
+      );
+    }
+    return [...models];
   }
 
   return DEFAULT_EVAL_MODELS;
-};
-
-const filterModelByProvider = (model: string, provider: string): boolean => {
-  const modelLower = model.toLowerCase();
-  if (provider === "openai") {
-    return modelLower.startsWith("gpt");
-  } else if (provider === "anthropic") {
-    return modelLower.startsWith("claude");
-  } else if (provider === "google") {
-    return modelLower.startsWith("gemini");
-  } else if (provider === "together") {
-    return (
-      modelLower.startsWith("meta-llama") ||
-      modelLower.startsWith("llama") ||
-      modelLower.startsWith("deepseek") ||
-      modelLower.startsWith("qwen")
-    );
-  } else if (provider === "groq") {
-    return modelLower.startsWith("groq");
-  } else if (provider === "cerebras") {
-    return modelLower.startsWith("cerebras");
-  }
-  console.warn(`Unknown provider specified or model doesn't match: ${provider}`);
-  return false;
 };
 
 const MODELS: AvailableModel[] = getModelList().map((model) => {

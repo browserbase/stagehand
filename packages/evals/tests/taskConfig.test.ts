@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { StagehandClientInitParamsSchema } from "@browserbasehq/stagehand";
 import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "stagehand-v3";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
@@ -64,7 +65,33 @@ describe("getModelList", () => {
     process.env.EVAL_PROVIDER = "openai";
     const { getModelList } = await loadTaskConfig();
     const models = getModelList();
-    expect(models.every((m) => m.toLowerCase().startsWith("gpt"))).toBe(true);
+    expect(models.every((m) => m.toLowerCase().startsWith("openai/"))).toBe(true);
+  });
+
+  it("only plans model names accepted by the current Stagehand client", async () => {
+    const { getModelList } = await loadTaskConfig();
+
+    for (const provider of ["openai", "anthropic", "google", "groq", "cerebras"]) {
+      process.env.EVAL_PROVIDER = provider;
+      const models = getModelList();
+      expect(models.length).toBeGreaterThan(0);
+      for (const modelName of models) {
+        expect(
+          StagehandClientInitParamsSchema.safeParse({
+            browser: { type: "local" },
+            model: { modelName, apiKey: "test-key" },
+          }).success,
+          `${modelName} should be accepted by StagehandClientInitParamsSchema`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("rejects providers unsupported by the current Stagehand client", async () => {
+    process.env.EVAL_PROVIDER = "together";
+    const { getModelList } = await loadTaskConfig();
+
+    expect(() => getModelList()).toThrow(/Unsupported Stagehand provider "together"/);
   });
 });
 

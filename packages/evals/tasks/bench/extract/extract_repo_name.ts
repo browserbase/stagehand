@@ -40,8 +40,6 @@ export default defineBenchTask(
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await stagehand.close();
     }
   },
 );

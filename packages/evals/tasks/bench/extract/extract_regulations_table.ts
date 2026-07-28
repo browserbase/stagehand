@@ -30,7 +30,7 @@ export default defineBenchTask(
       const allotteeList = allottees.allottee_list;
       const expectedAllottees = await page.evaluate((selector) => {
         const table = document.querySelector(selector);
-        if (!table) return [];
+        if (!table) throw new Error(`Expected regulations table not found: ${selector}`);
         return Array.from(table.querySelectorAll("tbody > tr")).flatMap((row) => {
           const cells = Array.from(row.querySelectorAll(":scope > td")).map(
             (cell) =>
@@ -49,6 +49,9 @@ export default defineBenchTask(
           ];
         });
       }, tableSelector);
+      if (expectedAllottees.length === 0) {
+        throw new Error("Expected regulations table contained no allottee rows");
+      }
       const key = (item: {
         allottee_name: string;
         area: string;
@@ -82,8 +85,6 @@ export default defineBenchTask(
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await stagehand.close();
     }
   },
 );

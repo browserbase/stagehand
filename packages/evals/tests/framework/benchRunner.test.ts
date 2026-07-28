@@ -122,4 +122,54 @@ describe("bench runner", () => {
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
+
+  it("preserves a successful task result when harness cleanup fails", async () => {
+    const taskDir = makeTempDir();
+    const taskFile = path.join(taskDir, "cleanup_failure_task.mjs");
+    fs.writeFileSync(
+      taskFile,
+      `
+      export default {
+        __taskDefinition: true,
+        meta: { name: "cleanup_failure_task" },
+        fn: async () => ({ _success: true }),
+      };
+      `,
+    );
+
+    const task: DiscoveredTask = {
+      name: "act/cleanup_failure_task",
+      tier: "bench",
+      primaryCategory: "act",
+      categories: ["act"],
+      tags: [],
+      filePath: taskFile,
+      isLegacy: false,
+    };
+    closeMock.mockRejectedValueOnce(new Error("cleanup failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await executeBenchTask(
+      {
+        name: task.name,
+        modelName: "openai/gpt-4.1-mini" as AvailableModel,
+      },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "BROWSERBASE",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result._success).toBe(true);
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      `Warning: Error closing Stagehand for ${task.name}:`,
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
+  });
 });
