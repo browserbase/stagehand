@@ -1,7 +1,7 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_yc_startup" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -9,7 +9,7 @@ export default defineBenchV4Task(
         waitUntil: "networkidle",
       });
 
-      const observations = await stagehand.observe(
+      const { data: observations } = await stagehand.observe(
         "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
       );
 
@@ -28,9 +28,7 @@ export default defineBenchV4Task(
         `div._section_18olp_165._results_18olp_345`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
+      // Compare the observed elements against the accepted container elements.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

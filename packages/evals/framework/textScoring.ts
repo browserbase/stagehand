@@ -1,17 +1,22 @@
-/**
- * Shared text-scoring helpers for V4 bench tasks.
- *
- * Behavior-identical copies of `normalizeString`/`compareStrings` from
- * stagehand packages/evals/utils.ts and the `jaroWinkler` similarity from
- * string-comparison@1.3.0 — V4 bench tasks cannot import utils.ts directly,
- * so the implementations live here (previously inlined per-task). Pure
- * computation, no behavior change.
- */
+/** Shared text-scoring helpers for benchmark tasks. */
 export function normalizeString(str: string): string {
   return str
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[;/#!$%^&*:{}=\-_`~()]/g, "")
+    .replace(/\s*,\s*/g, ", ")
+    .trim();
+}
+
+/**
+ * Normalizes technical values without discarding plus/minus signs.
+ * Sign is semantically meaningful for values such as temperature ranges.
+ */
+export function normalizeTechnicalValue(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[;/#!$%^&*:{}=_`~()]/g, "")
     .replace(/\s*,\s*/g, ", ")
     .trim();
 }
@@ -56,8 +61,6 @@ function jaroSimilarity(first: string, second: string): number {
 function jaroWinklerSimilarity(a: string, b: string): number {
   let sim = jaroSimilarity(a, b);
   if (sim > 0.7) {
-    // NOTE: string-comparison computes the common prefix on the raw inputs
-    // (pre-initParams), preserved here.
     let prefix = 0;
     for (let i = 0; i < Math.min(a.length, b.length) && a[i] === b[i]; i++) {
       prefix++;

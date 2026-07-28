@@ -1,12 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "panamcs" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
 
-      const observations = await stagehand.observe("click the 'about us' link");
+      const { data: observations } = await stagehand.observe("click the 'about us' link");
 
       if (observations.length === 0) {
         return {
@@ -18,16 +19,12 @@ export default defineBenchV4Task(
         };
       }
 
-      const expectedLocator = `#menu > li:nth-child(1) > a`;
-
-      const expectedResult = await page.locator(expectedLocator).first().innerText();
-
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page.locator(observation.selector).first().innerText();
-
-          if (observationResult === expectedResult) {
+          if (
+            await findMatchingSelector(page, observation.selector, ["#menu > li:nth-child(1) > a"])
+          ) {
             foundMatch = true;
             break;
           }
@@ -42,7 +39,7 @@ export default defineBenchV4Task(
 
       return {
         _success: foundMatch,
-        expected: expectedResult,
+        expected: "#menu > li:nth-child(1) > a",
         observations,
         debugUrl,
         sessionUrl,

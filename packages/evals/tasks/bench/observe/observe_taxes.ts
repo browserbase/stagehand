@@ -1,12 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_taxes" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://file.1040.com/estimate/");
 
-      const observations = await stagehand.observe(
+      const { data: observations } = await stagehand.observe(
         "Find all the form input elements under the 'Income' section",
       );
 
@@ -28,16 +29,10 @@ export default defineBenchV4Task(
         };
       }
 
-      const expectedLocator = `#tpWages`;
-
-      const expectedResult = await page.locator(expectedLocator).first().innerText();
-
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page.locator(observation.selector).first().innerText();
-
-          if (observationResult === expectedResult) {
+          if (await findMatchingSelector(page, observation.selector, ["#tpWages"])) {
             foundMatch = true;
             break;
           }
@@ -52,7 +47,7 @@ export default defineBenchV4Task(
 
       return {
         _success: foundMatch,
-        expected: expectedResult,
+        expected: "#tpWages",
         observations,
         debugUrl,
         sessionUrl,

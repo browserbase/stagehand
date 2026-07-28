@@ -7,7 +7,8 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
+import type { AvailableModel, LogLine } from "stagehand-v3";
+import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import type {
   CorePageHandle,
   CoreSession,
@@ -17,10 +18,6 @@ import type {
   ToolSurface,
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
-import type { BenchV4TaskContext } from "./typesV4.js";
-
-/** Page type inferred from V3.context.pages()[0] */
-type Page = ReturnType<V3["context"]["pages"]>[number];
 
 export type Tier = "core" | "bench";
 
@@ -36,6 +33,8 @@ export interface TaskMeta {
 export interface BenchTaskMeta extends TaskMeta {
   /** Override the default model list for this specific task. */
   models?: string[];
+  /** Additional instructions applied when initializing Stagehand for this task. */
+  systemPrompt?: string;
 }
 
 /** Context provided to core (tier 1) tasks. */
@@ -61,13 +60,11 @@ export interface CoreTaskContext {
   logger: EvalLogger;
 }
 
-/** Context provided to bench (tier 3) tasks — matches existing EvalFunction input. */
+/** Context provided to benchmark tasks. */
 export interface BenchTaskContext {
-  /** Stagehand V3 instance. */
-  v3: V3;
-  /** Agent instance (created when the task lives under agent/). */
-  agent?: AgentInstance;
-  /** Playwright page (convenience — same as v3.context.pages()[0]). */
+  /** Stagehand client instance. */
+  stagehand: Stagehand;
+  /** Active page for the task. */
   page: Page;
   /** Eval logger. */
   logger: EvalLogger;
@@ -75,8 +72,6 @@ export interface BenchTaskContext {
   input: {
     name: string;
     modelName: AvailableModel;
-    agentMode?: AgentToolMode;
-    isCUA?: boolean;
     params?: Record<string, unknown>;
   };
   /** Model used for this run. */
@@ -129,13 +124,13 @@ export interface TaskDefinition {
   /** User-provided metadata. */
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
-  fn: (ctx: CoreTaskContext | BenchTaskContext | BenchV4TaskContext) => Promise<void | TaskResult>;
+  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }
 
 export interface DiscoveredTask {
-  /** Unique task identifier (e.g., "snapshot" or "agent/gaia"). */
+  /** Unique task identifier (e.g., "snapshot" or "combination/wichita"). */
   name: string;
   /** Tier derived from directory. */
   tier: Tier;

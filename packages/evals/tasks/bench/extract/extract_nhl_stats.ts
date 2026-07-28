@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { normalizeString } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_nhl_stats" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -10,7 +10,7 @@ export default defineBenchV4Task(
         waitUntil: "domcontentloaded",
       });
 
-      const result = await stagehand.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the name of the goal scoring leader, their number of goals they scored, and the team they played for.",
         z.object({
           name: z.string(),

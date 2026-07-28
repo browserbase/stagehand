@@ -1,16 +1,15 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { compareStrings } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_hamilton_weather" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/hamilton-weather/");
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const xpath = "/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
+      const xpath = "xpath=/html/body[1]/div[5]/main[1]/article[1]/div[6]/div[2]/div[1]/table[1]";
 
-      const weatherData = await stagehand.extract(
+      const { data: weatherData } = await stagehand.extract(
         "extract the weather data for Sun, Feb 23 at 11PM",
         z.object({
           temperature: z.string(),

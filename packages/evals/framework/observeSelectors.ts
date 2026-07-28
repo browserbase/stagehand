@@ -1,17 +1,10 @@
 /**
- * Shared in-page selector-resolution / element-identity helper for v4 bench
- * observe tasks.
- *
- * v3 evals assert element identity by comparing backendNodeIds between an
- * observed selector and known-good selectors; the v4 Locator exposes no node
- * identity, so the same check is re-expressed in-page:
- * resolve both selectors in the main document and compare element
- * references. Selectors that fail to resolve never match, mirroring v3
- * (where an unresolvable locator yields no backendNodeId).
+ * Shared in-page selector-resolution and element-identity helper for observe
+ * tasks. It resolves observed and known-good selectors in the main document
+ * and compares the resulting element references.
  *
  * Main-frame only: `page.evaluate` runs in the top document, so selectors
- * pointing inside iframes do not resolve (see observe_iframes1 for why that
- * preserves the v3 criterion there).
+ * pointing inside iframes do not resolve.
  */
 import type { Page } from "@browserbasehq/stagehand";
 

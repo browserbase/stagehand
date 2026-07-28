@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "iframes_nested" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -8,9 +8,7 @@ export default defineBenchV4Task(
 
       await stagehand.act("type 'stagehand' into the 'username' field");
 
-      // v3 chained frameLocator lvl1 -> lvl2 -> lvl3 (form lives in level 3);
-      // v4 has no frameLocator, so the same check is re-expressed in-page by
-      // walking the same-origin iframes' contentDocuments.
+      // The form lives in the third same-origin iframe.
       const usernameText = await page.evaluate(() => {
         const lvl1 = (document.querySelector("iframe.lvl1") as HTMLIFrameElement | null)
           ?.contentDocument; // level 1

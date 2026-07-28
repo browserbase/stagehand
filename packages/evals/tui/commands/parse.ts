@@ -8,10 +8,9 @@
  *
  * Precedence (enforced by resolveRunOptions):
  *   1. CLI flags (highest)
- *   2. Benchmark shorthand derived overrides (b:/benchmark:<name>)
- *   3. STAGEHAND_BROWSER_TARGET (env-only fallback for --env)
- *   4. Config defaults (evals.config.json)
- *   5. Ambient EVAL_* env vars consumed downstream by runner/suites
+ *   2. STAGEHAND_BROWSER_TARGET (env-only fallback for --env)
+ *   3. Config defaults (evals.config.json)
+ *   4. Ambient EVAL_* env vars consumed downstream by runner/suites
  */
 import {
   DEFAULT_BENCH_HARNESS,
@@ -48,8 +47,6 @@ export interface RunFlags {
   success?: SuccessMode;
   /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
   legacy?: boolean;
-  /** Which Stagehand SDK drives bench tasks: v3 (default) or v4. */
-  sdk?: "v3" | "v4";
 }
 
 export type SuccessMode = "outcome" | "process" | "both";
@@ -82,13 +79,6 @@ export interface ResolvedRunOptions {
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
-  /**
-   * Which Stagehand SDK drives bench tasks. Only set when --sdk was passed
-   * explicitly: v4 selects the v4 harness path, and any explicit value (v3
-   * or v4) switches the run to the SDK-comparison Braintrust experiment
-   * naming scheme.
-   */
-  sdk?: "v3" | "v4";
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   datasetFilter?: string;
@@ -99,19 +89,6 @@ export interface ResolvedRunOptions {
   preview: boolean;
   verbose: boolean;
 }
-
-/**
- * Suites wired into the unified runner. GAIA remains legacy-only;
- * WebBench never had a unified suite implementation.
- */
-const SUPPORTED_BENCHMARKS = new Set([
-  "webvoyager",
-  "onlineMind2Web",
-  "webtailbench",
-  "odysseysbench",
-]);
-
-const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
 
 const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
 const VALUE_FLAGS = new Set([
@@ -129,7 +106,6 @@ const VALUE_FLAGS = new Set([
   "agent-modes",
   "filter",
   "success",
-  "sdk",
 ]);
 
 const FLAG_ALIASES: Record<string, string> = {
@@ -292,14 +268,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           flags.success = v;
           break;
         }
-        case "sdk": {
-          const v = value.toLowerCase();
-          if (v !== "v3" && v !== "v4") {
-            throw new Error(`--sdk must be "v3" or "v4" (got "${value}")`);
-          }
-          flags.sdk = v;
-          break;
-        }
         default:
           break;
       }
@@ -327,17 +295,14 @@ export function parseRunArgs(tokens: string[]): RunFlags {
 }
 
 /**
- * Normalize a run target. Returns the target to hand to resolveTarget()
- * along with any env var overrides + datasetFilter needed for the
- * downstream runner / suites.
+ * Normalize a run target and return the value passed to resolveTarget().
  *
  *   "all" → undefined (resolveTarget treats undefined as all bench tasks)
- *   "b:webvoyager" / "benchmark:webvoyager" → "agent/webvoyager" + EVAL_DATASET + EVAL_WEBVOYAGER_*
  *   other → passed through unchanged
  */
 export function applyBenchmarkShorthand(
   target: string | undefined,
-  flags: RunFlags,
+  _flags: RunFlags,
 ): {
   target: string | undefined;
   datasetFilter?: string;
@@ -349,45 +314,7 @@ export function applyBenchmarkShorthand(
     return { target: undefined, envOverrides };
   }
 
-  if (!target) return { target, envOverrides };
-
-  const match = target.match(/^(b|benchmark):(.+)$/);
-  if (!match) return { target, envOverrides };
-
-  const benchmarkName = match[2];
-
-  if (LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
-    if (!flags.legacy) {
-      throw new Error(
-        `Benchmark "${benchmarkName}" is legacy-only. Use --legacy or choose one of: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-      );
-    }
-  }
-
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName) && !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
-    throw new Error(
-      `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-    );
-  }
-
-  const upper = benchmarkName.toUpperCase();
-  envOverrides.EVAL_DATASET = benchmarkName;
-  if (flags.limit !== undefined) {
-    envOverrides.EVAL_MAX_K = String(flags.limit);
-    envOverrides[`EVAL_${upper}_LIMIT`] = String(flags.limit);
-  }
-  if (flags.sample !== undefined) {
-    envOverrides[`EVAL_${upper}_SAMPLE`] = String(flags.sample);
-  }
-  for (const [key, value] of flags.filter ?? []) {
-    envOverrides[`EVAL_${upper}_${key.toUpperCase()}`] = value;
-  }
-
-  return {
-    target: `agent/${benchmarkName}`,
-    datasetFilter: benchmarkName,
-    envOverrides,
-  };
+  return { target, envOverrides };
 }
 
 /**
@@ -438,16 +365,6 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
-  const sdk = flags.sdk;
-  // Explicit --sdk labels the run as an SDK-comparison experiment, but only
-  // the stagehand harness actually runs through the selected SDK — an
-  // external harness would produce mislabeled comparison data.
-  if (sdk !== undefined && harness !== "stagehand") {
-    throw new Error(
-      `--sdk ${sdk} requires --harness stagehand (got "${harness}"). ` +
-        `External harnesses do not run through the Stagehand SDK; drop --sdk or use --harness stagehand.`,
-    );
-  }
   const agentMode = flags.agentMode ? normalizeAgentMode(flags.agentMode) : undefined;
   const agentModes = agentMode ? undefined : (flags.agentModes ?? defaults.agentModes ?? undefined);
 
@@ -482,7 +399,6 @@ export function resolveRunOptions(
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
-    sdk,
     agentMode,
     agentModes,
     datasetFilter,

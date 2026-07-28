@@ -1,13 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_vantechjournal" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://vantechjournal.com/archive");
 
-      const observations = await stagehand.observe("Find the 'load more' link");
+      const { data: observations } = await stagehand.observe("Find the 'load more' link");
 
       if (observations.length === 0) {
         return {
@@ -24,11 +24,7 @@ export default defineBenchV4Task(
         "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
       ];
 
-      // v3 compares backendNodeIds (first observation vs. each expected
-      // locator); the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
-      // Expected locators that fail to resolve are skipped, as in v3.
+      // Compare element identity rather than visible text, which may be duplicated.
       const foundMatch =
         (await findMatchingSelector(page, observations[0].selector, expectedLocators)) !== null;
 

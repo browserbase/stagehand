@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_recipe" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -12,9 +12,8 @@ export default defineBenchV4Task(
         },
       );
 
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-      const recipeDetails = await stagehand.extract(
+      const selector = "xpath=/html/body/main/article/div[3]/div[3]/div[4]";
+      const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
         z.object({
           tablespoons_olive_oil: z

@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "os_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
@@ -12,8 +12,6 @@ export default defineBenchV4Task(
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-dropdown/");
 
       await stagehand.act("choose 'Smog Check Technician' from the 'License Type' dropdown");
-      // v3 used page.locator("#licenseType >> option:checked"); v4 locator has
-      // no ">>" chaining, so the same check is re-expressed in-page.
       const selectedOption = await page.evaluate(() => {
         const option = document.querySelector(
           "#licenseType option:checked",

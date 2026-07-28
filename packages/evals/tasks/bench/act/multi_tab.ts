@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "multi_tab" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -11,7 +11,6 @@ export default defineBenchV4Task(
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
-      // v3: v3.context.awaitActivePage(); v4: context.activePage()
       let activePage = await stagehand.context.activePage();
       if (!activePage) {
         throw new Error("no active page after opening tabs");
@@ -34,10 +33,7 @@ export default defineBenchV4Task(
       // try acting on the first page again
       const pages = await stagehand.context.pages();
       const page1 = pages[0];
-      // NOTE: v4's act DOES accept a { page } option on this branch
-      // (packages/sdk-ts/src/clientSchemas.ts), but this task deliberately
-      // switches pages via setActivePage instead — exercising v4's
-      // active-page tracking is part of what this multi-tab eval covers.
+      // Switch pages explicitly to exercise active-page tracking.
       await stagehand.context.setActivePage(page1);
       await stagehand.act("click the button to open the other page");
 
@@ -57,13 +53,8 @@ export default defineBenchV4Task(
         };
       }
 
-      // The target page is already the active page here, so extract
-      // operates on it (v4's extract also accepts a { page } option on this
-      // branch — packages/sdk-ts/src/clientSchemas.ts — but it is not
-      // needed). v3 used schemaless extract; v4 requires a
-      // schema. Single-word key to stay clear of the snake_case wire-casing
-      // bug (#14).
-      const page2text = await stagehand.extract(
+      // The target page is already active, so extraction operates on it.
+      const { data: page2text } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
       );

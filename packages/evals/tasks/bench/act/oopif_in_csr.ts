@@ -1,7 +1,6 @@
-import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "oopif_in_csr" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     // this eval is designed to test whether stagehand can successfully
@@ -14,16 +13,9 @@ export default defineBenchV4Task(
       );
       await stagehand.act("fill 'nunya' into the first name field");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const extraction = await stagehand.extract(
-        "extract the entire page text",
-        z.object({ extraction: z.string() }),
-      );
+      const firstNameValue = await page.locator('iframe >> input[placeholder="Jane"]').inputValue();
 
-      const pageText = extraction.extraction;
-
-      if (pageText.includes("nunya")) {
+      if (firstNameValue.trim().toLowerCase() === "nunya") {
         return {
           _success: true,
           message: `successfully filled the form`,

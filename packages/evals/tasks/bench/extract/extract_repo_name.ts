@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_repo_name" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://github.com/facebook/react");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const { extraction } = await stagehand.extract(
+      const {
+        data: { extraction },
+      } = await stagehand.extract(
         "extract the title of the Github repository. Do not include the owner of the repository.",
         z.object({ extraction: z.string() }),
       );

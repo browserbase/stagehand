@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_single_link" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
 
-      const extraction = await stagehand.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract the link to the 'contact us' page",
         z.object({
           link: z.string().url(),

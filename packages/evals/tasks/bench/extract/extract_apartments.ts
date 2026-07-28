@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_apartments" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://www.apartments.com/san-francisco-ca/2-bedrooms/", {
         waitUntil: "load",
       });
-      const apartment_listings = await stagehand.extract(
+      const { data: apartment_listings } = await stagehand.extract(
         "Extract all the apartment listings with their prices and their addresses.",
         z.object({
           listings: z.array(

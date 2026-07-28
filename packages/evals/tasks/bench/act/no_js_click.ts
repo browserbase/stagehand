@@ -1,7 +1,7 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
-import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import type { Action } from "@browserbasehq/stagehand";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "no_js_click" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
@@ -13,14 +13,13 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
 
-      const observeResult: ObservedAction = {
+      const observeResult: Action = {
         method: "click",
         selector: "xpath=/html/body/button",
         description: "the button to click",
         arguments: [],
       };
-      // v4 has no act(observeResult) replay.
-      await replayObservedAction(page, observeResult);
+      await stagehand.act(observeResult);
 
       const text = await page.locator("#success-msg").textContent();
       if (text?.trim() === "click succeeded") {

@@ -1,15 +1,13 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "shadow_dom" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/shadow-dom/");
       await stagehand.act("click the button");
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const extraction = await stagehand.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract the page text",
         z.object({ extraction: z.string() }),
       );

@@ -130,26 +130,13 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
 };
 
 /**
- * Tasks whose categories REPLACE the directory-derived category entirely.
- * Used for external benchmark suites that live in bench/agent/ but should
- * NOT appear in the plain "agent" category.
- */
-const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
-  "agent/webvoyager": ["external_agent_benchmarks"],
-  "agent/onlineMind2Web": ["external_agent_benchmarks"],
-  "agent/webtailbench": ["external_agent_benchmarks"],
-  "agent/odysseysbench": ["external_agent_benchmarks"],
-};
-
-/**
  * Build tasksConfig from filesystem structure (bench tier only).
  *
  * Only scans tasks/bench/ — core tier tasks are not exposed to the legacy
  * runner because index.eval.ts cannot execute them yet.
  *
- * Cross-cutting categories (regression, targeted_extract, external_agent_benchmarks)
- * are merged from the static CROSS_CUTTING_CATEGORIES map.
+ * Cross-cutting categories (regression and targeted_extract) are merged
+ * from the static mapping above.
  */
 function buildTasksConfigFromFS(): TaskConfig[] {
   const configs: TaskConfig[] = [];
@@ -169,13 +156,6 @@ function buildTasksConfigFromFS(): TaskConfig[] {
     for (const filePath of files) {
       const baseName = path.basename(filePath).replace(/\.(ts|js)$/, "");
       const name = category === "agent" ? `agent/${baseName}` : baseName;
-
-      // Check for full category override first (e.g., external benchmark suites)
-      const override = CATEGORY_OVERRIDES[name];
-      if (override) {
-        configs.push({ name, categories: [...override] });
-        continue;
-      }
 
       // Start with the primary directory category, then merge extras
       const taskCategories = [category];

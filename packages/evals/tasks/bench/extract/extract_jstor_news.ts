@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_jstor_news" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
@@ -10,7 +11,7 @@ export default defineBenchV4Task(
       });
       await stagehand.act("close the cookie");
 
-      const result = await stagehand.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the news report titles and their dates.",
         z.object({
           reports: z.array(
@@ -23,91 +24,32 @@ export default defineBenchV4Task(
       );
 
       const reports = result.reports;
-      const expectedLength = 10;
+      const expectedReports = await page.evaluate(() =>
+        Array.from(document.querySelectorAll(".post-list article")).map((article) => ({
+          report_name: article.querySelector(".post-title")?.textContent?.trim() ?? "",
+          publish_date: article.querySelector(".meta.date")?.textContent?.trim() ?? "",
+        })),
+      );
+      const key = (report: { report_name: string; publish_date: string }) =>
+        `${normalizeString(report.report_name)}|${normalizeString(report.publish_date)}`;
+      const actualKeys = reports.map(key).sort();
+      const expectedKeys = expectedReports.map(key).sort();
+      const allReportsMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      const expectedFirstItem = {
-        report_name: "JSTOR retires Publisher Sales Service",
-        publish_date: "December 9, 2024",
-      };
-
-      const expectedLastItem = {
-        report_name: "Path to Open announces 2024 titles",
-        publish_date: "May 10, 2024",
-      };
-
-      if (reports.length !== expectedLength) {
+      if (!allReportsMatch) {
         logger.error({
-          message: "Incorrect number of reports extracted",
+          message: "Extracted reports do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: reports.length.toString(),
-              type: "integer",
-            },
+            expected: { value: JSON.stringify(expectedReports), type: "object" },
+            actual: { value: JSON.stringify(reports), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "Incorrect number of reports extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-      const firstItemMatches =
-        reports[0].report_name === expectedFirstItem.report_name &&
-        reports[0].publish_date === expectedFirstItem.publish_date;
-
-      if (!firstItemMatches) {
-        logger.error({
-          message: "First report extracted does not match expected",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(reports[0]),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "First report extracted does not match expected",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      const lastItemMatches =
-        reports[reports.length - 1].report_name === expectedLastItem.report_name &&
-        reports[reports.length - 1].publish_date === expectedLastItem.publish_date;
-
-      if (!lastItemMatches) {
-        logger.error({
-          message: "Last report extracted does not match expected",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(reports[reports.length - 1]),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Last report extracted does not match expected",
+          error: "Extracted reports do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,

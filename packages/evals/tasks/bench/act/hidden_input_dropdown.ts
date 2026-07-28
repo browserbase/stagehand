@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "hidden_input_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
@@ -25,9 +25,7 @@ export default defineBenchV4Task(
       // a11y tree.
 
       // to test, we'll grab the full a11y tree, and make sure it contains 'Green'
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const extraction = await stagehand.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
       );

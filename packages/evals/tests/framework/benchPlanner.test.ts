@@ -435,7 +435,7 @@ describe("benchPlanner", () => {
       );
 
     await expect(generate()).rejects.toThrow(
-      'Harness "claude_code" only supports agent benchmark suites',
+      'Harness "claude_code" only supports configured external benchmark inputs',
     );
     await expect(generate()).rejects.toThrow("Unsupported task(s): dropdown");
   });

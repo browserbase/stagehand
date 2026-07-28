@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
-import { normalizeString } from "../../../framework/textScoring.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString, normalizeTechnicalValue } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_resistor_info" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/resistor/");
 
-      const result = await stagehand.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
         z.object({
           manufacturer_standard_lead_time: z.string(),
@@ -110,19 +110,19 @@ export default defineBenchV4Task(
       }
 
       if (
-        normalizeString(operating_temperature_range) !==
-        normalizeString(expected.operating_temperature_range)
+        normalizeTechnicalValue(operating_temperature_range) !==
+        normalizeTechnicalValue(expected.operating_temperature_range)
       ) {
         logger.error({
           message: "Operating temperature range extracted does not match expected",
           level: 0,
           auxiliary: {
             expected: {
-              value: normalizeString(expected.operating_temperature_range),
+              value: normalizeTechnicalValue(expected.operating_temperature_range),
               type: "string",
             },
             actual: {
-              value: normalizeString(operating_temperature_range),
+              value: normalizeTechnicalValue(operating_temperature_range),
               type: "string",
             },
           },

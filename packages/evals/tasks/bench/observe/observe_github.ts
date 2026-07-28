@@ -1,13 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_github" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/github/");
 
-      const observations = await stagehand.observe(
+      const { data: observations } = await stagehand.observe(
         "find the scrollable element that holds the repos file tree.",
       );
 
@@ -33,10 +33,7 @@ export default defineBenchV4Task(
         `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div > nav > ul`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
-      // Candidates that fail to resolve are ignored, as in v3.
+      // Compare element identity rather than visible text, which may be duplicated.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

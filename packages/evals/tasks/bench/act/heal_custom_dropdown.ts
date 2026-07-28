@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "heal_custom_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
@@ -15,21 +15,30 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
 
-      // V4 GAP: this eval exercises v3's self-healing
-      // act(observeResult) path — v3 was given an intentionally invalid
-      // selector ("/html/not-a-dropdown") and expected to heal by
-      // re-locating "The 'Select a country' dropdown" and clicking it.
-      // v4's stagehand.act accepts a string only, and the
-      // replayObservedAction workaround replays via locators with no
-      // healing, so the behavior under test cannot be exercised on v4.
-      // Fail loudly rather than silently substitute a different behavior.
-      throw new Error(
-        "V4 GAP: v4 has no act(observeResult) self-healing replay (stagehand.act accepts a string only); heal_custom_dropdown cannot run on v4",
+      await stagehand.act({
+        description: "The 'Select a country' dropdown",
+        selector: "/html/not-a-dropdown",
+        arguments: [],
+        method: "click",
+      });
+
+      const dropdownExpanded = await page.evaluate(() =>
+        document.querySelector("#countryDropdown")?.classList.contains("open"),
       );
+
+      return {
+        _success: dropdownExpanded === true,
+        ...(dropdownExpanded === true ? {} : { message: "unable to expand the dropdown" }),
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        message: `error attempting to expand the dropdown: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

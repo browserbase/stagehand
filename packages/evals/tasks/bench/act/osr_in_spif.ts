@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "osr_in_spif" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     // this eval is designed to test whether stagehand can successfully
@@ -14,9 +14,7 @@ export default defineBenchV4Task(
       );
       await stagehand.act("click the button");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const extraction = await stagehand.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
       );

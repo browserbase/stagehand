@@ -1,14 +1,13 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_aigrant_targeted_2" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const selector = "/html/body/div/ul[5]/li[28]";
-      const company = await stagehand.extract(
+      const selector = "xpath=/html/body/div/ul[5]/li[28]";
+      const { data: company } = await stagehand.extract(
         "Extract the name of the company that comes after 'Coframe'.",
         z.object({
           company_name: z.string(),

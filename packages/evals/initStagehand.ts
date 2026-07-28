@@ -1,30 +1,23 @@
-/**
- * Initializes a Stagehand v4 client for use in evaluations,
- * mirroring initV3's environment resolution so matched v3/v4 runs are
- * comparable. Usage idioms follow v4-spike/packages/sdk-ts/examples/.
- *
- * Kept deliberately minimal: no agent support (agent tasks are not ported)
- * and no USE_API path (v3-only concept).
- */
+/** Initializes the Stagehand client used by benchmark tasks. */
 import {
   Stagehand,
   StagehandClientInitParamsSchema,
   type Page,
   type StagehandClientInitParams,
 } from "@browserbasehq/stagehand";
-import type { LogLine } from "stagehand-v3";
 import { getEnv } from "./env.js";
 import type { EvalLogger } from "./logger.js";
 
-export type InitV4Args = {
+export type InitStagehandArgs = {
   logger: EvalLogger;
   modelName: string;
+  systemPrompt?: string;
   configOverrides?: {
     env?: "LOCAL" | "BROWSERBASE";
   };
 };
 
-export type V4InitResult = {
+export type StagehandInitResult = {
   stagehand: Stagehand;
   page: Page;
   logger: EvalLogger;
@@ -34,7 +27,7 @@ export type V4InitResult = {
 };
 
 /**
- * Env vars checked per provider prefix, in order. The v4 SDK routes LLM
+ * Env vars checked per provider prefix, in order. Stagehand routes LLM
  * calls through the in-browser extension, so the key must be passed
  * explicitly in init params — ambient process env is not visible to it.
  */
@@ -54,8 +47,8 @@ function resolveModelApiKey(modelName: string): string {
     if (value) return value;
   }
   throw new Error(
-    `V4 init: no API key found for model "${modelName}". ` +
-      `The v4 SDK requires an explicit model API key ` +
+    `Stagehand init: no API key found for model "${modelName}". ` +
+      `Stagehand requires an explicit model API key ` +
       `(checked: ${candidates.join(", ") || "no known provider prefix"}).`,
   );
 }
@@ -63,31 +56,31 @@ function resolveModelApiKey(modelName: string): string {
 function requireBrowserbaseApiKey(): string {
   const apiKey = process.env.BROWSERBASE_API_KEY;
   if (!apiKey) {
-    throw new Error("V4 init: BROWSERBASE_API_KEY is required for BROWSERBASE runs");
+    throw new Error("Stagehand init: BROWSERBASE_API_KEY is required for BROWSERBASE runs");
   }
   return apiKey;
 }
 
-/** Shape of a v4 SDK log event (protocol StagehandLogSchema). */
-export type V4SdkLogEvent = {
+/** Shape of a Stagehand log event. */
+type StagehandLogEvent = {
   level: "debug" | "info" | "warn" | "error";
   message: string;
   data?: Record<string, unknown>;
 };
 
 /**
- * Adapt v4 SDK log events into the EvalLogger's v3 LogLine shape so SDK
- * diagnostics land in per-task eval logs instead of only on the console.
+ * Forward Stagehand log events into the EvalLogger so diagnostics land in
+ * per-task eval logs instead of only on the console.
  * Level mapping: error→0, warn→1, everything else→2; "debug" events are
- * dropped (they never reach eval logs on the v3 path either). Event data
- * rides along as auxiliary JSON so parseLogLine can structure it.
+ * dropped. Event data rides along as auxiliary JSON so parseLogLine can
+ * structure it.
  */
-export function createV4OnLog(logger: EvalLogger): (event: V4SdkLogEvent) => void {
+export function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) => void {
   return (event) => {
     if (!event || typeof event.message !== "string") return;
     if (event.level === "debug") return;
-    const level: LogLine["level"] = event.level === "error" ? 0 : event.level === "warn" ? 1 : 2;
-    let auxiliary: LogLine["auxiliary"];
+    const level = event.level === "error" ? 0 : event.level === "warn" ? 1 : 2;
+    let auxiliary: Record<string, { value: string; type: "object" }> | undefined;
     if (event.data && Object.keys(event.data).length > 0) {
       try {
         auxiliary = {
@@ -98,7 +91,7 @@ export function createV4OnLog(logger: EvalLogger): (event: V4SdkLogEvent) => voi
       }
     }
     logger.log({
-      category: "v4-sdk",
+      category: "stagehand-sdk",
       message: event.message,
       level,
       ...(auxiliary ? { auxiliary } : {}),
@@ -107,7 +100,7 @@ export function createV4OnLog(logger: EvalLogger): (event: V4SdkLogEvent) => voi
 }
 
 /**
- * Feature-detect how (and whether) the loaded v4 SDK accepts a log callback,
+ * Feature-detect how the loaded Stagehand client accepts a log callback,
  * and return the matching init-params fragment. The SDK's client init schema
  * is strict, so blindly passing an unsupported key would throw — instead we
  * inspect the exported zod schema's shape:
@@ -115,11 +108,15 @@ export function createV4OnLog(logger: EvalLogger): (event: V4SdkLogEvent) => voi
  *   - `onLog` key    → older top-level callback ({ onLog })
  *   - anything else  → no logging wired (SDK diagnostics stay on the console)
  */
-export function buildV4LoggingParams(sdk: unknown, logger: EvalLogger): Record<string, unknown> {
+export function buildStagehandLoggingParams(
+  clientExports: unknown,
+  logger: EvalLogger,
+): Record<string, unknown> {
   let shape: Record<string, unknown> | undefined;
   try {
-    const schema = (sdk as { StagehandClientInitParamsSchema?: { shape?: unknown } } | undefined)
-      ?.StagehandClientInitParamsSchema;
+    const schema = (
+      clientExports as { StagehandClientInitParamsSchema?: { shape?: unknown } } | undefined
+    )?.StagehandClientInitParamsSchema;
     const candidate = schema?.shape;
     if (candidate && typeof candidate === "object") {
       shape = candidate as Record<string, unknown>;
@@ -129,21 +126,21 @@ export function buildV4LoggingParams(sdk: unknown, logger: EvalLogger): Record<s
   }
   if (!shape) return {};
 
-  const onLog = createV4OnLog(logger);
+  const onLog = createStagehandOnLog(logger);
   if ("logging" in shape) return { logging: { onLog } };
   if ("onLog" in shape) return { onLog };
   return {};
 }
 
 /**
- * Pure builder for the v4 Stagehand constructor params. Kept separate from
- * initV4 so parity-critical fields (selfHeal, headless, logging wiring) are
- * unit-testable without a live SDK.
+ * Pure builder for the Stagehand constructor params so environment defaults
+ * and logging wiring are unit-testable without a live browser.
  */
-export function buildV4InitParams(input: {
+export function buildStagehandInitParams(input: {
   env: "LOCAL" | "BROWSERBASE";
   model: NonNullable<StagehandClientInitParams["model"]>;
   browserbaseApiKey?: string;
+  systemPrompt?: string;
   loggingParams?: Record<string, unknown>;
 }): StagehandClientInitParams {
   return {
@@ -152,23 +149,22 @@ export function buildV4InitParams(input: {
         ? { type: "browserbase" }
         : {
             type: "local",
-            // Parity with initV3's local default (headless: false).
             headless: false,
           },
     ...(input.browserbaseApiKey ? { apiKey: input.browserbaseApiKey } : {}),
     model: input.model,
-    // Parity with initV3 (selfHeal: true): matched v3/v4 benchmark runs must
-    // use the same self-healing behavior to be comparable.
     selfHeal: true,
+    ...(input.systemPrompt ? { systemPrompt: input.systemPrompt } : {}),
     ...(input.loggingParams ?? {}),
   } as StagehandClientInitParams;
 }
 
-export async function initV4({
+export async function initStagehand({
   logger,
   modelName,
+  systemPrompt,
   configOverrides,
-}: InitV4Args): Promise<V4InitResult> {
+}: InitStagehandArgs): Promise<StagehandInitResult> {
   const env = configOverrides?.env ?? getEnv();
 
   // The model allow-list is enforced at runtime by the SDK's zod schema
@@ -180,11 +176,12 @@ export async function initV4({
   } as NonNullable<StagehandClientInitParams["model"]>;
 
   const stagehand = new Stagehand(
-    buildV4InitParams({
+    buildStagehandInitParams({
       env,
       model,
       browserbaseApiKey: env === "BROWSERBASE" ? requireBrowserbaseApiKey() : undefined,
-      loggingParams: buildV4LoggingParams({ StagehandClientInitParamsSchema }, logger),
+      systemPrompt,
+      loggingParams: buildStagehandLoggingParams({ StagehandClientInitParamsSchema }, logger),
     }),
   );
 
@@ -193,12 +190,12 @@ export async function initV4({
   const page = await stagehand.context.activePage();
   if (!page) {
     await stagehand.close();
-    throw new Error("V4 init: Stagehand initialized without an active page");
+    throw new Error("Stagehand init: Stagehand initialized without an active page");
   }
 
   // The SDK exposes only the Browserbase session ID; there is no debugger
   // URL accessor. SDK diagnostics are forwarded to the EvalLogger via the
-  // logging callback wired in buildV4LoggingParams.
+  // logging callback wired in buildStagehandLoggingParams.
   const sessionId = stagehand.browser?.browserbaseSessionId;
   const sessionUrl = sessionId ? `https://www.browserbase.com/sessions/${sessionId}` : undefined;
 

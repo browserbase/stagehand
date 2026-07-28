@@ -1,17 +1,17 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
-import { type ObservedAction } from "../../../framework/observeReplay.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
+import type { Action } from "@browserbasehq/stagehand";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_iframes2" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://iframetester.com/?url=https://shopify.com");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      let observations: ObservedAction[];
+      let observations: Action[];
       try {
-        observations = await stagehand.observe("find the main header of the page");
+        observations = (await stagehand.observe("find the main header of the page")).data;
       } catch (err) {
         return {
           _success: false,
@@ -34,15 +34,8 @@ export default defineBenchV4Task(
 
       const possibleLocators = [`#iframe-window`, `body > header > h1`];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
-      // Both candidate selectors live in the main frame (the shopify iframe
-      // is cross-origin and unreachable from the main document either way):
-      // an observed selector that pierces into the iframe never had a
-      // backendNodeId equal to either main-frame candidate in v3 (no match),
-      // and here it simply fails to resolve in the main document (no match)
-      // — the pass criterion is preserved.
+      // Both candidate selectors live in the main frame. An observation
+      // inside the cross-origin iframe will not resolve to either candidate.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 

@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { compareStrings } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_baptist_health" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/");
 
-      const result = await stagehand.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the address, phone number, and fax number of the healthcare location.",
         z.object({
           address: z.string(),
@@ -33,6 +33,27 @@ export default defineBenchV4Task(
       }> = [];
 
       const compareField = (actualVal: string, expectedVal: string, fieldName: string) => {
+        if (fieldName !== "Address") {
+          const matches = actualVal.replace(/\D/g, "") === expectedVal.replace(/\D/g, "");
+          if (!matches) {
+            failedFields.push({
+              field: fieldName,
+              similarity: 0,
+              expected: expectedVal,
+              actual: actualVal,
+            });
+            logger.error({
+              message: `${fieldName} extracted does not match`,
+              level: 0,
+              auxiliary: {
+                field: { value: fieldName, type: "string" },
+                expected: { value: expectedVal, type: "string" },
+                actual: { value: actualVal, type: "string" },
+              },
+            });
+          }
+          return matches;
+        }
         const { similarity, meetsThreshold } = compareStrings(
           actualVal,
           expectedVal,
@@ -68,7 +89,7 @@ export default defineBenchV4Task(
       if (!addressOk || !phoneOk || !faxOk) {
         return {
           _success: false,
-          error: "Some fields did not meet similarity threshold",
+          error: "Some fields did not match expected values",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,

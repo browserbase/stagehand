@@ -9,4 +9,4 @@ export { discoverTasks, resolveTarget } from "./discovery.js";
 export { runEvals } from "./runner.js";
 export { createAssertHelpers, AssertionError } from "./assertions.js";
 export { createMetricsCollector } from "./metrics.js";
-export { buildCoreContext, buildBenchContext } from "./context.js";
+export { buildCoreContext } from "./context.js";

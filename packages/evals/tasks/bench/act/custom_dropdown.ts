@@ -1,7 +1,6 @@
-import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "custom_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
@@ -18,16 +17,14 @@ export default defineBenchV4Task(
 
       await stagehand.act("choose Canada from the 'Select a Country' dropdown");
 
-      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const extraction = await stagehand.extract(
-        "extract the entire page text",
-        z.object({ extraction: z.string() }),
-      );
-      const fullTree = extraction.extraction;
+      const selection = await page.evaluate(() => ({
+        label: document.querySelector("#countryLabel")?.textContent?.trim(),
+        confirmation: document.querySelector("#chosenValue")?.textContent?.trim(),
+      }));
+      const selectedCanada =
+        selection.label === "Canada" && selection.confirmation === "You chose: Canada (ca)";
 
-      if (fullTree.includes("Canada")) {
+      if (selectedCanada) {
         return {
           _success: true,
           debugUrl,
@@ -37,7 +34,7 @@ export default defineBenchV4Task(
       }
       return {
         _success: false,
-        message: "unable to expand the dropdown",
+        message: "Canada was not selected from the dropdown",
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

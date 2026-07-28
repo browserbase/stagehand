@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "next_chunk" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
@@ -12,8 +12,7 @@ export default defineBenchV4Task(
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
         const container = document.querySelector("#advancedFilters > div") as HTMLElement;
         if (!container) {
-          console.warn("Could not find #advancedFilters > div. Returning 0 for measurements.");
-          return { initialScrollTop: 0, chunkHeight: 0 };
+          throw new Error("Could not find the filters modal");
         }
         return {
           initialScrollTop: container.scrollTop,
@@ -27,12 +26,15 @@ export default defineBenchV4Task(
 
       const newScrollTop = await page.evaluate(() => {
         const container = document.querySelector("#advancedFilters > div") as HTMLElement;
-        return container?.scrollTop ?? 0;
+        if (!container) {
+          throw new Error("The filters modal disappeared before validation");
+        }
+        return container.scrollTop;
       });
 
       const actualDiff = newScrollTop - initialScrollTop;
       const threshold = 20; // allowable difference in px
-      const scrolledOneChunk = Math.abs(actualDiff - chunkHeight) <= threshold;
+      const scrolledOneChunk = chunkHeight > 0 && Math.abs(actualDiff - chunkHeight) <= threshold;
 
       const evaluationResult = scrolledOneChunk
         ? {

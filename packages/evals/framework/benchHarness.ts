@@ -1,21 +1,7 @@
-import {
-  AgentProvider,
-  V3,
-  getAISDKLanguageModel,
-  loadApiKeyFromEnv,
-  normalizeRubric,
-  type AgentInstance,
-  type AvailableModel,
-  type LLMClient,
-  type LogLine,
-  type TaskSpec,
-} from "stagehand-v3";
-import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
-import { endBrowserbaseSession } from "../browserbaseCleanup.js";
+import { V3 as VerifierClient, normalizeRubric, type TaskSpec } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import type { V3InitResult } from "../initV3.js";
-import type { V4InitResult } from "../initV4.js";
+import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -25,16 +11,15 @@ import {
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import type { DiscoveredTask, TaskResult } from "./types.js";
+import type { DiscoveredTask, TaskDefinition, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
-
-type Page = ReturnType<V3["context"]["pages"]>[number];
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
   input: EvalInput;
   row: BenchMatrixRow;
   logger: EvalLogger;
+  taskDefinition?: TaskDefinition;
   verbose?: boolean;
 }
 
@@ -46,13 +31,8 @@ export interface BenchHarnessContext {
   harness: Harness;
   row: BenchMatrixRow;
   logger: EvalLogger;
-  v3?: V3;
-  agent?: AgentInstance;
-  page?: Page;
-  /** Stagehand v4 client (set only when the row runs with sdk: "v4"). */
-  stagehand?: V4InitResult["stagehand"];
-  /** v4 page object (set only when the row runs with sdk: "v4"). */
-  v4Page?: V4InitResult["page"];
+  stagehand: StagehandInitResult["stagehand"];
+  page: StagehandInitResult["page"];
   debugUrl: string;
   sessionUrl: string;
 }
@@ -79,16 +59,11 @@ function isAgentTask(task: DiscoveredTask): boolean {
 }
 
 /**
- * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
- * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
- * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
- *
- * The model is deliberately left at V3's default: the harness model can be a
- * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
- * construction, and V3Evaluator selects its own verifier model regardless.
+ * Build the lightweight client required by the rubric verifier. It is never
+ * initialized and never drives a browser.
  */
-function buildVerifierCarrierV3(logger: EvalLogger): V3 {
-  return new V3({
+function buildVerifierCarrier(logger: EvalLogger): VerifierClient {
+  return new VerifierClient({
     env: "LOCAL",
     logger: logger.log.bind(logger),
     disablePino: true,
@@ -115,138 +90,55 @@ function buildExternalHarnessTaskSpec(
   };
 }
 
-function resolveProvider(modelName: AvailableModel): string | undefined {
-  if (modelName.includes("/")) {
-    return modelName.split("/")[0];
-  }
-
-  try {
-    return AgentProvider.getAgentProvider(modelName);
-  } catch {
-    return undefined;
-  }
-}
-
 export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
-  supportedTaskKinds: ["act", "extract", "observe", "agent", "combination", "suite"],
-  supportsApi: true,
+  supportedTaskKinds: ["act", "extract", "observe", "combination"],
+  supportsApi: false,
   async start({
     task,
     input,
     row,
     logger,
-    verbose,
+    taskDefinition,
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
-    let v3Result: V3InitResult | undefined;
-    const createAgent = isAgentTask(task);
     if (row.config.harness !== "stagehand") {
       throw new EvalsError(
         `Harness "${row.config.harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
       );
     }
     const config = row.config;
-    const agentMode = config.agentMode ?? input.agentMode;
-    const isCUA = config.isCUA ?? input.isCUA;
-
-    if (config.sdk === "v4") {
-      // The v4 SDK has no agent surface, and agent tasks are deliberately
-      // not ported (the Stagehand agent is deprecated). Fail loudly rather
-      // than fall back to v3 behavior.
-      if (createAgent || agentMode || isCUA) {
-        throw new EvalsError("--sdk v4 does not support agent tasks or agent modes.");
-      }
-      if (config.useApi) {
-        throw new EvalsError("--api is not supported with --sdk v4.");
-      }
-      const { initV4 } = await import("../initV4.js");
-      const v4Result = await initV4({
-        logger,
-        modelName: input.modelName,
-        configOverrides: { env: config.environment },
-      });
-      return {
-        ctx: {
-          harness: "stagehand",
-          row,
-          logger,
-          stagehand: v4Result.stagehand,
-          v4Page: v4Result.page,
-          debugUrl: v4Result.debugUrl ?? "",
-          sessionUrl: v4Result.sessionUrl ?? "",
-        },
-        cleanup: async () => {
-          try {
-            await v4Result.stagehand.close();
-          } catch (closeError) {
-            console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
-          }
-        },
-      };
+    if (isAgentTask(task) || config.agentMode || config.isCUA || input.agentMode || input.isCUA) {
+      throw new EvalsError("The Stagehand harness does not support agent tasks or agent modes.");
     }
-
     if (config.useApi) {
-      const provider = resolveProvider(input.modelName);
-      const logFn = (line: LogLine) => logger.log(line);
-      const apiKey = loadApiKeyFromEnv(provider, logFn);
-      if (!apiKey) {
-        throw new EvalsError(`USE_API=true but no API key found for provider "${provider}".`);
-      }
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        modelName: input.modelName,
-        modelClientOptions: { apiKey },
-        createAgent,
-        agentMode,
-        isCUA,
-        verbose,
-        configOverrides: { env: config.environment },
-      });
-    } else {
-      let llmClient: LLMClient | undefined;
-      if (input.modelName.includes("/")) {
-        const firstSlashIndex = input.modelName.indexOf("/");
-        llmClient = new AISdkClientWrapped({
-          model: getAISDKLanguageModel(
-            input.modelName.substring(0, firstSlashIndex),
-            input.modelName.substring(firstSlashIndex + 1),
-          ),
-        });
-      }
-      const { initV3 } = await import("../initV3.js");
-      v3Result = await initV3({
-        logger,
-        llmClient,
-        modelName: input.modelName,
-        createAgent,
-        agentMode,
-        isCUA,
-        verbose,
-        configOverrides: { env: config.environment },
-      });
+      throw new EvalsError("--api is not supported by the Stagehand harness.");
     }
 
+    const { initStagehand } = await import("../initStagehand.js");
+    const meta = taskDefinition?.meta;
+    const systemPrompt = meta && "systemPrompt" in meta ? meta.systemPrompt : undefined;
+    const result = await initStagehand({
+      logger,
+      modelName: input.modelName,
+      systemPrompt,
+      configOverrides: { env: config.environment },
+    });
     return {
       ctx: {
         harness: "stagehand",
         row,
         logger,
-        v3: v3Result.v3,
-        agent: v3Result.agent,
-        page: v3Result.v3.context.pages()[0],
-        debugUrl: v3Result.debugUrl ?? "",
-        sessionUrl: v3Result.sessionUrl ?? "",
+        stagehand: result.stagehand,
+        page: result.page,
+        debugUrl: result.debugUrl ?? "",
+        sessionUrl: result.sessionUrl ?? "",
       },
       cleanup: async () => {
-        if (v3Result?.v3) {
-          try {
-            await v3Result.v3.close();
-          } catch (closeError) {
-            console.error(`Warning: Error closing V3 instance for ${input.name}:`, closeError);
-          }
+        try {
+          await result.stagehand.close();
+        } catch (closeError) {
+          console.error(`Warning: Error closing Stagehand for ${input.name}:`, closeError);
         }
-        await endBrowserbaseSession(v3Result?.v3);
       },
     };
   },
@@ -266,7 +158,7 @@ export const claudeCodeHarness: BenchHarness = {
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both
     // the adapter and the carrier.
-    const carrierV3 = buildVerifierCarrierV3(logger);
+    const verifierClient = buildVerifierCarrier(logger);
     let toolAdapter: PreparedClaudeCodeToolAdapter | undefined;
     try {
       toolAdapter = await prepareClaudeCodeToolAdapter({
@@ -283,17 +175,14 @@ export const claudeCodeHarness: BenchHarness = {
         toolAdapter,
         signal,
         verifier: {
-          v3: carrierV3,
+          v3: verifierClient,
           taskSpec: buildExternalHarnessTaskSpec(plan, input),
           dataset: plan.dataset,
         },
       });
     } finally {
       await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
+      await verifierClient.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {
@@ -315,7 +204,7 @@ export const codexHarness: BenchHarness = {
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both
     // the adapter and the carrier.
-    const carrierV3 = buildVerifierCarrierV3(logger);
+    const verifierClient = buildVerifierCarrier(logger);
     let toolAdapter: PreparedCodexToolAdapter | undefined;
     try {
       toolAdapter = await prepareCodexToolAdapter({
@@ -332,17 +221,14 @@ export const codexHarness: BenchHarness = {
         toolAdapter,
         signal,
         verifier: {
-          v3: carrierV3,
+          v3: verifierClient,
           taskSpec: buildExternalHarnessTaskSpec(plan, input),
           dataset: plan.dataset,
         },
       });
     } finally {
       await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
+      await verifierClient.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {

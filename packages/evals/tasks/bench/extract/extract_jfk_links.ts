@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_jfk_links" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jfk/");
 
-      const extraction = await stagehand.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract all the record file name and their corresponding links",
         z.object({
           records: z.array(

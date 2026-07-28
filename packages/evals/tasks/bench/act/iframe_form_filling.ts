@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "iframe_form_filling" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -14,9 +14,8 @@ export default defineBenchV4Task(
       await stagehand.act("click 'phone' as the preferred contact method");
       await stagehand.act("type 'yooooooooooooooo' into the message box");
 
-      // The form lives in a cross-origin iframe, so main-frame evaluation
-      // cannot access its contentDocument. V4 locators resolve `>>` iframe
-      // hops server-side and can inspect the OOPIF directly.
+      // The form lives in a cross-origin iframe, so use an iframe-hop
+      // selector to inspect it directly.
       const firstNameValue = await page.locator('iframe >> input[placeholder="Jane"]').inputValue();
 
       const lastNameValue = await page.locator('iframe >> input[placeholder="Doe"]').inputValue();

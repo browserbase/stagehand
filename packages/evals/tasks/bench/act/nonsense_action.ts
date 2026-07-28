@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "nonsense_action" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -9,7 +9,7 @@ export default defineBenchV4Task(
       const result = await stagehand.act("what is the capital of the moon?");
 
       return {
-        _success: !result.success, // We expect this to fail
+        _success: !result.data.success, // We expect this to fail
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

@@ -66,6 +66,22 @@ describe("discovery", () => {
     expect(tasks[0].tier).toBe("core");
   });
 
+  it("uses tasks/bench as the single benchmark tree", async () => {
+    const root = makeTempRoot();
+    const tasksRoot = path.join(root, "tasks");
+
+    writeFile(path.join(tasksRoot, "bench", "act", "dropdown.ts"));
+    writeFile(path.join(tasksRoot, "bench", "combination", "wichita.ts"));
+
+    const registry = await discoverTasks(tasksRoot, false);
+
+    expect(resolveTarget(registry).map((task) => task.name)).toEqual([
+      "act/dropdown",
+      "combination/wichita",
+    ]);
+    expect(resolveTarget(registry, "bench")).toEqual(resolveTarget(registry));
+  });
+
   it("applies legacy cross-cutting categories to category-qualified bench names", async () => {
     const root = makeTempRoot();
     const tasksRoot = path.join(root, "tasks");

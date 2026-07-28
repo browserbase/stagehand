@@ -1,13 +1,9 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { EvalsError } from "../errors.js";
-import type { TaskResult } from "./types.js";
+import type { TaskDefinition, TaskResult } from "./types.js";
 
-export interface LoadedTaskDefinition {
-  __taskDefinition: true;
-  meta: unknown;
-  fn: (ctx: unknown) => Promise<unknown>;
-}
+export type LoadedTaskDefinition = TaskDefinition;
 
 export type LegacyTaskFn = (ctx: unknown) => Promise<TaskResult>;
 

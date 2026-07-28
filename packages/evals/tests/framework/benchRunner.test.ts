@@ -7,23 +7,24 @@ import { executeBenchTask } from "../../framework/benchRunner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 
 const tempDirs: string[] = [];
-const closeMock = vi.fn(async () => {});
+const { closeMock, initStagehandMock } = vi.hoisted(() => {
+  const close = vi.fn(async () => {});
+  return {
+    closeMock: close,
+    initStagehandMock: vi.fn(async ({ logger, modelName, systemPrompt }) => ({
+      stagehand: { close },
+      page: {},
+      logger,
+      modelName,
+      systemPrompt,
+      sessionUrl: "https://www.browserbase.com/sessions/session-123",
+      debugUrl: "https://debug.browserbase.test/session-123",
+    })),
+  };
+});
 
-vi.mock("../../initV3.js", () => ({
-  initV3: vi.fn(async ({ logger, modelName }) => ({
-    v3: {
-      context: {
-        pages: () => [{}],
-      },
-      close: closeMock,
-      browserbaseSessionURL: "https://www.browserbase.com/sessions/session-123",
-      browserbaseDebugURL: "https://debug.browserbase.test/session-123",
-    },
-    logger,
-    modelName,
-    sessionUrl: "https://www.browserbase.com/sessions/session-123",
-    debugUrl: "https://debug.browserbase.test/session-123",
-  })),
+vi.mock("../../initStagehand.js", () => ({
+  initStagehand: initStagehandMock,
 }));
 
 vi.mock("../../browserbaseCleanup.js", () => ({
@@ -55,6 +56,7 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 
 afterEach(() => {
   closeMock.mockClear();
+  initStagehandMock.mockClear();
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
@@ -62,17 +64,24 @@ afterEach(() => {
 });
 
 describe("bench runner", () => {
-  it("attaches Browserbase session URLs to legacy bench task results", async () => {
+  it("passes task metadata into Stagehand and attaches session URLs", async () => {
     const taskDir = makeTempDir();
     const taskFile = path.join(taskDir, "session_url_task.mjs");
     fs.writeFileSync(
       taskFile,
       `
-      export const session_url_task = async () => ({
-        _success: true,
-        sessionUrl: "",
-        debugUrl: "",
-      });
+      export default {
+        __taskDefinition: true,
+        meta: {
+          name: "session_url_task",
+          systemPrompt: "Follow the task-specific instruction.",
+        },
+        fn: async () => ({
+          _success: true,
+          sessionUrl: "",
+          debugUrl: "",
+        }),
+      };
       `,
     );
 
@@ -83,13 +92,13 @@ describe("bench runner", () => {
       categories: ["act"],
       tags: [],
       filePath: taskFile,
-      isLegacy: true,
+      isLegacy: false,
     };
 
     const result = await executeBenchTask(
       {
         name: task.name,
-        modelName: "gpt-4o-mini" as AvailableModel,
+        modelName: "openai/gpt-4.1-mini" as AvailableModel,
       },
       task,
       {
@@ -101,6 +110,11 @@ describe("bench runner", () => {
       },
     );
 
+    expect(initStagehandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: "Follow the task-specific instruction.",
+      }),
+    );
     expect(result).toMatchObject({
       _success: true,
       sessionUrl: "https://www.browserbase.com/sessions/session-123",

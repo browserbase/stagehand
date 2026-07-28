@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { normalizeString } from "../../../framework/textScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_professional_info" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -10,7 +10,7 @@ export default defineBenchV4Task(
         "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
       );
 
-      const result = await stagehand.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the list of Practices, phone number, and fax number of the professional.",
         z.object({
           practices: z.array(z.string()),
@@ -18,9 +18,6 @@ export default defineBenchV4Task(
           fax: z.string(),
         }),
       );
-
-      // v3 closes mid-task here (and again in finally); preserved verbatim.
-      await stagehand.close();
 
       const { practices, phone, fax } = result;
 

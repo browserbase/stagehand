@@ -34,9 +34,8 @@ const BENCH_TEMPLATE = (
 
 export default defineBenchTask(
   { name: "${name}" },
-  async ({ v3, logger, debugUrl, sessionUrl }) => {
+  async ({ page, logger, debugUrl, sessionUrl }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://example.com");
 
       // TODO: implement eval logic

@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "iframe_same_proc" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -14,9 +14,6 @@ export default defineBenchV4Task(
         "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
       );
 
-      // v3 used page.frameLocator("iframe") for these assertions; v4 has no
-      // frameLocator, so the same checks are re-expressed in-page via the
-      // same-origin iframe's contentDocument.
       const { nameValue, colorValue } = await page.evaluate(() => {
         const doc = document.querySelector("iframe")?.contentDocument;
         if (!doc) throw new Error("could not access iframe contentDocument");

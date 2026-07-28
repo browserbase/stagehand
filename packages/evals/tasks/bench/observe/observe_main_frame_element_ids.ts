@@ -1,5 +1,5 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
-import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import type { Action } from "@browserbasehq/stagehand";
 
 const filler = Array.from(
   // Keep backend node IDs large enough to exercise Anthropic's bare-id failure mode.
@@ -49,7 +49,7 @@ function buildHtml(): string {
   `)}`;
 }
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_main_frame_element_ids" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -58,14 +58,14 @@ export default defineBenchV4Task(
       const results: Array<{
         instruction: string;
         clicked: string | undefined;
-        observations: ObservedAction[];
+        observations: Action[];
       }> = [];
       for (const testCase of cases) {
         await page.evaluate(() => {
           delete document.body.dataset.clicked;
         });
 
-        const observations = await stagehand.observe(testCase.instruction);
+        const { data: observations } = await stagehand.observe(testCase.instruction);
         if (observations.length === 0) {
           return {
             _success: false,
@@ -78,8 +78,7 @@ export default defineBenchV4Task(
           };
         }
 
-        // v3's act(observeResult) replay — consumer-side in v4
-        await replayObservedAction(page, observations[0]);
+        await stagehand.act(observations[0]);
         const clicked = await page.evaluate<string | undefined>(
           () => document.body.dataset.clicked,
         );

@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "tab_handling" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -9,27 +9,32 @@ export default defineBenchV4Task(
 
       await stagehand.act("click the button to open the other page");
 
+      const page2 = await stagehand.context.activePage();
+      if (!page2) {
+        throw new Error("No active page after opening the new tab");
+      }
       const pages = await stagehand.context.pages();
-      const page1 = pages[0];
-      const page2 = pages[1];
+      let page1: (typeof pages)[number] | undefined;
+      for (const candidate of pages) {
+        if (
+          (await candidate.url()) ===
+          "https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/"
+        ) {
+          page1 = candidate;
+          break;
+        }
+      }
+      if (!page1) {
+        throw new Error("Could not find the opener page after opening the new tab");
+      }
 
-      // NOTE: v4's extract DOES accept a { page } option on this branch
-      // (packages/sdk-ts/src/clientSchemas.ts), but this task deliberately
-      // switches pages via setActivePage instead — exercising v4's
-      // active-page tracking is part of what this tab-handling eval covers.
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug
-      // (#14).
-
-      // extract all the text from the first page
       await stagehand.context.setActivePage(page1);
-      const extraction1 = await stagehand.extract(
+      const { data: extraction1 } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
       );
-      // extract all the text from the second page
       await stagehand.context.setActivePage(page2);
-      const extraction2 = await stagehand.extract(
+      const { data: extraction2 } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
       );

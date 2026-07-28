@@ -1,13 +1,15 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_github_stars" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://github.com/facebook/react");
 
-      const { stars } = await stagehand.extract(
+      const {
+        data: { stars },
+      } = await stagehand.extract(
         "Extract the number of stars for the project",
         z.object({
           stars: z.number().describe("the number of stars for the project"),

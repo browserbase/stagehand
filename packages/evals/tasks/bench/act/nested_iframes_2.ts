@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "nested_iframes_2" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -8,9 +8,7 @@ export default defineBenchV4Task(
 
       await stagehand.act("click the button called 'click me (inner 2)'");
 
-      // v3 chained frameLocator iframe2.html -> inner2.html; v4 has no
-      // frameLocator, so the same check is re-expressed in-page by walking
-      // the same-origin iframes' contentDocuments.
+      // The target button lives in a nested same-origin iframe.
       const messageText = await page.evaluate(() => {
         const outer = (
           document.querySelector('iframe[src="iframe2.html"]') as HTMLIFrameElement | null

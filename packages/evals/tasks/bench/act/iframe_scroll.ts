@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "iframe_scroll" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
@@ -11,9 +11,7 @@ export default defineBenchV4Task(
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      // v3 evaluated inside page.frames()[1]; v4 exposes no frames() list,
-      // so the same measurement is re-expressed via the same-origin iframe's
-      // contentWindow/contentDocument.
+      // Measure the scroll position inside the same-origin iframe.
       const scrollInfo = await page.evaluate(() => {
         const iframe = document.querySelector("iframe");
         const win = iframe?.contentWindow;

@@ -1,13 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_file_uploads" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/");
 
-      const observations = await stagehand.observe("find the file upload element");
+      const { data: observations } = await stagehand.observe("find the file upload element");
 
       if (observations.length === 0) {
         return {
@@ -22,9 +22,6 @@ export default defineBenchV4Task(
 
       const expectedLocator = `xpath=/html/body/input`;
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
       const foundMatch =
         (await findMatchingSelector(page, observations[0].selector, [expectedLocator])) !== null;
 

@@ -1,13 +1,13 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_iframes1" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
 
-      const observations = await stagehand.observe("find the main header of the page");
+      const { data: observations } = await stagehand.observe("find the main header of the page");
 
       if (observations.length === 0) {
         return {
@@ -24,14 +24,8 @@ export default defineBenchV4Task(
         `body > header > h1`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      //, so the same element-identity check is
-      // re-expressed in-page via the shared findMatchingSelector helper.
-      // Both candidate selectors live in the main frame, so main-frame
-      // resolution preserves the v3 pass criterion: an observed selector
-      // that points inside the iframe never had a backendNodeId equal to
-      // either main-frame candidate in v3 (no match), and here it simply
-      // fails to resolve in the main document (no match).
+      // Both candidates live in the main frame, so an observation inside the
+      // iframe cannot resolve to either candidate.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
