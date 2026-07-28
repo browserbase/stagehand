@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import type {
   ClientModelReference,
   ExtractResult,
+  LLMImageContent,
   ModelConfig,
   StagehandExtractParams,
 } from "../../protocol/types.js";
@@ -61,6 +62,12 @@ export async function extract({
 
   const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
 
+  // Cache keys contain DOM state, not screenshot pixels. Do not serve a
+  // visual extraction from a cache entry that cannot represent its image.
+  if (options?.screenshot) {
+    return (await runExtraction()).result;
+  }
+
   return await cacheService.withCache<ExtractResult>({
     method: "extract",
     page,
@@ -113,6 +120,14 @@ export async function extract({
         });
     const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
 
+    const screenshotContent: LLMImageContent | undefined = screenshot
+      ? {
+          type: "image",
+          data: bytesToBase64(screenshot),
+          mimeType: "image/png",
+        }
+      : undefined;
+
     ensureTimeRemaining();
     const extractionResponse: ExtractionResponse<z.ZodObject> =
       await inference.extract<z.ZodObject>({
@@ -121,13 +136,7 @@ export async function extract({
         schema: transformedSchema as z.ZodObject,
         generate: (input) => llmService.generate(model, input, clientLLMGenerate),
         userProvidedInstructions: systemPrompt,
-        screenshot: screenshot
-          ? {
-              type: "image",
-              data: bytesToBase64(screenshot),
-              mimeType: "image/png",
-            }
-          : undefined,
+        screenshot: screenshotContent,
       });
     ensureTimeRemaining();
 
