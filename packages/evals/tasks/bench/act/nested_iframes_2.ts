@@ -39,7 +39,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
-        error: error instanceof Error ? error.message : String(error),
+        error: String(error),
       };
     } finally {
       await stagehand.close();
