@@ -39,7 +39,7 @@ export default defineBenchV4Task(
         if (tablespoons_olive_oil !== expectedTablespoons) {
           errors.push({
             message:
-              "Extracted tablespoons of olive oil do not match the extracted tablespoons of olive oil",
+              "Extracted tablespoons of olive oil do not match the expected tablespoons of olive oil",
             expected: expectedTablespoons.toString(),
             actual: tablespoons_olive_oil.toString(),
           });
@@ -47,7 +47,7 @@ export default defineBenchV4Task(
         if (teaspoons_lemon_juice !== expectedTeaspoons) {
           errors.push({
             message:
-              "Extracted teaspoons of lemon juice do not match the extracted teaspoons of lemon juice",
+              "Extracted teaspoons of lemon juice do not match the expected teaspoons of lemon juice",
             expected: expectedTeaspoons.toString(),
             actual: teaspoons_lemon_juice.toString(),
           });
@@ -86,7 +86,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,

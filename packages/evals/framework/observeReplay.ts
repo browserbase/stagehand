@@ -11,9 +11,12 @@
  * (packages/sdk-ts/evals/framework.ts) so tasks adapted from that tree keep
  * identical replay semantics.
  */
-import type { Page, Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import type { Locator, Page, Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 
 export type ObservedAction = Awaited<ReturnType<Stagehand["observe"]>>[number];
+
+type LocatorClickOptions = Parameters<Locator["click"]>[0];
+type MouseButton = NonNullable<LocatorClickOptions>["button"];
 
 export async function replayObservedAction(page: Page, action: ObservedAction): Promise<void> {
   const locator = page.locator(action.selector);
@@ -21,7 +24,11 @@ export async function replayObservedAction(page: Page, action: ObservedAction): 
   const args = action.arguments ?? [];
   switch (method) {
     case "click":
-      await locator.click();
+      // v3's replay forwards args[0] as the mouse button (server
+      // METHOD_HANDLER_MAP `clickElement`: `locator.click({ button:
+      // args[0] || undefined })`); mirror it so right/middle clicks
+      // planned by observe are not downgraded to left clicks.
+      await locator.click(args[0] ? { button: args[0] as MouseButton } : undefined);
       return;
     case "fill":
       await locator.fill(args[0] ?? "");

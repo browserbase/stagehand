@@ -73,9 +73,9 @@ export default defineBenchTask(
           publicNotices[0].notice_description,
           expectedFirstItem.notice_description,
           0.9,
-        ) &&
-        compareStrings(publicNotices[0].gg_number, expectedFirstItem.gg_number, 0.9) &&
-        compareStrings(publicNotices[0].publication_date, expectedFirstItem.publication_date, 0.9);
+        ).meetsThreshold &&
+        compareStrings(publicNotices[0].gg_number, expectedFirstItem.gg_number, 0.9).meetsThreshold &&
+        compareStrings(publicNotices[0].publication_date, expectedFirstItem.publication_date, 0.9).meetsThreshold;
 
       if (!firstItemMatches) {
         logger.error({
@@ -106,17 +106,17 @@ export default defineBenchTask(
           publicNotices[publicNotices.length - 1].notice_description,
           expectedLastItem.notice_description,
           0.9,
-        ) &&
+        ).meetsThreshold &&
         compareStrings(
           publicNotices[publicNotices.length - 1].gg_number,
           expectedLastItem.gg_number,
           0.9,
-        ) &&
+        ).meetsThreshold &&
         compareStrings(
           publicNotices[publicNotices.length - 1].publication_date,
           expectedLastItem.publication_date,
           0.9,
-        );
+        ).meetsThreshold;
 
       if (!lastItemMatches) {
         logger.error({

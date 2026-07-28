@@ -13,11 +13,13 @@ export default defineBenchV4Task(
       const page1 = pages[0];
       const page2 = pages[1];
 
-      // V4 GAP: extract has no { page } option (v3:
-      // v3.extract({ page: pageN })) — activate each target page via
-      // setActivePage before extracting. v3 also used schemaless extract
-      // (V4_API_LOGS #2); v4 requires a schema. Single-word key to stay
-      // clear of the snake_case wire-casing bug (#14).
+      // NOTE: v4's extract DOES accept a { page } option on this branch
+      // (packages/sdk-ts/src/clientSchemas.ts), but this task deliberately
+      // switches pages via setActivePage instead — exercising v4's
+      // active-page tracking is part of what this tab-handling eval covers.
+      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
+      // Single-word key to stay clear of the snake_case wire-casing bug
+      // (#14).
 
       // extract all the text from the first page
       await stagehand.context.setActivePage(page1);
@@ -44,7 +46,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        message: (error as Error).message,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

@@ -15,7 +15,7 @@ suites should be interpretable against it.
 
 v3 supports `v3.act(observeResult)` to deterministically replay an action
 planned by `observe()` (the cache-then-act pattern). v4's
-`page.act(input: string, options?)` has no counterpart; `ReplayActionSchema`
+`stagehand.act(input: string, options?)` has no counterpart; `ReplayActionSchema`
 exists in `packages/protocol/pending-schemas.ts` but is unimplemented.
 **Impact:** every observe task that replays observations (at least
 `observe_simple_google_search`, `observe_amazon_add_to_cart`,
@@ -27,7 +27,7 @@ semantics but is consumer-side code that the SDK should own.
 ### 2. `extract()` requires a schema
 
 v3 supports `v3.extract(instruction)` with no schema, returning
-`{ extraction: string }`. v4's `page.extract(instruction, schema, options?)`
+`{ extraction: string }`. v4's `stagehand.extract(instruction, schema, options?)`
 makes the schema parameter mandatory.
 **Impact:** any task using schemaless extraction must either be skipped or
 ported with an explicit `z.object({ extraction: z.string() })` — the latter
@@ -164,14 +164,14 @@ a generic runtime-ready timeout.
 
 ### 7. Result/param types are not exported
 
-`page.observe()` returns `Action[]` and `page.act()` returns
+`stagehand.observe()` returns `Action[]` and `stagehand.act()` returns
 `ActResultData`, but neither type is re-exported from the SDK's index —
 consumers must derive them (e.g.
-`Awaited<ReturnType<Page["observe"]>>[number]`).
+`Awaited<ReturnType<Stagehand["observe"]>>[number]`).
 
 ### 8. zod version seam at the extract boundary
 
-`page.extract()` calls `z.toJSONSchema()` (SDK's zod, 4.4.3) on schema
+`stagehand.extract()` calls `z.toJSONSchema()` (SDK's zod, 4.4.3) on schema
 objects constructed by the consumer. No version or instance guard exists at
 the boundary; a mismatch would be silent. Suggestion for the v4 team:
 validate/normalize incoming schemas at the API boundary.

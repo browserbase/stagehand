@@ -403,6 +403,22 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   const trials = options.trials ?? 3;
   const environment = options.environment ?? "LOCAL";
 
+  // Explicit --sdk drives SDK-comparison labeling below (experiment name +
+  // dedicated Braintrust project). Core-tier tasks are not driven by the
+  // selected Stagehand SDK, so their results would be misfiled as
+  // comparison data — reject before any work starts. (External harnesses
+  // are already rejected at parse time for the same reason.)
+  if (options.sdk) {
+    const coreTasks = options.tasks.filter((t) => t.tier === "core");
+    if (coreTasks.length > 0) {
+      throw new EvalsError(
+        `--sdk ${options.sdk} only applies to bench-tier stagehand tasks, but core-tier ` +
+          `task(s) were targeted: ${coreTasks.map((t) => t.name).join(", ")}. ` +
+          `Drop --sdk or target bench tasks only.`,
+      );
+    }
+  }
+
   const testcases = generateTestcases(options.tasks, options);
   options.onProgress?.({
     type: "planned",

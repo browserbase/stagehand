@@ -36,7 +36,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

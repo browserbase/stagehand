@@ -439,8 +439,14 @@ export function resolveRunOptions(
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
   const sdk = flags.sdk;
-  if (sdk === "v4" && harness !== "stagehand") {
-    throw new Error(`--sdk v4 requires --harness stagehand (got "${harness}").`);
+  // Explicit --sdk labels the run as an SDK-comparison experiment, but only
+  // the stagehand harness actually runs through the selected SDK — an
+  // external harness would produce mislabeled comparison data.
+  if (sdk !== undefined && harness !== "stagehand") {
+    throw new Error(
+      `--sdk ${sdk} requires --harness stagehand (got "${harness}"). ` +
+        `External harnesses do not run through the Stagehand SDK; drop --sdk or use --harness stagehand.`,
+    );
   }
   const agentMode = flags.agentMode ? normalizeAgentMode(flags.agentMode) : undefined;
   const agentModes = agentMode ? undefined : (flags.agentModes ?? defaults.agentModes ?? undefined);

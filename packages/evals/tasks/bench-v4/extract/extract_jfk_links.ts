@@ -74,9 +74,23 @@ export default defineBenchV4Task(
 
       // Check that the extraction array is exactly length 10
       if (extractedRecords.length !== 10) {
+        logger.error({
+          message: "Incorrect number of records extracted",
+          level: 0,
+          auxiliary: {
+            expected: {
+              value: "10",
+              type: "integer",
+            },
+            actual: {
+              value: extractedRecords.length.toString(),
+              type: "integer",
+            },
+          },
+        });
         return {
           _success: false,
-          reason: `Extraction has ${extractedRecords.length} records (expected 10).`,
+          error: `Extraction has ${extractedRecords.length} records (expected 10).`,
           debugUrl,
           sessionUrl,
           logs: logger.getLogs(),
@@ -84,9 +98,23 @@ export default defineBenchV4Task(
       }
 
       if (missingRecords.length > 0) {
+        logger.error({
+          message: "Missing one or more expected records",
+          level: 0,
+          auxiliary: {
+            missing: {
+              value: JSON.stringify(missingRecords),
+              type: "object",
+            },
+            actual: {
+              value: JSON.stringify(extractedRecords),
+              type: "object",
+            },
+          },
+        });
         return {
           _success: false,
-          reason: "Missing one or more expected records.",
+          error: "Missing one or more expected records.",
           missingRecords,
           extractedRecords,
           debugUrl,
@@ -105,7 +133,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

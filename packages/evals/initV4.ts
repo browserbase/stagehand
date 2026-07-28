@@ -11,6 +11,7 @@ import type {
   Page,
   StagehandClientInitParams,
 } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+import type { LogLine } from "stagehand-v3";
 import { getEnv } from "./env.js";
 import type { EvalLogger } from "./logger.js";
 import { loadV4Sdk } from "./v4SdkLoader.js";
@@ -67,6 +68,102 @@ function requireBrowserbaseApiKey(): string {
   return apiKey;
 }
 
+/** Shape of a v4 SDK log event (protocol StagehandLogSchema). */
+export type V4SdkLogEvent = {
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  data?: Record<string, unknown>;
+};
+
+/**
+ * Adapt v4 SDK log events into the EvalLogger's v3 LogLine shape so SDK
+ * diagnostics land in per-task eval logs instead of only on the console.
+ * Level mapping: error→0, warn→1, everything else→2; "debug" events are
+ * dropped (they never reach eval logs on the v3 path either). Event data
+ * rides along as auxiliary JSON so parseLogLine can structure it.
+ */
+export function createV4OnLog(logger: EvalLogger): (event: V4SdkLogEvent) => void {
+  return (event) => {
+    if (!event || typeof event.message !== "string") return;
+    if (event.level === "debug") return;
+    const level: LogLine["level"] = event.level === "error" ? 0 : event.level === "warn" ? 1 : 2;
+    let auxiliary: LogLine["auxiliary"];
+    if (event.data && Object.keys(event.data).length > 0) {
+      try {
+        auxiliary = {
+          data: { value: JSON.stringify(event.data), type: "object" },
+        };
+      } catch {
+        auxiliary = undefined; // non-serializable data: keep the message anyway
+      }
+    }
+    logger.log({
+      category: "v4-sdk",
+      message: event.message,
+      level,
+      ...(auxiliary ? { auxiliary } : {}),
+    });
+  };
+}
+
+/**
+ * Feature-detect how (and whether) the loaded v4 SDK accepts a log callback,
+ * and return the matching init-params fragment. The SDK's client init schema
+ * is strict, so blindly passing an unsupported key would throw — instead we
+ * inspect the exported zod schema's shape:
+ *   - `logging` key  → nested logging config ({ logging: { onLog } })
+ *   - `onLog` key    → older top-level callback ({ onLog })
+ *   - anything else  → no logging wired (SDK diagnostics stay on the console)
+ */
+export function buildV4LoggingParams(sdk: unknown, logger: EvalLogger): Record<string, unknown> {
+  let shape: Record<string, unknown> | undefined;
+  try {
+    const schema = (sdk as { StagehandClientInitParamsSchema?: { shape?: unknown } } | undefined)
+      ?.StagehandClientInitParamsSchema;
+    const candidate = schema?.shape;
+    if (candidate && typeof candidate === "object") {
+      shape = candidate as Record<string, unknown>;
+    }
+  } catch {
+    return {};
+  }
+  if (!shape) return {};
+
+  const onLog = createV4OnLog(logger);
+  if ("logging" in shape) return { logging: { onLog } };
+  if ("onLog" in shape) return { onLog };
+  return {};
+}
+
+/**
+ * Pure builder for the v4 Stagehand constructor params. Kept separate from
+ * initV4 so parity-critical fields (selfHeal, headless, logging wiring) are
+ * unit-testable without a live SDK.
+ */
+export function buildV4InitParams(input: {
+  env: "LOCAL" | "BROWSERBASE";
+  model: NonNullable<StagehandClientInitParams["model"]>;
+  browserbaseApiKey?: string;
+  loggingParams?: Record<string, unknown>;
+}): StagehandClientInitParams {
+  return {
+    browser:
+      input.env === "BROWSERBASE"
+        ? { type: "browserbase" }
+        : {
+            type: "local",
+            // Parity with initV3's local default (headless: false).
+            headless: false,
+          },
+    ...(input.browserbaseApiKey ? { apiKey: input.browserbaseApiKey } : {}),
+    model: input.model,
+    // Parity with initV3 (selfHeal: true): matched v3/v4 benchmark runs must
+    // use the same self-healing behavior to be comparable.
+    selfHeal: true,
+    ...(input.loggingParams ?? {}),
+  } as StagehandClientInitParams;
+}
+
 export async function initV4({
   logger,
   modelName,
@@ -87,18 +184,14 @@ export async function initV4({
     apiKey: resolveModelApiKey(modelName),
   } as NonNullable<StagehandClientInitParams["model"]>;
 
-  const stagehand = new sdk.Stagehand({
-    browser:
-      env === "BROWSERBASE"
-        ? { type: "browserbase" }
-        : {
-            type: "local",
-            // Parity with initV3's local default (headless: false).
-            headless: false,
-          },
-    ...(env === "BROWSERBASE" ? { apiKey: requireBrowserbaseApiKey() } : {}),
-    model,
-  });
+  const stagehand = new sdk.Stagehand(
+    buildV4InitParams({
+      env,
+      model,
+      browserbaseApiKey: env === "BROWSERBASE" ? requireBrowserbaseApiKey() : undefined,
+      loggingParams: buildV4LoggingParams(sdk, logger),
+    }),
+  );
 
   await stagehand.init();
 
@@ -109,8 +202,9 @@ export async function initV4({
   }
 
   // The SDK exposes only the Browserbase session ID; there is no debugger
-  // URL accessor (see V4_API_LOGS.md). The v4 SDK also accepts no logger —
-  // its notifications go straight to the console.
+  // URL accessor (see V4_API_LOGS.md). SDK diagnostics are forwarded to the
+  // EvalLogger via the logging callback wired in buildV4LoggingParams (when
+  // the loaded SDK supports one).
   const sessionId = stagehand.browser?.browserbaseSessionId;
   const sessionUrl = sessionId ? `https://www.browserbase.com/sessions/${sessionId}` : undefined;
 

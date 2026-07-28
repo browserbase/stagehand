@@ -231,6 +231,20 @@ export async function runCommand(
     );
   }
 
+  // --sdk v4 preflight: the v4 SDK has no API path and no agent surface.
+  // Fail the whole command here instead of letting every matrix row fail
+  // inside the harness with the same per-row EvalsError.
+  if (options.sdk === "v4") {
+    if (options.useApi) {
+      throw new Error("--api is not supported with --sdk v4. Drop --api for v4 runs.");
+    }
+    if (options.agentMode || (options.agentModes && options.agentModes.length > 0)) {
+      throw new Error(
+        "--sdk v4 does not support agent modes (including cua). Drop --agent-mode/--agent-modes for v4 runs.",
+      );
+    }
+  }
+
   if (planMode) {
     await emitDryRun(options, tasks, registry, undefined, skippedTasks);
     return;

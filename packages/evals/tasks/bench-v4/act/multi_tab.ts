@@ -34,9 +34,10 @@ export default defineBenchV4Task(
       // try acting on the first page again
       const pages = await stagehand.context.pages();
       const page1 = pages[0];
-      // V4 GAP: stagehand.act has no { page } option (v3:
-      // v3.act(instruction, { page: page1 })) — activate the target page
-      // via setActivePage before acting instead.
+      // NOTE: v4's act DOES accept a { page } option on this branch
+      // (packages/sdk-ts/src/clientSchemas.ts), but this task deliberately
+      // switches pages via setActivePage instead — exercising v4's
+      // active-page tracking is part of what this multi-tab eval covers.
       await stagehand.context.setActivePage(page1);
       await stagehand.act("click the button to open the other page");
 
@@ -56,11 +57,12 @@ export default defineBenchV4Task(
         };
       }
 
-      // V4 GAP: extract has no { page } option (v3:
-      // v3.extract({ page: activePage })) — the target page is already the
-      // active page here, so extract operates on it. v3 also used schemaless
-      // extract (V4_API_LOGS #2); v4 requires a schema. Single-word key to
-      // stay clear of the snake_case wire-casing bug (#14).
+      // The target page is already the active page here, so extract
+      // operates on it (v4's extract also accepts a { page } option on this
+      // branch — packages/sdk-ts/src/clientSchemas.ts — but it is not
+      // needed). v3 used schemaless extract (V4_API_LOGS #2); v4 requires a
+      // schema. Single-word key to stay clear of the snake_case wire-casing
+      // bug (#14).
       const page2text = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
@@ -85,7 +87,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        message: (error as Error).message,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

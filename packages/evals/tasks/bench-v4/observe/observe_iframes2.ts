@@ -1,5 +1,6 @@
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
 import { type ObservedAction } from "../../../framework/observeReplay.js";
+import { findMatchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchV4Task(
   { name: "observe_iframes2" },
@@ -35,54 +36,19 @@ export default defineBenchV4Task(
 
       // v3 compares backendNodeIds; the v4 Locator exposes no node identity
       // (V4_API_LOGS.md #3), so the same element-identity check is
-      // re-expressed in-page. Both candidate selectors live in the main
-      // frame (the shopify iframe is cross-origin and unreachable from the
-      // main document either way): an observed selector that pierces into
-      // the iframe never had a backendNodeId equal to either main-frame
-      // candidate in v3 (no match), and here it simply fails to resolve in
-      // the main document (no match) — the pass criterion is preserved.
+      // re-expressed in-page via the shared findMatchingSelector helper.
+      // Both candidate selectors live in the main frame (the shopify iframe
+      // is cross-origin and unreachable from the main document either way):
+      // an observed selector that pierces into the iframe never had a
+      // backendNodeId equal to either main-frame candidate in v3 (no match),
+      // and here it simply fails to resolve in the main document (no match)
+      // — the pass criterion is preserved.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const matched = await page.evaluate(
-            ({
-              observedSelector,
-              candidateSelectors,
-            }: {
-              observedSelector: string;
-              candidateSelectors: string[];
-            }) => {
-              const resolve = (selector: string): Element | null => {
-                const raw = selector.startsWith("xpath=")
-                  ? selector.slice("xpath=".length)
-                  : selector;
-                if (raw.startsWith("/") || raw.startsWith("(")) {
-                  const result = document.evaluate(
-                    raw,
-                    document,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null,
-                  );
-                  return result.singleNodeValue as Element | null;
-                }
-                return document.querySelector(raw);
-              };
-
-              const observed = resolve(observedSelector);
-              if (!observed) return null;
-              for (const candidate of candidateSelectors) {
-                if (resolve(candidate) === observed) return candidate;
-              }
-              return null;
-            },
-            {
-              observedSelector: observation.selector,
-              candidateSelectors: possibleLocators,
-            },
-          );
+          const matched = await findMatchingSelector(page, observation.selector, possibleLocators);
           if (matched) {
             foundMatch = true;
             matchedLocator = matched;
@@ -108,7 +74,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

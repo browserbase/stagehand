@@ -41,7 +41,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to click the button: ${(error as Error).message}`,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),

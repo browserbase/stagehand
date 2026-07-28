@@ -41,7 +41,7 @@ export default defineBenchV4Task(
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
-        error,
+        error: error instanceof Error ? error.message : String(error),
       };
     } finally {
       await stagehand.close();

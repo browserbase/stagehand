@@ -27,7 +27,7 @@ export default defineBenchV4Task(
     } catch (e) {
       return {
         _success: false,
-        error: e,
+        error: e instanceof Error ? e.message : String(e),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
