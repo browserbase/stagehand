@@ -121,7 +121,7 @@ export const stagehandHarness: BenchHarness = {
       logger,
       modelName: input.modelName,
       systemPrompt,
-      configOverrides: { env: config.environment },
+      environment: config.environment,
     });
     return {
       ctx: {
@@ -130,7 +130,7 @@ export const stagehandHarness: BenchHarness = {
         logger,
         stagehand: result.stagehand,
         page: result.page,
-        debugUrl: result.debugUrl ?? "",
+        debugUrl: "",
         sessionUrl: result.sessionUrl ?? "",
       },
       cleanup: async () => {

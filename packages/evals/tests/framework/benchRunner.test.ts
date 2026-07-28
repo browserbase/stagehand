@@ -11,14 +11,10 @@ const { closeMock, initStagehandMock } = vi.hoisted(() => {
   const close = vi.fn(async () => {});
   return {
     closeMock: close,
-    initStagehandMock: vi.fn(async ({ logger, modelName, systemPrompt }) => ({
+    initStagehandMock: vi.fn(async () => ({
       stagehand: { close },
       page: {},
-      logger,
-      modelName,
-      systemPrompt,
       sessionUrl: "https://www.browserbase.com/sessions/session-123",
-      debugUrl: "https://debug.browserbase.test/session-123",
     })),
   };
 });
@@ -64,7 +60,7 @@ afterEach(() => {
 });
 
 describe("bench runner", () => {
-  it("passes task metadata into Stagehand and attaches session URLs", async () => {
+  it("passes task metadata into Stagehand and attaches the session URL", async () => {
     const taskDir = makeTempDir();
     const taskFile = path.join(taskDir, "session_url_task.mjs");
     fs.writeFileSync(
@@ -113,12 +109,12 @@ describe("bench runner", () => {
     expect(initStagehandMock).toHaveBeenCalledWith(
       expect.objectContaining({
         systemPrompt: "Follow the task-specific instruction.",
+        environment: "BROWSERBASE",
       }),
     );
     expect(result).toMatchObject({
       _success: true,
       sessionUrl: "https://www.browserbase.com/sessions/session-123",
-      debugUrl: "https://debug.browserbase.test/session-123",
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
   });

@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   buildStagehandInitParams,
-  buildStagehandLoggingParams,
-  createStagehandOnLog,
   requireBrowserbaseApiKey,
   resolveModelApiKey,
 } from "../initStagehand.js";
@@ -31,11 +29,17 @@ describe("Stagehand eval API keys", () => {
 });
 
 describe("Stagehand eval logging", () => {
-  it("forwards severity and structured data into the eval logger", () => {
+  it("uses the current logging shape and forwards structured data", async () => {
     const logger = new EvalLogger(false);
-    const onLog = createStagehandOnLog(logger);
+    const params = buildStagehandInitParams({
+      env: "LOCAL",
+      model: { modelName: "openai/gpt-4.1-mini", apiKey: "test-key" },
+      logger,
+    });
+    const onLog = params.logging?.onLog;
+    expect(onLog).toBeTypeOf("function");
 
-    onLog({ level: "warn", message: "retrying", data: { attempt: 2 } });
+    await onLog?.({ level: "warn", message: "retrying", data: { attempt: 2 } });
 
     expect(logger.getLogs()).toEqual([
       expect.objectContaining({
@@ -49,38 +53,32 @@ describe("Stagehand eval logging", () => {
     ]);
   });
 
-  it("drops debug events", () => {
+  it("drops debug events", async () => {
     const logger = new EvalLogger(false);
-    const onLog = createStagehandOnLog(logger);
+    const params = buildStagehandInitParams({
+      env: "LOCAL",
+      model: { modelName: "openai/gpt-4.1-mini", apiKey: "test-key" },
+      logger,
+    });
 
-    onLog({ level: "debug", message: "internal detail" });
+    await params.logging?.onLog?.({ level: "debug", message: "internal detail", data: {} });
 
     expect(logger.getLogs()).toEqual([]);
   });
 
-  it("builds nested and top-level logging callbacks from the client schema", () => {
-    const logger = new EvalLogger(false);
-
-    const nested = buildStagehandLoggingParams(
-      { StagehandClientInitParamsSchema: { shape: { logging: {} } } },
-      logger,
-    );
-    const topLevel = buildStagehandLoggingParams(
-      { StagehandClientInitParamsSchema: { shape: { onLog: {} } } },
-      logger,
-    );
-
-    expect(nested).toEqual({ logging: { onLog: expect.any(Function) } });
-    expect(topLevel).toEqual({ onLog: expect.any(Function) });
-  });
-
-  it("includes task-level system instructions in Stagehand initialization", () => {
+  it("builds the current Stagehand initialization parameters", () => {
     const params = buildStagehandInitParams({
       env: "LOCAL",
       model: { modelName: "openai/gpt-4.1-mini", apiKey: "test-key" },
       systemPrompt: "Treat secret12345 as the navigation instruction.",
+      logger: new EvalLogger(false),
     });
 
-    expect(params.systemPrompt).toBe("Treat secret12345 as the navigation instruction.");
+    expect(params).toMatchObject({
+      browser: { type: "local", headless: false },
+      selfHeal: true,
+      systemPrompt: "Treat secret12345 as the navigation instruction.",
+      logging: { onLog: expect.any(Function) },
+    });
   });
 });
