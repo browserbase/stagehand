@@ -11,28 +11,6 @@ import (
 	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
 )
 
-// stagehandSessionAttribution is the authoritative Stagehand identity for
-// every Browserbase session this SDK creates. It is merged onto the
-// caller's user metadata last, mirroring the TypeScript and Python SDKs, so
-// a caller cannot spoof it via userMetadata.
-var stagehandSessionAttribution = map[string]json.RawMessage{
-	"stagehand":              json.RawMessage(`"true"`),
-	"stagehand_sdk_language": json.RawMessage(`"` + stagehandSDKLanguage + `"`),
-}
-
-func stagehandSessionMetadata(
-	userMetadata map[string]json.RawMessage,
-) map[string]json.RawMessage {
-	merged := cloneRawMessageMap(userMetadata)
-	if merged == nil {
-		merged = make(map[string]json.RawMessage, len(stagehandSessionAttribution))
-	}
-	for key, value := range stagehandSessionAttribution {
-		merged[key] = value
-	}
-	return merged
-}
-
 type browserbaseSessionClientOptions struct {
 	api     browserbaseAPI
 	archive func() []byte
@@ -77,7 +55,11 @@ func (client *browserbaseSessionClient) createSession(
 	if err != nil {
 		return resolvedBrowserSource{}, fmt.Errorf("build Browserbase session request: %w", err)
 	}
-	request.UserMetadata = stagehandSessionMetadata(request.UserMetadata)
+	if request.UserMetadata == nil {
+		request.UserMetadata = make(map[string]json.RawMessage, 2)
+	}
+	request.UserMetadata["stagehand"] = json.RawMessage(`"true"`)
+	request.UserMetadata["stagehand_sdk_language"] = json.RawMessage(`"go"`)
 	archive := client.archive()
 	if len(archive) == 0 {
 		return resolvedBrowserSource{}, errors.New(

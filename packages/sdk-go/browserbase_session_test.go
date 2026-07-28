@@ -272,12 +272,13 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
+	callerUserMetadata := map[string]json.RawMessage{
+		"suite":                  json.RawMessage(`"go-browserbase-session"`),
+		"stagehand":              json.RawMessage(`"false"`),
+		"stagehand_sdk_language": json.RawMessage(`"python"`),
+	}
 	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{
-		UserMetadata: map[string]json.RawMessage{
-			"suite":                  json.RawMessage(`"go-browserbase-session"`),
-			"stagehand":              json.RawMessage(`"false"`),
-			"stagehand_sdk_language": json.RawMessage(`"python"`),
-		},
+		UserMetadata: callerUserMetadata,
 	})
 	if err != nil {
 		t.Fatalf("createSession() error = %v", err)
@@ -290,6 +291,19 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotUserMetadata, want) {
 		t.Fatalf("userMetadata = %#v, want %#v", gotUserMetadata, want)
+	}
+
+	wantCallerUserMetadata := map[string]json.RawMessage{
+		"suite":                  json.RawMessage(`"go-browserbase-session"`),
+		"stagehand":              json.RawMessage(`"false"`),
+		"stagehand_sdk_language": json.RawMessage(`"python"`),
+	}
+	if !reflect.DeepEqual(callerUserMetadata, wantCallerUserMetadata) {
+		t.Fatalf(
+			"caller userMetadata = %#v, want %#v",
+			callerUserMetadata,
+			wantCallerUserMetadata,
+		)
 	}
 }
 
