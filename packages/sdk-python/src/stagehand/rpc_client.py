@@ -5,17 +5,31 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
-from typing import Annotated, Literal, Protocol, TypeVar, cast
+from importlib.metadata import version
+from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    RootModel,
+    TypeAdapter,
+    ValidationError,
+)
 
 from ._generated import models
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
+_STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
+    name="stagehand-sdk-python",
+    version=version("stagehand"),
+)
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
+RootResultT = TypeVar("RootResultT")
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 _RequestId = Annotated[int, Field(ge=0, le=_MAX_REQUEST_ID, strict=True)]
@@ -106,12 +120,28 @@ class RPCClient:
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
 
+    @overload
+    async def send(
+        self,
+        method: str,
+        params: BaseModel,
+        result_model: type[RootModel[RootResultT]],
+    ) -> RootResultT: ...
+
+    @overload
     async def send(
         self,
         method: str,
         params: BaseModel,
         result_model: type[ResultT],
-    ) -> ResultT:
+    ) -> ResultT: ...
+
+    async def send(
+        self,
+        method: str,
+        params: BaseModel,
+        result_model: type[BaseModel],
+    ) -> object:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
 
@@ -127,7 +157,7 @@ class RPCClient:
         response: asyncio.Future[object] = asyncio.get_running_loop().create_future()
         self._pending[request_id] = (
             method,
-            cast(type[BaseModel], result_model),
+            result_model,
             response,
         )
         request = _JSONRPCRequest(
@@ -150,7 +180,7 @@ class RPCClient:
                     )
                 )
                 result = await response
-                return cast(ResultT, result)
+                return result
         except TimeoutError as error:
             raise TimeoutError(f"RPC request timed out: {method}") from error
         finally:
@@ -340,10 +370,11 @@ class RPCClient:
             return
 
         try:
-            result = result_model.model_validate_json(
+            parsed_result = result_model.model_validate_json(
                 json.dumps(response.result, separators=(",", ":")),
                 strict=True,
             )
+            result = parsed_result.root if isinstance(parsed_result, RootModel) else parsed_result
         except (TypeError, ValueError, ValidationError) as error:
             future.set_exception(error)
         else:
@@ -479,6 +510,7 @@ async def connect_rpc_client(
     )
     client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
     configure = models.RuntimeConfigureParams(
+        client_info=_STAGEHAND_SDK_CLIENT_INFO,
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),
         log_level=models.LogLevel(log_level),

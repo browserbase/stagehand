@@ -52,11 +52,11 @@ try {
 
   console.log(JSON.stringify({ pageInfo, actions, actionResult, generationNames }, null, 2));
 
-  if (actions.length === 0) {
+  if (actions.data.length === 0) {
     throw new Error("observe() returned no matching actions");
   }
-  if (!actionResult.success) {
-    throw new Error(`act() failed: ${actionResult.message}`);
+  if (!actionResult.data.success) {
+    throw new Error(`act() failed: ${actionResult.data.message}`);
   }
 } finally {
   await stagehand.close();

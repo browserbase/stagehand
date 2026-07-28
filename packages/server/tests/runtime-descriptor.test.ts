@@ -32,7 +32,7 @@ describe("runtime descriptor", () => {
     expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackage.version);
   });
 
-  it("preserves unknown descriptor fields", () => {
+  it("rejects unknown descriptor fields", () => {
     const descriptor = {
       protocolVersion: 1,
       serverInfo: {
@@ -42,6 +42,6 @@ describe("runtime descriptor", () => {
       status: "ready",
     };
 
-    expect(RuntimeDescriptorSchema.parse(descriptor)).toStrictEqual(descriptor);
+    expect(() => RuntimeDescriptorSchema.parse(descriptor)).toThrow();
   });
 });

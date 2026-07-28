@@ -14,12 +14,18 @@ export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
-export { Stagehand } from "./stagehand.js";
+export { Stagehand, type ExtractResult } from "./stagehand.js";
 export type {
+  Action,
+  ActResultData,
+  ActResult,
   BrowserGetVersionResult,
+  CacheStatus,
+  ObserveResult,
   RuntimeLoopbackStatusResult,
   StagehandMetrics,
   StagehandPingResult,
+  StagehandResultMetadata,
   WebMCPAnnotation,
   WebMCPInvocationStatus,
   WebMCPRemoteObject,

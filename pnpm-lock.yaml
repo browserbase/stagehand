@@ -223,6 +223,9 @@ catalogs:
     '@ai-sdk/provider':
       specifier: ^4.0.2
       version: 4.0.2
+    '@ast-grep/lang-go':
+      specifier: 0.0.6
+      version: 0.0.6
     '@ast-grep/lang-python':
       specifier: 0.0.6
       version: 0.0.6
@@ -336,6 +339,9 @@ importers:
 
   .:
     devDependencies:
+      '@ast-grep/lang-go':
+        specifier: 'catalog:'
+        version: 0.0.6
       '@ast-grep/lang-python':
         specifier: 'catalog:'
         version: 0.0.6
@@ -849,6 +855,14 @@ packages:
 
   '@ark/util@0.56.2':
     resolution: {integrity: sha512-9kU2sUE38FZEGG7l3hamYMBieLYEJh2L1mrYD2eXpT+78EnQSV1bhjxJhnxGBMSTbtwpBSDNSK+K60WvaI/DTQ==}
+
+  '@ast-grep/lang-go@0.0.6':
+    resolution: {integrity: sha512-PZap9Rp6t+YKbLjRnFRF5aGBX3/HV9s5Rp7ZPsCM+o3tlTZDo1IqDYnFu+Oeh5Razs2U8K8ccPSJ+GBxalVhWg==}
+    peerDependencies:
+      tree-sitter-cli: 0.25.8
+    peerDependenciesMeta:
+      tree-sitter-cli:
+        optional: true
 
   '@ast-grep/lang-python@0.0.6':
     resolution: {integrity: sha512-eF/bEBspmrxdVuPNihvZDyyJx5qtIpGEMz9l1nNQmrji7NZcUiRNC8WwzYyQCBdy1mj8HZ0Tn4I2q3gp/6Bkiw==}
@@ -7619,6 +7633,10 @@ snapshots:
   '@ark/util@0.55.0': {}
 
   '@ark/util@0.56.2': {}
+
+  '@ast-grep/lang-go@0.0.6':
+    dependencies:
+      '@ast-grep/setup-lang': 0.0.6
 
   '@ast-grep/lang-python@0.0.6':
     dependencies:
