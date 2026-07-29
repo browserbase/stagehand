@@ -1,0 +1,24 @@
+packages/evals/framework/discovery.ts
+  s_195c7f2723c057::t_6755ef2acb4823 289
+  s_195c7f2723c057::t_216857feff0660 27
+  s_195c7f2723c057::t_6be06df95e558e 127-134
+packages/evals/taskConfig.ts
+  s_195c7f2723c057::t_25995b9e864d64 134
+  s_195c7f2723c057::t_7349704e5311dd 149-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "72d6e33ee74123294e9f8a801be77d1f1c8dfe9f",
+  "prompts": {},
+  "sessions": {
+    "s_195c7f2723c057": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3994f6fe-0a9f-4828-ad35-5d56c9f8c675",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
