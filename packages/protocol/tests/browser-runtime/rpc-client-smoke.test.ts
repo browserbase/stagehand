@@ -51,13 +51,6 @@ describe("Stagehand service worker RPC client smoke", () => {
     expect(rpcClient?.serviceWorker.extensionId).toBeTruthy();
   });
 
-  it("ping returns a typed response from the service worker runtime", async () => {
-    await expect(rpcClient?.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
-  });
-
   it("buffers Stagehand logs until the SDK notification listener is attached", () => {
     const notifications: StagehandRpcNotification[] = [];
     const stopListening = requireRpcClient(rpcClient).onNotification((notification) => {
@@ -83,26 +76,18 @@ describe("Stagehand service worker RPC client smoke", () => {
       notifications.push(notification);
     });
 
-    await activeRpcClient.send(StagehandMethods.ping, {});
+    await activeRpcClient.send(StagehandMethods.contextPages, {});
 
     expect(notifications).toContainEqual({
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
         level: "debug",
-        message: "ping",
+        message: "context.pages",
         data: {},
       },
     });
     stopListening();
-  });
-
-  it("browser.get_version returns the browser version over loopback CDP", async () => {
-    const version = await rpcClient?.send(StagehandMethods.browserGetVersion, {});
-
-    expect(version?.protocolVersion).toBe("1.3");
-    expect(version?.product).toContain("Chrome/");
-    expect(version?.userAgent).toContain("Chrome/");
   });
 
   it("context.pages returns PageRefs from the understudy context", async () => {
@@ -249,9 +234,9 @@ describe("Stagehand service worker RPC client smoke", () => {
     }
   });
 
-  it("ping rejects invalid params before the handler runs", async () => {
+  it("rejects invalid params before the handler runs", async () => {
     await expect(
-      rpcClient?.send(StagehandMethods.ping, { extra: true } as never),
+      rpcClient?.send(StagehandMethods.stagehandMetrics, { extra: true } as never),
     ).rejects.toThrow();
   });
 

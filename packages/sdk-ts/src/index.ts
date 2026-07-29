@@ -18,12 +18,9 @@ export type {
   Action,
   ActResultData,
   ActResult,
-  BrowserGetVersionResult,
   CacheStatus,
   ObserveResult,
-  RuntimeLoopbackStatusResult,
   StagehandMetrics,
-  StagehandPingResult,
   StagehandResultMetadata,
 } from "../../protocol/types.js";
 export {

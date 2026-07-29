@@ -197,10 +197,12 @@ describe("RPCClient", () => {
   });
 
   it("rejects invalid method params before sending them over CDP", async () => {
-    const cdp = new FakeCDPTransport({ ok: true, runtime: "service_worker" });
+    const cdp = new FakeCDPTransport([]);
     const client = new RPCClient(cdp, 1_000);
 
-    await expect(client.send(StagehandMethods.ping, { extra: true } as never)).rejects.toThrow();
+    await expect(
+      client.send(StagehandMethods.contextPages, { extra: true } as never),
+    ).rejects.toThrow();
 
     expect(cdp.sent).toStrictEqual([]);
   });
@@ -210,7 +212,7 @@ describe("RPCClient", () => {
     const client = new RPCClient(cdp, 1_000);
     client.onRequest(UppercaseMethod, async ({ value }) => ({ value: value.toUpperCase() }));
 
-    const originalRequest = client.send(StagehandMethods.ping, {});
+    const originalRequest = client.send(StagehandMethods.contextPages, {});
     await cdp.receive({
       jsonrpc: "2.0",
       id: 42,
@@ -227,12 +229,9 @@ describe("RPCClient", () => {
     await cdp.receive({
       jsonrpc: "2.0",
       id: 1,
-      result: { ok: true, runtime: "service_worker" },
+      result: [],
     });
-    await expect(originalRequest).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
+    await expect(originalRequest).resolves.toStrictEqual([]);
   });
 
   it("validates incoming request parameters before invoking the SDK handler", async () => {
@@ -333,7 +332,7 @@ describe("RPCClient", () => {
   it("rejects a failed request with a plain Error that preserves the JSON-RPC failure", async () => {
     const cdp = new ManualCDPTransport();
     const client = new RPCClient(cdp, 1_000);
-    const request = client.send(StagehandMethods.ping, {});
+    const request = client.send(StagehandMethods.contextPages, {});
     const rpcError = {
       code: JSONRPCErrorCodes.internalError,
       message: "Worker failed",

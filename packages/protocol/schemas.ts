@@ -1686,35 +1686,11 @@ export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
-export const StagehandPingResultSchema = z
-  .strictObject({
-    ok: z.literal(true),
-    runtime: z.literal("service_worker"),
-  })
-  .meta({ id: "StagehandPingResult" });
-
 export const RuntimeConfigureResultSchema = z
   .strictObject({
     configured: z.literal(true),
   })
   .meta({ id: "RuntimeConfigureResult" });
-
-export const RuntimeLoopbackStatusResultSchema = z
-  .strictObject({
-    configured: z.boolean(),
-    connected: z.boolean(),
-  })
-  .meta({ id: "RuntimeLoopbackStatusResult" });
-
-export const BrowserGetVersionResultSchema = z
-  .strictObject({
-    protocolVersion: z.string().optional(),
-    product: z.string().optional(),
-    revision: z.string().optional(),
-    userAgent: z.string().optional(),
-    jsVersion: z.string().optional(),
-  })
-  .meta({ id: "BrowserGetVersionResult" });
 
 export const StagehandInitResultSchema = z
   .strictObject({

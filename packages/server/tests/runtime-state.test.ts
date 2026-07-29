@@ -13,7 +13,6 @@ function createBrowserSession(
 ): StagehandBrowserSession {
   return {
     connected: true,
-    getVersion: async () => ({}),
     pages: () => [],
     newPage: async () => {
       throw new Error("Not used by this test");
