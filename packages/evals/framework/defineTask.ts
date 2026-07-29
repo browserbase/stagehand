@@ -11,8 +11,8 @@ import type {
   TaskDefinition,
   TaskMeta,
   TaskResult,
+  BenchV4TaskContext,
 } from "./types.js";
-import type { BenchV4TaskContext } from "./typesV4.js";
 
 /**
  * Define a core tier task (deterministic, no LLM).
