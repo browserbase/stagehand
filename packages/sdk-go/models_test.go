@@ -321,8 +321,7 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 		"role":"assistant",
 		"content":{"type":"text","text":"done"},
 		"output_format":"json_schema",
-		"structured_content":{"ok":true},
-		"provider_request_id":"req_123"
+		"structured_content":{"ok":true}
 	}`)
 	var result LLMGenerateResult
 	if err := json.Unmarshal(resultJSON, &result); err != nil {
@@ -332,8 +331,8 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 	if !ok {
 		t.Fatal("decoded the wrong LLM result variant")
 	}
-	if string(structured.AdditionalProperties["provider_request_id"]) != `"req_123"` {
-		t.Fatal("did not retain LLM result additional property")
+	if string(structured.StructuredContent) != `{"ok":true}` {
+		t.Fatal("did not retain structured content")
 	}
 	roundTrip, err := json.Marshal(result)
 	if err != nil {
@@ -343,11 +342,21 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 		"role":"assistant",
 		"content":[{"type":"text","text":"done"}],
 		"output_format":"json_schema",
-		"structured_content":{"ok":true},
-		"provider_request_id":"req_123"
+		"structured_content":{"ok":true}
 	}`)
 	if !jsonEqual(canonicalResult, roundTrip) {
 		t.Fatalf("LLM result round trip mismatch:\nwant %s\n got %s", canonicalResult, roundTrip)
+	}
+
+	unknownProviderField := []byte(`{
+		"role":"assistant",
+		"content":{"type":"text","text":"done"},
+		"output_format":"json_schema",
+		"structured_content":{"ok":true},
+		"provider_request_id":"req_123"
+	}`)
+	if err := json.Unmarshal(unknownProviderField, &result); err == nil {
+		t.Fatal("expected unknown provider field to fail")
 	}
 }
 
