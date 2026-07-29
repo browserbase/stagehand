@@ -58,7 +58,7 @@ const runtimeIdentity = {
 };
 
 vi.mock("../understudy/context.js", () => ({
-  V3Context: {
+  BrowserContext: {
     create: vi.fn(),
   },
 }));
