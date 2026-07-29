@@ -385,6 +385,37 @@ describe("All language SDK operations remain in sync", () => {
 
     expect(staticallyVisibleParams).toBeGreaterThan(0);
   });
+
+  it("returns full Go Stagehand result envelopes", async () => {
+    const root = parse("go", await readFile(new URL("stagehand.go", goSource), "utf8")).root();
+    const stagehand = findClass(root, "go", "Stagehand");
+
+    expect(stagehand, "Go Stagehand must exist").toBeDefined();
+    if (!stagehand) return;
+
+    for (const [methodNameText, resultType] of [
+      ["Act", "ActResult"],
+      ["Observe", "ObserveResult"],
+      ["Extract", "ExtractResult"],
+    ] as const) {
+      const method = directClassMethods(stagehand, "go", "Stagehand").find(
+        (candidate) => methodName(candidate.node, "go")?.text() === methodNameText,
+      )?.node;
+      expect(method, `Go Stagehand.${methodNameText} must exist`).toBeDefined();
+      if (!method) continue;
+
+      expect(method.field("result")?.text(), `Go Stagehand.${methodNameText} result type`).toBe(
+        `(${resultType}, error)`,
+      );
+      const dataOnlyReturns = method
+        .findAll({ rule: { kind: "return_statement" } })
+        .filter((statement) => /\bresult\.Data\b/u.test(statement.text()));
+      expect(
+        dataOnlyReturns,
+        `Go Stagehand.${methodNameText} must preserve result metadata`,
+      ).toEqual([]);
+    }
+  });
 });
 
 async function publicOperations(
