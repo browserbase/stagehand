@@ -85,7 +85,7 @@ type PythonRpcCall = {
 type GoRpcCall = PythonRpcCall;
 
 const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
-  Stagehand: new Set(["Context", "Initialized"]),
+  Stagehand: new Set(["Browser", "Context", "Initialized"]),
   BrowserContext: new Set(["Clipboard"]),
   BrowserClipboard: new Set(),
   Page: new Set(["PageID", "Ref"]),
@@ -200,6 +200,38 @@ describe("All language SDK operations remain in sync", () => {
         typescript,
       );
       expect(typescript.length, `${className} must expose public methods`).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps Stagehand accessors aligned and every declared Go accessor present", async () => {
+    const [className, typescriptFile, pythonFile, goFile, goType] = sdkObjects[0];
+    const typescript = await publicAccessors(
+      "typescript",
+      new URL(typescriptFile, typescriptSource),
+      className,
+    );
+    const python = await publicAccessors("python", new URL(pythonFile, pythonSource), className);
+    const goClient = await publicAccessors("go", new URL(goFile, goSource), goType);
+
+    expect(python, "Stagehand Python accessors must remain in sync").toStrictEqual(typescript);
+    expect(goClient, "Stagehand Go accessors must remain in sync").toStrictEqual(typescript);
+    expect(typescript.length, "Stagehand must expose public accessors").toBeGreaterThan(0);
+
+    for (const [, , , goFile, goType] of sdkObjects) {
+      const root = parse("go", await readFile(new URL(goFile, goSource), "utf8")).root();
+      const classNode = findClass(root, "go", goType);
+
+      expect(classNode, `${goType} must exist`).toBeDefined();
+      if (!classNode) continue;
+      const methods = new Set(
+        directClassMethods(classNode, "go", goType).flatMap((method) => {
+          const name = methodName(method.node, "go");
+          return name ? [name.text()] : [];
+        }),
+      );
+      for (const accessor of goAccessors[goType] ?? []) {
+        expect(methods.has(accessor), `${goType}.${accessor} accessor must exist`).toBe(true);
+      }
     }
   });
 
@@ -476,6 +508,43 @@ async function publicCallableMethods(
         }),
     ),
   ].sort();
+}
+
+async function publicAccessors(
+  language: SdkLanguage,
+  file: URL,
+  className: string,
+): Promise<string[]> {
+  const root = parse(language, await readFile(file, "utf8")).root();
+  const classNode = findClass(root, language, className);
+
+  expect(classNode, `${className} must exist in ${file.pathname}`).toBeDefined();
+  if (!classNode) return [];
+
+  return directClassMethods(classNode, language, className)
+    .filter((method) => {
+      const name = methodName(method.node, language);
+      if (!name) return false;
+      if (language === "go") return goAccessors[className]?.has(name.text()) === true;
+      if (language === "python") {
+        return (
+          !name.text().startsWith("_") &&
+          method.decoratedDefinition?.text().startsWith("@property") === true
+        );
+      }
+      const declarationPrefix = method.node
+        .text()
+        .slice(0, method.node.text().indexOf(name.text()));
+      return (
+        !/\b(?:private|protected)\b/u.test(declarationPrefix) &&
+        /\bget\s*$/u.test(declarationPrefix)
+      );
+    })
+    .flatMap((method) => {
+      const name = methodName(method.node, language);
+      return name ? [snakeCase(name.text())] : [];
+    })
+    .sort();
 }
 
 async function clientProtocolOperations(

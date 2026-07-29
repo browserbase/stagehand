@@ -45,6 +45,16 @@ func (s *Stagehand) Context() (*BrowserContext, error) {
 	return s.context, nil
 }
 
+// Browser returns a detached snapshot of the resolved browser connection.
+func (s *Stagehand) Browser() (ResolvedBrowserSource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.browser == nil {
+		return ResolvedBrowserSource{}, ErrNotInitialized
+	}
+	return s.browser.snapshot(), nil
+}
+
 // Initialized reports whether Init completed successfully.
 func (s *Stagehand) Initialized() bool {
 	s.mu.RLock()

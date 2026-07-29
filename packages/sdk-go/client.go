@@ -42,6 +42,36 @@ type resolvedBrowserSource struct {
 	cleanup              func() error
 }
 
+// ResolvedBrowserSource is a detached snapshot of the browser connection
+// selected during Init. It intentionally excludes SDK-owned lifecycle and
+// temporary-extension state.
+type ResolvedBrowserSource struct {
+	CDPURL               string
+	CDPHeaders           map[string]string
+	BrowserbaseSessionID string
+	PreloadedExtension   bool
+	ConnectTimeout       time.Duration
+	KeepAlive            bool
+}
+
+func (browser resolvedBrowserSource) snapshot() ResolvedBrowserSource {
+	var headers map[string]string
+	if len(browser.cdpHeaders) > 0 {
+		headers = make(map[string]string, len(browser.cdpHeaders))
+		for name := range browser.cdpHeaders {
+			headers[name] = browser.cdpHeaders.Get(name)
+		}
+	}
+	return ResolvedBrowserSource{
+		CDPURL:               browser.cdpURL,
+		CDPHeaders:           headers,
+		BrowserbaseSessionID: browser.browserbaseSessionID,
+		PreloadedExtension:   browser.preloadedExtension,
+		ConnectTimeout:       browser.connectTimeout,
+		KeepAlive:            browser.keepAlive,
+	}
+}
+
 type clientAdapters struct {
 	resolveBrowserSource func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error)
 	connectProtocol      func(
