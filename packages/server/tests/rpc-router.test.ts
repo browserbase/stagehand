@@ -21,16 +21,18 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(request({ id: 10, method: "ping", params: {} }));
+    await expect(
+      router.handle(request({ id: 10, method: "stagehand.metrics", params: {} })),
+    ).rejects.toThrow("Method not implemented");
     await tracing.forceFlush();
 
     expect(spans.getFinishedSpans()).toContainEqual(
       expect.objectContaining({
-        name: "ping",
+        name: "stagehand.metrics",
         kind: SpanKind.SERVER,
         attributes: expect.objectContaining({
           "rpc.system.name": "jsonrpc",
-          "rpc.method": "ping",
+          "rpc.method": "stagehand.metrics",
           "jsonrpc.request.id": "10",
         }) as object,
       }),
@@ -48,20 +50,24 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(
-      request({
-        id: 11,
-        method: "ping",
-        params: {},
-        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
-        tracestate: "vendor=value",
-      }),
-    );
+    await expect(
+      router.handle(
+        request({
+          id: 11,
+          method: "stagehand.metrics",
+          params: {},
+          traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
+          tracestate: "vendor=value",
+        }),
+      ),
+    ).rejects.toThrow("Method not implemented");
     await tracing.forceFlush();
 
     const span = spans
       .getFinishedSpans()
-      .find((candidate) => candidate.name === "ping" && candidate.kind === SpanKind.SERVER);
+      .find(
+        (candidate) => candidate.name === "stagehand.metrics" && candidate.kind === SpanKind.SERVER,
+      );
     expect(span?.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
     expect(span?.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
     expect(span?.parentSpanContext?.isRemote).toBe(true);
@@ -124,12 +130,14 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(request({ id: 14, method: "ping", params: {} }));
+    await expect(
+      router.handle(request({ id: 14, method: "stagehand.metrics", params: {} })),
+    ).rejects.toThrow("Method not implemented");
     await tracing.forceFlush();
 
     const requestSpan = spans
       .getFinishedSpans()
-      .find((span) => span.name === "ping" && span.kind === SpanKind.SERVER);
+      .find((span) => span.name === "stagehand.metrics" && span.kind === SpanKind.SERVER);
     const logSpan = spans
       .getFinishedSpans()
       .find((span) => span.attributes["stagehand.span.type"] === "log");

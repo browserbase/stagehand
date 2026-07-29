@@ -263,6 +263,29 @@ func (p *Page) Snapshot(ctx context.Context, options *PageSnapshotOptions) (Snap
 	return result, err
 }
 
+// Tools returns a fresh snapshot of the WebMCP tools registered by the page.
+func (p *Page) Tools(
+	ctx context.Context,
+	options *WebMCPToolsOptions,
+) ([]*WebMCPTool, error) {
+	pageID := p.PageID()
+	params := PageWebMCPToolsParams{PageID: pageID, Options: options}
+	var result PageWebMCPToolsResult
+	if err := p.rpc.call(ctx, "page.webmcp_tools", params, &result); err != nil {
+		return nil, err
+	}
+
+	tools := make([]*WebMCPTool, len(result.Tools))
+	for index, descriptor := range result.Tools {
+		tools[index] = &WebMCPTool{
+			rpc:        p.rpc,
+			pageID:     pageID,
+			descriptor: descriptor,
+		}
+	}
+	return tools, nil
+}
+
 // URL returns the page URL.
 func (p *Page) URL(ctx context.Context) (string, error) {
 	params := PageIDParams{PageID: p.PageID()}
