@@ -48,18 +48,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
   extract_geniusee_2: ["targeted_extract"],
 };
 
-/**
- * Tasks whose primary category should be replaced entirely (not
- * augmented) during discovery. External agent benchmarks are grouped here.
- */
-const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
-  "agent/webvoyager": ["external_agent_benchmarks"],
-  "agent/onlineMind2Web": ["external_agent_benchmarks"],
-  "agent/webtailbench": ["external_agent_benchmarks"],
-  "agent/odysseysbench": ["external_agent_benchmarks"],
-};
-
 function getTaskBasename(taskName: string): string {
   if (!taskName.includes("/")) return taskName;
   const parts = taskName.split("/");
@@ -219,10 +207,10 @@ export async function discoverTasks(tasksRoot: string, eager = false): Promise<T
           }
         }
 
-        const override = CATEGORY_OVERRIDES[taskName];
-        const baseCategories = override
-          ? [...override]
-          : [parsed.category, ...extraCategories.filter((c) => c !== parsed.category)];
+        const baseCategories = [
+          parsed.category,
+          ...extraCategories.filter((c) => c !== parsed.category),
+        ];
 
         const hardcodedExtras = getExtraCategories(taskName);
         const categories = [...baseCategories];
@@ -233,7 +221,7 @@ export async function discoverTasks(tasksRoot: string, eager = false): Promise<T
         const task: DiscoveredTask = {
           name: taskName,
           tier: parsed.tier,
-          primaryCategory: override ? override[0] : parsed.category,
+          primaryCategory: parsed.category,
           categories,
           tags,
           filePath,
@@ -269,7 +257,7 @@ export async function discoverTasks(tasksRoot: string, eager = false): Promise<T
  *   5. No target: defaults to all bench tasks
  */
 export function resolveTarget(registry: TaskRegistry, target?: string): DiscoveredTask[] {
-  if (!target) {
+  if (!target || target === "bench") {
     return registry.byTier.get("bench") ?? [];
   }
 

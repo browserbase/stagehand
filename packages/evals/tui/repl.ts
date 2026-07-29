@@ -104,7 +104,7 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
 
   // Esc → either pop one context level (idle) or abort the in-flight run
   // (cooperative; double-press escalates to aggressive — the runner closes
-  // V3 sessions immediately so the in-flight task throws).
+  // sessions immediately so the in-flight task throws).
   let lastEscAt = 0;
   const DOUBLE_ESC_WINDOW_MS = 1500;
 

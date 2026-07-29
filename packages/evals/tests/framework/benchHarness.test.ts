@@ -7,7 +7,6 @@ describe("bench harness registry", () => {
 
     expect(harness).toBe(claudeCodeHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
-    expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
   });
 
@@ -16,7 +15,6 @@ describe("bench harness registry", () => {
 
     expect(harness).toBe(codexHarness);
     expect(harness.supportedTaskKinds).toEqual(["agent", "suite"]);
-    expect(harness.supportsApi).toBe(false);
     expect(harness.execute).toBeDefined();
   });
 });

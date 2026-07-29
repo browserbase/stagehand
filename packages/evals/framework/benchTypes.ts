@@ -37,8 +37,6 @@ export type BenchTaskKind = "act" | "extract" | "observe" | "agent" | "combinati
 
 export interface StagehandHarnessConfig {
   harness: "stagehand";
-  /** Which Stagehand SDK drives the task: v3 (default) or the v4 SDK. */
-  sdk?: "v3" | "v4";
   model: AvailableModel;
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";

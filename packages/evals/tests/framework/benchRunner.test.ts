@@ -7,23 +7,20 @@ import { executeBenchTask } from "../../framework/benchRunner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 
 const tempDirs: string[] = [];
-const closeMock = vi.fn(async () => {});
+const { closeMock, initStagehandMock } = vi.hoisted(() => {
+  const close = vi.fn(async () => {});
+  return {
+    closeMock: close,
+    initStagehandMock: vi.fn(async () => ({
+      stagehand: { close },
+      page: {},
+      sessionUrl: "https://www.browserbase.com/sessions/session-123",
+    })),
+  };
+});
 
-vi.mock("../../initV3.js", () => ({
-  initV3: vi.fn(async ({ logger, modelName }) => ({
-    v3: {
-      context: {
-        pages: () => [{}],
-      },
-      close: closeMock,
-      browserbaseSessionURL: "https://www.browserbase.com/sessions/session-123",
-      browserbaseDebugURL: "https://debug.browserbase.test/session-123",
-    },
-    logger,
-    modelName,
-    sessionUrl: "https://www.browserbase.com/sessions/session-123",
-    debugUrl: "https://debug.browserbase.test/session-123",
-  })),
+vi.mock("../../initStagehand.js", () => ({
+  initStagehand: initStagehandMock,
 }));
 
 vi.mock("../../browserbaseCleanup.js", () => ({
@@ -54,7 +51,9 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   closeMock.mockClear();
+  initStagehandMock.mockClear();
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
@@ -62,17 +61,24 @@ afterEach(() => {
 });
 
 describe("bench runner", () => {
-  it("attaches Browserbase session URLs to legacy bench task results", async () => {
+  it("passes task metadata into Stagehand and attaches the session URL", async () => {
     const taskDir = makeTempDir();
     const taskFile = path.join(taskDir, "session_url_task.mjs");
     fs.writeFileSync(
       taskFile,
       `
-      export const session_url_task = async () => ({
-        _success: true,
-        sessionUrl: "",
-        debugUrl: "",
-      });
+      export default {
+        __taskDefinition: true,
+        meta: {
+          name: "session_url_task",
+          systemPrompt: "Follow the task-specific instruction.",
+        },
+        fn: async () => ({
+          _success: true,
+          sessionUrl: "",
+          debugUrl: "",
+        }),
+      };
       `,
     );
 
@@ -83,13 +89,13 @@ describe("bench runner", () => {
       categories: ["act"],
       tags: [],
       filePath: taskFile,
-      isLegacy: true,
+      isLegacy: false,
     };
 
     const result = await executeBenchTask(
       {
         name: task.name,
-        modelName: "gpt-4o-mini" as AvailableModel,
+        modelName: "openai/gpt-4.1-mini" as AvailableModel,
       },
       task,
       {
@@ -101,11 +107,66 @@ describe("bench runner", () => {
       },
     );
 
+    expect(initStagehandMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        systemPrompt: "Follow the task-specific instruction.",
+        environment: "BROWSERBASE",
+      }),
+    );
     expect(result).toMatchObject({
       _success: true,
+      debugUrl: "https://www.browserbase.com/sessions/session-123",
       sessionUrl: "https://www.browserbase.com/sessions/session-123",
-      debugUrl: "https://debug.browserbase.test/session-123",
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves a successful task result when harness cleanup fails", async () => {
+    const taskDir = makeTempDir();
+    const taskFile = path.join(taskDir, "cleanup_failure_task.mjs");
+    fs.writeFileSync(
+      taskFile,
+      `
+      export default {
+        __taskDefinition: true,
+        meta: { name: "cleanup_failure_task" },
+        fn: async () => ({ _success: true }),
+      };
+      `,
+    );
+
+    const task: DiscoveredTask = {
+      name: "act/cleanup_failure_task",
+      tier: "bench",
+      primaryCategory: "act",
+      categories: ["act"],
+      tags: [],
+      filePath: taskFile,
+      isLegacy: false,
+    };
+    closeMock.mockRejectedValueOnce(new Error("cleanup failed"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await executeBenchTask(
+      {
+        name: task.name,
+        modelName: "openai/gpt-4.1-mini" as AvailableModel,
+      },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "BROWSERBASE",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result._success).toBe(true);
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledWith(
+      `Warning: Error closing Stagehand for ${task.name}:`,
+      expect.any(Error),
+    );
   });
 });

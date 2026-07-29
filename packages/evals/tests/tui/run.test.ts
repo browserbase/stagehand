@@ -90,17 +90,15 @@ describe("deriveCategoryFilter", () => {
     expect(deriveCategoryFilter(registry, "agent/webvoyager")).toBeUndefined();
   });
 
-  it("omits legacy-only suite tasks from broad dry-runs", async () => {
+  it("includes every canonical benchmark category in broad dry-runs", async () => {
     const registry = makeRegistry([
       makeTask({
-        name: "agent/gaia",
-        primaryCategory: "agent",
-        categories: ["agent"],
+        name: "act/dropdown",
       }),
       makeTask({
-        name: "agent/webvoyager",
-        primaryCategory: "agent",
-        categories: ["agent"],
+        name: "combination/wichita",
+        primaryCategory: "combination",
+        categories: ["combination"],
       }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
@@ -124,107 +122,70 @@ describe("deriveCategoryFilter", () => {
     );
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
-    expect(payload.tasks).toEqual(["agent/webvoyager"]);
-    expect(payload.skippedTasks).toEqual(["agent/gaia"]);
+    expect(payload.tasks).toEqual(["act/dropdown", "combination/wichita"]);
+    expect(payload.skippedTasks).toEqual([]);
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("prints bench matrix metadata in dry-runs", async () => {
+  it("requires an external harness for external agent benchmarks", async () => {
     const registry = makeRegistry([
       makeTask({
         name: "agent/webvoyager",
-        primaryCategory: "agent",
+        primaryCategory: "external_agent_benchmarks",
         categories: ["external_agent_benchmarks"],
       }),
     ]);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await runCommand(
-      {
-        target: "b:webvoyager",
-        normalizedTarget: "agent/webvoyager",
-        trials: 1,
-        concurrency: 1,
-        environment: "BROWSERBASE",
-        model: "openai/gpt-4.1-mini",
-        useApi: false,
-        harness: "stagehand",
-        datasetFilter: "webvoyager",
-        envOverrides: {
-          EVAL_MAX_K: "1",
-          EVAL_WEBVOYAGER_LIMIT: "1",
+    await expect(
+      runCommand(
+        {
+          target: "b:webvoyager",
+          normalizedTarget: "agent/webvoyager",
+          trials: 1,
+          concurrency: 1,
+          environment: "BROWSERBASE",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          datasetFilter: "webvoyager",
+          envOverrides: {
+            EVAL_MAX_K: "1",
+            EVAL_WEBVOYAGER_LIMIT: "1",
+          },
+          dryRun: true,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
         },
-        dryRun: true,
-        preview: false,
-        successMode: "outcome",
-        verbose: false,
-      },
-      registry,
-    );
-
-    const payload = JSON.parse(String(log.mock.calls[0][0]));
-    expect(payload.matrix).toHaveLength(1);
-    expect(payload.matrix[0]).toMatchObject({
-      tier: "bench",
-      task: "agent/webvoyager",
-      dataset: "webvoyager",
-      model: "openai/gpt-4.1-mini",
-      harness: "stagehand",
-      agentMode: "dom",
-      environment: "BROWSERBASE",
-      useApi: false,
-    });
+        registry,
+      ),
+    ).rejects.toThrow(/require --harness claude_code or --harness codex/);
   });
 
-  it("expands dry-run matrices across configured agent modes", async () => {
-    const registry = makeRegistry([
-      makeTask({
-        name: "agent/webvoyager",
-        primaryCategory: "agent",
-        categories: ["external_agent_benchmarks"],
-      }),
-    ]);
-    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("rejects agent modes for Stagehand primitive tasks", async () => {
+    const registry = makeRegistry([makeTask({ name: "act/dropdown" })]);
 
-    await runCommand(
-      {
-        target: "b:webvoyager",
-        normalizedTarget: "agent/webvoyager",
-        trials: 1,
-        concurrency: 1,
-        environment: "BROWSERBASE",
-        model: "openai/gpt-4.1-mini",
-        useApi: false,
-        harness: "stagehand",
-        agentModes: ["dom", "hybrid"],
-        datasetFilter: "webvoyager",
-        envOverrides: {
-          EVAL_MAX_K: "1",
-          EVAL_WEBVOYAGER_LIMIT: "1",
+    await expect(
+      runCommand(
+        {
+          target: "act",
+          normalizedTarget: "act",
+          trials: 1,
+          concurrency: 1,
+          environment: "BROWSERBASE",
+          model: "openai/gpt-4.1-mini",
+          useApi: false,
+          harness: "stagehand",
+          agentModes: ["dom", "hybrid"],
+          envOverrides: {},
+          dryRun: true,
+          preview: false,
+          successMode: "outcome",
+          verbose: false,
         },
-        dryRun: true,
-        preview: false,
-        successMode: "outcome",
-        verbose: false,
-      },
-      registry,
-    );
-
-    const payload = JSON.parse(String(log.mock.calls[0][0]));
-    expect(payload.runOptions.agentModes).toEqual(["dom", "hybrid"]);
-    expect(payload.matrix).toHaveLength(2);
-    expect(payload.matrix.map((row: { agentMode: string }) => row.agentMode)).toEqual([
-      "dom",
-      "hybrid",
-    ]);
-    expect(
-      payload.matrix.map(
-        (row: { harnessConfig: { agentMode: string; isCUA: boolean } }) => row.harnessConfig,
+        registry,
       ),
-    ).toEqual([
-      expect.objectContaining({ agentMode: "dom", isCUA: false }),
-      expect.objectContaining({ agentMode: "hybrid", isCUA: false }),
-    ]);
+    ).rejects.toThrow(/does not support agent modes/);
   });
 
   it("prints claude_code dry-run matrices without stagehand agent modes", async () => {
@@ -375,7 +336,7 @@ describe("deriveCategoryFilter", () => {
         },
         registry,
       ),
-    ).rejects.toThrow(/only supports agent benchmark suites/);
+    ).rejects.toThrow(/only supports configured external benchmark inputs/);
   });
 
   it("rejects --api for non-stagehand bench harnesses even in dry-run", async () => {
@@ -422,29 +383,28 @@ describe("deriveCategoryFilter", () => {
   it("prints expanded plan dimensions in the run heading", async () => {
     const registry = makeRegistry([
       makeTask({
-        name: "agent/alpha",
-        primaryCategory: "agent",
-        categories: ["agent"],
+        name: "act/alpha",
+        primaryCategory: "act",
+        categories: ["act"],
       }),
       makeTask({
-        name: "agent/beta",
-        primaryCategory: "agent",
-        categories: ["agent"],
+        name: "act/beta",
+        primaryCategory: "act",
+        categories: ["act"],
       }),
     ]);
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
 
     await runCommand(
       {
-        target: "agent",
-        normalizedTarget: "agent",
+        target: "act",
+        normalizedTarget: "act",
         trials: 4,
         concurrency: 25,
         environment: "BROWSERBASE",
         model: "openai/gpt-4.1-mini",
         useApi: false,
         harness: "stagehand",
-        agentModes: ["dom", "hybrid"],
         envOverrides: {},
         dryRun: false,
         preview: false,
@@ -455,8 +415,8 @@ describe("deriveCategoryFilter", () => {
     );
 
     const output = log.mock.calls.map(([line]) => stripAnsi(String(line))).join("\n");
-    expect(output).toContain("Running: agent");
-    expect(output).toContain("Plan: 2 tasks × 1 model × 2 modes × 4 trials = 16 runs");
+    expect(output).toContain("Running: act");
+    expect(output).toContain("Plan: 2 tasks × 1 model × 4 trials = 8 runs");
     expect(output).toContain("Env: BROWSERBASE  Harness: stagehand  Concurrency: 25");
     expect(runEvalsMock).toHaveBeenCalledOnce();
   });

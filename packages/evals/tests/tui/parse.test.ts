@@ -29,14 +29,14 @@ describe("resolveRunOptions", () => {
 
   it("accepts explicit agent modes", () => {
     for (const agentMode of ["dom", "hybrid", "cua"] as const) {
-      const flags = parseRunArgs(["b:webvoyager", "--agent-mode", agentMode]);
+      const flags = parseRunArgs(["act", "--agent-mode", agentMode]);
       const resolved = resolveRunOptions(flags, {}, {});
       expect(resolved.agentMode).toBe(agentMode);
     }
   });
 
   it("accepts explicit agent mode matrices", () => {
-    const flags = parseRunArgs(["b:webvoyager", "--agent-modes", "dom,hybrid,cua,dom"]);
+    const flags = parseRunArgs(["act", "--agent-modes", "dom,hybrid,cua,dom"]);
     const resolved = resolveRunOptions(flags, {}, {});
 
     expect(resolved.agentMode).toBeUndefined();
@@ -44,13 +44,7 @@ describe("resolveRunOptions", () => {
   });
 
   it("lets single agent mode override configured mode matrices", () => {
-    const flags = parseRunArgs([
-      "b:webvoyager",
-      "--agent-mode",
-      "dom",
-      "--agent-modes",
-      "hybrid,cua",
-    ]);
+    const flags = parseRunArgs(["act", "--agent-mode", "dom", "--agent-modes", "hybrid,cua"]);
     const resolved = resolveRunOptions(flags, { agentModes: ["cua"] }, {});
 
     expect(resolved.agentMode).toBe("dom");
@@ -64,10 +58,8 @@ describe("resolveRunOptions", () => {
   });
 
   it("rejects unknown agent modes", () => {
-    expect(() => parseRunArgs(["b:webvoyager", "--agent-mode", "visual"])).toThrow(/agent-mode/);
-    expect(() => parseRunArgs(["b:webvoyager", "--agent-modes", "dom,visual"])).toThrow(
-      /agent-mode/,
-    );
+    expect(() => parseRunArgs(["act", "--agent-mode", "visual"])).toThrow(/agent-mode/);
+    expect(() => parseRunArgs(["act", "--agent-modes", "dom,visual"])).toThrow(/agent-mode/);
   });
 
   it("rejects unknown bench harnesses", () => {
@@ -76,27 +68,11 @@ describe("resolveRunOptions", () => {
     );
   });
 
-  it("supports active unified benchmark shorthands", () => {
+  it("does not map suite shorthands to deleted agent tasks", () => {
     const resolved = applyBenchmarkShorthand("b:webvoyager", { limit: 5 });
-    expect(resolved.target).toBe("agent/webvoyager");
-    expect(resolved.datasetFilter).toBe("webvoyager");
-    expect(resolved.envOverrides.EVAL_DATASET).toBe("webvoyager");
-    expect(resolved.envOverrides.EVAL_WEBVOYAGER_LIMIT).toBe("5");
-
-    const webtailbench = applyBenchmarkShorthand("b:webtailbench", {
-      limit: 2,
-    });
-    expect(webtailbench.target).toBe("agent/webtailbench");
-    expect(webtailbench.datasetFilter).toBe("webtailbench");
-    expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
-  });
-
-  it("marks GAIA as legacy-only in the unified runner", () => {
-    expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(/legacy-only/);
-  });
-
-  it("does not advertise nonexistent WebBench", () => {
-    expect(() => applyBenchmarkShorthand("b:webbench", {})).toThrow(/Unknown benchmark/);
+    expect(resolved.target).toBe("b:webvoyager");
+    expect(resolved.datasetFilter).toBeUndefined();
+    expect(resolved.envOverrides).toEqual({});
   });
 
   it("rejects missing and invalid numeric run flags", () => {
@@ -107,7 +83,7 @@ describe("resolveRunOptions", () => {
 
   it("rejects invalid env and malformed filters", () => {
     expect(() => parseRunArgs(["act", "--env", "mars"])).toThrow(/local.*browserbase/);
-    expect(() => parseRunArgs(["b:webvoyager", "--filter", "bad"])).toThrow(/key=value/);
+    expect(() => parseRunArgs(["act", "--filter", "bad"])).toThrow(/key=value/);
   });
 });
 

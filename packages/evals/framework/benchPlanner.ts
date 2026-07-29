@@ -30,8 +30,6 @@ const DEFAULT_CODEX_MODELS: AvailableModel[] = ["openai/gpt-5.4-mini" as Availab
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
-  /** Which Stagehand SDK drives bench tasks: v3 (default) or v4. */
-  sdk?: "v3" | "v4";
   useApi?: boolean;
   modelOverride?: string;
   provider?: string;
@@ -270,7 +268,6 @@ export function buildBenchMatrixRow(
   const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
   const config = buildBenchHarnessConfig({
     harness,
-    sdk: options.sdk,
     model: modelName,
     provider: options.provider,
     environment,
@@ -304,7 +301,6 @@ export function buildBenchMatrixRow(
 
 function buildBenchHarnessConfig(input: {
   harness: Harness;
-  sdk?: "v3" | "v4";
   model: AvailableModel;
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";
@@ -318,7 +314,6 @@ function buildBenchHarnessConfig(input: {
   if (input.harness === "stagehand") {
     return {
       harness: "stagehand",
-      sdk: input.sdk,
       model: input.model,
       provider: input.provider,
       environment: input.environment,
@@ -359,7 +354,7 @@ export function generateBenchTestcases(
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${options.harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${options.harness}" only supports configured external benchmark inputs. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -468,16 +463,6 @@ export function generateSuiteTestcases(
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
     "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
-  const legacyOnlySuites = new Set(["agent/gaia"]);
-
-  for (const suiteName of legacyOnlySuites) {
-    const idx = remaining.findIndex((t) => t.name === suiteName);
-    if (idx === -1) continue;
-    throw new EvalsError(
-      `Benchmark "${suiteName}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`,
-    );
-  }
-
   for (const [suiteName, builder] of Object.entries(suiteMap)) {
     const idx = remaining.findIndex((t) => t.name === suiteName);
     if (idx === -1) continue;

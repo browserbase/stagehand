@@ -219,7 +219,6 @@ describe("CLI entrypoint", () => {
       "--dry-run",
       "-e",
       "browserbase",
-      "--api",
       "-p",
       "openai",
     ]);
@@ -228,7 +227,7 @@ describe("CLI entrypoint", () => {
     const payload = JSON.parse(stdout);
     expect(payload.normalizedTarget).toBe("act");
     expect(payload.envOverrides.EVAL_ENV).toBe("BROWSERBASE");
-    expect(payload.envOverrides.USE_API).toBe("true");
+    expect(payload.envOverrides.USE_API).toBe("false");
     expect(payload.envOverrides.EVAL_PROVIDER).toBe("openai");
     expect(payload.runOptions.harness).toBe("stagehand");
     expect(payload.runOptions.verbose).toBe(false);

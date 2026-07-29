@@ -8,18 +8,5 @@
     "api": false,
     "verbose": false
   },
-  "benchmarks": {
-    "webvoyager": {
-      "limit": 25
-    },
-    "onlineMind2Web": {
-      "limit": 25
-    },
-    "webtailbench": {
-      "limit": 25
-    },
-    "odysseysbench": {
-      "limit": 25
-    }
-  }
+  "benchmarks": {}
 }

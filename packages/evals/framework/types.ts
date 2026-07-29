@@ -7,7 +7,7 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
+import type { AvailableModel, LogLine } from "stagehand-v3";
 import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import type {
   CorePageHandle,
@@ -18,10 +18,6 @@ import type {
   ToolSurface,
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
-import type { BenchV4TaskContext } from "./typesV4.js";
-
-/** Playwright page exposed by the preserved Stagehand V3 harness. */
-type LegacyPage = ReturnType<V3["context"]["pages"]>[number];
 
 export type Tier = "core" | "bench";
 
@@ -64,21 +60,11 @@ export interface CoreTaskContext {
   logger: EvalLogger;
 }
 
-/**
- * Context provided to canonical benchmark tasks.
- *
- * The v4 fields are the canonical task surface. The v3/agent fields remain
- * during the split so the four external-benchmark registration anchors can
- * continue to use the preserved legacy harness.
- */
+/** Context provided to benchmark tasks. */
 export interface BenchTaskContext {
-  /** Stagehand V3 instance. */
-  v3: V3;
-  /** Agent instance (created when the task lives under agent/). */
-  agent?: AgentInstance;
-  /** Stagehand v4 client instance. */
+  /** Stagehand client instance. */
   stagehand: Stagehand;
-  /** Active Stagehand v4 page for canonical benchmark tasks. */
+  /** Active page for the task. */
   page: Page;
   /** Eval logger. */
   logger: EvalLogger;
@@ -86,8 +72,6 @@ export interface BenchTaskContext {
   input: {
     name: string;
     modelName: AvailableModel;
-    agentMode?: AgentToolMode;
-    isCUA?: boolean;
     params?: Record<string, unknown>;
   };
   /** Model used for this run. */
@@ -96,17 +80,6 @@ export interface BenchTaskContext {
   debugUrl: string;
   /** Session URL (Browserbase). */
   sessionUrl: string;
-}
-
-/**
- * Context returned by the preserved V3-only context builder.
- *
- * Canonical task definitions use `BenchTaskContext`; this compatibility
- * shape keeps legacy callers typed without pretending a V3 page is a V4
- * RPC-backed page.
- */
-export interface LegacyBenchTaskContext extends Omit<BenchTaskContext, "stagehand" | "page"> {
-  page: LegacyPage;
 }
 
 export interface TaskResult {
@@ -151,13 +124,13 @@ export interface TaskDefinition {
   /** User-provided metadata. */
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
-  fn: (ctx: CoreTaskContext | BenchTaskContext | BenchV4TaskContext) => Promise<void | TaskResult>;
+  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }
 
 export interface DiscoveredTask {
-  /** Unique task identifier (e.g., "snapshot" or "agent/gaia"). */
+  /** Unique task identifier (e.g., "snapshot" or "combination/wichita"). */
   name: string;
   /** Tier derived from directory. */
   tier: Tier;

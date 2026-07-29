@@ -133,7 +133,7 @@ function buildUsage(detailed = false): string {
     (default ${chalk.dim("3")})
 
   ${chalk.cyan("provider".padEnd(12))} ${"override LLM provider".padEnd(24)}
-    (default ${chalk.dim(providerDefault || "varies by model")})        [${chalk.yellow("openai")}, ${chalk.yellow("anthropic")}, ${chalk.yellow("google")}, ${chalk.yellow("together")}, ${chalk.yellow("groq")}, ${chalk.yellow("cerebras")}]
+    (default ${chalk.dim(providerDefault || "varies by model")})        [${chalk.yellow("openai")}, ${chalk.yellow("anthropic")}, ${chalk.yellow("google")}, ${chalk.yellow("groq")}, ${chalk.yellow("cerebras")}]
 
   ${chalk.cyan("max_k".padEnd(12))} ${"max test cases per dataset".padEnd(24)}
     (default ${chalk.dim("25")})

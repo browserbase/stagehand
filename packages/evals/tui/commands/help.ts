@@ -41,20 +41,15 @@ export function printRunHelp(): void {
     "",
     `  ${bold("Targets:")}`,
     "",
-    row(`${dim("(none)")} / ${cyan("all")}`, "All bench tasks"),
+    row(`${dim("(none)")} / ${cyan("all")}`, "All Stagehand bench tasks"),
     row(`${cyan("core")} / ${cyan("bench")}`, "Entire tier"),
     row(cyan("core:navigation"), "Tier-qualified category"),
     row(
-      `${cyan("act")} / ${cyan("extract")} / ${cyan("agent")}`,
+      `${cyan("act")} / ${cyan("extract")} / ${cyan("observe")}`,
       "Category (searched across tiers)",
     ),
     row(cyan("dropdown"), "Specific task name"),
     row(cyan("navigation/open"), "Task with its category prefix"),
-    row(
-      `${cyan("b:webvoyager")} / ${cyan("benchmark:onlineMind2Web")}`,
-      "Benchmark suite shorthand",
-    ),
-    row(cyan("b:webtailbench"), "WebTailBench benchmark shorthand"),
     "",
     `  ${bold("Options:")}`,
     "",
@@ -119,10 +114,6 @@ export function printRunHelp(): void {
     "",
     `    ${dim("$")} evals run act -t 3 -c 5`,
     `    ${dim("$")} evals run navigation/open --tool understudy_code`,
-    `    ${dim("$")} evals run b:webvoyager -l 10`,
-    `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
-    `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run agent --preview`,
     "",
   ]);
 }

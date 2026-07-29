@@ -1,26 +1,17 @@
+import type { Page } from "@browserbasehq/stagehand";
+
 /**
- * Shared in-page selector-resolution and element-identity helper for observe
- * tasks. It resolves observed and known-good selectors in the main document
- * and compares the resulting element references.
+ * Checks whether an observed selector and any expected selector identify the same element.
+ * Selectors may be CSS or XPath (bare `/...`/`(...)` or `xpath=`-prefixed).
  *
  * Main-frame only: `page.evaluate` runs in the top document, so selectors
  * pointing inside iframes do not resolve.
  */
-import type { Page } from "@browserbasehq/stagehand";
-
-/**
- * Resolves `observedSelector` and each of `candidateSelectors` in the page's
- * main document and returns the first candidate that resolves to the same
- * element as the observed selector, or `null` when none does (or when the
- * observed selector itself does not resolve).
- *
- * Selectors may be CSS or XPath (bare `/...`/`(...)` or `xpath=`-prefixed).
- */
-export async function findMatchingSelector(
+export async function selectorsResolveToSameElement(
   page: Page,
   observedSelector: string,
   candidateSelectors: string[],
-): Promise<string | null> {
+): Promise<boolean> {
   return page.evaluate(
     ({
       observedSelector,
@@ -49,25 +40,10 @@ export async function findMatchingSelector(
       };
 
       const observed = resolve(observedSelector);
-      if (!observed) return null;
-      for (const candidate of candidateSelectors) {
-        if (resolve(candidate) === observed) return candidate;
-      }
-      return null;
+      return observed
+        ? candidateSelectors.some((candidate) => resolve(candidate) === observed)
+        : false;
     },
     { observedSelector, candidateSelectors },
   );
-}
-
-/**
- * Boolean form used by the canonical observe tasks. Keep
- * `findMatchingSelector` above for compatibility with the legacy harness
- * until the follow-up cleanup removes that scaffolding.
- */
-export async function selectorsResolveToSameElement(
-  page: Page,
-  observedSelector: string,
-  candidateSelectors: string[],
-): Promise<boolean> {
-  return (await findMatchingSelector(page, observedSelector, candidateSelectors)) !== null;
 }

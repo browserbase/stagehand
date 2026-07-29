@@ -2,10 +2,7 @@
  * Context builders for each tier.
  *
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
- * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
-import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
 import { prepareCoreBrowserTarget } from "../core/targets/index.js";
@@ -14,7 +11,7 @@ import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import type { CoreTaskContext, LegacyBenchTaskContext } from "./types.js";
+import type { CoreTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -120,57 +117,4 @@ export async function buildCoreContext(
       }
     },
   };
-}
-
-export interface BenchContextOptions {
-  modelName: AvailableModel;
-  logger?: EvalLogger;
-  llmClient?: LLMClient;
-  modelClientOptions?: ClientOptions;
-  createAgent?: boolean;
-  isCUA?: boolean;
-  input: {
-    name: string;
-    modelName: AvailableModel;
-    isCUA?: boolean;
-    params?: Record<string, unknown>;
-  };
-}
-
-export interface BenchContextResult {
-  ctx: LegacyBenchTaskContext;
-  /** The V3 instance — caller is responsible for closing it. */
-  v3Result: V3InitResult;
-}
-
-/**
- * Build a BenchTaskContext for agent benchmark (tier 3) tasks.
- *
- * Wraps the existing initV3 logic, providing the same shape that
- * legacy EvalFunction tasks expect.
- */
-export async function buildBenchContext(options: BenchContextOptions): Promise<BenchContextResult> {
-  const logger = options.logger ?? new EvalLogger();
-  const v3Result = await initV3({
-    logger,
-    modelName: options.modelName,
-    llmClient: options.llmClient,
-    modelClientOptions: options.modelClientOptions,
-    createAgent: options.createAgent,
-    isCUA: options.isCUA,
-  });
-
-  const page = v3Result.v3.context.pages()[0];
-  const ctx: LegacyBenchTaskContext = {
-    v3: v3Result.v3,
-    agent: v3Result.agent,
-    page,
-    logger,
-    input: options.input,
-    modelName: options.modelName,
-    debugUrl: v3Result.debugUrl ?? "",
-    sessionUrl: v3Result.sessionUrl ?? "",
-  };
-
-  return { ctx, v3Result };
 }

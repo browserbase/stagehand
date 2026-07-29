@@ -18,6 +18,7 @@ async function loadTaskConfig(): Promise<TaskConfigModule> {
 }
 
 beforeEach(() => {
+  vi.resetModules();
   originalEnv.clear();
   for (const key of ENV_KEYS) {
     originalEnv.set(key, process.env[key]);
@@ -61,10 +62,18 @@ describe("getModelList", () => {
   });
 
   it("filters by provider when EVAL_PROVIDER is set", async () => {
+    process.env.EVAL_MODELS = "openai/custom-model,google/custom-model";
     process.env.EVAL_PROVIDER = "openai";
     const { getModelList } = await loadTaskConfig();
-    const models = getModelList();
-    expect(models.every((m) => m.toLowerCase().startsWith("gpt"))).toBe(true);
+    expect(getModelList()).toEqual(["openai/custom-model"]);
+  });
+
+  it("does not restrict configured models to a local provider allowlist", async () => {
+    process.env.EVAL_MODELS = "new-provider/new-model,openai/custom-model";
+    process.env.EVAL_PROVIDER = "new-provider";
+    const { getModelList } = await loadTaskConfig();
+
+    expect(getModelList()).toEqual(["new-provider/new-model"]);
   });
 });
 
@@ -182,14 +191,10 @@ describe("cross-cutting categories", () => {
     expect(task.categories).toContain("targeted_extract");
   });
 
-  it("retains only external-harness agent registration anchors", async () => {
+  it("does not register deleted agent task files", async () => {
     const { tasksByName } = await loadTaskConfig();
     expect(tasksByName["agent/gaia"]).toBeUndefined();
-
-    const wv = tasksByName["agent/webvoyager"];
-    expect(wv).toBeDefined();
-    expect(wv.categories).toContain("external_agent_benchmarks");
-    expect(wv.categories).not.toContain("agent");
+    expect(tasksByName["agent/webvoyager"]).toBeUndefined();
   });
 
   it("does not expose core tier tasks", async () => {

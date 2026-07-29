@@ -30,7 +30,6 @@ type RunProgressEvent = {
   total?: number;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function formatNumber(value: number): string {
@@ -151,28 +150,6 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
-function isExplicitLegacyOnlyTarget(target?: string): boolean {
-  return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
-}
-
-function splitLegacyOnlyTasks(tasks: DiscoveredTask[]): {
-  runnableTasks: DiscoveredTask[];
-  skippedTasks: DiscoveredTask[];
-} {
-  const runnableTasks: DiscoveredTask[] = [];
-  const skippedTasks: DiscoveredTask[] = [];
-
-  for (const task of tasks) {
-    if (LEGACY_ONLY_BENCHMARK_TARGETS.has(task.name)) {
-      skippedTasks.push(task);
-    } else {
-      runnableTasks.push(task);
-    }
-  }
-
-  return { runnableTasks, skippedTasks };
-}
-
 export async function runCommand(
   options: ResolvedRunOptions,
   registry?: TaskRegistry,
@@ -180,8 +157,8 @@ export async function runCommand(
 ): Promise<void> {
   const resolvedTasksRoot = getRuntimeTasksRoot();
 
-  // All SDK modes use the canonical tasks/bench tree, so a cached registry
-  // can be reused regardless of which harness executes the selected tasks.
+  // All runs use the canonical tasks/bench tree, so a cached registry can be
+  // reused regardless of which harness executes the selected tasks.
   if (!registry) {
     registry = await discoverTasks(resolvedTasksRoot, false);
   }
@@ -200,8 +177,10 @@ export async function runCommand(
     throw err;
   }
 
-  if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
-    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
+  if (tasks.length === 0) {
+    const message = options.normalizedTarget
+      ? `No runnable tasks found matching "${options.normalizedTarget}".`
+      : "No runnable tasks found.";
     if (planMode) {
       await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
@@ -210,43 +189,28 @@ export async function runCommand(
     throw new Error(message);
   }
 
-  const { runnableTasks, skippedTasks } = splitLegacyOnlyTasks(tasks);
-  tasks = runnableTasks;
-
-  if (tasks.length === 0) {
-    const message = options.normalizedTarget
-      ? `No runnable tasks found matching "${options.normalizedTarget}".`
-      : "No runnable tasks found.";
-    if (planMode) {
-      await emitDryRun(options, tasks, registry, message, skippedTasks);
-      process.exitCode = 1;
-      return;
-    }
-    throw new Error(message);
+  const hasBenchTasks = tasks.some((task) => task.tier === "bench");
+  const hasExternalAgentBenchmarks = tasks.some((task) =>
+    task.categories.includes("external_agent_benchmarks"),
+  );
+  if (options.harness === "stagehand" && hasExternalAgentBenchmarks) {
+    throw new Error("External agent benchmarks require --harness claude_code or --harness codex.");
   }
-
-  if (options.useApi && options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
+  if (options.useApi && hasBenchTasks) {
+    throw new Error(`Harness "${options.harness}" does not support --api for bench runs.`);
+  }
+  if (
+    options.harness === "stagehand" &&
+    hasBenchTasks &&
+    (options.agentMode || (options.agentModes && options.agentModes.length > 0))
+  ) {
     throw new Error(
-      `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
+      "The Stagehand harness does not support agent modes (including cua). Drop --agent-mode/--agent-modes.",
     );
   }
 
-  // --sdk v4 preflight: the v4 SDK has no API path and no agent surface.
-  // Fail the whole command here instead of letting every matrix row fail
-  // inside the harness with the same per-row EvalsError.
-  if (options.sdk === "v4") {
-    if (options.useApi) {
-      throw new Error("--api is not supported with --sdk v4. Drop --api for v4 runs.");
-    }
-    if (options.agentMode || (options.agentModes && options.agentModes.length > 0)) {
-      throw new Error(
-        "--sdk v4 does not support agent modes (including cua). Drop --agent-mode/--agent-modes for v4 runs.",
-      );
-    }
-  }
-
   if (planMode) {
-    await emitDryRun(options, tasks, registry, undefined, skippedTasks);
+    await emitDryRun(options, tasks, registry);
     return;
   }
 
@@ -259,11 +223,6 @@ export async function runCommand(
 
   console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
   console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  if (skippedTasks.length > 0) {
-    console.log(
-      `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
-    );
-  }
   console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
   console.log(separator());
   console.log("");
@@ -290,7 +249,6 @@ export async function runCommand(
           agentMode: options.agentMode,
           agentModes: options.agentModes,
           harness: options.harness,
-          sdk: options.sdk,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
