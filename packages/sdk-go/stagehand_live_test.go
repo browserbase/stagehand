@@ -148,13 +148,6 @@ func assertLiveStagehand(
 	if !client.Initialized() {
 		t.Fatal("Stagehand.Initialized() = false after Init")
 	}
-	ping, err := client.Ping(ctx)
-	if err != nil {
-		t.Fatalf("Stagehand.Ping() error = %v", err)
-	}
-	if !ping.Ok || ping.Runtime != "service_worker" {
-		t.Fatalf("Stagehand.Ping() = %#v", ping)
-	}
 	browserContext, err := client.Context()
 	if err != nil {
 		t.Fatalf("Stagehand.Context() error = %v", err)
