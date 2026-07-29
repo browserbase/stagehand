@@ -3,97 +3,120 @@ title: "Quickstart"
 description: "Build your first Stagehand automation with act, extract, and observe."
 ---
 
-This quickstart walks through a complete Stagehand script that launches a local browser,
-navigates to a page, and uses all three AI primitives. Pick your language using the selector.
+The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps.
 
-## 1. Install Stagehand
+<Note>
+Use the language selector on this page to switch every code sample between TypeScript, Python, and Go.
+</Note>
+
+## 1) Create a sample project
 
 <View title="TypeScript" icon="js">
-
 ```bash
-pnpm add @browserbasehq/stagehand zod
+mkdir my-stagehand-app && cd my-stagehand-app
+pnpm init -y
+pnpm install @browserbasehq/stagehand zod
 ```
-
-## 2. Set your model API key
-
-Stagehand needs an API key for the LLM provider it calls. Export it in your shell (or put
-it in a `.env` file).
-
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-## 3. Write the script
-
-```typescript
-import "dotenv/config";
-import { Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod";
-
-const stagehand = new Stagehand({
-  browser: { type: "local", headless: true },
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: process.env.OPENAI_API_KEY,
-  },
-});
-
-try {
-  await stagehand.init();
-
-  const page = await stagehand.context.newPage();
-  await page.goto("https://example.com");
-
-  // Observe: discover candidate actions before acting.
-  const actions = await stagehand.observe(
-    "Find the link that provides more information about Example Domain",
-  );
-  console.log(actions.data);
-
-  // Act: perform a natural-language action.
-  const result = await stagehand.act(
-    "Click the link that provides more information about Example Domain",
-  );
-  if (!result.data.success) {
-    throw new Error(`act() failed: ${result.data.message}`);
-  }
-
-  // Extract: pull structured, typed data.
-  const info = await stagehand.extract(
-    "Extract the page heading and description",
-    z.object({ heading: z.string(), description: z.string() }),
-  );
-  console.log(info.data);
-} finally {
-  await stagehand.close();
-}
-```
-
-## 4. Run it
-
-```bash
-pnpm dlx tsx quickstart.ts
-```
-
 </View>
 
 <View title="Python" icon="python">
-
 ```bash
-uv pip install stagehand
+mkdir my-stagehand-app && cd my-stagehand-app
+python -m venv .venv && source .venv/bin/activate
+pip install stagehand
 ```
+</View>
 
-## 2. Set your model API key
-
-Stagehand needs an API key for the LLM provider it calls. Export it in your shell (or put
-it in a `.env` file).
-
+<View title="Go" icon="golang">
 ```bash
-export OPENAI_API_KEY="sk-..."
+mkdir my-stagehand-app && cd my-stagehand-app
+go mod init example.com/my-stagehand-app
+go get github.com/browserbase/stagehand/packages/sdk-go
 ```
+</View>
 
-## 3. Write the script
+## 2) Run it
 
+Set your API keys as environment variables, then run the example script. Stagehand runs on Browserbase cloud browsers by default, so you need a `BROWSERBASE_API_KEY` plus a key for your model provider.
+
+<View title="TypeScript" icon="js">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+npx tsx index.ts                         # Run the example script
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+python main.py                           # Run the example script
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+go run .                                 # Run the example script
+```
+</View>
+
+<Note>
+Stagehand never reads environment variables on your behalf. Read them in your own code and pass the values to the constructor, as shown below.
+</Note>
+
+## 3) Use Stagehand (act, extract, observe)
+
+Here is the full example script, exercising all three primitives:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+async function main() {
+  const stagehand = new Stagehand({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    browser: { type: "browserbase" },
+    model: {
+      modelName: "openai/gpt-5.4-mini",
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+  });
+
+  await stagehand.init();
+
+  console.log("Stagehand session started");
+
+  const page = await stagehand.context.activePage();
+  if (!page) throw new Error("Stagehand initialized without an active page");
+
+  await page.goto("https://stagehand.dev");
+
+  const extractResult = await stagehand.extract(
+    "Extract the value proposition from the page.",
+    z.object({ valueProposition: z.string() }),
+  );
+  console.log("Extract result:\n", extractResult.data);
+
+  await stagehand.act("Click the 'Evals' button.");
+
+  const observeResult = await stagehand.observe("What can I click on this page?");
+  console.log("Observe result:\n", observeResult.data);
+
+  await stagehand.close();
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
 import asyncio
 import os
@@ -102,74 +125,181 @@ from pydantic import BaseModel
 from stagehand import Stagehand
 
 
-class PageInfo(BaseModel):
-    heading: str
-    description: str
+class ValueProposition(BaseModel):
+    value_proposition: str
 
 
 async def main() -> None:
     stagehand = Stagehand(
-        browser="local",
-        headless=True,
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        browser="browserbase",
         model="openai/gpt-5.4-mini",
         model_api_key=os.environ["OPENAI_API_KEY"],
     )
 
-    try:
-        await stagehand.init()
+    await stagehand.init()
 
-        page = await stagehand.context.new_page()
-        await page.goto("https://example.com")
+    print("Stagehand session started")
 
-        # Observe: discover candidate actions before acting.
-        actions = await stagehand.observe(
-            instruction="Find the link that provides more information about Example Domain",
-        )
-        print(actions.data)
+    page = await stagehand.context.active_page()
+    if page is None:
+        raise RuntimeError("Stagehand initialized without an active page")
 
-        # Act: perform a natural-language action.
-        result = await stagehand.act(
-            "Click the link that provides more information about Example Domain"
-        )
-        if not result.data.success:
-            raise RuntimeError(f"act() failed: {result.data.message}")
+    await page.goto("https://stagehand.dev")
 
-        # Extract: pull structured, typed data.
-        info = await stagehand.extract(
-            instruction="Extract the page heading and description",
-            schema=PageInfo,
-        )
-        print(info.data)
-    finally:
-        await stagehand.close()
+    extract_result = await stagehand.extract(
+        instruction="Extract the value proposition from the page.",
+        schema=ValueProposition,
+    )
+    print("Extract result:\n", extract_result.data)
+
+    await stagehand.act("Click the 'Evals' button.")
+
+    observe_result = await stagehand.observe(instruction="What can I click on this page?")
+    print("Observe result:\n", observe_result.data)
+
+    await stagehand.close()
 
 
 asyncio.run(main())
 ```
-
-## 4. Run it
-
-```bash
-python quickstart.py
-```
-
 </View>
 
-You should see the observed actions, a successful `act()` result, and the extracted
-heading and description printed to your console.
+<View title="Go" icon="golang">
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+type valueProposition struct {
+	ValueProposition string `json:"value_proposition"`
+}
+
+var valuePropositionSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"value_proposition": {"type": "string"}},
+  "required": ["value_proposition"],
+  "additionalProperties": false
+}`)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	modelAPIKey := os.Getenv("OPENAI_API_KEY")
+	model := stagehand.KnownModel(stagehand.KnownModelConfig{
+		ModelName: "openai/gpt-5.4-mini",
+		APIKey:    &modelAPIKey,
+	})
+
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		APIKey:  &apiKey,
+		Browser: stagehand.BrowserbaseClientBrowserSource{},
+		Model:   &model,
+	})
+
+	if err := client.Init(ctx); err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	fmt.Println("Stagehand session started")
+
+	browserContext, err := client.Context()
+	if err != nil {
+		return err
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		return err
+	}
+	if page == nil {
+		return errors.New("Stagehand initialized without an active page")
+	}
+
+	if err := page.Goto(ctx, "https://stagehand.dev", nil); err != nil {
+		return err
+	}
+
+	extracted, err := stagehand.ExtractAs[valueProposition](
+		ctx,
+		client,
+		"Extract the value proposition from the page.",
+		valuePropositionSchema,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Extract result:\n%+v\n", extracted)
+
+	if _, err := client.Act(ctx, "Click the 'Evals' button.", nil); err != nil {
+		return err
+	}
+
+	instruction := "What can I click on this page?"
+	observeResult, err := client.Observe(ctx, &instruction, nil)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Observe result:\n%+v\n", observeResult.Data)
+
+	return nil
+}
+```
+</View>
+
+<Tip>
+Prefer to run against a browser on your own machine while you develop? Swap the browser source for a local one and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
+</Tip>
 
 ## Next steps
 
 Learn about the Stagehand primitives: act, extract, and observe.
 
-<CardGroup cols="2">
-  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
-    Perform actions on pages with natural language.
+<CardGroup cols={2}>
+  <Card
+    title="Act"
+    icon="arrow-pointer"
+    href="/v4/basics/act"
+  >
+    Perform actions on web pages with natural language
   </Card>
-  <Card title="Extract" icon="download" href="/v4/basics/extract">
-    Pull typed data with schemas.
+
+  <Card
+    title="Extract"
+    icon="download"
+    href="/v4/basics/extract"
+  >
+    Get structured data with typed schemas
   </Card>
-  <Card title="Observe" icon="eye" href="/v4/basics/observe">
-    Plan actions before executing them.
+
+  <Card
+    title="Observe"
+    icon="eye"
+    href="/v4/basics/observe"
+  >
+    Discover available elements and actions
+  </Card>
+
+  <Card
+    title="Installation"
+    icon="download"
+    href="/v4/first-steps/installation"
+  >
+    Add Stagehand to an existing project
   </Card>
 </CardGroup>
