@@ -39,9 +39,8 @@ to a callback.
 
 ## Forward structured logs
 
-Use `onLog` in TypeScript or `on_log` in Python to send each displayed log to a file or your
-application logger. The callback is additive: Stagehand continues to write its normal terminal
-output.
+Use `onLog` to send each displayed log to a file or your application logger. The callback is
+additive: Stagehand continues to write its normal terminal output.
 
 ```typescript
 import { createWriteStream } from "node:fs";
@@ -88,9 +87,8 @@ to a callback.
 
 ## Forward structured logs
 
-Use `onLog` in TypeScript or `on_log` in Python to send each displayed log to a file or your
-application logger. The callback is additive: Stagehand continues to write its normal terminal
-output.
+Use `on_log` to send each displayed log to a file or your application logger. The callback is
+additive: Stagehand continues to write its normal terminal output.
 
 ```python
 from stagehand import Stagehand, StagehandClientLoggingConfig
@@ -106,6 +104,55 @@ stagehand = Stagehand(
         on_log=lambda log: print(log.model_dump_json(), file=log_file),
     ),
 )
+```
+
+</View>
+
+<View title="Go" icon="go">
+
+```go
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	// ...
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
+	},
+})
+```
+
+| Option   | Default  | Values                                  |
+| -------- | -------- | --------------------------------------- |
+| `Level`  | `info`   | `debug`, `info`, `warn`, `error`, `off` |
+| `Format` | `pretty` | `pretty`, `json`                        |
+
+`Format` only changes the built-in terminal output. It does not change structured logs passed
+to a callback.
+
+## Forward structured logs
+
+Use `OnLog` to send each displayed log to a file or your application logger. The callback is
+additive: Stagehand continues to write its normal terminal output.
+
+```go
+logFile, err := os.OpenFile(
+	"stagehand.jsonl",
+	os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+	0o600,
+)
+if err != nil {
+	return err
+}
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	// ...
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
+		OnLog: func(log stagehand.StagehandLog) {
+			_ = json.NewEncoder(logFile).Encode(log)
+		},
+	},
+})
 ```
 
 </View>

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -46,6 +48,7 @@ type clientAdapters struct {
 		context.Context,
 		resolvedBrowserSource,
 		TelemetryConfig,
+		RuntimeConfigureParamsLogLevel,
 	) (protocolClient, error)
 }
 
@@ -63,6 +66,7 @@ func configureProtocol(
 	rpc protocolClient,
 	browser resolvedBrowserSource,
 	telemetry TelemetryConfig,
+	logLevel RuntimeConfigureParamsLogLevel,
 ) error {
 	protocolVersion := stagehandProtocolVersion
 	params := RuntimeConfigureParams{
@@ -72,8 +76,69 @@ func configureProtocol(
 			Version: stagehandSDKVersion,
 		},
 		CDPURL:    browser.cdpURL,
+		LogLevel:  logLevel,
 		Telemetry: telemetry,
 	}
 	var result RuntimeConfigureResult
 	return rpc.call(ctx, "runtime.configure", params, &result)
+}
+
+type resolvedStagehandClientLoggingConfig struct {
+	level  StagehandClientLogLevel
+	format StagehandClientLogFormat
+	onLog  func(StagehandLog)
+	writer io.Writer
+}
+
+func resolveLoggingConfig(
+	config *StagehandClientLoggingConfig,
+	writer io.Writer,
+) (resolvedStagehandClientLoggingConfig, error) {
+	resolved := resolvedStagehandClientLoggingConfig{
+		level:  StagehandClientLogLevelInfo,
+		format: StagehandClientLogFormatPretty,
+		writer: writer,
+	}
+	if config != nil {
+		if config.Level != "" {
+			resolved.level = config.Level
+		}
+		if config.Format != "" {
+			resolved.format = config.Format
+		}
+		resolved.onLog = config.OnLog
+	}
+	if !validClientLogLevel(resolved.level) {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging level %q",
+			resolved.level,
+		)
+	}
+	if resolved.format != StagehandClientLogFormatPretty &&
+		resolved.format != StagehandClientLogFormatJSON {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging format %q",
+			resolved.format,
+		)
+	}
+	return resolved, nil
+}
+
+func validClientLogLevel(level StagehandClientLogLevel) bool {
+	switch level {
+	case StagehandClientLogLevelOff,
+		StagehandClientLogLevelError,
+		StagehandClientLogLevelWarn,
+		StagehandClientLogLevelInfo,
+		StagehandClientLogLevelDebug:
+		return true
+	default:
+		return false
+	}
+}
+
+func runtimeLogLevel(
+	level StagehandClientLogLevel,
+) RuntimeConfigureParamsLogLevel {
+	return RuntimeConfigureParamsLogLevel(level)
 }
