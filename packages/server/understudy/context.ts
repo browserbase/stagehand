@@ -181,14 +181,7 @@ export class V3Context {
         opts.fallbackLocatorScriptSource,
       );
       await ctx.bootstrap();
-      // Allow connectTimeoutMs to also govern how long we wait for the first
-      // top-level page to appear.  On slow machines the browser may need more
-      // time after the CDP socket is open before the initial page registers.
-      const firstPageTimeoutMs = Math.max(
-        opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-        DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
-      );
-      await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+      await ctx.ensureFirstTopLevelPage(DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS);
       return ctx;
     };
 

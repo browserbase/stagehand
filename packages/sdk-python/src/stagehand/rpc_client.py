@@ -95,12 +95,8 @@ class RPCError(RuntimeError):
 
 
 class RPCClient:
-    def __init__(self, transport: _Transport, *, request_timeout_ms: int = 10_000) -> None:
-        if request_timeout_ms <= 0:
-            raise ValueError("request_timeout_ms must be positive")
-
+    def __init__(self, transport: _Transport) -> None:
         self._transport = transport
-        self._request_timeout_seconds = request_timeout_ms / 1_000
         self._next_request_id = 1
         self._pending: dict[
             int,
@@ -172,17 +168,13 @@ class RPCClient:
         )
 
         try:
-            async with asyncio.timeout(self._request_timeout_seconds):
-                await self._transport.send(
-                    cast(
-                        dict[str, object],
-                        request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
-                    )
+            await self._transport.send(
+                cast(
+                    dict[str, object],
+                    request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
                 )
-                result = await response
-                return result
-        except TimeoutError as error:
-            raise TimeoutError(f"RPC request timed out: {method}") from error
+            )
+            return await response
         finally:
             self._pending.pop(request_id, None)
             if not response.done():
@@ -491,9 +483,6 @@ async def connect_rpc_client(
     extension_dir: str | None = None,
     extension_id: str | None = None,
     service_worker_url_includes: str | None = None,
-    discovery_timeout_ms: int = 10_000,
-    command_timeout_ms: int = 10_000,
-    cdp_connect_timeout_ms: int = 10_000,
     telemetry: models.TelemetryConfig | None = None,
     log_level: str = "info",
 ) -> RPCClient:
@@ -504,11 +493,8 @@ async def connect_rpc_client(
         extension_dir=extension_dir,
         extension_id=extension_id,
         service_worker_url_includes=service_worker_url_includes,
-        discovery_timeout_ms=discovery_timeout_ms,
-        command_timeout_ms=command_timeout_ms,
-        cdp_connect_timeout_ms=cdp_connect_timeout_ms,
     )
-    client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
+    client = RPCClient(cdp)
     configure = models.RuntimeConfigureParams(
         client_info=_STAGEHAND_SDK_CLIENT_INFO,
         cdp_url=cdp.web_socket_debugger_url,

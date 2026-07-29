@@ -107,7 +107,6 @@ class LocalBrowserSource(WireModel):
     device_scale_factor: float | None = None
     has_touch: bool | None = None
     ignore_https_errors: bool | None = None
-    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
     downloads_path: str | None = None
     accept_downloads: bool | None = None
     keep_alive: bool | None = None

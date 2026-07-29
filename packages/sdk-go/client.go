@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 )
 
 var (
@@ -34,7 +33,6 @@ type resolvedBrowserSource struct {
 	browserbaseSessionID string
 	extensionDir         string
 	preloadedExtension   bool
-	connectTimeout       time.Duration
 	keepAlive            bool
 	close                func(context.Context) error
 	cleanup              func() error

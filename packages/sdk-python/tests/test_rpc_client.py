@@ -395,15 +395,32 @@ async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
 
 
 @pytest.mark.asyncio
-async def test_timeout_and_transport_close_reject_pending_requests() -> None:
-    timeout_transport = QueueTransport()
-    timeout_client = RPCClient(timeout_transport, request_timeout_ms=10)
-    try:
-        with pytest.raises(TimeoutError, match="RPC request timed out: ping"):
-            await timeout_client.send("ping", models.EmptyParams(), models.StagehandPingResult)
-    finally:
-        await timeout_client.close()
+async def test_pending_request_waits_for_response_without_rpc_deadline() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send("ping", models.EmptyParams(), models.StagehandPingResult)
+    )
+    request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+    await asyncio.sleep(0.02)
+    assert call.done() is False
 
+    await transport.incoming.put({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {"ok": True, "runtime": "service_worker"},
+    })
+    try:
+        assert await asyncio.wait_for(call, timeout=1) == models.StagehandPingResult(
+            ok=True,
+            runtime="service_worker",
+        )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_transport_close_rejects_pending_requests() -> None:
     failing_transport = FailingReceiveTransport()
     failing_client = RPCClient(failing_transport)
     call = asyncio.create_task(
@@ -467,9 +484,6 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
         cdp_url="http://localhost:9222",
         extension_id="stagehand-extension",
         service_worker_url_includes="service-worker.js",
-        discovery_timeout_ms=1_001,
-        command_timeout_ms=1_002,
-        cdp_connect_timeout_ms=1_003,
     )
 
     try:
@@ -478,9 +492,6 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "extension_dir": None,
             "extension_id": "stagehand-extension",
             "service_worker_url_includes": "service-worker.js",
-            "discovery_timeout_ms": 1_001,
-            "command_timeout_ms": 1_002,
-            "cdp_connect_timeout_ms": 1_003,
         }
         transport = FakeCDPClient.instances[-1]
         assert transport.sent[0] == {

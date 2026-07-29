@@ -20,9 +20,8 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	defer cancel()
 	client := New(StagehandClientInitParams{
 		Browser: LocalBrowserSource{
-			ExecutablePath:   chromePath,
-			Headless:         true,
-			ConnectTimeoutMs: 15_000,
+			ExecutablePath: chromePath,
+			Headless:       true,
 		},
 	})
 	closeStagehandAfterTest(t, client)
@@ -47,9 +46,8 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	launched, err := launchChrome(ctx, LocalBrowserSource{
-		ExecutablePath:   chromePath,
-		Headless:         true,
-		ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath,
+		Headless:       true,
 	})
 	if err != nil {
 		t.Fatalf("launch Chrome for existing CDP source: %v", err)

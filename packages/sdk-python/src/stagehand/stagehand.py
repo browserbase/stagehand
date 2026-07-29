@@ -97,7 +97,6 @@ class Stagehand:
         device_scale_factor: float | None = None,
         has_touch: bool | None = None,
         ignore_https_errors: bool | None = None,
-        connect_timeout_ms: int | None = None,
         downloads_path: str | Path | None = None,
         accept_downloads: bool | None = None,
         keep_alive: bool | None = None,
@@ -192,7 +191,6 @@ class Stagehand:
         device_scale_factor: float | None = None,
         has_touch: bool | None = None,
         ignore_https_errors: bool | None = None,
-        connect_timeout_ms: int | None = None,
         downloads_path: str | Path | None = None,
         accept_downloads: bool | None = None,
         keep_alive: bool | None = None,
@@ -296,7 +294,6 @@ class Stagehand:
                         ("device_scale_factor", device_scale_factor),
                         ("has_touch", has_touch),
                         ("ignore_https_errors", ignore_https_errors),
-                        ("connect_timeout_ms", connect_timeout_ms),
                         (
                             "downloads_path",
                             str(downloads_path) if downloads_path is not None else None,
@@ -427,7 +424,6 @@ class Stagehand:
                     cdp_url=browser.cdp_url,
                     extension_dir=str(extension_dir),
                     service_worker_url_includes="service-worker.js",
-                    cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
                     telemetry=self.init_params.telemetry,
                     log_level=self.init_params.logging.level,
                 )

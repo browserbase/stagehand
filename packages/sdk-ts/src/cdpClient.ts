@@ -13,6 +13,8 @@ import {
 
 type JsonObject = Record<string, unknown>;
 
+const CDP_COMMAND_TIMEOUT_MS = 10_000;
+
 type TargetInfo = {
   targetId: string;
   type: string;
@@ -33,9 +35,6 @@ export type CDPClientOptions = {
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
-  discoveryTimeoutMs: number;
-  commandTimeoutMs: number;
-  cdpConnectTimeoutMs: number;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
 };
@@ -152,7 +151,6 @@ export class CDPClient {
   constructor(
     readonly socket: WebSocket,
     webSocketDebuggerUrl: string,
-    readonly commandTimeoutMs: number,
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
@@ -174,14 +172,15 @@ export class CDPClient {
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
-      timeout: options.cdpConnectTimeoutMs,
+      timeout: CDP_COMMAND_TIMEOUT_MS,
     });
     const socket = new WebSocket(webSocketDebuggerUrl);
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
+        socket.close();
         reject(new Error("Timed out opening CDP WebSocket"));
-      }, options.cdpConnectTimeoutMs);
+      }, CDP_COMMAND_TIMEOUT_MS);
 
       socket.addEventListener(
         "open",
@@ -202,7 +201,7 @@ export class CDPClient {
       );
     });
 
-    const client = new CDPClient(socket, webSocketDebuggerUrl, options.commandTimeoutMs);
+    const client = new CDPClient(socket, webSocketDebuggerUrl);
 
     try {
       let serviceWorker: TargetInfo;
@@ -212,7 +211,7 @@ export class CDPClient {
       if (options.preloadedExtension) {
         const discovered = await waitForPreloadedStagehandServiceWorker(client, {
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
+          timeout: CDP_COMMAND_TIMEOUT_MS,
           runtimeRequirement: options.runtimeRequirement,
           allowFallbackInstall: options.allowFallbackInstall,
         });
@@ -226,7 +225,7 @@ export class CDPClient {
         serviceWorker = await waitForServiceWorker(client, {
           extensionId,
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
+          timeout: CDP_COMMAND_TIMEOUT_MS,
         });
         attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
           targetId: serviceWorker.targetId,
@@ -249,7 +248,7 @@ export class CDPClient {
         attached.sessionId,
       );
       await waitForRuntimeReady(client, attached.sessionId, {
-        timeout: options.discoveryTimeoutMs,
+        timeout: CDP_COMMAND_TIMEOUT_MS,
         runtimeRequirement: options.runtimeRequirement,
         allowFallbackInstall: options.allowFallbackInstall,
       });
@@ -280,7 +279,6 @@ export class CDPClient {
         returnByValue: true,
       },
       this.sessionId,
-      this.commandTimeoutMs,
     );
 
     if (evaluated.exceptionDetails) {
@@ -296,7 +294,6 @@ export class CDPClient {
     method: string,
     params: JsonObject = {},
     sessionId?: string,
-    timeout = 10_000,
   ): Promise<Result> {
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
@@ -309,7 +306,7 @@ export class CDPClient {
       const timeoutId = setTimeout(() => {
         this.pending.delete(id);
         reject(new Error(`CDP command timed out: ${method}`));
-      }, timeout);
+      }, CDP_COMMAND_TIMEOUT_MS);
 
       this.pending.set(id, {
         method,
@@ -662,7 +659,7 @@ export async function resolveBrowserWebSocketUrl(
 ): Promise<string> {
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;
 
-  const timeout = options.timeout ?? 10_000;
+  const timeout = options.timeout ?? CDP_COMMAND_TIMEOUT_MS;
   const pollIntervalMs = options.pollIntervalMs ?? 250;
   const fetchFn = options.fetchFn ?? fetch;
   const delayFn = options.delayFn ?? delay;

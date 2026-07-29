@@ -28,7 +28,6 @@ type LocalBrowserSource struct {
 	DeviceScaleFactor   *float64
 	HasTouch            bool
 	IgnoreHTTPSErrors   bool
-	ConnectTimeoutMs    int
 	DownloadsPath       string
 	AcceptDownloads     *bool
 	KeepAlive           bool

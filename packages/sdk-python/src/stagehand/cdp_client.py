@@ -15,6 +15,8 @@ STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
 _MINIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
 _MAXIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
+_CDP_COMMAND_TIMEOUT_MS = 10_000
+_CDP_COMMAND_TIMEOUT_SECONDS = _CDP_COMMAND_TIMEOUT_MS / 1_000
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
 # drift. All judgement happens here rather than in the page.
@@ -79,14 +81,9 @@ class CDPClient:
         self,
         socket: _WebSocket,
         web_socket_debugger_url: str,
-        command_timeout_ms: int,
     ) -> None:
-        if command_timeout_ms <= 0:
-            raise ValueError("command_timeout_ms must be positive")
-
         self.web_socket_debugger_url = web_socket_debugger_url
         self._socket = socket
-        self._command_timeout_seconds = command_timeout_ms / 1_000
         self._next_id = 1
         self._pending: dict[int, tuple[str, asyncio.Future[object]]] = {}
         self._incoming: asyncio.Queue[object] = asyncio.Queue()
@@ -103,19 +100,16 @@ class CDPClient:
         extension_dir: str | None = None,
         extension_id: str | None = None,
         service_worker_url_includes: str | None = None,
-        discovery_timeout_ms: int = 10_000,
-        command_timeout_ms: int = 10_000,
-        cdp_connect_timeout_ms: int = 10_000,
     ) -> CDPClient:
         if bool(extension_dir) == bool(extension_id):
             raise ValueError("Exactly one of extension_dir or extension_id is required")
 
         web_socket_debugger_url = await _resolve_browser_web_socket_url(
             cdp_url,
-            cdp_connect_timeout_ms,
+            _CDP_COMMAND_TIMEOUT_MS,
         )
-        socket = await _connect_web_socket(web_socket_debugger_url, cdp_connect_timeout_ms)
-        client = cls(socket, web_socket_debugger_url, command_timeout_ms)
+        socket = await _connect_web_socket(web_socket_debugger_url, _CDP_COMMAND_TIMEOUT_MS)
+        client = cls(socket, web_socket_debugger_url)
 
         try:
             resolved_extension_id = extension_id
@@ -125,7 +119,7 @@ class CDPClient:
             worker = await client._wait_for_service_worker(
                 resolved_extension_id,
                 service_worker_url_includes or "service-worker.js",
-                discovery_timeout_ms,
+                _CDP_COMMAND_TIMEOUT_MS,
             )
             attached = await client.send_command(
                 "Target.attachToTarget",
@@ -147,7 +141,7 @@ class CDPClient:
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
             )
-            await client._wait_for_runtime_ready(session_id, discovery_timeout_ms)
+            await client._wait_for_runtime_ready(session_id, _CDP_COMMAND_TIMEOUT_MS)
             return client
         except BaseException:
             await client.close()
@@ -201,16 +195,9 @@ class CDPClient:
         params: Mapping[str, object] | None = None,
         *,
         session_id: str | None = None,
-        timeout_ms: int | None = None,
     ) -> dict[str, object]:
         if self._closed:
             raise RuntimeError("CDP client is closed")
-
-        timeout_seconds = (
-            self._command_timeout_seconds if timeout_ms is None else timeout_ms / 1_000
-        )
-        if timeout_seconds <= 0:
-            raise ValueError("timeout_ms must be positive")
 
         command_id = self._next_id
         self._next_id += 1
@@ -226,7 +213,10 @@ class CDPClient:
 
         try:
             await self._socket.send(json.dumps(message, separators=(",", ":")))
-            result = await asyncio.wait_for(asyncio.shield(response), timeout_seconds)
+            result = await asyncio.wait_for(
+                asyncio.shield(response),
+                _CDP_COMMAND_TIMEOUT_SECONDS,
+            )
         except TimeoutError as error:
             if not response.done():
                 response.cancel()

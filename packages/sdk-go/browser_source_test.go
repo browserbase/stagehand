@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 )
 
 type recordingBrowserbaseSessionCreator struct {
@@ -80,10 +79,7 @@ func TestResolveBrowserSourceSupportsEveryClientMode(t *testing.T) {
 		cleanupCalls := 0
 		launchCalls := 0
 		closeCalls := 0
-		source := LocalBrowserSource{
-			Headless:         true,
-			ConnectTimeoutMs: 2_500,
-		}
+		source := LocalBrowserSource{Headless: true}
 
 		resolved, err := resolveBrowserSourceWithDependencies(
 			context.Background(),
@@ -121,9 +117,6 @@ func TestResolveBrowserSourceSupportsEveryClientMode(t *testing.T) {
 		}
 		if resolved.extensionDir != "/tmp/stagehand-extension" {
 			t.Fatalf("extensionDir = %q", resolved.extensionDir)
-		}
-		if resolved.connectTimeout != 2_500*time.Millisecond {
-			t.Fatalf("connectTimeout = %s", resolved.connectTimeout)
 		}
 		if err := resolved.close(context.Background()); err != nil {
 			t.Fatalf("close() error = %v", err)

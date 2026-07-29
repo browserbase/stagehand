@@ -218,7 +218,6 @@ func TestValidateLocalBrowserOptions(t *testing.T) {
 	}{
 		{name: "negative port", options: LocalBrowserSource{Port: -1}},
 		{name: "large port", options: LocalBrowserSource{Port: 65_536}},
-		{name: "negative timeout", options: LocalBrowserSource{ConnectTimeoutMs: -1}},
 		{name: "empty viewport", options: LocalBrowserSource{Viewport: &LocalViewport{}}},
 		{
 			name: "negative scale",
@@ -361,9 +360,8 @@ func TestLaunchLocalBrowserAgainstInstalledChrome(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	launched, err := launchChrome(ctx, LocalBrowserSource{
-		ExecutablePath:   chromePath,
-		Headless:         true,
-		ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath,
+		Headless:       true,
 	})
 	if err != nil {
 		t.Fatalf("launchLocalBrowser() error = %v", err)

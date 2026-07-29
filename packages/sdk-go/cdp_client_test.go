@@ -211,7 +211,7 @@ func TestCoderWebSocketDialCarriesHeadersAndCDPCommands(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dialCDPWebSocket() error = %v", err)
 	}
-	client := newTestCDPClient(t, socket, webSocketURL, time.Second)
+	client := newTestCDPClient(t, socket, webSocketURL)
 
 	var version struct {
 		Product         string `json:"product"`
@@ -274,13 +274,10 @@ func TestCDPClientInitializesLoadedExtension(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	options := normalizeCDPClientOptions(cdpClientOptions{
-		extensionDir:     "/tmp/stagehand-extension",
-		discoveryTimeout: time.Second,
-		commandTimeout:   time.Second,
-		pollInterval:     time.Millisecond,
+		extensionDir: "/tmp/stagehand-extension",
+		pollInterval: time.Millisecond,
 	})
 	if err := client.initialize(context.Background(), options); err != nil {
 		t.Fatalf("initialize() error = %v", err)
@@ -348,12 +345,9 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		t,
 		socket,
 		"wss://connect.browserbase.example/devtools/browser/test",
-		time.Second,
 	)
 	options := normalizeCDPClientOptions(cdpClientOptions{
 		preloadedExtension: true,
-		discoveryTimeout:   time.Second,
-		commandTimeout:     time.Second,
 		pollInterval:       time.Millisecond,
 	})
 	if err := client.initialize(context.Background(), options); err != nil {
@@ -394,7 +388,6 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	client.mu.Lock()
 	client.sessionID = "worker-session"
@@ -449,7 +442,6 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		t,
 		timeoutSocket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	var ignored map[string]any
 	err := timeoutClient.sendCommand(
@@ -485,7 +477,6 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		t,
 		errorSocket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	err = errorClient.sendCommand(
 		context.Background(),
@@ -537,7 +528,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -590,7 +580,6 @@ func TestCDPClientCloseRejectsPendingAndReceive(t *testing.T) {
 	client, err := newCDPClient(
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
@@ -632,7 +621,6 @@ func TestCDPClientInvalidMessageClosesConnection(t *testing.T) {
 	client, err := newCDPClient(
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
@@ -669,7 +657,6 @@ func TestCDPClientExplainsUnavailableExtensionLoading(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	_, err := client.loadUnpackedExtension(context.Background(), "/tmp/stagehand-extension")
 	if err == nil || !strings.Contains(err.Error(), "launch with --load-extension") {
@@ -703,7 +690,7 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("dial browser WebSocket: %v", err)
 	}
-	client := newTestCDPClient(t, socket, webSocketURL, 5*time.Second)
+	client := newTestCDPClient(t, socket, webSocketURL)
 
 	var version struct {
 		Product         string `json:"product"`
@@ -732,12 +719,9 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	}
 
 	options := cdpClientOptions{
-		cdpURL:           cdpURL,
-		connectTimeout:   5 * time.Second,
-		commandTimeout:   5 * time.Second,
-		discoveryTimeout: 10 * time.Second,
-		extensionDir:     os.Getenv("STAGEHAND_GO_EXTENSION_DIR"),
-		extensionID:      os.Getenv("STAGEHAND_GO_EXTENSION_ID"),
+		cdpURL:       cdpURL,
+		extensionDir: os.Getenv("STAGEHAND_GO_EXTENSION_DIR"),
+		extensionID:  os.Getenv("STAGEHAND_GO_EXTENSION_ID"),
 	}
 	rpc, err := connectRPCClient(
 		context.Background(),
@@ -780,10 +764,9 @@ func newTestCDPClient(
 	t *testing.T,
 	socket cdpWebSocket,
 	webSocketURL string,
-	timeout time.Duration,
 ) *cdpClient {
 	t.Helper()
-	client, err := newCDPClient(socket, webSocketURL, timeout)
+	client, err := newCDPClient(socket, webSocketURL)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
 	}

@@ -20,10 +20,9 @@ import (
 )
 
 const (
-	defaultChromeWidth         = 1280
-	defaultChromeHeight        = 800
-	defaultChromeLaunchTimeout = 10 * time.Second
-	chromePollInterval         = 100 * time.Millisecond
+	defaultChromeWidth  = 1280
+	defaultChromeHeight = 800
+	chromePollInterval  = 100 * time.Millisecond
 )
 
 // Copyright 2017 Google Inc. All Rights Reserved.
@@ -169,7 +168,7 @@ func launchChrome(
 		process:     process,
 		removeDir:   removeDir,
 	}
-	if err := waitForChrome(ctx, launched.cdpURL, process, chromeLaunchTimeout(options)); err != nil {
+	if err := waitForChrome(ctx, launched.cdpURL, process, cdpCommandTimeout); err != nil {
 		return nil, errors.Join(err, launched.close(context.Background()))
 	}
 	return launched, nil
@@ -178,9 +177,6 @@ func launchChrome(
 func validateLocalBrowserOptions(options LocalBrowserSource) error {
 	if options.Port < 0 || options.Port > 65_535 {
 		return errors.New("stagehand Chrome port must be 0 or between 1 and 65535")
-	}
-	if options.ConnectTimeoutMs < 0 {
-		return errors.New("stagehand Chrome connect timeout cannot be negative")
 	}
 	if options.Viewport != nil && (options.Viewport.Width <= 0 || options.Viewport.Height <= 0) {
 		return errors.New("stagehand Chrome viewport dimensions must be positive")
@@ -365,13 +361,6 @@ func availablePort() (int, error) {
 	defer listener.Close()
 	port := listener.Addr().(*net.TCPAddr).Port
 	return port, nil
-}
-
-func chromeLaunchTimeout(options LocalBrowserSource) time.Duration {
-	if options.ConnectTimeoutMs > 0 {
-		return time.Duration(options.ConnectTimeoutMs) * time.Millisecond
-	}
-	return defaultChromeLaunchTimeout
 }
 
 func waitForChrome(

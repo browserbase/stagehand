@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
 )
@@ -141,9 +140,6 @@ func resolveLocalSource(
 	}
 	resolved.extensionDir = extensionDir
 	resolved.cleanup = cleanup
-	if source.ConnectTimeoutMs > 0 {
-		resolved.connectTimeout = time.Duration(source.ConnectTimeoutMs) * time.Millisecond
-	}
 	return resolved, nil
 }
 
@@ -213,6 +209,5 @@ func connectResolvedBrowser(
 		extensionDir:             browser.extensionDir,
 		preloadedExtension:       browser.preloadedExtension,
 		serviceWorkerURLIncludes: "service-worker.js",
-		connectTimeout:           browser.connectTimeout,
 	}, telemetry)
 }

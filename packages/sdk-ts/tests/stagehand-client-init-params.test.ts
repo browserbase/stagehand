@@ -136,6 +136,17 @@ describe("Stagehand client browser sources", () => {
     });
   });
 
+  it("rejects the removed local browser connect timeout", () => {
+    expect(() =>
+      StagehandClientInitParamsSchema.parse({
+        browser: {
+          type: "local",
+          connectTimeoutMs: 10_000,
+        },
+      }),
+    ).toThrow();
+  });
+
   it("connects to an existing browser from flattened CDP settings", () => {
     expect(
       StagehandClientInitParamsSchema.parse({

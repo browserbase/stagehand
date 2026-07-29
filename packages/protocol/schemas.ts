@@ -993,7 +993,6 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
     keepAlive: z.boolean().optional(),

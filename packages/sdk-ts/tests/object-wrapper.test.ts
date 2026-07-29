@@ -16,19 +16,16 @@ class FakeProtocolClient extends RPCClient {
   responses = new Map<string, unknown[]>();
 
   constructor() {
-    super(
-      {
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
+    super({
+      serviceWorker: {
+        targetId: "worker-target",
+        url: "chrome-extension://stagehand/service-worker.js",
+        title: "Stagehand",
+        extensionId: "stagehand",
       },
-      1_000,
-    );
+      send: async () => {},
+      close: () => {},
+    });
     this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 

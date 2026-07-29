@@ -37,6 +37,13 @@ def test_client_configuration_rejects_unknown_sdk_options() -> None:
         })
 
 
+def test_client_configuration_rejects_removed_connect_timeout() -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        StagehandClientInitParams.model_validate({
+            "browser": {"type": "local", "connect_timeout_ms": 10_000}
+        })
+
+
 def test_client_logging_uses_info_and_pretty_output_by_default() -> None:
     params = StagehandClientInitParams.model_validate({"browser": {"type": "local"}})
 

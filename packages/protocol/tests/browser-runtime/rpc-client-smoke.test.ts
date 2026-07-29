@@ -32,8 +32,6 @@ describe("Stagehand service worker RPC client smoke", () => {
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
       extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
-      discoveryTimeoutMs: 15_000,
-      commandTimeoutMs: 15_000,
       logLevel: "debug",
     });
   }, 45_000);

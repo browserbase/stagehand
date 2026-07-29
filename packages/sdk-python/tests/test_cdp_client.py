@@ -161,7 +161,7 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 @pytest.mark.asyncio
 async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
     socket = FakeWebSocket(lambda _: {"result": {}})
-    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test", 1_000)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     client._session_id = "worker-session"
 
     try:
@@ -205,10 +205,14 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
 @pytest.mark.asyncio
 async def test_commands_time_out_and_are_removed() -> None:
     socket = FakeWebSocket(lambda _: None)
-    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test", 5)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
 
     try:
-        with pytest.raises(TimeoutError, match="CDP command timed out: Target.getTargets"):
+        with (
+            pytest.MonkeyPatch.context() as monkeypatch,
+            pytest.raises(TimeoutError, match="CDP command timed out: Target.getTargets"),
+        ):
+            monkeypatch.setattr(cdp_client, "_CDP_COMMAND_TIMEOUT_SECONDS", 0.005)
             await client.send_command("Target.getTargets")
         assert client._pending == {}
     finally:

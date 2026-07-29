@@ -47,7 +47,6 @@ class ResolvedBrowserSource:
     cdp_url: str
     keep_alive: bool
     cdp_headers: dict[str, str] | None = None
-    connect_timeout_ms: int | None = None
     _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
 
@@ -161,7 +160,6 @@ async def _launch_local_browser(options: LocalBrowserSource) -> ResolvedBrowserS
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
         keep_alive=options.keep_alive or False,
-        connect_timeout_ms=options.connect_timeout_ms,
         _close_callback=close,
     )
 
