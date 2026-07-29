@@ -14,7 +14,7 @@ export default defineBenchV4Task(
       );
       await stagehand.act("click the button");
 
-      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
+      // v3 used schemaless extract; v4 requires a schema.
       // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const { data: extraction } = await stagehand.extract(
         "extract the entire page text",

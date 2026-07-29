@@ -7,7 +7,7 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       // NOTE: v3 passes a bare XPath here; v4 documents options.selector as
-      // CSS-only (V4_API_LOGS.md #10). Ported verbatim on purpose.
+      // CSS-only. Ported verbatim on purpose.
       const selector = "/html/body/div/ul[5]/li[28]";
       const { data: company } = await stagehand.extract(
         "Extract the company name.",

@@ -1,4 +1,3 @@
-import { replayObservedAction } from "../../../framework/observeReplay.js";
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
 export default defineBenchV4Task(
@@ -12,13 +11,13 @@ export default defineBenchV4Task(
 
       if (observation1.length > 0) {
         const action1 = observation1[0];
-        await replayObservedAction(page, action1);
+        await stagehand.act(action1);
       }
       const { data: observation2 } = await stagehand.observe("Press enter");
 
       if (observation2.length > 0) {
         const action2 = observation2[0];
-        await replayObservedAction(page, action2);
+        await stagehand.act(action2);
       }
       await new Promise((resolve) => setTimeout(resolve, 3000));
 

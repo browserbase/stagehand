@@ -17,7 +17,7 @@ export default defineBenchV4Task(
       const page1 = pages[0];
       const page2 = pages[1];
 
-      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
+      // v3 used schemaless extract; v4 requires a schema.
 
       // extract all the text from the first page
       const { data: extraction1 } = await stagehand.extract(

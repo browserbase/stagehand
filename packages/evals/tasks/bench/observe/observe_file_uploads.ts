@@ -22,7 +22,7 @@ export default defineBenchV4Task(
       const expectedLocator = `xpath=/html/body/input`;
 
       // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // so the same element-identity check is
       // re-expressed in-page: resolve the observed selector and the expected
       // selector and compare element references.
       const foundMatch = await page.evaluate(

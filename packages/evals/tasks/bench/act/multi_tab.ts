@@ -57,7 +57,7 @@ export default defineBenchV4Task(
       // V4 GAP: extract has no { page } option (v3:
       // v3.extract({ page: activePage })) — the target page is already the
       // active page here, so extract operates on it. v3 also used schemaless
-      // extract (V4_API_LOGS #2); v4 requires a schema. Single-word key to
+      // extract; v4 requires a schema. Single-word key to
       // stay clear of the snake_case wire-casing bug (#14).
       const { data: page2text } = await stagehand.extract(
         "extract the entire page text",

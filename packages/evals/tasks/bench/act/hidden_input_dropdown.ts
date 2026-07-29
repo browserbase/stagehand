@@ -25,7 +25,7 @@ export default defineBenchV4Task(
       // a11y tree.
 
       // to test, we'll grab the full a11y tree, and make sure it contains 'Green'
-      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
+      // v3 used schemaless extract; v4 requires a schema.
       // Single-word key to stay clear of the snake_case wire-casing bug (#14).
       const { data: extraction } = await stagehand.extract(
         "extract the entire page text",
