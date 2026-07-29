@@ -605,6 +605,12 @@ class FieldSchema10(
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
+class FieldSchema11(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -696,7 +702,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema10] = None
+    data: Optional[FieldSchema11] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1741,6 +1747,55 @@ class PageWaitForTimeoutParams(WireModel):
     ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class PageWebMCPCancelInvocationParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageWebMCPInvocationResultParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    options: Optional[WebMCPResultOptions] = None
+
+
+class PageWebMCPInvokeToolParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    input: Annotated[dict[StrictStr, WebMCPJsonValue], Field(validate_default=True)] = {
+
+    }
+
+
+class PageWebMCPToolsParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[WebMCPToolsOptions] = None
+
+
+class PageWebMCPToolsResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    tools: list[WebMCPToolDescriptor]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -1873,8 +1928,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
-    root: dict[StrictStr, Optional[FieldSchema8]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
+    root: dict[StrictStr, Optional[FieldSchema9]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -1985,9 +2040,88 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
     root: dict[StrictStr, VariableValue]
 
 
+class WebMCPAnnotation(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    read_only: Optional[StrictBool] = None
+    untrusted_content: Optional[StrictBool] = None
+    autosubmit: Optional[StrictBool] = None
+
+
+class WebMCPInvocationDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    input: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPInvocationStatus(StrEnum):
+    completed = "Completed"
+    canceled = "Canceled"
+    error = "Error"
+
+
+class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
+    root: Optional[FieldSchema8]
+
+
+class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
+    root: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPResultOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
+class WebMCPToolDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    description: StrictStr
+    input_schema: Optional[dict[StrictStr, WebMCPJsonValue]] = None
+    annotations: Optional[WebMCPAnnotation] = None
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+
+
+class WebMCPToolResponse(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    status: WebMCPInvocationStatus
+    output: Optional[WebMCPJsonValue] = None
+    error_text: Optional[StrictStr] = None
+    exception: Optional[WebMCPRemoteObject] = None
+
+
+class WebMCPToolsOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[StrictFloat, Field(ge=0.0)] = 1000
+
+
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
+FieldSchema11.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()
