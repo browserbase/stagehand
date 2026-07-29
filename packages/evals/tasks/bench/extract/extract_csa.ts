@@ -21,11 +21,6 @@ export default defineBenchV4Task(
         }),
         { page },
       );
-              
-            }),
-          ),
-        }),
-      );
 
       const publications = result.publications;
       const expectedLength = 14;
