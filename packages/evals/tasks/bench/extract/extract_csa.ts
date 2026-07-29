@@ -14,8 +14,10 @@ export default defineBenchV4Task(
             z.object({
               // ...
             }),
-            { page },
-          );   
+          ),
+        }),
+        { page },
+      );
               publication_date: z.string(),
               session_type: z.string(),
               publication_type: z.string(),
