@@ -568,7 +568,7 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
           ? { sdk: options.sdk }
           : isExternalHarnessRun
             ? options.coreToolSurface === "v4_code"
-              ? { sdk: "v4" }
+              ? { sdk: "v4", v4Sha: resolveV4SpikeSha() }
               : options.coreToolSurface === "understudy_code"
                 ? { sdk: "v3" }
                 : {}
