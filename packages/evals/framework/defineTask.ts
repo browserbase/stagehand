@@ -12,7 +12,7 @@ import type {
   TaskMeta,
   TaskResult,
 } from "./types.js";
-import type { BenchV4TaskContext } from "./typesV4.js";
+import type { BenchTaskContext } from "./types.js";
 
 /**
  * Define a core tier task (deterministic, no LLM).
@@ -49,9 +49,9 @@ export function defineBenchTask(
  * v4 bench tasks receive { stagehand, page, logger, input, ... } and return
  * TaskResult. They live under tasks/bench/ and are selected via --sdk v4.
  */
-export function defineBenchV4Task(
+export function defineBenchTask(
   meta: BenchTaskMeta,
-  fn: (ctx: BenchV4TaskContext) => Promise<void | TaskResult>,
+  fn: (ctx: BenchTaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
@@ -64,7 +64,7 @@ export function defineBenchV4Task(
           `Task "${meta.name}" requires the v4 harness (--sdk v4); it was invoked with a v3 context.`,
         );
       }
-      return fn(ctx as unknown as BenchV4TaskContext);
+      return fn(ctx as unknown as BenchTaskContext);
     },
   };
 }
