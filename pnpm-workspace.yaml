@@ -42,7 +42,7 @@ catalog:
   esbuild: 0.28.1
   tsx: ^4.23.1
   openai: ^6.48.0
-  "@browserbasehq/sdk": ^2.16.0
+  up-fetch: ^2.6.0
   fflate: ^0.8.3
   mint: 4.2.742
   publint: ^0.3.8

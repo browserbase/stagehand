@@ -1,12 +1,14 @@
-import Browserbase from "@browserbasehq/sdk";
 import type { BrowserbaseSessionCreateParams } from "../../protocol/types.js";
 import {
-  createBrowserbaseExtensionClient,
   provisionBrowserbaseExtension,
   type BrowserbaseExtensionClient,
-  type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "./browserbaseExtension.js";
+import {
+  createBrowserbaseApiClient,
+  type BrowserbaseApiClient,
+  type BrowserbaseApiClientOptions,
+} from "./browserbaseClient.js";
 import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
 
 export type BrowserbaseSessionClient = {
@@ -17,34 +19,20 @@ export type BrowserbaseSessionClient = {
 
 export type BrowserbaseSessionClientFactory = (apiKey: string) => BrowserbaseSessionClient;
 
-export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
-  createSession(
-    params: BrowserbaseSessionCreateParams,
-  ): Promise<{ id: string; connectUrl: string }>;
-  releaseSession(sessionId: string): Promise<void>;
-};
-
 type BrowserbaseSessionClientDependencies = {
   browserbase?: BrowserbaseApiClient;
+  browserbaseApi?: BrowserbaseApiClientOptions;
   provisionExtension?: (
     client: BrowserbaseExtensionClient,
   ) => Promise<ProvisionedBrowserbaseExtension>;
 };
 
-type BrowserbaseSdk = BrowserbaseExtensionSdk & {
-  sessions: {
-    create(params: Browserbase.SessionCreateParams): Promise<{ id: string; connectUrl: string }>;
-    update(sessionId: string, params: { status: "REQUEST_RELEASE" }): Promise<unknown>;
-  };
-};
-
-type BrowserbaseSdkFactory = (apiKey: string) => BrowserbaseSdk;
-
 export function createBrowserbaseSessionClient(
   apiKey: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
-  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey);
+  const browserbase =
+    dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, dependencies.browserbaseApi);
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
@@ -107,25 +95,6 @@ export function createBrowserbaseSessionClient(
           if (extensionCleanupError) throw extensionCleanupError;
         },
       };
-    },
-  };
-}
-
-export function createBrowserbaseApiClient(
-  apiKey: string,
-  createSdk: BrowserbaseSdkFactory = (key) => new Browserbase({ apiKey: key }),
-): BrowserbaseApiClient {
-  const sdk = createSdk(apiKey);
-  const extensionClient = createBrowserbaseExtensionClient(apiKey, () => sdk);
-
-  return {
-    ...extensionClient,
-    async createSession(params) {
-      const session = await sdk.sessions.create(params as Browserbase.SessionCreateParams);
-      return { id: session.id, connectUrl: session.connectUrl };
-    },
-    async releaseSession(sessionId) {
-      await sdk.sessions.update(sessionId, { status: "REQUEST_RELEASE" });
     },
   };
 }

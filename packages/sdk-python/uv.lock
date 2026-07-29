@@ -746,6 +746,7 @@ name = "stagehand"
 version = "4.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "websockets" },
 ]
@@ -762,6 +763,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "httpx", specifier = ">=0.28,<1" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "websockets", specifier = ">=16.1.1" },
 ]

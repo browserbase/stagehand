@@ -1,37 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  createBrowserbaseApiClient,
-  createBrowserbaseSessionClient,
-  type BrowserbaseApiClient,
-} from "../src/browserbaseSession.js";
+import type { BrowserbaseApiClient } from "../src/browserbaseClient.js";
+import { createBrowserbaseSessionClient } from "../src/browserbaseSession.js";
 
 describe("Browserbase session creation", () => {
-  it("maps session creation and release to the official SDK surface", async () => {
-    const create = vi.fn(async () => ({
-      id: "session_123",
-      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
-    }));
-    const update = vi.fn(async () => ({}));
-    const createSdk = vi.fn(() => ({
-      extensions: {
-        create: vi.fn(async () => ({ id: "ext_stagehand" })),
-        delete: vi.fn(async () => {}),
-      },
-      sessions: { create, update },
-    }));
-    const client = createBrowserbaseApiClient("bb_key", createSdk);
-
-    await expect(client.createSession({ region: "us-west-2" })).resolves.toStrictEqual({
-      id: "session_123",
-      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
-    });
-    await client.releaseSession("session_123");
-
-    expect(createSdk).toHaveBeenCalledWith("bb_key");
-    expect(create).toHaveBeenCalledWith({ region: "us-west-2" });
-    expect(update).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
-  });
-
   it("creates a session with the provisioned extension and maps its connection URL", async () => {
     const cleanupExtension = vi.fn(async () => {});
     const createSession = vi.fn(async () => ({

@@ -1,42 +1,32 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  createBrowserbaseExtensionClient,
+  loadStagehandExtensionArchive,
   provisionBrowserbaseExtension,
   type BrowserbaseExtensionClient,
 } from "../src/browserbaseExtension.js";
 
-describe("Browserbase extension client", () => {
-  it("maps extension upload and deletion to the official SDK surface", async () => {
-    const create = vi.fn(async () => ({ id: "ext_uploaded" }));
-    const remove = vi.fn(async () => {});
-    const createSdk = vi.fn(() => ({
-      extensions: { create, delete: remove },
-    }));
-    const client = createBrowserbaseExtensionClient("bb_key", createSdk);
+describe("Browserbase extension archive", () => {
+  it("loads the prebuilt extension archive into a web-standard Blob", async () => {
+    const archive = await loadStagehandExtensionArchive(import.meta.filename);
 
-    await expect(client.uploadExtension(import.meta.filename)).resolves.toStrictEqual({
-      id: "ext_uploaded",
-    });
-    await client.deleteExtension("ext_uploaded");
-
-    expect(createSdk).toHaveBeenCalledWith("bb_key");
-    expect(create).toHaveBeenCalledWith({ file: expect.anything() });
-    expect(remove).toHaveBeenCalledWith("ext_uploaded", {
-      headers: { "Content-Type": null },
-    });
+    expect(archive.size).toBeGreaterThan(0);
+    expect(archive.type).toBe("application/zip");
   });
 });
 
 describe("Browserbase extension provisioning", () => {
   it("uploads the prebuilt archive and owns remote cleanup", async () => {
     const archivePath = import.meta.filename;
-    const uploadExtension = vi.fn(async () => ({ id: " ext_uploaded " }));
+    const uploadExtension = vi.fn(async (archive: Blob) => {
+      expect(await archive.text()).toContain("Browserbase extension provisioning");
+      return { id: " ext_uploaded " };
+    });
     const deleteExtension = vi.fn(async () => {});
     const client: BrowserbaseExtensionClient = { uploadExtension, deleteExtension };
 
     const provisioned = await provisionBrowserbaseExtension(client, archivePath);
     expect(provisioned.extensionId).toBe("ext_uploaded");
-    expect(uploadExtension).toHaveBeenCalledWith(archivePath);
+    expect(uploadExtension).toHaveBeenCalledOnce();
 
     await provisioned.cleanup();
     await provisioned.cleanup();
