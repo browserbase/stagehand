@@ -28,7 +28,7 @@
             "pages": ["v4/index"]
           },
           {
-            "group": "First steps",
+            "group": "First Steps",
             "pages": [
               "v4/first-steps/introduction",
               "v4/first-steps/quickstart",

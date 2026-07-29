@@ -46,7 +46,7 @@ client, _ := stagehand.Create(ctx, stagehand.CreateOptions{Browser: cloud})
 
 ## Browserbase environment
 
-Browserbase provides managed cloud browser infrastructure optimized for web automation at scale. It offers advanced features like stealth mode, proxy support, and persistent contexts. It is also the only browser source that supports [server-side caching](/v3/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
+Browserbase provides managed cloud browser infrastructure optimized for web automation at scale. It offers advanced features like stealth mode, proxy support, and persistent contexts. It is also the only browser source that supports [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
 
 <Card icon="cloud" title="Browserbase" href="https://docs.browserbase.com" description="Session settings, proxies, stealth mode, and session recordings.">
   Read the Browserbase documentation for the full set of session settings Stagehand passes through.
@@ -102,7 +102,7 @@ if err != nil {
 Supported regions: `us-west-2` (default), `us-east-1`, `eu-central-1`, `ap-southeast-1`.
 
 <Note>
-  There is no regional endpoint to configure. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v3/best-practices/caching).
+  There is no regional endpoint to configure. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v4/best-practices/caching).
 </Note>
 
 ### Environment variables

@@ -191,7 +191,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 - **Market-price tokens:** Browserbase charges the same price as going direct to the provider. No markup.
 - **Built-in reliability:** Retries, backoff, and rate limit handling are managed for you.
 - **No tier-gating:** Access new models immediately without hitting provider spend thresholds.
-- **Action caching:** Model Gateway works with Stagehand's [managed action caching](/v3/best-practices/caching), so repeated steps are reused instead of re-run. Both features run off the same Browserbase session, so turning on `cache` costs you nothing extra to set up.
+- **Action caching:** Model Gateway works with Stagehand's [managed action caching](/v4/best-practices/caching), so repeated steps are reused instead of re-run. Both features run off the same Browserbase session, so turning on `cache` costs you nothing extra to set up.
 
 ### Supported providers
 
@@ -1372,7 +1372,7 @@ fmt.Println(extracted.Summary)
 </View>
 
 <Note>
-Model configuration is deliberately excluded from the [cache key](/v3/best-practices/caching), so switching models per call does not invalidate cached results.
+Model configuration is deliberately excluded from the [cache key](/v4/best-practices/caching), so switching models per call does not invalidate cached results.
 </Note>
 
 ---
@@ -1627,7 +1627,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 <Tip>
   Need result caching rather than request retries? Use the built-in [caching
-  feature](/v3/best-practices/caching), which skips the inference call entirely.
+  feature](/v4/best-practices/caching), which skips the inference call entirely.
 </Tip>
 
 ---
@@ -1686,7 +1686,7 @@ Only the provider prefix is checked. The model ID itself is not validated, so a 
 
 - Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
 - Use faster models for simple tasks and reach for powerful ones per call with a [model override](#per-call-model-overrides)
-- Implement [caching](/v3/best-practices/caching) for repeated patterns
+- Implement [caching](/v4/best-practices/caching) for repeated patterns
 </Accordion>
 <Accordion title="Python SDK or custom models">
 Python is a first-class SDK in Stagehand v4 with the same surface as TypeScript.
@@ -1715,19 +1715,19 @@ Can't find a solution? Have a question? Reach out to the Browserbase support tea
 ## Next steps
 
 <CardGroup cols={2}>
-<Card title="Prompting guide" href="/v3/best-practices/prompting-best-practices" icon="brain">
+<Card title="Prompting guide" href="/v4/best-practices/prompting-best-practices" icon="brain">
   Learn how to prompt LLMs for optimal results
 </Card>
 <Card title="Observability" href="/v4/configuration/observability" icon="chart-line">
   Track token usage and inference latency per operation
 </Card>
 
-<Card title="Caching guide" href="/v3/best-practices/caching" icon="database">
+<Card title="Caching guide" href="/v4/best-practices/caching" icon="database">
   Cache responses to reduce costs and improve speed
 </Card>
 <Card
   title="Optimize costs"
-  href="/v3/best-practices/cost-optimization"
+  href="/v4/best-practices/cost-optimization"
   icon="dollar-sign"
 >
   Reduce LLM spending with caching and smart model selection

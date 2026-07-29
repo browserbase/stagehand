@@ -37,7 +37,7 @@ if _, err := client.Observe(ctx, &instruction, nil); err != nil {
   <Card title="Plan" icon="map" href="#plan-then-execute">
     Map out multi-step workflows by discovering all required actions upfront
   </Card>
-  <Card title="Cache" icon="database" href="/v3/best-practices/caching">
+  <Card title="Cache" icon="database" href="/v4/best-practices/caching">
     Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
   <Card title="Validate" icon="check" href="#validate-before-acting">
@@ -901,7 +901,7 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 ```
 </View>
 
-<Card title="Complete caching guide" icon="database" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" href="/v4/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -1116,7 +1116,7 @@ if action != nil && slices.Contains(validMethods, method) {
     Combine `observe()` with `extract()` for precise data extraction.
   </Card>
 
-  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/caching">
+  <Card title="Caching actions" icon="bolt" href="/v4/best-practices/caching">
     Build action caches to eliminate redundant LLM calls.
   </Card>
 

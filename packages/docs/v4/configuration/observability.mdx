@@ -612,7 +612,7 @@ fmt.Println("Resource Usage:", monitor.getResourceSummary())
 </View>
 
 
-  <Card title="Speed and cost tuning" icon="chart-line" href="/v3/best-practices/cost-optimization">
+  <Card title="Speed and cost tuning" icon="chart-line" href="/v4/best-practices/cost-optimization">
     Monitor token usage, costs, and speed. Set up automated alerting for critical failures. Implement cost tracking across different environments. Use session analytics to optimize automation workflows.
   </Card>
 
@@ -1001,7 +1001,7 @@ fmt.Printf("%+v\n", metrics)
 </View>
 
 <Note>
-Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v3/best-practices/caching), which avoids the inference call entirely.
+Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v4/best-practices/caching), which avoids the inference call entirely.
 </Note>
 
 ### Tracing
@@ -1120,7 +1120,7 @@ Spans are tagged with a span type: `operation` spans wrap act, observe, and extr
 ## Next steps
 
 <CardGroup cols={2}>
-<Card title="Caching" icon="database" href="/v3/best-practices/caching">
+<Card title="Caching" icon="database" href="/v4/best-practices/caching">
   Cut token spend and latency by serving repeated act, observe, and extract calls from the server-side cache.
 </Card>
 <Card title="Logging" icon="file-lines" href="/v4/configuration/logging">
