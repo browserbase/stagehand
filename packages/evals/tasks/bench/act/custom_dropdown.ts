@@ -1,4 +1,3 @@
-import { z } from "zod";
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
 export default defineBenchV4Task(
@@ -18,14 +17,8 @@ export default defineBenchV4Task(
 
       await stagehand.act("choose Canada from the 'Select a Country' dropdown");
 
-      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
-      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const { data: extraction } = await stagehand.extract(
-        "extract the entire page text",
-        z.object({ extraction: z.string() }),
-      );
-      const fullTree = extraction.extraction;
+      // read the rendered page text directly — no second model call
+      const fullTree = await page.locator("body").innerText();
 
       if (fullTree.includes("Canada")) {
         return {

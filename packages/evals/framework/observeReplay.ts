@@ -21,7 +21,7 @@ export async function replayObservedAction(page: Page, action: ObservedAction): 
   const args = action.arguments ?? [];
   switch (method) {
     case "click":
-      await locator.click();
+      await locator.click(args[0] ? { button: args[0] as "left" | "right" | "middle" } : undefined);
       return;
     case "fill":
       await locator.fill(args[0] ?? "");
