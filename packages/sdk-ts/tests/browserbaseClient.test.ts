@@ -72,6 +72,32 @@ describe("Browserbase API client", () => {
     await expect(client.createSession({})).rejects.toMatchObject({ kind: "validation" });
   });
 
+  it.each([
+    ["an HTTP URL", "https://connect.browserbase.com/devtools/browser/session_123"],
+    ["a relative URL", "/devtools/browser/session_123"],
+    ["a malformed URL", "not a URL"],
+  ])("rejects %s as a Browserbase connection URL", async (_description, connectUrl) => {
+    const client = createBrowserbaseApiClient("bb_key", {
+      baseUrl: "https://api.browserbase.test",
+      fetch: async () => jsonResponse({ id: "session_123", connectUrl }),
+    });
+
+    await expect(client.createSession({})).rejects.toMatchObject({ kind: "validation" });
+  });
+
+  it("accepts a local WebSocket Browserbase connection URL", async () => {
+    const connectUrl = "ws://localhost:9222/devtools/browser/session_123";
+    const client = createBrowserbaseApiClient("bb_key", {
+      baseUrl: "https://api.browserbase.test",
+      fetch: async () => jsonResponse({ id: "session_123", connectUrl }),
+    });
+
+    await expect(client.createSession({})).resolves.toStrictEqual({
+      id: "session_123",
+      connectUrl,
+    });
+  });
+
   it("requires a Browserbase API key before issuing requests", () => {
     expect(() => createBrowserbaseApiClient(" ")).toThrow("API key is required");
   });

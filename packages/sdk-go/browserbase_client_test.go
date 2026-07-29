@@ -400,6 +400,24 @@ func TestBrowserbaseHTTPClientRejectsInvalidResponses(t *testing.T) {
 	}
 }
 
+func TestBrowserbaseCreateSessionResponseRequiresAWebSocketConnectURL(t *testing.T) {
+	responseBody := browserbaseTestCreateSessionResponse("session_123")
+	responseBody["connectUrl"] = "https://connect.browserbase.com/session_123"
+	encoded, err := json.Marshal(responseBody)
+	if err != nil {
+		t.Fatalf("marshal Browserbase response: %v", err)
+	}
+	var response browserbaseCreateSessionResponse
+	if err := json.Unmarshal(encoded, &response); err != nil {
+		t.Fatalf("unmarshal Browserbase response: %v", err)
+	}
+
+	err = response.validate()
+	if err == nil || !strings.Contains(err.Error(), "ws, wss") {
+		t.Fatalf("validate() error = %v, want WebSocket scheme error", err)
+	}
+}
+
 func TestBrowserbaseHTTPClientValidatesBeforeSending(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(

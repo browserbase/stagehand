@@ -111,6 +111,98 @@ def test_stagehand_constructor_rejects_incomplete_flattened_options() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stagehand_connects_to_a_preloaded_browserbase_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    browser_closes = 0
+    connect_args: dict[str, object] = {}
+
+    async def close_browser() -> None:
+        nonlocal browser_closes
+        browser_closes += 1
+
+    browser = ResolvedBrowserSource(
+        cdp_url="wss://connect.browserbase.test/session_123",
+        keep_alive=False,
+        browserbase_session_id="session_123",
+        preloaded_extension=True,
+        _close_callback=close_browser,
+    )
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+        "stagehand.close": StagehandCloseResult(closed=True),
+    })
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return browser
+
+    async def connect(**kwargs: object) -> RPCClient:
+        connect_args.update(kwargs)
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(
+        api_key="bb_test",
+        region="eu-central-1",
+        user_metadata={"suite": "unit"},
+    )
+
+    await stagehand.init()
+
+    assert connect_args["extension_dir"] is None
+    assert connect_args["preloaded_extension"] is True
+    init_params = recording.calls[0][1]
+    assert isinstance(init_params, StagehandInitParams)
+    assert init_params.browser is not None
+    assert init_params.browser.session_id == "session_123"
+    assert init_params.browser.region is not None
+    assert init_params.browser.region.value == "eu-central-1"
+    assert init_params.browser.user_metadata == {"suite": "unit"}
+
+    await stagehand.close()
+    assert browser_closes == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_browserbase_initialization_ignores_keep_alive_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    browser_closes = 0
+
+    async def close_browser() -> None:
+        nonlocal browser_closes
+        browser_closes += 1
+
+    browser = ResolvedBrowserSource(
+        cdp_url="wss://connect.browserbase.test/session_123",
+        keep_alive=True,
+        browserbase_session_id="session_123",
+        preloaded_extension=True,
+        _close_callback=close_browser,
+    )
+    recording = RecordingRPCClient({
+        "stagehand.init": RuntimeError("runtime failed to initialize"),
+    })
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return browser
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(api_key="bb_test", keep_alive=True)
+
+    with pytest.raises(RuntimeError, match="runtime failed to initialize"):
+        await stagehand.init()
+
+    assert recording.closed is True
+    assert browser_closes == 1
+
+
+@pytest.mark.asyncio
 async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_default(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

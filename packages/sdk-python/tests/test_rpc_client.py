@@ -477,6 +477,7 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "cdp_url": "http://localhost:9222",
             "extension_dir": None,
             "extension_id": "stagehand-extension",
+            "preloaded_extension": False,
             "service_worker_url_includes": "service-worker.js",
             "discovery_timeout_ms": 1_001,
             "command_timeout_ms": 1_002,

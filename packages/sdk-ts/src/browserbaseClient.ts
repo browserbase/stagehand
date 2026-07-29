@@ -15,7 +15,7 @@ const BrowserbaseExtensionResponseSchema = z.looseObject({
 
 const BrowserbaseSessionResponseSchema = z.looseObject({
   id: z.string(),
-  connectUrl: z.string(),
+  connectUrl: z.url({ protocol: /^wss?$/ }),
 });
 
 export type BrowserbaseApiClient = BrowserbaseExtensionClient & {

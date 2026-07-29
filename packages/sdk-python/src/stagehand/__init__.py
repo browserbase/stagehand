@@ -5,7 +5,6 @@ from ._generated.models import (
     ActResult,
     ActResultData,
     Animations,
-    BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
     BrowserGetVersionResult,
@@ -47,6 +46,7 @@ from ._generated.models import (
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
+    BrowserbaseBrowserSettings,
     CacheOptions,
     ExtractResult,
     LLMGenerateCallback,

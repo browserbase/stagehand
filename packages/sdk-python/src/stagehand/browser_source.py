@@ -11,6 +11,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .browserbase_session import create_browserbase_session
 from .client_models import LocalBrowserSource, StagehandClientInitParams
 
 _DEFAULT_CHROME_FLAGS = (
@@ -48,15 +49,17 @@ class ResolvedBrowserSource:
     keep_alive: bool
     cdp_headers: dict[str, str] | None = None
     connect_timeout_ms: int | None = None
+    browserbase_session_id: str | None = None
+    preloaded_extension: bool = False
     _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
 
     async def close(self) -> None:
         if self._closed:
             return
-        self._closed = True
         if self._close_callback is not None:
             await self._close_callback()
+        self._closed = True
 
 
 async def resolve_browser_source(
@@ -65,7 +68,16 @@ async def resolve_browser_source(
     browser = init_params.browser
 
     if browser.type == "browserbase":
-        raise NotImplementedError("Browserbase session creation is not implemented yet")
+        if init_params.api_key is None:
+            raise ValueError("A Browserbase API key is required for the Browserbase browser source")
+        session = await create_browserbase_session(init_params.api_key, browser)
+        return ResolvedBrowserSource(
+            cdp_url=session.cdp_url,
+            keep_alive=browser.keep_alive or False,
+            browserbase_session_id=session.session_id,
+            preloaded_extension=True,
+            _close_callback=session.close,
+        )
 
     if browser.type == "local":
         return await _launch_local_browser(browser)

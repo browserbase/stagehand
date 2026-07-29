@@ -30,6 +30,26 @@ def test_client_configuration_requires_an_api_key_for_browserbase() -> None:
         StagehandClientInitParams.model_validate({"browser": {"type": "browserbase"}})
 
 
+@pytest.mark.parametrize(
+    "browser",
+    [
+        {"type": "browserbase", "extension_id": "ext_caller"},
+        {
+            "type": "browserbase",
+            "browser_settings": {"extension_id": "ext_caller"},
+        },
+    ],
+)
+def test_client_configuration_rejects_browserbase_extension_ids(
+    browser: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        StagehandClientInitParams.model_validate({
+            "api_key": "bb_test",
+            "browser": browser,
+        })
+
+
 def test_client_configuration_rejects_unknown_sdk_options() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         StagehandClientInitParams.model_validate({

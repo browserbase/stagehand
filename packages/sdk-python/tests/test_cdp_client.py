@@ -159,6 +159,90 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 
 
 @pytest.mark.asyncio
+async def test_connect_discovers_the_preloaded_stagehand_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = message["method"]
+        params = cast(dict[str, object], message.get("params", {}))
+        if method == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "other-worker",
+                            "type": "service_worker",
+                            "title": "Other",
+                            "url": "chrome-extension://other-extension/service-worker.js",
+                        },
+                        {
+                            "targetId": "stagehand-worker",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://runtime-stagehand-id/service-worker.js",
+                        },
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            target_id = params["targetId"]
+            return {"result": {"sessionId": f"{target_id}-session"}}
+        if method == "Runtime.evaluate":
+            if message.get("sessionId") == "other-worker-session":
+                return {
+                    "result": {
+                        "result": {
+                            "value": {
+                                "marker": {
+                                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                                    "serverInfo": {"name": "other", "version": "1"},
+                                },
+                                "hasReceiver": True,
+                            }
+                        }
+                    }
+                }
+            return {"result": {"result": {"value": _ready_marker()}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, __: int) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, __: int) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+
+    client = await CDPClient.connect(
+        cdp_url="wss://connect.browserbase.test/session",
+        preloaded_extension=True,
+    )
+    try:
+        assert client.service_worker == ServiceWorkerInfo(
+            target_id="stagehand-worker",
+            title="Stagehand",
+            url="chrome-extension://runtime-stagehand-id/service-worker.js",
+            extension_id="runtime-stagehand-id",
+        )
+        assert "Extensions.loadUnpacked" not in [message["method"] for message in socket.sent]
+        assert {
+            "method": "Target.detachFromTarget",
+            "params": {"sessionId": "other-worker-session"},
+        } in [
+            {
+                "method": message["method"],
+                "params": message.get("params"),
+            }
+            for message in socket.sent
+        ]
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
     socket = FakeWebSocket(lambda _: {"result": {}})
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test", 1_000)
@@ -248,6 +332,13 @@ async def test_connect_requires_exactly_one_extension_source() -> None:
             cdp_url="ws://127.0.0.1/devtools/browser/test",
             extension_dir="/tmp/stagehand-extension",
             extension_id="stagehand-extension",
+        )
+
+    with pytest.raises(ValueError, match="Exactly one"):
+        await CDPClient.connect(
+            cdp_url="ws://127.0.0.1/devtools/browser/test",
+            extension_id="stagehand-extension",
+            preloaded_extension=True,
         )
 
 

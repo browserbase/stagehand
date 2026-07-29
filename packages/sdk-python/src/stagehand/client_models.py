@@ -7,8 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
-    BrowserbaseBrowserSettings,
+    BrowserbaseContext,
+    BrowserbaseFingerprint,
     BrowserbaseRegion,
+    BrowserbaseViewport,
     CustomModelConfig,
     KnownModelConfig,
     LLMMessageGenerateParams,
@@ -16,6 +18,7 @@ from ._generated.models import (
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     ModelConfig,
+    Os,
     ProxyConfig,
     StagehandInitParams,
     StagehandLog,
@@ -51,6 +54,25 @@ class LocalProxyConfig(WireModel):
     password: str | None = None
 
 
+class BrowserbaseBrowserSettings(WireModel):
+    """Browserbase settings exposed by the SDK; Stagehand provisions its own extension."""
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    advanced_stealth: bool | None = None
+    block_ads: bool | None = None
+    captcha_image_selector: str | None = None
+    captcha_input_selector: str | None = None
+    context: BrowserbaseContext | None = None
+    fingerprint: BrowserbaseFingerprint | None = None
+    log_session: bool | None = None
+    os: Os | None = None
+    record_session: bool | None = None
+    solve_captchas: bool | None = None
+    verified: bool | None = None
+    viewport: BrowserbaseViewport | None = None
+
+
 class BrowserbaseBrowserSource(WireModel):
     """Browserbase session options accepted before the SDK creates a session."""
 
@@ -58,7 +80,6 @@ class BrowserbaseBrowserSource(WireModel):
 
     type: Literal["browserbase"]
     browser_settings: BrowserbaseBrowserSettings | None = None
-    extension_id: str | None = None
     keep_alive: bool | None = None
     proxies: bool | list[ProxyConfig] | None = None
     region: BrowserbaseRegion | None = None

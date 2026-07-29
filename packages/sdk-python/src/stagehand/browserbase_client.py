@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections.abc import Mapping
 from types import TracebackType
@@ -8,7 +9,7 @@ from typing import Annotated, Literal, Self, TypeVar
 from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, WebsocketUrl, field_validator
 
 _DEFAULT_BROWSERBASE_API_URL = "https://api.browserbase.com"
 _DEFAULT_BROWSERBASE_API_TIMEOUT_SECONDS = 60.0
@@ -193,7 +194,7 @@ class BrowserbaseExtensionResponse(_BrowserbaseResponse):
 
 class BrowserbaseSessionResponse(_BrowserbaseResponse):
     id: str
-    connect_url: str
+    connect_url: WebsocketUrl
 
 
 class BrowserbaseSessionReleaseResponse(_BrowserbaseResponse):
@@ -232,8 +233,8 @@ class BrowserbaseClient:
     ) -> None:
         if api_key.strip() == "":
             raise ValueError("A Browserbase API key is required")
-        if timeout <= 0:
-            raise ValueError("Browserbase API timeout must be positive")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError("Browserbase API timeout must be positive and finite")
 
         configured_base_url = (
             base_url or os.environ.get("BROWSERBASE_BASE_URL") or _DEFAULT_BROWSERBASE_API_URL
@@ -345,7 +346,7 @@ class BrowserbaseClient:
             json=json_body,
             files=files,
         )
-        if response.is_error:
+        if not response.is_success:
             raise BrowserbaseAPIError(
                 method=method,
                 path=path,

@@ -16,7 +16,6 @@ from ._generated.models import (
     Action,
     ActOptions,
     ActResult,
-    BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
     BrowserGetVersionResult,
@@ -50,6 +49,7 @@ from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
+    BrowserbaseBrowserSettings,
     BrowserbaseBrowserSource,
     Cache,
     CdpBrowserSource,
@@ -140,7 +140,6 @@ class Stagehand:
         api_key: str,
         browser: Literal["browserbase"] = "browserbase",
         browser_settings: BrowserbaseBrowserSettings | None = None,
-        extension_id: str | None = None,
         keep_alive: bool | None = None,
         proxies: bool | Sequence[BrowserbaseProxyConfig | ExternalProxyConfig] | None = None,
         region: BrowserbaseRegion
@@ -166,7 +165,6 @@ class Stagehand:
         browser: Literal["browserbase", "local", "cdp"] = "browserbase",
         api_key: str | None = None,
         browser_settings: BrowserbaseBrowserSettings | None = None,
-        extension_id: str | None = None,
         proxies: bool | Sequence[BrowserbaseProxyConfig | ExternalProxyConfig] | None = None,
         region: BrowserbaseRegion
         | Literal["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
@@ -216,7 +214,6 @@ class Stagehand:
                     name: value
                     for name, value in (
                         ("browser_settings", browser_settings),
-                        ("extension_id", extension_id),
                         ("keep_alive", keep_alive),
                         (
                             "proxies",
@@ -425,7 +422,8 @@ class Stagehand:
             try:
                 rpc_client = await connect_rpc_client(
                     cdp_url=browser.cdp_url,
-                    extension_dir=str(extension_dir),
+                    extension_dir=(None if browser.preloaded_extension else str(extension_dir)),
+                    preloaded_extension=browser.preloaded_extension,
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
                     telemetry=self.init_params.telemetry,
@@ -452,12 +450,12 @@ class Stagehand:
 
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(),
+                    self._worker_init_params(browser),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
             except BaseException:
-                await asyncio.shield(self._release_resources())
+                await asyncio.shield(self._release_resources(preserve_keep_alive=False))
                 raise
 
             self._initialized = True
@@ -586,7 +584,7 @@ class Stagehand:
                     except CDPConnectionClosedError:
                         pass
             finally:
-                await asyncio.shield(self._release_resources())
+                await asyncio.shield(self._release_resources(preserve_keep_alive=True))
 
     async def __aenter__(self) -> Self:
         await self.init()
@@ -608,11 +606,26 @@ class Stagehand:
             )
         return self._rpc_client
 
-    def _worker_init_params(self) -> StagehandInitParams:
+    def _worker_init_params(
+        self,
+        browser: ResolvedBrowserSource,
+    ) -> StagehandInitParams:
         values = self.init_params.model_dump(
             exclude={"browser", "logging", "model"},
             exclude_unset=True,
         )
+        if self.init_params.browser.type == "browserbase":
+            if browser.browserbase_session_id is None:
+                raise RuntimeError("Resolved Browserbase source is missing its session ID")
+            values["browser"] = {
+                **self.init_params.browser.model_dump(
+                    mode="json",
+                    exclude={"type"},
+                    exclude_none=True,
+                ),
+                "type": "browserbase",
+                "session_id": browser.browserbase_session_id,
+            }
         if isinstance(self.init_params.model, ClientLLM):
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
@@ -635,7 +648,7 @@ class Stagehand:
         except Exception as error:
             sys.stderr.write(f"[stagehand] ERROR on_log callback failed: {error}\n")
 
-    async def _release_resources(self) -> None:
+    async def _release_resources(self, *, preserve_keep_alive: bool) -> None:
         if self._remove_client_llm_handler is not None:
             self._remove_client_llm_handler()
             self._remove_client_llm_handler = None
@@ -652,7 +665,7 @@ class Stagehand:
             if rpc_client is not None:
                 await rpc_client.close()
         finally:
-            if browser is not None and not browser.keep_alive:
+            if browser is not None and (not preserve_keep_alive or not browser.keep_alive):
                 await browser.close()
 
 

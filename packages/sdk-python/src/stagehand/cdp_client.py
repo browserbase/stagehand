@@ -102,13 +102,17 @@ class CDPClient:
         cdp_url: str,
         extension_dir: str | None = None,
         extension_id: str | None = None,
+        preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
         discovery_timeout_ms: int = 10_000,
         command_timeout_ms: int = 10_000,
         cdp_connect_timeout_ms: int = 10_000,
     ) -> CDPClient:
-        if bool(extension_dir) == bool(extension_id):
-            raise ValueError("Exactly one of extension_dir or extension_id is required")
+        extension_sources = sum((bool(extension_dir), bool(extension_id), preloaded_extension))
+        if extension_sources != 1:
+            raise ValueError(
+                "Exactly one of extension_dir, extension_id, or preloaded_extension is required"
+            )
 
         web_socket_debugger_url = await _resolve_browser_web_socket_url(
             cdp_url,
@@ -118,20 +122,27 @@ class CDPClient:
         client = cls(socket, web_socket_debugger_url, command_timeout_ms)
 
         try:
-            resolved_extension_id = extension_id
-            if extension_dir is not None:
-                resolved_extension_id = await client._load_unpacked_extension(extension_dir)
+            if preloaded_extension:
+                worker, session_id = await client._wait_for_preloaded_stagehand_service_worker(
+                    service_worker_url_includes or "service-worker.js",
+                    discovery_timeout_ms,
+                )
+                resolved_extension_id = _extension_id_from_url(worker.url)
+            else:
+                resolved_extension_id = extension_id
+                if extension_dir is not None:
+                    resolved_extension_id = await client._load_unpacked_extension(extension_dir)
 
-            worker = await client._wait_for_service_worker(
-                resolved_extension_id,
-                service_worker_url_includes or "service-worker.js",
-                discovery_timeout_ms,
-            )
-            attached = await client.send_command(
-                "Target.attachToTarget",
-                {"targetId": worker.target_id, "flatten": True},
-            )
-            session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+                worker = await client._wait_for_service_worker(
+                    resolved_extension_id,
+                    service_worker_url_includes or "service-worker.js",
+                    discovery_timeout_ms,
+                )
+                attached = await client.send_command(
+                    "Target.attachToTarget",
+                    {"targetId": worker.target_id, "flatten": True},
+                )
+                session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
                 target_id=worker.target_id,
@@ -411,36 +422,132 @@ class CDPClient:
             f"Observed targets: {observed}"
         )
 
+    async def _wait_for_preloaded_stagehand_service_worker(
+        self,
+        url_includes: str,
+        timeout_ms: int,
+    ) -> tuple[ServiceWorkerInfo, str]:
+        started = time.monotonic()
+        last_targets: list[object] = []
+        runtime_probes: dict[str, str] = {}
+
+        while (time.monotonic() - started) * 1_000 < timeout_ms:
+            response = await self.send_command("Target.getTargets")
+            targets = response.get("targetInfos")
+            last_targets = cast(list[object], targets) if isinstance(targets, list) else []
+            for target in last_targets:
+                if not isinstance(target, dict):
+                    continue
+                target_info = cast(dict[str, object], target)
+                url = target_info.get("url")
+                if (
+                    target_info.get("type") != "service_worker"
+                    or not isinstance(url, str)
+                    or not url.startswith("chrome-extension://")
+                    or url_includes not in url
+                ):
+                    continue
+
+                session_id: str | None = None
+                keep_attached = False
+                try:
+                    attached = await self.send_command(
+                        "Target.attachToTarget",
+                        {
+                            "targetId": _required_string(
+                                target_info,
+                                "targetId",
+                                "Target.getTargets",
+                            ),
+                            "flatten": True,
+                        },
+                    )
+                    session_id = _required_string(
+                        attached,
+                        "sessionId",
+                        "Target.attachToTarget",
+                    )
+                    compatible, detail = await self._runtime_readiness(session_id)
+                    runtime_probes[
+                        _required_string(target_info, "targetId", "Target.getTargets")
+                    ] = detail
+                    if compatible:
+                        keep_attached = True
+                        return (
+                            ServiceWorkerInfo(
+                                target_id=_required_string(
+                                    target_info,
+                                    "targetId",
+                                    "Target.getTargets",
+                                ),
+                                title=_required_string(
+                                    target_info,
+                                    "title",
+                                    "Target.getTargets",
+                                ),
+                                url=url,
+                                extension_id=_extension_id_from_url(url),
+                            ),
+                            session_id,
+                        )
+                except Exception:
+                    pass
+                finally:
+                    if session_id is not None and not keep_attached:
+                        with suppress(Exception):
+                            await self.send_command(
+                                "Target.detachFromTarget",
+                                {"sessionId": session_id},
+                            )
+            await asyncio.sleep(0.1)
+
+        observed = ", ".join(
+            f"{target.get('type')}:{target.get('url')}"
+            for target in last_targets
+            if isinstance(target, dict)
+        )
+        probes = ", ".join(f"{target_id}={detail}" for target_id, detail in runtime_probes.items())
+        suffix = f". Runtime probes: {probes}" if probes else ""
+        raise TimeoutError(
+            "Timed out discovering the preloaded Stagehand service worker. "
+            f"Observed targets: {observed}{suffix}"
+        )
+
+    async def _runtime_readiness(self, session_id: str) -> tuple[bool, str]:
+        evaluated = await self.send_command(
+            "Runtime.evaluate",
+            {
+                "expression": _RUNTIME_READINESS_EXPRESSION,
+                "returnByValue": True,
+            },
+            session_id=session_id,
+        )
+        exception = evaluated.get("exceptionDetails")
+        if isinstance(exception, Mapping):
+            nested = exception.get("exception")
+            description = nested.get("description") if isinstance(nested, Mapping) else None
+            return False, str(description or exception.get("text") or "readiness evaluation threw")
+
+        result = evaluated.get("result")
+        value = result.get("value") if isinstance(result, Mapping) else None
+        if not isinstance(value, Mapping):
+            return False, "invalid readiness envelope"
+        has_receiver = value.get("hasReceiver") is True
+        compatible, detail = _negotiate_runtime(value.get("marker"))
+        return (
+            compatible and has_receiver,
+            f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}",
+        )
+
     async def _wait_for_runtime_ready(self, session_id: str, timeout_ms: int) -> None:
         started = time.monotonic()
         last_error = ""
 
         while (time.monotonic() - started) * 1_000 < timeout_ms:
             try:
-                evaluated = await self.send_command(
-                    "Runtime.evaluate",
-                    {
-                        "expression": _RUNTIME_READINESS_EXPRESSION,
-                        "returnByValue": True,
-                    },
-                    session_id=session_id,
-                )
-                exception = evaluated.get("exceptionDetails")
-                if isinstance(exception, Mapping):
-                    nested = exception.get("exception")
-                    description = nested.get("description") if isinstance(nested, Mapping) else None
-                    last_error = str(
-                        description or exception.get("text") or "readiness evaluation threw"
-                    )
-                else:
-                    result = evaluated.get("result")
-                    value = result.get("value") if isinstance(result, Mapping) else None
-                    if isinstance(value, Mapping):
-                        has_receiver = value.get("hasReceiver") is True
-                        compatible, detail = _negotiate_runtime(value.get("marker"))
-                        if compatible and has_receiver:
-                            return
-                        last_error = f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}"
+                ready, last_error = await self._runtime_readiness(session_id)
+                if ready:
+                    return
             except Exception as error:
                 last_error = str(error)
             await asyncio.sleep(0.1)
@@ -494,3 +601,13 @@ def _required_string(value: Mapping[str, object], key: str, method: str) -> str:
     if not isinstance(result, str) or not result:
         raise RuntimeError(f"{method} did not return {key}")
     return result
+
+
+def _extension_id_from_url(url: str) -> str:
+    prefix = "chrome-extension://"
+    if not url.startswith(prefix):
+        raise RuntimeError("Stagehand service worker URL is not a Chrome extension URL")
+    extension_id = url[len(prefix) :].partition("/")[0]
+    if not extension_id:
+        raise RuntimeError("Stagehand service worker URL does not contain an extension ID")
+    return extension_id

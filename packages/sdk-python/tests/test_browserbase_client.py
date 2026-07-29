@@ -112,6 +112,15 @@ def test_browserbase_request_models_validate_before_transport() -> None:
         BrowserbaseExtensionDeleteRequest(extension_id=" ")
 
 
+@pytest.mark.parametrize(
+    "timeout",
+    [0.0, -1.0, float("nan"), float("inf"), float("-inf")],
+)
+def test_browserbase_client_requires_a_positive_finite_http_timeout(timeout: float) -> None:
+    with pytest.raises(ValueError, match="positive and finite"):
+        BrowserbaseClient("bb_test", timeout=timeout)
+
+
 @pytest.mark.asyncio
 async def test_browserbase_client_requires_pydantic_requests() -> None:
     client = BrowserbaseClient(
@@ -129,6 +138,35 @@ async def test_browserbase_client_requires_pydantic_requests() -> None:
 async def test_browserbase_client_rejects_invalid_responses() -> None:
     async with httpx.AsyncClient(
         transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"id": "session_123"}))
+    ) as http_client:
+        client = BrowserbaseClient(
+            "bb_test",
+            base_url="https://api.browserbase.test",
+            http_client=http_client,
+        )
+        with pytest.raises(ValidationError, match="connectUrl"):
+            await client.create_session(BrowserbaseSessionCreateRequest())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "connect_url",
+    [
+        "https://connect.browserbase.com/devtools/browser/session_123",
+        "/devtools/browser/session_123",
+        "not a URL",
+    ],
+)
+async def test_browserbase_client_rejects_non_websocket_connection_urls(
+    connect_url: str,
+) -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={"id": "session_123", "connectUrl": connect_url},
+            )
+        )
     ) as http_client:
         client = BrowserbaseClient(
             "bb_test",
@@ -160,6 +198,33 @@ async def test_browserbase_client_returns_typed_api_errors() -> None:
 
     assert caught.value.status_code == 429
     assert caught.value.request_id == "request_123"
+
+
+@pytest.mark.asyncio
+async def test_browserbase_client_treats_redirects_as_api_errors() -> None:
+    async with httpx.AsyncClient(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                302,
+                json={
+                    "id": "session_123",
+                    "connectUrl": "wss://connect.browserbase.com/devtools/browser/session_123",
+                },
+                headers={"x-request-id": "request_redirect"},
+            )
+        )
+    ) as http_client:
+        client = BrowserbaseClient(
+            "bb_test",
+            base_url="https://api.browserbase.test",
+            http_client=http_client,
+        )
+        with pytest.raises(BrowserbaseAPIError) as caught:
+            await client.create_session(BrowserbaseSessionCreateRequest())
+
+    assert caught.value.status_code == 302
+    assert caught.value.request_id == "request_redirect"
+    assert '"id":"session_123"' in caught.value.body
 
 
 def _full_session_request() -> BrowserbaseSessionCreateRequest:
