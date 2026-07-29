@@ -1,7 +1,9 @@
 import type { Protocol } from "devtools-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StagehandLogger } from "../logger.js";
+import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
+import { V3Context } from "../understudy/context.js";
 import { Page } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
@@ -49,6 +51,20 @@ function createPage(session: FakeCDPSession): Page {
     getTargets: async () => [],
   } as unknown as CdpConnection;
   return new Page(connection, session, "target-1", "frame-1", {} as StagehandLogger);
+}
+
+function createContextPage(session: FakeCDPSession): { context: V3Context; page: Page } {
+  const connection = {
+    connected: true,
+    send: async () => ({ success: true }),
+    getTargets: async () => [],
+    getSession: (sessionId: string) => (sessionId === session.id ? session : undefined),
+  } as unknown as CdpConnection;
+  const logger = {} as StagehandLogger;
+  const context = new V3Context(connection, logger, {} as ChromeTabTargetController);
+  const page = new Page(connection, session, "target-1", "frame-1", logger);
+  context.pagesByTarget.set("target-1", page);
+  return { context, page };
 }
 
 afterEach(() => {
@@ -259,6 +275,27 @@ describe("Page WebMCP invocation lifecycle", () => {
     );
   });
 
+  it.each([
+    ["detached target", (context: V3Context) => context.onDetachedFromTarget("main", "target-1")],
+    ["destroyed target", (context: V3Context) => context.cleanupByTarget("target-1")],
+  ])("cleans up pending invocations for a %s", async (_event, removeTarget) => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": () => ({ invocationId: "invocation-1" }),
+    });
+    const { context, page } = createContextPage(session);
+    await page.invokeWebMCPTool("frame-1", "search");
+    const result = page.waitForWebMCPInvocationResult("invocation-1");
+    const rejection = expect(result).rejects.toThrow(
+      'WebMCP invocation "invocation-1" was disposed before it completed on page "target-1".',
+    );
+
+    removeTarget(context);
+
+    await rejection;
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+    expect(context.pagesByTarget.has("target-1")).toBe(false);
+  });
+
   it("evicts settled invocation records after bounded retention", async () => {
     vi.useFakeTimers();
     const session = new FakeCDPSession({
@@ -280,6 +317,7 @@ describe("Page WebMCP invocation lifecycle", () => {
     await expect(page.waitForWebMCPInvocationResult("invocation-1")).rejects.toThrow(
       'WebMCP invocation "invocation-1" was not found on page "target-1".',
     );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
   it("removes an idle response listener when invocation fails", async () => {

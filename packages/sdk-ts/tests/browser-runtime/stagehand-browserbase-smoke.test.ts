@@ -69,5 +69,5 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     });
     await expect(page.locator("#last-tool").textContent()).resolves.toBe("calculateSum");
     await expect(page.locator("#invocation-count").textContent()).resolves.toBe("1");
-  });
+  }, 30_000);
 });

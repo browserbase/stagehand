@@ -179,6 +179,7 @@ export class Page {
     record.retentionTimer = setTimeout(() => {
       if (this.webMCPInvocations.get(event.invocationId) === record) {
         this.webMCPInvocations.delete(event.invocationId);
+        this.removeWebMCPResponseListenerIfIdle();
       }
     }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
   };
