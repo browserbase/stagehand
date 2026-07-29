@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { discoverIntegrationTests, shardIntegrationTests } from "./test-integration.js";
+import { toSafeName } from "./test-utils.js";
 
 const fixtureRoots: string[] = [];
 
@@ -22,6 +23,18 @@ afterEach(() => {
   for (const root of fixtureRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+describe("toSafeName", () => {
+  it.each([
+    ["agent/streaming", "agent-streaming"],
+    ["a\npath=x", "a-path-x"],
+    ["a\rpath=x", "a-path-x"],
+    ['agent"streaming', "agent-streaming"],
+    ["agent streaming", "agent-streaming"],
+  ])("sanitizes %j", (name, expected) => {
+    expect(toSafeName(name)).toBe(expected);
+  });
 });
 
 describe("integration test discovery", () => {
