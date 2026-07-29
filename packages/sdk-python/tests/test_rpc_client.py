@@ -5,7 +5,7 @@ from typing import ClassVar, cast
 import pytest
 from pydantic import ValidationError
 
-from stagehand import cdp_client
+from stagehand import cdp_client, rpc_client
 from stagehand._generated import models
 from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
 
@@ -395,28 +395,75 @@ async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pending_request_waits_for_response_without_rpc_deadline() -> None:
+async def test_ordinary_request_times_out_after_internal_response_grace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 5)
     transport = QueueTransport()
     client = RPCClient(transport)
     call = asyncio.create_task(
         client.send("ping", models.EmptyParams(), models.StagehandPingResult)
     )
-    request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
-    await asyncio.sleep(0.02)
-    assert call.done() is False
-
-    await transport.incoming.put({
-        "jsonrpc": "2.0",
-        "id": request["id"],
-        "result": {"ok": True, "runtime": "service_worker"},
-    })
+    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
     try:
-        assert await asyncio.wait_for(call, timeout=1) == models.StagehandPingResult(
-            ok=True,
-            runtime="service_worker",
-        )
+        with pytest.raises(TimeoutError, match="RPC response timed out: ping"):
+            await call
+        assert client._pending == {}
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_response_deadline_includes_the_method_duration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 20)
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send(
+            "page.wait_for_timeout",
+            models.PageWaitForTimeoutParams(page_id="page-1", ms=50),
+            models.PageVoidResult,
+        )
+    )
+    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+
+    try:
+        await asyncio.sleep(0.03)
+        assert call.done() is False
+        with pytest.raises(TimeoutError, match="RPC response timed out: page.wait_for_timeout"):
+            await call
+        assert client._pending == {}
+    finally:
+        await client.close()
+
+
+def test_response_deadline_uses_operation_parameters_and_skips_init_rpcs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10_000)
+    act_params = models.StagehandActParams.model_validate({
+        "page_id": "page-1",
+        "input": "click the button",
+        "options": {"timeout": 30_000},
+    })
+
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.act", act_params) == 40
+    assert (
+        rpc_client._rpc_response_timeout_seconds("stagehand.init", models.StagehandInitParams())
+        is None
+    )
+    assert (
+        rpc_client._rpc_response_timeout_seconds(
+            "runtime.configure",
+            models.RuntimeConfigureParams(
+                client_info=models.ImplementationInfo(name="test", version="1.0.0"),
+                cdp_url="ws://cdp.test",
+            ),
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio

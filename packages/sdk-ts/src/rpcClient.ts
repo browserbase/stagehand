@@ -43,12 +43,13 @@ import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
-import { abortable } from "./abort.js";
+import { abortReason } from "./abort.js";
 
 type PendingRequest = {
   method: RPCMethod;
   resolve(value: unknown): void;
   reject(error: Error): void;
+  removeAbortListener?: () => void;
 };
 
 type RegisteredRequestHandler = {
@@ -56,9 +57,14 @@ type RegisteredRequestHandler = {
   handle(params: unknown): Promise<unknown>;
 };
 
+type RPCSendOptions = {
+  signal?: AbortSignal;
+};
+
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
+const RPC_RESPONSE_GRACE_MS = 10_000;
 
 const RPCClientOptionsBaseSchema = z
   .object({
@@ -95,7 +101,7 @@ export type CDPTransport = {
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
-  send(message: JSONRPCMessage): Promise<void>;
+  send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void>;
   close(): void;
 };
 
@@ -120,6 +126,7 @@ export class RPCClient {
   async send<Method extends RPCMethod>(
     method: Method,
     params: z.input<Method["params"]>,
+    options: RPCSendOptions = {},
   ): Promise<z.output<Method["result"]>> {
     if (this.closed) throw new Error("RPC client is closed");
 
@@ -149,15 +156,36 @@ export class RPCClient {
           ...getTraceContextFields(requestContext),
         });
         span.setAttribute("jsonrpc.request.id", String(request.id));
+        const responseTimeoutMs = rpcResponseTimeoutMs(method.name, parsedParams);
+        const timeoutController =
+          responseTimeoutMs === undefined ? undefined : new AbortController();
+        const signal =
+          options.signal && timeoutController
+            ? AbortSignal.any([options.signal, timeoutController.signal])
+            : (options.signal ?? timeoutController?.signal);
+        const timeoutId =
+          timeoutController && responseTimeoutMs !== undefined
+            ? setTimeout(() => {
+                timeoutController.abort(
+                  new Error(`RPC response timed out: ${method.name}`, {
+                    cause: { method: method.name, timeoutMs: responseTimeoutMs },
+                  }),
+                );
+              }, responseTimeoutMs)
+            : undefined;
 
-        const response = this.waitForResponse(request.id, method);
-        const [, result] = await Promise.all([
-          this.cdp.send(request).catch((error: unknown) => {
-            this.rejectPending(request.id, asError(error));
-          }),
-          response,
-        ]);
-        return result as z.output<Method["result"]>;
+        try {
+          const response = this.waitForResponse(request.id, method, signal);
+          const [, result] = await Promise.all([
+            this.cdp.send(request, signal).catch((error: unknown) => {
+              this.rejectPending(request.id, asError(error));
+            }),
+            response,
+          ]);
+          return result as z.output<Method["result"]>;
+        } finally {
+          if (timeoutId !== undefined) clearTimeout(timeoutId);
+        }
       });
     } catch (error) {
       markSpanError(span, error);
@@ -210,9 +238,19 @@ export class RPCClient {
     this.cdp.close();
   }
 
-  waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
+  waitForResponse(id: number, method: RPCMethod, signal?: AbortSignal): Promise<unknown> {
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { method, resolve, reject });
+      const onAbort = () => this.rejectPending(id, abortReason(signal!));
+      this.pending.set(id, {
+        method,
+        resolve,
+        reject,
+        ...(signal
+          ? { removeAbortListener: () => signal.removeEventListener("abort", onAbort) }
+          : {}),
+      });
+      signal?.addEventListener("abort", onAbort, { once: true });
+      if (signal?.aborted) onAbort();
     });
   }
 
@@ -337,6 +375,7 @@ export class RPCClient {
     if (!pending) return;
 
     this.pending.delete(response.id);
+    pending.removeAbortListener?.();
 
     if ("error" in response) {
       pending.reject(new Error(response.error.message, { cause: response.error }));
@@ -356,6 +395,7 @@ export class RPCClient {
     const pending = this.pending.get(id);
     if (!pending) return;
     this.pending.delete(id);
+    pending.removeAbortListener?.();
     pending.reject(error);
   }
 
@@ -399,15 +439,16 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   const client = new RPCClient(cdpClient);
 
   try {
-    await abortable(
-      client.send(StagehandMethods.runtimeConfigure, {
+    await client.send(
+      StagehandMethods.runtimeConfigure,
+      {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: STAGEHAND_SDK_CLIENT_INFO,
         cdpUrl: cdpClient.webSocketDebuggerUrl,
         telemetry: options.telemetry,
         logLevel: options.logLevel,
-      }),
-      options.signal,
+      },
+      { signal: options.signal },
     );
     return client;
   } catch (error) {
@@ -440,4 +481,46 @@ function markSpanError(span: Span, error: unknown): void {
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
+  if (
+    method === StagehandMethods.runtimeConfigure.name ||
+    method === StagehandMethods.stagehandInit.name
+  )
+    return undefined;
+
+  let operationTimeoutMs: number | undefined;
+  switch (method) {
+    case StagehandMethods.stagehandAct.name:
+    case StagehandMethods.stagehandExtract.name:
+    case StagehandMethods.stagehandObserve.name:
+    case StagehandMethods.pageGoto.name:
+    case StagehandMethods.pageReload.name:
+    case StagehandMethods.pageGoBack.name:
+    case StagehandMethods.pageGoForward.name:
+    case StagehandMethods.pageScreenshot.name:
+    case StagehandMethods.pageWaitForSelector.name:
+      operationTimeoutMs = numericProperty(recordProperty(params, "options"), "timeout");
+      break;
+    case StagehandMethods.pageWaitForLoadState.name:
+      operationTimeoutMs = numericProperty(params, "timeout");
+      break;
+    case StagehandMethods.pageWaitForTimeout.name:
+      operationTimeoutMs = numericProperty(params, "ms");
+      break;
+  }
+
+  return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs ?? 0);
+}
+
+function recordProperty(value: unknown, property: string): unknown {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)[property]
+    : undefined;
+}
+
+function numericProperty(value: unknown, property: string): number | undefined {
+  const candidate = recordProperty(value, property);
+  return typeof candidate === "number" && Number.isFinite(candidate) ? candidate : undefined;
 }

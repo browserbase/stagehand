@@ -204,19 +204,18 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
 
 
 @pytest.mark.asyncio
-async def test_commands_time_out_and_are_removed() -> None:
-    assert cdp_client._CDP_COMMAND_TIMEOUT_MS == 10_000
-
+async def test_commands_inherit_cancellation_and_are_removed() -> None:
     socket = FakeWebSocket(lambda _: None)
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
 
     try:
-        with (
-            pytest.MonkeyPatch.context() as monkeypatch,
-            pytest.raises(TimeoutError, match="CDP command timed out: Target.getTargets"),
-        ):
-            monkeypatch.setattr(cdp_client, "_CDP_COMMAND_TIMEOUT_MS", 5)
-            await client.send_command("Target.getTargets")
+        command = asyncio.create_task(client.send_command("Target.getTargets"))
+        await asyncio.sleep(0)
+        assert len(client._pending) == 1
+
+        command.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await command
         assert client._pending == {}
     finally:
         await client.close()

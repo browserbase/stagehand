@@ -347,25 +347,80 @@ describe("RPCClient", () => {
     });
   });
 
-  it("waits for a response without imposing a JSON-RPC deadline", async () => {
+  it("times out an ordinary JSON-RPC response after the internal grace period", async () => {
     vi.useFakeTimers();
     const cdp = new ManualCDPTransport();
     const client = new RPCClient(cdp);
 
     try {
       const request = client.send(StagehandMethods.ping, {});
+      const rejection = expect(request).rejects.toThrow("RPC response timed out: ping");
+      await vi.advanceTimersByTimeAsync(9_999);
+
+      expect(client.pending.size).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(client.pending.size).toBe(0);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    {
+      name: "an Act operation timeout",
+      method: StagehandMethods.stagehandAct,
+      params: {
+        pageId: "page-1",
+        input: "click the button",
+        options: { timeout: 30_000 },
+      },
+    },
+    {
+      name: "page.waitForTimeout",
+      method: StagehandMethods.pageWaitForTimeout,
+      params: { pageId: "page-1", ms: 30_000 },
+    },
+  ])("derives the JSON-RPC deadline from $name", async ({ method, params }) => {
+    vi.useFakeTimers();
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+
+    try {
+      const request = client.send(method, params);
+      const rejection = expect(request).rejects.toThrow(`RPC response timed out: ${method.name}`);
+      await vi.advanceTimersByTimeAsync(39_999);
+
+      expect(client.pending.size).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(client.pending.size).toBe(0);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets initialization RPCs inherit the outer lifecycle deadline", async () => {
+    vi.useFakeTimers();
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    const controller = new AbortController();
+
+    try {
+      const request = client.send(
+        StagehandMethods.runtimeConfigure,
+        { cdpUrl: "ws://cdp.test" },
+        { signal: controller.signal },
+      );
+      const rejection = expect(request).rejects.toThrow("initialization deadline expired");
       await vi.advanceTimersByTimeAsync(60_000);
 
       expect(client.pending.size).toBe(1);
-      await cdp.receive({
-        jsonrpc: "2.0",
-        id: 1,
-        result: { ok: true, runtime: "service_worker" },
-      });
-      await expect(request).resolves.toStrictEqual({
-        ok: true,
-        runtime: "service_worker",
-      });
+      controller.abort(new Error("initialization deadline expired"));
+      await rejection;
+      expect(client.pending.size).toBe(0);
     } finally {
       client.close();
       vi.useRealTimers();

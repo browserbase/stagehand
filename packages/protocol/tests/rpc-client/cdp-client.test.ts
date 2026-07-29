@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
   loadUnpackedExtension,
@@ -120,22 +120,17 @@ describe("resolveBrowserWebSocketUrl", () => {
 });
 
 describe("CDPClient command acknowledgements", () => {
-  it("times out an individual unacknowledged CDP command after 10 seconds", async () => {
-    vi.useFakeTimers();
-    try {
-      const socket = new OpenFakeWebSocket();
-      const client = new CDPClient(socket as unknown as WebSocket, "ws://cdp.test");
-      const command = client.sendCommand("Runtime.enable");
-      const rejection = expect(command).rejects.toThrow("CDP command timed out: Runtime.enable");
+  it("inherits cancellation from the enclosing operation", async () => {
+    const socket = new OpenFakeWebSocket();
+    const client = new CDPClient(socket as unknown as WebSocket, "ws://cdp.test");
+    const controller = new AbortController();
+    const command = client.sendCommand("Runtime.enable", {}, undefined, controller.signal);
+    const rejection = expect(command).rejects.toThrow("operation deadline expired");
 
-      await vi.advanceTimersByTimeAsync(9_999);
-      expect(client.pending).toHaveLength(1);
-      await vi.advanceTimersByTimeAsync(1);
-      await rejection;
-      expect(client.pending).toHaveLength(0);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(client.pending).toHaveLength(1);
+    controller.abort(new Error("operation deadline expired"));
+    await rejection;
+    expect(client.pending).toHaveLength(0);
   });
 });
 

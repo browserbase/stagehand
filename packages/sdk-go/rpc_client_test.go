@@ -85,6 +85,35 @@ type uppercaseRPCResult struct {
 	Value string `json:"value"`
 }
 
+func TestRPCResponseTimeoutPolicy(t *testing.T) {
+	t.Parallel()
+
+	fastTimeout, ok := rpcResponseTimeout("ping", json.RawMessage(`{}`))
+	if !ok || fastTimeout != 10*time.Second {
+		t.Fatalf("ping timeout = %v, %t; want 10s, true", fastTimeout, ok)
+	}
+
+	waitTimeout, ok := rpcResponseTimeout(
+		"page.wait_for_timeout",
+		json.RawMessage(`{"page_id":"page-1","ms":30000}`),
+	)
+	if !ok || waitTimeout != 40*time.Second {
+		t.Fatalf("page.wait_for_timeout timeout = %v, %t; want 40s, true", waitTimeout, ok)
+	}
+
+	actTimeout, ok := rpcResponseTimeout(
+		"stagehand.act",
+		json.RawMessage(`{"page_id":"page-1","input":"click","options":{"timeout":30000}}`),
+	)
+	if !ok || actTimeout != 40*time.Second {
+		t.Fatalf("stagehand.act timeout = %v, %t; want 40s, true", actTimeout, ok)
+	}
+
+	if timeout, ok := rpcResponseTimeout("stagehand.init", json.RawMessage(`{}`)); ok {
+		t.Fatalf("stagehand.init timeout = %v, true; want no nested RPC deadline", timeout)
+	}
+}
+
 func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	t.Parallel()
 

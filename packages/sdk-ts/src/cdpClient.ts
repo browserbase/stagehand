@@ -14,8 +14,6 @@ import { abortable, abortableDelay, abortReason, throwIfAborted } from "./abort.
 
 type JsonObject = Record<string, unknown>;
 
-const CDP_COMMAND_TIMEOUT_MS = 10_000;
-
 type TargetInfo = {
   targetId: string;
   type: string;
@@ -58,7 +56,6 @@ type PendingCDPRequest = {
   method: string;
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
-  timeoutId: ReturnType<typeof setTimeout>;
   removeAbortListener?: () => void;
 };
 
@@ -136,13 +133,6 @@ export class CDPConnectionClosedError extends Error {
   constructor() {
     super("CDP connection closed");
     this.name = "CDPConnectionClosedError";
-  }
-}
-
-export class CDPCommandTimeoutError extends Error {
-  constructor(readonly method: string) {
-    super(`CDP command timed out: ${method}`);
-    this.name = "CDPCommandTimeoutError";
   }
 }
 
@@ -256,13 +246,10 @@ export class CDPClient {
         extensionId,
       };
 
-      await client
-        .sendCommand("Runtime.enable", {}, attached.sessionId, signal)
-        .catch((error: unknown) => {
-          throwIfAborted(signal);
-          if (error instanceof CDPCommandTimeoutError) throw error;
-          return undefined;
-        });
+      await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
+        throwIfAborted(signal);
+        return undefined;
+      });
       await client.sendCommand(
         "Runtime.addBinding",
         { name: STAGEHAND_SEND_TO_HOST_BINDING },
@@ -288,7 +275,7 @@ export class CDPClient {
     return this.attachedServiceWorker;
   }
 
-  async send(message: JSONRPCMessage): Promise<void> {
+  async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {
     if (this.closed) throw new Error("CDP client is closed");
     if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
 
@@ -301,6 +288,7 @@ export class CDPClient {
         returnByValue: true,
       },
       this.sessionId,
+      signal,
     );
 
     if (evaluated.exceptionDetails) {
@@ -329,21 +317,14 @@ export class CDPClient {
     return await new Promise<Result>((resolve, reject) => {
       const onAbort = () => {
         this.pending.delete(id);
-        clearTimeout(timeoutId);
         reject(signal ? abortReason(signal) : new Error("CDP command aborted"));
       };
-      const timeoutId = setTimeout(() => {
-        this.pending.delete(id);
-        signal?.removeEventListener("abort", onAbort);
-        reject(new CDPCommandTimeoutError(method));
-      }, CDP_COMMAND_TIMEOUT_MS);
       signal?.addEventListener("abort", onAbort, { once: true });
 
       this.pending.set(id, {
         method,
         resolve: (value) => resolve(value as Result),
         reject,
-        timeoutId,
         ...(signal
           ? { removeAbortListener: () => signal.removeEventListener("abort", onAbort) }
           : {}),
@@ -357,7 +338,6 @@ export class CDPClient {
         this.socket.send(JSON.stringify(message));
       } catch (error) {
         this.pending.delete(id);
-        clearTimeout(timeoutId);
         signal?.removeEventListener("abort", onAbort);
         reject(asError(error));
       }
@@ -399,7 +379,6 @@ export class CDPClient {
     if (!pending) return;
 
     this.pending.delete(message.id);
-    clearTimeout(pending.timeoutId);
     pending.removeAbortListener?.();
 
     if (message.error) {
@@ -420,7 +399,6 @@ export class CDPClient {
   rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
       pending.reject(error);
-      clearTimeout(pending.timeoutId);
       pending.removeAbortListener?.();
     }
     this.pending.clear();
@@ -468,10 +446,7 @@ export async function waitForRuntimeReady(
       }
     } catch (error) {
       throwIfAborted(options.signal);
-      if (
-        error instanceof StagehandRuntimeIncompatibleError ||
-        error instanceof CDPCommandTimeoutError
-      ) {
+      if (error instanceof StagehandRuntimeIncompatibleError) {
         throw error;
       }
     }
@@ -539,11 +514,8 @@ export async function waitForPreloadedStagehandServiceWorker(
             incompatibleRuntime = compatibility;
           }
         }
-      } catch (error) {
+      } catch {
         throwIfAborted(options.signal);
-        if (error instanceof CDPCommandTimeoutError) {
-          throw error;
-        }
         // The worker may still be starting. Detach and retry until initialization is cancelled.
       } finally {
         if (sessionId && !keepAttached) {
@@ -650,9 +622,8 @@ export async function waitForServiceWorker(
           undefined,
           options.signal,
         )
-        .catch((error: unknown) => {
+        .catch(() => {
           throwIfAborted(options.signal);
-          if (error instanceof CDPCommandTimeoutError) throw error;
           return undefined;
         });
       activationTargetId = activation?.targetId;

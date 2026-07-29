@@ -162,12 +162,10 @@ export class Stagehand {
         );
       }
 
-      await abortable(
-        rpcClient.send(
-          StagehandMethods.stagehandInit,
-          stagehandInitParamsForWorker(clientInitParams, browser),
-        ),
-        signal,
+      await rpcClient.send(
+        StagehandMethods.stagehandInit,
+        stagehandInitParamsForWorker(clientInitParams, browser),
+        { signal },
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {

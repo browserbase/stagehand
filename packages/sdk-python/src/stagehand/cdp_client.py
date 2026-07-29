@@ -15,7 +15,6 @@ STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
 _MINIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
 _MAXIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
-_CDP_COMMAND_TIMEOUT_MS = 10_000
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
 # drift. All judgement happens here rather than in the page.
@@ -208,14 +207,7 @@ class CDPClient:
 
         try:
             await self._socket.send(json.dumps(message, separators=(",", ":")))
-            result = await asyncio.wait_for(
-                asyncio.shield(response),
-                _CDP_COMMAND_TIMEOUT_MS / 1_000,
-            )
-        except TimeoutError as error:
-            if not response.done():
-                response.cancel()
-            raise TimeoutError(f"CDP command timed out: {method}") from error
+            result = await response
         except BaseException:
             if not response.done():
                 response.cancel()

@@ -219,7 +219,6 @@ func TestCoderWebSocketDialCarriesHeadersAndCDPCommands(t *testing.T) {
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("sendCommand() error = %v", err)
@@ -431,7 +430,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	assertJSONEqual(t, received, incoming)
 }
 
-func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
+func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 
 	timeoutSocket := newFakeCDPWebSocket()
@@ -441,16 +440,17 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		"ws://127.0.0.1/devtools/browser/test",
 	)
 	var ignored map[string]any
+	commandContext, cancelCommand := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelCommand()
 	err := timeoutClient.sendCommand(
-		context.Background(),
+		commandContext,
 		"Target.getTargets",
 		map[string]any{},
 		"",
-		10*time.Millisecond,
 		&ignored,
 	)
-	if err == nil || err.Error() != "CDP command timed out: Target.getTargets" {
-		t.Fatalf("timeout error = %v", err)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cancellation error = %v", err)
 	}
 	timeoutClient.mu.Lock()
 	pendingCount := len(timeoutClient.pending)
@@ -480,7 +480,6 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		"Extensions.loadUnpacked",
 		map[string]any{},
 		"",
-		time.Second,
 		&ignored,
 	)
 	var commandError *cdpCommandError
@@ -495,7 +494,7 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 	assertJSONEqual(t, commandError.Data, `{"detail":"missing"}`)
 }
 
-func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T) {
+func TestCDPClientRequestCancellationAbortsBlockedWriteWithoutClosingClient(t *testing.T) {
 	t.Parallel()
 
 	socket := &gatedCDPWebSocket{
@@ -536,7 +535,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 			"Target.getTargets",
 			map[string]any{},
 			"",
-			time.Second,
 			&ignored,
 		)
 	}()
@@ -544,12 +542,11 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 	cancel()
 	select {
 	case err := <-firstDone:
-		t.Fatalf("command returned while shared socket write was blocked: %v", err)
-	case <-time.After(25 * time.Millisecond):
-	}
-	close(socket.release)
-	if err := <-firstDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled command error = %v", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled command error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked CDP write cancellation")
 	}
 
 	var version struct {
@@ -560,7 +557,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("later command on shared socket error = %v", err)
@@ -590,7 +586,6 @@ func TestCDPClientCloseRejectsPendingAndReceive(t *testing.T) {
 			"Target.getTargets",
 			map[string]any{},
 			"",
-			time.Second,
 			&ignored,
 		)
 	}()
@@ -696,7 +691,6 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		5*time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("Browser.getVersion: %v", err)

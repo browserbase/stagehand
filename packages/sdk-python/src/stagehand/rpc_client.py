@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
 from importlib.metadata import version
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
@@ -22,6 +22,7 @@ from ._generated import models
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
+_RPC_RESPONSE_GRACE_MS = 10_000
 _STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
     name="stagehand-sdk-python",
     version=version("stagehand"),
@@ -167,14 +168,21 @@ class RPCClient:
             ),
         )
 
+        response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))
         try:
-            await self._transport.send(
-                cast(
-                    dict[str, object],
-                    request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
-                )
-            )
-            return await response
+            try:
+                async with response_timeout:
+                    await self._transport.send(
+                        cast(
+                            dict[str, object],
+                            request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+                        )
+                    )
+                    return await response
+            except TimeoutError as error:
+                if response_timeout.expired():
+                    raise TimeoutError(f"RPC response timed out: {method}") from error
+                raise
         finally:
             self._pending.pop(request_id, None)
             if not response.done():
@@ -508,3 +516,43 @@ async def connect_rpc_client(
         await client.close()
         raise
     return client
+
+
+def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
+    if method in {"runtime.configure", "stagehand.init"}:
+        return None
+
+    operation_timeout_ms: float | int | None = None
+    if method in {
+        "stagehand.act",
+        "stagehand.extract",
+        "stagehand.observe",
+        "page.goto",
+        "page.reload",
+        "page.go_back",
+        "page.go_forward",
+        "page.screenshot",
+        "page.wait_for_selector",
+    }:
+        operation_timeout_ms = _numeric_property(_property(params, "options"), "timeout")
+    elif method == "page.wait_for_load_state":
+        operation_timeout_ms = _numeric_property(params, "timeout")
+    elif method == "page.wait_for_timeout":
+        operation_timeout_ms = _numeric_property(params, "ms")
+
+    return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms or 0)) / 1_000
+
+
+def _property(value: object, name: str) -> object:
+    if isinstance(value, BaseModel):
+        return getattr(value, name, None)
+    if isinstance(value, Mapping):
+        return value.get(name)
+    return None
+
+
+def _numeric_property(value: object, name: str) -> float | int | None:
+    candidate = _property(value, name)
+    if isinstance(candidate, (float, int)) and not isinstance(candidate, bool):
+        return candidate
+    return None
