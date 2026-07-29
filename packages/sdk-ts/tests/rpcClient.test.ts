@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import sdkPackageJson from "../package.json" with { type: "json" };
@@ -75,6 +76,7 @@ describe("RPCClient", () => {
           jsonrpc: "2.0",
           method: "runtime.configure",
           params: {
+            protocol_version: STAGEHAND_PROTOCOL_VERSION,
             client_info: {
               name: "stagehand-sdk-ts",
               version: sdkPackageJson.version,

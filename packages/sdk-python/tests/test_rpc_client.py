@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import cdp_client
 from stagehand._generated import models
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
 
 JSON = dict[str, object]
@@ -488,6 +489,7 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "id": 1,
             "method": "runtime.configure",
             "params": {
+                "protocol_version": STAGEHAND_PROTOCOL_VERSION,
                 "client_info": {
                     "name": "stagehand-sdk-python",
                     "version": version("stagehand"),

@@ -1761,10 +1761,8 @@ class RuntimeConfigureParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    protocol_version: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = (
-        None
-    )
-    client_info: Optional[ImplementationInfo] = None
+    protocol_version: Annotated[StrictInt, Field(gt=0, le=9007199254740991)]
+    client_info: ImplementationInfo
     cdp_url: Annotated[StrictStr, Field(min_length=1)]
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
