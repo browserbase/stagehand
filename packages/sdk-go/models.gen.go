@@ -63,23 +63,6 @@ type Action struct {
 
 type AnthropicModelName string
 
-type BrowserGetVersionResult struct {
-	// JSVersion corresponds to the JSON schema field "js_version".
-	JSVersion *string `json:"js_version,omitempty,omitzero"`
-
-	// Product corresponds to the JSON schema field "product".
-	Product *string `json:"product,omitempty,omitzero"`
-
-	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *string `json:"protocol_version,omitempty,omitzero"`
-
-	// Revision corresponds to the JSON schema field "revision".
-	Revision *string `json:"revision,omitempty,omitzero"`
-
-	// UserAgent corresponds to the JSON schema field "user_agent".
-	UserAgent *string `json:"user_agent,omitempty,omitzero"`
-}
-
 type BrowserbaseBrowserSettings struct {
 	// AdvancedStealth corresponds to the JSON schema field "advanced_stealth".
 	AdvancedStealth *bool `json:"advanced_stealth,omitempty,omitzero"`
@@ -1561,14 +1544,6 @@ type RuntimeConfigureResult struct {
 	Configured bool `json:"configured"`
 }
 
-type RuntimeLoopbackStatusResult struct {
-	// Configured corresponds to the JSON schema field "configured".
-	Configured bool `json:"configured"`
-
-	// Connected corresponds to the JSON schema field "connected".
-	Connected bool `json:"connected"`
-}
-
 type SnapshotResult struct {
 	// FormattedTree corresponds to the JSON schema field "formatted_tree".
 	FormattedTree string `json:"formatted_tree"`
@@ -1759,14 +1734,6 @@ type StagehandObserveParams struct {
 	PageID string `json:"page_id"`
 }
 
-type StagehandPingResult struct {
-	// Ok corresponds to the JSON schema field "ok".
-	Ok bool `json:"ok"`
-
-	// Runtime corresponds to the JSON schema field "runtime".
-	Runtime string `json:"runtime"`
-}
-
 type StagehandResultMetadata struct {
 	// Action ID for tracking
 	ActionID *string `json:"action_id,omitempty,omitzero"`
@@ -1807,10 +1774,6 @@ type generatedModelCatalog struct {
 
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
-
-	// BrowserGetVersionResult corresponds to the JSON schema field
-	// "BrowserGetVersionResult".
-	BrowserGetVersionResult *BrowserGetVersionResult `json:"BrowserGetVersionResult,omitempty,omitzero"`
 
 	// BrowserbaseBrowserSettings corresponds to the JSON schema field
 	// "BrowserbaseBrowserSettings".
@@ -2342,10 +2305,6 @@ type generatedModelCatalog struct {
 	// "RuntimeConfigureResult".
 	RuntimeConfigureResult *RuntimeConfigureResult `json:"RuntimeConfigureResult,omitempty,omitzero"`
 
-	// RuntimeLoopbackStatusResult corresponds to the JSON schema field
-	// "RuntimeLoopbackStatusResult".
-	RuntimeLoopbackStatusResult *RuntimeLoopbackStatusResult `json:"RuntimeLoopbackStatusResult,omitempty,omitzero"`
-
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
 	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
 
@@ -2381,9 +2340,6 @@ type generatedModelCatalog struct {
 	// StagehandObserveParams corresponds to the JSON schema field
 	// "StagehandObserveParams".
 	StagehandObserveParams *StagehandObserveParams `json:"StagehandObserveParams,omitempty,omitzero"`
-
-	// StagehandPingResult corresponds to the JSON schema field "StagehandPingResult".
-	StagehandPingResult *StagehandPingResult `json:"StagehandPingResult,omitempty,omitzero"`
 
 	// StagehandResultMetadata corresponds to the JSON schema field
 	// "StagehandResultMetadata".

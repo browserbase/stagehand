@@ -149,18 +149,6 @@ class Browser(StrEnum):
     safari = "safari"
 
 
-class BrowserGetVersionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Optional[StrictStr] = None
-    product: Optional[StrictStr] = None
-    revision: Optional[StrictStr] = None
-    user_agent: Optional[StrictStr] = None
-    js_version: Optional[StrictStr] = None
-
-
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1792,15 +1780,6 @@ class RuntimeConfigureResult(WireModel):
     configured: Literal[True]
 
 
-class RuntimeLoopbackStatusResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: StrictBool
-    connected: StrictBool
-
-
 class SameSite(StrEnum):
     strict = "Strict"
     lax = "Lax"
@@ -1942,15 +1921,6 @@ class StagehandObserveParams(WireModel):
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Optional[StrictStr] = None
     options: Optional[ObserveOptions] = None
-
-
-class StagehandPingResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    ok: Literal[True]
-    runtime: Literal["service_worker"]
 
 
 class StagehandResultMetadata(WireModel):

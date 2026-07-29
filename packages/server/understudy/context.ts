@@ -7,7 +7,6 @@ import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
-  BrowserGetVersionResult,
   Cookie,
   CookieParam,
   DomainPolicy,
@@ -129,10 +128,6 @@ export class V3Context {
 
   get connected(): boolean {
     return this.conn.connected;
-  }
-
-  async getVersion(): Promise<BrowserGetVersionResult> {
-    return await this.conn.send<BrowserGetVersionResult>("Browser.getVersion");
   }
 
   installTargetSessionListeners(session: CDPSessionLike): void {

@@ -1,5 +1,4 @@
 import type {
-  BrowserGetVersionResult,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -88,7 +87,6 @@ import type {
   PageWaitForTimeoutParams,
   RuntimeConfigureParams,
   RuntimeConfigureResult,
-  RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
@@ -199,7 +197,6 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
-  getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
@@ -265,13 +262,6 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  loopbackStatus(): RuntimeLoopbackStatusResult {
-    return {
-      configured: this.browserSession !== undefined,
-      connected: this.browserSession?.connected ?? false,
-    };
-  }
-
   async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
     this.logger.setLevel(params.logLevel);
     const { cdpUrl } = params;
@@ -309,10 +299,6 @@ export class StagehandRuntime {
       initialized: true,
       pages,
     };
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return await this.requireBrowserSession().getVersion();
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {

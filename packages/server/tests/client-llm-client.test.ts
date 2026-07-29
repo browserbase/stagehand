@@ -52,7 +52,6 @@ describe("client LLM generation", () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => ({
         connected: true,
-        getVersion: async () => ({}),
         pages: () => [],
         activePage: async () => undefined,
         setActivePage: async () => {},
