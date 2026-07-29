@@ -24,6 +24,7 @@ import (
 const (
 	generatedFile       = "models.gen.go"
 	protocolVersionFile = "protocol_version.gen.go"
+	sdkVersionFile      = "sdk_version.gen.go"
 	rootType            = "generatedModelCatalog"
 )
 
@@ -105,6 +106,15 @@ func run(check bool) error {
 	if err != nil {
 		return err
 	}
+	sdkPackagePath := filepath.Join(sdkRoot, "package.json")
+	sdkPackageData, err := os.ReadFile(sdkPackagePath)
+	if err != nil {
+		return fmt.Errorf("read SDK package: %w", err)
+	}
+	sdkVersionSource, err := generateSDKVersionSource(sdkPackageData)
+	if err != nil {
+		return err
+	}
 
 	protocol, err := decodeObject(protocolData)
 	if err != nil {
@@ -163,10 +173,12 @@ func run(check bool) error {
 
 	outputPath := filepath.Join(sdkRoot, generatedFile)
 	protocolVersionOutputPath := filepath.Join(sdkRoot, protocolVersionFile)
+	sdkVersionOutputPath := filepath.Join(sdkRoot, sdkVersionFile)
 	if check {
 		for path, expected := range map[string][]byte{
 			outputPath:                source,
 			protocolVersionOutputPath: protocolVersionSource,
+			sdkVersionOutputPath:      sdkVersionSource,
 		} {
 			current, readErr := os.ReadFile(path)
 			if readErr != nil || !bytes.Equal(current, expected) {
@@ -184,6 +196,9 @@ func run(check bool) error {
 	}
 	if err := os.WriteFile(protocolVersionOutputPath, protocolVersionSource, 0o644); err != nil {
 		return fmt.Errorf("write generated protocol version: %w", err)
+	}
+	if err := os.WriteFile(sdkVersionOutputPath, sdkVersionSource, 0o644); err != nil {
+		return fmt.Errorf("write generated SDK version: %w", err)
 	}
 	return nil
 }
@@ -209,6 +224,45 @@ func generateProtocolVersionSource(packageData []byte) ([]byte, error) {
 			"const stagehandProtocolVersion = %d\n",
 		major,
 	)), nil
+}
+
+func generateSDKVersionSource(packageData []byte) ([]byte, error) {
+	version, err := sdkPackageVersion(packageData)
+	if err != nil {
+		return nil, err
+	}
+	return []byte(fmt.Sprintf(
+		"// Code generated from packages/sdk-go/package.json; DO NOT EDIT.\n\n"+
+			"package stagehand\n\n"+
+			"const stagehandSDKVersion = %q\n",
+		version,
+	)), nil
+}
+
+func sdkPackageVersion(packageData []byte) (string, error) {
+	var sdkPackage struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(packageData, &sdkPackage); err != nil {
+		return "", fmt.Errorf("decode SDK package: %w", err)
+	}
+	parts := strings.Split(sdkPackage.Version, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf(
+			"invalid Stagehand Go SDK package version: %s",
+			sdkPackage.Version,
+		)
+	}
+	for _, part := range parts {
+		value, err := strconv.Atoi(part)
+		if err != nil || value < 0 || strconv.Itoa(value) != part {
+			return "", fmt.Errorf(
+				"invalid Stagehand Go SDK package version: %s",
+				sdkPackage.Version,
+			)
+		}
+	}
+	return sdkPackage.Version, nil
 }
 
 func findSDKRoot() (string, error) {

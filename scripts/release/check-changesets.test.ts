@@ -8,9 +8,10 @@ describe("validateChangeset", () => {
         `---
 "@browserbasehq/stagehand": minor # public TypeScript SDK
 "@browserbasehq/stagehand-python": patch
+"@browserbasehq/stagehand-go": patch
 ---
 
-Release both SDKs.
+Release the SDKs.
 `,
         "allowed.md",
       ),

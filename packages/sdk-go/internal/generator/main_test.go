@@ -33,3 +33,33 @@ func TestGenerateProtocolVersionSourceRejectsInvalidVersions(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateSDKVersionSourceUsesPackageVersion(t *testing.T) {
+	t.Parallel()
+
+	source, err := generateSDKVersionSource([]byte(`{"version":"4.12.3"}`))
+	if err != nil {
+		t.Fatalf("generateSDKVersionSource() error = %v", err)
+	}
+	if !strings.Contains(string(source), `const stagehandSDKVersion = "4.12.3"`) {
+		t.Fatalf("generated source = %q", source)
+	}
+}
+
+func TestGenerateSDKVersionSourceRejectsMissingVersion(t *testing.T) {
+	t.Parallel()
+
+	for _, packageData := range []string{
+		`{}`,
+		`{"version":""}`,
+		`{"version":"v4.0.0"}`,
+		`{"version":"4.0"}`,
+		`{"version":"4.0.0-dev"}`,
+		`{"version":"4.-1.0"}`,
+		`{"version":"04.0.0"}`,
+	} {
+		if _, err := generateSDKVersionSource([]byte(packageData)); err == nil {
+			t.Errorf("generateSDKVersionSource(%s) accepted an invalid version", packageData)
+		}
+	}
+}

@@ -1,7 +1,9 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    ["@browserbasehq/stagehand", "@browserbasehq/stagehand-python", "@browserbasehq/stagehand-go"]
+  ],
   "linked": [],
   "ignore": [],
   "baseBranch": "main",

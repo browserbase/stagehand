@@ -9,7 +9,6 @@ import (
 const (
 	stagehandRuntimeName   = "stagehand"
 	stagehandSDKClientName = "stagehand-sdk-go"
-	stagehandSDKVersion    = "4.0.0"
 )
 
 // negotiateRuntimeCompatibility deliberately mirrors the TypeScript and

@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 const allowedPackages = new Set([
   "@browserbasehq/stagehand",
+  "@browserbasehq/stagehand-go",
   "@browserbasehq/stagehand-protocol",
   "@browserbasehq/stagehand-python",
 ]);
