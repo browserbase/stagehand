@@ -35,7 +35,7 @@ result, err := client.Observe(ctx, &instruction, nil)
   <Card title="Plan" icon="map" href="#plan-then-execute">
     Map out multi-step workflows by discovering all required actions upfront
   </Card>
-  <Card title="Cache" icon="database" href="/v4/best-practices/caching">
+  <Card title="Cache" icon="database" href="/v3/best-practices/caching">
     Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
   <Card title="Validate" icon="check" href="#validate-before-acting">
@@ -576,7 +576,7 @@ This works with:
 - **New pages:** create one on the context
 - **Existing browsers:** attach to a browser you already run with the `cdp` browser source
 
-<Card title="Complete API Reference" icon="book" href="/v4/references/stagehand">
+<Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -624,7 +624,7 @@ for _, field := range observed.Data {
 ```
 </View>
 
-<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v4/references/stagehand">
+<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v3/references/stagehand">
   Complete guide to planning actions with `observe()`.
 </Card>
 
@@ -784,7 +784,7 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 ```
 </View>
 
-<Card title="Complete caching guide" icon="database" href="/v4/best-practices/caching">
+<Card title="Complete caching guide" icon="database" href="/v3/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -912,7 +912,7 @@ _, err = client.Observe(ctx, &specific, nil)
 **Solutions**:
 - Validate the method before using it
 - Check [supported actions](/v4/basics/act) for valid method names
-- Reach for a [locator](/v4/references/stagehand) when you want to call a specific method instead of trusting the suggestion
+- Reach for a [locator](/v3/references/stagehand) when you want to call a specific method instead of trusting the suggestion
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -978,11 +978,11 @@ if len(observed.Data) > 0 && observed.Data[0].Method != nil &&
     Combine `observe()` with `extract()` for precise data extraction.
   </Card>
 
-  <Card title="Caching actions" icon="bolt" href="/v4/best-practices/caching">
+  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/caching">
     Build action caches to eliminate redundant LLM calls.
   </Card>
 
-  <Card title="Complete API Reference" icon="book" href="/v4/references/stagehand">
+  <Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
     Full `Stagehand` reference with detailed parameter documentation.
   </Card>
 </CardGroup>
