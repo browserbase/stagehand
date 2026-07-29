@@ -43,6 +43,7 @@ var customDefinitions = map[string]string{
 	"ProxyConfig":                  "ProxyConfig",
 	"VariablePrimitive":            "VariablePrimitive",
 	"VariableValue":                "VariableValue",
+	"WebMCPJsonValue":              "json.RawMessage",
 	"__schema0":                    "json.RawMessage",
 	"__schema1":                    "json.RawMessage",
 	"__schema2":                    "json.RawMessage",

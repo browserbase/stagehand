@@ -3971,7 +3971,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/WebMCPJsonValue"
           }
         },
         "annotations": {
@@ -3989,6 +3989,9 @@
       },
       "required": ["name", "description", "frame_id"],
       "additionalProperties": false
+    },
+    "WebMCPJsonValue": {
+      "$ref": "#/$defs/__schema8"
     },
     "__schema8": {
       "anyOf": [
@@ -4057,43 +4060,12 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/WebMCPJsonValue"
           }
         }
       },
       "required": ["page_id", "frame_id", "tool_name"],
       "additionalProperties": false
-    },
-    "__schema9": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema9"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
-          }
-        }
-      ]
     },
     "WebMCPInvocationDescriptor": {
       "type": "object",
@@ -4116,43 +4088,12 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/WebMCPJsonValue"
           }
         }
       },
       "required": ["invocation_id", "tool_name", "frame_id", "input"],
       "additionalProperties": false
-    },
-    "__schema10": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema10"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
-          }
-        }
-      ]
     },
     "PageWebMCPInvocationResultParams": {
       "type": "object",
@@ -4192,7 +4133,7 @@
           "$ref": "#/$defs/WebMCPInvocationStatus"
         },
         "output": {
-          "$ref": "#/$defs/__schema11"
+          "$ref": "#/$defs/WebMCPJsonValue"
         },
         "error_text": {
           "type": "string"
@@ -4208,76 +4149,14 @@
       "type": "string",
       "enum": ["Completed", "Canceled", "Error"]
     },
-    "__schema11": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema11"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema11"
-          }
-        }
-      ]
-    },
     "WebMCPRemoteObject": {
       "type": "object",
       "propertyNames": {
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema12"
+        "$ref": "#/$defs/WebMCPJsonValue"
       }
-    },
-    "__schema12": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema12"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema12"
-          }
-        }
-      ]
     },
     "PageWebMCPCancelInvocationParams": {
       "type": "object",
@@ -4691,10 +4570,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema13"
+        "$ref": "#/$defs/__schema9"
       }
     },
-    "__schema13": {
+    "__schema9": {
       "anyOf": [
         {
           "type": "string"
@@ -4711,7 +4590,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema9"
           }
         },
         {
@@ -4720,7 +4599,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema9"
           }
         }
       ]
@@ -6677,7 +6556,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema14"
+          "$ref": "#/$defs/__schema10"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6686,7 +6565,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema14": {
+    "__schema10": {
       "anyOf": [
         {
           "type": "string"
@@ -6703,7 +6582,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema10"
           }
         },
         {
@@ -6712,7 +6591,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema14"
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]
@@ -6746,13 +6625,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema15"
+          "$ref": "#/$defs/__schema11"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema15": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -6769,7 +6648,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema15"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -6778,7 +6657,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema15"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]

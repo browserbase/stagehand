@@ -2567,6 +2567,9 @@ type generatedModelCatalog struct {
 	// "WebMCPInvocationStatus".
 	WebMCPInvocationStatus *WebMCPInvocationStatus `json:"WebMCPInvocationStatus,omitempty,omitzero"`
 
+	// WebMCPJsonValue corresponds to the JSON schema field "WebMCPJsonValue".
+	WebMCPJsonValue json.RawMessage `json:"WebMCPJsonValue,omitempty,omitzero"`
+
 	// WebMCPRemoteObject corresponds to the JSON schema field "WebMCPRemoteObject".
 	WebMCPRemoteObject WebMCPRemoteObject `json:"WebMCPRemoteObject,omitempty,omitzero"`
 
@@ -2588,18 +2591,6 @@ type generatedModelCatalog struct {
 
 	// Schema1 corresponds to the JSON schema field "__schema1".
 	Schema1 json.RawMessage `json:"__schema1,omitempty,omitzero"`
-
-	// Schema10 corresponds to the JSON schema field "__schema10".
-	Schema10 json.RawMessage `json:"__schema10,omitempty,omitzero"`
-
-	// Schema11 corresponds to the JSON schema field "__schema11".
-	Schema11 json.RawMessage `json:"__schema11,omitempty,omitzero"`
-
-	// Schema12 corresponds to the JSON schema field "__schema12".
-	Schema12 json.RawMessage `json:"__schema12,omitempty,omitzero"`
-
-	// Schema13 corresponds to the JSON schema field "__schema13".
-	Schema13 json.RawMessage `json:"__schema13,omitempty,omitzero"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
 	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`

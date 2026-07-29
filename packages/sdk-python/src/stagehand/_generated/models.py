@@ -623,30 +623,6 @@ class FieldSchema11(
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
-class FieldSchema12(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
-
-
-class FieldSchema13(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]
-
-
-class FieldSchema14(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
-
-
-class FieldSchema15(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema15"]], dict[StrictStr, Optional["FieldSchema15"]]]]
-
-
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -738,7 +714,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema15] = None
+    data: Optional[FieldSchema11] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1810,7 +1786,7 @@ class PageWebMCPInvokeToolParams(WireModel):
     page_id: StrictStr
     frame_id: Annotated[StrictStr, Field(min_length=1)]
     tool_name: Annotated[StrictStr, Field(min_length=1)]
-    input: Annotated[dict[StrictStr, Optional[FieldSchema9]], Field(validate_default=True)] = {
+    input: Annotated[dict[StrictStr, WebMCPJsonValue], Field(validate_default=True)] = {
 
     }
 
@@ -1975,8 +1951,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema13]]]):
-    root: dict[StrictStr, Optional[FieldSchema13]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
+    root: dict[StrictStr, Optional[FieldSchema9]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2114,7 +2090,7 @@ class WebMCPInvocationDescriptor(WireModel):
     invocation_id: Annotated[StrictStr, Field(min_length=1)]
     tool_name: Annotated[StrictStr, Field(min_length=1)]
     frame_id: Annotated[StrictStr, Field(min_length=1)]
-    input: dict[StrictStr, Optional[FieldSchema10]]
+    input: dict[StrictStr, WebMCPJsonValue]
 
 
 class WebMCPInvocationStatus(StrEnum):
@@ -2123,8 +2099,12 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPRemoteObject(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
-    root: dict[StrictStr, Optional[FieldSchema12]]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
+    root: Optional[FieldSchema8]
+
+
+class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
+    root: dict[StrictStr, WebMCPJsonValue]
 
 
 class WebMCPResultOptions(WireModel):
@@ -2142,7 +2122,7 @@ class WebMCPToolDescriptor(WireModel):
     )
     name: Annotated[StrictStr, Field(min_length=1)]
     description: StrictStr
-    input_schema: Optional[dict[StrictStr, Optional[FieldSchema8]]] = None
+    input_schema: Optional[dict[StrictStr, WebMCPJsonValue]] = None
     annotations: Optional[WebMCPAnnotation] = None
     frame_id: Annotated[StrictStr, Field(min_length=1)]
     backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
@@ -2157,7 +2137,7 @@ class WebMCPToolResponse(WireModel):
     )
     invocation_id: Annotated[StrictStr, Field(min_length=1)]
     status: WebMCPInvocationStatus
-    output: Optional[FieldSchema11] = None
+    output: Optional[WebMCPJsonValue] = None
     error_text: Optional[StrictStr] = None
     exception: Optional[WebMCPRemoteObject] = None
 
@@ -2174,10 +2154,6 @@ FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
 FieldSchema11.model_rebuild()
-FieldSchema12.model_rebuild()
-FieldSchema13.model_rebuild()
-FieldSchema14.model_rebuild()
-FieldSchema15.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

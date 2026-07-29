@@ -1277,11 +1277,13 @@ export const WebMCPAnnotationSchema = z
   })
   .meta({ id: "WebMCPAnnotation" });
 
+const WebMCPJsonValueSchema = z.json().meta({ id: "WebMCPJsonValue" });
+
 export const WebMCPToolDescriptorSchema = z
   .strictObject({
     name: z.string().min(1),
     description: z.string(),
-    inputSchema: z.record(z.string(), z.json()).optional(),
+    inputSchema: z.record(z.string(), WebMCPJsonValueSchema).optional(),
     annotations: WebMCPAnnotationSchema.optional(),
     frameId: z.string().min(1),
     backendNodeId: z.number().int().nonnegative().optional(),
@@ -1296,7 +1298,7 @@ export const WebMCPToolsOptionsSchema = z
 
 export const WebMCPInvokeOptionsSchema = z
   .strictObject({
-    input: z.record(z.string(), z.json()).default({}),
+    input: z.record(z.string(), WebMCPJsonValueSchema).default({}),
   })
   .meta({ id: "WebMCPInvokeOptions" });
 
@@ -1311,7 +1313,7 @@ export const WebMCPInvocationDescriptorSchema = z
     invocationId: z.string().min(1),
     toolName: z.string().min(1),
     frameId: z.string().min(1),
-    input: z.record(z.string(), z.json()),
+    input: z.record(z.string(), WebMCPJsonValueSchema),
   })
   .meta({ id: "WebMCPInvocationDescriptor" });
 
@@ -1320,14 +1322,14 @@ export const WebMCPInvocationStatusSchema = z
   .meta({ id: "WebMCPInvocationStatus" });
 
 export const WebMCPRemoteObjectSchema = z
-  .record(z.string(), z.json())
+  .record(z.string(), WebMCPJsonValueSchema)
   .meta({ id: "WebMCPRemoteObject" });
 
 export const WebMCPToolResponseSchema = z
   .strictObject({
     invocationId: z.string().min(1),
     status: WebMCPInvocationStatusSchema,
-    output: z.json().optional(),
+    output: WebMCPJsonValueSchema.optional(),
     errorText: z.string().optional(),
     exception: WebMCPRemoteObjectSchema.optional(),
   })
