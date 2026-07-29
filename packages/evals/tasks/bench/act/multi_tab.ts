@@ -34,11 +34,7 @@ export default defineBenchV4Task(
       // try acting on the first page again
       const pages = await stagehand.context.pages();
       const page1 = pages[0];
-      // V4 GAP: stagehand.act has no { page } option (v3:
-      // v3.act(instruction, { page: page1 })) — activate the target page
-      // via setActivePage before acting instead.
-      await stagehand.context.setActivePage(page1);
-      await stagehand.act("click the button to open the other page");
+      await stagehand.act("click the button to open the other page", { page: page1 });
 
       activePage = await stagehand.context.activePage();
       if (!activePage) throw new Error("no active page after acting on page 1");
