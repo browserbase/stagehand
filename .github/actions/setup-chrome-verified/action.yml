@@ -27,6 +27,12 @@ runs:
     - name: Verify Chrome launch
       shell: bash
       run: |
+        if ! command -v timeout >/dev/null 2>&1; then
+          timeout() {
+            shift
+            "$@"
+          }
+        fi
         set -euo pipefail
         chrome_path="${{ steps.setup-chrome.outputs.chrome-path }}"
         if [ ! -x "$chrome_path" ]; then

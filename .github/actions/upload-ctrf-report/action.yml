@@ -22,6 +22,14 @@ runs:
         INPUT_NAME: ${{ inputs.name }}
         INPUT_PATH: ${{ inputs.path }}
       run: |
+        if [[ "$INPUT_NAME" == *$'\r'* || "$INPUT_NAME" == *$'\n'* ]]; then
+          echo "::error::Input 'name' must not contain carriage returns or line feeds."
+          exit 1
+        fi
+        if [[ "$INPUT_PATH" == *$'\r'* || "$INPUT_PATH" == *$'\n'* ]]; then
+          echo "::error::Input 'path' must not contain carriage returns or line feeds."
+          exit 1
+        fi
         set -euo pipefail
         echo "name=${INPUT_NAME//\//-}" >> "$GITHUB_OUTPUT"
         if [ -n "$INPUT_PATH" ]; then
