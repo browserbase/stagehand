@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
@@ -57,8 +58,13 @@ import type {
   WebMCPToolsOptions,
 } from "../../protocol/types.ts";
 
+const runtimeIdentity = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+};
+
 vi.mock("../understudy/context.js", () => ({
-  V3Context: {
+  BrowserContext: {
     create: vi.fn(),
   },
 }));
@@ -104,7 +110,6 @@ class FakeRuntimeClipboard {
 class FakeBrowserSession implements StagehandBrowserSession {
   closed = false;
   connected = true;
-  getVersionCalls = 0;
   readonly pageRefs: FakeUnderstudyRuntimePage[];
   activePageRef: UnderstudyRuntimePage | undefined;
   readonly setActivePageCalls: UnderstudyRuntimePage[] = [];
@@ -118,23 +123,9 @@ class FakeBrowserSession implements StagehandBrowserSession {
   readonly clearCookiesCalls: Array<UnderstudyRuntimeClearCookieOptions | undefined> = [];
   readonly clipboard = new FakeRuntimeClipboard();
 
-  constructor(
-    pages: FakeUnderstudyRuntimePage[] = [],
-    readonly version = {
-      protocolVersion: "1.3",
-      product: "Chrome/143.0.0.0",
-      revision: "@abc123",
-      userAgent: "Mozilla/5.0",
-      jsVersion: "14.3",
-    },
-  ) {
+  constructor(pages: FakeUnderstudyRuntimePage[] = []) {
     this.pageRefs = pages;
     this.activePageRef = pages.at(-1);
-  }
-
-  async getVersion() {
-    this.getVersionCalls += 1;
-    return this.version;
   }
 
   pages(): UnderstudyRuntimePage[] {
@@ -624,6 +615,7 @@ async function createConfiguredHandler(
     id: 1,
     method: "runtime.configure",
     params: {
+      ...runtimeIdentity,
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     },
   });
@@ -637,6 +629,7 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
   });
 
   await runtime.configureLoopback({
+    ...runtimeIdentity,
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     logLevel: "info",
     telemetry: {
@@ -683,14 +676,22 @@ describe("Stagehand worker clients", () => {
     } = {
       [STAGEHAND_SEND_TO_HOST_BINDING]: (payload) => messages.push(JSON.parse(payload)),
     };
-    startStagehandServiceWorker(scope);
+    startStagehandServiceWorker(
+      scope,
+      createStagehandRuntime({
+        browserSessionFactory: async () => new FakeBrowserSession(),
+      }),
+    );
 
     await scope.__stagehandReceiveFromHost?.(
       JSON.stringify({
         jsonrpc: "2.0",
         id: 7,
-        method: "ping",
-        params: {},
+        method: "runtime.configure",
+        params: {
+          ...runtimeIdentity,
+          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        },
       }),
     );
 
@@ -700,8 +701,7 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 7,
       result: {
-        ok: true,
-        runtime: "service_worker",
+        configured: true,
       },
     });
     expect(
@@ -719,7 +719,9 @@ describe("Stagehand worker clients", () => {
     };
     startStagehandServiceWorker(scope);
 
-    await scope.__stagehandReceiveFromHost?.(JSON.stringify({ method: "ping", params: {} }));
+    await scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({ method: "stagehand.close", params: {} }),
+    );
 
     expect(messages).toContainEqual({
       jsonrpc: "2.0",
@@ -767,45 +769,7 @@ describe("Stagehand worker clients", () => {
     );
   });
 
-  it("handles ping", async () => {
-    await expect(
-      createHandle()({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "ping",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 1,
-      result: {
-        ok: true,
-        runtime: "service_worker",
-      },
-    });
-  });
-
-  it("reports unconfigured loopback status", async () => {
-    const handle = createHandle();
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
-  });
-
-  it("configures the browser session and reports connected status", async () => {
+  it("configures the browser session", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -821,6 +785,7 @@ describe("Stagehand worker clients", () => {
         id: 1,
         method: "runtime.configure",
         params: {
+          ...runtimeIdentity,
           cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         },
       }),
@@ -833,22 +798,6 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(sessions).toHaveLength(1);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 4,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 4,
-      result: {
-        configured: true,
-        connected: true,
-      },
-    });
   });
 
   it("closes the previous browser session when reconfigured", async () => {
@@ -866,6 +815,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/first",
       },
     });
@@ -874,6 +824,7 @@ describe("Stagehand worker clients", () => {
       id: 2,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/second",
       },
     });
@@ -894,6 +845,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -914,65 +866,6 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(session.closed).toBe(true);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
-  });
-
-  it("calls Browser.getVersion through the browser session", async () => {
-    const session = new FakeBrowserSession([], {
-      protocolVersion: "1.3",
-      product: "Chrome/143.0.0.0",
-      revision: "@abc123",
-      userAgent: "Mozilla/5.0",
-      jsVersion: "14.3",
-    });
-    const handle = createHandle({
-      browserSessionFactory: async () => session,
-    });
-
-    await handle({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
-    });
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 6,
-        method: "browser.get_version",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 6,
-      result: {
-        protocol_version: "1.3",
-        product: "Chrome/143.0.0.0",
-        revision: "@abc123",
-        user_agent: "Mozilla/5.0",
-        js_version: "14.3",
-      },
-    });
-
-    expect(session.getVersionCalls).toBe(1);
   });
 
   it("returns a clear error for context.pages before runtime is configured", async () => {
@@ -1010,6 +903,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -1048,6 +942,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -2570,33 +2465,12 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("returns a clear error before loopback is configured", async () => {
-    const handle = createHandle();
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 6,
-        method: "browser.get_version",
-        params: {},
-      }),
-    ).resolves.toMatchObject({
-      jsonrpc: "2.0",
-      id: 6,
-      error: {
-        code: -32603,
-        message: "Stagehand loopback CDP is not configured",
-        data: { name: "Error" },
-      },
-    });
-  });
-
   it("returns invalid params for known methods with bad params", async () => {
     await expect(
       createHandle()({
         jsonrpc: "2.0",
         id: 2,
-        method: "ping",
+        method: "stagehand.metrics",
         params: { extra: true },
       }),
     ).resolves.toMatchObject({

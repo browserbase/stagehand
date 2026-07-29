@@ -12,7 +12,6 @@ import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods } from "../protocol/schema-registry.js";
 import type { StagehandRpcRequest } from "../protocol/types.js";
 import { z } from "zod/v4";
-import { createBrowserController } from "./controllers/browserController.js";
 import { createContextController } from "./controllers/contextController.js";
 import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
@@ -29,7 +28,6 @@ export type HandlerContext = {
 
 export class RPCRouter {
   readonly runtimeController;
-  readonly browserController;
   readonly stagehandController;
   readonly contextController;
   readonly pageController;
@@ -37,7 +35,6 @@ export class RPCRouter {
 
   constructor(readonly runtime: StagehandRuntime) {
     this.runtimeController = createRuntimeController(runtime);
-    this.browserController = createBrowserController(runtime);
     this.stagehandController = createStagehandController(runtime);
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
@@ -84,24 +81,9 @@ export class RPCRouter {
 
   async route(request: StagehandRpcRequest, context: HandlerContext): Promise<unknown> {
     switch (request.method) {
-      case "ping":
-        return this.runtimeController.ping(
-          parseParams(StagehandMethods.ping, request.params),
-          context,
-        );
       case "runtime.configure":
         return this.runtimeController.configure(
           parseParams(StagehandMethods.runtimeConfigure, request.params),
-          context,
-        );
-      case "runtime.loopback_status":
-        return this.runtimeController.loopbackStatus(
-          parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),
-          context,
-        );
-      case "browser.get_version":
-        return this.browserController.getVersion(
-          parseParams(StagehandMethods.browserGetVersion, request.params),
           context,
         );
       case "stagehand.init":

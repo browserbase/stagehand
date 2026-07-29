@@ -556,6 +556,8 @@ describe("Stagehand object-model protocol", () => {
   it("accepts telemetry configuration as protocol data", () => {
     expect(
       StagehandMethods.runtimeConfigure.params.parse({
+        protocolVersion: 1,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {

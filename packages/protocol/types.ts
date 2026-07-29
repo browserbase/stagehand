@@ -16,7 +16,6 @@ import type {
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
-  BrowserGetVersionResultSchema,
   BrowserbaseBrowserSettingsSchema,
   BrowserbaseBrowserSourceSchema,
   BrowserbaseContextSchema,
@@ -178,7 +177,6 @@ import type {
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
   RuntimeDescriptorSchema,
-  RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
@@ -190,7 +188,6 @@ import type {
   StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
-  StagehandPingResultSchema,
   StagehandResultMetadataSchema,
   SnapshotResultSchema,
   TelemetryConfigSchema,
@@ -357,12 +354,9 @@ export type LocatorHighlightParams = z.infer<typeof LocatorHighlightParamsSchema
 export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventParamsSchema>;
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
-export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
 export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
 export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
-export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
-export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
 export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;

@@ -6,19 +6,6 @@
     "methods": {
       "type": "object",
       "properties": {
-        "ping": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/StagehandPingResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "runtime.configure": {
           "type": "object",
           "properties": {
@@ -27,32 +14,6 @@
             },
             "result": {
               "$ref": "#/$defs/RuntimeConfigureResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
-        "runtime.loopback_status": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/RuntimeLoopbackStatusResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
-        "browser.get_version": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/BrowserGetVersionResult"
             }
           },
           "required": ["params", "result"],
@@ -931,10 +892,7 @@
         }
       },
       "required": [
-        "ping",
         "runtime.configure",
-        "runtime.loopback_status",
-        "browser.get_version",
         "stagehand.init",
         "stagehand.close",
         "stagehand.act",
@@ -1046,26 +1004,6 @@
   "additionalProperties": false,
   "title": "Stagehand V4 Protocol",
   "$defs": {
-    "EmptyParams": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    },
-    "StagehandPingResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        },
-        "runtime": {
-          "type": "string",
-          "const": "service_worker"
-        }
-      },
-      "required": ["ok", "runtime"],
-      "additionalProperties": false
-    },
     "RuntimeConfigureParams": {
       "type": "object",
       "properties": {
@@ -1096,7 +1034,7 @@
           "enum": ["off", "error", "warn", "info", "debug"]
         }
       },
-      "required": ["cdp_url"],
+      "required": ["protocol_version", "client_info", "cdp_url"],
       "additionalProperties": false
     },
     "ImplementationInfo": {
@@ -1154,40 +1092,6 @@
         }
       },
       "required": ["configured"],
-      "additionalProperties": false
-    },
-    "RuntimeLoopbackStatusResult": {
-      "type": "object",
-      "properties": {
-        "configured": {
-          "type": "boolean"
-        },
-        "connected": {
-          "type": "boolean"
-        }
-      },
-      "required": ["configured", "connected"],
-      "additionalProperties": false
-    },
-    "BrowserGetVersionResult": {
-      "type": "object",
-      "properties": {
-        "protocol_version": {
-          "type": "string"
-        },
-        "product": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string"
-        },
-        "user_agent": {
-          "type": "string"
-        },
-        "js_version": {
-          "type": "string"
-        }
-      },
       "additionalProperties": false
     },
     "StagehandInitParams": {
@@ -1658,6 +1562,11 @@
         }
       },
       "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "EmptyParams": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     },
     "StagehandCloseResult": {
@@ -4618,91 +4527,10 @@
             },
             "method": {
               "type": "string",
-              "const": "ping"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
               "const": "runtime.configure"
             },
             "params": {
               "$ref": "#/$defs/RuntimeConfigureParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "runtime.loopback_status"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "browser.get_version"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
             },
             "traceparent": {
               "type": "string"
