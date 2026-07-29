@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import cast
 
@@ -11,6 +12,7 @@ from datamodel_code_generator import (
     GenerateConfig,
     InputFileType,
     JsonSchemaVersion,
+    PythonVersion,
     TargetPydanticVersion,
     generate,
 )
@@ -20,8 +22,9 @@ SDK_ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL_PATH = SDK_ROOT.parent / "protocol" / "stagehand.v4.json"
 PROTOCOL_PACKAGE_PATH = SDK_ROOT.parent / "protocol" / "package.json"
 MODELS_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "models.py"
+INPUT_TYPES_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "input_types.py"
 PROTOCOL_VERSION_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "protocol_version.py"
-DATAMODEL_CONFIG = GenerateConfig(
+PYDANTIC_CONFIG = GenerateConfig(
     preset="practical-py311-20260619",
     input_file_type=InputFileType.JsonSchema,
     input_filename=PROTOCOL_PATH.name,
@@ -46,6 +49,29 @@ DATAMODEL_CONFIG = GenerateConfig(
         "PageScreenshotOptions": "stagehand._validation.PageScreenshotOptionsValidation",
         "TelemetryConfig": "stagehand._validation.TelemetryConfigValidation",
     },
+    keep_model_order=True,
+    use_double_quotes=True,
+    formatters=[Formatter.BUILTIN],
+    builtin_format_line_length=88,
+)
+TYPED_DICT_CONFIG = GenerateConfig(
+    # Keep this explicit: the pinned practical preset's unique-item conversion is
+    # incompatible with TypedDict output.
+    input_file_type=InputFileType.JsonSchema,
+    input_filename=PROTOCOL_PATH.name,
+    schema_version=JsonSchemaVersion.Draft202012.value,
+    output_model_type=DataModelType.TypingTypedDict,
+    target_python_version=PythonVersion.PY_311,
+    # Client-only input types extend generated protocol options with values such as Page.
+    use_closed_typed_dict=False,
+    disable_timestamp=True,
+    # Preserve accurate __required_keys__ and __optional_keys__ runtime metadata.
+    disable_future_imports=True,
+    use_union_operator=True,
+    use_standard_collections=True,
+    use_standard_primitive_types=True,
+    strict_nullable=True,
+    skip_root_model=True,
     keep_model_order=True,
     use_double_quotes=True,
     formatters=[Formatter.BUILTIN],
@@ -87,11 +113,18 @@ def main() -> None:
     ):
         definitions.pop(envelope)
 
-    use_wire_urls(protocol)
-    models = generate(protocol, config=DATAMODEL_CONFIG)
+    wire_protocol = deepcopy(protocol)
+    use_wire_urls(wire_protocol)
+    models = generate(wire_protocol, config=PYDANTIC_CONFIG)
     if not isinstance(models, str):
         raise TypeError("expected datamodel-code-generator to return one Python module")
     models = f"{models.rstrip()}\n"
+
+    input_types = generate(deepcopy(protocol), config=TYPED_DICT_CONFIG)
+    if not isinstance(input_types, str):
+        raise TypeError("expected datamodel-code-generator to return one Python module")
+    input_types = f"{input_types.rstrip()}\n"
+
     protocol_version_module = generate_protocol_version_module()
 
     if check:
@@ -99,6 +132,7 @@ def main() -> None:
             path
             for path, expected in (
                 (MODELS_PATH, models),
+                (INPUT_TYPES_PATH, input_types),
                 (PROTOCOL_VERSION_PATH, protocol_version_module),
             )
             if not path.exists() or path.read_text() != expected
@@ -110,6 +144,7 @@ def main() -> None:
 
     MODELS_PATH.parent.mkdir(parents=True, exist_ok=True)
     MODELS_PATH.write_text(models)
+    INPUT_TYPES_PATH.write_text(input_types)
     PROTOCOL_VERSION_PATH.write_text(protocol_version_module)
 
 
