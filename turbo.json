@@ -69,14 +69,7 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/packages/protocol/**",
-        "$TURBO_ROOT$/packages/sdk-python/src/**",
-        "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/server/artifacts/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
     "@browserbasehq/stagehand-server#test:unit": {
@@ -174,6 +167,22 @@
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/packages/server/**",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!$TURBO_ROOT$/packages/*/dist/**",
+        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
+      ]
+    },
+    "@browserbasehq/stagehand-docs#test:unit": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/packages/sdk-python/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
