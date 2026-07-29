@@ -1336,8 +1336,8 @@ export const StagehandInitParamsSchema = z
 
 export const RuntimeConfigureParamsSchema = z
   .strictObject({
-    protocolVersion: z.int().positive().optional(),
-    clientInfo: ImplementationInfoSchema.optional(),
+    protocolVersion: z.int().positive(),
+    clientInfo: ImplementationInfoSchema,
     cdpUrl: z.string().min(1),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),

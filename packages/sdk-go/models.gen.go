@@ -1536,13 +1536,13 @@ type RuntimeConfigureParams struct {
 	CDPURL string `json:"cdp_url"`
 
 	// ClientInfo corresponds to the JSON schema field "client_info".
-	ClientInfo *ImplementationInfo `json:"client_info,omitempty,omitzero"`
+	ClientInfo ImplementationInfo `json:"client_info"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
 	LogLevel RuntimeConfigureParamsLogLevel `json:"log_level,omitempty,omitzero"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *int `json:"protocol_version,omitempty,omitzero"`
+	ProtocolVersion int `json:"protocol_version"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
 	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
