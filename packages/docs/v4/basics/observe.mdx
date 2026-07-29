@@ -338,15 +338,14 @@ actions = await stagehand.observe(instruction="Find the learn more button")
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
-
-
 actions = await stagehand.observe(
-    instruction="Find form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
-    timeout=15_000,
-    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
+    "Find form fields",
+    {
+        "selector": "form#signup",
+        "ignore_selectors": [".advertisement"],
+        "timeout": 15_000,
+        "model": {"model_name": "openai/gpt-5.4-mini"},
+    },
 )
 ```
 
@@ -372,10 +371,12 @@ stay out of the returned plan.
 
 ```python
 actions = await stagehand.observe(
-    instruction="Fill the login form",
-    variables={
-        "username": {"value": "user@example.com", "description": "the login email"},
-        "remember_me": True,
+    "Fill the login form",
+    {
+        "variables": {
+            "username": {"value": "user@example.com", "description": "the login email"},
+            "remember_me": True,
+        },
     },
 )
 # suggested arguments reference %username% rather than the literal email
@@ -387,7 +388,7 @@ On Browserbase, turn on caching
 so repeated, identical observations are served from a cache instead of calling the model again.
 
 ```python
-actions = await stagehand.observe(instruction="Find the sign in button", cache=True)
+actions = await stagehand.observe("Find the sign in button", {"cache": True})
 print(actions.metadata.cache_status)
 ```
 
@@ -408,9 +409,9 @@ just the relevant region.
 tables = await stagehand.observe(instruction="Find the pricing table")
 if tables.data:
     pricing = await stagehand.extract(
-        instruction="Extract each pricing tier",
-        schema=Pricing,
-        selector=tables.data[0].selector,
+        "Extract each pricing tier",
+        Pricing,
+        {"selector": tables.data[0].selector},
     )
     print(pricing.data)
 ```
@@ -450,9 +451,11 @@ Scope observation to the relevant region with `selector`, and exclude noise with
 
 ```python
 actions = await stagehand.observe(
-    instruction="Find the form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
+    "Find the form fields",
+    {
+        "selector": "form#signup",
+        "ignore_selectors": [".advertisement"],
+    },
 )
 ```
 

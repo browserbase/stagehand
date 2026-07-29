@@ -26,12 +26,14 @@ class Companies(BaseModel):
 
 async def main() -> None:
     # Server-side caching requires a Browserbase browser session.
-    stagehand = Stagehand(
-        api_key=BROWSERBASE_API_KEY,
-        browser="browserbase",
-        model="openai/gpt-5.4-mini",
-        model_api_key=OPENAI_API_KEY,
-    )
+    stagehand = Stagehand({
+        "api_key": BROWSERBASE_API_KEY,
+        "browser": {"type": "browserbase"},
+        "model": {
+            "model_name": "openai/gpt-5.4-mini",
+            "api_key": OPENAI_API_KEY,
+        },
+    })
 
     try:
         await stagehand.init()
@@ -44,13 +46,12 @@ async def main() -> None:
         async def extract_companies() -> tuple[ExtractResult[Companies], int]:
             start = perf_counter()
             result = await stagehand.extract(
-                instruction=(
+                (
                     "Extract the names and descriptions of the first five companies "
                     "listed on the page"
                 ),
-                schema=Companies,
-                page=page,
-                cache=True,
+                Companies,
+                {"page": page, "cache": True},
             )
             return result, round((perf_counter() - start) * 1000)
 

@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 import stagehand
-from stagehand import Stagehand
+from stagehand import LocalBrowserSource, Stagehand
 
 
 async def main() -> None:
@@ -14,11 +14,10 @@ async def main() -> None:
     if not (package_root / "_extension" / "manifest.json").is_file():
         raise RuntimeError("Installed Stagehand distribution is missing its browser extension")
 
-    async with Stagehand(
-        browser="local",
-        headless=True,
-        executable_path=os.environ.get("CHROME_PATH"),
-    ) as client:
+    browser = LocalBrowserSource(type="local", headless=True)
+    if executable_path := os.environ.get("CHROME_PATH"):
+        browser["executable_path"] = executable_path
+    async with Stagehand({"browser": browser}) as client:
         page = await client.context.new_page()
         await page.goto(f"data:text/html,{quote('<title>Stagehand package smoke</title>')}")
         if await page.title() != "Stagehand package smoke":

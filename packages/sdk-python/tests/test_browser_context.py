@@ -54,10 +54,10 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
     recording = RecordingRPCClient({"context.clear_cookies": ContextVoidResult(ok=True)})
     context = BrowserContext(cast(RPCClient, recording))
 
-    await context.clear_cookies(
-        name=re.compile("^session$", re.IGNORECASE),
-        domain="example.com",
-    )
+    await context.clear_cookies({
+        "name": re.compile("^session$", re.IGNORECASE),
+        "domain": "example.com",
+    })
 
     assert recording.calls[0][1] == ContextClearCookiesParams.model_validate({
         "options": {

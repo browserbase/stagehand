@@ -10,17 +10,18 @@ if not OPENAI_API_KEY:
 
 async def main() -> None:
     with open("stagehand.jsonl", "a", encoding="utf-8") as log_file:
-        stagehand = Stagehand(
-            browser="local",
-            headless=True,
-            model="openai/gpt-5.4-mini",
-            model_api_key=OPENAI_API_KEY,
-            logging=StagehandClientLoggingConfig(
+        stagehand = Stagehand({
+            "browser": {"type": "local", "headless": True},
+            "model": {
+                "model_name": "openai/gpt-5.4-mini",
+                "api_key": OPENAI_API_KEY,
+            },
+            "logging": StagehandClientLoggingConfig(
                 level="info",
                 format="pretty",
                 on_log=lambda log: print(log.model_dump_json(), file=log_file),
             ),
-        )
+        })
 
         try:
             await stagehand.init()
@@ -30,7 +31,7 @@ async def main() -> None:
                 raise RuntimeError
 
             await page.goto("https://example.com")
-            print(await stagehand.observe(instruction="Find the Learn more link"))
+            print(await stagehand.observe("Find the Learn more link"))
         finally:
             await stagehand.close()
 

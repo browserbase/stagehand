@@ -5,6 +5,7 @@ from typing import cast
 import pytest
 from pydantic import BaseModel
 
+from stagehand import PageNavigationOptions
 from stagehand._generated.models import (
     PageEvaluateResult,
     PageGotoParams,
@@ -16,6 +17,12 @@ from stagehand.page import Page
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
+
+
+def test_public_options_explicit_form_builds_a_typed_dictionary() -> None:
+    options = PageNavigationOptions(wait_until="domcontentloaded", timeout=5_000)
+
+    assert options == {"wait_until": "domcontentloaded", "timeout": 5_000}
 
 
 class EvaluationResult(BaseModel):
@@ -32,8 +39,7 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
 
     returned = await page.goto(
         "https://example.com",
-        wait_until="domcontentloaded",
-        timeout=5_000,
+        {"wait_until": "domcontentloaded", "timeout": 5_000},
     )
     title = await page.title()
 
@@ -48,6 +54,20 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
         "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
     assert result_model is PageRef
+
+
+@pytest.mark.asyncio
+async def test_page_navigation_validates_typed_options_with_the_wire_model() -> None:
+    page = Page(
+        cast(RPCClient, RecordingRPCClient()),
+        PageRef(page_id="page-1"),
+    )
+
+    with pytest.raises(ValueError, match="greater than 0"):
+        await page.goto(
+            "https://example.com",
+            cast(PageNavigationOptions, {"timeout": -1}),
+        )
 
 
 @pytest.mark.asyncio

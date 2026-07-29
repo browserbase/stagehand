@@ -123,6 +123,7 @@ const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
+const PYTHON_CLIENT_TYPES = resolve(PYTHON_ROOT, "client_types.py");
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
@@ -445,54 +446,80 @@ describe("SDK reference surface", () => {
       ]);
     const differences: string[] = [];
 
-    const typescriptDocumented = documentedMethodMap(referencePages, "TypeScript");
-    for (const method of typescriptMethods) {
-      const publicFields = method.localInputFields.filter(({ complete }) => complete);
-      if (publicFields.length === 0) continue;
-      const reference = typescriptDocumented.get(methodKey(method));
-      if (!reference) continue;
-      const documented = new Map(
-        reference.method.paramFields
-          .filter(({ key }) => key !== undefined)
-          .map((field) => [field.key as string, field]),
-      );
-      const localRoots = new Set(publicFields.map(({ key }) => key.split(".", 1)[0] as string));
-      const actualPaths = reference.method.paramPaths
-        .filter(
-          (path): path is string =>
-            path !== undefined &&
-            path.includes(".") &&
-            localRoots.has(path.split(".", 1)[0] as string),
-        )
-        .sort();
-      const expectedPaths = publicFields.map(({ key }) => key).sort();
-      if (!arraysEqual(actualPaths, expectedPaths)) {
-        differences.push(
-          `${reference.filePath} TypeScript ${method.methodName}: expected public wrapper fields [${expectedPaths.join(", ")}], received [${actualPaths.join(", ")}]`,
+    for (const [language, methods] of [
+      ["TypeScript", typescriptMethods],
+      ["Python", pythonMethods],
+    ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
+      const documentedByMethod = documentedMethodMap(referencePages, language);
+      for (const method of methods) {
+        const publicFields = method.localInputFields.filter(({ complete }) => complete);
+        if (publicFields.length === 0) continue;
+        const reference = documentedByMethod.get(methodKey(method));
+        if (!reference) continue;
+        const documented = new Map(
+          reference.method.paramFields
+            .filter(({ key }) => key !== undefined)
+            .map((field) => [field.key as string, field]),
         );
-      }
-
-      for (const field of publicFields) {
-        const actual = documented.get(field.key);
-        if (!actual) continue;
-        const normalized = normalizePublicType(
-          actual.type,
-          "TypeScript",
-          actual.optional,
-          pythonAliases,
-        );
-        const expected = publicTypeCandidates(
-          field.type,
-          "TypeScript",
-          field.optional,
-          protocol,
-          pythonAliases,
-          method,
-        );
-        if (!expected.has(normalized)) {
+        const localRoots = new Set(publicFields.map(({ key }) => key.split(".", 1)[0] as string));
+        const actualPaths = reference.method.paramPaths
+          .filter(
+            (path): path is string =>
+              path !== undefined &&
+              path.includes(".") &&
+              localRoots.has(path.split(".", 1)[0] as string),
+          )
+          .sort();
+        const protocolPaths = method.operationName
+          ? projectedInputPaths(
+              { ...method, localInputFields: [] },
+              language,
+              protocol.properties.methods.properties[method.operationName]?.properties.params ?? {},
+              protocol,
+            )
+          : [];
+        const expectedPaths = [
+          ...new Set([
+            ...protocolPaths.filter((path) => {
+              const root = path.split(".", 1)[0] as string;
+              return (
+                localRoots.has(root) &&
+                !publicFields.some(
+                  (field) => path === field.key || path.startsWith(`${field.key}.`),
+                )
+              );
+            }),
+            ...publicFields.map(({ key }) => key),
+          ]),
+        ].sort();
+        if (!arraysEqual(actualPaths, expectedPaths)) {
           differences.push(
-            `${methodKey(method)} TypeScript ${field.key}: expected one of [${[...expected].join(", ")}], received ${normalized || "<missing>"}`,
+            `${reference.filePath} ${language} ${method.methodName}: expected public wrapper fields [${expectedPaths.join(", ")}], received [${actualPaths.join(", ")}]`,
           );
+        }
+
+        for (const field of publicFields) {
+          const actual = documented.get(field.key);
+          if (!actual) continue;
+          const normalized = normalizePublicType(
+            actual.type,
+            language,
+            actual.optional,
+            pythonAliases,
+          );
+          const expected = publicTypeCandidates(
+            field.type,
+            language,
+            field.optional,
+            protocol,
+            pythonAliases,
+            method,
+          );
+          if (!expected.has(normalized)) {
+            differences.push(
+              `${methodKey(method)} ${language} ${field.key}: expected one of [${[...expected].join(", ")}], received ${normalized || "<missing>"}`,
+            );
+          }
         }
       }
     }
@@ -517,48 +544,6 @@ describe("SDK reference surface", () => {
     expect(
       differences,
       "Reference inputs must describe values accepted by the public SDK wrappers, not serialized protocol objects",
-    ).toEqual([]);
-  });
-
-  it("documents flattened model options with the protocol ModelConfig type", async () => {
-    const [typescriptMethods, pythonMethods, referencePages, protocol] = await Promise.all([
-      readTypescriptMethods(),
-      readPythonMethods(),
-      readReferencePages(),
-      readProtocolDocument(),
-    ]);
-    const differences: string[] = [];
-
-    for (const [language, methods] of [
-      ["TypeScript", typescriptMethods],
-      ["Python", pythonMethods],
-    ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
-      const documentedByMethod = documentedMethodMap(referencePages, language);
-      for (const method of methods) {
-        if (!method.operationName || !method.parameters.includes("model")) continue;
-        const operation = protocol.properties.methods.properties[method.operationName];
-        const reference = documentedByMethod.get(methodKey(method));
-        if (!operation || !reference) continue;
-
-        const optionsSchema = resolvedProperties(operation.properties.params, protocol).options;
-        const modelSchema = optionsSchema
-          ? resolvedProperties(optionsSchema, protocol).model
-          : undefined;
-        if (!modelSchema?.$ref) continue;
-
-        const actual = reference.method.paramFields.find(({ key }) => key === "model")?.type;
-        const expected = canonicalSchemaType(modelSchema, language, protocol);
-        if (actual !== expected) {
-          differences.push(
-            `${methodKey(method)} ${language} model: expected ${expected}, received ${actual ?? "<missing>"}`,
-          );
-        }
-      }
-    }
-
-    expect(
-      differences,
-      "Flattened model parameters in MDX must retain the protocol's ModelConfig type",
     ).toEqual([]);
   });
 
@@ -933,6 +918,9 @@ function callArguments(call: SgNode): SgNode[] {
 }
 
 async function readPythonMethods(): Promise<SdkMethod[]> {
+  const clientTypesRoot = parse("python", await readFile(PYTHON_CLIENT_TYPES, "utf8")).root();
+  const clientTypes = pythonTypedDictDefinitions(clientTypesRoot);
+  const generatedTypeNames = generatedPythonInputImports(clientTypesRoot);
   const methods = await Promise.all(
     SDK_OBJECTS.map(async ({ className, classSlug, pythonFile }) => {
       const filePath = resolve(PYTHON_ROOT, pythonFile);
@@ -967,6 +955,7 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
             extractOperationName(method, "Python", undefined, filePath),
             method.field("return_type")?.text(),
             readParameterTypes(method, pythonParameterName),
+            localPythonInputFields(method, clientTypes, generatedTypeNames),
           ),
         ];
       });
@@ -974,6 +963,87 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
   );
 
   return deduplicateMethods(methods.flat(), "Python");
+}
+
+function pythonTypedDictDefinitions(module: SgNode): Map<string, PublicInputField[]> {
+  return new Map(
+    module.findAll({ rule: { kind: "class_definition" } }).flatMap((classNode) => {
+      const name = classNode.field("name")?.text();
+      const body = classNode.field("body");
+      if (!name || !body) return [];
+      const total = !classNode.text().split("\n", 1)[0]?.includes("total=False");
+      const fields = namedChildren(body).flatMap((statement): PublicInputField[] => {
+        const assignment =
+          statement.kind() === "expression_statement" ? namedChildren(statement)[0] : statement;
+        if (assignment?.kind() !== "assignment") return [];
+        const fieldName = namedChildren(assignment)[0]?.text();
+        const typeNode = assignment.field("type");
+        if (!fieldName || !typeNode) return [];
+        const rawType = typeNode.text();
+        const required = rawType.match(/^Required\[(.*)\]$/u);
+        const notRequired = rawType.match(/^NotRequired\[(.*)\]$/u);
+        return [
+          {
+            complete: true,
+            key: fieldName,
+            optional: notRequired ? true : required ? false : !total,
+            type: required?.[1] ?? notRequired?.[1] ?? rawType,
+          },
+        ];
+      });
+      return [[name, fields] as const];
+    }),
+  );
+}
+
+function generatedPythonInputImports(module: SgNode): Set<string> {
+  const importStatement = module
+    .findAll({ rule: { kind: "import_from_statement" } })
+    .find((statement) => statement.text().startsWith("from ._generated.input_types import"));
+  if (!importStatement) return new Set();
+  return new Set(
+    namedChildren(importStatement)
+      .filter((child) => child.kind() === "dotted_name")
+      .map((child) => child.text())
+      .filter((name) => !name.includes(".")),
+  );
+}
+
+function localPythonInputFields(
+  method: SgNode,
+  definitions: ReadonlyMap<string, PublicInputField[]>,
+  generatedTypeNames: ReadonlySet<string>,
+): PublicInputField[] {
+  const parameters = method.field("parameters");
+  if (!parameters) return [];
+  return uniquePublicInputFields(
+    namedChildren(parameters).flatMap((parameter): PublicInputField[] => {
+      const name = pythonParameterName(parameter);
+      const type = parameter.field("type");
+      if (!name || !type) return [];
+      const referencedDefinitions = [
+        ...new Set(
+          type
+            .findAll({ rule: { kind: "identifier" } })
+            .map((identifier) => identifier.text())
+            .filter((identifier) => definitions.has(identifier)),
+        ),
+      ];
+      return referencedDefinitions.flatMap((definition) =>
+        (definitions.get(definition) ?? []).map((field) => ({
+          ...field,
+          complete: !pythonTypeIdentifiers(field.type).some((identifier) =>
+            generatedTypeNames.has(identifier),
+          ),
+          key: `${name}.${field.key}`,
+        })),
+      );
+    }),
+  );
+}
+
+function pythonTypeIdentifiers(type: string): string[] {
+  return [...type.matchAll(/\b[A-Z][A-Za-z0-9_]*\b/gu)].map(([identifier]) => identifier);
 }
 
 function findClass(

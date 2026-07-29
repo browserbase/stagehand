@@ -98,7 +98,7 @@ You are writing async browser automation with `stagehand`.
 
 - Import: `from stagehand import Stagehand`
 - The SDK is async: everything is awaited inside `async def` and run with `asyncio.run`.
-- Construct with keyword args, then `await stagehand.init()`:
+- Construct with one typed configuration dictionary, then `await stagehand.init()`:
 
 ```python
 import asyncio
@@ -108,12 +108,16 @@ from stagehand import Stagehand
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",  # or "browserbase" (default; needs an API key)
-        headless=True,
-        model="openai/gpt-5.4-mini",
-        model_api_key=os.environ["OPENAI_API_KEY"],
-    )
+    stagehand = Stagehand({
+        "browser": {
+            "type": "local",  # or "browserbase" (needs an API key)
+            "headless": True,
+        },
+        "model": {
+            "model_name": "openai/gpt-5.4-mini",
+            "api_key": os.environ["OPENAI_API_KEY"],
+        },
+    })
     try:
         await stagehand.init()
         page = await stagehand.context.new_page()
@@ -130,7 +134,8 @@ asyncio.run(main())
 ## Pages
 
 - `act`, `extract`, and `observe` are methods on `stagehand`, NOT on `page`.
-- They run on the active page by default; pass `page=` to target a specific one.
+- They run on the active page by default; pass `{"page": page}` as the options dictionary to target
+  a specific one.
 - Use `page` objects for deterministic controls like `page.goto(...)`.
 
 ## Act

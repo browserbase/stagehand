@@ -557,18 +557,22 @@ await stagehand.context.add_cookies([cookie])
 Clear cookies that match optional name, domain, and path filters.
 
 ```python
-await stagehand.context.clear_cookies(domain="example.com")
+await stagehand.context.clear_cookies({"domain": "example.com"})
 ```
 
-<ParamField path="name" type="str | re.Pattern[str] | None" optional>
+<ParamField path="options" type="ClearCookieOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.name" type="str | re.Pattern[str] | None" optional>
   A cookie name or regular-expression filter.
 </ParamField>
 
-<ParamField path="domain" type="str | re.Pattern[str] | None" optional>
+<ParamField path="options.domain" type="str | re.Pattern[str] | None" optional>
   A cookie domain or regular-expression filter.
 </ParamField>
 
-<ParamField path="path" type="str | re.Pattern[str] | None" optional>
+<ParamField path="options.path" type="str | re.Pattern[str] | None" optional>
   A cookie path or regular-expression filter.
 </ParamField>
 

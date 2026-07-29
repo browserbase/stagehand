@@ -338,18 +338,15 @@ You can pass additional options to configure `act()` for your exact use case:
 ```python
 import os
 
-from stagehand import ModelConfig
-
-
 await stagehand.act(
     "Choose 'Peach' from the favorite color dropdown",
-    model=ModelConfig.model_validate(
-        {
+    {
+        "model": {
             "model_name": "google/gemini-2.5-flash",
             "api_key": os.environ["GOOGLE_API_KEY"],
-        }
-    ),
-    timeout=10_000,
+        },
+        "timeout": 10_000,
+    },
 )
 ```
 
@@ -369,13 +366,18 @@ it.
 ```python
 await stagehand.act(
     "Type %username% into the email field",
-    variables={"username": "user@example.com"},
+    {"variables": {"username": "user@example.com"}},
 )
 
 await stagehand.act(
     "Type %password% into the password field",
-    variables={
-        "password": {"value": os.environ["USER_PASSWORD"], "description": "the login password"}
+    {
+        "variables": {
+            "password": {
+                "value": os.environ["USER_PASSWORD"],
+                "description": "the login password",
+            }
+        }
     },
 )
 
@@ -415,7 +417,7 @@ On Browserbase, turn on caching
 so repeated, identical actions are served from a cache instead of calling the model again.
 
 ```python
-result = await stagehand.act("Click the sign in button", cache=True)
+result = await stagehand.act("Click the sign in button", {"cache": True})
 print(result.metadata.cache_status)
 ```
 
@@ -432,7 +434,7 @@ await page.wait_for_load_state("domcontentloaded")
 
 candidates = await stagehand.observe(instruction="Find the submit button")
 if candidates.data:
-    await stagehand.act("Click the submit button", timeout=30_000)
+    await stagehand.act("Click the submit button", {"timeout": 30_000})
 ```
 
 </Accordion>

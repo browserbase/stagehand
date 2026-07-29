@@ -31,7 +31,7 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
         selector="select",
     ).nth(1)
 
-    await locator.click(button="left", click_count=2)
+    await locator.click({"button": "left", "click_count": 2})
     count = await locator.count()
     selected = await locator.select_option("one")
 

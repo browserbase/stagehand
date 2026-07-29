@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Literal, Self
+from typing import Self
 
+from ._generated.input_types import (
+    LocatorClickOptions,
+    LocatorHighlightOptions,
+    LocatorSendClickEventOptions,
+    LocatorTypeOptions,
+)
 from ._generated.models import (
     LocatorCentroidResult,
-    LocatorClickOptions,
     LocatorClickParams,
     LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
     LocatorFillParams,
     LocatorFillResult,
-    LocatorHighlightOptions,
     LocatorHighlightParams,
     LocatorHighlightResult,
     LocatorHoverResult,
@@ -25,15 +29,11 @@ from ._generated.models import (
     LocatorScrollToResult,
     LocatorSelectOptionParams,
     LocatorSelectOptionResult,
-    LocatorSendClickEventOptions,
     LocatorSendClickEventParams,
     LocatorSendClickEventResult,
     LocatorTextContentResult,
-    LocatorTypeOptions,
     LocatorTypeParams,
     LocatorTypeResult,
-    MouseButton,
-    RgbaColor,
 )
 from .rpc_client import RPCClient
 
@@ -70,21 +70,14 @@ class Locator:
 
     async def click(
         self,
-        *,
-        button: MouseButton | Literal["left", "right", "middle"] | None = None,
-        click_count: int | None = None,
+        options: LocatorClickOptions | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
-        options = LocatorClickOptions.model_validate({
-            name: value
-            for name, value in (("button", button), ("click_count", click_count))
-            if value is not None
-        })
-        if options.model_fields_set:
-            values["options"] = options
         await self._rpc_client.send(
             "locator.click",
-            LocatorClickParams.model_validate(values),
+            LocatorClickParams.model_validate({
+                **self._descriptor.model_dump(exclude_unset=True),
+                **({"options": options} if options is not None else {}),
+            }),
             LocatorClickResult,
         )
 
@@ -173,63 +166,42 @@ class Locator:
 
     async def highlight(
         self,
-        *,
-        duration_ms: int | None = None,
-        border_color: RgbaColor | None = None,
-        content_color: RgbaColor | None = None,
+        options: LocatorHighlightOptions | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
-        options = LocatorHighlightOptions.model_validate({
-            name: value
-            for name, value in (
-                ("duration_ms", duration_ms),
-                ("border_color", border_color),
-                ("content_color", content_color),
-            )
-            if value is not None
-        })
-        if options.model_fields_set:
-            values["options"] = options
         await self._rpc_client.send(
             "locator.highlight",
-            LocatorHighlightParams.model_validate(values),
+            LocatorHighlightParams.model_validate({
+                **self._descriptor.model_dump(exclude_unset=True),
+                **({"options": options} if options is not None else {}),
+            }),
             LocatorHighlightResult,
         )
 
     async def send_click_event(
         self,
-        *,
-        bubbles: bool | None = None,
-        cancelable: bool | None = None,
-        composed: bool | None = None,
-        detail: float | None = None,
+        options: LocatorSendClickEventOptions | None = None,
     ) -> None:
-        values = self._descriptor.model_dump(exclude_unset=True)
-        options = LocatorSendClickEventOptions.model_validate({
-            name: value
-            for name, value in (
-                ("bubbles", bubbles),
-                ("cancelable", cancelable),
-                ("composed", composed),
-                ("detail", detail),
-            )
-            if value is not None
-        })
-        if options.model_fields_set:
-            values["options"] = options
         await self._rpc_client.send(
             "locator.send_click_event",
-            LocatorSendClickEventParams.model_validate(values),
+            LocatorSendClickEventParams.model_validate({
+                **self._descriptor.model_dump(exclude_unset=True),
+                **({"options": options} if options is not None else {}),
+            }),
             LocatorSendClickEventResult,
         )
 
-    async def type(self, text: str, *, delay: float | None = None) -> None:
-        values = {**self._descriptor.model_dump(exclude_unset=True), "text": text}
-        if delay is not None:
-            values["options"] = LocatorTypeOptions(delay=delay)
+    async def type(
+        self,
+        text: str,
+        options: LocatorTypeOptions | None = None,
+    ) -> None:
         await self._rpc_client.send(
             "locator.type",
-            LocatorTypeParams.model_validate(values),
+            LocatorTypeParams.model_validate({
+                **self._descriptor.model_dump(exclude_unset=True),
+                "text": text,
+                **({"options": options} if options is not None else {}),
+            }),
             LocatorTypeResult,
         )
 

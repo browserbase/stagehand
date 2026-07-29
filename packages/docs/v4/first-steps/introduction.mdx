@@ -78,7 +78,7 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(browser="local")
+    stagehand = Stagehand({"browser": {"type": "local"}})
     try:
         await stagehand.init()
         page = await stagehand.context.new_page()

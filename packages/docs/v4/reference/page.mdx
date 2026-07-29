@@ -671,22 +671,29 @@ await page.goto("https://example.com")
 Navigate the page to a URL.
 
 ```python
-await page.goto("https://example.com")
+await page.goto(
+    "https://example.com",
+    {"wait_until": "domcontentloaded"},
+)
 ```
 
 <ParamField path="url" type="str">
   The destination URL.
 </ParamField>
 
+<ParamField path="options" type="PageNavigationOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
 <ParamField
-  path="wait_until"
-  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  path="options.wait_until"
+  type="LoadState"
   optional
 >
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout" type="int | None" optional>
+<ParamField path="options.timeout" type="int" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -702,19 +709,23 @@ Reload the current page.
 await page.reload()
 ```
 
+<ParamField path="options" type="PageReloadOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
 <ParamField
-  path="wait_until"
-  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  path="options.wait_until"
+  type="LoadState"
   optional
 >
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout" type="int | None" optional>
+<ParamField path="options.timeout" type="int" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="ignore_cache" type="bool | None" optional>
+<ParamField path="options.ignore_cache" type="bool" optional>
   Whether to bypass the browser cache.
 </ParamField>
 
@@ -730,15 +741,19 @@ Navigate backward in the page history.
 await page.go_back()
 ```
 
+<ParamField path="options" type="PageNavigationOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
 <ParamField
-  path="wait_until"
-  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  path="options.wait_until"
+  type="LoadState"
   optional
 >
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout" type="int | None" optional>
+<ParamField path="options.timeout" type="int" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -754,15 +769,19 @@ Navigate forward in the page history.
 await page.go_forward()
 ```
 
+<ParamField path="options" type="PageNavigationOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
 <ParamField
-  path="wait_until"
-  type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
+  path="options.wait_until"
+  type="LoadState"
   optional
 >
   The load state to wait for.
 </ParamField>
 
-<ParamField path="timeout" type="int | None" optional>
+<ParamField path="options.timeout" type="int" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
@@ -786,15 +805,23 @@ xpath = await page.click(240, 320)
   The vertical page coordinate.
 </ParamField>
 
-<ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
+<ParamField path="options" type="PageClickOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField
+  path="options.button"
+  type="MouseButton"
+  optional
+>
   The mouse button to use.
 </ParamField>
 
-<ParamField path="click_count" type="int | None" optional>
+<ParamField path="options.click_count" type="int" optional>
   The number of clicks to dispatch.
 </ParamField>
 
-<ParamField path="return_xpath" type="bool | None" optional>
+<ParamField path="options.return_xpath" type="bool" optional>
   Whether to return the affected element's XPath.
 </ParamField>
 
@@ -818,7 +845,11 @@ xpath = await page.hover(240, 320)
   The vertical page coordinate.
 </ParamField>
 
-<ParamField path="return_xpath" type="bool | None" optional>
+<ParamField path="options" type="PageHoverOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.return_xpath" type="bool" optional>
   Whether to return the affected element's XPath.
 </ParamField>
 
@@ -850,7 +881,11 @@ xpath = await page.scroll(240, 320, 0, 600)
   Vertical scroll distance.
 </ParamField>
 
-<ParamField path="return_xpath" type="bool | None" optional>
+<ParamField path="options" type="PageScrollOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.return_xpath" type="bool" optional>
   Whether to return the affected element's XPath.
 </ParamField>
 
@@ -882,19 +917,27 @@ from_xpath, to_xpath = await page.drag_and_drop(100, 100, 400, 400)
   The drop target's vertical coordinate.
 </ParamField>
 
-<ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
+<ParamField path="options" type="PageDragAndDropOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField
+  path="options.button"
+  type="MouseButton"
+  optional
+>
   The mouse button to use.
 </ParamField>
 
-<ParamField path="steps" type="int | None" optional>
+<ParamField path="options.steps" type="int" optional>
   The number of intermediate pointer moves.
 </ParamField>
 
-<ParamField path="delay" type="float | None" optional>
+<ParamField path="options.delay" type="float" optional>
   An optional input delay in milliseconds.
 </ParamField>
 
-<ParamField path="return_xpath" type="bool | None" optional>
+<ParamField path="options.return_xpath" type="bool" optional>
   Whether to return the affected element's XPath.
 </ParamField>
 
@@ -914,11 +957,15 @@ await page.type("Browserbase")
   The text to type.
 </ParamField>
 
-<ParamField path="delay" type="float | None" optional>
+<ParamField path="options" type="PageTypeOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.delay" type="float" optional>
   An optional input delay in milliseconds.
 </ParamField>
 
-<ParamField path="with_mistakes" type="bool | None" optional>
+<ParamField path="options.with_mistakes" type="bool" optional>
   Whether to simulate occasional typing mistakes.
 </ParamField>
 
@@ -938,7 +985,11 @@ await page.key_press("Enter")
   The keyboard key to send.
 </ParamField>
 
-<ParamField path="delay" type="float | None" optional>
+<ParamField path="options" type="PageKeyPressOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.delay" type="float" optional>
   An optional input delay in milliseconds.
 </ParamField>
 
@@ -1014,7 +1065,11 @@ await page.set_viewport_size(1440, 900)
   Viewport height in CSS pixels.
 </ParamField>
 
-<ParamField path="device_scale_factor" type="float | None" optional>
+<ParamField path="options" type="PageSetViewportSizeOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.device_scale_factor" type="float" optional>
   The device scale factor.
 </ParamField>
 
@@ -1063,26 +1118,30 @@ await page.wait_for_timeout(500)
 Wait for a selector to reach the requested state.
 
 ```python
-matched = await page.wait_for_selector("main", state="visible")
+matched = await page.wait_for_selector("main", {"state": "visible"})
 ```
 
 <ParamField path="selector" type="str">
   The selector to target.
 </ParamField>
 
+<ParamField path="options" type="PageWaitForSelectorOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
 <ParamField
-  path="state"
-  type="State | Literal['attached', 'detached', 'visible', 'hidden']"
+  path="options.state"
+  type="str"
   optional
 >
   The state to wait for.
 </ParamField>
 
-<ParamField path="timeout" type="int | None" optional>
+<ParamField path="options.timeout" type="int" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="pierce_shadow" type="bool | None" optional>
+<ParamField path="options.pierce_shadow" type="bool" optional>
   Whether to traverse shadow roots.
 </ParamField>
 
@@ -1095,86 +1154,86 @@ matched = await page.wait_for_selector("main", state="visible")
 Capture a screenshot of the page.
 
 ```python
-image = await page.screenshot(full_page=True)
+image = await page.screenshot({"full_page": True})
 ```
 
-<ParamField path="animations" type="Animations | Literal['disabled', 'allow']" optional>
+<ParamField path="options" type="ScreenshotOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField
+  path="options.animations"
+  type="Literal['disabled', 'allow']"
+  optional
+>
   How to handle CSS animations.
 </ParamField>
 
-<ParamField path="caret" type="Caret | Literal['hide', 'initial']" optional>
+<ParamField path="options.caret" type="Literal['hide', 'initial']" optional>
   How to render the text caret.
 </ParamField>
 
-<ParamField path="clip" type="PageScreenshotClip | None" optional>
+<ParamField path="options.clip" type="PageScreenshotClip" optional>
   The region to capture.
 
-<ParamField path="clip.height" type="float">
+<ParamField path="options.clip.height" type="float">
   The height in CSS pixels.
 </ParamField>
 
-<ParamField path="clip.width" type="float">
+<ParamField path="options.clip.width" type="float">
   The width in CSS pixels.
 </ParamField>
 
-<ParamField path="clip.x" type="float">
+<ParamField path="options.clip.x" type="float">
   The horizontal coordinate.
 </ParamField>
 
-  <ParamField path="clip.y" type="float">
+  <ParamField path="options.clip.y" type="float">
     The vertical coordinate.
   </ParamField>
 </ParamField>
 
-<ParamField path="full_page" type="bool | None" optional>
+<ParamField path="options.full_page" type="bool" optional>
   Whether to capture the full scrollable page.
 </ParamField>
 
-<ParamField path="path" type="str | Path | None" optional>
+<ParamField path="options.path" type="str | Path | None" optional>
   A path where the image is also written.
 </ParamField>
 
-<ParamField path="mask" type="Sequence[Locator] | None" optional>
+<ParamField path="options.mask" type="Sequence[Locator] | None" optional>
   Locators to obscure in the screenshot.
-
-<ParamField path="mask.nth" type="int" optional>
-  The zero-based match index.
 </ParamField>
 
-<ParamField path="mask.page_id" type="str">
-  The owning page identifier.
-</ParamField>
-
-  <ParamField path="mask.selector" type="str">
-    The element selector.
-  </ParamField>
-</ParamField>
-
-<ParamField path="mask_color" type="str | None" optional>
+<ParamField path="options.mask_color" type="str" optional>
   The CSS color used for masks.
 </ParamField>
 
-<ParamField path="omit_background" type="bool | None" optional>
+<ParamField path="options.omit_background" type="bool" optional>
   Whether to use a transparent background.
 </ParamField>
 
-<ParamField path="quality" type="int | None" optional>
+<ParamField path="options.quality" type="int" optional>
   JPEG quality from 0 to 100.
 </ParamField>
 
-<ParamField path="scale" type="Scale | Literal['css', 'device']" optional>
+<ParamField path="options.scale" type="Literal['css', 'device']" optional>
   Whether to use CSS or device pixel scale.
 </ParamField>
 
-<ParamField path="style" type="str | None" optional>
+<ParamField path="options.style" type="str" optional>
   CSS applied while taking the screenshot.
 </ParamField>
 
-<ParamField path="timeout" type="float | None" optional>
+<ParamField path="options.timeout" type="float" optional>
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="type" type="ScreenshotType | Literal['png', 'jpeg']" optional>
+<ParamField
+  path="options.type"
+  type="Literal['png', 'jpeg']"
+  optional
+>
   The image format.
 </ParamField>
 
@@ -1190,7 +1249,11 @@ Capture the page's accessibility-oriented DOM snapshot.
 snapshot = await page.snapshot()
 ```
 
-<ParamField path="include_iframes" type="bool | None" optional>
+<ParamField path="options" type="PageSnapshotOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.include_iframes" type="bool" optional>
   Whether to include iframe content.
 </ParamField>
 

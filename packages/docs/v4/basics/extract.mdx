@@ -261,17 +261,16 @@ print(extraction.metadata.cache_status)
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
-
-
 extraction = await stagehand.extract(
-    instruction="Extract the article body",
-    schema=schema,
-    selector="#main-content",
-    ignore_selectors=["nav", ".cookie-banner"],
-    screenshot=True,
-    timeout=30_000,
-    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
+    "Extract the article body",
+    schema,
+    {
+        "selector": "#main-content",
+        "ignore_selectors": ["nav", ".cookie-banner"],
+        "screenshot": True,
+        "timeout": 30_000,
+        "model": {"model_name": "openai/gpt-5.4-mini"},
+    },
 )
 ```
 
@@ -291,10 +290,12 @@ whole document.
 
 ```python
 result = await stagehand.extract(
-    instruction="Extract the sale price",
-    schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    "Extract the sale price",
+    Product,
+    {
+        "selector": "#product-summary",
+        "ignore_selectors": [".related-products"],
+    },
 )
 ```
 
@@ -310,9 +311,9 @@ so repeated, identical extractions are served from a cache instead of calling th
 
 ```python
 extraction = await stagehand.extract(
-    instruction="Extract the product name and price",
-    schema=Product,
-    cache=True,
+    "Extract the product name and price",
+    Product,
+    {"cache": True},
 )
 print(extraction.data, extraction.metadata.cache_status)
 ```
@@ -340,10 +341,12 @@ when the correct value is clear visually but ambiguous in the DOM.
 
 ```python
 result = await stagehand.extract(
-    instruction="Extract the sale price, not the original price",
-    schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    "Extract the sale price, not the original price",
+    Product,
+    {
+        "selector": "#product-summary",
+        "ignore_selectors": [".related-products"],
+    },
 )
 ```
 

@@ -55,9 +55,7 @@ type ProtocolNotification = {
 
 type JsonSchema = {
   $ref?: string;
-  enum?: unknown[];
   properties?: Record<string, JsonSchema>;
-  type?: string | string[];
 };
 
 type ProtocolDocument = {
@@ -203,7 +201,7 @@ describe("All language SDK operations remain in sync", () => {
     }
   });
 
-  it("exposes every protocol-backed option through a typed public SDK parameter", async () => {
+  it("exposes protocol-backed options through one typed options parameter", async () => {
     const [protocol, registry] = await Promise.all([protocolDocument(), stagehandMethodNames()]);
     const mismatches: string[] = [];
 
@@ -216,80 +214,19 @@ describe("All language SDK operations remain in sync", () => {
         const optionsReference = paramsSchema?.properties?.options?.$ref;
         if (!optionsReference) continue;
 
-        const optionsModel = referencedModel(optionsReference);
-        const optionNames = Object.keys(protocol.$defs[optionsModel]?.properties ?? {});
         const parameters = publicParameterTypes(binding.method, language);
         const optionsType = parameters.get("options");
-        if (optionsType !== undefined) {
-          if (optionsType.trim() === "") {
-            mismatches.push(`${language} ${binding.wireMethod}: untyped options`);
-          }
-          continue;
-        }
-
-        for (const optionName of optionNames) {
-          const publicName =
-            language === "typescript"
-              ? camelCase(optionName)
-              : language === "python"
-                ? snakeCase(optionName)
-                : exportedGoName(optionName);
-          const parameterType = parameters.get(publicName);
-          if (parameterType === undefined) {
-            mismatches.push(`${language} ${binding.wireMethod}: missing ${publicName}`);
-          } else if (parameterType.trim() === "") {
-            mismatches.push(`${language} ${binding.wireMethod}: untyped ${publicName}`);
-          }
+        if (optionsType === undefined) {
+          mismatches.push(`${language} ${binding.wireMethod}: missing options`);
+        } else if (optionsType.trim() === "") {
+          mismatches.push(`${language} ${binding.wireMethod}: untyped options`);
         }
       }
     }
 
     expect(
       mismatches,
-      "Each SDK must expose every nested protocol option through a typed options object or typed flattened parameter",
-    ).toEqual([]);
-  });
-
-  it("preserves primitive protocol types in flattened public SDK options", async () => {
-    const [protocol, registry] = await Promise.all([protocolDocument(), stagehandMethodNames()]);
-    const mismatches: string[] = [];
-
-    for (const language of ["typescript", "python", "go"] as const) {
-      for (const binding of await publicRpcMethods(language, registry)) {
-        const protocolMethod = protocol.properties.methods.properties[binding.wireMethod];
-        if (!protocolMethod) continue;
-        const paramsModel = referencedModel(protocolMethod.properties.params.$ref);
-        const paramsSchema = protocol.$defs[paramsModel];
-        const optionsReference = paramsSchema?.properties?.options?.$ref;
-        if (!optionsReference) continue;
-
-        const parameters = publicParameterTypes(binding.method, language);
-        if (parameters.has("options")) continue;
-        const optionsModel = referencedModel(optionsReference);
-        for (const [wireName, schema] of Object.entries(
-          protocol.$defs[optionsModel]?.properties ?? {},
-        )) {
-          const expected = publicPrimitiveType(schema, language);
-          if (!expected) continue;
-          const publicName =
-            language === "typescript"
-              ? camelCase(wireName)
-              : language === "python"
-                ? snakeCase(wireName)
-                : exportedGoName(wireName);
-          const actual = parameters.get(publicName);
-          if (actual && !typeCompatibleWithPrimitive(actual, expected, schema)) {
-            mismatches.push(
-              `${language} ${binding.wireMethod} ${publicName}: expected ${expected}, received ${actual}`,
-            );
-          }
-        }
-      }
-    }
-
-    expect(
-      mismatches,
-      "Flattened primitive option types must remain compatible with the protocol schema",
+      "Each SDK must expose every nested protocol option through one typed options object",
     ).toEqual([]);
   });
 
@@ -792,41 +729,6 @@ function parameterName(parameter: SgNode, language: SdkLanguage): string | undef
   return nameNode.find({ rule: { kind: "identifier" } })?.text();
 }
 
-function publicPrimitiveType(schema: JsonSchema, language: SdkLanguage): string | undefined {
-  if (Array.isArray(schema.type) || !schema.type) return undefined;
-  if (language === "typescript") {
-    if (schema.type === "number" || schema.type === "integer") return "number";
-    if (schema.type === "string") return "string";
-    if (schema.type === "boolean") return "boolean";
-    return undefined;
-  }
-  if (language === "go") {
-    if (schema.type === "number") return "float64";
-    if (schema.type === "integer") return "int";
-    if (schema.type === "string") return "string";
-    if (schema.type === "boolean") return "bool";
-    return undefined;
-  }
-  if (schema.type === "number") return "float";
-  if (schema.type === "integer") return "int";
-  if (schema.type === "string") return "str";
-  if (schema.type === "boolean") return "bool";
-  return undefined;
-}
-
-function typeCompatibleWithPrimitive(type: string, expected: string, schema: JsonSchema): boolean {
-  if (new RegExp(`(?:^|[^A-Za-z0-9_])${expected}(?:$|[^A-Za-z0-9_])`, "u").test(type)) {
-    return true;
-  }
-  if (expected !== "str" || !schema.enum?.every((value) => typeof value === "string")) {
-    return false;
-  }
-  const literal = type.match(/\bLiteral\[([^\]]+)\]/u)?.[1];
-  if (!literal) return false;
-  const values = [...literal.matchAll(/["']([^"']+)["']/gu)].map((match) => match[1]);
-  return schema.enum.every((value) => values.includes(value as string));
-}
-
 function isPublicCallable(method: DirectClassMethod, language: SdkLanguage): boolean {
   const name = methodName(method.node, language);
   if (!name) return false;
@@ -997,20 +899,6 @@ function snakeCase(name: string): string {
     .replace(/([A-Z]+)([A-Z][a-z])/gu, "$1_$2")
     .replace(/([a-z\d])([A-Z])/gu, "$1_$2")
     .toLowerCase();
-}
-
-function camelCase(name: string): string {
-  return name.replace(/_([a-z])/gu, (_, letter: string) => letter.toUpperCase());
-}
-
-function exportedGoName(name: string): string {
-  return name
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join("")
-    .replaceAll("Html", "HTML")
-    .replaceAll("Url", "URL")
-    .replaceAll("Id", "ID");
 }
 
 function namedChildren(node: SgNode): SgNode[] {

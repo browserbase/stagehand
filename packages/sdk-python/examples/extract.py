@@ -17,12 +17,13 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",
-        headless=True,
-        model="openai/gpt-5.4-mini",
-        model_api_key=OPENAI_API_KEY,
-    )
+    stagehand = Stagehand({
+        "browser": {"type": "local", "headless": True},
+        "model": {
+            "model_name": "openai/gpt-5.4-mini",
+            "api_key": OPENAI_API_KEY,
+        },
+    })
 
     try:
         await stagehand.init()
@@ -33,8 +34,8 @@ async def main() -> None:
         await page.goto("https://example.com")
 
         page_info = await stagehand.extract(
-            instruction="Extract the page heading and description",
-            schema=PageInfo,
+            "Extract the page heading and description",
+            PageInfo,
         )
 
         print(json.dumps(page_info.model_dump(mode="json"), indent=2))

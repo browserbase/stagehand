@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TypeVar, cast
 
 import pytest
@@ -13,8 +14,13 @@ from stagehand import (
     LLMGenerateOutput,
     LLMImageContent,
     Page,
-    ProtocolLocator,
     Stagehand,
+)
+from stagehand._generated.input_types import (
+    KnownModelConfig as KnownModelConfigInput,
+)
+from stagehand._generated.input_types import (
+    Locator as ProtocolLocatorInput,
 )
 from stagehand._generated.models import (
     Action,
@@ -48,9 +54,13 @@ from stagehand._generated.models import (
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import (
-    CacheOptions,
     CdpBrowserSource,
     LocalBrowserSource,
+)
+from stagehand.client_models import (
+    StagehandClientInitParams as ResolvedStagehandClientInitParams,
+)
+from stagehand.client_types import (
     StagehandClientInitParams,
     StagehandClientLoggingConfig,
 )
@@ -68,26 +78,37 @@ class PageInfo(BaseModel):
 
 
 def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
-    local = Stagehand(
-        browser="local",
-        headless=True,
-        viewport_width=1280,
-        viewport_height=800,
-        model="openai/gpt-5.4-mini",
-        model_api_key="model-key",
-        cache=True,
-    )
-    cdp = Stagehand(
-        browser="cdp",
-        cdp_url="http://localhost:9222",
-        headers={"authorization": "secret"},
-    )
-    browserbase = Stagehand(api_key="browserbase-key")
+    local = Stagehand({
+        "browser": {
+            "type": "local",
+            "headless": True,
+            "viewport": {"width": 1280, "height": 800},
+            "executable_path": Path("/tmp/chrome"),
+            "user_data_dir": Path("/tmp/profile"),
+            "downloads_path": Path("/tmp/downloads"),
+        },
+        "model": {
+            "model_name": "openai/gpt-5.4-mini",
+            "api_key": "model-key",
+        },
+        "cache": True,
+    })
+    cdp = Stagehand({
+        "browser": {
+            "type": "cdp",
+            "cdp_url": "http://localhost:9222",
+            "headers": {"authorization": "secret"},
+        }
+    })
+    browserbase = Stagehand({"api_key": "browserbase-key"})
 
     assert isinstance(local.init_params.browser, LocalBrowserSource)
     assert local.init_params.browser.headless is True
     assert local.init_params.browser.viewport is not None
     assert local.init_params.browser.viewport.width == 1280
+    assert local.init_params.browser.executable_path == Path("/tmp/chrome")
+    assert local.init_params.browser.user_data_dir == Path("/tmp/profile")
+    assert local.init_params.browser.downloads_path == Path("/tmp/downloads")
     assert isinstance(local.init_params.model, ModelConfig)
     assert isinstance(local.init_params.model.root, KnownModelConfig)
     assert local.init_params.cache is not None
@@ -101,13 +122,41 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
         _ = cdp.browser
 
 
-def test_stagehand_constructor_rejects_incomplete_flattened_options() -> None:
-    with pytest.raises(TypeError, match="viewport_width and viewport_height"):
-        Stagehand(browser="local", viewport_width=1280)
-    with pytest.raises(TypeError, match="proxy_server"):
-        Stagehand(browser="local", proxy_username="user")
-    with pytest.raises(TypeError, match="model connection options"):
-        Stagehand(browser="local", model_api_key="model-key")
+def test_stagehand_constructor_rejects_invalid_nested_options() -> None:
+    with pytest.raises(ValueError, match="browser.local.viewport.height"):
+        Stagehand(
+            cast(
+                StagehandClientInitParams,
+                {"browser": {"type": "local", "viewport": {"width": 1280}}},
+            )
+        )
+    with pytest.raises(ValueError, match="browser.local.proxy.server"):
+        Stagehand(
+            cast(
+                StagehandClientInitParams,
+                {"browser": {"type": "local", "proxy": {"username": "user"}}},
+            )
+        )
+    with pytest.raises(ValueError, match="model"):
+        Stagehand(
+            cast(
+                StagehandClientInitParams,
+                {"browser": {"type": "local"}, "model": {"api_key": "model-key"}},
+            )
+        )
+    with pytest.raises(ValueError, match="api_key_invalid"):
+        Stagehand(
+            cast(
+                StagehandClientInitParams,
+                {
+                    "browser": {"type": "local"},
+                    "model": {
+                        "model_name": "openai/gpt-5.4-mini",
+                        "api_key_invalid": "model-key",
+                    },
+                },
+            )
+        )
 
 
 @pytest.mark.asyncio
@@ -120,7 +169,7 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
     })
     connect_args: dict[str, object] = {}
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
     async def connect(**kwargs: object) -> RPCClient:
@@ -129,7 +178,7 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     await stagehand.init()
     _, listener = recording.notifications["stagehand.log"]
     notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
@@ -160,7 +209,7 @@ async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_struct
     })
     received: list[StagehandLog] = []
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
     async def connect(**_: object) -> RPCClient:
@@ -171,15 +220,14 @@ async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_struct
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(
-        browser="cdp",
-        cdp_url="test://browser",
-        logging=StagehandClientLoggingConfig(
+    stagehand = Stagehand({
+        "browser": {"type": "cdp", "cdp_url": "test://browser"},
+        "logging": StagehandClientLoggingConfig(
             level="debug",
             format="json",
             on_log=on_log,
         ),
-    )
+    })
     await stagehand.init()
     _, listener = recording.notifications["stagehand.log"]
     notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
@@ -218,7 +266,7 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
     })
     recording.responses["stagehand.init"] = StagehandInitResult(initialized=True, pages=[])
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
     async def connect(**_: object) -> RPCClient:
@@ -226,7 +274,7 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     await stagehand.init()
 
     assert stagehand.browser.cdp_url == "test://browser"
@@ -277,10 +325,11 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
             "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
         },
     })
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
-    locator = ProtocolLocator(selector="main")
+    model = KnownModelConfigInput(model_name="openai/gpt-4.1-mini")
+    expected_model = ModelConfig.model_validate(model)
+    locator = ProtocolLocatorInput(selector="main")
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
     async def connect(**_: object) -> RPCClient:
@@ -288,27 +337,34 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     await stagehand.init()
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
 
     action_result = await stagehand.act(
         "Click the link",
-        page=page,
-        model=model,
-        timeout=30_000,
-        locator=locator,
-        cache=CacheOptions(threshold=1),
+        {
+            "page": page,
+            "model": model,
+            "timeout": 30_000,
+            "locator": locator,
+            "cache": {"threshold": 1},
+        },
     )
-    actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
-    replay_result = await stagehand.act(actions.data[0], page=page)
+    actions = await stagehand.observe(
+        "Find the link",
+        {"model": model, "locator": locator},
+    )
+    replay_result = await stagehand.act(actions.data[0], {"page": page})
     page_info = await stagehand.extract(
-        instruction="Extract the heading",
-        schema=PageInfo,
-        page=page,
-        model=model,
-        screenshot=True,
-        locator=locator,
+        "Extract the heading",
+        PageInfo,
+        {
+            "page": page,
+            "model": model,
+            "screenshot": True,
+            "locator": locator,
+        },
     )
 
     assert action_result.data == act_result
@@ -332,9 +388,10 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert isinstance(act_params, StagehandActParams)
     assert act_params.page_id == "explicit-page"
     assert act_params.options is not None
-    assert act_params.options.model == model
+    assert act_params.options.model == expected_model
     assert act_params.options.timeout == 30_000
-    assert act_params.options.locator == locator
+    assert act_params.options.locator is not None
+    assert act_params.options.locator.model_dump(exclude_unset=True) == locator
     assert act_params.options.cache is not None
     assert act_params.options.cache.model_dump() == {"threshold": 1}
     observe_params = recording.calls[3][1]
@@ -342,8 +399,9 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.page_id == "active-page"
     assert observe_params.instruction == "Find the link"
     assert observe_params.options is not None
-    assert observe_params.options.model == model
-    assert observe_params.options.locator == locator
+    assert observe_params.options.model == expected_model
+    assert observe_params.options.locator is not None
+    assert observe_params.options.locator.model_dump(exclude_unset=True) == locator
     replay_params = recording.calls[4][1]
     assert isinstance(replay_params, StagehandActParams)
     assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
@@ -351,9 +409,10 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
-    assert extract_params.options.model == model
+    assert extract_params.options.model == expected_model
     assert extract_params.options.screenshot is True
-    assert extract_params.options.locator == locator
+    assert extract_params.options.locator is not None
+    assert extract_params.options.locator.model_dump(exclude_unset=True) == locator
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
     assert isinstance(schema, dict)
@@ -373,7 +432,7 @@ async def test_stagehand_ai_methods_require_an_active_page(
         "context.active_page": None,
     })
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
     async def connect(**_: object) -> RPCClient:
@@ -381,7 +440,7 @@ async def test_stagehand_ai_methods_require_an_active_page(
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     await stagehand.init()
 
     with pytest.raises(RuntimeError, match="no active page"):
@@ -413,7 +472,7 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
         "stagehand.close": CDPConnectionClosedError(),
     })
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return browser
 
     async def connect(**_: object) -> RPCClient:
@@ -432,11 +491,10 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(
-        browser="cdp",
-        cdp_url="test://browser",
-        model=generate,
-    )
+    stagehand = Stagehand({
+        "browser": {"type": "cdp", "cdp_url": "test://browser"},
+        "model": {"generate": generate},
+    })
 
     await asyncio.gather(stagehand.init(), stagehand.init())
 
@@ -519,7 +577,7 @@ async def test_stagehand_closes_the_browser_when_rpc_cleanup_fails(
         "stagehand.close": StagehandCloseResult(closed=True),
     })
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return browser
 
     async def connect(**_: object) -> RPCClient:
@@ -527,7 +585,7 @@ async def test_stagehand_closes_the_browser_when_rpc_cleanup_fails(
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     await stagehand.init()
 
     with pytest.raises(RuntimeError, match="RPC close failed"):
@@ -568,7 +626,7 @@ async def test_cancelled_initialization_still_releases_the_browser_and_rpc_clien
     )
     recording = BlockingRPCClient()
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+    async def resolve(_: ResolvedStagehandClientInitParams) -> ResolvedBrowserSource:
         return browser
 
     async def connect(**_: object) -> RPCClient:
@@ -576,7 +634,7 @@ async def test_cancelled_initialization_still_releases_the_browser_and_rpc_clien
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
     monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+    stagehand = Stagehand({"browser": {"type": "cdp", "cdp_url": "test://browser"}})
     task = asyncio.create_task(stagehand.init())
     await init_started.wait()
 

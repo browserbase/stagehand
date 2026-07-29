@@ -35,11 +35,10 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",
-        headless=True,
-        model=generate_with_openai,
-    )
+    stagehand = Stagehand({
+        "browser": {"type": "local", "headless": True},
+        "model": {"generate": generate_with_openai},
+    })
 
     try:
         await stagehand.init()
@@ -50,11 +49,11 @@ async def main() -> None:
         await page.goto("https://example.com")
 
         page_info = await stagehand.extract(
-            instruction="Extract the page heading and description",
-            schema=PageInfo,
+            "Extract the page heading and description",
+            PageInfo,
         )
         actions = await stagehand.observe(
-            instruction="Find the link that provides more information about Example Domain",
+            "Find the link that provides more information about Example Domain",
         )
         action_result = await stagehand.act(
             "Click the link that provides more information about Example Domain"

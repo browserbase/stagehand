@@ -3,9 +3,9 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
 from ._generated.models import (
-    ClearCookieOptions,
     ContextActivePageResult,
     ContextAddCookiesParams,
     ContextAddInitScriptParams,
@@ -29,6 +29,7 @@ from ._generated.models import (
     PageRef,
 )
 from .browser_clipboard import BrowserClipboard
+from .client_types import ClearCookieOptions
 from .page import Page
 from .rpc_client import RPCClient
 
@@ -134,19 +135,15 @@ class BrowserContext:
 
     async def clear_cookies(
         self,
-        *,
-        name: str | re.Pattern[str] | None = None,
-        domain: str | re.Pattern[str] | None = None,
-        path: str | re.Pattern[str] | None = None,
+        options: ClearCookieOptions | None = None,
     ) -> None:
-        params = ContextClearCookiesParams()
-        options = ClearCookieOptions.model_validate({
-            field: _cookie_filter(value)
-            for field, value in (("name", name), ("domain", domain), ("path", path))
-            if value is not None
+        protocol_options = {
+            field: _cookie_filter(cast(str | re.Pattern[str], value))
+            for field, value in (options or {}).items()
+        }
+        params = ContextClearCookiesParams.model_validate({
+            **({"options": protocol_options} if protocol_options else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         await self._rpc_client.send(
             "context.clear_cookies",
             params,

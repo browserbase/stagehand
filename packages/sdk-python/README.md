@@ -9,14 +9,14 @@ from stagehand import Stagehand
 
 
 async def main() -> None:
-    stagehand = Stagehand(browser="local", headless=True)
+    stagehand = Stagehand({"browser": {"type": "local", "headless": True}})
     try:
         await stagehand.init()
         page = await stagehand.context.active_page()
         if page is None:
             raise RuntimeError("Stagehand initialized without an active page")
         await page.goto("https://example.com")
-        await stagehand.observe(instruction="Find the more information link")
+        await stagehand.observe("Find the more information link")
         print(await page.title())
     finally:
         await stagehand.close()
@@ -28,7 +28,7 @@ asyncio.run(main())
 See [`examples`](examples) for action, extraction, observation, and custom LLM usage.
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
-default. Pass `page=page` to target a specific SDK `Page`.
+default. Pass `{"page": page}` as the options dictionary to target a specific SDK `Page`.
 
 ## Contributing
 

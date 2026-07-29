@@ -10,12 +10,13 @@ if not OPENAI_API_KEY:
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",
-        headless=True,
-        model="openai/gpt-5.4-mini",
-        model_api_key=OPENAI_API_KEY,
-    )
+    stagehand = Stagehand({
+        "browser": {"type": "local", "headless": True},
+        "model": {
+            "model_name": "openai/gpt-5.4-mini",
+            "api_key": OPENAI_API_KEY,
+        },
+    })
 
     try:
         await stagehand.init()
@@ -26,7 +27,7 @@ async def main() -> None:
         await page.goto("https://example.com")
 
         actions = await stagehand.observe(
-            instruction="Find the link that provides more information about Example Domain",
+            "Find the link that provides more information about Example Domain"
         )
 
         print(

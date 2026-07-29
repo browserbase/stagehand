@@ -368,11 +368,19 @@ Click the element matched by this locator.
 await locator.click()
 ```
 
-<ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
+<ParamField path="options" type="LocatorClickOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField
+  path="options.button"
+  type="MouseButton"
+  optional
+>
   The mouse button to use.
 </ParamField>
 
-<ParamField path="click_count" type="int | None" optional>
+<ParamField path="options.click_count" type="int" optional>
   The number of clicks to dispatch.
 </ParamField>
 
@@ -533,49 +541,53 @@ point = await locator.centroid()
 Temporarily highlight the matched element.
 
 ```python
-await locator.highlight(duration_ms=1000)
+await locator.highlight({"duration_ms": 1000})
 ```
 
-<ParamField path="duration_ms" type="int | None" optional>
+<ParamField path="options" type="LocatorHighlightOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.duration_ms" type="int" optional>
   How long to display the highlight.
 </ParamField>
 
-<ParamField path="border_color" type="RgbaColor | None" optional>
+<ParamField path="options.border_color" type="RgbaColor" optional>
   The highlight border color.
 
-<ParamField path="border_color.a" type="float" optional>
+<ParamField path="options.border_color.a" type="float" optional>
   The alpha channel.
 </ParamField>
 
-<ParamField path="border_color.b" type="float">
+<ParamField path="options.border_color.b" type="float">
   The blue channel.
 </ParamField>
 
-<ParamField path="border_color.g" type="float">
+<ParamField path="options.border_color.g" type="float">
   The green channel.
 </ParamField>
 
-  <ParamField path="border_color.r" type="float">
+  <ParamField path="options.border_color.r" type="float">
     The red channel.
   </ParamField>
 </ParamField>
 
-<ParamField path="content_color" type="RgbaColor | None" optional>
+<ParamField path="options.content_color" type="RgbaColor" optional>
   The highlight fill color.
 
-<ParamField path="content_color.a" type="float" optional>
+<ParamField path="options.content_color.a" type="float" optional>
   The alpha channel.
 </ParamField>
 
-<ParamField path="content_color.b" type="float">
+<ParamField path="options.content_color.b" type="float">
   The blue channel.
 </ParamField>
 
-<ParamField path="content_color.g" type="float">
+<ParamField path="options.content_color.g" type="float">
   The green channel.
 </ParamField>
 
-  <ParamField path="content_color.r" type="float">
+  <ParamField path="options.content_color.r" type="float">
     The red channel.
   </ParamField>
 </ParamField>
@@ -592,19 +604,23 @@ Dispatch a DOM click event on the matched element.
 await locator.send_click_event()
 ```
 
-<ParamField path="bubbles" type="bool | None" optional>
+<ParamField path="options" type="LocatorSendClickEventOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.bubbles" type="bool" optional>
   Whether the event bubbles.
 </ParamField>
 
-<ParamField path="cancelable" type="bool | None" optional>
+<ParamField path="options.cancelable" type="bool" optional>
   Whether the event can be canceled.
 </ParamField>
 
-<ParamField path="composed" type="bool | None" optional>
+<ParamField path="options.composed" type="bool" optional>
   Whether the event crosses shadow DOM boundaries.
 </ParamField>
 
-<ParamField path="detail" type="float | None" optional>
+<ParamField path="options.detail" type="float" optional>
   Event-specific click detail.
 </ParamField>
 
@@ -624,7 +640,11 @@ await locator.type("Browserbase")
   The text to type.
 </ParamField>
 
-<ParamField path="delay" type="float | None" optional>
+<ParamField path="options" type="LocatorTypeOptions | None" optional>
+  Options that configure this operation.
+</ParamField>
+
+<ParamField path="options.delay" type="float" optional>
   Delay between keystrokes, in milliseconds.
 </ParamField>
 

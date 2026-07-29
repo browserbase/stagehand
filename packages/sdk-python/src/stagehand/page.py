@@ -2,23 +2,31 @@ from __future__ import annotations
 
 import base64
 import builtins
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Literal, Self, TypeVar, cast, overload
+from typing import Self, TypeVar, cast, overload
 
 from pydantic import JsonValue, TypeAdapter
 
-from ._generated.models import (
-    Animations,
-    Caret,
+from ._generated.input_types import (
     LoadState,
-    MouseButton,
-    PageAddInitScriptParams,
     PageClickOptions,
+    PageDragAndDropOptions,
+    PageHoverOptions,
+    PageKeyPressOptions,
+    PageNavigationOptions,
+    PageReloadOptions,
+    PageScrollOptions,
+    PageSetViewportSizeOptions,
+    PageSnapshotOptions,
+    PageTypeOptions,
+    PageWaitForSelectorOptions,
+)
+from ._generated.models import (
+    PageAddInitScriptParams,
     PageClickParams,
     PageCloseResult,
     PageCoordinateResult,
-    PageDragAndDropOptions,
     PageDragAndDropParams,
     PageDragAndDropResult,
     PageEvaluateParams,
@@ -26,43 +34,28 @@ from ._generated.models import (
     PageGoBackParams,
     PageGoForwardParams,
     PageGotoParams,
-    PageHoverOptions,
     PageHoverParams,
     PageIdParams,
-    PageKeyPressOptions,
     PageKeyPressParams,
-    PageNavigationOptions,
     PageRef,
-    PageReloadOptions,
     PageReloadParams,
-    PageScreenshotClip,
-    PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
-    PageScrollOptions,
     PageScrollParams,
     PageSetExtraHTTPHeadersParams,
-    PageSetViewportSizeOptions,
     PageSetViewportSizeParams,
-    PageSnapshotOptions,
     PageSnapshotParams,
     PageTitleResult,
-    PageTypeOptions,
     PageTypeParams,
     PageUrlResult,
     PageVoidResult,
     PageWaitForLoadStateParams,
-    PageWaitForSelectorOptions,
     PageWaitForSelectorParams,
     PageWaitForSelectorResult,
     PageWaitForTimeoutParams,
-    Scale,
     SnapshotResult,
-    State,
 )
-from ._generated.models import (
-    Type as ScreenshotType,
-)
+from .client_types import ScreenshotOptions
 from .locator import Locator
 from .rpc_client import RPCClient
 
@@ -85,74 +78,46 @@ class Page:
     async def goto(
         self,
         url: str,
-        *,
-        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout: int | None = None,
+        options: PageNavigationOptions | None = None,
     ) -> Self:
-        params = PageGotoParams(page_id=self.page_id, url=url)
-        options = PageNavigationOptions.model_validate({
-            name: value
-            for name, value in (("wait_until", wait_until), ("timeout", timeout))
-            if value is not None
+        params = PageGotoParams.model_validate({
+            "page_id": self.page_id,
+            "url": url,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         self._ref = await self._rpc_client.send("page.goto", params, PageRef)
         return self
 
     async def reload(
         self,
-        *,
-        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout: int | None = None,
-        ignore_cache: bool | None = None,
+        options: PageReloadOptions | None = None,
     ) -> Self:
-        params = PageReloadParams(page_id=self.page_id)
-        options = PageReloadOptions.model_validate({
-            name: value
-            for name, value in (
-                ("wait_until", wait_until),
-                ("timeout", timeout),
-                ("ignore_cache", ignore_cache),
-            )
-            if value is not None
+        params = PageReloadParams.model_validate({
+            "page_id": self.page_id,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         self._ref = await self._rpc_client.send("page.reload", params, PageRef)
         return self
 
     async def go_back(
         self,
-        *,
-        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout: int | None = None,
+        options: PageNavigationOptions | None = None,
     ) -> Self:
-        params = PageGoBackParams(page_id=self.page_id)
-        options = PageNavigationOptions.model_validate({
-            name: value
-            for name, value in (("wait_until", wait_until), ("timeout", timeout))
-            if value is not None
+        params = PageGoBackParams.model_validate({
+            "page_id": self.page_id,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         self._ref = await self._rpc_client.send("page.go_back", params, PageRef)
         return self
 
     async def go_forward(
         self,
-        *,
-        wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
-        timeout: int | None = None,
+        options: PageNavigationOptions | None = None,
     ) -> Self:
-        params = PageGoForwardParams(page_id=self.page_id)
-        options = PageNavigationOptions.model_validate({
-            name: value
-            for name, value in (("wait_until", wait_until), ("timeout", timeout))
-            if value is not None
+        params = PageGoForwardParams.model_validate({
+            "page_id": self.page_id,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         self._ref = await self._rpc_client.send("page.go_forward", params, PageRef)
         return self
 
@@ -160,23 +125,14 @@ class Page:
         self,
         x: float,
         y: float,
-        *,
-        button: MouseButton | Literal["left", "right", "middle"] | None = None,
-        click_count: int | None = None,
-        return_xpath: bool | None = None,
+        options: PageClickOptions | None = None,
     ) -> str:
-        params = PageClickParams(page_id=self.page_id, x=x, y=y)
-        options = PageClickOptions.model_validate({
-            name: value
-            for name, value in (
-                ("button", button),
-                ("click_count", click_count),
-                ("return_xpath", return_xpath),
-            )
-            if value is not None
+        params = PageClickParams.model_validate({
+            "page_id": self.page_id,
+            "x": x,
+            "y": y,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         result = await self._rpc_client.send("page.click", params, PageCoordinateResult)
         return result.xpath
 
@@ -184,12 +140,14 @@ class Page:
         self,
         x: float,
         y: float,
-        *,
-        return_xpath: bool | None = None,
+        options: PageHoverOptions | None = None,
     ) -> str:
-        params = PageHoverParams(page_id=self.page_id, x=x, y=y)
-        if return_xpath is not None:
-            params.options = PageHoverOptions(return_xpath=return_xpath)
+        params = PageHoverParams.model_validate({
+            "page_id": self.page_id,
+            "x": x,
+            "y": y,
+            **({"options": options} if options is not None else {}),
+        })
         result = await self._rpc_client.send("page.hover", params, PageCoordinateResult)
         return result.xpath
 
@@ -199,18 +157,16 @@ class Page:
         y: float,
         delta_x: float,
         delta_y: float,
-        *,
-        return_xpath: bool | None = None,
+        options: PageScrollOptions | None = None,
     ) -> str:
-        params = PageScrollParams(
-            page_id=self.page_id,
-            x=x,
-            y=y,
-            delta_x=delta_x,
-            delta_y=delta_y,
-        )
-        if return_xpath is not None:
-            params.options = PageScrollOptions(return_xpath=return_xpath)
+        params = PageScrollParams.model_validate({
+            "page_id": self.page_id,
+            "x": x,
+            "y": y,
+            "delta_x": delta_x,
+            "delta_y": delta_y,
+            **({"options": options} if options is not None else {}),
+        })
         result = await self._rpc_client.send("page.scroll", params, PageCoordinateResult)
         return result.xpath
 
@@ -220,31 +176,16 @@ class Page:
         from_y: float,
         to_x: float,
         to_y: float,
-        *,
-        button: MouseButton | Literal["left", "right", "middle"] | None = None,
-        steps: int | None = None,
-        delay: float | None = None,
-        return_xpath: bool | None = None,
+        options: PageDragAndDropOptions | None = None,
     ) -> tuple[str, str]:
-        params = PageDragAndDropParams(
-            page_id=self.page_id,
-            from_x=from_x,
-            from_y=from_y,
-            to_x=to_x,
-            to_y=to_y,
-        )
-        options = PageDragAndDropOptions.model_validate({
-            name: value
-            for name, value in (
-                ("button", button),
-                ("steps", steps),
-                ("delay", delay),
-                ("return_xpath", return_xpath),
-            )
-            if value is not None
+        params = PageDragAndDropParams.model_validate({
+            "page_id": self.page_id,
+            "from_x": from_x,
+            "from_y": from_y,
+            "to_x": to_x,
+            "to_y": to_y,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         result = await self._rpc_client.send(
             "page.drag_and_drop",
             params,
@@ -255,24 +196,25 @@ class Page:
     async def type(
         self,
         text: str,
-        *,
-        delay: float | None = None,
-        with_mistakes: bool | None = None,
+        options: PageTypeOptions | None = None,
     ) -> None:
-        params = PageTypeParams(page_id=self.page_id, text=text)
-        options = PageTypeOptions.model_validate({
-            name: value
-            for name, value in (("delay", delay), ("with_mistakes", with_mistakes))
-            if value is not None
+        params = PageTypeParams.model_validate({
+            "page_id": self.page_id,
+            "text": text,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         await self._rpc_client.send("page.type", params, PageVoidResult)
 
-    async def key_press(self, key: str, *, delay: float | None = None) -> None:
-        params = PageKeyPressParams(page_id=self.page_id, key=key)
-        if delay is not None:
-            params.options = PageKeyPressOptions(delay=delay)
+    async def key_press(
+        self,
+        key: str,
+        options: PageKeyPressOptions | None = None,
+    ) -> None:
+        params = PageKeyPressParams.model_validate({
+            "page_id": self.page_id,
+            "key": key,
+            **({"options": options} if options is not None else {}),
+        })
         await self._rpc_client.send("page.key_press", params, PageVoidResult)
 
     @overload
@@ -325,19 +267,19 @@ class Page:
         self,
         width: int,
         height: int,
-        *,
-        device_scale_factor: float | None = None,
+        options: PageSetViewportSizeOptions | None = None,
     ) -> None:
-        params = PageSetViewportSizeParams(page_id=self.page_id, width=width, height=height)
-        if device_scale_factor is not None:
-            params.options = PageSetViewportSizeOptions(
-                device_scale_factor=device_scale_factor,
-            )
+        params = PageSetViewportSizeParams.model_validate({
+            "page_id": self.page_id,
+            "width": width,
+            "height": height,
+            **({"options": options} if options is not None else {}),
+        })
         await self._rpc_client.send("page.set_viewport_size", params, PageVoidResult)
 
     async def wait_for_load_state(
         self,
-        state: LoadState | Literal["load", "domcontentloaded", "networkidle"],
+        state: LoadState,
         timeout: int | None = None,
     ) -> None:
         params = PageWaitForLoadStateParams.model_validate({
@@ -358,23 +300,13 @@ class Page:
     async def wait_for_selector(
         self,
         selector: str,
-        *,
-        state: State | Literal["attached", "detached", "visible", "hidden"] | None = None,
-        timeout: int | None = None,
-        pierce_shadow: bool | None = None,
+        options: PageWaitForSelectorOptions | None = None,
     ) -> bool:
-        params = PageWaitForSelectorParams(page_id=self.page_id, selector=selector)
-        options = PageWaitForSelectorOptions.model_validate({
-            name: value
-            for name, value in (
-                ("state", state),
-                ("timeout", timeout),
-                ("pierce_shadow", pierce_shadow),
-            )
-            if value is not None
+        params = PageWaitForSelectorParams.model_validate({
+            "page_id": self.page_id,
+            "selector": selector,
+            **({"options": options} if options is not None else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         result = await self._rpc_client.send(
             "page.wait_for_selector",
             params,
@@ -384,45 +316,17 @@ class Page:
 
     async def screenshot(
         self,
-        *,
-        animations: Animations | Literal["disabled", "allow"] | None = None,
-        caret: Caret | Literal["hide", "initial"] | None = None,
-        clip: PageScreenshotClip | None = None,
-        full_page: bool | None = None,
-        path: str | Path | None = None,
-        mask: Sequence[Locator] | None = None,
-        mask_color: str | None = None,
-        omit_background: bool | None = None,
-        quality: int | None = None,
-        scale: Scale | Literal["css", "device"] | None = None,
-        style: str | None = None,
-        timeout: float | None = None,
-        type: ScreenshotType | Literal["png", "jpeg"] | None = None,
+        options: ScreenshotOptions | None = None,
     ) -> bytes:
-        params = PageScreenshotParams(page_id=self.page_id)
-        options = PageScreenshotOptions.model_validate({
-            name: value
-            for name, value in (
-                ("animations", animations),
-                ("caret", caret),
-                ("clip", clip),
-                ("full_page", full_page),
-                (
-                    "mask",
-                    [locator.descriptor for locator in mask] if mask is not None else None,
-                ),
-                ("mask_color", mask_color),
-                ("omit_background", omit_background),
-                ("quality", quality),
-                ("scale", scale),
-                ("style", style),
-                ("timeout", timeout),
-                ("type", type),
-            )
-            if value is not None
+        protocol_options = dict(options or {})
+        path = cast(str | Path | None, protocol_options.pop("path", None))
+        mask = cast(list[Locator] | None, protocol_options.pop("mask", None))
+        if mask is not None:
+            protocol_options["mask"] = [locator.descriptor for locator in mask]
+        params = PageScreenshotParams.model_validate({
+            "page_id": self.page_id,
+            **({"options": protocol_options} if protocol_options else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         result = await self._rpc_client.send(
             "page.screenshot",
             params,
@@ -433,10 +337,14 @@ class Page:
             Path(path).write_bytes(data)
         return data
 
-    async def snapshot(self, *, include_iframes: bool | None = None) -> SnapshotResult:
-        params = PageSnapshotParams(page_id=self.page_id)
-        if include_iframes is not None:
-            params.options = PageSnapshotOptions(include_iframes=include_iframes)
+    async def snapshot(
+        self,
+        options: PageSnapshotOptions | None = None,
+    ) -> SnapshotResult:
+        params = PageSnapshotParams.model_validate({
+            "page_id": self.page_id,
+            **({"options": options} if options is not None else {}),
+        })
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
 
     async def url(self) -> str:

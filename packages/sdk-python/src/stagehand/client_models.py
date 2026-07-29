@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -9,8 +10,6 @@ from ._generated import models as _models
 from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseRegion,
-    CustomModelConfig,
-    KnownModelConfig,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
@@ -66,21 +65,6 @@ class BrowserbaseBrowserSource(WireModel):
     user_metadata: dict[str, object] | None = None
 
 
-class CacheOptions(WireModel):
-    model_config = ConfigDict(extra="forbid")
-
-    threshold: Annotated[int | None, Field(gt=0)] = None
-
-
-Cache = bool | CacheOptions
-
-
-def _cache_config(cache: Cache) -> bool | dict[str, int]:
-    if isinstance(cache, CacheOptions):
-        return cache.model_dump(exclude_none=True)
-    return cache
-
-
 class LocalViewport(WireModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,9 +77,9 @@ class LocalBrowserSource(WireModel):
 
     type: Literal["local"]
     args: list[str] | None = None
-    executable_path: str | None = None
+    executable_path: str | Path | None = None
     port: Annotated[int | None, Field(ge=1, le=65_535)] = None
-    user_data_dir: str | None = None
+    user_data_dir: str | Path | None = None
     preserve_user_data_dir: bool | None = None
     headless: bool | None = None
     devtools: bool | None = None
@@ -108,7 +92,7 @@ class LocalBrowserSource(WireModel):
     has_touch: bool | None = None
     ignore_https_errors: bool | None = None
     connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
-    downloads_path: str | None = None
+    downloads_path: str | Path | None = None
     accept_downloads: bool | None = None
     keep_alive: bool | None = None
 
@@ -159,28 +143,3 @@ class StagehandClientInitParams(StagehandInitParams):
 
 
 StagehandClientInitParams.model_rebuild(_types_namespace={**vars(_models), **globals()})
-
-
-def _model_config(
-    model: str,
-    *,
-    api_key: str | None = None,
-    base_url: str | None = None,
-    headers: dict[str, str] | None = None,
-) -> ModelConfig:
-    connection: dict[str, object] = {
-        name: value
-        for name, value in (("api_key", api_key), ("headers", headers))
-        if value is not None
-    }
-    if base_url is None:
-        return ModelConfig(
-            root=KnownModelConfig.model_validate({"model_name": model, **connection})
-        )
-    return ModelConfig(
-        root=CustomModelConfig.model_validate({
-            "model_name": model,
-            "base_url": base_url,
-            **connection,
-        })
-    )
