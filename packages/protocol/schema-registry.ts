@@ -8,7 +8,6 @@ import {
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
-  BrowserGetVersionResultSchema,
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
   ContextAddInitScriptParamsSchema,
@@ -91,7 +90,6 @@ import {
   PageWaitForTimeoutParamsSchema,
   RuntimeConfigureParamsSchema,
   RuntimeConfigureResultSchema,
-  RuntimeLoopbackStatusResultSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -100,7 +98,6 @@ import {
   StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
-  StagehandPingResultSchema,
   SnapshotResultSchema,
 } from "./schemas.ts";
 
@@ -110,21 +107,10 @@ export const StagehandSendToHostBindingSchema = z
   .meta({ id: "StagehandSendToHostBinding" });
 
 export const StagehandMethods = {
-  ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
   runtimeConfigure: {
     name: "runtime.configure",
     params: RuntimeConfigureParamsSchema,
     result: RuntimeConfigureResultSchema,
-  },
-  runtimeLoopbackStatus: {
-    name: "runtime.loopback_status",
-    params: EmptyParamsSchema,
-    result: RuntimeLoopbackStatusResultSchema,
-  },
-  browserGetVersion: {
-    name: "browser.get_version",
-    params: EmptyParamsSchema,
-    result: BrowserGetVersionResultSchema,
   },
   stagehandInit: {
     name: "stagehand.init",

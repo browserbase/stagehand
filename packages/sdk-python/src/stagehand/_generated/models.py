@@ -149,18 +149,6 @@ class Browser(StrEnum):
     safari = "safari"
 
 
-class BrowserGetVersionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Optional[StrictStr] = None
-    product: Optional[StrictStr] = None
-    revision: Optional[StrictStr] = None
-    user_agent: Optional[StrictStr] = None
-    js_version: Optional[StrictStr] = None
-
-
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1773,10 +1761,8 @@ class RuntimeConfigureParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    protocol_version: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = (
-        None
-    )
-    client_info: Optional[ImplementationInfo] = None
+    protocol_version: Annotated[StrictInt, Field(gt=0, le=9007199254740991)]
+    client_info: ImplementationInfo
     cdp_url: Annotated[StrictStr, Field(min_length=1)]
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
@@ -1790,15 +1776,6 @@ class RuntimeConfigureResult(WireModel):
         validate_by_name=True,
     )
     configured: Literal[True]
-
-
-class RuntimeLoopbackStatusResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: StrictBool
-    connected: StrictBool
 
 
 class SameSite(StrEnum):
@@ -1942,15 +1919,6 @@ class StagehandObserveParams(WireModel):
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Optional[StrictStr] = None
     options: Optional[ObserveOptions] = None
-
-
-class StagehandPingResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    ok: Literal[True]
-    runtime: Literal["service_worker"]
 
 
 class StagehandResultMetadata(WireModel):
