@@ -11,13 +11,14 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
-    pnpm --filter ./packages/server build
-    go -C {{go_dir}} generate ./...
+    go -C {{go_generator_dir}} run .
 
-check: check-go-examples
+check:
     pnpm exec tsx scripts/release/check-changesets.ts
     pnpm exec tsx scripts/release/consolidate-changelogs.ts --check
     pnpm exec tsx scripts/release/sync-python-version.ts --check
+    pnpm --filter ./packages/protocol build
+    git diff --exit-code -- packages/protocol/stagehand.v4.json
     pnpm check
     uv --directory {{python_dir}} lock --check
     uv --directory {{python_dir}} run --locked python scripts/generate.py --check
@@ -26,16 +27,16 @@ check: check-go-examples
     uv --directory {{python_dir}} run --locked ty check
     go -C {{go_generator_dir}} run . --check
     pnpm --filter ./packages/server build
-    go -C {{go_dir}} run ./internal/extensionpack --check
+    cp packages/server/artifacts/stagehand-extension.zip {{go_dir}}/internal/extensionassets/stagehand-extension.zip
+    test -z "$(git ls-files '*stagehand-extension.zip')"
     test -z "$(find {{go_dir}} -name '*.go' -type f -exec gofmt -l {} +)"
     go -C {{go_dir}} vet $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} vet ./...
-
-check-go-examples:
     sh {{go_dir}}/scripts/check-examples.sh
 
 test:
     pnpm test
+    cp packages/server/artifacts/stagehand-extension.zip {{go_dir}}/internal/extensionassets/stagehand-extension.zip
     uv --directory {{python_dir}} run --locked pytest
     go -C {{go_dir}} test $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} test ./...
@@ -49,6 +50,8 @@ example name="act":
     pnpm exec tsx "packages/sdk-ts/examples/{{name}}.ts"
 
 go-example name="act":
+    pnpm --filter ./packages/server build
+    cp packages/server/artifacts/stagehand-extension.zip {{go_dir}}/internal/extensionassets/stagehand-extension.zip
     go -C {{go_dir}} run "./examples/{{name}}"
 
 fmt:
@@ -59,8 +62,8 @@ fmt:
 
 build:
     pnpm build
+    cp packages/server/artifacts/stagehand-extension.zip {{go_dir}}/internal/extensionassets/stagehand-extension.zip
     uv --directory {{python_dir}} run --locked python scripts/build.py
-    go -C {{go_dir}} run ./internal/extensionpack --check
     go -C {{go_dir}} build $(go -C {{go_dir}} list ./... | grep -v '/examples$')
     go -C {{go_generator_dir}} test -run '^$' ./...
 

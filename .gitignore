@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 packages/server/artifacts
+packages/sdk-go/internal/extensionassets/stagehand-extension.zip
+eval-summary.json
 .pnpm-store
 *.local
 *.tgz
