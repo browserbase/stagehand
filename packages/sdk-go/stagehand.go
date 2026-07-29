@@ -43,39 +43,6 @@ func (s *Stagehand) Initialized() bool {
 	return s.initialized
 }
 
-// Ping checks the Stagehand runtime.
-func (s *Stagehand) Ping(ctx context.Context) (StagehandPingResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return StagehandPingResult{}, err
-	}
-	var result StagehandPingResult
-	err = rpc.call(ctx, "ping", EmptyParams{}, &result)
-	return result, err
-}
-
-// RuntimeLoopbackStatus reports the runtime's CDP loopback state.
-func (s *Stagehand) RuntimeLoopbackStatus(ctx context.Context) (RuntimeLoopbackStatusResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return RuntimeLoopbackStatusResult{}, err
-	}
-	var result RuntimeLoopbackStatusResult
-	err = rpc.call(ctx, "runtime.loopback_status", EmptyParams{}, &result)
-	return result, err
-}
-
-// BrowserGetVersion returns version information from the connected browser.
-func (s *Stagehand) BrowserGetVersion(ctx context.Context) (BrowserGetVersionResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return BrowserGetVersionResult{}, err
-	}
-	var result BrowserGetVersionResult
-	err = rpc.call(ctx, "browser.get_version", EmptyParams{}, &result)
-	return result, err
-}
-
 // Metrics returns aggregate Stagehand operation metrics.
 func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 	rpc, err := s.connectedProtocol()

@@ -107,18 +107,30 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 			want:  `{"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}}`,
 		},
 		{
-			name:  "runtime configure omitted",
-			value: RuntimeConfigureParams{CDPURL: "ws://runtime.test"},
-			want:  `{"cdp_url":"ws://runtime.test"}`,
+			name: "runtime configure required identity",
+			value: RuntimeConfigureParams{
+				CDPURL:          "ws://runtime.test",
+				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
+				ProtocolVersion: 1,
+			},
+			want: `{
+				"cdp_url":"ws://runtime.test",
+				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
+				"protocol_version":1
+			}`,
 		},
 		{
 			name: "runtime configure explicit default",
 			value: RuntimeConfigureParams{
-				CDPURL:    "ws://runtime.test",
-				Telemetry: defaultTelemetry,
+				CDPURL:          "ws://runtime.test",
+				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
+				ProtocolVersion: 1,
+				Telemetry:       defaultTelemetry,
 			},
 			want: `{
 				"cdp_url":"ws://runtime.test",
+				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
+				"protocol_version":1,
 				"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}
 			}`,
 		},

@@ -4,7 +4,7 @@ description: "Initialize a browser session and run AI-powered actions, observati
 icon: "hand-horns"
 ---
 
-`Stagehand` owns the browser connection and exposes top-level lifecycle, diagnostics, and AI methods.
+`Stagehand` owns the browser connection and exposes top-level lifecycle, metrics, and AI methods.
 
 <View title="TypeScript" icon="js">
 
@@ -39,78 +39,6 @@ await stagehand.close();
 
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
-</ResponseField>
-
-## ping()
-
-Check that the Stagehand runtime is responding.
-
-```typescript
-const status = await stagehand.ping();
-```
-
-<ResponseField name="result" type="Promise<StagehandPingResult>">
-  The operation result.
-
-<ResponseField name="result.ok" type="boolean">
-  Whether the runtime responded successfully.
-</ResponseField>
-
-  <ResponseField name="result.runtime" type="string">
-    The responding runtime.
-  </ResponseField>
-</ResponseField>
-
-## runtimeLoopbackStatus()
-
-Inspect the runtime loopback connection status.
-
-```typescript
-const status = await stagehand.runtimeLoopbackStatus();
-```
-
-<ResponseField name="result" type="Promise<RuntimeLoopbackStatusResult>">
-  The operation result.
-
-<ResponseField name="result.configured" type="boolean">
-  Whether loopback is configured.
-</ResponseField>
-
-  <ResponseField name="result.connected" type="boolean">
-    Whether loopback is connected.
-  </ResponseField>
-</ResponseField>
-
-## browserGetVersion()
-
-Read version information from the connected browser.
-
-```typescript
-const version = await stagehand.browserGetVersion();
-```
-
-<ResponseField name="result" type="Promise<BrowserGetVersionResult>">
-  The operation result.
-
-<ResponseField name="result.protocolVersion" type="string" optional>
-  The browser protocol version.
-</ResponseField>
-
-<ResponseField name="result.product" type="string" optional>
-  The browser product string.
-</ResponseField>
-
-<ResponseField name="result.revision" type="string" optional>
-  The browser revision.
-</ResponseField>
-
-<ResponseField name="result.userAgent" type="string" optional>
-  The browser user agent.
-</ResponseField>
-
-  <ResponseField name="result.jsVersion" type="string" optional>
-    The JavaScript engine version.
-  </ResponseField>
 </ResponseField>
 
 ## metrics()
@@ -587,78 +515,6 @@ await stagehand.close()
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
-</ResponseField>
-
-## ping()
-
-Check that the Stagehand runtime is responding.
-
-```python
-status = await stagehand.ping()
-```
-
-<ResponseField name="result" type="StagehandPingResult">
-  The operation result.
-
-<ResponseField name="result.ok" type="bool">
-  Whether the runtime responded successfully.
-</ResponseField>
-
-  <ResponseField name="result.runtime" type="str">
-    The responding runtime.
-  </ResponseField>
-</ResponseField>
-
-## runtime_loopback_status()
-
-Inspect the runtime loopback connection status.
-
-```python
-status = await stagehand.runtime_loopback_status()
-```
-
-<ResponseField name="result" type="RuntimeLoopbackStatusResult">
-  The operation result.
-
-<ResponseField name="result.configured" type="bool">
-  Whether loopback is configured.
-</ResponseField>
-
-  <ResponseField name="result.connected" type="bool">
-    Whether loopback is connected.
-  </ResponseField>
-</ResponseField>
-
-## browser_get_version()
-
-Read version information from the connected browser.
-
-```python
-version = await stagehand.browser_get_version()
-```
-
-<ResponseField name="result" type="BrowserGetVersionResult">
-  The operation result.
-
-<ResponseField name="result.protocol_version" type="str" optional>
-  The browser protocol version.
-</ResponseField>
-
-<ResponseField name="result.product" type="str" optional>
-  The browser product string.
-</ResponseField>
-
-<ResponseField name="result.revision" type="str" optional>
-  The browser revision.
-</ResponseField>
-
-<ResponseField name="result.user_agent" type="str" optional>
-  The browser user agent.
-</ResponseField>
-
-  <ResponseField name="result.js_version" type="str" optional>
-    The JavaScript engine version.
-  </ResponseField>
 </ResponseField>
 
 ## metrics()

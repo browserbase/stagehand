@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveBrowserSource, type BrowserbaseSessionClient } from "../src/browserSource.js";
+import {
+  localBrowserChromeFlags,
+  resolveBrowserSource,
+  WEBMCP_CHROME_FLAG,
+  type BrowserbaseSessionClient,
+} from "../src/browserSource.js";
 
 describe("resolveBrowserSource", () => {
   it("creates a Browserbase session from the default browser source", async () => {
@@ -139,5 +144,65 @@ describe("resolveBrowserSource", () => {
     ).rejects.toThrow();
     expect(createSession).not.toHaveBeenCalled();
     expect(launchLocalBrowser).not.toHaveBeenCalled();
+  });
+});
+
+describe("localBrowserChromeFlags", () => {
+  const launcherDefaults = ["--disable-extensions", "--disable-background-networking"];
+
+  it("enables WebMCP without disabling the Stagehand extension", () => {
+    expect(localBrowserChromeFlags({}, launcherDefaults, false)).toEqual([
+      "--disable-background-networking",
+      "--enable-unsafe-extension-debugging",
+      "--remote-allow-origins=*",
+      "--window-size=1280,800",
+      WEBMCP_CHROME_FLAG,
+    ]);
+  });
+
+  it("omits all default flags when ignoreDefaultArgs is true", () => {
+    expect(
+      localBrowserChromeFlags(
+        {
+          ignoreDefaultArgs: true,
+          args: ["--user-supplied"],
+        },
+        launcherDefaults,
+        false,
+      ),
+    ).toEqual(["--user-supplied"]);
+  });
+
+  it("selectively omits the WebMCP flag while retaining other defaults", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        ignoreDefaultArgs: [WEBMCP_CHROME_FLAG],
+      },
+      launcherDefaults,
+      false,
+    );
+
+    expect(flags).not.toContain(WEBMCP_CHROME_FLAG);
+    expect(flags).toContain("--disable-background-networking");
+    expect(flags).toContain("--enable-unsafe-extension-debugging");
+  });
+
+  it("appends launch options and user arguments after defaults", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        headless: true,
+        devtools: true,
+        args: ["--custom-flag"],
+      },
+      launcherDefaults,
+      true,
+    );
+
+    expect(flags.slice(-4)).toEqual([
+      "--headless",
+      "--auto-open-devtools-for-tabs",
+      "--no-sandbox",
+      "--custom-flag",
+    ]);
   });
 });

@@ -12,7 +12,7 @@ import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartb
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
-import { V3Context } from "./understudy/context.js";
+import { BrowserContext } from "./understudy/context.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
 
 export type StagehandServiceWorkerScope = {
@@ -37,7 +37,7 @@ export function startStagehandServiceWorker(
             `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
           );
         }
-        return V3Context.create(cdpUrl, {
+        return BrowserContext.create(cdpUrl, {
           websocketFactory: browserWebSocketFactory,
           logger,
           blankPageUrl: chrome.runtime.getURL("blank.html"),

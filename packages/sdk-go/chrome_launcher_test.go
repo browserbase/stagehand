@@ -75,6 +75,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 		"--enable-unsafe-extension-debugging",
 		"--remote-allow-origins=*",
 		"--window-size=1440,900",
+		webMCPChromeFlag,
 		"--remote-debugging-port=9222",
 		"--user-data-dir=/tmp/stagehand profile",
 		"--custom-flag=value",
@@ -109,6 +110,16 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 				t.Fatalf("buildChromeArgs() contains ignored default %q", defaultArg)
 			}
 		}
+		for _, stagehandDefault := range []string{
+			"--enable-unsafe-extension-debugging",
+			"--remote-allow-origins=*",
+			"--window-size=1280,800",
+			webMCPChromeFlag,
+		} {
+			if slices.Contains(got, stagehandDefault) {
+				t.Fatalf("buildChromeArgs() contains ignored Stagehand default %q", stagehandDefault)
+			}
+		}
 	})
 
 	t.Run("selected", func(t *testing.T) {
@@ -125,6 +136,22 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 		}
 		if !slices.Contains(got, defaultChromeFlags[0]) {
 			t.Fatalf("buildChromeArgs() omitted non-ignored default %q", defaultChromeFlags[0])
+		}
+	})
+
+	t.Run("WebMCP", func(t *testing.T) {
+		got := buildChromeArgs(
+			LocalBrowserSource{
+				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{webMCPChromeFlag}},
+			},
+			9_222,
+			"/tmp/profile",
+		)
+		if slices.Contains(got, webMCPChromeFlag) {
+			t.Fatalf("buildChromeArgs() contains ignored default %q", webMCPChromeFlag)
+		}
+		if !slices.Contains(got, "--enable-unsafe-extension-debugging") {
+			t.Fatal("buildChromeArgs() omitted non-ignored Stagehand defaults")
 		}
 	})
 }

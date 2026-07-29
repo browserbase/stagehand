@@ -8,7 +8,6 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
     CacheStatus,
     Caret,
     Cookie,
@@ -29,14 +28,13 @@ from ._generated.models import (
     ObserveResult,
     PageScreenshotClip,
     RgbaColor,
-    RuntimeLoopbackStatusResult,
     Scale,
     StagehandMetrics,
-    StagehandPingResult,
     StagehandResultMetadata,
     State,
     TelemetryConfig,
     Variables,
+    WebMCPAnnotation,
 )
 from ._generated.models import (
     Locator as ProtocolLocator,
@@ -57,13 +55,18 @@ from .client_models import (
 from .locator import Locator
 from .page import Page
 from .stagehand import Stagehand
+from .webmcp import (
+    WebMCPInvocation,
+    WebMCPInvocationStatus,
+    WebMCPTool,
+    WebMCPToolResponse,
+)
 
 __all__ = [
     "ActResultData",
     "ActResult",
     "Action",
     "Animations",
-    "BrowserGetVersionResult",
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
@@ -97,15 +100,18 @@ __all__ = [
     "PageScreenshotClip",
     "ProtocolLocator",
     "RgbaColor",
-    "RuntimeLoopbackStatusResult",
     "Scale",
     "ScreenshotType",
     "Stagehand",
     "StagehandClientLoggingConfig",
     "StagehandMetrics",
-    "StagehandPingResult",
     "StagehandResultMetadata",
     "State",
     "TelemetryConfig",
     "Variables",
+    "WebMCPAnnotation",
+    "WebMCPInvocation",
+    "WebMCPInvocationStatus",
+    "WebMCPTool",
+    "WebMCPToolResponse",
 ]
