@@ -77,6 +77,8 @@ _version:
     pnpm exec changeset version
     pnpm exec tsx scripts/release/consolidate-changelogs.ts
     pnpm exec tsx scripts/release/sync-python-version.ts
+    pnpm --filter ./packages/server build
+    go -C {{go_dir}} generate ./...
     uv --directory "{{python_dir}}" lock
     pnpm exec tsx scripts/release/sync-python-version.ts --check
 
