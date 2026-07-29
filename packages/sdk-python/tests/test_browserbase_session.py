@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import zipfile
-from io import BytesIO
-
 import pytest
 from pydantic import ValidationError
 
@@ -16,7 +13,6 @@ from stagehand.browserbase_client import (
 )
 from stagehand.browserbase_session import (
     BrowserbaseSessionClient,
-    load_stagehand_extension_archive,
 )
 from stagehand.client_models import BrowserbaseBrowserSource
 
@@ -181,10 +177,3 @@ async def test_browserbase_session_cleanup_attempts_both_resources_and_retries_f
 
     assert len(api.release_requests) == 2
     assert len(api.delete_requests) == 1
-
-
-def test_source_extension_archive_is_a_valid_stagehand_zip() -> None:
-    archive = load_stagehand_extension_archive()
-
-    with zipfile.ZipFile(BytesIO(archive)) as extension:
-        assert "manifest.json" in extension.namelist()
