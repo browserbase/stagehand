@@ -3,12 +3,11 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_geniusee_2" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
-      const selector = "/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]";
-      const scalability = await v3.extract(
+      const selector = "xpath=/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]";
+      const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",
         z.object({
           scalability: z.string(),
@@ -63,13 +62,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

@@ -1,13 +1,13 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_file_uploads" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/");
 
-      const observations = await v3.observe("find the file upload element");
+      const { data: observations } = await stagehand.observe("find the file upload element");
 
       if (observations.length === 0) {
         return {
@@ -22,10 +22,9 @@ export default defineBenchTask(
 
       const expectedLocator = `xpath=/html/body/input`;
 
-      const expectedBackendNodeId = await page.locator(expectedLocator).backendNodeId();
-
-      const actualBackendNodeId = await page.locator(observations[0].selector).backendNodeId();
-      const foundMatch = expectedBackendNodeId === actualBackendNodeId;
+      const foundMatch = await selectorsResolveToSameElement(page, observations[0].selector, [
+        expectedLocator,
+      ]);
 
       return {
         _success: foundMatch,
@@ -37,14 +36,12 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         message: "returned selector does not resolve to same node as expected",
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

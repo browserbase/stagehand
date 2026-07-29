@@ -1,14 +1,17 @@
+import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_repo_name" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://github.com/facebook/react");
 
-      const { extraction } = await v3.extract(
+      const {
+        data: { extraction },
+      } = await stagehand.extract(
         "extract the title of the Github repository. Do not include the owner of the repository.",
+        z.object({ extraction: z.string() }),
       );
 
       logger.log({
@@ -32,13 +35,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

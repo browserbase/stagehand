@@ -182,13 +182,10 @@ describe("cross-cutting categories", () => {
     expect(task.categories).toContain("targeted_extract");
   });
 
-  it("external benchmarks have only external_agent_benchmarks, not agent", async () => {
+  it("retains only external-harness agent registration anchors", async () => {
     const { tasksByName } = await loadTaskConfig();
-    const task = tasksByName["agent/gaia"];
-    expect(task).toBeDefined();
-    expect(task.categories).toContain("external_agent_benchmarks");
-    expect(task.categories).not.toContain("agent");
-    // Same for webvoyager
+    expect(tasksByName["agent/gaia"]).toBeUndefined();
+
     const wv = tasksByName["agent/webvoyager"];
     expect(wv).toBeDefined();
     expect(wv.categories).toContain("external_agent_benchmarks");

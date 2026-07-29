@@ -1,15 +1,15 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_yc_startup" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://www.ycombinator.com/companies", {
         waitUntil: "networkidle",
       });
 
-      const observations = await v3.observe(
+      const { data: observations } = await stagehand.observe(
         "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
       );
 
@@ -28,35 +28,24 @@ export default defineBenchTask(
         `div._section_18olp_165._results_18olp_345`,
       ];
 
-      // Precompute candidate backendNodeIds
-      const candidateIds = new Map<string, number>();
-      for (const sel of possibleLocators) {
-        try {
-          const id = await page.locator(sel).backendNodeId();
-          candidateIds.set(sel, id);
-        } catch {
-          // ignore candidates that fail to resolve
-        }
-      }
-
+      // Compare the observed elements against the accepted container elements.
       let foundMatch = false;
-      let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const obsId = await page.locator(observation.selector).backendNodeId();
-          for (const [candSel, candId] of candidateIds) {
-            if (candId === obsId) {
-              foundMatch = true;
-              matchedLocator = candSel;
-              break;
-            }
+          const matched = await selectorsResolveToSameElement(
+            page,
+            observation.selector,
+            possibleLocators,
+          );
+          if (matched) {
+            foundMatch = true;
+            break;
           }
-          if (foundMatch) break;
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error?.message ?? String(error),
+            String(error),
           );
           continue;
         }
@@ -64,7 +53,6 @@ export default defineBenchTask(
 
       return {
         _success: foundMatch,
-        matchedLocator,
         observations,
         debugUrl,
         sessionUrl,
@@ -73,13 +61,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

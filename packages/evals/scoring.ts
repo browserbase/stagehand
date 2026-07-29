@@ -2,7 +2,42 @@
  * This file implements scoring functions needed by braintrust.
  */
 
+import stringComparison from "string-comparison";
 import { EvalArgs, EvalInput, EvalResult } from "./types/evals.js";
+
+const { jaroWinkler } = stringComparison;
+
+export function normalizeString(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[;/#!$%^&*:{}=\-_`~()]/g, "")
+    .replace(/\s*,\s*/g, ", ")
+    .trim();
+}
+
+export function normalizeTechnicalValue(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/~/g, " ")
+    .replace(/[;/#!$%^&*:{}=_`()]/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s*,\s*/g, ", ")
+    .trim();
+}
+
+export function compareStrings(
+  actual: string,
+  expected: string,
+  similarityThreshold: number = 0.85,
+): { similarity: number; meetsThreshold: boolean } {
+  const similarity = jaroWinkler.similarity(normalizeString(actual), normalizeString(expected));
+  return {
+    similarity,
+    meetsThreshold: similarity >= similarityThreshold,
+  };
+}
 
 function scorePass(args: EvalArgs<EvalInput, boolean | { _success: boolean }, unknown>): number {
   const expected = args.expected ?? true;

@@ -14,7 +14,7 @@ import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import type { BenchTaskContext, CoreTaskContext } from "./types.js";
+import type { CoreTaskContext, LegacyBenchTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -138,7 +138,7 @@ export interface BenchContextOptions {
 }
 
 export interface BenchContextResult {
-  ctx: BenchTaskContext;
+  ctx: LegacyBenchTaskContext;
   /** The V3 instance — caller is responsible for closing it. */
   v3Result: V3InitResult;
 }
@@ -161,7 +161,7 @@ export async function buildBenchContext(options: BenchContextOptions): Promise<B
   });
 
   const page = v3Result.v3.context.pages()[0];
-  const ctx: BenchTaskContext = {
+  const ctx: LegacyBenchTaskContext = {
     v3: v3Result.v3,
     agent: v3Result.agent,
     page,

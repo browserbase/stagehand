@@ -1,19 +1,18 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "allrecipes" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://www.allrecipes.com/", {
         waitUntil: "domcontentloaded",
       });
 
-      await v3.act('Type "chocolate chip cookies" in the search bar');
-      await v3.act("press enter");
+      await stagehand.act('Type "chocolate chip cookies" in the search bar');
+      await stagehand.act("press enter");
 
-      const recipeDetails = await v3.extract(
+      const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the first recipe and the total number of ratings it has received.",
         z.object({
           title: z.string().describe("Title of the recipe"),
@@ -21,55 +20,19 @@ export default defineBenchTask(
         }),
       );
 
-      const { title, total_ratings } = recipeDetails;
       const expectedTitle = "Best Chocolate Chip Cookies";
       const expectedRatings = 19164;
-
-      const extractedRatings = parseInt(total_ratings.replace(/[^\d]/g, ""), 10);
+      const extractedRatings = Number.parseInt(
+        recipeDetails.total_ratings.replace(/[^\d]/g, ""),
+        10,
+      );
       const isRatingsWithinRange =
         extractedRatings >= expectedRatings - 1000 && extractedRatings <= expectedRatings + 1000;
 
-      if (title !== expectedTitle || !isRatingsWithinRange) {
-        const errors = [];
-        if (title !== expectedTitle) {
-          errors.push({
-            message: "Extracted title does not match the expected title",
-            expected: expectedTitle,
-            actual: title,
-          });
-        }
-        if (!isRatingsWithinRange) {
-          errors.push({
-            message: "Extracted ratings are not within the expected range",
-            expected: `${expectedRatings} ± 1000`,
-            actual: extractedRatings.toString(),
-          });
-        }
-
-        logger.error({
-          message: "Failed to extract correct recipe details",
-          level: 0,
-          auxiliary: {
-            errors: {
-              value: JSON.stringify(errors),
-              type: "object",
-            },
-          },
-        });
-
-        return {
-          _success: false,
-          error: "Recipe details extraction validation failed",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
       return {
-        _success: true,
+        _success: recipeDetails.title === expectedTitle && isRatingsWithinRange,
         recipeDetails: {
-          title,
+          title: recipeDetails.title,
           total_ratings: extractedRatings,
         },
         logs: logger.getLogs(),
@@ -79,14 +42,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: "Recipe details extraction validation failed",
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

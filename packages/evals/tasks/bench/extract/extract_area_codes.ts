@@ -1,16 +1,16 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_area_codes" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/", {
         waitUntil: "domcontentloaded",
       });
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
         z.object({
           primary_center_list: z.array(
@@ -35,97 +35,49 @@ export default defineBenchTask(
         }),
       );
 
-      const primaryCenterList = result.primary_center_list;
-      const expectedLength = 56;
-
-      const expectedFirstItem = {
-        zone_name: "Lagos Zone",
-        primary_center_name: "Lagos",
-        area_code: "01",
-      };
-
-      const expectedLastItem = {
-        zone_name: "South-East",
-        primary_center_name: "Yenagoa",
-        area_code: "089",
-      };
-
-      if (primaryCenterList.length !== expectedLength) {
-        logger.error({
-          message: "Incorrect number of primary centers extracted",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: primaryCenterList.length.toString(),
-              type: "integer",
-            },
-          },
+      const expectedPrimaryCenters = await page.evaluate(() => {
+        const table = document.querySelector(".field--name-body table");
+        if (!table) throw new Error("Area-code table not found");
+        let zone = "";
+        return Array.from(table.querySelectorAll("tr")).flatMap((row) => {
+          const header = row.querySelector(":scope > th")?.textContent?.trim();
+          if (header) zone = header;
+          const cells = Array.from(row.querySelectorAll(":scope > td")).map(
+            (cell) => cell.textContent?.trim() ?? "",
+          );
+          if (cells.length < 2) return [];
+          const [primary_center_name, area_code] = cells.slice(-2);
+          if (!/^\d{2,3}$/.test(area_code)) return [];
+          return [{ zone_name: zone, primary_center_name, area_code }];
         });
-        return {
-          _success: false,
-          error: "Incorrect number of primary centers extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
+      });
+      if (expectedPrimaryCenters.length === 0) {
+        throw new Error("Area-code table contained no primary centers");
       }
-      const firstItemMatches =
-        primaryCenterList[0].zone_name === expectedFirstItem.zone_name &&
-        primaryCenterList[0].primary_center_name === expectedFirstItem.primary_center_name &&
-        primaryCenterList[0].area_code === expectedFirstItem.area_code;
+      const key = (item: { zone_name: string; primary_center_name: string; area_code: string }) =>
+        [
+          normalizeString(item.zone_name),
+          normalizeString(item.primary_center_name),
+          item.area_code.trim(),
+        ].join("|");
+      const actualKeys = result.primary_center_list.map(key).sort();
+      const expectedKeys = expectedPrimaryCenters.map(key).sort();
+      const allPrimaryCentersMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      if (!firstItemMatches) {
+      if (!allPrimaryCentersMatch) {
         logger.error({
-          message: "First primary center extracted does not match expected",
+          message: "Extracted primary centers do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(primaryCenterList[0]),
-              type: "object",
-            },
+            expected: { value: JSON.stringify(expectedPrimaryCenters), type: "object" },
+            actual: { value: JSON.stringify(result.primary_center_list), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "First primary center extracted does not match expected",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      const lastItemMatches =
-        primaryCenterList[primaryCenterList.length - 1].zone_name === expectedLastItem.zone_name &&
-        primaryCenterList[primaryCenterList.length - 1].primary_center_name ===
-          expectedLastItem.primary_center_name &&
-        primaryCenterList[primaryCenterList.length - 1].area_code === expectedLastItem.area_code;
-
-      if (!lastItemMatches) {
-        logger.error({
-          message: "Last primary center extracted does not match expected",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(primaryCenterList[primaryCenterList.length - 1]),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Last primary center extracted does not match expected",
+          error: "Extracted primary centers do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -141,13 +93,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

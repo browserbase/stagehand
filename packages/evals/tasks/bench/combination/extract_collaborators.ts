@@ -1,36 +1,39 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+
+const EXPECTED_CONTRIBUTORS = ["zpao", "gaearon", "sebmarkbage", "acdlite", "sophiebits"];
 
 export default defineBenchTask(
   { name: "extract_collaborators" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://github.com/facebook/react");
-      await v3.act("find and click the contributors section");
+      await stagehand.act("find and click the contributors section");
+      await stagehand.act("scroll halfway down the page");
 
-      await v3.act("scroll halfway down the page");
-
-      const { contributors } = await v3.extract(
-        "Extract top 5 contributors of this repository",
+      const { data } = await stagehand.extract(
+        "Extract the top 5 contributors of this repository",
         z.object({
           contributors: z.array(
             z.object({
-              github_username: z.string().describe("the github username of the contributor"),
-              commits: z.number().describe("number of commits contributed"),
+              github_username: z.string().describe("The contributor's GitHub username"),
+              commits: z.number().describe("The number of commits contributed"),
             }),
           ),
         }),
       );
 
-      const EXPECTED_CONTRIBUTORS = ["zpao", "gaearon", "sebmarkbage", "acdlite", "sophiebits"];
+      const success =
+        data.contributors.length === EXPECTED_CONTRIBUTORS.length &&
+        data.contributors.every(
+          (contributor, index) =>
+            contributor.github_username === EXPECTED_CONTRIBUTORS[index] &&
+            contributor.commits >= 1000,
+        );
+
       return {
-        _success:
-          contributors.length === EXPECTED_CONTRIBUTORS.length &&
-          contributors.every(
-            (c, i) => EXPECTED_CONTRIBUTORS[i] === c.github_username && c.commits >= 1000,
-          ),
-        contributors,
+        _success: success,
+        contributors: data.contributors,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -38,13 +41,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

@@ -1,19 +1,22 @@
+import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "spif_in_csr" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     // this eval is designed to test whether stagehand can successfully
     // click inside a SPIF (same process iframe) that is inside an
     // CSR (closed mode shadow) root
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/spif-in-closed-shadow-dom/",
       );
-      await v3.act("click the button");
+      await stagehand.act("click the button");
 
-      const extraction = await v3.extract("extract the entire page text");
+      const { data: extraction } = await stagehand.extract(
+        "extract the entire page text",
+        z.object({ extraction: z.string() }),
+      );
 
       const pageText = extraction.extraction;
 
@@ -36,13 +39,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error: ${error.message}`,
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

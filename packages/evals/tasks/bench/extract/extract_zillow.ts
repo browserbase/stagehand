@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_zillow" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/zillow/");
 
-      const real_estate_listings = await v3.extract(
+      const { data: real_estate_listings } = await stagehand.extract(
         "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
         z.object({
           listings: z.array(
@@ -20,28 +20,36 @@ export default defineBenchTask(
         }),
       );
 
-      await v3.close();
       const listings = real_estate_listings.listings;
-      const expectedLength = 38;
+      const expectedListings = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[data-test="property-card"]')).flatMap((card) => {
+          const price = card
+            .querySelector('[data-test="property-card-price"]')
+            ?.textContent?.trim();
+          const trails = card.querySelector("address")?.textContent?.trim();
+          return price && trails ? [{ price, trails }] : [];
+        }),
+      );
+      const key = (listing: { price: string; trails: string }) =>
+        `${normalizeString(listing.price)}|${normalizeString(listing.trails)}`;
+      const actualKeys = listings.map(key).sort();
+      const expectedKeys = expectedListings.map(key).sort();
+      const allListingsMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      if (listings.length < expectedLength) {
+      if (!allListingsMatch) {
         logger.error({
-          message: "Incorrect number of listings extracted",
+          message: "Extracted listings do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: listings.length.toString(),
-              type: "integer",
-            },
+            expected: { value: JSON.stringify(expectedListings), type: "object" },
+            actual: { value: JSON.stringify(listings), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "Incorrect number of listings extracted",
+          error: "Extracted listings do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -57,13 +65,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

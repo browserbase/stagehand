@@ -1,14 +1,14 @@
 import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_staff_members" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "extract a list of ALL the staff members on this page, with their name and their job title",
         z.object({
           staff_members: z.array(
@@ -20,101 +20,35 @@ export default defineBenchTask(
         }),
       );
 
-      const staff_members = result.staff_members;
-
-      const expectedLength = 50;
-
-      const expectedFirstItem = {
-        name: "Louis Alvarez",
-        job_title: "School Resource Officer",
-      };
-
-      const expectedLastItem = {
-        name: "Jessica Zipin",
-        job_title: "School Based Therapist",
-      };
-
-      if (staff_members.length !== expectedLength) {
-        logger.error({
-          message: "Incorrect number of items extracted",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: staff_members.length.toString(),
-              type: "integer",
-            },
-          },
-        });
-
-        return {
-          _success: false,
-          error: "Incorrect number of staff members extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      // Check for the presence of the expected items
-      const firstItemExists = staff_members.some(
-        (member) =>
-          member.name === expectedFirstItem.name &&
-          member.job_title === expectedFirstItem.job_title,
+      const expectedStaff = await page.evaluate(() =>
+        Array.from(document.querySelectorAll(".team-tiles .team-tile")).map((tile) => ({
+          name: tile.querySelector("h3")?.textContent?.trim() ?? "",
+          job_title: tile.querySelector("h4")?.textContent?.trim() ?? "",
+        })),
       );
-
-      if (!firstItemExists) {
-        logger.error({
-          message: "Expected first staff member not found in extracted data",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(staff_members),
-              type: "object",
-            },
-          },
-        });
-
-        return {
-          _success: false,
-          error: "Expected first staff member not found in extracted data",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
+      if (expectedStaff.length === 0) {
+        throw new Error("Expected staff list contained no staff members");
       }
+      const key = (member: { name: string; job_title: string }) =>
+        `${normalizeString(member.name)}|${normalizeString(member.job_title)}`;
+      const actualKeys = result.staff_members.map(key).sort();
+      const expectedKeys = expectedStaff.map(key).sort();
+      const allStaffMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      const lastItemExists = staff_members.some(
-        (member) =>
-          member.name === expectedLastItem.name && member.job_title === expectedLastItem.job_title,
-      );
-
-      if (!lastItemExists) {
+      if (!allStaffMatch) {
         logger.error({
-          message: "Expected last staff member not found in extracted data",
+          message: "Extracted staff members do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(staff_members),
-              type: "object",
-            },
+            expected: { value: JSON.stringify(expectedStaff), type: "object" },
+            actual: { value: JSON.stringify(result.staff_members), type: "object" },
           },
         });
-
         return {
           _success: false,
-          error: "Expected last staff member not found in extracted data",
+          error: "Extracted staff members do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -130,13 +64,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

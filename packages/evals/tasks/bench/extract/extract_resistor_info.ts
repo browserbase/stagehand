@@ -1,15 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { normalizeString } from "../../../utils.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString, normalizeTechnicalValue } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_resistor_info" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/resistor/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
         z.object({
           manufacturer_standard_lead_time: z.string(),
@@ -111,19 +110,19 @@ export default defineBenchTask(
       }
 
       if (
-        normalizeString(operating_temperature_range) !==
-        normalizeString(expected.operating_temperature_range)
+        normalizeTechnicalValue(operating_temperature_range) !==
+        normalizeTechnicalValue(expected.operating_temperature_range)
       ) {
         logger.error({
           message: "Operating temperature range extracted does not match expected",
           level: 0,
           auxiliary: {
             expected: {
-              value: normalizeString(expected.operating_temperature_range),
+              value: normalizeTechnicalValue(expected.operating_temperature_range),
               type: "string",
             },
             actual: {
-              value: normalizeString(operating_temperature_range),
+              value: normalizeTechnicalValue(operating_temperature_range),
               type: "string",
             },
           },
@@ -146,13 +145,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

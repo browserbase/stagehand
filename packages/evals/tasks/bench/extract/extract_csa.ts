@@ -1,14 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_csa" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/csa/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
         z.object({
           publications: z.array(
@@ -23,107 +23,53 @@ export default defineBenchTask(
       );
 
       const publications = result.publications;
-      const expectedLength = 14;
-
-      const expectedFirstItem = {
-        publication_date: "11-30-2024",
-        session_type: "Regular Session",
-        publication_type: "Assembly Weekly History",
-        annotation:
-          "2024 -- This publication includes the complete histories of second-year bills. The complete electronic history of all bills is always available at leginfo.legislature.ca.gov",
-      };
-
-      const expectedLastItem = {
-        publication_date: "11-30-2016",
-        session_type: "1st Extraordinary Session",
-        publication_type: "Assembly Weekly History",
-        annotation: "",
-      };
-
-      if (publications.length < expectedLength) {
-        logger.error({
-          message: "Incorrect number of publications extracted",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: `>= ${expectedLength}`,
-              type: "integer",
+      const expectedPublications = await page.evaluate(() =>
+        Array.from(document.querySelectorAll("table tbody tr")).flatMap((row) => {
+          const cells = Array.from(row.querySelectorAll(":scope > td"));
+          if (cells.length !== 5) return [];
+          return [
+            {
+              publication_date: cells[0]?.textContent?.trim() ?? "",
+              session_type: cells[2]?.textContent?.trim() ?? "",
+              publication_type: cells[3]?.textContent?.trim() ?? "",
+              annotation: cells[4]?.textContent?.trim() ?? "",
             },
-            actual: {
-              value: publications.length.toString(),
-              type: "integer",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Incorrect number of publications extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
+          ];
+        }),
+      );
+      if (expectedPublications.length === 0) {
+        throw new Error("Expected CSA publications table contained no publications");
       }
+      const key = (publication: {
+        publication_date: string;
+        session_type: string;
+        publication_type: string;
+        annotation: string;
+      }) =>
+        [
+          normalizeString(publication.publication_date),
+          normalizeString(publication.session_type),
+          normalizeString(publication.publication_type),
+          normalizeString(publication.annotation),
+        ].join("|");
+      const actualKeys = publications.map(key).sort();
+      const expectedKeys = expectedPublications.map(key).sort();
+      const allPublicationsMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      const hasExpectedFirstItem = publications.some((publication) => {
-        return (
-          publication.publication_date === expectedFirstItem.publication_date &&
-          publication.session_type === expectedFirstItem.session_type &&
-          publication.publication_type === expectedFirstItem.publication_type &&
-          publication.annotation === expectedFirstItem.annotation
-        );
-      });
-
-      if (!hasExpectedFirstItem) {
+      if (!allPublicationsMatch) {
         logger.error({
-          message: "Expected 'first' item not found in publications",
+          message: "Extracted publications do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(publications),
-              type: "object",
-            },
+            expected: { value: JSON.stringify(expectedPublications), type: "object" },
+            actual: { value: JSON.stringify(publications), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "Expected 'first' item not found in publications",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      const hasExpectedLastItem = publications.some((publication) => {
-        return (
-          publication.publication_date === expectedLastItem.publication_date &&
-          publication.session_type === expectedLastItem.session_type &&
-          publication.publication_type === expectedLastItem.publication_type &&
-          publication.annotation === expectedLastItem.annotation
-        );
-      });
-
-      if (!hasExpectedLastItem) {
-        logger.error({
-          message: "Expected 'last' item not found in publications",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(publications),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Expected 'last' item not found in publications",
+          error: "Extracted publications do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -139,13 +85,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

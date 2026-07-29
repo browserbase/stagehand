@@ -1,17 +1,20 @@
+import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "multi_tab" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/");
 
-      await v3.act("click the button to open the other page");
-      await v3.act("click the button to open the other page");
-      await v3.act("click the button to open the other page");
-      await v3.act("click the button to open the other page");
-      let activePage = await v3.context.awaitActivePage();
+      await stagehand.act("click the button to open the other page");
+      await stagehand.act("click the button to open the other page");
+      await stagehand.act("click the button to open the other page");
+      await stagehand.act("click the button to open the other page");
+      let activePage = await stagehand.context.activePage();
+      if (!activePage) {
+        throw new Error("no active page after opening tabs");
+      }
 
       let currentPageUrl = await activePage.url();
       let expectedUrl =
@@ -27,12 +30,14 @@ export default defineBenchTask(
         };
       }
 
-      // try acting on the first page again
-      const pages = v3.context.pages();
-      const page1 = pages[0];
-      await v3.act("click the button to open the other page", { page: page1 });
+      // Act on the original page again.
+      await stagehand.context.setActivePage(page);
+      await stagehand.act("click the button to open the other page");
 
-      activePage = await v3.context.awaitActivePage();
+      activePage = await stagehand.context.activePage();
+      if (!activePage) {
+        throw new Error("no active page after acting on the first page");
+      }
       currentPageUrl = await activePage.url();
       expectedUrl = "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";
       if (currentPageUrl !== expectedUrl) {
@@ -45,10 +50,14 @@ export default defineBenchTask(
         };
       }
 
-      const page2text = await v3.extract({ page: activePage });
+      // The target page is already active, so extraction operates on it.
+      const { data: page2text } = await stagehand.extract(
+        "extract the entire page text",
+        z.object({ extraction: z.string() }),
+      );
       const expectedPage2text = "You've made it to page 2";
 
-      if (page2text.pageText.includes(expectedPage2text)) {
+      if (page2text.extraction.includes(expectedPage2text)) {
         return {
           _success: true,
           debugUrl,
@@ -58,7 +67,7 @@ export default defineBenchTask(
       }
       return {
         _success: false,
-        message: `extracted page text: ${page2text.pageText} does not match expected page text: ${expectedPage2text}`,
+        message: `extracted page text: ${page2text.extraction} does not match expected page text: ${expectedPage2text}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -66,13 +75,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: error.message,
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

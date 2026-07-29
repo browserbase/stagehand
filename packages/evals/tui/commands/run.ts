@@ -180,6 +180,8 @@ export async function runCommand(
 ): Promise<void> {
   const resolvedTasksRoot = getRuntimeTasksRoot();
 
+  // All SDK modes use the canonical tasks/bench tree, so a cached registry
+  // can be reused regardless of which harness executes the selected tasks.
   if (!registry) {
     registry = await discoverTasks(resolvedTasksRoot, false);
   }
@@ -229,6 +231,20 @@ export async function runCommand(
     );
   }
 
+  // --sdk v4 preflight: the v4 SDK has no API path and no agent surface.
+  // Fail the whole command here instead of letting every matrix row fail
+  // inside the harness with the same per-row EvalsError.
+  if (options.sdk === "v4") {
+    if (options.useApi) {
+      throw new Error("--api is not supported with --sdk v4. Drop --api for v4 runs.");
+    }
+    if (options.agentMode || (options.agentModes && options.agentModes.length > 0)) {
+      throw new Error(
+        "--sdk v4 does not support agent modes (including cua). Drop --agent-mode/--agent-modes for v4 runs.",
+      );
+    }
+  }
+
   if (planMode) {
     await emitDryRun(options, tasks, registry, undefined, skippedTasks);
     return;
@@ -274,6 +290,7 @@ export async function runCommand(
           agentMode: options.agentMode,
           agentModes: options.agentModes,
           harness: options.harness,
+          sdk: options.sdk,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,

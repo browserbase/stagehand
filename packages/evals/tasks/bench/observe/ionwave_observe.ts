@@ -1,13 +1,13 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "ionwave_observe" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ionwave/");
 
-      const observations = await v3.observe();
+      const { data: observations } = await stagehand.observe();
 
       if (observations.length === 0) {
         return {
@@ -19,23 +19,21 @@ export default defineBenchTask(
         };
       }
 
-      const expectedLocator = `#Form1 > div:nth-child(5) > div:nth-child(1) > a`;
-
-      const expectedResult = await page.locator(expectedLocator).first().innerText();
-
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page.locator(observation.selector).first().innerText();
-
-          if (observationResult === expectedResult) {
+          if (
+            await selectorsResolveToSameElement(page, observation.selector, [
+              "#Form1 > div:nth-child(5) > div:nth-child(1) > a",
+            ])
+          ) {
             foundMatch = true;
             break;
           }
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error.message,
+            String(error),
           );
           continue;
         }
@@ -43,7 +41,7 @@ export default defineBenchTask(
 
       return {
         _success: foundMatch,
-        expected: expectedResult,
+        expected: "#Form1 > div:nth-child(5) > div:nth-child(1) > a",
         observations,
         debugUrl,
         sessionUrl,
@@ -52,13 +50,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

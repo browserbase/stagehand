@@ -2,23 +2,20 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "oopif_in_osr" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     // this eval is designed to test whether stagehand can successfully
     // fill a form inside a OOPIF (out of process iframe) that is inside an
     // OSR (open mode shadow) root
 
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
       );
-      await v3.act("fill 'nunya' into the first name field");
+      await stagehand.act("fill 'nunya' into the first name field");
 
-      const extraction = await v3.extract("extract the entire page text");
+      const firstNameValue = await page.locator('iframe >> input[placeholder="Jane"]').inputValue();
 
-      const pageText = extraction.extraction;
-
-      if (pageText.includes("nunya")) {
+      if (firstNameValue.trim().toLowerCase() === "nunya") {
         return {
           _success: true,
           message: `successfully filled the form`,
@@ -37,13 +34,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error: ${error.message}`,
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

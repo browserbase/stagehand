@@ -1,21 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
-import { compareStrings } from "../../../utils.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { compareStrings } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_memorial_healthcare" },
-  async ({
-    logger,
-
-    debugUrl,
-    sessionUrl,
-    v3,
-  }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
         z.object({
           health_centers: z.array(
@@ -35,17 +28,23 @@ export default defineBenchTask(
       const expectedLength = 3;
       const similarityThreshold = 0.85;
 
-      const expectedFirstItem = {
-        name: "Community Memorial Breast Center",
-        phone_number: "805-948-5093",
-        address: "168 North Brent Street, Suite 401, Ventura, CA 93003",
-      };
-
-      const expectedLastItem = {
-        name: "Community Memorial Dermatology and Mohs Surgery",
-        phone_number: "805-948-6920",
-        address: "168 North Brent Street, Suite 403, Ventura, CA 93003",
-      };
+      const expectedHealthCenters = [
+        {
+          name: "Community Memorial Breast Center",
+          phone_number: "805-948-5093",
+          address: "168 North Brent Street, Suite 401, Ventura, CA 93003",
+        },
+        {
+          name: "Community Memorial Continuing Care Center",
+          phone_number: "805-948-2000",
+          address: "1306 Maricopa Highway, Ojai, CA 93023",
+        },
+        {
+          name: "Community Memorial Dermatology and Mohs Surgery",
+          phone_number: "805-948-6920",
+          address: "168 North Brent Street, Suite 403, Ventura, CA 93003",
+        },
+      ];
 
       if (health_centers.length !== expectedLength) {
         logger.error({
@@ -113,6 +112,21 @@ export default defineBenchTask(
       }
 
       const compareField = (actual: string, expected: string, fieldName: string): boolean => {
+        if (fieldName.endsWith("phone_number")) {
+          const matches = actual.replace(/\D/g, "") === expected.replace(/\D/g, "");
+          if (!matches) {
+            logger.error({
+              message: `Field "${fieldName}" does not match`,
+              level: 0,
+              auxiliary: {
+                field: { value: fieldName, type: "string" },
+                expected: { value: expected, type: "string" },
+                actual: { value: actual, type: "string" },
+              },
+            });
+          }
+          return matches;
+        }
         const { similarity, meetsThreshold } = compareStrings(
           actual,
           expected,
@@ -159,14 +173,11 @@ export default defineBenchTask(
         );
       };
 
-      const firstItemMatches = compareItem(validHealthCenters[0], expectedFirstItem, "First");
-      const lastItemMatches = compareItem(
-        validHealthCenters[validHealthCenters.length - 1],
-        expectedLastItem,
-        "Last",
+      const allItemsMatch = validHealthCenters.every((center, index) =>
+        compareItem(center, expectedHealthCenters[index], `Item ${index + 1}`),
       );
 
-      if (!firstItemMatches || !lastItemMatches) {
+      if (!allItemsMatch) {
         return {
           _success: false,
           error: "One or more fields do not match expected values",
@@ -185,13 +196,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

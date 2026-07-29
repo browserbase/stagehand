@@ -1,17 +1,16 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
-import { compareStrings } from "../../../utils.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_public_notices" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/sars/", {
         waitUntil: "load",
       });
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
         z.object({
           public_notices: z.array(
@@ -29,113 +28,48 @@ export default defineBenchTask(
       );
 
       const publicNotices = result.public_notices;
-      const expectedLength = 24;
-
-      const expectedFirstItem = {
-        notice_description:
-          "Additional considerations in terms of section 80(2) in respect of which an application for a binding private ruling or a binding class ruling may be rejected",
-        gg_number: "GG 51526",
-        publication_date: "8 November 2024",
-      };
-
-      const expectedLastItem = {
-        notice_description:
-          "Notice in terms of section 25, read with section 66(1) of the Income Tax Act, 1962, for submission of 2020 income tax returns",
-        gg_number: "GG 43495",
-        publication_date: "3 July 2020",
-      };
-
-      if (publicNotices.length !== expectedLength) {
-        logger.error({
-          message: "Incorrect number of public notices extracted",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: publicNotices.length.toString(),
-              type: "integer",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Incorrect number of public notices extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-      const firstItemMatches =
-        compareStrings(
-          publicNotices[0].notice_description,
-          expectedFirstItem.notice_description,
-          0.9,
-        ) &&
-        compareStrings(publicNotices[0].gg_number, expectedFirstItem.gg_number, 0.9) &&
-        compareStrings(publicNotices[0].publication_date, expectedFirstItem.publication_date, 0.9);
-
-      if (!firstItemMatches) {
-        logger.error({
-          message: "First public notice extracted does not match expected",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(publicNotices[0]),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "First public notice extracted does not match expected",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      const lastItemMatches =
-        compareStrings(
-          publicNotices[publicNotices.length - 1].notice_description,
-          expectedLastItem.notice_description,
-          0.9,
-        ) &&
-        compareStrings(
-          publicNotices[publicNotices.length - 1].gg_number,
-          expectedLastItem.gg_number,
-          0.9,
-        ) &&
-        compareStrings(
-          publicNotices[publicNotices.length - 1].publication_date,
-          expectedLastItem.publication_date,
-          0.9,
+      const expectedNotices = await page.evaluate(() => {
+        const tables = Array.from(document.querySelectorAll("table")).filter(
+          (table) => !table.parentElement?.closest("table"),
         );
+        return tables.flatMap((table) =>
+          Array.from(table.querySelectorAll(":scope > tbody > tr")).flatMap((row) => {
+            const cells = Array.from(row.querySelectorAll(":scope > td"));
+            if (cells.length !== 4) return [];
+            const publication_date = (cells[0]?.textContent ?? "")
+              .replace(/New!/gi, "")
+              .replace(/\u00a0/g, " ")
+              .trim();
+            const gg_number = (cells[1]?.textContent ?? "").match(/GG\s+\d+/)?.[0] ?? "";
+            const year = Number(publication_date.match(/\b(20\d{2})\b/)?.[1]);
+            return year >= 2020 && year <= 2024 ? [{ gg_number, publication_date }] : [];
+          }),
+        );
+      });
+      if (expectedNotices.length === 0) {
+        throw new Error("Expected public notices were not found");
+      }
+      const key = (notice: { gg_number: string; publication_date: string }) =>
+        `${normalizeString(notice.gg_number)}|${normalizeString(notice.publication_date)}`;
+      const actualKeys = publicNotices.map(key).sort();
+      const expectedKeys = expectedNotices.map(key).sort();
+      const allNoticesMatch =
+        actualKeys.length === expectedKeys.length &&
+        publicNotices.every((notice) => notice.notice_description.trim().length > 0) &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      if (!lastItemMatches) {
+      if (!allNoticesMatch) {
         logger.error({
-          message: "Last public notice extracted does not match expected",
+          message: "Extracted public notices do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(publicNotices[publicNotices.length - 1]),
-              type: "object",
-            },
+            expected: { value: JSON.stringify(expectedNotices), type: "object" },
+            actual: { value: JSON.stringify(publicNotices), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "Last public notice extracted does not match expected",
+          error: "Extracted public notices do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -151,13 +85,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

@@ -1,24 +1,19 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
-  { name: "instructions" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  {
+    name: "instructions",
+    systemPrompt:
+      'When the user says secret12345, check the checkbox labeled "Show Closed/Awarded/Cancelled Bids".',
+  },
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/wichita/");
+      await stagehand.act("secret12345");
 
-      await page.goto("https://docs.browserbase.com/");
-
-      await v3.act("secret12345");
-
-      await page.waitForLoadState("domcontentloaded");
-
-      const url = page.url();
-
-      const isCorrectUrl =
-        (await url) === "https://docs.browserbase.com/introduction/what-is-browserbase";
-
+      const showAllBids = page.locator("#showAllBids");
       return {
-        _success: isCorrectUrl,
+        _success: await showAllBids.isChecked(),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
@@ -26,13 +21,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

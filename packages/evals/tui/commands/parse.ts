@@ -48,6 +48,8 @@ export interface RunFlags {
   success?: SuccessMode;
   /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
   legacy?: boolean;
+  /** Which Stagehand SDK drives bench tasks: v3 (default) or v4. */
+  sdk?: "v3" | "v4";
 }
 
 export type SuccessMode = "outcome" | "process" | "both";
@@ -80,6 +82,13 @@ export interface ResolvedRunOptions {
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
+  /**
+   * Which Stagehand SDK drives bench tasks. Only set when --sdk was passed
+   * explicitly: v4 selects the v4 harness path, and any explicit value (v3
+   * or v4) switches the run to the SDK-comparison Braintrust experiment
+   * naming scheme.
+   */
+  sdk?: "v3" | "v4";
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   datasetFilter?: string;
@@ -120,6 +129,7 @@ const VALUE_FLAGS = new Set([
   "agent-modes",
   "filter",
   "success",
+  "sdk",
 ]);
 
 const FLAG_ALIASES: Record<string, string> = {
@@ -282,6 +292,14 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           flags.success = v;
           break;
         }
+        case "sdk": {
+          const v = value.toLowerCase();
+          if (v !== "v3" && v !== "v4") {
+            throw new Error(`--sdk must be "v3" or "v4" (got "${value}")`);
+          }
+          flags.sdk = v;
+          break;
+        }
         default:
           break;
       }
@@ -420,6 +438,16 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
+  const sdk = flags.sdk;
+  // Explicit --sdk labels the run as an SDK-comparison experiment, but only
+  // the stagehand harness actually runs through the selected SDK — an
+  // external harness would produce mislabeled comparison data.
+  if (sdk !== undefined && harness !== "stagehand") {
+    throw new Error(
+      `--sdk ${sdk} requires --harness stagehand (got "${harness}"). ` +
+        `External harnesses do not run through the Stagehand SDK; drop --sdk or use --harness stagehand.`,
+    );
+  }
   const agentMode = flags.agentMode ? normalizeAgentMode(flags.agentMode) : undefined;
   const agentModes = agentMode ? undefined : (flags.agentModes ?? defaults.agentModes ?? undefined);
 
@@ -454,6 +482,7 @@ export function resolveRunOptions(
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
+    sdk,
     agentMode,
     agentModes,
     datasetFilter,

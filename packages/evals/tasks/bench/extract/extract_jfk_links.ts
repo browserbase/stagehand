@@ -1,14 +1,13 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_jfk_links" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jfk/");
 
-      const extraction = await v3.extract(
+      const { data: extraction } = await stagehand.extract(
         "extract all the record file name and their corresponding links",
         z.object({
           records: z.array(
@@ -75,9 +74,23 @@ export default defineBenchTask(
 
       // Check that the extraction array is exactly length 10
       if (extractedRecords.length !== 10) {
+        logger.error({
+          message: "Incorrect number of records extracted",
+          level: 0,
+          auxiliary: {
+            expected: {
+              value: "10",
+              type: "integer",
+            },
+            actual: {
+              value: extractedRecords.length.toString(),
+              type: "integer",
+            },
+          },
+        });
         return {
           _success: false,
-          reason: `Extraction has ${extractedRecords.length} records (expected 10).`,
+          error: `Extraction has ${extractedRecords.length} records (expected 10).`,
           debugUrl,
           sessionUrl,
           logs: logger.getLogs(),
@@ -85,9 +98,23 @@ export default defineBenchTask(
       }
 
       if (missingRecords.length > 0) {
+        logger.error({
+          message: "Missing one or more expected records",
+          level: 0,
+          auxiliary: {
+            missing: {
+              value: JSON.stringify(missingRecords),
+              type: "object",
+            },
+            actual: {
+              value: JSON.stringify(extractedRecords),
+              type: "object",
+            },
+          },
+        });
         return {
           _success: false,
-          reason: "Missing one or more expected records.",
+          error: "Missing one or more expected records.",
           missingRecords,
           extractedRecords,
           debugUrl,
@@ -106,13 +133,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: JSON.parse(JSON.stringify(error, null, 2)),
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

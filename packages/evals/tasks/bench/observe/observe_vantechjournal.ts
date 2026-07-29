@@ -1,13 +1,13 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { selectorsResolveToSameElement } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_vantechjournal" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://vantechjournal.com/archive");
 
-      const observations = await v3.observe("Find the 'load more' link");
+      const { data: observations } = await stagehand.observe("Find the 'load more' link");
 
       if (observations.length === 0) {
         return {
@@ -24,17 +24,11 @@ export default defineBenchTask(
         "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
       ];
 
-      const expectedIds: number[] = [];
-      for (const locator of expectedLocators) {
-        const node = page.locator(locator);
-        const id = await node.backendNodeId();
-        if (id !== undefined && id !== null) expectedIds.push(id);
-      }
-
-      const observedNode = page.locator(observations[0].selector);
-      const observedId = await observedNode.backendNodeId();
-
-      const foundMatch = expectedIds.includes(observedId);
+      const foundMatch = await selectorsResolveToSameElement(
+        page,
+        observations[0].selector,
+        expectedLocators,
+      );
 
       return {
         _success: foundMatch,
@@ -47,13 +41,11 @@ export default defineBenchTask(
     } catch (error: unknown) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

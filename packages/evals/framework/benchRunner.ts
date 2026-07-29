@@ -54,23 +54,26 @@ export async function executeBenchTask(
       });
     }
 
+    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     const startedHarness = await harness.start({
       task,
       input,
       row,
       logger,
+      taskDefinition: taskModule.definition,
       verbose: options.verbose,
     });
     cleanup = onceAsync(startedHarness.cleanup);
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
         v3: harnessCtx.v3,
         agent: harnessCtx.agent,
-        page: harnessCtx.page,
+        // v4 rows carry the v4 client/page instead of v3/Playwright ones.
+        stagehand: harnessCtx.stagehand,
+        page: harnessCtx.page ?? harnessCtx.v4Page,
         logger,
         input,
         modelName: input.modelName,

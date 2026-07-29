@@ -2,18 +2,27 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "nested_iframes_2" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes-2/");
 
-      await v3.act("click the button called 'click me (inner 2)'");
+      await stagehand.act("click the button called 'click me (inner 2)'");
 
-      const inner = page
-        .frameLocator('iframe[src="iframe2.html"]')
-        .frameLocator('iframe[src="inner2.html"]');
+      // The target button lives in a nested same-origin iframe.
+      const messageText = await page.evaluate(() => {
+        const outer = (
+          document.querySelector('iframe[src="iframe2.html"]') as HTMLIFrameElement | null
+        )?.contentDocument;
+        const inner = (
+          outer?.querySelector('iframe[src="inner2.html"]') as HTMLIFrameElement | null
+        )?.contentDocument;
 
-      const messageText = await inner.locator("#msg").textContent();
+        const msg = inner?.querySelector("#msg");
+        if (!msg) {
+          throw new Error("could not resolve #msg in the nested iframes");
+        }
+        return msg.textContent ?? "";
+      });
 
       const passed: boolean =
         messageText.toLowerCase().trim() === "clicked the button in the second inner iframe";
@@ -30,10 +39,8 @@ export default defineBenchTask(
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
-        error,
+        error: String(error),
       };
-    } finally {
-      await v3.close();
     }
   },
 );

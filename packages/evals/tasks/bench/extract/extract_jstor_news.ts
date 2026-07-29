@@ -1,23 +1,17 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { normalizeString } from "../../../scoring.js";
 
 export default defineBenchTask(
   { name: "extract_jstor_news" },
-  async ({
-    logger,
-
-    debugUrl,
-    sessionUrl,
-    v3,
-  }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jstor/", {
         waitUntil: "load",
       });
-      await v3.act("close the cookie");
+      await stagehand.act("close the cookie");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the news report titles and their dates.",
         z.object({
           reports: z.array(
@@ -30,91 +24,35 @@ export default defineBenchTask(
       );
 
       const reports = result.reports;
-      const expectedLength = 10;
-
-      const expectedFirstItem = {
-        report_name: "JSTOR retires Publisher Sales Service",
-        publish_date: "December 9, 2024",
-      };
-
-      const expectedLastItem = {
-        report_name: "Path to Open announces 2024 titles",
-        publish_date: "May 10, 2024",
-      };
-
-      if (reports.length !== expectedLength) {
-        logger.error({
-          message: "Incorrect number of reports extracted",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: expectedLength.toString(),
-              type: "integer",
-            },
-            actual: {
-              value: reports.length.toString(),
-              type: "integer",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Incorrect number of reports extracted",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
+      const expectedReports = await page.evaluate(() =>
+        Array.from(document.querySelectorAll(".post-list article")).map((article) => ({
+          report_name: article.querySelector(".post-title")?.textContent?.trim() ?? "",
+          publish_date: article.querySelector(".meta.date")?.textContent?.trim() ?? "",
+        })),
+      );
+      if (expectedReports.length === 0) {
+        throw new Error("Expected JSTOR news reports not found");
       }
-      const firstItemMatches =
-        reports[0].report_name === expectedFirstItem.report_name &&
-        reports[0].publish_date === expectedFirstItem.publish_date;
+      const key = (report: { report_name: string; publish_date: string }) =>
+        `${normalizeString(report.report_name)}|${normalizeString(report.publish_date)}`;
+      const actualKeys = reports.map(key).sort();
+      const expectedKeys = expectedReports.map(key).sort();
+      const allReportsMatch =
+        actualKeys.length === expectedKeys.length &&
+        JSON.stringify(actualKeys) === JSON.stringify(expectedKeys);
 
-      if (!firstItemMatches) {
+      if (!allReportsMatch) {
         logger.error({
-          message: "First report extracted does not match expected",
+          message: "Extracted reports do not match the page",
           level: 0,
           auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedFirstItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(reports[0]),
-              type: "object",
-            },
+            expected: { value: JSON.stringify(expectedReports), type: "object" },
+            actual: { value: JSON.stringify(reports), type: "object" },
           },
         });
         return {
           _success: false,
-          error: "First report extracted does not match expected",
-          logs: logger.getLogs(),
-          debugUrl,
-          sessionUrl,
-        };
-      }
-
-      const lastItemMatches =
-        reports[reports.length - 1].report_name === expectedLastItem.report_name &&
-        reports[reports.length - 1].publish_date === expectedLastItem.publish_date;
-
-      if (!lastItemMatches) {
-        logger.error({
-          message: "Last report extracted does not match expected",
-          level: 0,
-          auxiliary: {
-            expected: {
-              value: JSON.stringify(expectedLastItem),
-              type: "object",
-            },
-            actual: {
-              value: JSON.stringify(reports[reports.length - 1]),
-              type: "object",
-            },
-          },
-        });
-        return {
-          _success: false,
-          error: "Last report extracted does not match expected",
+          error: "Extracted reports do not match the page",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -130,13 +68,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );
