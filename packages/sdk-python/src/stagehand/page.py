@@ -56,15 +56,19 @@ from ._generated.models import (
     PageWaitForSelectorParams,
     PageWaitForSelectorResult,
     PageWaitForTimeoutParams,
+    PageWebMCPToolsParams,
+    PageWebMCPToolsResult,
     Scale,
     SnapshotResult,
     State,
+    WebMCPToolsOptions,
 )
 from ._generated.models import (
     Type as ScreenshotType,
 )
 from .locator import Locator
 from .rpc_client import RPCClient
+from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 
@@ -438,6 +442,17 @@ class Page:
         if include_iframes is not None:
             params.options = PageSnapshotOptions(include_iframes=include_iframes)
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
+
+    async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
+        params = PageWebMCPToolsParams(page_id=self.page_id)
+        if timeout is not None:
+            params.options = WebMCPToolsOptions(timeout=timeout)
+        result = await self._rpc_client.send(
+            "page.webmcp_tools",
+            params,
+            PageWebMCPToolsResult,
+        )
+        return [WebMCPTool(self._rpc_client, self.page_id, tool) for tool in result.tools]
 
     async def url(self) -> str:
         return await self._rpc_client.send(

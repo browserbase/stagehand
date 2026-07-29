@@ -168,7 +168,7 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
         await client.send({
             "jsonrpc": "2.0",
             "id": 1,
-            "method": "ping",
+            "method": "test.request",
             "params": {},
         })
         await socket.incoming.put(
