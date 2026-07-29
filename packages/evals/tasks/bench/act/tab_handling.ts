@@ -17,23 +17,19 @@ export default defineBenchV4Task(
       const page1 = pages[0];
       const page2 = pages[1];
 
-      // V4 GAP: extract has no { page } option (v3:
-      // v3.extract({ page: pageN })) — activate each target page via
-      // setActivePage before extracting. v3 also used schemaless extract
-      // (V4_API_LOGS #2); v4 requires a schema. Single-word key to stay
-      // clear of the snake_case wire-casing bug (#14).
+      // v3 used schemaless extract (V4_API_LOGS #2); v4 requires a schema.
 
       // extract all the text from the first page
-      await stagehand.context.setActivePage(page1);
       const { data: extraction1 } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
+        { page: page1 },
       );
       // extract all the text from the second page
-      await stagehand.context.setActivePage(page2);
       const { data: extraction2 } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
+        { page: page2 },
       );
 
       const extraction1Success = extraction1.extraction.includes("Welcome!");

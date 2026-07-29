@@ -4,7 +4,7 @@ import { defineBenchV4Task } from "../../../framework/defineTask.js";
 /**
  * Inlined behavior-identical copy of `normalizeString` from stagehand
  * packages/evals/utils.ts — v4 eval tasks may only import "zod" and
- * "../../framework.js". Pure computation, no behavior change.
+ * "../../../framework/*.js". Pure computation, no behavior change.
  */
 function normalizeString(str: string): string {
   return str
@@ -158,7 +158,7 @@ export default defineBenchV4Task(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
