@@ -56,7 +56,16 @@ export function defineBenchV4Task(
   return {
     __taskDefinition: true,
     meta,
-    fn,
+    // Fail fast with a clear message if a v3-context runner invokes a v4
+    // task — the v4 init/dispatch path lands with the harness change.
+    fn: (ctx) => {
+      if (!("stagehand" in ctx) || ctx.stagehand === undefined) {
+        throw new Error(
+          `Task "${meta.name}" requires the v4 harness (--sdk v4); it was invoked with a v3 context.`,
+        );
+      }
+      return fn(ctx as unknown as BenchV4TaskContext);
+    },
   };
 }
 
