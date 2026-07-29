@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { StagehandLogger } from "../logger.js";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
-import { V3Context } from "../understudy/context.js";
+import { BrowserContext } from "../understudy/context.js";
 import { Page } from "../understudy/page.js";
 
 class FakeCDPSession implements CDPSessionLike {
@@ -53,7 +53,7 @@ function createPage(session: FakeCDPSession): Page {
   return new Page(connection, session, "target-1", "frame-1", {} as StagehandLogger);
 }
 
-function createContextPage(session: FakeCDPSession): { context: V3Context; page: Page } {
+function createContextPage(session: FakeCDPSession): { context: BrowserContext; page: Page } {
   const connection = {
     connected: true,
     send: async () => ({ success: true }),
@@ -61,7 +61,7 @@ function createContextPage(session: FakeCDPSession): { context: V3Context; page:
     getSession: (sessionId: string) => (sessionId === session.id ? session : undefined),
   } as unknown as CdpConnection;
   const logger = {} as StagehandLogger;
-  const context = new V3Context(connection, logger, {} as ChromeTabTargetController);
+  const context = new BrowserContext(connection, logger, {} as ChromeTabTargetController);
   const page = new Page(connection, session, "target-1", "frame-1", logger);
   context.pagesByTarget.set("target-1", page);
   return { context, page };
@@ -276,8 +276,11 @@ describe("Page WebMCP invocation lifecycle", () => {
   });
 
   it.each([
-    ["detached target", (context: V3Context) => context.onDetachedFromTarget("main", "target-1")],
-    ["destroyed target", (context: V3Context) => context.cleanupByTarget("target-1")],
+    [
+      "detached target",
+      (context: BrowserContext) => context.onDetachedFromTarget("main", "target-1"),
+    ],
+    ["destroyed target", (context: BrowserContext) => context.cleanupByTarget("target-1")],
   ])("cleans up pending invocations for a %s", async (_event, removeTarget) => {
     const session = new FakeCDPSession({
       "WebMCP.invokeTool": () => ({ invocationId: "invocation-1" }),
