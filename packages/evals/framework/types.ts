@@ -40,6 +40,7 @@ export interface BenchTaskMeta extends TaskMeta {
    * Custom system prompt passed to the Stagehand instance at init time
    * (v3 `V3Options.systemPrompt` / v4 `StagehandInitParams.systemPrompt`).
    * Used by tasks that test instruction-following (e.g. combination/instructions).
+   * Additional instructions applied when initializing Stagehand for this task. 
    */
   systemPrompt?: string;
 }
