@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import { generateWithClientLlm } from "../llm/clientLlmClient.js";
 import * as llmService from "../services/llmService.js";
 import { createStagehandRuntime } from "../runtime.js";
@@ -80,6 +81,8 @@ describe("client LLM generation", () => {
     });
 
     await runtime.configureLoopback({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       cdpUrl: "ws://browser.example",
       logLevel: "info",
       telemetry: {

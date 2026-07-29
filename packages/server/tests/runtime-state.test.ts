@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
+
+const runtimeIdentity = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+};
 
 function createBrowserSession(
   overrides: Partial<StagehandBrowserSession> = {},
@@ -41,6 +47,7 @@ describe("Stagehand runtime state", () => {
     });
 
     await runtime.configureLoopback({
+      ...runtimeIdentity,
       cdpUrl: "ws://browser.example",
       logLevel: "info",
       telemetry: {
@@ -84,6 +91,7 @@ describe("Stagehand runtime state", () => {
     });
 
     await runtime.configureLoopback({
+      ...runtimeIdentity,
       cdpUrl: "ws://browser.example",
       logLevel: "info",
       telemetry: {
@@ -108,6 +116,7 @@ describe("Stagehand runtime state", () => {
     });
 
     await runtime.configureLoopback({
+      ...runtimeIdentity,
       cdpUrl: "ws://browser.example",
       logLevel: "info",
       telemetry: {
