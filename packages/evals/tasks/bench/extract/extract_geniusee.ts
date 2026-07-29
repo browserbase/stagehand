@@ -1,14 +1,14 @@
 import { z } from "zod";
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_geniusee" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
+      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
       const selector = "/html/body/main/div[2]/div[2]/div[2]/table";
-      const scalability = await v3.extract(
+      const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",
         z.object({
           scalability: z.string(),
@@ -63,7 +63,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

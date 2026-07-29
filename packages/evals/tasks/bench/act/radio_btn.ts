@@ -1,13 +1,12 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "radio_btn" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/paneer-pizza/");
 
-      await v3.act("click the 'medium' option");
+      await stagehand.act("click the 'medium' option");
 
       // confirm that the Medium radio is now checked
       const radioBtnClicked = await page
@@ -29,7 +28,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

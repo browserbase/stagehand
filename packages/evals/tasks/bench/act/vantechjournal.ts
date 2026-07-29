@@ -1,16 +1,15 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "vantechjournal" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://vantechjournal.com");
 
-      await v3.act("click on page 'recommendations'");
+      await stagehand.act("click on page 'recommendations'");
 
       const expectedUrl = "https://vantechjournal.com/recommendations";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
       return {
         _success: currentUrl === expectedUrl,
@@ -29,7 +28,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

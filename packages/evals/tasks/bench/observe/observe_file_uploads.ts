@@ -1,13 +1,12 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_file_uploads" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/");
 
-      const observations = await v3.observe("find the file upload element");
+      const { data: observations } = await stagehand.observe("find the file upload element");
 
       if (observations.length === 0) {
         return {
@@ -22,10 +21,42 @@ export default defineBenchTask(
 
       const expectedLocator = `xpath=/html/body/input`;
 
-      const expectedBackendNodeId = await page.locator(expectedLocator).backendNodeId();
+      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
+      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // re-expressed in-page: resolve the observed selector and the expected
+      // selector and compare element references.
+      const foundMatch = await page.evaluate(
+        ({
+          observedSelector,
+          expectedSelector,
+        }: {
+          observedSelector: string;
+          expectedSelector: string;
+        }) => {
+          const resolve = (selector: string): Element | null => {
+            const raw = selector.startsWith("xpath=") ? selector.slice("xpath=".length) : selector;
+            if (raw.startsWith("/") || raw.startsWith("(")) {
+              const result = document.evaluate(
+                raw,
+                document,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null,
+              );
+              return result.singleNodeValue as Element | null;
+            }
+            return document.querySelector(raw);
+          };
 
-      const actualBackendNodeId = await page.locator(observations[0].selector).backendNodeId();
-      const foundMatch = expectedBackendNodeId === actualBackendNodeId;
+          const expected = resolve(expectedSelector);
+          const observed = resolve(observedSelector);
+          return expected !== null && expected === observed;
+        },
+        {
+          observedSelector: observations[0].selector,
+          expectedSelector: expectedLocator,
+        },
+      );
 
       return {
         _success: foundMatch,
@@ -44,7 +75,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

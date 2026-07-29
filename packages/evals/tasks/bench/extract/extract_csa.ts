@@ -1,14 +1,13 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_csa" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/csa/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract all the publications on the page including the publication date, session type, publication type, and annotation",
         z.object({
           publications: z.array(
@@ -145,7 +144,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

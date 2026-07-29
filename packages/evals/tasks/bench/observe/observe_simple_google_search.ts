@@ -1,28 +1,66 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import type { Page, Stagehand } from "@browserbasehq/stagehand";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+/** The v4 SDK does not export the observe result type (V4_API_LOGS.md #7). */
+type ObservedAction = Awaited<ReturnType<Stagehand["observe"]>>["data"][number];
+
+/**
+ * WORKAROUND (V4_API_LOGS.md #1): v4 has no `act(observeResult)` replay.
+ * This mirrors what v3's act(ObserveResult) does internally (resolve the
+ * selector, invoke the planned method) so the task's observe→act flow and
+ * success criterion stay identical. This is consumer-side code the SDK
+ * should own.
+ */
+async function replayObservedAction(page: Page, action: ObservedAction): Promise<void> {
+  const locator = page.locator(action.selector);
+  const method = action.method ?? "click";
+  const args = action.arguments ?? [];
+  switch (method) {
+    case "click":
+      await locator.click();
+      return;
+    case "fill":
+      await locator.fill(args[0] ?? "");
+      return;
+    case "type":
+      await locator.type(args[0] ?? "");
+      return;
+    case "press":
+      await page.keyPress(args[0] ?? "");
+      return;
+    case "selectOption":
+    case "selectOptionFromDropdown":
+      await locator.selectOption(args);
+      return;
+    default:
+      throw new Error(`replayObservedAction: unsupported observed method "${method}"`);
+  }
+}
+
+export default defineBenchV4Task(
   { name: "observe_simple_google_search" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
-      const observation1 = await v3.observe("Find the search bar and type 'OpenAI'");
+      const { data: observation1 } = await stagehand.observe(
+        "Find the search bar and type 'OpenAI'",
+      );
 
       if (observation1.length > 0) {
         const action1 = observation1[0];
-        await v3.act(action1);
+        await replayObservedAction(page, action1);
       }
-      const observation2 = await v3.observe("Press enter");
+      const { data: observation2 } = await stagehand.observe("Press enter");
 
       if (observation2.length > 0) {
         const action2 = observation2[0];
-        await v3.act(action2);
+        await replayObservedAction(page, action2);
       }
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
       return {
         _success: currentUrl.startsWith(expectedUrl),
@@ -40,7 +78,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

@@ -1,4 +1,5 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
 
 const filler = Array.from(
   // Keep backend node IDs large enough to exercise Anthropic's bare-id failure mode.
@@ -48,20 +49,23 @@ function buildHtml(): string {
   `)}`;
 }
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_main_frame_element_ids" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(buildHtml());
 
-      const results = [];
+      const results: Array<{
+        instruction: string;
+        clicked: string | undefined;
+        observations: ObservedAction[];
+      }> = [];
       for (const testCase of cases) {
         await page.evaluate(() => {
           delete document.body.dataset.clicked;
         });
 
-        const observations = await v3.observe(testCase.instruction);
+        const { data: observations } = await stagehand.observe(testCase.instruction);
         if (observations.length === 0) {
           return {
             _success: false,
@@ -74,8 +78,11 @@ export default defineBenchTask(
           };
         }
 
-        await v3.act(observations[0]);
-        const clicked = await page.evaluate(() => document.body.dataset.clicked);
+        // v3's act(observeResult) replay — consumer-side in v4 (V4_API_LOGS.md #1)
+        await replayObservedAction(page, observations[0]);
+        const clicked = await page.evaluate<string | undefined>(
+          () => document.body.dataset.clicked,
+        );
         results.push({
           instruction: testCase.instruction,
           clicked,
@@ -112,7 +119,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

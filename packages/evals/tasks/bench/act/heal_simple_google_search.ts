@@ -1,25 +1,27 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "heal_simple_google_search" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google/");
 
-      await v3.act({
+      // Self-healing act(Action) replay (V4_API_LOGS.md #1, restored by
+      // stagehand#2427): same intentionally invalid selector as the v3
+      // twin — healing must re-locate "The search bar" and fill it.
+      await stagehand.act({
         description: "The search bar",
         selector: "/html/not-the-search-bar",
         arguments: ["OpenAI"],
         method: "fill",
       });
 
-      await v3.act("press enter");
+      await stagehand.act("press enter");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google/openai.html";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
       return {
         _success: currentUrl.startsWith(expectedUrl),
@@ -37,7 +39,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

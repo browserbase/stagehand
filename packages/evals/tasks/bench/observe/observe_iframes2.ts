@@ -1,21 +1,20 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "stagehand-v3";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { type ObservedAction } from "../../../framework/observeReplay.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_iframes2" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://iframetester.com/?url=https://shopify.com");
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
-      let observations: Action[];
+      let observations: ObservedAction[];
       try {
-        observations = await v3.observe("find the main header of the page");
+        observations = (await stagehand.observe("find the main header of the page")).data;
       } catch (err) {
         return {
           _success: false,
-          message: err.message,
+          message: err instanceof Error ? err.message : String(err),
           debugUrl,
           sessionUrl,
           logs: logger.getLogs(),
@@ -34,35 +33,65 @@ export default defineBenchTask(
 
       const possibleLocators = [`#iframe-window`, `body > header > h1`];
 
-      // Precompute candidate backendNodeIds
-      const candidateIds = new Map<string, number>();
-      for (const sel of possibleLocators) {
-        try {
-          const id = await page.locator(sel).backendNodeId();
-          candidateIds.set(sel, id);
-        } catch {
-          // ignore candidates that fail to resolve
-        }
-      }
-
+      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
+      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // re-expressed in-page. Both candidate selectors live in the main
+      // frame (the shopify iframe is cross-origin and unreachable from the
+      // main document either way): an observed selector that pierces into
+      // the iframe never had a backendNodeId equal to either main-frame
+      // candidate in v3 (no match), and here it simply fails to resolve in
+      // the main document (no match) — the pass criterion is preserved.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const obsId = await page.locator(observation.selector).backendNodeId();
-          for (const [candSel, candId] of candidateIds) {
-            if (candId === obsId) {
-              foundMatch = true;
-              matchedLocator = candSel;
-              break;
-            }
+          const matched = await page.evaluate(
+            ({
+              observedSelector,
+              candidateSelectors,
+            }: {
+              observedSelector: string;
+              candidateSelectors: string[];
+            }) => {
+              const resolve = (selector: string): Element | null => {
+                const raw = selector.startsWith("xpath=")
+                  ? selector.slice("xpath=".length)
+                  : selector;
+                if (raw.startsWith("/") || raw.startsWith("(")) {
+                  const result = document.evaluate(
+                    raw,
+                    document,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null,
+                  );
+                  return result.singleNodeValue as Element | null;
+                }
+                return document.querySelector(raw);
+              };
+
+              const observed = resolve(observedSelector);
+              if (!observed) return null;
+              for (const candidate of candidateSelectors) {
+                if (resolve(candidate) === observed) return candidate;
+              }
+              return null;
+            },
+            {
+              observedSelector: observation.selector,
+              candidateSelectors: possibleLocators,
+            },
+          );
+          if (matched) {
+            foundMatch = true;
+            matchedLocator = matched;
+            break;
           }
-          if (foundMatch) break;
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error?.message ?? String(error),
+            error instanceof Error ? error.message : String(error),
           );
           continue;
         }
@@ -85,7 +114,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );
