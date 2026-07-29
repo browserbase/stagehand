@@ -1,8 +1,8 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "heal_custom_dropdown" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
      * This eval is meant to test whether we do not incorrectly attempt
      * the selectOptionFromDropdown method (defined in actHandlerUtils.ts) on a
@@ -13,25 +13,25 @@ export default defineBenchTask(
      */
 
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
 
-      await v3.act({
+      // Self-healing act(Action) replay (V4_API_LOGS.md #1, restored by
+      // stagehand#2427): same intentionally invalid selector as the v3
+      // twin — healing must re-locate "The 'Select a country' dropdown"
+      // and click it to expand.
+      await stagehand.act({
         description: "The 'Select a country' dropdown",
         selector: "/html/not-a-dropdown",
         arguments: [],
         method: "click",
       });
 
-      // we are expecting stagehand to click the dropdown to expand it,
-      // and therefore the available options should now be contained in the full
-      // a11y tree.
+      // If the dropdown expanded, its options are now rendered in the DOM.
+      // (v3 checked the schemaless-extract page text; v4 extract requires a
+      // schema, so read the rendered text directly — same signal, no LLM.)
+      const pageText = await page.evaluate(() => document.body.innerText);
 
-      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
-      const extraction = await v3.extract();
-      const fullTree = extraction.pageText;
-
-      if (fullTree.includes("Canada")) {
+      if (pageText.includes("Canada")) {
         return {
           _success: true,
           debugUrl,
@@ -49,13 +49,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to select an option from the dropdown: ${error.message}`,
+        message: `error attempting to select an option from the dropdown: ${(error as Error).message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

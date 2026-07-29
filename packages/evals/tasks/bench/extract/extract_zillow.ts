@@ -1,14 +1,13 @@
 import { z } from "zod";
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_zillow" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/zillow/");
 
-      const real_estate_listings = await v3.extract(
+      const { data: real_estate_listings } = await stagehand.extract(
         "Extract EACH AND EVERY HOME PRICE AND ADDRESS ON THE PAGE. DO NOT MISS ANY OF THEM.",
         z.object({
           listings: z.array(
@@ -20,7 +19,8 @@ export default defineBenchTask(
         }),
       );
 
-      await v3.close();
+      // v3 closes mid-task here (and again in finally); preserved verbatim.
+      await stagehand.close();
       const listings = real_estate_listings.listings;
       const expectedLength = 38;
 
@@ -63,7 +63,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

@@ -1,16 +1,15 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_area_codes" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/", {
         waitUntil: "domcontentloaded",
       });
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
         z.object({
           primary_center_list: z.array(
@@ -147,7 +146,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

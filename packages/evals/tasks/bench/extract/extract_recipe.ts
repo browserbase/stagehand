@@ -1,11 +1,10 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_recipe" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
         {
@@ -13,8 +12,9 @@ export default defineBenchTask(
         },
       );
 
+      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
       const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-      const recipeDetails = await v3.extract(
+      const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
         z.object({
           tablespoons_olive_oil: z
@@ -92,7 +92,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

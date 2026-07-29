@@ -1,9 +1,9 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "stagehand-v3";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "no_js_click" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**
      * This eval is meant to test whether our `clickElement` function
      * (inside actHandlerUtils.ts) is able to click elements even if
@@ -11,16 +11,16 @@ export default defineBenchTask(
      */
 
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/");
 
-      const observeResult: Action = {
+      const observeResult: ObservedAction = {
         method: "click",
         selector: "xpath=/html/body/button",
         description: "the button to click",
         arguments: [],
       };
-      await v3.act(observeResult);
+      // v4 has no act(observeResult) replay — see V4_API_LOGS.md #1.
+      await replayObservedAction(page, observeResult);
 
       const text = await page.locator("#success-msg").textContent();
       if (text?.trim() === "click succeeded") {
@@ -41,13 +41,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to click the button: ${error.message}`,
+        message: `error attempting to click the button: ${(error as Error).message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

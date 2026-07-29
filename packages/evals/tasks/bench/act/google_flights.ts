@@ -1,5 +1,5 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "stagehand-v3";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check
@@ -11,27 +11,27 @@ import { Action } from "stagehand-v3";
  * pass the actionability check.
  */
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "google_flights" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/");
 
-      const observeResult: Action = {
+      const observeResult: ObservedAction = {
         selector:
           "xpath=/html/body/c-wiz[2]/div/div[2]/c-wiz/div[1]/c-wiz/div[2]/div[2]/div[2]/div/div[2]/div[1]/ul/li[1]/div/div[1]",
         description: "the first departing flight",
         method: "click",
         arguments: [],
       };
-      await v3.act(observeResult);
+      // v4 has no act(observeResult) replay — see V4_API_LOGS.md #1.
+      await replayObservedAction(page, observeResult);
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
-      const currentUrl = page.url();
+      const currentUrl = await page.url();
 
-      await v3.close();
+      await stagehand.close();
 
       if (currentUrl === expectedUrl) {
         return {
@@ -58,7 +58,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

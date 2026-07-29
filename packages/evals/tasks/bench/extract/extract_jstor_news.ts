@@ -1,23 +1,16 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "extract_jstor_news" },
-  async ({
-    logger,
-
-    debugUrl,
-    sessionUrl,
-    v3,
-  }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jstor/", {
         waitUntil: "load",
       });
-      await v3.act("close the cookie");
+      await stagehand.act("close the cookie");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the news report titles and their dates.",
         z.object({
           reports: z.array(
@@ -136,7 +129,7 @@ export default defineBenchTask(
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

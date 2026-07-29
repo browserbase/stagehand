@@ -1,13 +1,12 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "observe_github" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/github/");
 
-      const observations = await v3.observe(
+      const { data: observations } = await stagehand.observe(
         "find the scrollable element that holds the repos file tree.",
       );
 
@@ -33,35 +32,62 @@ export default defineBenchTask(
         `#repos-file-tree > div.Box-sc-g0xbh4-0.ReposFileTreePane-module__Box_5--tQNH_ > div > div > div > nav > ul`,
       ];
 
-      // Precompute candidate backendNodeIds
-      const candidateIds = new Map<string, number>();
-      for (const sel of possibleLocators) {
-        try {
-          const id = await page.locator(sel).backendNodeId();
-          candidateIds.set(sel, id);
-        } catch {
-          // ignore candidates that fail to resolve
-        }
-      }
-
+      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
+      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // re-expressed in-page: resolve the observed selector and each
+      // candidate selector and compare element references. Candidates that
+      // fail to resolve are ignored, as in v3.
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const obsId = await page.locator(observation.selector).backendNodeId();
-          for (const [candSel, candId] of candidateIds) {
-            if (candId === obsId) {
-              foundMatch = true;
-              matchedLocator = candSel;
-              break;
-            }
+          const matched = await page.evaluate(
+            ({
+              observedSelector,
+              candidateSelectors,
+            }: {
+              observedSelector: string;
+              candidateSelectors: string[];
+            }) => {
+              const resolve = (selector: string): Element | null => {
+                const raw = selector.startsWith("xpath=")
+                  ? selector.slice("xpath=".length)
+                  : selector;
+                if (raw.startsWith("/") || raw.startsWith("(")) {
+                  const result = document.evaluate(
+                    raw,
+                    document,
+                    null,
+                    XPathResult.FIRST_ORDERED_NODE_TYPE,
+                    null,
+                  );
+                  return result.singleNodeValue as Element | null;
+                }
+                return document.querySelector(raw);
+              };
+
+              const observed = resolve(observedSelector);
+              if (!observed) return null;
+              for (const candidate of candidateSelectors) {
+                if (resolve(candidate) === observed) return candidate;
+              }
+              return null;
+            },
+            {
+              observedSelector: observation.selector,
+              candidateSelectors: possibleLocators,
+            },
+          );
+          if (matched) {
+            foundMatch = true;
+            matchedLocator = matched;
+            break;
           }
-          if (foundMatch) break;
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error?.message ?? String(error),
+            error instanceof Error ? error.message : String(error),
           );
           continue;
         }
@@ -84,7 +110,7 @@ export default defineBenchTask(
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

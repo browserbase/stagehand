@@ -1,25 +1,43 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
+import { defineBenchV4Task } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineBenchV4Task(
   { name: "tab_handling" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/new-tab/");
 
-      await v3.act("click the button to open the other page");
+      await stagehand.act("click the button to open the other page");
 
-      const pages = v3.context.pages();
+      // activePage() polls until the popup registers (stagehand#2458), so
+      // the page list is complete after this settles.
+      await stagehand.context.activePage();
+
+      const pages = await stagehand.context.pages();
       const page1 = pages[0];
       const page2 = pages[1];
 
-      // extract all the text from the first page
-      const extraction1 = await v3.extract({ page: page1 });
-      // extract all the text from the second page
-      const extraction2 = await v3.extract({ page: page2 });
+      // V4 GAP: extract has no { page } option (v3:
+      // v3.extract({ page: pageN })) — activate each target page via
+      // setActivePage before extracting. v3 also used schemaless extract
+      // (V4_API_LOGS #2); v4 requires a schema. Single-word key to stay
+      // clear of the snake_case wire-casing bug (#14).
 
-      const extraction1Success = extraction1.pageText.includes("Welcome!");
-      const extraction2Success = extraction2.pageText.includes("You’re on the other page");
+      // extract all the text from the first page
+      await stagehand.context.setActivePage(page1);
+      const { data: extraction1 } = await stagehand.extract(
+        "extract the entire page text",
+        z.object({ extraction: z.string() }),
+      );
+      // extract all the text from the second page
+      await stagehand.context.setActivePage(page2);
+      const { data: extraction2 } = await stagehand.extract(
+        "extract the entire page text",
+        z.object({ extraction: z.string() }),
+      );
+
+      const extraction1Success = extraction1.extraction.includes("Welcome!");
+      const extraction2Success = extraction2.extraction.includes("You’re on the other page");
 
       return {
         _success: extraction1Success && extraction2Success,
@@ -30,13 +48,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: error.message,
+        message: (error as Error).message,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );
