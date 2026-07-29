@@ -139,6 +139,7 @@ describe("Stagehand", () => {
       extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
       serviceWorkerUrlIncludes: "service-worker.js",
       logLevel: "info",
+      signal: expect.any(AbortSignal) as AbortSignal,
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -162,6 +163,100 @@ describe("Stagehand", () => {
       },
       { method: "context.pages", params: {} },
     ]);
+  });
+
+  it("allows healthy initialization to take longer than the CDP command timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const rpcClient = new FakeRPCClient();
+      const stagehand = createStagehandWithDependenciesForTest(
+        {
+          browser: {
+            type: "cdp",
+            cdpUrl: "http://127.0.0.1:9222",
+          },
+        },
+        {
+          resolveBrowserSource: async () => ({
+            cdpUrl: "http://127.0.0.1:9222",
+            keepAlive: true,
+          }),
+          connectRpcClient: async () => {
+            await new Promise((resolve) => setTimeout(resolve, 11_000));
+            return rpcClient;
+          },
+        },
+      );
+
+      const initialization = stagehand.init();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(stagehand.initialized).toBe(false);
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(initialization).resolves.toBeUndefined();
+      expect(stagehand.initialized).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bounds the complete initialization lifecycle at 60 seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const stagehand = createStagehandWithDependenciesForTest(
+        {
+          browser: {
+            type: "cdp",
+            cdpUrl: "http://127.0.0.1:9222",
+          },
+        },
+        {
+          resolveBrowserSource: async () => ({
+            cdpUrl: "http://127.0.0.1:9222",
+            keepAlive: false,
+            close: async () => await new Promise<void>(() => {}),
+          }),
+          connectRpcClient: async () => await new Promise<RPCClient>(() => {}),
+        },
+      );
+
+      const initialization = stagehand.init();
+      const rejection = expect(initialization).rejects.toThrow(
+        "Stagehand initialization timed out after 60000ms",
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      await rejection;
+      expect(stagehand.initialized).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a caller AbortSignal cancel initialization earlier", async () => {
+    const controller = new AbortController();
+    const stagehand = createStagehandWithDependenciesForTest(
+      {
+        browser: {
+          type: "cdp",
+          cdpUrl: "http://127.0.0.1:9222",
+        },
+      },
+      {
+        resolveBrowserSource: async () => ({
+          cdpUrl: "http://127.0.0.1:9222",
+          keepAlive: true,
+        }),
+        connectRpcClient: async () => await new Promise<RPCClient>(() => {}),
+      },
+    );
+
+    const initialization = stagehand.init({ signal: controller.signal });
+    const rejection = expect(initialization).rejects.toThrow("caller cancelled initialization");
+    controller.abort(new Error("caller cancelled initialization"));
+
+    await rejection;
+    expect(stagehand.initialized).toBe(false);
   });
 
   it("passes Browserbase credentials and browser settings to the worker", async () => {
@@ -195,6 +290,7 @@ describe("Stagehand", () => {
       logLevel: "info",
       preloadedExtension: true,
       serviceWorkerUrlIncludes: "service-worker.js",
+      signal: expect.any(AbortSignal) as AbortSignal,
       telemetry: {
         traces: {
           endpoint: "https://example.com/v1/traces",
@@ -258,6 +354,7 @@ describe("Stagehand", () => {
       extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
       logLevel: "info",
       serviceWorkerUrlIncludes: "service-worker.js",
+      signal: expect.any(AbortSignal) as AbortSignal,
       telemetry: {
         traces: {
           endpoint: "https://collector.example.com/v1/traces",

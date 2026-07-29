@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 )
+
+const stagehandInitTimeout = 60 * time.Second
 
 // Stagehand is the root SDK client.
 type Stagehand struct {
@@ -197,6 +200,12 @@ func ExtractAs[T any](
 // Init resolves the browser, connects the protocol transport, and initializes
 // the worker. Browser resolution is intentionally stubbed in this first client PR.
 func (s *Stagehand) Init(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("stagehand initialization context is required")
+	}
+	initCtx, cancel := context.WithTimeout(ctx, stagehandInitTimeout)
+	defer cancel()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -207,13 +216,13 @@ func (s *Stagehand) Init(ctx context.Context) error {
 		return errors.New("stagehand: Model and Generate are mutually exclusive")
 	}
 
-	browser, err := s.adapters.resolveBrowserSource(ctx, s.initParams)
+	browser, err := s.adapters.resolveBrowserSource(initCtx, s.initParams)
 	if err != nil {
 		return fmt.Errorf("resolve browser source: %w", err)
 	}
 	s.browser = &browser
 
-	rpc, err := s.adapters.connectProtocol(ctx, browser, s.initParams.Telemetry)
+	rpc, err := s.adapters.connectProtocol(initCtx, browser, s.initParams.Telemetry)
 	if err != nil {
 		return errors.Join(
 			fmt.Errorf("connect protocol: %w", err),
@@ -232,7 +241,7 @@ func (s *Stagehand) Init(ctx context.Context) error {
 
 	initParams := s.workerInitParams(browser)
 	var initResult StagehandInitResult
-	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
+	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
 		return s.initFailure(ctx, err)
 	}
 

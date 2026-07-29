@@ -69,6 +69,7 @@ from .page import Page
 from .rpc_client import RPCClient, connect_rpc_client
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
+_STAGEHAND_INIT_TIMEOUT_MS = 60_000
 
 
 class Stagehand:
@@ -409,54 +410,55 @@ class Stagehand:
         )
 
     async def init(self) -> None:
-        async with self._lifecycle_lock:
-            if self._initialized:
-                return
+        async with asyncio.timeout(_STAGEHAND_INIT_TIMEOUT_MS / 1_000):
+            async with self._lifecycle_lock:
+                if self._initialized:
+                    return
 
-            browser = await resolve_browser_source(self.init_params)
-            self._browser = browser
-            extension_dir = Path(__file__).with_name("_extension")
-            if not (extension_dir / "manifest.json").is_file():
-                extension_dir = Path(__file__).resolve().parents[3] / "server" / "dist"
+                browser = await resolve_browser_source(self.init_params)
+                self._browser = browser
+                extension_dir = Path(__file__).with_name("_extension")
+                if not (extension_dir / "manifest.json").is_file():
+                    extension_dir = Path(__file__).resolve().parents[3] / "server" / "dist"
 
-            try:
-                rpc_client = await connect_rpc_client(
-                    cdp_url=browser.cdp_url,
-                    extension_dir=str(extension_dir),
-                    service_worker_url_includes="service-worker.js",
-                    telemetry=self.init_params.telemetry,
-                    log_level=self.init_params.logging.level,
-                )
-                self._rpc_client = rpc_client
-                self._remove_notification_listener = rpc_client.on_notification(
-                    "stagehand.log",
-                    StagehandLog,
-                    self._handle_stagehand_notification,
-                )
-                client_llm = self.init_params.model
-                if isinstance(client_llm, ClientLLM):
-
-                    async def generate(params: LLMGenerateParams) -> LLMGenerateResult:
-                        return LLMGenerateResult(root=await client_llm.generate(params.root))
-
-                    self._remove_client_llm_handler = rpc_client.on_request(
-                        "llm.generate",
-                        LLMGenerateParams,
-                        LLMGenerateResult,
-                        generate,
+                try:
+                    rpc_client = await connect_rpc_client(
+                        cdp_url=browser.cdp_url,
+                        extension_dir=str(extension_dir),
+                        service_worker_url_includes="service-worker.js",
+                        telemetry=self.init_params.telemetry,
+                        log_level=self.init_params.logging.level,
                     )
+                    self._rpc_client = rpc_client
+                    self._remove_notification_listener = rpc_client.on_notification(
+                        "stagehand.log",
+                        StagehandLog,
+                        self._handle_stagehand_notification,
+                    )
+                    client_llm = self.init_params.model
+                    if isinstance(client_llm, ClientLLM):
 
-                await rpc_client.send(
-                    "stagehand.init",
-                    self._worker_init_params(),
-                    StagehandInitResult,
-                )
-                self._browser_context = BrowserContext(rpc_client)
-            except BaseException:
-                await asyncio.shield(self._release_resources())
-                raise
+                        async def generate(params: LLMGenerateParams) -> LLMGenerateResult:
+                            return LLMGenerateResult(root=await client_llm.generate(params.root))
 
-            self._initialized = True
+                        self._remove_client_llm_handler = rpc_client.on_request(
+                            "llm.generate",
+                            LLMGenerateParams,
+                            LLMGenerateResult,
+                            generate,
+                        )
+
+                    await rpc_client.send(
+                        "stagehand.init",
+                        self._worker_init_params(),
+                        StagehandInitResult,
+                    )
+                    self._browser_context = BrowserContext(rpc_client)
+                except BaseException:
+                    await asyncio.shield(self._release_resources())
+                    raise
+
+                self._initialized = True
 
     async def act(
         self,

@@ -72,9 +72,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   return info.type === "page" && ti.subtype !== "iframe";
 }
 
-const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
-const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no top-level Page)";
 
 /**
  * V3Context
@@ -181,7 +179,9 @@ export class V3Context {
         opts.fallbackLocatorScriptSource,
       );
       await ctx.bootstrap();
-      await ctx.ensureFirstTopLevelPage(DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS);
+      if (!ctx.hasTopLevelPage()) {
+        await ctx.newPage();
+      }
       return ctx;
     };
 
@@ -197,52 +197,17 @@ export class V3Context {
     return false;
   }
 
-  async ensureFirstTopLevelPage(timeout: number): Promise<void> {
-    if (this.hasTopLevelPage()) return;
-
-    try {
-      await this.waitForFirstTopLevelPage(timeout);
-      return;
-    } catch (err) {
-      if (!(err instanceof TimeoutError)) {
-        throw err;
-      }
-      this.logger.debug(
-        "No open browser pages found after connect; creating an initial blank page",
-        {
-          category: "ctx",
-        },
-      );
-    }
-
-    await this.newPage();
-  }
-
-  /**
-   * Wait until at least one top-level Page has been created and registered.
-   * We poll internal maps that bootstrap/onAttachedToTarget populate.
-   */
-  async waitForFirstTopLevelPage(timeout: number): Promise<void> {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      // A top-level Page is present if typeByTarget has an entry "page"
-      // and pagesByTarget has the corresponding Page object.
-      for (const [tid, ttype] of this.typeByTarget) {
-        if (ttype === "page") {
-          const p = this.pagesByTarget.get(tid);
-          if (p) return;
-        }
-      }
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeout);
-  }
-
-  async waitForInitialTopLevelTargets(targetIds: TargetId[], timeout = 3000): Promise<void> {
+  async waitForInitialTopLevelTargets(targetIds: TargetId[]): Promise<void> {
     if (!targetIds.length) return;
     const pending = new Set(targetIds);
-    const deadline = Date.now() + timeout;
-    while (pending.size && Date.now() < deadline) {
+    while (pending.size) {
+      if (!this.conn.connected) {
+        throw new Error(
+          `CDP connection closed while waiting for initial top-level targets: ${Array.from(
+            pending,
+          ).join(", ")}`,
+        );
+      }
       for (const tid of Array.from(pending)) {
         if (this.pagesByTarget.has(tid)) {
           pending.delete(tid);
@@ -250,12 +215,6 @@ export class V3Context {
       }
       if (!pending.size) return;
       await new Promise((r) => setTimeout(r, 25));
-    }
-    if (pending.size) {
-      this.logger.debug("Timed out waiting for existing top-level targets to attach", {
-        category: "ctx",
-        remainingTargets: Array.from(pending),
-      });
     }
   }
 
@@ -557,8 +516,7 @@ export class V3Context {
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
+    while (this.conn.connected) {
       const failure = this.pageCreationFailures.get(targetId);
       if (failure) {
         this.pageCreationFailures.delete(targetId);
@@ -580,7 +538,7 @@ export class V3Context {
       await new Promise((r) => setTimeout(r, 25));
     }
     this.pendingCreatedTargetUrl.delete(targetId);
-    throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
+    throw new Error(`CDP connection closed before newPage target attached (${targetId})`);
   }
 
   /**

@@ -73,6 +73,55 @@ func TestDefaultInitRequiresBrowserbaseAPIKey(t *testing.T) {
 	}
 }
 
+func TestInitUsesOneOverallDeadline(t *testing.T) {
+	t.Run("applies the internal initialization deadline", func(t *testing.T) {
+		client := New(StagehandClientInitParams{})
+		client.adapters.resolveBrowserSource = func(
+			ctx context.Context,
+			_ StagehandClientInitParams,
+		) (resolvedBrowserSource, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("initialization context has no deadline")
+			}
+			remaining := time.Until(deadline)
+			if remaining < stagehandInitTimeout-time.Second ||
+				remaining > stagehandInitTimeout {
+				t.Fatalf(
+					"initialization deadline remaining = %s, want approximately %s",
+					remaining,
+					stagehandInitTimeout,
+				)
+			}
+			return resolvedBrowserSource{}, context.Canceled
+		}
+
+		_ = client.Init(context.Background())
+	})
+
+	t.Run("preserves an earlier caller deadline", func(t *testing.T) {
+		client := New(StagehandClientInitParams{})
+		callerCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		client.adapters.resolveBrowserSource = func(
+			ctx context.Context,
+			_ StagehandClientInitParams,
+		) (resolvedBrowserSource, error) {
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("initialization context has no deadline")
+			}
+			remaining := time.Until(deadline)
+			if remaining <= 0 || remaining > time.Second {
+				t.Fatalf("caller deadline remaining = %s, want at most 1s", remaining)
+			}
+			return resolvedBrowserSource{}, context.Canceled
+		}
+
+		_ = client.Init(callerCtx)
+	})
+}
+
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 

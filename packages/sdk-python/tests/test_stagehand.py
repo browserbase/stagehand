@@ -587,3 +587,56 @@ async def test_cancelled_initialization_still_releases_the_browser_and_rpc_clien
     assert recording.closed is True
     assert browser_closed is True
     assert stagehand.initialized is False
+
+
+@pytest.mark.asyncio
+async def test_initialization_deadline_bounds_the_complete_lifecycle_and_releases_resources(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert stagehand_module._STAGEHAND_INIT_TIMEOUT_MS == 60_000
+
+    browser_closed = False
+    init_started = asyncio.Event()
+    never_complete = asyncio.Event()
+
+    async def close_browser() -> None:
+        nonlocal browser_closed
+        browser_closed = True
+
+    class BlockingRPCClient(RecordingRPCClient):
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BlockingResultT],
+        ) -> BlockingResultT:
+            if method == "stagehand.init":
+                init_started.set()
+                await never_complete.wait()
+            raise AssertionError(f"Unexpected method: {method}")
+
+    browser = ResolvedBrowserSource(
+        cdp_url="test://browser",
+        keep_alive=False,
+        _close_callback=close_browser,
+    )
+    recording = BlockingRPCClient()
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return browser
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    monkeypatch.setattr(stagehand_module, "_STAGEHAND_INIT_TIMEOUT_MS", 5)
+    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+
+    with pytest.raises(TimeoutError):
+        await stagehand.init()
+
+    assert init_started.is_set()
+    assert recording.closed is True
+    assert browser_closed is True
+    assert stagehand.initialized is False

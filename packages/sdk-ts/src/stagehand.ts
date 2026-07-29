@@ -28,11 +28,14 @@ import {
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
+import { abortable } from "./abort.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
   connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
 };
+
+const STAGEHAND_INIT_TIMEOUT_MS = 60_000;
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 
@@ -40,6 +43,10 @@ type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
 
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
+};
+
+export type StagehandInitOptions = {
+  signal?: AbortSignal;
 };
 
 export class Stagehand {
@@ -87,18 +94,52 @@ export class Stagehand {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
-  async init(): Promise<void> {
+  async init(options: StagehandInitOptions = {}): Promise<void> {
     if (this.isInitialized) {
       return;
     }
 
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      timeoutController.abort(
+        new Error(`Stagehand initialization timed out after ${STAGEHAND_INIT_TIMEOUT_MS}ms`),
+      );
+    }, STAGEHAND_INIT_TIMEOUT_MS);
+    const signal = options.signal
+      ? AbortSignal.any([options.signal, timeoutController.signal])
+      : timeoutController.signal;
+
+    try {
+      signal.throwIfAborted();
+      await this.initialize(signal);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private async initialize(signal: AbortSignal): Promise<void> {
     const clientInitParams = StagehandClientInitParamsSchema.parse(this.initParams);
     const adapters = stagehandAdapters.get(this) ?? {};
-    const browser = await (adapters.resolveBrowserSource ?? resolveBrowserSource)(clientInitParams);
+    const browserResolution = (adapters.resolveBrowserSource ?? resolveBrowserSource)(
+      clientInitParams,
+    );
+    let browser: ResolvedBrowserSource;
+    try {
+      browser = await abortable(browserResolution, signal);
+    } catch (error) {
+      if (signal.aborted) {
+        void browserResolution
+          .then(async (lateBrowser) => {
+            if (!lateBrowser.keepAlive) await lateBrowser.close?.();
+          })
+          .catch(() => undefined);
+      }
+      throw error;
+    }
     this.resolvedBrowser = browser;
 
     try {
-      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
+      const rpcConnection = (adapters.connectRpcClient ?? connectRPCClient)({
         cdpUrl: browser.cdpUrl,
         // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
         ...(browser.preloadedExtension
@@ -107,7 +148,17 @@ export class Stagehand {
         serviceWorkerUrlIncludes: "service-worker.js",
         telemetry: clientInitParams.telemetry,
         logLevel: clientInitParams.logging.level,
+        signal,
       });
+      let rpcClient: RPCClient;
+      try {
+        rpcClient = await abortable(rpcConnection, signal);
+      } catch (error) {
+        if (signal.aborted) {
+          void rpcConnection.then((lateClient) => lateClient.close()).catch(() => undefined);
+        }
+        throw error;
+      }
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
         handleStagehandNotification(notification, clientInitParams.logging),
@@ -119,9 +170,12 @@ export class Stagehand {
         );
       }
 
-      await rpcClient.send(
-        StagehandMethods.stagehandInit,
-        stagehandInitParamsForWorker(clientInitParams, browser),
+      await abortable(
+        rpcClient.send(
+          StagehandMethods.stagehandInit,
+          stagehandInitParamsForWorker(clientInitParams, browser),
+        ),
+        signal,
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
@@ -131,6 +185,10 @@ export class Stagehand {
       this.removeNotificationListener = undefined;
       this.rpcClient?.close();
       this.rpcClient = undefined;
+      if (signal.aborted) {
+        void this.closeBrowserSource().catch(() => undefined);
+        throw error;
+      }
       try {
         await this.closeBrowserSource();
       } catch (cleanupError) {

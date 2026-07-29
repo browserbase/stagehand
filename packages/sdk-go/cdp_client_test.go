@@ -115,7 +115,6 @@ func TestResolveBrowserWebSocketURLUsesDirectWebSocketURL(t *testing.T) {
 		directURL,
 		nil,
 		nil,
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolveBrowserWebSocketURL() error = %v", err)
@@ -153,7 +152,6 @@ func TestResolveBrowserWebSocketURLPollsVersionEndpointWithHeaders(t *testing.T)
 		server.URL,
 		http.Header{"X-Stagehand-Test": []string{"cdp-header"}},
 		server.Client(),
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolveBrowserWebSocketURL() error = %v", err)
@@ -206,7 +204,6 @@ func TestCoderWebSocketDialCarriesHeadersAndCDPCommands(t *testing.T) {
 		webSocketURL,
 		http.Header{"X-CDP-Authorization": []string{"test-token"}},
 		server.Client(),
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("dialCDPWebSocket() error = %v", err)
@@ -675,7 +672,6 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 		cdpURL,
 		nil,
 		http.DefaultClient,
-		5*time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolve browser WebSocket URL: %v", err)
@@ -685,7 +681,6 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 		webSocketURL,
 		nil,
 		http.DefaultClient,
-		5*time.Second,
 	)
 	if err != nil {
 		t.Fatalf("dial browser WebSocket: %v", err)

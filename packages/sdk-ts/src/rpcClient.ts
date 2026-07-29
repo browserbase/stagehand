@@ -43,6 +43,7 @@ import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
+import { abortable } from "./abort.js";
 
 type PendingRequest = {
   method: RPCMethod;
@@ -65,6 +66,7 @@ const RPCClientOptionsBaseSchema = z
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: RuntimeConfigureParamsSchema.shape.logLevel,
+    signal: z.custom<AbortSignal>((value) => value instanceof AbortSignal).optional(),
   })
   .strict();
 
@@ -392,17 +394,21 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     ...(options.serviceWorkerUrlIncludes
       ? { serviceWorkerUrlIncludes: options.serviceWorkerUrlIncludes }
       : {}),
+    ...(options.signal ? { signal: options.signal } : {}),
   });
   const client = new RPCClient(cdpClient);
 
   try {
-    await client.send(StagehandMethods.runtimeConfigure, {
-      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-      cdpUrl: cdpClient.webSocketDebuggerUrl,
-      telemetry: options.telemetry,
-      logLevel: options.logLevel,
-    });
+    await abortable(
+      client.send(StagehandMethods.runtimeConfigure, {
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: STAGEHAND_SDK_CLIENT_INFO,
+        cdpUrl: cdpClient.webSocketDebuggerUrl,
+        telemetry: options.telemetry,
+        logLevel: options.logLevel,
+      }),
+      options.signal,
+    );
     return client;
   } catch (error) {
     client.close();

@@ -168,7 +168,7 @@ func launchChrome(
 		process:     process,
 		removeDir:   removeDir,
 	}
-	if err := waitForChrome(ctx, launched.cdpURL, process, cdpCommandTimeout); err != nil {
+	if err := waitForChrome(ctx, launched.cdpURL, process); err != nil {
 		return nil, errors.Join(err, launched.close(context.Background()))
 	}
 	return launched, nil
@@ -367,16 +367,13 @@ func waitForChrome(
 	ctx context.Context,
 	cdpURL string,
 	process *chromeProcess,
-	timeout time.Duration,
 ) error {
-	waitContext, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	client := &http.Client{Timeout: chromePollInterval}
 	ticker := time.NewTicker(chromePollInterval)
 	defer ticker.Stop()
 
 	for {
-		if err := waitContext.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("wait for Chrome debugging port: %w", err)
 		}
 		select {
@@ -385,8 +382,8 @@ func waitForChrome(
 		default:
 		}
 
-		if chromeDebuggingReady(waitContext, client, cdpURL) {
-			if err := waitContext.Err(); err != nil {
+		if chromeDebuggingReady(ctx, client, cdpURL) {
+			if err := ctx.Err(); err != nil {
 				return fmt.Errorf("wait for Chrome debugging port: %w", err)
 			}
 			select {
@@ -400,8 +397,8 @@ func waitForChrome(
 		select {
 		case <-process.done:
 			return chromeExitedBeforeReadyError(process)
-		case <-waitContext.Done():
-			return fmt.Errorf("wait for Chrome debugging port: %w", waitContext.Err())
+		case <-ctx.Done():
+			return fmt.Errorf("wait for Chrome debugging port: %w", ctx.Err())
 		case <-ticker.C:
 		}
 	}

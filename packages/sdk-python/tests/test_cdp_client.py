@@ -1,6 +1,7 @@
 import asyncio
 import json
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -78,10 +79,10 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -138,10 +139,10 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -204,6 +205,8 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
 
 @pytest.mark.asyncio
 async def test_commands_time_out_and_are_removed() -> None:
+    assert cdp_client._CDP_COMMAND_TIMEOUT_MS == 10_000
+
     socket = FakeWebSocket(lambda _: None)
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
 
@@ -212,11 +215,59 @@ async def test_commands_time_out_and_are_removed() -> None:
             pytest.MonkeyPatch.context() as monkeypatch,
             pytest.raises(TimeoutError, match="CDP command timed out: Target.getTargets"),
         ):
-            monkeypatch.setattr(cdp_client, "_CDP_COMMAND_TIMEOUT_SECONDS", 0.005)
+            monkeypatch.setattr(cdp_client, "_CDP_COMMAND_TIMEOUT_MS", 5)
             await client.send_command("Target.getTargets")
         assert client._pending == {}
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_service_worker_discovery_can_succeed_after_more_than_ten_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_polls = 0
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        nonlocal target_polls
+        method = message["method"]
+        if method == "Target.getTargets":
+            target_polls += 1
+            if target_polls == 1:
+                return {"result": {"targetInfos": []}}
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "worker-target",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://stagehand-extension/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        return {"result": {}}
+
+    elapsed_seconds = iter((0.0, 10.1))
+    monkeypatch.setattr(
+        cdp_client,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(elapsed_seconds)),
+    )
+    socket = FakeWebSocket(response_for)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+
+    try:
+        worker = await client._wait_for_service_worker(
+            "stagehand-extension",
+            "service-worker.js",
+        )
+    finally:
+        await client.close()
+
+    assert worker.target_id == "worker-target"
+    assert target_polls == 2
 
 
 @pytest.mark.asyncio
@@ -225,10 +276,10 @@ async def test_connect_explains_when_chrome_cannot_load_an_extension(
 ) -> None:
     socket = FakeWebSocket(lambda _: {"error": {"code": -32601, "message": "Method not found"}})
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
