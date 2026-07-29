@@ -1,4 +1,5 @@
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
+import WebSocket from "ws";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandSendToHostBindingSchema,
@@ -29,6 +30,7 @@ export type ServiceWorkerInfo = {
 
 export type CDPClientOptions = {
   cdpUrl: string;
+  cdpHeaders?: Record<string, string>;
   extensionDir?: string;
   extensionId?: string;
   preloadedExtension?: true;
@@ -70,7 +72,8 @@ type VersionResponse = {
 type ResolveBrowserWebSocketUrlOptions = {
   timeout?: number;
   pollIntervalMs?: number;
-  fetchFn?: (url: string) => Promise<VersionResponse>;
+  headers?: Record<string, string>;
+  fetchFn?: (url: string, init?: { headers?: Record<string, string> }) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
   nowFn?: () => number;
 };
@@ -156,7 +159,7 @@ export class CDPClient {
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
-      this.handleMessage(event.data).catch((error: unknown) => {
+      this.handleMessage((event as MessageEvent).data).catch((error: unknown) => {
         const normalized = asError(error);
         this.rejectPending(normalized);
         this.onerror?.(normalized);
@@ -175,8 +178,12 @@ export class CDPClient {
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
       timeout: options.cdpConnectTimeoutMs,
+      ...(options.cdpHeaders === undefined ? {} : { headers: options.cdpHeaders }),
     });
-    const socket = new WebSocket(webSocketDebuggerUrl);
+    const socket = new WebSocket(
+      webSocketDebuggerUrl,
+      options.cdpHeaders === undefined ? undefined : { headers: options.cdpHeaders },
+    );
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -664,7 +671,7 @@ export async function resolveBrowserWebSocketUrl(
 
   const timeout = options.timeout ?? 10_000;
   const pollIntervalMs = options.pollIntervalMs ?? 250;
-  const fetchFn = options.fetchFn ?? fetch;
+  const fetchFn = options.fetchFn ?? ((url, init) => fetch(url, init));
   const delayFn = options.delayFn ?? delay;
   const nowFn = options.nowFn ?? Date.now;
   const baseUrl = cdpUrl.replace(/\/$/, "");
@@ -673,7 +680,10 @@ export async function resolveBrowserWebSocketUrl(
 
   while (nowFn() <= deadlineMs) {
     try {
-      const response = await fetchFn(`${baseUrl}/json/version`);
+      const response = await fetchFn(
+        `${baseUrl}/json/version`,
+        options.headers === undefined ? undefined : { headers: options.headers },
+      );
 
       if (!response.ok) {
         lastError = `${response.status} ${response.statusText}`;

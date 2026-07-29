@@ -7,7 +7,7 @@ import type {
   LLMGenerateResult,
   LLMMessageContentBlock,
 } from "../../protocol/types.js";
-import { Stagehand } from "../src/index.js";
+import { localBrowser, Stagehand } from "../src/index.js";
 
 const { OPENAI_API_KEY } = process.env;
 if (!OPENAI_API_KEY) throw new Error();
@@ -17,18 +17,16 @@ const openai = new OpenAI({
 });
 const generationNames: string[] = [];
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: true,
-  },
-  model: {
-    generate: generateWithOpenAI,
-  },
-});
+const browser = await localBrowser.launch({ headless: true });
+let stagehand: Stagehand | undefined;
 
 try {
-  await stagehand.init();
+  stagehand = await Stagehand.create({
+    browser,
+    model: {
+      generate: generateWithOpenAI,
+    },
+  });
 
   const page = await stagehand.context.activePage();
   if (!page) {
@@ -59,7 +57,8 @@ try {
     throw new Error(`act() failed: ${actionResult.message}`);
   }
 } finally {
-  await stagehand.close();
+  await stagehand?.close();
+  await browser.close();
 }
 
 async function generateWithOpenAI(params: LLMGenerateParams): Promise<LLMGenerateResult> {

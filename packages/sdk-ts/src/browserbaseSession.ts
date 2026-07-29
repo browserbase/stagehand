@@ -12,6 +12,11 @@ export type BrowserbaseSessionClient = {
   createSession(
     params: BrowserbaseSessionCreateParams,
   ): Promise<{ sessionId: string; cdpUrl: string; close?: () => Promise<void> | void }>;
+  connectSession?(sessionId: string): Promise<{
+    sessionId: string;
+    cdpUrl: string;
+    region?: BrowserbaseSessionCreateParams["region"];
+  }>;
 };
 
 export type BrowserbaseSessionClientFactory = (apiKey: string) => BrowserbaseSessionClient;
@@ -20,6 +25,11 @@ export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
   createSession(
     params: BrowserbaseSessionCreateParams,
   ): Promise<{ id: string; connectUrl: string }>;
+  retrieveSession(sessionId: string): Promise<{
+    id: string;
+    connectUrl?: string;
+    region?: BrowserbaseSessionCreateParams["region"];
+  }>;
   releaseSession(sessionId: string): Promise<void>;
 };
 
@@ -33,6 +43,11 @@ type BrowserbaseSessionClientDependencies = {
 type BrowserbaseSdk = BrowserbaseExtensionSdk & {
   sessions: {
     create(params: Browserbase.SessionCreateParams): Promise<{ id: string; connectUrl: string }>;
+    retrieve(sessionId: string): Promise<{
+      id: string;
+      connectUrl?: string;
+      region?: BrowserbaseSessionCreateParams["region"];
+    }>;
     update(sessionId: string, params: { status: "REQUEST_RELEASE" }): Promise<unknown>;
   };
 };
@@ -103,6 +118,28 @@ export function createBrowserbaseSessionClient(
         },
       };
     },
+    async connectSession(sessionId) {
+      const normalizedSessionId = sessionId.trim();
+      if (normalizedSessionId.length === 0) {
+        throw new Error("A Browserbase session ID is required");
+      }
+
+      let session: Awaited<ReturnType<BrowserbaseApiClient["retrieveSession"]>>;
+      try {
+        session = await browserbase.retrieveSession(normalizedSessionId);
+      } catch (error) {
+        throw new Error("Failed to retrieve the Browserbase session", { cause: error });
+      }
+      const cdpUrl = session.connectUrl?.trim();
+      if (!cdpUrl) {
+        throw new Error("Browserbase session is not available for connection");
+      }
+      return {
+        sessionId: session.id.trim() || normalizedSessionId,
+        cdpUrl,
+        ...(session.region === undefined ? {} : { region: session.region }),
+      };
+    },
   };
 }
 
@@ -118,6 +155,14 @@ export function createBrowserbaseApiClient(
     async createSession(params) {
       const session = await sdk.sessions.create(params as Browserbase.SessionCreateParams);
       return { id: session.id, connectUrl: session.connectUrl };
+    },
+    async retrieveSession(sessionId) {
+      const session = await sdk.sessions.retrieve(sessionId);
+      return {
+        id: session.id,
+        ...(session.connectUrl === undefined ? {} : { connectUrl: session.connectUrl }),
+        region: session.region,
+      };
     },
     async releaseSession(sessionId) {
       await sdk.sessions.update(sessionId, { status: "REQUEST_RELEASE" });

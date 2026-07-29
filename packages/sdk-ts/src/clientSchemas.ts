@@ -21,6 +21,7 @@ import {
 } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 import { Page } from "./page.js";
+import type { StagehandBrowser } from "../../browser/src/index.js";
 
 const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
   extensionId: true,
@@ -136,6 +137,20 @@ export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend(
   })
   .meta({ id: "StagehandClientInitParams" });
 
+export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
+  apiKey: true,
+  browser: true,
+})
+  .extend({
+    model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+    logging: StagehandClientLoggingConfigSchema.default({
+      level: "info",
+      format: "pretty",
+    }),
+  })
+  .strict()
+  .meta({ id: "StagehandClientCreateConfig" });
+
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
 export type StagehandClientLoggingConfig = z.input<typeof StagehandClientLoggingConfigSchema>;
 export type ResolvedStagehandClientLoggingConfig = z.output<
@@ -147,3 +162,11 @@ export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtrac
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
+export type StagehandClientCreateConfig = z.input<typeof StagehandClientCreateConfigSchema>;
+export type ResolvedStagehandClientCreateConfig = z.output<
+  typeof StagehandClientCreateConfigSchema
+>;
+export type StagehandClientCreateParams = StagehandClientCreateConfig & {
+  browser: StagehandBrowser;
+};
+export type StagehandCreateOptions = StagehandClientCreateParams;

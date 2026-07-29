@@ -1,4 +1,4 @@
-import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcClient.js";
+import { configureRPCClient, type RPCClient } from "./rpcClient.js";
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
@@ -12,28 +12,25 @@ import type {
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
-import { resolveBrowserSource, type ResolvedBrowserSource } from "./browserSource.js";
+import {
+  claimStagehandBrowser,
+  isStagehandBrowser,
+  type ClaimedStagehandBrowser,
+  type StagehandBrowser,
+} from "../../browser/src/index.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
-  StagehandClientInitParamsSchema,
+  StagehandClientCreateConfigSchema,
   StagehandClientObserveOptionsSchema,
   type StagehandClientActOptions,
   type StagehandClientExtractOptions,
   type ResolvedStagehandClientLoggingConfig,
-  type ResolvedStagehandClientInitParams,
-  type StagehandClientInitParams,
+  type ResolvedStagehandClientCreateConfig,
+  type StagehandCreateOptions,
   type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
-import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
-
-type StagehandAdapters = {
-  resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
-  connectRpcClient?: (options: RPCClientOptions) => Promise<RPCClient>;
-};
-
-const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
 
 export class Stagehand {
   browserContext: BrowserContext | undefined;
@@ -41,23 +38,48 @@ export class Stagehand {
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
-  private resolvedBrowser: ResolvedBrowserSource | undefined;
   closePromise: Promise<void> | undefined;
 
-  constructor(readonly initParams: StagehandClientInitParams) {}
+  private constructor(
+    readonly browser: StagehandBrowser,
+    readonly initParams: ResolvedStagehandClientCreateConfig,
+  ) {}
+
+  /** @internal */
+  static createWithClientForTest(client: RPCClient): Stagehand {
+    const browser = {
+      provider: "local",
+      origin: "connected",
+      closed: false,
+      close: async () => {},
+    } as StagehandBrowser;
+    const stagehand = new Stagehand(browser, StagehandClientCreateConfigSchema.parse({}));
+    stagehand.rpcClient = client;
+    stagehand.browserContext = new BrowserContext(client);
+    stagehand.isInitialized = true;
+    return stagehand;
+  }
+
+  static async create(input: StagehandCreateOptions): Promise<Stagehand> {
+    if (typeof input !== "object" || input === null || !("browser" in input)) {
+      throw new TypeError("Stagehand.create requires a browser");
+    }
+    const { browser, ...config } = input;
+    if (!isStagehandBrowser(browser)) {
+      throw new TypeError("browser must be created by localBrowser or browserbase");
+    }
+    const initParams = StagehandClientCreateConfigSchema.parse(config);
+    const claimedBrowser = claimStagehandBrowser(browser);
+    const stagehand = new Stagehand(browser, initParams);
+    await stagehand.initialize(claimedBrowser);
+    return stagehand;
+  }
 
   get context(): BrowserContext {
     if (!this.browserContext) {
-      throw new Error("Stagehand is not initialized. Call stagehand.init() before using context.");
+      throw new Error("Stagehand is not initialized. Use await Stagehand.create() first.");
     }
     return this.browserContext;
-  }
-
-  get browser(): ResolvedBrowserSource {
-    if (!this.resolvedBrowser) {
-      throw new Error("Stagehand is not initialized. Call stagehand.init() before using browser.");
-    }
-    return this.resolvedBrowser;
   }
 
   get initialized(): boolean {
@@ -80,41 +102,28 @@ export class Stagehand {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
-  async init(): Promise<void> {
-    if (this.isInitialized) {
-      return;
-    }
-
-    const clientInitParams = StagehandClientInitParamsSchema.parse(this.initParams);
-    const adapters = stagehandAdapters.get(this) ?? {};
-    const browser = await (adapters.resolveBrowserSource ?? resolveBrowserSource)(clientInitParams);
-    this.resolvedBrowser = browser;
-
+  private async initialize(browser: ClaimedStagehandBrowser): Promise<void> {
     try {
-      const rpcClient = await (adapters.connectRpcClient ?? connectRPCClient)({
-        cdpUrl: browser.cdpUrl,
-        // TODO: Thread browser.cdpHeaders through CDP discovery and the WebSocket handshake.
-        ...(browser.preloadedExtension
-          ? { preloadedExtension: true as const }
-          : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
-        serviceWorkerUrlIncludes: "service-worker.js",
-        telemetry: clientInitParams.telemetry,
-        logLevel: clientInitParams.logging.level,
+      const rpcClient = await configureRPCClient(browser.cdpClient, {
+        commandTimeoutMs: browser.commandTimeoutMs,
+        telemetry: this.initParams.telemetry,
+        logLevel: this.initParams.logging.level,
+        closeTransportOnFailure: false,
       });
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
-        handleStagehandNotification(notification, clientInitParams.logging),
+        handleStagehandNotification(notification, this.initParams.logging),
       );
-      if (clientInitParams.model && "generate" in clientInitParams.model) {
+      if (this.initParams.model && "generate" in this.initParams.model) {
         this.removeClientLLMHandler = rpcClient.onRequest(
           StagehandMethods.llmGenerate,
-          clientInitParams.model.generate,
+          this.initParams.model.generate,
         );
       }
 
       await rpcClient.send(
         StagehandMethods.stagehandInit,
-        stagehandInitParamsForWorker(clientInitParams, browser),
+        stagehandInitParamsForWorker(this.initParams, browser.workerInitMetadata),
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
@@ -122,17 +131,10 @@ export class Stagehand {
       this.removeClientLLMHandler = undefined;
       this.removeNotificationListener?.();
       this.removeNotificationListener = undefined;
-      this.rpcClient?.close();
+      this.rpcClient?.close(new Error("Stagehand initialization failed"), {
+        closeTransport: false,
+      });
       this.rpcClient = undefined;
-      try {
-        await this.closeBrowserSource();
-      } catch (cleanupError) {
-        throw new AggregateError(
-          [error, cleanupError],
-          "Stagehand initialization failed and browser cleanup also failed",
-          { cause: error },
-        );
-      }
       throw error;
     }
 
@@ -201,8 +203,7 @@ export class Stagehand {
         this.removeClientLLMHandler = undefined;
         this.removeNotificationListener?.();
         this.removeNotificationListener = undefined;
-        this.rpcClient?.close();
-        await this.closeBrowserSource();
+        this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
         this.browserContext = undefined;
         this.isInitialized = false;
@@ -213,62 +214,28 @@ export class Stagehand {
 
   private get connectedRpcClient(): RPCClient {
     if (!this.isInitialized || !this.rpcClient) {
-      throw new Error("Stagehand is not initialized. Call stagehand.init() before using it.");
+      throw new Error("Stagehand is not initialized. Use await Stagehand.create() first.");
     }
     return this.rpcClient;
-  }
-
-  private async closeBrowserSource(): Promise<void> {
-    const browser = this.resolvedBrowser;
-    this.resolvedBrowser = undefined;
-    if (!browser || browser.keepAlive) {
-      return;
-    }
-    await browser.close?.();
   }
 }
 
 function stagehandInitParamsForWorker(
-  initParams: ResolvedStagehandClientInitParams,
-  resolvedBrowser: ResolvedBrowserSource,
+  initParams: ResolvedStagehandClientCreateConfig,
+  browserMetadata: ClaimedStagehandBrowser["workerInitMetadata"],
 ) {
-  const { browser, logging: _logging, model, ...protocolParams } = initParams;
+  const { logging: _logging, model, ...protocolParams } = initParams;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
-
-  if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
-    throw new Error("Resolved Browserbase source is missing its session ID");
-  }
 
   return StagehandInitParamsSchema.parse({
     ...protocolParams,
-    ...(browser.type === "browserbase"
-      ? {
-          browser: {
-            ...browser,
-            sessionId: resolvedBrowser.browserbaseSessionId,
-          },
-        }
-      : {}),
+    ...browserMetadata,
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
   });
 }
 
 export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
-  return createStagehandWithDependenciesForTest(
-    {
-      browser: {
-        type: "cdp",
-        cdpUrl: "test://stagehand",
-      },
-    },
-    {
-      resolveBrowserSource: async () => ({
-        cdpUrl: "test://stagehand",
-        keepAlive: true,
-      }),
-      connectRpcClient: async () => client,
-    },
-  );
+  return Stagehand.createWithClientForTest(client);
 }
 
 const LOG_LEVEL_PRIORITY = {
@@ -312,13 +279,4 @@ function renderStagehandLog(
 function reportOnLogError(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`[stagehand] ERROR onLog callback failed: ${message}\n`);
-}
-
-export function createStagehandWithDependenciesForTest(
-  initParams: StagehandClientInitParams,
-  adapters: StagehandAdapters,
-): Stagehand {
-  const stagehand = new Stagehand(initParams);
-  stagehandAdapters.set(stagehand, adapters);
-  return stagehand;
 }

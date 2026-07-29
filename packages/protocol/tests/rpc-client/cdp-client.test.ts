@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
@@ -111,6 +111,26 @@ describe("resolveBrowserWebSocketUrl", () => {
         }),
       }),
     ).rejects.toThrow("last error: 503 Unavailable");
+  });
+
+  it("passes CDP headers to browser endpoint discovery", async () => {
+    const fetchFn = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => ({
+        webSocketDebuggerUrl: "wss://browser.example/devtools/browser/session",
+      }),
+    }));
+
+    await resolveBrowserWebSocketUrl("https://browser.example", {
+      headers: { Authorization: "Bearer secret" },
+      fetchFn,
+    });
+
+    expect(fetchFn).toHaveBeenCalledWith("https://browser.example/json/version", {
+      headers: { Authorization: "Bearer secret" },
+    });
   });
 });
 

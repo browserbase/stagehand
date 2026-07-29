@@ -1,4 +1,7 @@
 import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSchemas.js";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
 import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
 import {
@@ -77,22 +80,49 @@ export async function resolveBrowserSource(
 async function launchLocalBrowser(
   options: LocalBrowserLaunchOptions,
 ): Promise<{ cdpUrl: string; close: () => void }> {
+  if (options.proxy?.username !== undefined || options.proxy?.password !== undefined) {
+    throw new Error("Authenticated local browser proxies are not supported yet");
+  }
   const { getChromePath, launch, Launcher } = await import("chrome-launcher");
+  const ignoredDefaultArgs = new Set(
+    Array.isArray(options.ignoreDefaultArgs) ? options.ignoreDefaultArgs : [],
+  );
+  const defaultFlags =
+    options.ignoreDefaultArgs === true
+      ? []
+      : Launcher.defaultFlags().filter(
+          (flag) => flag !== "--disable-extensions" && !ignoredDefaultArgs.has(flag),
+        );
+  const viewport = options.viewport ?? { width: 1280, height: 800 };
+  const userDataDir =
+    options.userDataDir ??
+    (options.preserveUserDataDir === true
+      ? await mkdtemp(path.join(tmpdir(), "stagehand-chrome-"))
+      : undefined);
   const chrome = await launch({
-    chromePath: getChromePath(),
+    chromePath: options.executablePath ?? getChromePath(),
     startingUrl: "about:blank",
     ignoreDefaultFlags: true,
     chromeFlags: [
-      ...Launcher.defaultFlags().filter((flag) => flag !== "--disable-extensions"),
+      ...defaultFlags,
       "--enable-unsafe-extension-debugging",
       "--remote-allow-origins=*",
-      "--window-size=1280,800",
+      `--window-size=${viewport.width},${viewport.height}`,
+      ...(options.args ?? []),
       ...(options.headless === true ? ["--headless"] : []),
       ...(options.devtools ? ["--auto-open-devtools-for-tabs"] : []),
-      ...(process.env.CI ? ["--no-sandbox"] : []),
+      ...(process.env.CI || options.chromiumSandbox === false ? ["--no-sandbox"] : []),
+      ...(options.proxy ? [`--proxy-server=${options.proxy.server}`] : []),
+      ...(options.proxy?.bypass ? [`--proxy-bypass-list=${options.proxy.bypass}`] : []),
+      ...(options.locale ? [`--lang=${options.locale}`] : []),
+      ...(options.deviceScaleFactor === undefined
+        ? []
+        : [`--force-device-scale-factor=${options.deviceScaleFactor}`]),
+      ...(options.hasTouch === true ? ["--touch-events=enabled"] : []),
+      ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
     ],
-    userDataDir: options.userDataDir,
-    port: options.port,
+    userDataDir,
+    ...(options.port === undefined ? {} : { port: options.port }),
     logLevel: "silent",
   });
 

@@ -24,6 +24,7 @@ catalog:
   zod: 4.4.3
   devtools-protocol: ^0.0.1657692
   chrome-launcher: ^1.2.1
+  ws: ^8.21.0
   ai: ^7.0.16
   "@ai-sdk/provider": ^4.0.2
   "@ai-sdk/openai": ^4.0.8

@@ -20,9 +20,11 @@
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/core": "catalog:",
     "chrome-launcher": "catalog:",
+    "ws": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "vitest": "catalog:"

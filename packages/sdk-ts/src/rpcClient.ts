@@ -39,7 +39,7 @@ import {
   STAGEHAND_PROTOCOL_VERSION,
   TelemetryConfigSchema,
 } from "../../protocol/schemas.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type { StagehandRpcNotification, TelemetryConfig } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
 
@@ -66,6 +66,7 @@ const STAGEHAND_SDK_CLIENT_INFO = {
 const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),
+    cdpHeaders: z.record(z.string(), z.string()).optional(),
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
     discoveryTimeoutMs: z.number().int().positive().optional(),
     commandTimeoutMs: z.number().int().positive().optional(),
@@ -204,7 +205,10 @@ export class RPCClient {
     return () => this.notificationListeners.delete(listener);
   }
 
-  close(reason: Error = new Error("RPC client closed")): void {
+  close(
+    reason: Error = new Error("RPC client closed"),
+    options: { closeTransport?: boolean } = {},
+  ): void {
     if (this.closed) return;
     this.closed = true;
     this.requestHandlers.clear();
@@ -214,7 +218,9 @@ export class RPCClient {
     this.cdp.onmessage = undefined;
     this.cdp.onclose = undefined;
     this.cdp.onerror = undefined;
-    this.cdp.close();
+    if (options.closeTransport ?? true) {
+      this.cdp.close();
+    }
   }
 
   waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
@@ -403,6 +409,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
   const commandTimeoutMs = options.commandTimeoutMs ?? 10_000;
   const cdpClient = await CDPClient.connect({
     cdpUrl: options.cdpUrl,
+    ...(options.cdpHeaders === undefined ? {} : { cdpHeaders: options.cdpHeaders }),
     ...(options.extensionDir ? { extensionDir: options.extensionDir } : {}),
     ...(options.extensionId ? { extensionId: options.extensionId } : {}),
     ...(options.preloadedExtension ? { preloadedExtension: true as const } : {}),
@@ -413,7 +420,23 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     cdpConnectTimeoutMs: options.cdpConnectTimeoutMs ?? 10_000,
     commandTimeoutMs,
   });
-  const client = new RPCClient(cdpClient, commandTimeoutMs);
+  return await configureRPCClient(cdpClient, {
+    commandTimeoutMs,
+    telemetry: options.telemetry,
+    logLevel: options.logLevel,
+  });
+}
+
+export async function configureRPCClient(
+  cdpClient: CDPClient,
+  options: {
+    commandTimeoutMs: number;
+    telemetry: TelemetryConfig;
+    logLevel: z.input<typeof RuntimeConfigureParamsSchema.shape.logLevel>;
+    closeTransportOnFailure?: boolean;
+  },
+): Promise<RPCClient> {
+  const client = new RPCClient(cdpClient, options.commandTimeoutMs);
 
   try {
     await client.send(StagehandMethods.runtimeConfigure, {
@@ -425,7 +448,9 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     });
     return client;
   } catch (error) {
-    client.close();
+    client.close(new Error("RPC configuration failed", { cause: error }), {
+      closeTransport: options.closeTransportOnFailure ?? true,
+    });
     throw error;
   }
 }

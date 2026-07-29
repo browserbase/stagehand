@@ -44,9 +44,16 @@ describe("published TypeScript SDK", () => {
         `
             import { access, readFile } from "node:fs/promises";
             import { fileURLToPath } from "node:url";
-            import { Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+            import {
+              browserbase,
+              localBrowser,
+              Stagehand,
+            } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
+            if (typeof Stagehand.create !== "function") throw new Error("Stagehand.create is unavailable");
+            if (typeof localBrowser.launch !== "function") throw new Error("localBrowser is unavailable");
+            if (typeof browserbase.launch !== "function") throw new Error("browserbase is unavailable");
             const entryUrl = import.meta.resolve("@browserbasehq/stagehand-v4-spike-sdk-ts");
             const archiveUrl = new URL("./assets/stagehand-extension.zip", entryUrl);
             const manifestUrl = new URL("./extension/manifest.json", entryUrl);

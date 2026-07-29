@@ -10,6 +10,7 @@ export default defineConfig({
       // TODO(docs-migration): Re-enable when the docs conformance tests return.
       // "packages/docs/tests/**/*.test.ts",
       "packages/server/tests/**/*.test.ts",
+      "packages/browser/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",

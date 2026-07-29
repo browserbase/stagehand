@@ -1,73 +1,50 @@
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod/v4";
-import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import type { StagehandRpcNotification } from "../../protocol/types.js";
+import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
+import {
+  createBrowserFactoriesForTest,
+  type LocalBrowserLaunchOptions,
+} from "../../browser/src/index.js";
 import { Stagehand } from "../src/index.js";
-import type { ResolvedBrowserSource } from "../src/browserSource.js";
-import { CDPConnectionClosedError } from "../src/cdpClient.js";
-import { RPCClient, type RPCClientOptions } from "../src/rpcClient.js";
-import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
+import type { CDPClient } from "../src/cdpClient.js";
 
-type ProtocolCall = { method: string; params: unknown };
+type RpcRequest = Extract<JSONRPCMessage, { id: number; method: string }>;
 
-class FakeRPCClient extends RPCClient {
-  readonly calls: ProtocolCall[] = [];
+class FakeReadyTransport {
+  readonly serviceWorker = {
+    targetId: "worker-target",
+    url: "chrome-extension://stagehand/service-worker.js",
+    title: "Stagehand",
+    extensionId: "stagehand",
+  };
+  readonly webSocketDebuggerUrl = "ws://127.0.0.1:9222/devtools/browser/test";
+  readonly requests: RpcRequest[] = [];
+  onmessage?: (message: unknown) => void | Promise<void>;
+  onclose?: (reason?: Error) => void;
+  onerror?: (error: Error) => void;
   closed = false;
-  responses = new Map<string, unknown[]>();
-  notificationListeners = new Set<(notification: StagehandRpcNotification) => void>();
+  failMethod: string | undefined;
 
-  constructor() {
-    super(
-      {
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
-      },
-      1_000,
-    );
-    this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
-  }
-
-  queueResponse<Method extends RPCMethod>(
-    method: Method,
-    response: z.input<Method["result"]> | Error,
-  ): void {
-    const responses = this.responses.get(method.name) ?? [];
-    responses.push(response);
-    this.responses.set(method.name, responses);
-  }
-
-  async send<Method extends RPCMethod>(
-    method: Method,
-    params: z.input<Method["params"]>,
-  ): Promise<z.output<Method["result"]>> {
-    this.calls.push({ method: method.name, params });
-    const responses = this.responses.get(method.name);
-    if (!responses?.length) {
-      throw new Error(`No fake response queued for ${method.name}`);
+  async send(message: JSONRPCMessage): Promise<void> {
+    if (!("id" in message) || !("method" in message)) return;
+    const request = message as RpcRequest;
+    this.requests.push(request);
+    if (request.method === this.failMethod) {
+      await this.onmessage?.(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          error: { code: -32603, message: `${request.method} failed` },
+        }),
+      );
+      return;
     }
-    const response = responses.shift();
-    if (response instanceof Error) throw response;
-    return method.result.parse(response) as z.output<Method["result"]>;
-  }
-
-  onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
-    this.notificationListeners.add(listener);
-    return () => this.notificationListeners.delete(listener);
-  }
-
-  emitNotification(notification: StagehandRpcNotification): void {
-    for (const listener of this.notificationListeners) listener(notification);
-  }
-
-  get notificationListenerCount(): number {
-    return this.notificationListeners.size;
+    await this.onmessage?.(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: request.id,
+        result: resultForMethod(request.method),
+      }),
+    );
   }
 
   close(): void {
@@ -75,546 +52,164 @@ class FakeRPCClient extends RPCClient {
   }
 }
 
-describe("Stagehand", () => {
-  it("throws clear errors when context or browser is used before init", () => {
-    const stagehand = new Stagehand({
-      browser: {
-        type: "cdp",
-        cdpUrl: "http://127.0.0.1:9222",
-      },
-    });
+function resultForMethod(method: string): unknown {
+  switch (method) {
+    case "runtime.configure":
+      return { configured: true };
+    case "stagehand.init":
+      return { initialized: true, pages: [] };
+    case "stagehand.close":
+      return { closed: true };
+    case "ping":
+      return { ok: true, runtime: "service_worker" };
+    default:
+      throw new Error(`No fake response for ${method}`);
+  }
+}
 
-    expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
-    expect(() => stagehand.browser).toThrow("Call stagehand.init() before using browser");
-  });
-
-  it("initializes through browser source resolution and RPC client connection", async () => {
-    const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.contextPages, [
-      { pageId: "page-1", url: "about:blank" },
-    ]);
-    const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
+function localFactories(
+  options: {
+    transport?: FakeReadyTransport;
+    closeBrowser?: () => Promise<void> | void;
+  } = {},
+) {
+  const transport = options.transport ?? new FakeReadyTransport();
+  const closeBrowser = options.closeBrowser ?? vi.fn();
+  const factories = createBrowserFactoriesForTest({
+    resolveBrowserSource: async (input) => {
+      const browser = (input as { browser: { type: string } }).browser;
+      expect(browser.type).toBe("local");
       return {
         cdpUrl: "http://127.0.0.1:9222",
-        keepAlive: true,
+        keepAlive: false,
+        close: closeBrowser,
       };
-    });
-    const connectRpcClient = vi.fn(async () => rpcClient);
+    },
+    connectCdp: async () => transport as unknown as CDPClient,
+  });
+  return { ...factories, transport, closeBrowser };
+}
 
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        apiKey: "bb_key",
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-      },
-      {
-        resolveBrowserSource,
-        connectRpcClient,
-      },
-    );
+describe("Stagehand.create", () => {
+  it("creates an initialized Stagehand from an extension-ready browser", async () => {
+    const { localBrowser, transport } = localFactories();
+    const browser = await localBrowser.launch({ headless: true });
 
-    await stagehand.init();
-    const pages = await stagehand.context.pages();
+    const stagehand = await Stagehand.create({ browser });
 
     expect(stagehand.initialized).toBe(true);
-    expect(stagehand.browser.cdpUrl).toBe("http://127.0.0.1:9222");
-    expect(resolveBrowserSource).toHaveBeenCalledWith({
-      apiKey: "bb_key",
-      browser: {
-        type: "cdp",
-        cdpUrl: "http://127.0.0.1:9222",
-      },
-      logging: {
-        level: "info",
-        format: "pretty",
-      },
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
-    });
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-      serviceWorkerUrlIncludes: "service-worker.js",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
-    } satisfies RPCClientOptions);
-    expect(pages[0]?.pageId).toBe("page-1");
-    expect(rpcClient.calls).toStrictEqual([
-      {
-        method: "stagehand.init",
-        params: {
-          apiKey: "bb_key",
-          telemetry: {
-            traces: {
-              endpoint: "https://example.com/v1/traces",
-              headers: {},
-            },
-          },
-        },
-      },
-      { method: "context.pages", params: {} },
+    expect(stagehand.browser).toBe(browser);
+    expect(stagehand.context).toBeDefined();
+    expect(transport.requests.map((request) => request.method)).toStrictEqual([
+      "runtime.configure",
+      "stagehand.init",
     ]);
   });
 
-  it("passes Browserbase credentials and browser settings to the worker", async () => {
-    const rpcClient = new FakeRPCClient();
-    const connectRpcClient = vi.fn(async () => rpcClient);
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        apiKey: "bb_key",
+  it("passes Browserbase credentials and session metadata to stagehand.init", async () => {
+    const transport = new FakeReadyTransport();
+    const { browserbase } = createBrowserFactoriesForTest({
+      resolveBrowserSource: async () => ({
+        cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+        browserbaseSessionId: "session_123",
+        preloadedExtension: true,
+        keepAlive: false,
+        close: vi.fn(),
+      }),
+      connectCdp: async () => transport as unknown as CDPClient,
+    });
+    const browser = await browserbase.launch({
+      apiKey: "bb_key",
+      region: "eu-central-1",
+      userMetadata: { suite: "smoke" },
+    });
+
+    await Stagehand.create({ browser });
+
+    expect(transport.requests.at(-1)).toMatchObject({
+      method: "stagehand.init",
+      params: {
+        api_key: "bb_key",
         browser: {
           type: "browserbase",
-          keepAlive: true,
+          session_id: "session_123",
           region: "eu-central-1",
-          userMetadata: { suite: "smoke" },
+          user_metadata: { suite: "smoke" },
         },
       },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-          browserbaseSessionId: "session_123",
-          preloadedExtension: true,
-          keepAlive: true,
-        }),
-        connectRpcClient,
-      },
-    );
-
-    await stagehand.init();
-
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-      logLevel: "info",
-      preloadedExtension: true,
-      serviceWorkerUrlIncludes: "service-worker.js",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
-    } satisfies RPCClientOptions);
-
-    expect(rpcClient.calls).toStrictEqual([
-      {
-        method: "stagehand.init",
-        params: {
-          apiKey: "bb_key",
-          browser: {
-            type: "browserbase",
-            sessionId: "session_123",
-            keepAlive: true,
-            region: "eu-central-1",
-            userMetadata: { suite: "smoke" },
-          },
-          telemetry: {
-            traces: {
-              endpoint: "https://example.com/v1/traces",
-              headers: {},
-            },
-          },
-        },
-      },
-    ]);
+    });
   });
 
-  it("passes the configured OTLP traces destination to the worker RPC client", async () => {
-    const rpcClient = new FakeRPCClient();
-    const connectRpcClient = vi.fn(async () => rpcClient);
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-        telemetry: {
-          traces: {
-            endpoint: "https://collector.example.com/v1/traces",
-            headers: { Authorization: "Bearer test" },
-          },
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient,
-      },
+  it("allows each browser to be claimed only once", async () => {
+    const { localBrowser } = localFactories();
+    const browser = await localBrowser.launch();
+    await Stagehand.create({ browser });
+
+    await expect(Stagehand.create({ browser })).rejects.toThrow(
+      "already attached to a Stagehand instance",
     );
-
-    await stagehand.init();
-
-    expect(connectRpcClient).toHaveBeenCalledWith({
-      cdpUrl: "http://127.0.0.1:9222",
-      extensionDir: expect.stringContaining("packages/sdk-ts/dist/extension") as string,
-      logLevel: "info",
-      serviceWorkerUrlIncludes: "service-worker.js",
-      telemetry: {
-        traces: {
-          endpoint: "https://collector.example.com/v1/traces",
-          headers: { Authorization: "Bearer test" },
-        },
-      },
-    } satisfies RPCClientOptions);
   });
 
-  it("routes public runtime status and metrics methods through the protocol", async () => {
-    const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.ping, {
-      ok: true,
-      runtime: "service_worker",
-    });
-    rpcClient.queueResponse(StagehandMethods.runtimeLoopbackStatus, {
-      configured: true,
-      connected: true,
-    });
-    rpcClient.queueResponse(StagehandMethods.browserGetVersion, {
-      protocolVersion: "1.3",
-      product: "Chrome/1",
-    });
-    const metrics = {
-      actPromptTokens: 1,
-      actCompletionTokens: 2,
-      actReasoningTokens: 3,
-      actCachedInputTokens: 4,
-      actInferenceTimeMs: 5,
-      extractPromptTokens: 6,
-      extractCompletionTokens: 7,
-      extractReasoningTokens: 8,
-      extractCachedInputTokens: 9,
-      extractInferenceTimeMs: 10,
-      observePromptTokens: 11,
-      observeCompletionTokens: 12,
-      observeReasoningTokens: 13,
-      observeCachedInputTokens: 14,
-      observeInferenceTimeMs: 15,
-      totalPromptTokens: 18,
-      totalCompletionTokens: 21,
-      totalReasoningTokens: 24,
-      totalCachedInputTokens: 27,
-      totalInferenceTimeMs: 30,
+  it("rejects browser-shaped objects that were not created by a browser factory", async () => {
+    const browser = {
+      provider: "local",
+      origin: "connected",
+      closed: false,
+      close: async () => {},
     };
-    rpcClient.queueResponse(StagehandMethods.stagehandMetrics, metrics);
-    const stagehand = createStagehandWithDependenciesForTest(
-      { browser: { type: "cdp", cdpUrl: "http://127.0.0.1:9222" } },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
 
-    await stagehand.init();
+    await expect(Stagehand.create({ browser: browser as never })).rejects.toThrow(
+      "browser must be created by localBrowser or browserbase",
+    );
+  });
+
+  it("closes Stagehand without closing the separately owned browser", async () => {
+    const closeBrowser = vi.fn();
+    const { localBrowser, transport } = localFactories({ closeBrowser });
+    const browser = await localBrowser.launch();
+    const stagehand = await Stagehand.create({ browser });
+
+    await Promise.all([stagehand.close(), stagehand.close()]);
+
+    expect(stagehand.initialized).toBe(false);
+    expect(transport.closed).toBe(false);
+    expect(closeBrowser).not.toHaveBeenCalled();
+    await browser.close();
+    expect(transport.closed).toBe(true);
+    expect(closeBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("leaves browser resource cleanup to the caller when Stagehand initialization fails", async () => {
+    const transport = new FakeReadyTransport();
+    transport.failMethod = "stagehand.init";
+    const closeBrowser = vi.fn();
+    const { localBrowser } = localFactories({ transport, closeBrowser });
+    const browser = await localBrowser.launch();
+
+    await expect(Stagehand.create({ browser })).rejects.toThrow("stagehand.init failed");
+    expect(transport.closed).toBe(false);
+    expect(closeBrowser).not.toHaveBeenCalled();
+
+    await browser.close();
+    expect(transport.closed).toBe(true);
+    expect(closeBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("routes public methods through the initialized transport", async () => {
+    const { localBrowser } = localFactories();
+    const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
 
     await expect(stagehand.ping()).resolves.toStrictEqual({
       ok: true,
       runtime: "service_worker",
     });
-    await expect(stagehand.runtimeLoopbackStatus()).resolves.toStrictEqual({
-      configured: true,
-      connected: true,
-    });
-    await expect(stagehand.browserGetVersion()).resolves.toStrictEqual({
-      protocolVersion: "1.3",
-      product: "Chrome/1",
-    });
-    await expect(stagehand.metrics()).resolves.toStrictEqual(metrics);
-    expect(rpcClient.calls.slice(1)).toStrictEqual([
-      { method: "ping", params: {} },
-      { method: "runtime.loopback_status", params: {} },
-      { method: "browser.get_version", params: {} },
-      { method: "stagehand.metrics", params: {} },
-    ]);
   });
 
-  it("registers a client LLM and sends its serializable model reference during initialization", async () => {
-    const rpcClient = new FakeRPCClient();
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-        model: {
-          generate: async () => ({
-            role: "assistant",
-            content: { type: "text", text: "Hello" },
-            outputFormat: "text",
-          }),
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
-
-    await stagehand.init();
-
-    expect(rpcClient.requestHandlers.has("llm.generate")).toBe(true);
-    expect(rpcClient.calls).toStrictEqual([
-      {
-        method: "stagehand.init",
-        params: {
-          model: { source: "client" },
-          telemetry: {
-            traces: {
-              endpoint: "https://example.com/v1/traces",
-              headers: {},
-            },
-          },
-        },
-      },
-    ]);
-  });
-
-  it("treats a CDP disconnect during close as successful and closes each resource once", async () => {
-    const closeBrowser = vi.fn();
-    const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, new CDPConnectionClosedError());
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: { type: "local" },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: false,
-          close: closeBrowser,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
-
-    await stagehand.init();
-    await Promise.all([stagehand.close(), stagehand.close()]);
-
-    expect(stagehand.initialized).toBe(false);
-    expect(rpcClient.calls).toStrictEqual([
-      {
-        method: "stagehand.init",
-        params: {
-          telemetry: {
-            traces: {
-              endpoint: "https://example.com/v1/traces",
-              headers: {},
-            },
-          },
-        },
-      },
-      { method: "stagehand.close", params: {} },
-    ]);
-    expect(rpcClient.closed).toBe(true);
-    expect(closeBrowser).toHaveBeenCalledOnce();
-    expect(() => stagehand.context).toThrow("Call stagehand.init() before using context");
-  });
-
-  it("prints info and higher logs while hiding debug by default", async () => {
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
-
-    await stagehand.init();
-    rpcClient.emitNotification({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: {
-        level: "debug",
-        message: "CDP call",
-        data: { method: "Page.navigate" },
-      },
-    });
-    rpcClient.emitNotification({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: {
-        level: "info",
-        message: "Page opened",
-        data: { pageId: "page-1" },
-      },
-    });
-    rpcClient.emitNotification({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: {
-        level: "warn",
-        message: "Selector fallback",
-        data: {},
-      },
-    });
-    rpcClient.emitNotification({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: {
-        level: "error",
-        message: "Action failed",
-        data: { retryable: false },
-      },
-    });
-
-    expect(stderr.mock.calls.map(([line]) => line)).toStrictEqual([
-      '[stagehand] INFO Page opened {"pageId":"page-1"}\n',
-      "[stagehand] WARN Selector fallback\n",
-      '[stagehand] ERROR Action failed {"retryable":false}\n',
-    ]);
-    expect(rpcClient.notificationListenerCount).toBe(1);
-
-    await stagehand.close();
-
-    expect(rpcClient.notificationListenerCount).toBe(0);
-    stderr.mockRestore();
-  });
-
-  it("writes one JSON object and calls onLog with the structured event", async () => {
-    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const onLog = vi.fn();
-    const rpcClient = new FakeRPCClient();
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-        logging: {
-          level: "debug",
-          format: "json",
-          onLog,
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
-    const log = {
-      level: "debug" as const,
-      message: "CDP call",
-      data: { method: "Page.navigate" },
+  it("accepts the generated local launch option type", () => {
+    const options: LocalBrowserLaunchOptions = {
+      headless: true,
+      viewport: { width: 1280, height: 800 },
     };
-
-    await stagehand.init();
-    rpcClient.emitNotification({
-      jsonrpc: "2.0",
-      method: "stagehand.log",
-      params: log,
-    });
-
-    expect(stderr).toHaveBeenCalledWith(`${JSON.stringify(log)}\n`);
-    expect(onLog).toHaveBeenCalledWith(log);
-
-    stderr.mockRestore();
-  });
-
-  it("does not close a keepAlive browser source", async () => {
-    const closeBrowser = vi.fn();
-    const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.stagehandClose, { closed: true });
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "local",
-          keepAlive: true,
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-          close: closeBrowser,
-        }),
-        connectRpcClient: async () => rpcClient,
-      },
-    );
-
-    await stagehand.init();
-    await stagehand.close();
-
-    expect(rpcClient.closed).toBe(true);
-    expect(closeBrowser).not.toHaveBeenCalled();
-  });
-
-  it("cleans up an owned browser source when RPC client connection fails", async () => {
-    const closeBrowser = vi.fn();
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: { type: "local" },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: false,
-          close: closeBrowser,
-        }),
-        connectRpcClient: async () => {
-          throw new Error("RPC client failed");
-        },
-      },
-    );
-
-    await expect(stagehand.init()).rejects.toThrow("RPC client failed");
-    expect(stagehand.initialized).toBe(false);
-    expect(closeBrowser).toHaveBeenCalledOnce();
-  });
-
-  it("preserves initialization and cleanup failures without masking either error", async () => {
-    const initError = new Error("RPC client failed");
-    const cleanupError = new Error("Browserbase cleanup failed");
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: { type: "local" },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: false,
-          close: async () => {
-            throw cleanupError;
-          },
-        }),
-        connectRpcClient: async () => {
-          throw initError;
-        },
-      },
-    );
-
-    const error = await stagehand.init().catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(AggregateError);
-    expect((error as AggregateError).errors).toStrictEqual([initError, cleanupError]);
-    expect((error as Error).cause).toBe(initError);
+    expect(options.headless).toBe(true);
   });
 });

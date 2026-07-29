@@ -1,22 +1,20 @@
 import "dotenv/config";
-import { Stagehand } from "../src/index.js";
+import { localBrowser, Stagehand } from "../src/index.js";
 
 const { OPENAI_API_KEY } = process.env;
 if (!OPENAI_API_KEY) throw new Error();
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: true,
-  },
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
-});
+const browser = await localBrowser.launch({ headless: true });
+let stagehand: Stagehand | undefined;
 
 try {
-  await stagehand.init();
+  stagehand = await Stagehand.create({
+    browser,
+    model: {
+      modelName: "openai/gpt-5.4-mini",
+      apiKey: OPENAI_API_KEY,
+    },
+  });
 
   const page = await stagehand.context.activePage();
   if (!page) {
@@ -34,5 +32,6 @@ try {
     throw new Error("observe() returned no matching actions");
   }
 } finally {
-  await stagehand.close();
+  await stagehand?.close();
+  await browser.close();
 }

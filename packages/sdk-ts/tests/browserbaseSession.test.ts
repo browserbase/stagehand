@@ -12,12 +12,17 @@ describe("Browserbase session creation", () => {
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
     }));
     const update = vi.fn(async () => ({}));
+    const retrieve = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2" as const,
+    }));
     const createSdk = vi.fn(() => ({
       extensions: {
         create: vi.fn(async () => ({ id: "ext_stagehand" })),
         delete: vi.fn(async () => {}),
       },
-      sessions: { create, update },
+      sessions: { create, retrieve, update },
     }));
     const client = createBrowserbaseApiClient("bb_key", createSdk);
 
@@ -26,10 +31,50 @@ describe("Browserbase session creation", () => {
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
     });
     await client.releaseSession("session_123");
+    await expect(client.retrieveSession("session_123")).resolves.toStrictEqual({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2",
+    });
 
     expect(createSdk).toHaveBeenCalledWith("bb_key");
     expect(create).toHaveBeenCalledWith({ region: "us-west-2" });
     expect(update).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
+    expect(retrieve).toHaveBeenCalledWith("session_123");
+  });
+
+  it("connects to an existing running session without taking release ownership", async () => {
+    const retrieveSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "eu-central-1" as const,
+    }));
+    const releaseSession = vi.fn(async () => {});
+    const client = createBrowserbaseSessionClient("bb_key", {
+      browserbase: fakeBrowserbaseApiClient({ retrieveSession, releaseSession }),
+      provisionExtension: vi.fn(),
+    });
+
+    await expect(client.connectSession?.("session_123")).resolves.toStrictEqual({
+      sessionId: "session_123",
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "eu-central-1",
+    });
+    expect(retrieveSession).toHaveBeenCalledWith("session_123");
+    expect(releaseSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Browserbase session without a connection URL", async () => {
+    const client = createBrowserbaseSessionClient("bb_key", {
+      browserbase: fakeBrowserbaseApiClient({
+        retrieveSession: async () => ({ id: "session_123" }),
+      }),
+      provisionExtension: vi.fn(),
+    });
+
+    await expect(client.connectSession?.("session_123")).rejects.toThrow(
+      "not available for connection",
+    );
   });
 
   it("creates a session with the provisioned extension and maps its connection URL", async () => {
@@ -187,6 +232,12 @@ function fakeBrowserbaseApiClient(
       return {
         id: "session_123",
         connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      };
+    },
+    async retrieveSession(sessionId) {
+      return {
+        id: sessionId,
+        connectUrl: `wss://connect.browserbase.com/devtools/browser/${sessionId}`,
       };
     },
     async releaseSession() {},

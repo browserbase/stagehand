@@ -14,6 +14,19 @@ export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand } from "./stagehand.js";
+export {
+  browserbase,
+  localBrowser,
+  type BrowserbaseBrowser,
+  type BrowserbaseConnectOptions,
+  type BrowserbaseLaunchOptions,
+  type LocalBrowser,
+  type LocalBrowserConnectOptions,
+  type LocalBrowserLaunchOptions,
+  type StagehandBrowser,
+  type StagehandBrowserOrigin,
+  type StagehandBrowserProvider,
+} from "../../browser/src/index.js";
 export type {
   BrowserGetVersionResult,
   RuntimeLoopbackStatusResult,
@@ -21,19 +34,12 @@ export type {
   StagehandPingResult,
 } from "../../protocol/types.js";
 export {
-  BrowserSourceSchema,
-  BrowserbaseBrowserSourceSchema,
-  CdpBrowserSourceSchema,
   ClientLLMSchema,
-  LocalBrowserSourceSchema,
   StagehandClientLogFormatSchema,
   StagehandClientLoggingConfigSchema,
   StagehandClientLogLevelSchema,
-  StagehandClientInitParamsSchema,
-  type BrowserSource,
   type ClientLLM,
   type ResolvedStagehandClientLoggingConfig,
-  type ResolvedStagehandClientInitParams,
   type StagehandClientLoggingConfig,
-  type StagehandClientInitParams,
+  type StagehandCreateOptions,
 } from "./clientSchemas.js";

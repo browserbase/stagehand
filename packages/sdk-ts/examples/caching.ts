@@ -1,21 +1,15 @@
 import "dotenv/config";
 import { z } from "zod/v4";
-import { Stagehand } from "../src/index.js";
+import { browserbase, Stagehand } from "../src/index.js";
 
 const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
 if (!BROWSERBASE_API_KEY || !OPENAI_API_KEY) throw new Error();
 
 // Server-side caching requires a Browserbase browser session.
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
-  },
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
 });
+let stagehand: Stagehand | undefined;
 
 const companiesSchema = z.object({
   companies: z.array(
@@ -27,7 +21,13 @@ const companiesSchema = z.object({
 });
 
 try {
-  await stagehand.init();
+  stagehand = await Stagehand.create({
+    browser,
+    model: {
+      modelName: "openai/gpt-5.4-mini",
+      apiKey: OPENAI_API_KEY,
+    },
+  });
 
   const page = await stagehand.context.activePage();
   if (!page) {
@@ -55,5 +55,6 @@ try {
   console.log(`Second extraction (expected cache hit, ${second.durationMs}ms):`);
   console.log(JSON.stringify(second.result, null, 2));
 } finally {
-  await stagehand.close();
+  await stagehand?.close();
+  await browser.close();
 }
