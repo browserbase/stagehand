@@ -501,9 +501,8 @@ class Stagehand:
         model: ModelConfig | None = None,
         variables: Variables | None = None,
         timeout: float | None = None,
-        selector: str | None = None,
-        ignore_selectors: list[str] | None = None,
         locator: ProtocolLocator | None = None,
+        ignore_locators: list[ProtocolLocator] | None = None,
         cache: Cache | None = None,
     ) -> ObserveResult:
         options = ObserveOptions.model_validate({
@@ -512,9 +511,8 @@ class Stagehand:
                 ("model", model),
                 ("variables", variables),
                 ("timeout", timeout),
-                ("selector", selector),
-                ("ignore_selectors", ignore_selectors),
                 ("locator", locator),
+                ("ignore_locators", ignore_locators),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None
@@ -536,10 +534,9 @@ class Stagehand:
         page: Page | None = None,
         model: ModelConfig | None = None,
         timeout: float | None = None,
-        selector: str | None = None,
-        ignore_selectors: list[str] | None = None,
-        screenshot: bool | None = None,
         locator: ProtocolLocator | None = None,
+        ignore_locators: list[ProtocolLocator] | None = None,
+        screenshot: bool | None = None,
         cache: Cache | None = None,
     ) -> ExtractResult[ResultModel]:
         options = ExtractOptions.model_validate({
@@ -547,10 +544,9 @@ class Stagehand:
             for name, value in (
                 ("model", model),
                 ("timeout", timeout),
-                ("selector", selector),
-                ("ignore_selectors", ignore_selectors),
-                ("screenshot", screenshot),
                 ("locator", locator),
+                ("ignore_locators", ignore_locators),
+                ("screenshot", screenshot),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None

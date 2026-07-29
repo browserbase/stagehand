@@ -115,16 +115,16 @@ const actions = await stagehand.observe("Find the learn more button");
 
 ```typescript
 const actions = await stagehand.observe("Find form fields", {
-  selector: "form#signup",
-  ignoreSelectors: [".advertisement"],
+  locator: { selector: "form#signup" },
+  ignoreLocators: [{ selector: ".advertisement" }],
   timeout: 15_000,
   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
 });
 ```
 
 - `page`: the page to observe. Defaults to the active page.
-- `selector`: a CSS selector that scopes observation to one element.
-- `ignoreSelectors`: elements to exclude.
+- `locator`: scopes observation to one element.
+- `ignoreLocators`: elements to exclude.
 - `timeout`: maximum time in milliseconds.
 - `model`: override the model for this call.
 - `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
@@ -132,8 +132,8 @@ const actions = await stagehand.observe("Find form fields", {
 - `cache`: reuse a prior result for this call.
 
 <Note>
-  `ignoreSelectors` removes every match and its descendants from consideration, while `selector`
-  scopes observation to a single resolved subtree.
+  An `ignoreLocators` entry without `nth` removes every match and its descendants. Set `nth` to
+  exclude only that zero-based match. `locator` scopes observation to a single resolved subtree.
 </Note>
 
 ### Variables and placeholders
@@ -166,7 +166,7 @@ console.log(actions.metadata.cacheStatus);
 
 - **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
   then run `act()` with the same intent.
-- **Scope busy pages:** `selector` and `ignoreSelectors` cut noise and speed up planning.
+- **Scope busy pages:** `locator` and `ignoreLocators` cut noise and speed up planning.
 - **Handle empty results:** An empty `data` array means nothing matched, so surface that instead
   of acting anyway.
 
@@ -181,7 +181,7 @@ const {
 } = await stagehand.observe("Find the pricing table");
 if (table) {
   const pricing = await stagehand.extract("Extract each pricing tier", pricingSchema, {
-    selector: table.selector,
+    locator: { selector: table.selector },
   });
   console.log(pricing.data);
 }
@@ -221,13 +221,13 @@ if (actions.data.length === 0) {
 </Accordion>
   <Accordion title="Too many or irrelevant actions">
 
-Scope observation to the relevant region with `selector`, and exclude noise with
-`ignoreSelectors`.
+Scope observation to the relevant region with `locator`, and exclude noise with
+`ignoreLocators`.
 
 ```typescript
 const actions = await stagehand.observe("Find the form fields", {
-  selector: "form#signup",
-  ignoreSelectors: [".advertisement"],
+  locator: { selector: "form#signup" },
+  ignoreLocators: [{ selector: ".advertisement" }],
 });
 ```
 
@@ -338,21 +338,21 @@ actions = await stagehand.observe(instruction="Find the learn more button")
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
+from stagehand import ModelConfig, ProtocolLocator
 
 
 actions = await stagehand.observe(
     instruction="Find form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
+    locator=ProtocolLocator(selector="form#signup"),
+    ignore_locators=[ProtocolLocator(selector=".advertisement")],
     timeout=15_000,
     model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
 )
 ```
 
 - `page`: the page to observe. Defaults to the active page.
-- `selector`: a CSS selector that scopes observation to one element.
-- `ignore_selectors`: elements to exclude.
+- `locator`: scopes observation to one element.
+- `ignore_locators`: elements to exclude.
 - `timeout`: maximum time in milliseconds.
 - `model`: override the complete model configuration for this call.
 - `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
@@ -360,8 +360,8 @@ actions = await stagehand.observe(
 - `cache`: reuse a prior result for this call.
 
 <Note>
-  `ignore_selectors` removes every match and its descendants from consideration, while `selector`
-  scopes observation to a single resolved subtree.
+  An `ignore_locators` entry without `nth` removes every match and its descendants. Set `nth` to
+  exclude only that zero-based match. `locator` scopes observation to a single resolved subtree.
 </Note>
 
 ### Variables and placeholders
@@ -395,7 +395,7 @@ print(actions.metadata.cache_status)
 
 - **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
   then run `act()` with the same intent.
-- **Scope busy pages:** `selector` and `ignore_selectors` cut noise and speed up planning.
+- **Scope busy pages:** `locator` and `ignore_locators` cut noise and speed up planning.
 - **Handle empty results:** An empty `data` list means nothing matched, so surface that instead
   of acting anyway.
 
@@ -410,7 +410,7 @@ if tables.data:
     pricing = await stagehand.extract(
         instruction="Extract each pricing tier",
         schema=Pricing,
-        selector=tables.data[0].selector,
+        locator=ProtocolLocator(selector=tables.data[0].selector),
     )
     print(pricing.data)
 ```
@@ -445,14 +445,14 @@ if not actions.data:
 </Accordion>
   <Accordion title="Too many or irrelevant actions">
 
-Scope observation to the relevant region with `selector`, and exclude noise with
-`ignore_selectors`.
+Scope observation to the relevant region with `locator`, and exclude noise with
+`ignore_locators`.
 
 ```python
 actions = await stagehand.observe(
     instruction="Find the form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
+    locator=ProtocolLocator(selector="form#signup"),
+    ignore_locators=[ProtocolLocator(selector=".advertisement")],
 )
 ```
 

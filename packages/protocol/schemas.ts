@@ -601,18 +601,6 @@ export const VariableValueSchema = z
 
 export const VariablesSchema = z.record(z.string(), VariableValueSchema).meta({ id: "Variables" });
 
-export const PageLocatorSchema = z
-  .strictObject({
-    pageIdx: z.number().int().nonnegative().nullable().optional(),
-    url: z.string().nullable().optional(),
-    title: z.string().nullable().optional(),
-    active: z.boolean().nullable().optional(),
-    targetId: z.string().nullable().optional(),
-    tabId: z.number().int().nonnegative().nullable().optional(),
-    frameId: z.string().nullable().optional(),
-  })
-  .meta({ id: "PageLocator" });
-
 export const LocatorSchema = z
   .strictObject({
     selector: z.string().min(1),
@@ -1065,7 +1053,7 @@ export const ActOptionsSchema = z
       example: 30000,
     }),
     locator: LocatorSchema.optional().meta({
-      description: "Serializable element locator for the action target",
+      description: "Locator that scopes the action to a specific element",
     }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
@@ -1115,24 +1103,24 @@ export const ExtractOptionsSchema = z
       description: "Timeout in ms for the extraction",
       example: 30000,
     }),
-    selector: z.string().optional().meta({
-      description: "CSS selector to scope extraction to a specific element",
-      example: "#main-content",
+    locator: LocatorSchema.optional().meta({
+      description: "Locator that scopes extraction to a specific element",
     }),
-    ignoreSelectors: z
-      .array(z.string())
+    ignoreLocators: z
+      .array(LocatorSchema)
       .optional()
       .meta({
-        description: "Selectors for elements and subtrees that should be excluded from extraction",
-        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+        description: "Locators for elements and subtrees that should be excluded from extraction",
+        example: [
+          { selector: "nav" },
+          { selector: ".cookie-banner" },
+          { selector: "#sidebar-ads" },
+        ],
       }),
     screenshot: z.boolean().optional().meta({
       description:
         "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
       example: false,
-    }),
-    locator: LocatorSchema.optional().meta({
-      description: "Serializable element locator for the extraction target",
     }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
@@ -1174,20 +1162,20 @@ export const ObserveOptionsSchema = z
       description: "Timeout in ms for the observation",
       example: 30000,
     }),
-    selector: z.string().optional().meta({
-      description: "CSS selector to scope observation to a specific element",
-      example: "nav",
+    locator: LocatorSchema.optional().meta({
+      description: "Locator that scopes observation to a specific element",
     }),
-    ignoreSelectors: z
-      .array(z.string())
+    ignoreLocators: z
+      .array(LocatorSchema)
       .optional()
       .meta({
-        description: "Selectors for elements and subtrees that should be excluded from observation",
-        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+        description: "Locators for elements and subtrees that should be excluded from observation",
+        example: [
+          { selector: "nav" },
+          { selector: ".cookie-banner" },
+          { selector: "#sidebar-ads" },
+        ],
       }),
-    locator: LocatorSchema.optional().meta({
-      description: "Serializable element locator for the observation target",
-    }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
     }),

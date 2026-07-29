@@ -6,22 +6,12 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
-import { PageLocatorSchema } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),
     );
-  });
-
-  it("rejects unknown page locator fields", () => {
-    expect(() =>
-      PageLocatorSchema.parse({
-        pageIdx: 0,
-        page: { targetId: "target-1" },
-      }),
-    ).toThrow();
   });
 
   it("defines stagehand init as a JSON-RPC method", () => {
@@ -155,7 +145,8 @@ describe("Stagehand object-model protocol", () => {
         additionalProperties: false,
       },
       options: {
-        selector: "main",
+        locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -171,7 +162,8 @@ describe("Stagehand object-model protocol", () => {
         properties: { heading: { type: "string" } },
       },
       options: {
-        selector: "main",
+        locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -207,8 +199,8 @@ describe("Stagehand object-model protocol", () => {
         pageId: "target-1",
         instruction: "Find the submit button",
         options: {
-          selector: "main",
           locator: { selector: "main", nth: 0 },
+          ignoreLocators: [{ selector: "nav", nth: 1 }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -221,8 +213,8 @@ describe("Stagehand object-model protocol", () => {
       pageId: "target-1",
       instruction: "Find the submit button",
       options: {
-        selector: "main",
         locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav", nth: 1 }],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -234,6 +226,23 @@ describe("Stagehand object-model protocol", () => {
     expect(StagehandMethods.stagehandObserve.params.parse({ pageId: "target-1" })).toStrictEqual({
       pageId: "target-1",
     });
+  });
+
+  it("rejects legacy selector scoping fields", () => {
+    expect(() =>
+      StagehandMethods.stagehandObserve.params.parse({
+        pageId: "target-1",
+        options: { selector: "main" },
+      }),
+    ).toThrow();
+    expect(() =>
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        instruction: "Extract the heading",
+        schema: { type: "object" },
+        options: { ignoreSelectors: ["nav"] },
+      }),
+    ).toThrow();
   });
 
   it("rejects observation without a page identity", () => {

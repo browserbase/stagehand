@@ -68,7 +68,7 @@ try {
 - `await stagehand.extract("instruction", zodSchema)` returns `{ data, metadata }`; `data` is
   validated against the schema.
 - Define the schema with `zod`: `z.object({ price: z.number() })`.
-- Scope large pages with `{ selector }` or `{ ignoreSelectors }`.
+- Scope large pages with `{ locator: { selector } }` or `{ ignoreLocators: [{ selector }] }`.
 
 ## Observe: plan before acting
 

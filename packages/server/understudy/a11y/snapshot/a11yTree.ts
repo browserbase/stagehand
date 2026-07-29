@@ -41,13 +41,14 @@ export async function a11yForFrame(
 
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
-    const sel = opts.focusSelector?.trim();
-    if (!sel) return nodes;
+    const locator = opts.focusLocator;
+    const sel = locator?.selector.trim();
+    if (!locator || !sel) return nodes;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");
       const objectId = looksLikeXPath
-        ? await resolveObjectIdForXPath(session, sel, frameId)
-        : await resolveObjectIdForCss(session, sel, frameId);
+        ? await resolveObjectIdForXPath(session, sel, frameId, locator.nth)
+        : await resolveObjectIdForCss(session, sel, frameId, locator.nth);
       if (!objectId) return nodes;
       const desc = await session.send<{ node?: { backendNodeId?: number } }>("DOM.describeNode", {
         objectId,

@@ -47,6 +47,29 @@ describe("cache service", () => {
     expect(result).toStrictEqual({ data: { answer: 42 }, metadata: { cacheStatus: "MISS" } });
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: { answer: 42 } }));
   });
+
+  it("bypasses the legacy cache API for indexed ignore locators", async () => {
+    const get = vi.fn();
+    const execute = vi.fn().mockResolvedValue({
+      result: { data: { answer: 42 }, metadata: {} },
+    });
+
+    const result = await cacheService.withCache({
+      method: "extract",
+      page: cachePage(),
+      data: { instruction: "Extract the answer" },
+      ignoreLocators: [{ selector: ".advertisement", nth: 1 }],
+      caching: true,
+      context: cacheContext(get, vi.fn()),
+      logger: testLogger(),
+      onHit: (value) => ({ data: value, metadata: {} }),
+      execute,
+    });
+
+    expect(result).toStrictEqual({ data: { answer: 42 }, metadata: {} });
+    expect(execute).toHaveBeenCalledOnce();
+    expect(get).not.toHaveBeenCalled();
+  });
 });
 
 function cacheContext(get: ReturnType<typeof vi.fn>, set: ReturnType<typeof vi.fn>) {

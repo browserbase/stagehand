@@ -820,8 +820,8 @@ describe("Stagehand TS object wrapper", () => {
     await expect(
       stagehand.observe("Find the submit button", {
         page,
-        selector: "main",
-        locator: { selector: "main" },
+        locator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: "nav" }],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -846,8 +846,8 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Find the submit button",
         options: {
-          selector: "main",
-          locator: { selector: "main" },
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: "nav" }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -901,7 +901,11 @@ describe("Stagehand TS object wrapper", () => {
     const schema = z.object({ heading: z.string() });
 
     await expect(
-      stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
+      stagehand.extract("Extract the page heading", schema, {
+        page,
+        locator: { selector: "main" },
+        ignoreLocators: [{ selector: "nav", nth: 0 }],
+      }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
       metadata: { cacheStatus: "HIT" },
@@ -912,7 +916,10 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Extract the page heading",
         schema: z.json().parse(z.toJSONSchema(schema)),
-        options: { selector: "main" },
+        options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav", nth: 0 }],
+        },
       }),
     ]);
   });

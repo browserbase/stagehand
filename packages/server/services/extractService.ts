@@ -60,8 +60,6 @@ export async function extract({
     (ms) => new TimeoutError("extract()", ms),
   );
 
-  const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
-
   // Cache keys contain DOM state, not screenshot pixels. Do not serve a
   // visual extraction from a cache entry that cannot represent its image.
   if (options?.screenshot) {
@@ -72,7 +70,8 @@ export async function extract({
     method: "extract",
     page,
     data: cacheService.buildExtractCacheData(params),
-    selector: options?.selector,
+    locator: options?.locator,
+    ignoreLocators: options?.ignoreLocators,
     caching: options?.cache,
     context: cache,
     logger,
@@ -83,8 +82,8 @@ export async function extract({
   async function runExtraction(): Promise<cacheService.CacheExecuteOutcome<ExtractResult>> {
     ensureTimeRemaining();
     const { combinedTree, combinedUrlMap } = await page.captureSnapshot({
-      focusSelector: focusSelector || undefined,
-      ignoreSelectors: options?.ignoreSelectors,
+      focusLocator: options?.locator,
+      ignoreLocators: options?.ignoreLocators,
     });
     ensureTimeRemaining();
 

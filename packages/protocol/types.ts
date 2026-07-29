@@ -148,7 +148,6 @@ import type {
   PageHoverParamsSchema,
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
-  PageLocatorSchema,
   PageNavigationOptionsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
@@ -202,7 +201,6 @@ import type {
 export type VariablePrimitive = z.infer<typeof VariablePrimitiveSchema>;
 export type VariableValue = z.infer<typeof VariableValueSchema>;
 export type Variables = z.infer<typeof VariablesSchema>;
-export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;
 export type StagehandMetrics = z.infer<typeof StagehandMetricsSchema>;

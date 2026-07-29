@@ -58,7 +58,7 @@ export async function captureHybridSnapshot(
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
-  const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
+  const hasIgnoreLocators = (options?.ignoreLocators?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
@@ -66,7 +66,7 @@ export async function captureHybridSnapshot(
     framesInScope.unshift(context.rootId);
   }
 
-  if (!hasIgnoreSelectors) {
+  if (!hasIgnoreLocators) {
     const scopedSnapshot = await tryScopedSnapshot(
       page,
       options,
@@ -82,7 +82,7 @@ export async function captureHybridSnapshot(
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
   const ignoredNodesByFrame = await resolveIgnoredNodes(
     page,
-    options?.ignoreSelectors,
+    options?.ignoreLocators,
     context,
     sessionToIndex,
   );
@@ -92,7 +92,7 @@ export async function captureHybridSnapshot(
     sessionToIndex,
     ignoredNodesByFrame,
   );
-  if (hasIgnoreSelectors) {
+  if (hasIgnoreLocators) {
     const scopedSnapshot = await tryScopedSnapshot(
       page,
       options,
@@ -149,12 +149,12 @@ export function buildFrameContext(page: Page): FrameContext {
 }
 
 /**
- * Step 1 – scoped snapshot fast-path. If a selector is provided we try to:
- *  1) Resolve the selector (XPath or CSS) across iframes.
+ * Step 1 – scoped snapshot fast-path. If a locator is provided we try to:
+ *  1) Resolve the locator (XPath or CSS) across iframes.
  *  2) Build DOM + AX data only for the owning frame.
- *  3) Bail out early when the selector's subtree satisfies the request.
+ *  3) Bail out early when the locator's subtree satisfies the request.
  *
- * Returns `null` when scoping fails (e.g., selector miss) so the caller can
+ * Returns `null` when scoping fails (e.g., locator miss) so the caller can
  * fall back to the full multi-frame snapshot.
  */
 export async function tryScopedSnapshot(
@@ -166,12 +166,13 @@ export async function tryScopedSnapshot(
   exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
   logger: StagehandLogger,
 ): Promise<HybridSnapshot | null> {
-  const requestedFocus = options?.focusSelector?.trim();
-  if (!requestedFocus) return null;
+  const focusLocator = options?.focusLocator;
+  const requestedFocus = focusLocator?.selector.trim();
+  if (!focusLocator || !requestedFocus) return null;
 
   const logScopeFallback = () => {
-    logger.warn("Unable to narrow scope with selector; falling back to the full DOM", {
-      selector: options?.focusSelector?.trim() ?? "",
+    logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
+      locator: focusLocator,
     });
   };
 
@@ -217,7 +218,10 @@ export async function tryScopedSnapshot(
     );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(owningSess, targetFrameId, {
-      focusSelector: tailSelector || undefined,
+      focusLocator: {
+        selector: tailSelector || requestedFocus,
+        ...(focusLocator.nth === undefined ? {} : { nth: focusLocator.nth }),
+      },
       isIgnoredBackendNode: makeIsIgnoredBackendNode(
         targetFrameId,
         ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
@@ -380,20 +384,21 @@ export async function collectPerFrameMaps(
 
 export async function resolveIgnoredNodes(
   page: Page,
-  ignoreSelectors: string[] | undefined,
+  ignoreLocators: SnapshotOptions["ignoreLocators"],
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
 ): Promise<IgnoredNodeMap> {
   const ignoredNodesByFrame: IgnoredNodeMap = new Map();
 
-  for (const rawSelector of ignoreSelectors ?? []) {
-    const selector = rawSelector.trim();
+  for (const locator of ignoreLocators ?? []) {
+    const selector = locator.selector.trim();
     if (!selector) continue;
 
     try {
       const resolved = await resolveIgnoredNodesForSelector(
         page,
         selector,
+        locator.nth,
         context,
         sessionToIndex,
       );
@@ -413,6 +418,7 @@ export async function resolveIgnoredNodes(
 async function resolveIgnoredNodesForSelector(
   page: Page,
   selector: string,
+  nth: number | undefined,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
@@ -441,10 +447,15 @@ async function resolveIgnoredNodesForSelector(
       );
       return [{ frameId: targetFrameId, backendNodeId }];
     }
-    return resolveIgnoredNodesInFrame(page, targetFrameId, {
-      kind: "xpath",
-      value: tailXPath,
-    });
+    return resolveIgnoredNodesInFrame(
+      page,
+      targetFrameId,
+      {
+        kind: "xpath",
+        value: tailXPath,
+      },
+      nth,
+    );
   }
 
   const hit = await resolveCssFocusFrameAndTail(
@@ -454,21 +465,32 @@ async function resolveIgnoredNodesForSelector(
     context.rootId,
   );
   const targetFrameId = hit.targetFrameId;
-  return resolveIgnoredNodesInFrame(page, targetFrameId, {
-    kind: "css",
-    value: hit.tailSelector || selector,
-  });
+  return resolveIgnoredNodesInFrame(
+    page,
+    targetFrameId,
+    {
+      kind: "css",
+      value: hit.tailSelector || selector,
+    },
+    nth,
+  );
 }
 
 async function resolveIgnoredNodesInFrame(
   page: Page,
   frameId: string,
   query: SelectorQuery,
+  nth: number | undefined,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const session = ownerSession(page, frameId);
   const frame = new Frame(session, frameId, "", false, page.logger);
   const resolver = new FrameSelectorResolver(frame);
-  const resolvedNodes = await resolver.resolveAll(query);
+  const resolvedNodes =
+    nth === undefined
+      ? await resolver.resolveAll(query)
+      : [await resolver.resolveAtIndex(query, nth)].filter(
+          (node): node is ResolvedNode => node !== null,
+        );
   if (!resolvedNodes.length) return [];
 
   const backendNodeIds = await describeResolvedNodes(session, resolvedNodes);

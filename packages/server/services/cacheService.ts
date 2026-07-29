@@ -2,6 +2,7 @@ import type { Protocol } from "devtools-protocol";
 import type {
   Action,
   Caching,
+  Locator,
   StagehandActParams,
   StagehandExtractParams,
   StagehandInitParams,
@@ -80,6 +81,7 @@ export function buildActCacheData(params: StagehandActParams): Record<string, un
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
+          selector: params.options.locator?.selector,
         }
       : undefined,
   };
@@ -92,8 +94,8 @@ export function buildObserveCacheData(params: StagehandObserveParams): Record<st
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
-          selector: params.options.selector,
-          ignoreSelectors: params.options.ignoreSelectors,
+          selector: params.options.locator?.selector,
+          ignoreSelectors: params.options.ignoreLocators?.map((locator) => locator.selector),
         }
       : undefined,
   };
@@ -106,8 +108,8 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
     options: params.options
       ? {
           timeout: params.options.timeout,
-          selector: params.options.selector,
-          ignoreSelectors: params.options.ignoreSelectors,
+          selector: params.options.locator?.selector,
+          ignoreSelectors: params.options.ignoreLocators?.map((locator) => locator.selector),
           screenshot: params.options.screenshot,
         }
       : undefined,
@@ -159,7 +161,8 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
   method,
   page,
   data,
-  selector,
+  locator,
+  ignoreLocators,
   caching,
   context,
   logger,
@@ -169,9 +172,12 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
   method: CacheMethod;
   page: unknown;
   data: Record<string, unknown>;
-  /** Focus selector (observe/extract); resolved to a backendNodeId so the
+  /** Focus locator; resolved to a backendNodeId so the
    * server scopes the DOM hash exactly like the live v3 routes. */
-  selector?: string;
+  locator?: Locator;
+  /** Ignore locators used by observe/extract. Indexed ignores cannot be
+   * represented by the legacy cache API and therefore bypass caching. */
+  ignoreLocators?: Locator[];
   /** Per-request override from options.cache. */
   caching?: Caching;
   context: CacheContext | undefined;
@@ -184,8 +190,15 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
   if (!context || !cachePage) {
     return (await execute()).result;
   }
+  if (ignoreLocators?.some((ignoredLocator) => ignoredLocator.nth !== undefined)) {
+    logger.debug("Cache skipped: indexed ignore locators are not supported by the cache API", {
+      category: "cache",
+      method,
+    });
+    return (await execute()).result;
+  }
 
-  const cdpTree = await collectCdpTree(cachePage, selector, logger);
+  const cdpTree = await collectCdpTree(cachePage, locator, logger);
   if (!cdpTree) {
     return (await execute()).result;
   }
@@ -302,7 +315,7 @@ function asCachePage(page: unknown): CachePage | null {
  */
 async function collectCdpTree(
   page: CachePage,
-  selector: string | undefined,
+  locator: Locator | undefined,
   logger: StagehandLogger,
 ): Promise<CdpTree | null> {
   try {
@@ -316,12 +329,12 @@ async function collectCdpTree(
     }
 
     let focusBackendNodeId: number | undefined;
-    if (selector) {
-      focusBackendNodeId = await resolveBackendNodeId(mainFrame, selector);
+    if (locator) {
+      focusBackendNodeId = await resolveBackendNodeId(mainFrame, locator);
       if (focusBackendNodeId === undefined) {
-        logger.debug("Cache skipped: focus selector did not resolve to a node", {
+        logger.debug("Cache skipped: focus locator did not resolve to a node", {
           category: "cache",
-          selector,
+          locator,
         });
         return null;
       }
@@ -341,9 +354,12 @@ async function collectCdpTree(
   }
 }
 
-async function resolveBackendNodeId(frame: Frame, selector: string): Promise<number | undefined> {
+async function resolveBackendNodeId(frame: Frame, locator: Locator): Promise<number | undefined> {
   const resolver = new FrameSelectorResolver(frame);
-  const resolved = await resolver.resolveFirst(FrameSelectorResolver.parseSelector(selector));
+  const resolved = await resolver.resolveAtIndex(
+    FrameSelectorResolver.parseSelector(locator.selector),
+    locator.nth ?? 0,
+  );
   if (!resolved) return undefined;
 
   const { node } = await frame.session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {

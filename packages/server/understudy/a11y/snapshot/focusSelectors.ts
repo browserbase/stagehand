@@ -187,12 +187,16 @@ export async function resolveObjectIdForXPath(
   session: CDPSessionLike,
   xpath: string,
   frameId?: string,
+  nth = 0,
 ): Promise<string | null> {
   let contextId: number | undefined;
   if (frameId) {
     contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
   }
-  const expr = buildLocatorInvocation("resolveXPathMainWorld", [JSON.stringify(xpath), "0"]);
+  const expr = buildLocatorInvocation("resolveXPathMainWorld", [
+    JSON.stringify(xpath),
+    String(nth),
+  ]);
   const { result, exceptionDetails } = await session.send<{
     result: { objectId?: string | undefined };
     exceptionDetails?: Protocol.Runtime.ExceptionDetails;
@@ -211,12 +215,16 @@ export async function resolveObjectIdForCss(
   session: CDPSessionLike,
   selector: string,
   frameId?: string,
+  nth = 0,
 ): Promise<string | null> {
   let contextId: number | undefined;
   if (frameId) {
     contextId = (await executionContexts.waitForLocatorWorld(session, frameId, 800)).contextId;
   }
-  const expression = buildLocatorInvocation("resolveCssSelector", [JSON.stringify(selector), "0"]);
+  const expression = buildLocatorInvocation("resolveCssSelector", [
+    JSON.stringify(selector),
+    String(nth),
+  ]);
 
   const evaluate = async (expression: string): Promise<string | null> => {
     const { result, exceptionDetails } = await session.send<{

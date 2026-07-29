@@ -86,8 +86,8 @@ console.log(extraction.metadata.cacheStatus);
 
 ```typescript
 const extraction = await stagehand.extract("Extract the article body", schema, {
-  selector: "#main-content",
-  ignoreSelectors: ["nav", ".cookie-banner"],
+  locator: { selector: "#main-content" },
+  ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner" }],
   screenshot: true,
   timeout: 30_000,
   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
@@ -95,8 +95,8 @@ const extraction = await stagehand.extract("Extract the article body", schema, {
 ```
 
 - `page`: the page to extract from. Defaults to the active page.
-- `selector`: a CSS selector that scopes extraction to one element and its subtree.
-- `ignoreSelectors`: elements to exclude, such as ads, chrome, and boilerplate.
+- `locator`: scopes extraction to one element and its subtree.
+- `ignoreLocators`: elements to exclude, such as ads, chrome, and boilerplate.
 - `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
 - `timeout`: maximum time in milliseconds.
 - `model`: override the model for this call.
@@ -104,8 +104,8 @@ const extraction = await stagehand.extract("Extract the article body", schema, {
 
 ### Scoped extraction
 
-When a page is large, scoping to the relevant region with `selector` (and excluding noise
-with `ignoreSelectors`) is faster, cheaper, and more accurate than extracting from the
+When a page is large, scoping to the relevant region with `locator` (and excluding noise
+with `ignoreLocators`) is faster, cheaper, and more accurate than extracting from the
 whole document.
 
 ```typescript
@@ -114,7 +114,10 @@ const {
 } = await stagehand.extract(
   "Extract the sale price",
   z.object({ price: z.number() }),
-  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
+  {
+    locator: { selector: "#product-summary" },
+    ignoreLocators: [{ selector: ".related-products" }],
+  },
 );
 ```
 
@@ -143,7 +146,7 @@ console.log(extraction.data, extraction.metadata.cacheStatus);
   "extract everything."
 - **Use descriptions:** Field descriptions disambiguate similar values (for example, which
   price is the sale price).
-- **Scope first:** Reach for `selector`/`ignoreSelectors` before extracting from a busy
+- **Scope first:** Reach for `locator`/`ignoreLocators` before extracting from a busy
   page.
 
 ## Troubleshooting
@@ -155,7 +158,7 @@ console.log(extraction.data, extraction.metadata.cacheStatus);
   </Accordion>
   <Accordion title="Wrong value picked">
 
-Narrow with `selector`, exclude distractors with `ignoreSelectors`, or enable `screenshot`
+Narrow with `locator`, exclude distractors with `ignoreLocators`, or enable `screenshot`
 when the correct value is clear visually but ambiguous in the DOM.
 
 ```typescript
@@ -164,7 +167,10 @@ const {
 } = await stagehand.extract(
   "Extract the sale price, not the original price",
   z.object({ price: z.number() }),
-  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
+  {
+    locator: { selector: "#product-summary" },
+    ignoreLocators: [{ selector: ".related-products" }],
+  },
 );
 ```
 
@@ -261,14 +267,17 @@ print(extraction.metadata.cache_status)
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
+from stagehand import ModelConfig, ProtocolLocator
 
 
 extraction = await stagehand.extract(
     instruction="Extract the article body",
     schema=schema,
-    selector="#main-content",
-    ignore_selectors=["nav", ".cookie-banner"],
+    locator=ProtocolLocator(selector="#main-content"),
+    ignore_locators=[
+        ProtocolLocator(selector="nav"),
+        ProtocolLocator(selector=".cookie-banner"),
+    ],
     screenshot=True,
     timeout=30_000,
     model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
@@ -276,8 +285,8 @@ extraction = await stagehand.extract(
 ```
 
 - `page`: the page to extract from. Defaults to the active page.
-- `selector`: a CSS selector that scopes extraction to one element and its subtree.
-- `ignore_selectors`: elements to exclude, such as ads, chrome, and boilerplate.
+- `locator`: scopes extraction to one element and its subtree.
+- `ignore_locators`: elements to exclude, such as ads, chrome, and boilerplate.
 - `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
 - `timeout`: maximum time in milliseconds.
 - `model`: override the complete model configuration for this call.
@@ -285,16 +294,16 @@ extraction = await stagehand.extract(
 
 ### Scoped extraction
 
-When a page is large, scoping to the relevant region with `selector` (and excluding noise
-with `ignore_selectors`) is faster, cheaper, and more accurate than extracting from the
+When a page is large, scoping to the relevant region with `locator` (and excluding noise
+with `ignore_locators`) is faster, cheaper, and more accurate than extracting from the
 whole document.
 
 ```python
 result = await stagehand.extract(
     instruction="Extract the sale price",
     schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    locator=ProtocolLocator(selector="#product-summary"),
+    ignore_locators=[ProtocolLocator(selector=".related-products")],
 )
 ```
 
@@ -323,7 +332,7 @@ print(extraction.data, extraction.metadata.cache_status)
   "extract everything."
 - **Use descriptions:** Field descriptions disambiguate similar values (for example, which
   price is the sale price).
-- **Scope first:** Reach for `selector`/`ignore_selectors` before extracting from a busy
+- **Scope first:** Reach for `locator`/`ignore_locators` before extracting from a busy
   page.
 
 ## Troubleshooting
@@ -335,15 +344,15 @@ print(extraction.data, extraction.metadata.cache_status)
   </Accordion>
   <Accordion title="Wrong value picked">
 
-Narrow with `selector`, exclude distractors with `ignore_selectors`, or enable `screenshot`
+Narrow with `locator`, exclude distractors with `ignore_locators`, or enable `screenshot`
 when the correct value is clear visually but ambiguous in the DOM.
 
 ```python
 result = await stagehand.extract(
     instruction="Extract the sale price, not the original price",
     schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    locator=ProtocolLocator(selector="#product-summary"),
+    ignore_locators=[ProtocolLocator(selector=".related-products")],
 )
 ```
 

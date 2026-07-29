@@ -246,7 +246,7 @@ const result = await stagehand.act("Click the sign in button");
   </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The locator that scopes the action.
 
     <ParamField path="options.locator.selector" type="string">
       The selector to target.
@@ -365,12 +365,20 @@ const actions = await stagehand.observe("Find the sign in button");
 
   </ParamField>
 
-<ParamField path="options.ignoreSelectors" type="string[]" optional>
-  Selectors to exclude.
-</ParamField>
+  <ParamField path="options.ignoreLocators" type="Locator[]" optional>
+    Locators to exclude from consideration.
+
+    <ParamField path="options.ignoreLocators[].selector" type="string">
+      The selector to exclude.
+    </ParamField>
+
+    <ParamField path="options.ignoreLocators[].nth" type="number" optional>
+      Exclude only this zero-based match. Omit it to exclude every match.
+    </ParamField>
+  </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The locator that scopes observation.
 
     <ParamField path="options.locator.selector" type="string">
       The selector to target.
@@ -402,10 +410,6 @@ const actions = await stagehand.observe("Find the sign in button");
     </ParamField>
 
   </ParamField>
-
-<ParamField path="options.selector" type="string" optional>
-  A selector that scopes the operation.
-</ParamField>
 
 <ParamField path="options.timeout" type="number" optional>
   The operation timeout in milliseconds.
@@ -481,12 +485,20 @@ console.log(product.data, product.metadata.cacheStatus);
 
   </ParamField>
 
-<ParamField path="options.ignoreSelectors" type="string[]" optional>
-  Selectors to exclude.
-</ParamField>
+  <ParamField path="options.ignoreLocators" type="Locator[]" optional>
+    Locators to exclude from extraction.
+
+    <ParamField path="options.ignoreLocators[].selector" type="string">
+      The selector to exclude.
+    </ParamField>
+
+    <ParamField path="options.ignoreLocators[].nth" type="number" optional>
+      Exclude only this zero-based match. Omit it to exclude every match.
+    </ParamField>
+  </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The locator that scopes extraction.
 
     <ParamField path="options.locator.selector" type="string">
       The selector to target.
@@ -521,10 +533,6 @@ console.log(product.data, product.metadata.cacheStatus);
 
 <ParamField path="options.screenshot" type="boolean" optional>
   Whether the operation may use a screenshot.
-</ParamField>
-
-<ParamField path="options.selector" type="string" optional>
-  A selector that scopes the operation.
 </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
@@ -814,7 +822,7 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+  The locator that scopes the action.
 
 <ParamField path="locator.selector" type="str">
   The selector to target.
@@ -930,16 +938,8 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="selector" type="str | None" optional>
-  The selector to target.
-</ParamField>
-
-<ParamField path="ignore_selectors" type="list[str] | None" optional>
-  Selectors to exclude from consideration.
-</ParamField>
-
 <ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+  The locator that scopes observation.
 
 <ParamField path="locator.selector" type="str">
   The selector to target.
@@ -948,6 +948,10 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   <ParamField path="locator.nth" type="int" optional>
     The zero-based index used when the selector matches multiple elements.
   </ParamField>
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[ProtocolLocator] | None" optional>
+  Locators to exclude from consideration. An entry without `nth` excludes every match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1039,20 +1043,12 @@ print(product.data, product.metadata.cache_status)
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="selector" type="str | None" optional>
-  The selector to target.
-</ParamField>
-
-<ParamField path="ignore_selectors" type="list[str] | None" optional>
-  Selectors to exclude from consideration.
-</ParamField>
-
 <ParamField path="screenshot" type="bool | None" optional>
   Whether extraction may use a screenshot.
 </ParamField>
 
 <ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+  The locator that scopes extraction.
 
 <ParamField path="locator.selector" type="str">
   The selector to target.
@@ -1061,6 +1057,10 @@ print(product.data, product.metadata.cache_status)
   <ParamField path="locator.nth" type="int" optional>
     The zero-based index used when the selector matches multiple elements.
   </ParamField>
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[ProtocolLocator] | None" optional>
+  Locators to exclude from extraction. An entry without `nth` excludes every match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>

@@ -43,7 +43,6 @@ export async function observe({
     (ms) => new TimeoutError("observe()", ms),
   );
   const effectiveInstruction = instruction ?? DEFAULT_OBSERVE_INSTRUCTION;
-  const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
 
   logger.info("Starting observation", {
     category: "observation",
@@ -54,7 +53,8 @@ export async function observe({
     method: "observe",
     page,
     data: cacheService.buildObserveCacheData(params),
-    selector: options?.selector,
+    locator: options?.locator,
+    ignoreLocators: options?.ignoreLocators,
     caching: options?.cache,
     context: cache,
     logger,
@@ -71,8 +71,8 @@ export async function observe({
   async function runObservation(): Promise<cacheService.CacheExecuteOutcome<ObserveResult>> {
     ensureTimeRemaining();
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
-      focusSelector: focusSelector || undefined,
-      ignoreSelectors: options?.ignoreSelectors,
+      focusLocator: options?.locator,
+      ignoreLocators: options?.ignoreLocators,
     });
     ensureTimeRemaining();
 

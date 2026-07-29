@@ -49,6 +49,7 @@
     httpVersion: "http_version",
     ignoreDefaultArgs: "ignore_default_args",
     ignoreHTTPSErrors: "ignore_https_errors",
+    ignoreLocators: "ignore_locators",
     ignoreSelectors: "ignore_selectors",
     inputTokens: "input_tokens",
     keepAlive: "keep_alive",

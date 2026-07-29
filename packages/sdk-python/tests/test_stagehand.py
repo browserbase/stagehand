@@ -300,7 +300,12 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         locator=locator,
         cache=CacheOptions(threshold=1),
     )
-    actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    actions = await stagehand.observe(
+        instruction="Find the link",
+        model=model,
+        locator=locator,
+        ignore_locators=[ProtocolLocator(selector="nav")],
+    )
     replay_result = await stagehand.act(actions.data[0], page=page)
     page_info = await stagehand.extract(
         instruction="Extract the heading",
@@ -309,6 +314,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         model=model,
         screenshot=True,
         locator=locator,
+        ignore_locators=[ProtocolLocator(selector=".ad", nth=1)],
     )
 
     assert action_result.data == act_result
@@ -344,6 +350,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.options is not None
     assert observe_params.options.model == model
     assert observe_params.options.locator == locator
+    assert observe_params.options.ignore_locators == [ProtocolLocator(selector="nav")]
     replay_params = recording.calls[4][1]
     assert isinstance(replay_params, StagehandActParams)
     assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
@@ -354,6 +361,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert extract_params.options.model == model
     assert extract_params.options.screenshot is True
     assert extract_params.options.locator == locator
+    assert extract_params.options.ignore_locators == [ProtocolLocator(selector=".ad", nth=1)]
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
     assert isinstance(schema, dict)

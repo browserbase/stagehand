@@ -172,7 +172,11 @@ describe("extract service", () => {
           pageId: "page-1",
           instruction: "Extract the screenshot heading",
           schema: z.json().parse(z.toJSONSchema(z.object({ heading: z.string() }))),
-          options: { screenshot: true },
+          options: {
+            screenshot: true,
+            locator: { selector: "main", nth: 1 },
+            ignoreLocators: [{ selector: "nav" }, { selector: ".ad", nth: 2 }],
+          },
         },
         page: { captureSnapshot, screenshot },
         model: { source: "client" },
@@ -181,6 +185,10 @@ describe("extract service", () => {
       });
 
       expect(withCache).not.toHaveBeenCalled();
+      expect(captureSnapshot).toHaveBeenCalledWith({
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: [{ selector: "nav" }, { selector: ".ad", nth: 2 }],
+      });
       expect(screenshot).toHaveBeenCalledWith({ fullPage: false, type: "png" });
       expect(clientLLMGenerate.mock.calls[0]?.[0].messages).toEqual([
         {
