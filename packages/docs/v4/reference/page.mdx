@@ -609,7 +609,15 @@ Return the WebMCP tools registered on the page.
 
 ```typescript
 const tools = await page.tools();
-const invocation = await tools[0].invoke({ input: { query: "Stagehand" } });
+
+const searchTool = tools.find((tool) => tool.name === "search");
+if (!searchTool) throw new Error("Search tool is unavailable");
+
+console.log(searchTool.inputSchema);
+
+const invocation = await searchTool.invoke({
+  input: { query: "Stagehand" },
+});
 const result = await invocation.result();
 console.log(result.status, result.output);
 ```
@@ -1239,7 +1247,14 @@ Return the WebMCP tools registered on the page.
 
 ```python
 tools = await page.tools()
-invocation = await tools[0].invoke(input={"query": "Stagehand"})
+
+search_tool = next((tool for tool in tools if tool.name == "search"), None)
+if search_tool is None:
+    raise RuntimeError("Search tool is unavailable")
+
+print(search_tool.input_schema)
+
+invocation = await search_tool.invoke(input={"query": "Stagehand"})
 result = await invocation.result()
 print(result.status, result.output)
 ```
