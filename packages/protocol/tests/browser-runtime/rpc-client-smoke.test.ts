@@ -511,11 +511,11 @@ async function createFullGraphSmokeExtension(): Promise<string> {
       `import { StagehandLogger } from ${JSON.stringify(serverModulePath("logger.ts"))};`,
       `import { withTimeout } from ${JSON.stringify(serverModulePath("timeoutConfig.ts"))};`,
       `import { CdpConnection } from ${JSON.stringify(serverModulePath("understudy/cdp.ts"))};`,
-      `import { V3Context } from ${JSON.stringify(serverModulePath("understudy/context.ts"))};`,
+      `import { BrowserContext } from ${JSON.stringify(serverModulePath("understudy/context.ts"))};`,
       `import { Locator } from ${JSON.stringify(serverModulePath("understudy/locator.ts"))};`,
       `import { Page } from ${JSON.stringify(serverModulePath("understudy/page.ts"))};`,
       `import { Response } from ${JSON.stringify(serverModulePath("understudy/response.ts"))};`,
-      "const graph = [actService.act, extractService.extract, observeService.observe, LLMProvider, StagehandLogger, withTimeout, CdpConnection, V3Context, Locator, Page, Response];",
+      "const graph = [actService.act, extractService.extract, observeService.observe, LLMProvider, StagehandLogger, withTimeout, CdpConnection, BrowserContext, Locator, Page, Response];",
       "(globalThis as typeof globalThis & { __stagehandServerGraph?: string[] }).__stagehandServerGraph = graph.map((value) => value.name);",
     ].join("\n"),
   );
