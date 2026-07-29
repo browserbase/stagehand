@@ -45,10 +45,6 @@ export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult
   data: z.output<Schema>;
 };
 
-export type StagehandInitOptions = {
-  signal?: AbortSignal;
-};
-
 export class Stagehand {
   browserContext: BrowserContext | undefined;
   isInitialized = false;
@@ -94,7 +90,7 @@ export class Stagehand {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
-  async init(options: StagehandInitOptions = {}): Promise<void> {
+  async init(): Promise<void> {
     if (this.isInitialized) {
       return;
     }
@@ -105,19 +101,15 @@ export class Stagehand {
         new Error(`Stagehand initialization timed out after ${STAGEHAND_INIT_TIMEOUT_MS}ms`),
       );
     }, STAGEHAND_INIT_TIMEOUT_MS);
-    const signal = options.signal
-      ? AbortSignal.any([options.signal, timeoutController.signal])
-      : timeoutController.signal;
 
     try {
-      signal.throwIfAborted();
-      await this.initialize(signal);
+      await this.#initialize(timeoutController.signal);
     } finally {
       clearTimeout(timeoutId);
     }
   }
 
-  private async initialize(signal: AbortSignal): Promise<void> {
+  async #initialize(signal: AbortSignal): Promise<void> {
     const clientInitParams = StagehandClientInitParamsSchema.parse(this.initParams);
     const adapters = stagehandAdapters.get(this) ?? {};
     const browserResolution = (adapters.resolveBrowserSource ?? resolveBrowserSource)(

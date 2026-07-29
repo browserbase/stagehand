@@ -233,32 +233,6 @@ describe("Stagehand", () => {
     }
   });
 
-  it("lets a caller AbortSignal cancel initialization earlier", async () => {
-    const controller = new AbortController();
-    const stagehand = createStagehandWithDependenciesForTest(
-      {
-        browser: {
-          type: "cdp",
-          cdpUrl: "http://127.0.0.1:9222",
-        },
-      },
-      {
-        resolveBrowserSource: async () => ({
-          cdpUrl: "http://127.0.0.1:9222",
-          keepAlive: true,
-        }),
-        connectRpcClient: async () => await new Promise<RPCClient>(() => {}),
-      },
-    );
-
-    const initialization = stagehand.init({ signal: controller.signal });
-    const rejection = expect(initialization).rejects.toThrow("caller cancelled initialization");
-    controller.abort(new Error("caller cancelled initialization"));
-
-    await rejection;
-    expect(stagehand.initialized).toBe(false);
-  });
-
   it("passes Browserbase credentials and browser settings to the worker", async () => {
     const rpcClient = new FakeRPCClient();
     const connectRpcClient = vi.fn(async () => rpcClient);

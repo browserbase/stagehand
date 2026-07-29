@@ -206,6 +206,10 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	initCtx, cancel := context.WithTimeout(ctx, stagehandInitTimeout)
 	defer cancel()
 
+	return s.initialize(initCtx, ctx)
+}
+
+func (s *Stagehand) initialize(initCtx context.Context, cleanupCtx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -226,7 +230,7 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	if err != nil {
 		return errors.Join(
 			fmt.Errorf("connect protocol: %w", err),
-			s.releaseBrowser(ctx, false),
+			s.releaseBrowser(cleanupCtx, false),
 		)
 	}
 	s.rpc = rpc
@@ -242,7 +246,7 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	initParams := s.workerInitParams(browser)
 	var initResult StagehandInitResult
 	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
-		return s.initFailure(ctx, err)
+		return s.initFailure(cleanupCtx, err)
 	}
 
 	s.context = &BrowserContext{rpc: rpc}
