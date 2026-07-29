@@ -1075,6 +1075,7 @@ export class BrowserContext {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    page.dispose();
     this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);

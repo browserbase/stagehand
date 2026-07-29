@@ -366,6 +366,10 @@ describe("Stagehand object-model protocol", () => {
       "page.wait_for_load_state",
       "page.wait_for_timeout",
       "page.wait_for_selector",
+      "page.webmcp_tools",
+      "page.webmcp_invoke_tool",
+      "page.webmcp_invocation_result",
+      "page.webmcp_cancel_invocation",
     ]);
   });
 

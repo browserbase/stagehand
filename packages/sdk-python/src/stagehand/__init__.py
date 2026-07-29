@@ -34,6 +34,7 @@ from ._generated.models import (
     State,
     TelemetryConfig,
     Variables,
+    WebMCPAnnotation,
 )
 from ._generated.models import (
     Locator as ProtocolLocator,
@@ -54,6 +55,12 @@ from .client_models import (
 from .locator import Locator
 from .page import Page
 from .stagehand import Stagehand
+from .webmcp import (
+    WebMCPInvocation,
+    WebMCPInvocationStatus,
+    WebMCPTool,
+    WebMCPToolResponse,
+)
 
 __all__ = [
     "ActResultData",
@@ -102,4 +109,9 @@ __all__ = [
     "State",
     "TelemetryConfig",
     "Variables",
+    "WebMCPAnnotation",
+    "WebMCPInvocation",
+    "WebMCPInvocationStatus",
+    "WebMCPTool",
+    "WebMCPToolResponse",
 ]
