@@ -18,7 +18,7 @@ export default defineBenchV4Task(
       await stagehand.act("choose Canada from the 'Select a Country' dropdown");
 
       // read the rendered page text directly — no second model call
-      const fullTree = await page.locator("body").innerText();
+      const fullTree = await page.locator("#chosenValue").innerText();
 
       if (fullTree.includes("Canada")) {
         return {
