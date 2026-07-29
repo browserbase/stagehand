@@ -251,9 +251,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       const rect = document.querySelector("#locator-button").getBoundingClientRect();
       return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     })()`);
-    await expect(
-      page.click(buttonCenter.x, buttonCenter.y, { returnXpath: true }),
-    ).resolves.not.toBe("");
+    await expect(page.click(buttonCenter.x, buttonCenter.y)).resolves.toBeUndefined();
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
 
     await page.evaluate(`document.querySelector("#locator-input").focus()`);

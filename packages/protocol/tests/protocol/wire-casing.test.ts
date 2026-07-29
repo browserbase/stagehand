@@ -226,7 +226,7 @@ describe("JSON-RPC wire casing", () => {
       fromY: 20,
       toX: 30,
       toY: 40,
-      options: { returnXpath: true },
+      options: { steps: 5 },
     };
     const wireValue = {
       page_id: "page_1",
@@ -234,7 +234,7 @@ describe("JSON-RPC wire casing", () => {
       from_y: 20,
       to_x: 30,
       to_y: 40,
-      options: { return_xpath: true },
+      options: { steps: 5 },
     };
 
     expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
