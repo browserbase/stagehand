@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import traceback
+
 import pytest
 from pydantic import ValidationError
 
@@ -12,7 +14,10 @@ from stagehand.browserbase_client import (
     BrowserbaseSessionResponse,
 )
 from stagehand.browserbase_session import (
+    BrowserbaseSessionCleanupError,
     BrowserbaseSessionClient,
+    BrowserbaseSessionError,
+    BrowserbaseSessionErrorCode,
 )
 from stagehand.client_models import BrowserbaseBrowserSource
 
@@ -26,13 +31,15 @@ class FakeBrowserbaseAPI:
         self.create_error: BaseException | None = None
         self.release_error: BaseException | None = None
         self.delete_error: BaseException | None = None
+        self.extension_id = "ext_stagehand"
+        self.session_id = "session_123"
 
     async def upload_extension(
         self,
         request: BrowserbaseExtensionUploadRequest,
     ) -> BrowserbaseExtensionResponse:
         self.upload_requests.append(request)
-        return BrowserbaseExtensionResponse(id="ext_stagehand")
+        return BrowserbaseExtensionResponse(id=self.extension_id)
 
     async def create_session(
         self,
@@ -42,7 +49,7 @@ class FakeBrowserbaseAPI:
         if self.create_error is not None:
             raise self.create_error
         return BrowserbaseSessionResponse.model_validate({
-            "id": "session_123",
+            "id": self.session_id,
             "connect_url": ("wss://connect.browserbase.com/devtools/browser/session_123"),
         })
 
@@ -136,6 +143,36 @@ async def test_browserbase_session_validates_before_uploading() -> None:
 
 
 @pytest.mark.asyncio
+async def test_browserbase_session_returns_typed_invariant_errors() -> None:
+    api = FakeBrowserbaseAPI()
+    client = BrowserbaseSessionClient(
+        "bb_test",
+        api=api,
+        archive_loader=lambda: b"",
+    )
+
+    with pytest.raises(BrowserbaseSessionError) as empty_archive:
+        await client.create_session(BrowserbaseBrowserSource(type="browserbase"))
+    assert empty_archive.value.code is BrowserbaseSessionErrorCode.EMPTY_EXTENSION_ARCHIVE
+
+    api.extension_id = " "
+    client = BrowserbaseSessionClient(
+        "bb_test",
+        api=api,
+        archive_loader=lambda: b"stagehand-extension",
+    )
+    with pytest.raises(BrowserbaseSessionError) as empty_extension_id:
+        await client.create_session(BrowserbaseBrowserSource(type="browserbase"))
+    assert empty_extension_id.value.code is BrowserbaseSessionErrorCode.EMPTY_EXTENSION_ID
+
+    api.extension_id = "ext_stagehand"
+    api.session_id = " "
+    with pytest.raises(BrowserbaseSessionError) as empty_session_id:
+        await client.create_session(BrowserbaseBrowserSource(type="browserbase"))
+    assert empty_session_id.value.code is BrowserbaseSessionErrorCode.EMPTY_SESSION_ID
+
+
+@pytest.mark.asyncio
 async def test_browserbase_session_deletes_the_extension_after_create_failure() -> None:
     api = FakeBrowserbaseAPI()
     create_error = RuntimeError("concurrency limit reached")
@@ -156,8 +193,9 @@ async def test_browserbase_session_deletes_the_extension_after_create_failure() 
 @pytest.mark.asyncio
 async def test_browserbase_session_cleanup_attempts_both_resources_and_retries_failures() -> None:
     api = FakeBrowserbaseAPI()
-    release_error = RuntimeError("release failed")
+    release_error = RuntimeError("release failed for sensitive_session_id")
     api.release_error = release_error
+    api.delete_error = RuntimeError("delete failed for sensitive_extension_id")
     client = BrowserbaseSessionClient(
         "bb_test",
         api=api,
@@ -165,15 +203,20 @@ async def test_browserbase_session_cleanup_attempts_both_resources_and_retries_f
     )
     session = await client.create_session(BrowserbaseBrowserSource(type="browserbase"))
 
-    with pytest.raises(RuntimeError, match="release failed") as caught:
+    with pytest.raises(BrowserbaseSessionCleanupError) as caught:
         await session.close()
 
-    assert caught.value is release_error
+    assert caught.value.code is BrowserbaseSessionErrorCode.CLEANUP_FAILED
+    assert caught.value.failed_operations == ("release_session", "delete_extension")
+    formatted = "".join(traceback.format_exception(caught.value))
+    assert "sensitive_session_id" not in formatted
+    assert "sensitive_extension_id" not in formatted
     assert len(api.release_requests) == 1
     assert len(api.delete_requests) == 1
 
     api.release_error = None
+    api.delete_error = None
     await session.close()
 
     assert len(api.release_requests) == 2
-    assert len(api.delete_requests) == 1
+    assert len(api.delete_requests) == 2

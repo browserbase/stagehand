@@ -73,6 +73,24 @@ describe("Stagehand client browser sources", () => {
     });
   });
 
+  it.each([0, 59, 21_601])("rejects an out-of-range Browserbase session timeout: %s", (timeout) => {
+    expect(() =>
+      StagehandClientInitParamsSchema.parse({
+        apiKey: "bb_key",
+        browser: { type: "browserbase", timeout },
+      }),
+    ).toThrow();
+  });
+
+  it.each([60, 21_600])("accepts a Browserbase session timeout at the boundary: %s", (timeout) => {
+    const params = StagehandClientInitParamsSchema.parse({
+      apiKey: "bb_key",
+      browser: { type: "browserbase", timeout },
+    });
+
+    expect(params.browser).toStrictEqual({ type: "browserbase", timeout });
+  });
+
   it("requires an API key for the default Browserbase source", () => {
     expect(() => StagehandClientInitParamsSchema.parse({})).toThrow();
   });

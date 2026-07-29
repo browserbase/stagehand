@@ -66,7 +66,7 @@ class BrowserbaseBrowserSettings(WireModel):
     context: BrowserbaseContext | None = None
     fingerprint: BrowserbaseFingerprint | None = None
     log_session: bool | None = None
-    os: Os | None = None
+    os: Annotated[Os | None, Field(strict=False)] = None
     record_session: bool | None = None
     solve_captchas: bool | None = None
     verified: bool | None = None

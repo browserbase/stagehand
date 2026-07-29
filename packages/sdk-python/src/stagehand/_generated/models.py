@@ -191,7 +191,7 @@ class BrowserbaseBrowserSource(WireModel):
     keep_alive: Optional[StrictBool] = None
     proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
     region: Optional[BrowserbaseRegion] = None
-    timeout: Optional[StrictFloat] = None
+    timeout: Annotated[Optional[StrictFloat], Field(ge=60.0, le=21600.0)] = None
     user_metadata: Optional[dict[StrictStr, Any]] = None
     type: Literal["browserbase"]
     session_id: Annotated[StrictStr, Field(min_length=1)]

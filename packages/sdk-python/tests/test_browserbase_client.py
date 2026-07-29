@@ -121,6 +121,12 @@ def test_browserbase_client_requires_a_positive_finite_http_timeout(timeout: flo
         BrowserbaseClient("bb_test", timeout=timeout)
 
 
+@pytest.mark.parametrize("base_url", ["https://", "http://"])
+def test_browserbase_client_rejects_base_urls_without_a_host(base_url: str) -> None:
+    with pytest.raises(ValueError, match="Invalid Browserbase API base URL"):
+        BrowserbaseClient("bb_test", base_url=base_url)
+
+
 @pytest.mark.asyncio
 async def test_browserbase_client_requires_pydantic_requests() -> None:
     client = BrowserbaseClient(

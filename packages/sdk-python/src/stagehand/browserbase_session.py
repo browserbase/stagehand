@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
 
@@ -19,6 +20,29 @@ from .browserbase_client import (
 from .client_models import BrowserbaseBrowserSource
 
 _STAGEHAND_EXTENSION_ARCHIVE_NAME = "stagehand-extension.zip"
+
+
+class BrowserbaseSessionErrorCode(StrEnum):
+    MISSING_EXTENSION_ARCHIVE = "missing_extension_archive"
+    EMPTY_EXTENSION_ARCHIVE = "empty_extension_archive"
+    EMPTY_EXTENSION_ID = "empty_extension_id"
+    EMPTY_SESSION_ID = "empty_session_id"
+    CLEANUP_FAILED = "cleanup_failed"
+
+
+class BrowserbaseSessionError(RuntimeError):
+    def __init__(self, code: BrowserbaseSessionErrorCode, message: str) -> None:
+        self.code = code
+        super().__init__(message)
+
+
+class BrowserbaseSessionCleanupError(BrowserbaseSessionError):
+    def __init__(self, failed_operations: tuple[str, ...]) -> None:
+        self.failed_operations = failed_operations
+        super().__init__(
+            BrowserbaseSessionErrorCode.CLEANUP_FAILED,
+            "Browserbase session cleanup failed; resources may remain.",
+        )
 
 
 class _BrowserbaseSessionAPI(Protocol):
@@ -80,7 +104,10 @@ class BrowserbaseSessionClient:
 
         archive = self._archive_loader()
         if not archive:
-            raise RuntimeError("The bundled Stagehand extension archive is empty")
+            raise BrowserbaseSessionError(
+                BrowserbaseSessionErrorCode.EMPTY_EXTENSION_ARCHIVE,
+                "The bundled Stagehand extension archive is empty.",
+            )
 
         async with self._open_api() as api:
             uploaded = await api.upload_extension(
@@ -88,7 +115,10 @@ class BrowserbaseSessionClient:
             )
             extension_id = uploaded.id.strip()
             if not extension_id:
-                raise RuntimeError("Browserbase extension upload returned an empty extension ID")
+                raise BrowserbaseSessionError(
+                    BrowserbaseSessionErrorCode.EMPTY_EXTENSION_ID,
+                    "Browserbase extension upload returned an empty extension ID.",
+                )
 
             try:
                 session = await api.create_session(
@@ -100,11 +130,12 @@ class BrowserbaseSessionClient:
 
             session_id = session.id.strip()
             cdp_url = str(session.connect_url).strip()
-            if not session_id or not cdp_url:
+            if not session_id:
                 await _cleanup_invalid_session(api, session_id, extension_id)
-                if not session_id:
-                    raise RuntimeError("Browserbase session creation returned an empty session ID")
-                raise RuntimeError("Browserbase session creation returned an empty connection URL")
+                raise BrowserbaseSessionError(
+                    BrowserbaseSessionErrorCode.EMPTY_SESSION_ID,
+                    "Browserbase session creation returned an empty session ID.",
+                )
 
         resources = _BrowserbaseSessionResources(
             api_key=self._api_key,
@@ -167,7 +198,7 @@ class _BrowserbaseSessionResources:
                 await api.aclose()
 
     async def _close_with_api(self, api: _BrowserbaseSessionAPI) -> None:
-        errors: list[BaseException] = []
+        errors: list[tuple[str, BaseException]] = []
         if not self._session_released:
             try:
                 await api.release_session(
@@ -175,7 +206,7 @@ class _BrowserbaseSessionResources:
                 )
                 self._session_released = True
             except BaseException as error:
-                errors.append(error)
+                errors.append(("release_session", error))
 
         if not self._extension_deleted:
             try:
@@ -184,13 +215,15 @@ class _BrowserbaseSessionResources:
                 )
                 self._extension_deleted = True
             except BaseException as error:
-                errors.append(error)
+                errors.append(("delete_extension", error))
 
         if errors:
-            primary, *remaining = errors
-            for error in remaining:
-                primary.add_note(f"Additional Browserbase cleanup failure: {error}")
-            raise primary
+            for _, error in errors:
+                if not isinstance(error, Exception):
+                    raise error
+            raise BrowserbaseSessionCleanupError(
+                tuple(operation for operation, _ in errors)
+            ) from None
 
 
 async def create_browserbase_session(
@@ -211,9 +244,12 @@ def load_stagehand_extension_archive() -> bytes:
     for archive in (packaged_archive, source_archive):
         if archive.is_file():
             return archive.read_bytes()
-    raise RuntimeError(
-        "The Stagehand extension archive is not installed. "
-        "Build the Python distribution with the Stagehand extension ZIP."
+    raise BrowserbaseSessionError(
+        BrowserbaseSessionErrorCode.MISSING_EXTENSION_ARCHIVE,
+        (
+            "The Stagehand extension archive is not installed. "
+            "Build the Python distribution with the Stagehand extension ZIP."
+        ),
     )
 
 

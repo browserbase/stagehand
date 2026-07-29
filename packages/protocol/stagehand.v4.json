@@ -1210,7 +1210,9 @@
           "$ref": "#/$defs/BrowserbaseRegion"
         },
         "timeout": {
-          "type": "number"
+          "type": "number",
+          "minimum": 60,
+          "maximum": 21600
         },
         "user_metadata": {
           "type": "object",

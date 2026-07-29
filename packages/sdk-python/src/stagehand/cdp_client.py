@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import time
 from collections.abc import Mapping
 from contextlib import suppress
@@ -22,6 +23,19 @@ _RUNTIME_READINESS_EXPRESSION = """(() => ({
   marker: globalThis.__stagehand_runtime ?? null,
   hasReceiver: typeof globalThis.__stagehandReceiveFromHost === "function",
 }))()"""
+
+
+def _remaining_timeout_ms(deadline: float) -> int:
+    remaining_ms = (deadline - time.monotonic()) * 1_000
+    if remaining_ms <= 0:
+        raise TimeoutError("Timed out discovering the Stagehand extension runtime")
+    return max(1, math.ceil(remaining_ms))
+
+
+async def _sleep_until_next_probe(deadline: float) -> None:
+    remaining_seconds = deadline - time.monotonic()
+    if remaining_seconds > 0:
+        await asyncio.sleep(min(0.1, remaining_seconds))
 
 
 def _negotiate_runtime(marker: object) -> tuple[bool, str]:
@@ -123,9 +137,10 @@ class CDPClient:
 
         try:
             if preloaded_extension:
+                discovery_deadline = time.monotonic() + discovery_timeout_ms / 1_000
                 worker, session_id = await client._wait_for_preloaded_stagehand_service_worker(
                     service_worker_url_includes or "service-worker.js",
-                    discovery_timeout_ms,
+                    discovery_deadline,
                 )
                 resolved_extension_id = _extension_id_from_url(worker.url)
             else:
@@ -133,14 +148,16 @@ class CDPClient:
                 if extension_dir is not None:
                     resolved_extension_id = await client._load_unpacked_extension(extension_dir)
 
+                discovery_deadline = time.monotonic() + discovery_timeout_ms / 1_000
                 worker = await client._wait_for_service_worker(
                     resolved_extension_id,
                     service_worker_url_includes or "service-worker.js",
-                    discovery_timeout_ms,
+                    discovery_deadline,
                 )
                 attached = await client.send_command(
                     "Target.attachToTarget",
                     {"targetId": worker.target_id, "flatten": True},
+                    timeout_ms=_remaining_timeout_ms(discovery_deadline),
                 )
                 session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
             client._session_id = session_id
@@ -152,13 +169,19 @@ class CDPClient:
             )
 
             with suppress(Exception):
-                await client.send_command("Runtime.enable", {}, session_id=session_id)
+                await client.send_command(
+                    "Runtime.enable",
+                    {},
+                    session_id=session_id,
+                    timeout_ms=_remaining_timeout_ms(discovery_deadline),
+                )
             await client.send_command(
                 "Runtime.addBinding",
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
+                timeout_ms=_remaining_timeout_ms(discovery_deadline),
             )
-            await client._wait_for_runtime_ready(session_id, discovery_timeout_ms)
+            await client._wait_for_runtime_ready(session_id, discovery_deadline)
             return client
         except BaseException:
             await client.close()
@@ -357,14 +380,17 @@ class CDPClient:
         self,
         extension_id: str | None,
         url_includes: str,
-        timeout_ms: int,
+        deadline: float,
     ) -> ServiceWorkerInfo:
         started = time.monotonic()
         activation_target_id: str | None = None
         last_targets: list[object] = []
 
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
-            response = await self.send_command("Target.getTargets")
+        while time.monotonic() < deadline:
+            response = await self.send_command(
+                "Target.getTargets",
+                timeout_ms=_remaining_timeout_ms(deadline),
+            )
             targets = response.get("targetInfos")
             last_targets = cast(list[object], targets) if isinstance(targets, list) else []
             for target in last_targets:
@@ -387,6 +413,7 @@ class CDPClient:
                             await self.send_command(
                                 "Target.closeTarget",
                                 {"targetId": activation_target_id},
+                                timeout_ms=_remaining_timeout_ms(deadline),
                             )
                     return ServiceWorkerInfo(
                         target_id=_required_string(target_info, "targetId", "Target.getTargets"),
@@ -404,14 +431,19 @@ class CDPClient:
                     activation = await self.send_command(
                         "Target.createTarget",
                         {"url": f"chrome-extension://{extension_id}/wake-service-worker.html"},
+                        timeout_ms=_remaining_timeout_ms(deadline),
                     )
                     target_id = activation.get("targetId")
                     activation_target_id = target_id if isinstance(target_id, str) else None
-            await asyncio.sleep(0.1)
+            await _sleep_until_next_probe(deadline)
 
         if activation_target_id is not None:
             with suppress(Exception):
-                await self.send_command("Target.closeTarget", {"targetId": activation_target_id})
+                await self.send_command(
+                    "Target.closeTarget",
+                    {"targetId": activation_target_id},
+                    timeout_ms=_remaining_timeout_ms(deadline),
+                )
         observed = ", ".join(
             f"{target.get('type')}:{target.get('url')}"
             for target in last_targets
@@ -425,14 +457,16 @@ class CDPClient:
     async def _wait_for_preloaded_stagehand_service_worker(
         self,
         url_includes: str,
-        timeout_ms: int,
+        deadline: float,
     ) -> tuple[ServiceWorkerInfo, str]:
-        started = time.monotonic()
         last_targets: list[object] = []
         runtime_probes: dict[str, str] = {}
 
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
-            response = await self.send_command("Target.getTargets")
+        while time.monotonic() < deadline:
+            response = await self.send_command(
+                "Target.getTargets",
+                timeout_ms=_remaining_timeout_ms(deadline),
+            )
             targets = response.get("targetInfos")
             last_targets = cast(list[object], targets) if isinstance(targets, list) else []
             for target in last_targets:
@@ -461,13 +495,17 @@ class CDPClient:
                             ),
                             "flatten": True,
                         },
+                        timeout_ms=_remaining_timeout_ms(deadline),
                     )
                     session_id = _required_string(
                         attached,
                         "sessionId",
                         "Target.attachToTarget",
                     )
-                    compatible, detail = await self._runtime_readiness(session_id)
+                    compatible, detail = await self._runtime_readiness(
+                        session_id,
+                        _remaining_timeout_ms(deadline),
+                    )
                     runtime_probes[
                         _required_string(target_info, "targetId", "Target.getTargets")
                     ] = detail
@@ -498,8 +536,9 @@ class CDPClient:
                             await self.send_command(
                                 "Target.detachFromTarget",
                                 {"sessionId": session_id},
+                                timeout_ms=_remaining_timeout_ms(deadline),
                             )
-            await asyncio.sleep(0.1)
+            await _sleep_until_next_probe(deadline)
 
         observed = ", ".join(
             f"{target.get('type')}:{target.get('url')}"
@@ -513,7 +552,11 @@ class CDPClient:
             f"Observed targets: {observed}{suffix}"
         )
 
-    async def _runtime_readiness(self, session_id: str) -> tuple[bool, str]:
+    async def _runtime_readiness(
+        self,
+        session_id: str,
+        timeout_ms: int,
+    ) -> tuple[bool, str]:
         evaluated = await self.send_command(
             "Runtime.evaluate",
             {
@@ -521,6 +564,7 @@ class CDPClient:
                 "returnByValue": True,
             },
             session_id=session_id,
+            timeout_ms=timeout_ms,
         )
         exception = evaluated.get("exceptionDetails")
         if isinstance(exception, Mapping):
@@ -539,18 +583,20 @@ class CDPClient:
             f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}",
         )
 
-    async def _wait_for_runtime_ready(self, session_id: str, timeout_ms: int) -> None:
-        started = time.monotonic()
+    async def _wait_for_runtime_ready(self, session_id: str, deadline: float) -> None:
         last_error = ""
 
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
+        while time.monotonic() < deadline:
             try:
-                ready, last_error = await self._runtime_readiness(session_id)
+                ready, last_error = await self._runtime_readiness(
+                    session_id,
+                    _remaining_timeout_ms(deadline),
+                )
                 if ready:
                     return
             except Exception as error:
                 last_error = str(error)
-            await asyncio.sleep(0.1)
+            await _sleep_until_next_probe(deadline)
 
         detail = f" ({last_error})" if last_error else ""
         raise TimeoutError(

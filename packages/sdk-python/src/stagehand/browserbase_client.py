@@ -242,7 +242,7 @@ class BrowserbaseClient:
         parsed_base_url = httpx.URL(configured_base_url)
         if (
             parsed_base_url.scheme not in ("http", "https")
-            or parsed_base_url.host is None
+            or not parsed_base_url.host
             or parsed_base_url.query
             or parsed_base_url.fragment
         ):

@@ -957,7 +957,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
     keepAlive: z.boolean().optional(),
     proxies: z.union([z.boolean(), z.array(ProxyConfigSchema)]).optional(),
     region: BrowserbaseRegionSchema.optional(),
-    timeout: z.number().optional(),
+    timeout: z.number().min(60).max(21_600).optional(),
     userMetadata: z.record(z.string(), z.unknown()).optional(),
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });

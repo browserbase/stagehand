@@ -53,13 +53,20 @@ class ResolvedBrowserSource:
     preloaded_extension: bool = False
     _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
     _closed: bool = field(default=False, init=False, repr=False)
+    _close_lock: asyncio.Lock = field(
+        default_factory=asyncio.Lock,
+        init=False,
+        repr=False,
+        compare=False,
+    )
 
     async def close(self) -> None:
-        if self._closed:
-            return
-        if self._close_callback is not None:
-            await self._close_callback()
-        self._closed = True
+        async with self._close_lock:
+            if self._closed:
+                return
+            if self._close_callback is not None:
+                await self._close_callback()
+            self._closed = True
 
 
 async def resolve_browser_source(

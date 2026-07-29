@@ -45,6 +45,11 @@ from ._generated.models import (
 )
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
+from .browserbase_session import (
+    BrowserbaseSessionCleanupError,
+    BrowserbaseSessionError,
+    BrowserbaseSessionErrorCode,
+)
 from .client_models import (
     BrowserbaseBrowserSettings,
     CacheOptions,
@@ -69,6 +74,9 @@ __all__ = [
     "BrowserbaseBrowserSettings",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
+    "BrowserbaseSessionCleanupError",
+    "BrowserbaseSessionError",
+    "BrowserbaseSessionErrorCode",
     "CacheStatus",
     "CacheOptions",
     "Caret",

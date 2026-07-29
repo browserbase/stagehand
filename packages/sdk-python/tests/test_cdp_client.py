@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import Callable
 from typing import cast
 
@@ -240,6 +241,70 @@ async def test_connect_discovers_the_preloaded_stagehand_extension(
         ]
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_preloaded_discovery_bounds_candidate_cleanup_to_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object] | None:
+        if message["method"] == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "incompatible-worker",
+                            "type": "service_worker",
+                            "title": "Incompatible",
+                            "url": "chrome-extension://other-extension/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        if message["method"] == "Target.attachToTarget":
+            return {"result": {"sessionId": "incompatible-worker-session"}}
+        if message["method"] == "Runtime.evaluate":
+            return {
+                "result": {
+                    "result": {
+                        "value": {
+                            "marker": {
+                                "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
+                                "serverInfo": {"name": "other", "version": "1"},
+                            },
+                            "hasReceiver": True,
+                        }
+                    }
+                }
+            }
+        if message["method"] == "Target.detachFromTarget":
+            return None
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, __: int) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, __: int) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError, match="Timed out discovering"):
+        await CDPClient.connect(
+            cdp_url="wss://connect.browserbase.test/session",
+            preloaded_extension=True,
+            discovery_timeout_ms=50,
+            command_timeout_ms=1_000,
+        )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 0.5
+    assert "Target.detachFromTarget" in [message["method"] for message in socket.sent]
+    assert socket.closed is True
 
 
 @pytest.mark.asyncio

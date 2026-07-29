@@ -454,8 +454,13 @@ class Stagehand:
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
-            except BaseException:
-                await asyncio.shield(self._release_resources(preserve_keep_alive=False))
+            except BaseException as initialization_error:
+                try:
+                    await asyncio.shield(self._release_resources(preserve_keep_alive=False))
+                except BaseException:
+                    initialization_error.add_note(
+                        "Stagehand cleanup also failed; resources may remain."
+                    )
                 raise
 
             self._initialized = True

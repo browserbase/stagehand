@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from stagehand.client_models import (
+    BrowserbaseBrowserSource,
     CdpBrowserSource,
     LocalBrowserSource,
     StagehandClientInitParams,
@@ -47,6 +48,36 @@ def test_client_configuration_rejects_browserbase_extension_ids(
         StagehandClientInitParams.model_validate({
             "api_key": "bb_test",
             "browser": browser,
+        })
+
+
+def test_browserbase_os_accepts_api_literals_without_relaxing_boolean_fields() -> None:
+    params = StagehandClientInitParams.model_validate({
+        "api_key": "bb_test",
+        "browser": {
+            "type": "browserbase",
+            "browser_settings": {
+                "os": "mac",
+                "advanced_stealth": True,
+            },
+        },
+    })
+
+    assert isinstance(params.browser, BrowserbaseBrowserSource)
+    assert params.browser.browser_settings is not None
+    assert params.browser.browser_settings.os is not None
+    assert params.browser.browser_settings.os.value == "mac"
+
+    with pytest.raises(ValidationError, match="bool_type"):
+        StagehandClientInitParams.model_validate({
+            "api_key": "bb_test",
+            "browser": {
+                "type": "browserbase",
+                "browser_settings": {
+                    "os": "mac",
+                    "advanced_stealth": 1,
+                },
+            },
         })
 
 

@@ -203,6 +203,45 @@ async def test_failed_browserbase_initialization_ignores_keep_alive_and_cleans_u
 
 
 @pytest.mark.asyncio
+async def test_failed_initialization_is_preserved_when_cleanup_also_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initialization_error = RuntimeError("runtime failed to initialize")
+
+    async def close_browser() -> None:
+        raise RuntimeError("sensitive cleanup response")
+
+    browser = ResolvedBrowserSource(
+        cdp_url="wss://connect.browserbase.test/session_123",
+        keep_alive=True,
+        browserbase_session_id="session_123",
+        preloaded_extension=True,
+        _close_callback=close_browser,
+    )
+    recording = RecordingRPCClient({
+        "stagehand.init": initialization_error,
+    })
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return browser
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(api_key="bb_test", keep_alive=True)
+
+    with pytest.raises(RuntimeError, match="runtime failed to initialize") as caught:
+        await stagehand.init()
+
+    assert caught.value is initialization_error
+    assert caught.value.__notes__ == ["Stagehand cleanup also failed; resources may remain."]
+    assert "sensitive cleanup response" not in str(caught.value)
+    assert recording.closed is True
+
+
+@pytest.mark.asyncio
 async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_default(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

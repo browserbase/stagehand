@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from stagehand.browser_source import ResolvedBrowserSource, resolve_browser_source
@@ -95,6 +97,34 @@ async def test_resolved_browser_sources_close_once() -> None:
 
     await source.close()
     await source.close()
+
+    assert closes == 1
+
+
+@pytest.mark.asyncio
+async def test_resolved_browser_sources_serialize_concurrent_close_calls() -> None:
+    closes = 0
+    cleanup_started = asyncio.Event()
+    finish_cleanup = asyncio.Event()
+
+    async def close() -> None:
+        nonlocal closes
+        closes += 1
+        cleanup_started.set()
+        await finish_cleanup.wait()
+
+    source = ResolvedBrowserSource(
+        cdp_url="test://browser",
+        keep_alive=False,
+        _close_callback=close,
+    )
+
+    first_close = asyncio.create_task(source.close())
+    await cleanup_started.wait()
+    second_close = asyncio.create_task(source.close())
+    await asyncio.sleep(0)
+    finish_cleanup.set()
+    await asyncio.gather(first_close, second_close)
 
     assert closes == 1
 
