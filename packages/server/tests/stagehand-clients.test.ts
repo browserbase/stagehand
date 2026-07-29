@@ -52,7 +52,7 @@ import type {
 } from "../../protocol/types.ts";
 
 vi.mock("../understudy/context.js", () => ({
-  V3Context: {
+  BrowserContext: {
     create: vi.fn(),
   },
 }));
