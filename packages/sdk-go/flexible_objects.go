@@ -1,11 +1,9 @@
 package stagehand
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 )
 
 // LLMMessageGenerateResult is a strict text-format result.
@@ -34,7 +32,7 @@ func (value *LLMMessageGenerateResult) UnmarshalJSON(data []byte) error {
 	}
 	type plain LLMMessageGenerateResult
 	var decoded plain
-	if err := decodeStrictLLMResultJSON(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode message LLM result: %w", err)
 	}
 	if decoded.OutputFormat != outputFormatText {
@@ -71,7 +69,7 @@ func (value *LLMStructuredGenerateResult) UnmarshalJSON(data []byte) error {
 	}
 	type plain LLMStructuredGenerateResult
 	var decoded plain
-	if err := decodeStrictLLMResultJSON(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode structured LLM result: %w", err)
 	}
 	if decoded.OutputFormat != outputFormatJSONSchema {
@@ -81,20 +79,5 @@ func (value *LLMStructuredGenerateResult) UnmarshalJSON(data []byte) error {
 		)
 	}
 	*value = LLMStructuredGenerateResult(decoded)
-	return nil
-}
-
-func decodeStrictLLMResultJSON(data []byte, target any) error {
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("multiple JSON values")
-		}
-		return err
-	}
 	return nil
 }
