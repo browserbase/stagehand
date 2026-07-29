@@ -1,5 +1,5 @@
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
-import { replayObservedAction, type ObservedAction } from "../../../framework/observeReplay.js";
+import type { Action } from "@browserbasehq/stagehand";
 
 const filler = Array.from(
   // Keep backend node IDs large enough to exercise Anthropic's bare-id failure mode.
@@ -58,7 +58,7 @@ export default defineBenchV4Task(
       const results: Array<{
         instruction: string;
         clicked: string | undefined;
-        observations: ObservedAction[];
+        observations: Action[];
       }> = [];
       for (const testCase of cases) {
         await page.evaluate(() => {
@@ -78,8 +78,7 @@ export default defineBenchV4Task(
           };
         }
 
-        // v3's act(observeResult) replay — consumer-side in v4 (V4_API_LOGS.md #1)
-        await replayObservedAction(page, observations[0]);
+        await stagehand.act(observations[0]);
         const clicked = await page.evaluate<string | undefined>(
           () => document.body.dataset.clicked,
         );

@@ -6,7 +6,7 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
 
-      // Self-healing act(Action) replay (V4_API_LOGS.md #1, restored by
+      // Self-healing act(Action) replay (restored by
       // stagehand#2427): same supplied action as the v3 twin — a
       // "scrollTo" with arguments ["50%"], exercising the deterministic
       // executor with variable substitution and healing.

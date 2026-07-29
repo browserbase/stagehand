@@ -24,7 +24,7 @@ export default defineBenchV4Task(
       ];
 
       // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // so the same element-identity check is
       // re-expressed in-page. Both candidate selectors live in the main
       // frame, so main-frame resolution preserves the v3 pass criterion:
       // an observed selector that points inside the iframe never had a

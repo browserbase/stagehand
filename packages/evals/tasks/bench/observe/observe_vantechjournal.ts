@@ -25,7 +25,7 @@ export default defineBenchV4Task(
 
       // v3 compares backendNodeIds (first observation vs. each expected
       // locator); the v4 Locator exposes no node identity
-      // (V4_API_LOGS.md #3), so the same element-identity check is
+      // so the same element-identity check is
       // re-expressed in-page: resolve the observed selector and each
       // expected selector and compare element references. Expected locators
       // that fail to resolve are skipped, as in v3.

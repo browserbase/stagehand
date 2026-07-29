@@ -15,7 +15,7 @@ export default defineBenchV4Task(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
 
-      // Self-healing act(Action) replay (V4_API_LOGS.md #1, restored by
+      // Self-healing act(Action) replay (restored by
       // stagehand#2427): same intentionally invalid selector as the v3
       // twin — healing must re-locate "The 'Select a country' dropdown"
       // and click it to expand.
