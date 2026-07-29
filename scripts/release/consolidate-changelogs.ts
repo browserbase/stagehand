@@ -94,7 +94,7 @@ async function checkPackageChangelogsAreTemporary(): Promise<void> {
 
   if (existingPaths.length > 0) {
     throw new Error(
-      `SDK changelogs must be consolidated into CHANGELOG.md: ${existingPaths.join(", ")}`,
+      `Package changelogs must be consolidated into CHANGELOG.md: ${existingPaths.join(", ")}`,
     );
   }
 }

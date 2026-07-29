@@ -4,7 +4,10 @@ go 1.26.0
 
 toolchain go1.26.5
 
-require github.com/atombender/go-jsonschema v0.23.1
+require (
+	github.com/atombender/go-jsonschema v0.23.1
+	golang.org/x/mod v0.38.0
+)
 
 require (
 	dario.cat/mergo v1.0.2 // indirect

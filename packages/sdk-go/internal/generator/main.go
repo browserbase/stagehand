@@ -19,6 +19,7 @@ import (
 
 	"github.com/atombender/go-jsonschema/pkg/generator"
 	"github.com/atombender/go-jsonschema/pkg/schemas"
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -246,21 +247,15 @@ func sdkPackageVersion(packageData []byte) (string, error) {
 	if err := json.Unmarshal(packageData, &sdkPackage); err != nil {
 		return "", fmt.Errorf("decode SDK package: %w", err)
 	}
-	parts := strings.Split(sdkPackage.Version, ".")
-	if len(parts) != 3 {
+	coreVersion := sdkPackage.Version
+	if suffixIndex := strings.IndexAny(coreVersion, "-+"); suffixIndex >= 0 {
+		coreVersion = coreVersion[:suffixIndex]
+	}
+	if strings.Count(coreVersion, ".") != 2 || !semver.IsValid("v"+sdkPackage.Version) {
 		return "", fmt.Errorf(
 			"invalid Stagehand Go SDK package version: %s",
 			sdkPackage.Version,
 		)
-	}
-	for _, part := range parts {
-		value, err := strconv.Atoi(part)
-		if err != nil || value < 0 || strconv.Itoa(value) != part {
-			return "", fmt.Errorf(
-				"invalid Stagehand Go SDK package version: %s",
-				sdkPackage.Version,
-			)
-		}
 	}
 	return sdkPackage.Version, nil
 }
