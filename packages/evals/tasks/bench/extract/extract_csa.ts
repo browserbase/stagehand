@@ -12,6 +12,10 @@ export default defineBenchV4Task(
         z.object({
           publications: z.array(
             z.object({
+              // ...
+            }),
+            { page },
+          );   
               publication_date: z.string(),
               session_type: z.string(),
               publication_type: z.string(),
