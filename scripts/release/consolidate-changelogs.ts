@@ -13,6 +13,10 @@ const packageChangelogs = [
     label: "Python SDK",
     path: path.join(repositoryRoot, "packages/sdk-python/CHANGELOG.md"),
   },
+  {
+    label: "Extension Runtime",
+    path: path.join(repositoryRoot, "packages/server/CHANGELOG.md"),
+  },
 ];
 
 function isFileNotFound(error: unknown): boolean {

@@ -53,8 +53,14 @@ Release notes for the public SDKs.
 
 - Fix a bug.`;
 
+  const runtimeSection = `## Extension Runtime 4.0.1
+
+### Patch Changes
+
+- Update the embedded runtime.`;
+
   it("inserts SDK releases ahead of the existing history", () => {
-    expect(consolidateChangelog(rootChangelog, [typescriptSection, pythonSection]))
+    expect(consolidateChangelog(rootChangelog, [typescriptSection, pythonSection, runtimeSection]))
       .toBe(`# Stagehand
 
 Release notes for the public SDKs.
@@ -70,6 +76,12 @@ Release notes for the public SDKs.
 ### Patch Changes
 
 - Fix a bug.
+
+## Extension Runtime 4.0.1
+
+### Patch Changes
+
+- Update the embedded runtime.
 
 ## 3.0.0
 
