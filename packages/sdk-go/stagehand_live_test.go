@@ -122,7 +122,7 @@ func TestStagehandBrowserbaseIntegration(t *testing.T) {
 			KeepAlive: testPointer(false),
 			Timeout:   testPointer(300.0),
 			UserMetadata: map[string]json.RawMessage{
-				"suite": json.RawMessage(`"stagehand-v4-go-public-smoke"`),
+				"suite": json.RawMessage(`"stagehand-go-public-smoke"`),
 			},
 		},
 	})
