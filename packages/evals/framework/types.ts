@@ -8,6 +8,7 @@
  * A third tier ("interpret") is planned but not yet implemented.
  */
 import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
+import type { Page as V4Page, Stagehand as V4Stagehand } from "@browserbasehq/stagehand";
 import type {
   CorePageHandle,
   CoreSession,
@@ -17,7 +18,6 @@ import type {
   ToolSurface,
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
-import type { BenchV4TaskContext } from "./typesV4.js";
 
 /** Page type inferred from V3.context.pages()[0] */
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -168,4 +168,34 @@ export interface TaskRegistry {
   byTier: Map<Tier, DiscoveredTask[]>;
   /** Lookup by category. */
   byCategory: Map<string, DiscoveredTask[]>;
+}
+
+/**
+ * Context type for bench tasks ported to the V4Stagehand v4 SDK.
+ *
+ * Deliberately mirrors BenchTaskContext (types.ts) so per-task diffs between
+ * the v3 and v4 suites stay 1:1, with the v3 surface swapped for the v4 one:
+ * `v3` → `stagehand`, Playwright `page` → v4 `V4Page`. Keeping `page` typed as
+ * the v4 V4Page makes any Playwright API usage in a ported task a type error.
+ */
+
+export interface BenchV4TaskContext {
+  /** V4Stagehand v4 client instance. */
+  stagehand: V4Stagehand;
+  /** v4 page object (RPC-backed — url()/title() are async). */
+  page: V4Page;
+  /** Eval logger. Note: the v4 SDK itself logs to the console, not here. */
+  logger: EvalLogger;
+  /** Full eval input (name, modelName, params). */
+  input: {
+    name: string;
+    modelName: AvailableModel;
+    params?: Record<string, unknown>;
+  };
+  /** Model used for this run. */
+  modelName: AvailableModel;
+  /** Debug URL (unavailable from the v4 SDK — always empty for now). */
+  debugUrl: string;
+  /** Session URL (Browserbase; constructed from the session ID). */
+  sessionUrl: string;
 }
