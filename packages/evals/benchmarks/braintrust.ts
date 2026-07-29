@@ -79,6 +79,7 @@ export function benchmarkRunnerOptions(combination: BenchmarkCombination): {
   harness: BenchmarkHarness;
   trials: number;
   sdk?: "v3" | "v4";
+  coreToolSurface: BenchmarkToolSurface;
   benchmark: BenchmarkRunDescriptor;
 } {
   const sdk = sdkForToolSurface(combination.toolSurface);
@@ -86,6 +87,7 @@ export function benchmarkRunnerOptions(combination: BenchmarkCombination): {
     modelOverride: combination.model,
     harness: combination.harness,
     trials: combination.trials,
+    coreToolSurface: combination.toolSurface,
     ...(sdk ? { sdk } : {}),
     benchmark: {
       name: combination.benchmark,
@@ -93,4 +95,5 @@ export function benchmarkRunnerOptions(combination: BenchmarkCombination): {
       toolSurface: combination.toolSurface,
     },
   };
+}
 }
