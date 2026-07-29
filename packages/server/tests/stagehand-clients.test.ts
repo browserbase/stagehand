@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
@@ -50,6 +51,11 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
 } from "../../protocol/types.ts";
+
+const runtimeIdentity = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+};
 
 vi.mock("../understudy/context.js", () => ({
   BrowserContext: {
@@ -551,6 +557,7 @@ async function createConfiguredHandler(
     id: 1,
     method: "runtime.configure",
     params: {
+      ...runtimeIdentity,
       cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     },
   });
@@ -564,6 +571,7 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
   });
 
   await runtime.configureLoopback({
+    ...runtimeIdentity,
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
     logLevel: "info",
     telemetry: {
@@ -748,6 +756,7 @@ describe("Stagehand worker clients", () => {
         id: 1,
         method: "runtime.configure",
         params: {
+          ...runtimeIdentity,
           cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         },
       }),
@@ -793,6 +802,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/first",
       },
     });
@@ -801,6 +811,7 @@ describe("Stagehand worker clients", () => {
       id: 2,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/second",
       },
     });
@@ -821,6 +832,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -876,6 +888,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -937,6 +950,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });
@@ -975,6 +989,7 @@ describe("Stagehand worker clients", () => {
       id: 1,
       method: "runtime.configure",
       params: {
+        ...runtimeIdentity,
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
       },
     });

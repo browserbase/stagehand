@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from ._generated import models
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
@@ -510,6 +511,7 @@ async def connect_rpc_client(
     )
     client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
     configure = models.RuntimeConfigureParams(
+        protocol_version=STAGEHAND_PROTOCOL_VERSION,
         client_info=_STAGEHAND_SDK_CLIENT_INFO,
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),

@@ -1040,7 +1040,7 @@
           "enum": ["off", "error", "warn", "info", "debug"]
         }
       },
-      "required": ["cdp_url"],
+      "required": ["protocol_version", "client_info", "cdp_url"],
       "additionalProperties": false
     },
     "ImplementationInfo": {
