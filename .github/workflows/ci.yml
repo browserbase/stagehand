@@ -18,12 +18,10 @@ jobs:
     name: Determine changes
     runs-on: ubuntu-latest
     outputs:
-      protocol: ${{ steps.filter.outputs.protocol }}
       server: ${{ steps.filter.outputs.server }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
-      docs-only: ${{ steps.filter.outputs.docs-only }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -31,11 +29,6 @@ jobs:
         id: filter
         with:
           filters: |
-            protocol:
-              - 'packages/protocol/**'
-              - 'pnpm-lock.yaml'
-              - 'turbo.json'
-              - '.github/**'
             server:
               - 'packages/server/**'
               - 'packages/protocol/**'
@@ -60,11 +53,6 @@ jobs:
               - 'packages/server/**'
               - 'packages/protocol/**'
               - '.github/**'
-            docs-only:
-              - '**/*.md'
-              - 'packages/docs/**'
-              - '!packages/**/*.md'
-
   check:
     name: Check
     runs-on: ubuntu-latest
@@ -332,7 +320,6 @@ jobs:
           go-version: "1.26.x"
           cache: false
 
-      - run: pnpm install --frozen-lockfile
       - run: pnpm --filter ./packages/server build
 
       # packages/sdk-go/internal/extensionassets/stagehand-extension.zip is committed and
@@ -430,12 +417,12 @@ jobs:
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
         with:
-          name: ctrf/integration/${{ matrix.test.name }}.json
+          name: ctrf/integration/${{ matrix.test.safe_name }}.json
 
       - uses: ./.github/actions/upload-v8-coverage
         if: always()
         with:
-          name: coverage/integration/${{ matrix.test.name }}
+          name: coverage/integration/${{ matrix.test.safe_name }}
 
   go-windows:
     name: Go (Windows process management)

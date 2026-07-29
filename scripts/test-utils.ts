@@ -53,7 +53,7 @@ export const parseListFlag = (args: string[]) => {
   return { list: value !== null, value: value ?? "", args: remaining };
 };
 
-export const toSafeName = (name: string) => name.replace(/[\\/]/g, "-");
+export const toSafeName = (name: string) => name.replace(/[^A-Za-z0-9._-]+/g, "-");
 
 export const collectFiles = (dir: string, suffix: string) => {
   const results: string[] = [];

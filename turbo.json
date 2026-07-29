@@ -69,7 +69,14 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/packages/sdk-python/src/**",
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!$TURBO_ROOT$/packages/*/dist/**",
+        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
     "@browserbasehq/stagehand-server#test:unit": {
@@ -79,7 +86,12 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!$TURBO_ROOT$/packages/*/dist/**",
+        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
     "@browserbasehq/stagehand#test:unit": {
@@ -89,7 +101,12 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/packages/protocol/**",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!$TURBO_ROOT$/packages/*/dist/**",
+        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
     "//#test:unit": {
@@ -155,7 +172,13 @@
         "tests/**",
         "json-rpc/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts"
+        "$TURBO_ROOT$/packages/sdk-ts/src/**",
+        "$TURBO_ROOT$/packages/server/**",
+        "$TURBO_ROOT$/vitest.config.ts",
+        "!$TURBO_ROOT$/packages/*/dist/**",
+        "!$TURBO_ROOT$/packages/*/.turbo/**",
+        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     }
   }
