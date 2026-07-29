@@ -1,0 +1,52 @@
+---
+title: User Data Directory
+sidebarTitle: User Data
+description: Persist browser data between sessions
+---
+import { V3Banner } from '/snippets/v3-banner.mdx';
+
+<V3Banner />
+
+### User Data Directory
+
+Persist browser data between sessions.
+
+#### Local Sessions
+
+For local sessions, use the `userDataDir` option:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: {
+    userDataDir: "./browser-data",
+  },
+});
+
+await stagehand.init();
+```
+
+#### Browserbase Sessions
+
+For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  browserbaseSessionCreateParams: {
+    browserSettings: {
+      context: {
+        id: "my-context-id",
+        persist: true,
+      },
+    },
+  },
+});
+
+await stagehand.init();
+console.log("Session ID:", stagehand.sessionId);
+```

@@ -2,8 +2,10 @@ import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSch
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
-import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import {
+  BrowserbaseSessionCreateParamsSchema,
+  LocalBrowserLaunchOptionsSchema,
+} from "../../protocol/schemas.js";
 import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,
@@ -14,6 +16,13 @@ export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
 
 type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
 type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
+
+export const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
+
+const STAGEHAND_DEFAULT_CHROME_FLAGS = [
+  "--enable-unsafe-extension-debugging",
+  "--remote-allow-origins=*",
+] as const;
 
 export type ResolvedBrowserSource = {
   cdpUrl: string;
@@ -84,16 +93,6 @@ async function launchLocalBrowser(
     throw new Error("Authenticated local browser proxies are not supported yet");
   }
   const { getChromePath, launch, Launcher } = await import("chrome-launcher");
-  const ignoredDefaultArgs = new Set(
-    Array.isArray(options.ignoreDefaultArgs) ? options.ignoreDefaultArgs : [],
-  );
-  const defaultFlags =
-    options.ignoreDefaultArgs === true
-      ? []
-      : Launcher.defaultFlags().filter(
-          (flag) => flag !== "--disable-extensions" && !ignoredDefaultArgs.has(flag),
-        );
-  const viewport = options.viewport ?? { width: 1280, height: 800 };
   const userDataDir =
     options.userDataDir ??
     (options.preserveUserDataDir === true
@@ -103,24 +102,7 @@ async function launchLocalBrowser(
     chromePath: options.executablePath ?? getChromePath(),
     startingUrl: "about:blank",
     ignoreDefaultFlags: true,
-    chromeFlags: [
-      ...defaultFlags,
-      "--enable-unsafe-extension-debugging",
-      "--remote-allow-origins=*",
-      `--window-size=${viewport.width},${viewport.height}`,
-      ...(options.args ?? []),
-      ...(options.headless === true ? ["--headless"] : []),
-      ...(options.devtools ? ["--auto-open-devtools-for-tabs"] : []),
-      ...(process.env.CI || options.chromiumSandbox === false ? ["--no-sandbox"] : []),
-      ...(options.proxy ? [`--proxy-server=${options.proxy.server}`] : []),
-      ...(options.proxy?.bypass ? [`--proxy-bypass-list=${options.proxy.bypass}`] : []),
-      ...(options.locale ? [`--lang=${options.locale}`] : []),
-      ...(options.deviceScaleFactor === undefined
-        ? []
-        : [`--force-device-scale-factor=${options.deviceScaleFactor}`]),
-      ...(options.hasTouch === true ? ["--touch-events=enabled"] : []),
-      ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
-    ],
+    chromeFlags: localBrowserChromeFlags(options, Launcher.defaultFlags(), Boolean(process.env.CI)),
     userDataDir,
     ...(options.port === undefined ? {} : { port: options.port }),
     logLevel: "silent",
@@ -130,4 +112,42 @@ async function launchLocalBrowser(
     cdpUrl: `http://127.0.0.1:${chrome.port}`,
     close: () => chrome.kill(),
   };
+}
+
+export function localBrowserChromeFlags(
+  options: LocalBrowserLaunchOptions,
+  launcherDefaultFlags: string[],
+  isCI: boolean,
+): string[] {
+  const ignoredDefaultArgs = options.ignoreDefaultArgs;
+  const ignoredFlags = new Set(Array.isArray(ignoredDefaultArgs) ? ignoredDefaultArgs : []);
+  const includeDefaults = ignoredDefaultArgs !== true;
+  const viewport = options.viewport ?? { width: 1280, height: 800 };
+
+  return [
+    ...(includeDefaults
+      ? launcherDefaultFlags.filter(
+          (flag) => flag !== "--disable-extensions" && !ignoredFlags.has(flag),
+        )
+      : []),
+    ...(includeDefaults
+      ? STAGEHAND_DEFAULT_CHROME_FLAGS.filter((flag) => !ignoredFlags.has(flag))
+      : []),
+    ...(includeDefaults || options.viewport !== undefined
+      ? [`--window-size=${viewport.width},${viewport.height}`]
+      : []),
+    ...(includeDefaults && !ignoredFlags.has(WEBMCP_CHROME_FLAG) ? [WEBMCP_CHROME_FLAG] : []),
+    ...(options.headless === true ? ["--headless"] : []),
+    ...(options.devtools ? ["--auto-open-devtools-for-tabs"] : []),
+    ...(isCI || options.chromiumSandbox === false ? ["--no-sandbox"] : []),
+    ...(options.proxy ? [`--proxy-server=${options.proxy.server}`] : []),
+    ...(options.proxy?.bypass ? [`--proxy-bypass-list=${options.proxy.bypass}`] : []),
+    ...(options.locale ? [`--lang=${options.locale}`] : []),
+    ...(options.deviceScaleFactor === undefined
+      ? []
+      : [`--force-device-scale-factor=${options.deviceScaleFactor}`]),
+    ...(options.hasTouch === true ? ["--touch-events=enabled"] : []),
+    ...(options.ignoreHTTPSErrors === true ? ["--ignore-certificate-errors"] : []),
+    ...(options.args ?? []),
+  ];
 }

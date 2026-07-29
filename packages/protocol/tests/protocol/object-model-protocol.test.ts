@@ -6,12 +6,22 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
+import { PageLocatorSchema } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),
     );
+  });
+
+  it("rejects unknown page locator fields", () => {
+    expect(() =>
+      PageLocatorSchema.parse({
+        pageIdx: 0,
+        page: { targetId: "target-1" },
+      }),
+    ).toThrow();
   });
 
   it("defines stagehand init as a JSON-RPC method", () => {
@@ -270,6 +280,16 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects unknown action option fields", () => {
+    expect(() =>
+      StagehandMethods.stagehandAct.params.parse({
+        pageId: "target-1",
+        input: "Click the submit button",
+        options: { tiemout: 1_000 },
+      }),
+    ).toThrow();
+  });
   it("requires page ids for page methods", () => {
     expect(() =>
       StagehandMethods.pageGoto.params.parse({
@@ -346,6 +366,10 @@ describe("Stagehand object-model protocol", () => {
       "page.wait_for_load_state",
       "page.wait_for_timeout",
       "page.wait_for_selector",
+      "page.webmcp_tools",
+      "page.webmcp_invoke_tool",
+      "page.webmcp_invocation_result",
+      "page.webmcp_cancel_invocation",
     ]);
   });
 
@@ -379,25 +403,15 @@ describe("Stagehand object-model protocol", () => {
       hovered: true,
     });
 
-    expect(StagehandMethods.locatorCount.result.parse({ count: 2 })).toStrictEqual({
-      count: 2,
-    });
-    expect(() => StagehandMethods.locatorCount.result.parse({ count: -1 })).toThrow();
+    expect(StagehandMethods.locatorCount.result.parse(2)).toBe(2);
+    expect(() => StagehandMethods.locatorCount.result.parse(-1)).toThrow();
 
-    expect(StagehandMethods.locatorIsChecked.result.parse({ checked: true })).toStrictEqual({
-      checked: true,
-    });
-    expect(
-      StagehandMethods.locatorInputValue.result.parse({ value: "user@example.com" }),
-    ).toStrictEqual({ value: "user@example.com" });
-    expect(StagehandMethods.locatorInnerText.result.parse({ text: "Submit" })).toStrictEqual({
-      text: "Submit",
-    });
-    expect(StagehandMethods.locatorInnerHtml.result.parse({ html: "<b>Submit</b>" })).toStrictEqual(
-      {
-        html: "<b>Submit</b>",
-      },
+    expect(StagehandMethods.locatorIsChecked.result.parse(true)).toBe(true);
+    expect(StagehandMethods.locatorInputValue.result.parse("user@example.com")).toBe(
+      "user@example.com",
     );
+    expect(StagehandMethods.locatorInnerText.result.parse("Submit")).toBe("Submit");
+    expect(StagehandMethods.locatorInnerHtml.result.parse("<b>Submit</b>")).toBe("<b>Submit</b>");
 
     expect(
       StagehandMethods.locatorScrollTo.params.parse({
@@ -460,9 +474,7 @@ describe("Stagehand object-model protocol", () => {
       ...locatorDescriptor(),
       values: ["a", "b"],
     });
-    expect(StagehandMethods.locatorSelectOption.result.parse({ values: ["a"] })).toStrictEqual({
-      values: ["a"],
-    });
+    expect(StagehandMethods.locatorSelectOption.result.parse(["a"])).toStrictEqual(["a"]);
   });
 
   it("exports a JSON-RPC request schema for generated clients", () => {
@@ -544,6 +556,8 @@ describe("Stagehand object-model protocol", () => {
   it("accepts telemetry configuration as protocol data", () => {
     expect(
       StagehandMethods.runtimeConfigure.params.parse({
+        protocolVersion: 1,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
         cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {

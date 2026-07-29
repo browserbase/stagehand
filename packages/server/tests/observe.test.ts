@@ -152,7 +152,7 @@ describe("observe service", () => {
     });
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(result).toStrictEqual({
-      result: [
+      data: [
         {
           selector: "xpath=/html/body/main/input",
           description: "Email field",
@@ -166,6 +166,7 @@ describe("observe service", () => {
           arguments: ["xpath=/html/body/main/ul/li[2]"],
         },
       ],
+      metadata: {},
     });
     expect(logs).toEqual(
       expect.arrayContaining([

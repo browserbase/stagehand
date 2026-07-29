@@ -28,8 +28,8 @@ try {
 
   console.log(JSON.stringify(result, null, 2));
 
-  if (!result.success) {
-    throw new Error(`act() failed: ${result.message}`);
+  if (!result.data.success) {
+    throw new Error(`act() failed: ${result.data.message}`);
   }
 } finally {
   await stagehand?.close();

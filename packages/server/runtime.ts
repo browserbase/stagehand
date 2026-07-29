@@ -1,5 +1,4 @@
 import type {
-  BrowserGetVersionResult,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -86,12 +85,22 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
+  PageWebMCPCancelInvocationParams,
+  PageWebMCPInvocationResultParams,
+  PageWebMCPInvokeToolParams,
+  PageWebMCPToolsParams,
+  PageWebMCPToolsResult,
   RuntimeConfigureParams,
   RuntimeConfigureResult,
-  RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../protocol/types.js";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
@@ -144,6 +153,17 @@ export type UnderstudyRuntimePage = {
   ): Promise<boolean>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
+  listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
+  invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor>;
+  waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse>;
+  cancelWebMCPInvocation(invocationId: string): Promise<void>;
   title(): Promise<string>;
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
@@ -199,7 +219,6 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
-  getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
@@ -265,13 +284,6 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  loopbackStatus(): RuntimeLoopbackStatusResult {
-    return {
-      configured: this.browserSession !== undefined,
-      connected: this.browserSession?.connected ?? false,
-    };
-  }
-
   async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
     this.logger.setLevel(params.logLevel);
     const { cdpUrl } = params;
@@ -309,10 +321,6 @@ export class StagehandRuntime {
       initialized: true,
       pages,
     };
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return await this.requireBrowserSession().getVersion();
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
@@ -368,7 +376,7 @@ export class StagehandRuntime {
   }
 
   contextGetDomainPolicy(): ContextGetDomainPolicyResult {
-    return { policy: this.requireBrowserSession().getDomainPolicy() };
+    return this.requireBrowserSession().getDomainPolicy();
   }
 
   async contextSetDomainPolicy(params: ContextSetDomainPolicyParams): Promise<ContextVoidResult> {
@@ -377,7 +385,7 @@ export class StagehandRuntime {
   }
 
   async contextCookies(params: ContextCookiesParams): Promise<ContextCookiesResult> {
-    return { cookies: await this.requireBrowserSession().cookies(params.urls) };
+    return await this.requireBrowserSession().cookies(params.urls);
   }
 
   async contextAddCookies(params: ContextAddCookiesParams): Promise<ContextVoidResult> {
@@ -394,7 +402,7 @@ export class StagehandRuntime {
     params: ContextClipboardReadTextParams,
   ): Promise<ContextClipboardReadTextResult> {
     const clipboard = this.requireBrowserSession().clipboard;
-    return { text: await clipboard.readText(this.clipboardOptions(params.pageId)) };
+    return await clipboard.readText(this.clipboardOptions(params.pageId));
   }
 
   async contextClipboardWriteText(
@@ -573,16 +581,42 @@ export class StagehandRuntime {
     return await this.resolvePage(params.pageId).snapshot(params.options);
   }
 
-  pageUrl(params: PageIdParams): PageUrlResult {
+  async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
     return {
-      url: this.resolvePage(params.pageId).url(),
+      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
     };
   }
 
+  async pageWebMCPInvokeTool(
+    params: PageWebMCPInvokeToolParams,
+  ): Promise<WebMCPInvocationDescriptor> {
+    return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
+      input: params.input,
+    });
+  }
+
+  async pageWebMCPInvocationResult(
+    params: PageWebMCPInvocationResultParams,
+  ): Promise<WebMCPToolResponse> {
+    return await this.resolvePage(params.pageId).waitForWebMCPInvocationResult(
+      params.invocationId,
+      params.options,
+    );
+  }
+
+  async pageWebMCPCancelInvocation(
+    params: PageWebMCPCancelInvocationParams,
+  ): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).cancelWebMCPInvocation(params.invocationId);
+    return { ok: true };
+  }
+
+  pageUrl(params: PageIdParams): PageUrlResult {
+    return this.resolvePage(params.pageId).url();
+  }
+
   async pageTitle(params: PageIdParams): Promise<PageTitleResult> {
-    return {
-      title: await this.resolvePage(params.pageId).title(),
-    };
+    return await this.resolvePage(params.pageId).title();
   }
 
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
@@ -608,45 +642,31 @@ export class StagehandRuntime {
   }
 
   async locatorCount(params: LocatorDescriptor): Promise<LocatorCountResult> {
-    return {
-      count: await this.resolveLocator(params).count(),
-    };
+    return await this.resolveLocator(params).count();
   }
 
   async locatorIsChecked(params: LocatorDescriptor): Promise<LocatorIsCheckedResult> {
-    return {
-      checked: await this.resolveLocator(params).isChecked(),
-    };
+    return await this.resolveLocator(params).isChecked();
   }
 
   async locatorInputValue(params: LocatorDescriptor): Promise<LocatorInputValueResult> {
-    return {
-      value: await this.resolveLocator(params).inputValue(),
-    };
+    return await this.resolveLocator(params).inputValue();
   }
 
   async locatorIsVisible(params: LocatorDescriptor): Promise<LocatorIsVisibleResult> {
-    return {
-      visible: await this.resolveLocator(params).isVisible(),
-    };
+    return await this.resolveLocator(params).isVisible();
   }
 
   async locatorInnerText(params: LocatorDescriptor): Promise<LocatorInnerTextResult> {
-    return {
-      text: await this.resolveLocator(params).innerText(),
-    };
+    return await this.resolveLocator(params).innerText();
   }
 
   async locatorInnerHtml(params: LocatorDescriptor): Promise<LocatorInnerHtmlResult> {
-    return {
-      html: await this.resolveLocator(params).innerHtml(),
-    };
+    return await this.resolveLocator(params).innerHtml();
   }
 
   async locatorTextContent(params: LocatorDescriptor): Promise<LocatorTextContentResult> {
-    return {
-      textContent: await this.resolveLocator(params).textContent(),
-    };
+    return await this.resolveLocator(params).textContent();
   }
 
   async locatorScrollTo(params: LocatorScrollToParams): Promise<LocatorScrollToResult> {
@@ -676,9 +696,7 @@ export class StagehandRuntime {
   }
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
-    return {
-      values: await this.resolveLocator(params).selectOption(params.values),
-    };
+    return await this.resolveLocator(params).selectOption(params.values);
   }
 
   async close(): Promise<void> {

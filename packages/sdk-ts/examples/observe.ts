@@ -28,7 +28,7 @@ try {
 
   console.log(JSON.stringify(actions, null, 2));
 
-  if (actions.length === 0) {
+  if (actions.data.length === 0) {
     throw new Error("observe() returned no matching actions");
   }
 } finally {

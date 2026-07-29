@@ -3,7 +3,7 @@ import {
   StagehandMethods,
   StagehandNotifications,
 } from "../protocol/schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION, STAGEHAND_RUNTIME_VERSION } from "../protocol/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../protocol/schemas.js";
 import type { RuntimeDescriptor } from "../protocol/types.js";
 import { ChromeRuntimeClient } from "./clients/chromeRuntimeClient.js";
 import { RPCClient } from "./clients/rpcClient.js";
@@ -12,7 +12,8 @@ import { installServiceWorkerHeartbeat } from "./service-worker-lifecycle/heartb
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
-import { V3Context } from "./understudy/context.js";
+import { BrowserContext } from "./understudy/context.js";
+import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehand_runtime?: RuntimeDescriptor;
@@ -36,7 +37,7 @@ export function startStagehandServiceWorker(
             `Failed to load Stagehand locator runtime: ${locatorRuntimeResponse.status}`,
           );
         }
-        return V3Context.create(cdpUrl, {
+        return BrowserContext.create(cdpUrl, {
           websocketFactory: browserWebSocketFactory,
           logger,
           blankPageUrl: chrome.runtime.getURL("blank.html"),

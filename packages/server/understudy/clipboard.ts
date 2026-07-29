@@ -1,5 +1,5 @@
 import type { Protocol } from "devtools-protocol";
-import type { V3Context } from "./context.js";
+import type { BrowserContext } from "./context.js";
 import type { Page } from "./page.js";
 
 export type UnderstudyClipboardOptions = {
@@ -11,7 +11,7 @@ export type UnderstudyClipboardPasteOptions = UnderstudyClipboardOptions & {
 };
 
 type ContextClipboardParams = {
-  context: V3Context;
+  context: BrowserContext;
   resolvePage: (page?: Page) => Promise<Page>;
 };
 

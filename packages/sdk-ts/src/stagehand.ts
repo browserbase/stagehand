@@ -2,12 +2,10 @@ import { configureRPCClient, type RPCClient } from "./rpcClient.js";
 import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
-  ActResultData,
   Action,
-  BrowserGetVersionResult,
-  RuntimeLoopbackStatusResult,
+  ActResult,
+  ObserveResult,
   StagehandMetrics,
-  StagehandPingResult,
   StagehandRpcNotification,
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
@@ -31,6 +29,12 @@ import {
   type StagehandClientObserveOptions,
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
+
+type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
+
+export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
+  data: z.output<Schema>;
+};
 
 export class Stagehand {
   browserContext: BrowserContext | undefined;
@@ -86,18 +90,6 @@ export class Stagehand {
     return this.isInitialized;
   }
 
-  async ping(): Promise<StagehandPingResult> {
-    return this.connectedRpcClient.send(StagehandMethods.ping, {});
-  }
-
-  async runtimeLoopbackStatus(): Promise<RuntimeLoopbackStatusResult> {
-    return this.connectedRpcClient.send(StagehandMethods.runtimeLoopbackStatus, {});
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return this.connectedRpcClient.send(StagehandMethods.browserGetVersion, {});
-  }
-
   async metrics(): Promise<StagehandMetrics> {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
@@ -142,7 +134,9 @@ export class Stagehand {
     this.closePromise = undefined;
   }
 
-  async act(input: string, options?: StagehandClientActOptions): Promise<ActResultData> {
+  async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(action: Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(input: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -152,10 +146,13 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return response.result;
+    return response;
   }
 
-  async observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<Action[]> {
+  async observe(
+    instruction?: string,
+    options?: StagehandClientObserveOptions,
+  ): Promise<ObserveResult> {
     const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -165,14 +162,14 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return response.result;
+    return response;
   }
 
   async extract<Schema extends z.ZodType>(
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<z.output<Schema>> {
+  ): Promise<ExtractResult<Schema>> {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -184,7 +181,10 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return schema.parse(response.result);
+    return {
+      ...response,
+      data: schema.parse(response.data),
+    };
   }
 
   close(): Promise<void> {

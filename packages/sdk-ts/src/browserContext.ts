@@ -65,8 +65,7 @@ export class BrowserContext {
   }
 
   async getDomainPolicy(): Promise<DomainPolicy | null> {
-    const { policy } = await this.rpcClient.send(StagehandMethods.contextGetDomainPolicy, {});
-    return policy;
+    return await this.rpcClient.send(StagehandMethods.contextGetDomainPolicy, {});
   }
 
   async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
@@ -75,8 +74,7 @@ export class BrowserContext {
 
   async cookies(urls?: string | string[]): Promise<Cookie[]> {
     const params = urls === undefined ? {} : { urls };
-    const { cookies } = await this.rpcClient.send(StagehandMethods.contextCookies, params);
-    return cookies;
+    return await this.rpcClient.send(StagehandMethods.contextCookies, params);
   }
 
   async addCookies(cookies: CookieParam[]): Promise<void> {

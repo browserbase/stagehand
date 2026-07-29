@@ -1,7 +1,10 @@
 import { z } from "zod/v4";
 import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
-import type { BrowserbaseSessionCreateParams, StagehandInitParams } from "../../protocol/types.js";
-import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import type {
+  BrowserbaseSessionCreateParams,
+  LocalBrowserLaunchOptions,
+  StagehandInitParams,
+} from "../../protocol/types.js";
 import { CDPClient } from "../../sdk-ts/src/cdpClient.js";
 import {
   createBrowserbaseSessionClient,
@@ -26,7 +29,7 @@ export interface StagehandBrowser {
   close(): Promise<void>;
 }
 
-export type LocalBrowserLaunchOptions = z.input<typeof LocalBrowserLaunchOptionsSchema>;
+export type { LocalBrowserLaunchOptions } from "../../protocol/types.js";
 
 export type LocalBrowserConnectOptions = {
   cdpUrl: string;

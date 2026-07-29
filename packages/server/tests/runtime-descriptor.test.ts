@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { RuntimeDescriptorSchema, STAGEHAND_RUNTIME_VERSION } from "../../protocol/schemas.ts";
+import { RuntimeDescriptorSchema } from "../../protocol/schemas.ts";
+import serverPackageJson from "../package.json" with { type: "json" };
 import {
   startStagehandServiceWorker,
   type StagehandServiceWorkerScope,
 } from "../service-worker.ts";
+import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 
 describe("runtime descriptor", () => {
   it("publishes a valid runtime descriptor", () => {
@@ -15,32 +16,28 @@ describe("runtime descriptor", () => {
       scope.__stagehand_runtime,
     );
     expect(scope.__stagehand_runtime).toStrictEqual({
-      protocolVersion: 4,
+      protocolVersion: 1,
       serverInfo: {
         name: "stagehand",
-        version: "4.0.0",
+        version: serverPackageJson.version,
       },
     });
   });
 
   it("matches the server package version", () => {
-    const serverPackage = JSON.parse(
-      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-    ) as { version: string };
-
-    expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackage.version);
+    expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackageJson.version);
   });
 
-  it("preserves unknown descriptor fields", () => {
+  it("rejects unknown descriptor fields", () => {
     const descriptor = {
-      protocolVersion: 4,
+      protocolVersion: 1,
       serverInfo: {
         name: "stagehand",
-        version: "4.0.0",
+        version: serverPackageJson.version,
       },
       status: "ready",
     };
 
-    expect(RuntimeDescriptorSchema.parse(descriptor)).toStrictEqual(descriptor);
+    expect(() => RuntimeDescriptorSchema.parse(descriptor)).toThrow();
   });
 });

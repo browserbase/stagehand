@@ -9,6 +9,29 @@ import type { CDPClient } from "../src/cdpClient.js";
 
 type RpcRequest = Extract<JSONRPCMessage, { id: number; method: string }>;
 
+const METRICS = {
+  actPromptTokens: 1,
+  actCompletionTokens: 2,
+  actReasoningTokens: 3,
+  actCachedInputTokens: 4,
+  actInferenceTimeMs: 5,
+  extractPromptTokens: 6,
+  extractCompletionTokens: 7,
+  extractReasoningTokens: 8,
+  extractCachedInputTokens: 9,
+  extractInferenceTimeMs: 10,
+  observePromptTokens: 11,
+  observeCompletionTokens: 12,
+  observeReasoningTokens: 13,
+  observeCachedInputTokens: 14,
+  observeInferenceTimeMs: 15,
+  totalPromptTokens: 18,
+  totalCompletionTokens: 21,
+  totalReasoningTokens: 24,
+  totalCachedInputTokens: 27,
+  totalInferenceTimeMs: 30,
+};
+
 class FakeReadyTransport {
   readonly serviceWorker = {
     targetId: "worker-target",
@@ -60,8 +83,8 @@ function resultForMethod(method: string): unknown {
       return { initialized: true, pages: [] };
     case "stagehand.close":
       return { closed: true };
-    case "ping":
-      return { ok: true, runtime: "service_worker" };
+    case "stagehand.metrics":
+      return METRICS;
     default:
       throw new Error(`No fake response for ${method}`);
   }
@@ -196,13 +219,11 @@ describe("Stagehand.create", () => {
   });
 
   it("routes public methods through the initialized transport", async () => {
-    const { localBrowser } = localFactories();
+    const { localBrowser, transport } = localFactories();
     const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
 
-    await expect(stagehand.ping()).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
+    await expect(stagehand.metrics()).resolves.toStrictEqual(METRICS);
+    expect(transport.requests.at(-1)).toMatchObject({ method: "stagehand.metrics", params: {} });
   });
 
   it("accepts the generated local launch option type", () => {
