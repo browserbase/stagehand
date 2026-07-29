@@ -13,6 +13,8 @@ from pathlib import Path
 
 from .client_models import LocalBrowserSource, StagehandClientInitParams
 
+_WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+
 _DEFAULT_CHROME_FLAGS = (
     "--disable-features=Translate,OptimizationHints,MediaRouter,DialMediaRouteProvider,"
     "CalculateNativeWinOcclusion,InterestFeedContentSuggestions,"
@@ -86,46 +88,12 @@ async def _launch_local_browser(options: LocalBrowserSource) -> ResolvedBrowserS
     port = options.port or _available_port()
     temporary_profile = options.user_data_dir is None
     user_data_dir = Path(options.user_data_dir or tempfile.mkdtemp(prefix="stagehand-chrome-"))
-    if options.ignore_default_args is True:
-        default_flags: list[str] = []
-    elif isinstance(options.ignore_default_args, list):
-        ignored = set(options.ignore_default_args)
-        default_flags = [flag for flag in _DEFAULT_CHROME_FLAGS if flag not in ignored]
-    else:
-        default_flags = list(_DEFAULT_CHROME_FLAGS)
-
-    window_size = options.viewport
-    flags = [
-        *default_flags,
-        "--enable-unsafe-extension-debugging",
-        "--remote-allow-origins=*",
-        (
-            f"--window-size={window_size.width},{window_size.height}"
-            if window_size is not None
-            else "--window-size=1280,800"
-        ),
-        f"--remote-debugging-port={port}",
-        f"--user-data-dir={user_data_dir}",
-        *(options.args or []),
-        *(["--headless"] if options.headless is True else []),
-        *(["--auto-open-devtools-for-tabs"] if options.devtools is True else []),
-        *(["--no-sandbox"] if os.environ.get("CI") or options.chromium_sandbox is False else []),
-        *([f"--proxy-server={options.proxy.server}"] if options.proxy else []),
-        *(
-            [f"--proxy-bypass-list={options.proxy.bypass}"]
-            if options.proxy and options.proxy.bypass
-            else []
-        ),
-        *([f"--lang={options.locale}"] if options.locale else []),
-        *(
-            [f"--force-device-scale-factor={options.device_scale_factor}"]
-            if options.device_scale_factor is not None
-            else []
-        ),
-        *(["--touch-events=enabled"] if options.has_touch is True else []),
-        *(["--ignore-certificate-errors"] if options.ignore_https_errors is True else []),
-        "about:blank",
-    ]
+    flags = _local_browser_flags(
+        options,
+        port=port,
+        user_data_dir=user_data_dir,
+        is_ci=bool(os.environ.get("CI")),
+    )
     try:
         process = await asyncio.create_subprocess_exec(
             chrome_path,
@@ -162,6 +130,63 @@ async def _launch_local_browser(options: LocalBrowserSource) -> ResolvedBrowserS
         keep_alive=options.keep_alive or False,
         _close_callback=close,
     )
+
+
+def _local_browser_flags(
+    options: LocalBrowserSource,
+    *,
+    port: int,
+    user_data_dir: Path,
+    is_ci: bool,
+) -> list[str]:
+    ignored_default_args = options.ignore_default_args
+    ignored_flags = set(ignored_default_args) if isinstance(ignored_default_args, list) else set()
+    include_defaults = ignored_default_args is not True
+    window_size = options.viewport
+    stagehand_default_flags = (
+        "--enable-unsafe-extension-debugging",
+        "--remote-allow-origins=*",
+        (
+            f"--window-size={window_size.width},{window_size.height}"
+            if window_size is not None
+            else "--window-size=1280,800"
+        ),
+        _WEBMCP_CHROME_FLAG,
+    )
+
+    return [
+        *(
+            [flag for flag in _DEFAULT_CHROME_FLAGS if flag not in ignored_flags]
+            if include_defaults
+            else []
+        ),
+        *(
+            [flag for flag in stagehand_default_flags if flag not in ignored_flags]
+            if include_defaults
+            else []
+        ),
+        f"--remote-debugging-port={port}",
+        f"--user-data-dir={user_data_dir}",
+        *(["--headless"] if options.headless is True else []),
+        *(["--auto-open-devtools-for-tabs"] if options.devtools is True else []),
+        *(["--no-sandbox"] if is_ci or options.chromium_sandbox is False else []),
+        *([f"--proxy-server={options.proxy.server}"] if options.proxy else []),
+        *(
+            [f"--proxy-bypass-list={options.proxy.bypass}"]
+            if options.proxy and options.proxy.bypass
+            else []
+        ),
+        *([f"--lang={options.locale}"] if options.locale else []),
+        *(
+            [f"--force-device-scale-factor={options.device_scale_factor}"]
+            if options.device_scale_factor is not None
+            else []
+        ),
+        *(["--touch-events=enabled"] if options.has_touch is True else []),
+        *(["--ignore-certificate-errors"] if options.ignore_https_errors is True else []),
+        *(options.args or []),
+        "about:blank",
+    ]
 
 
 def _find_chrome_path() -> str:

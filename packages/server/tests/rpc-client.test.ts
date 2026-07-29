@@ -47,7 +47,7 @@ describe("worker RPCClient", () => {
           JSON.stringify({
             jsonrpc: "2.0",
             id: request.id,
-            result: { ok: true, runtime: "service_worker" },
+            result: [],
           }),
         );
       },
@@ -55,10 +55,7 @@ describe("worker RPCClient", () => {
     runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
     const client = new RPCClient(runtimeClient, new RPCRouter(runtime));
 
-    await expect(client.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
+    await expect(client.send(StagehandMethods.contextPages, {})).resolves.toStrictEqual([]);
   });
 
   it("continues the active worker trace when requesting SDK work", async () => {
@@ -87,7 +84,7 @@ describe("worker RPCClient", () => {
           JSON.stringify({
             jsonrpc: "2.0",
             id: request.id,
-            result: { ok: true, runtime: "service_worker" },
+            result: [],
           }),
         );
       },
@@ -101,7 +98,7 @@ describe("worker RPCClient", () => {
     });
 
     try {
-      await context.with(parentContext, () => client.send(StagehandMethods.ping, {}));
+      await context.with(parentContext, () => client.send(StagehandMethods.contextPages, {}));
 
       expect(requestTraceparent).toMatch(/^00-4bf92f3577b34da6a3ce929d0e0e4736-[0-9a-f]{16}-01$/);
     } finally {
@@ -123,7 +120,7 @@ describe("worker RPCClient", () => {
     const client = new RPCClient(runtimeClient, new RPCRouter(createRuntime()));
 
     try {
-      const request = client.send(StagehandMethods.ping, {});
+      const request = client.send(StagehandMethods.contextPages, {});
       await vi.advanceTimersByTimeAsync(120_000);
 
       expect(client.pending.size).toBe(1);
@@ -131,13 +128,10 @@ describe("worker RPCClient", () => {
         JSON.stringify({
           jsonrpc: "2.0",
           id: requestId,
-          result: { ok: true, runtime: "service_worker" },
+          result: [],
         }),
       );
-      await expect(request).resolves.toStrictEqual({
-        ok: true,
-        runtime: "service_worker",
-      });
+      await expect(request).resolves.toStrictEqual([]);
     } finally {
       client.close();
       vi.useRealTimers();

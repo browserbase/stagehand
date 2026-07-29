@@ -389,7 +389,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	client.sessionID = "worker-session"
 	client.mu.Unlock()
 
-	outgoing := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}`)
+	outgoing := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"test.request","params":{}}`)
 	if err := client.Send(context.Background(), outgoing); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -408,7 +408,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 		t.Fatalf("Runtime.evaluate command = %#v", command)
 	}
 	if !strings.Contains(command.Params.Expression, stagehandReceiveFromHostFunction) ||
-		!strings.Contains(command.Params.Expression, `\"method\":\"ping\"`) {
+		!strings.Contains(command.Params.Expression, `\"method\":\"test.request\"`) {
 		t.Fatalf("Runtime.evaluate expression = %q", command.Params.Expression)
 	}
 
@@ -739,12 +739,12 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	if service.TargetID == "" || service.URL == "" || service.ExtensionID == "" {
 		t.Fatalf("service worker = %#v", service)
 	}
-	var ping StagehandPingResult
-	if err := rpc.call(context.Background(), "ping", EmptyParams{}, &ping); err != nil {
-		t.Fatalf("Stagehand ping over CDP: %v", err)
+	var pages ContextPagesResult
+	if err := rpc.call(context.Background(), "context.pages", EmptyParams{}, &pages); err != nil {
+		t.Fatalf("Stagehand context.pages over CDP: %v", err)
 	}
-	if !ping.Ok || ping.Runtime != "service_worker" {
-		t.Fatalf("Stagehand ping = %#v", ping)
+	if len(pages) == 0 || pages[0].PageID == "" {
+		t.Fatalf("Stagehand context.pages = %#v", pages)
 	}
 	t.Logf("attached to Stagehand extension %s at %s", service.ExtensionID, service.URL)
 }

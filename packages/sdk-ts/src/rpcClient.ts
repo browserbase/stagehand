@@ -501,6 +501,8 @@ function rpcResponseTimeoutMs(method: string, params: unknown): number | undefin
     case StagehandMethods.pageGoForward.name:
     case StagehandMethods.pageScreenshot.name:
     case StagehandMethods.pageWaitForSelector.name:
+    case StagehandMethods.pageWebMCPTools.name:
+    case StagehandMethods.pageWebMCPInvocationResult.name:
       operationTimeoutMs = numericProperty(recordProperty(params, "options"), "timeout");
       break;
     case StagehandMethods.pageWaitForLoadState.name:

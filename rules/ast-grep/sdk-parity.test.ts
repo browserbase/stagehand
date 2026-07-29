@@ -35,6 +35,7 @@ const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import
 // Extracted JSON is intentionally decoded through a dedicated wire model so
 // Pydantic receives raw JSON values instead of the generated JSON union.
 const pythonWireResultModels: Readonly<Record<string, string>> = {
+  "page.webmcp_invocation_result": "WireWebMCPToolResponse",
   "stagehand.extract": "_ExtractWireResult",
 };
 
@@ -93,6 +94,55 @@ const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 describe("All language SDK operations remain in sync", () => {
+  it("sends protocol version and client identity when every SDK configures the runtime", async () => {
+    const configurations = [
+      {
+        language: "typescript",
+        file: new URL("rpcClient.ts", typescriptSource),
+        pattern: "await $CLIENT.send(StagehandMethods.runtimeConfigure, { $$$FIELDS }, $$$OPTIONS)",
+        fields: [
+          "protocolVersion:STAGEHAND_PROTOCOL_VERSION",
+          "clientInfo:STAGEHAND_SDK_CLIENT_INFO",
+        ],
+      },
+      {
+        language: "python",
+        file: new URL("rpc_client.py", pythonSource),
+        pattern: "models.RuntimeConfigureParams($$$FIELDS)",
+        fields: [
+          "protocol_version=STAGEHAND_PROTOCOL_VERSION",
+          "client_info=_STAGEHAND_SDK_CLIENT_INFO",
+        ],
+      },
+      {
+        language: "go",
+        file: new URL("client.go", goSource),
+        pattern: "RuntimeConfigureParams{$$$FIELDS}",
+        fields: ["ProtocolVersion:stagehandProtocolVersion", "ClientInfo:ImplementationInfo{"],
+      },
+    ] as const;
+
+    for (const configuration of configurations) {
+      const root = parse(configuration.language, await readFile(configuration.file, "utf8")).root();
+      const construction = root.find({ rule: { pattern: configuration.pattern } });
+
+      expect(
+        construction,
+        `${configuration.language} must construct runtime.configure params centrally`,
+      ).not.toBeNull();
+      const fields = construction
+        ?.getMultipleMatches("FIELDS")
+        .map((field) => field.text().replaceAll(/\s/g, ""));
+
+      for (const requiredField of configuration.fields) {
+        expect(
+          fields?.some((field) => field.includes(requiredField)),
+          `${configuration.language} runtime.configure must send ${requiredField}`,
+        ).toBe(true);
+      }
+    }
+  });
+
   it("references every registered protocol operation in each client", async () => {
     const registry = await stagehandMethodNames();
     const registeredOperations = [...registry.values()].sort();

@@ -242,7 +242,9 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		"page.go_back",
 		"page.go_forward",
 		"page.screenshot",
-		"page.wait_for_selector":
+		"page.wait_for_selector",
+		"page.webmcp_tools",
+		"page.webmcp_invocation_result":
 		path = []string{"options", "timeout"}
 	case "page.wait_for_load_state":
 		path = []string{"timeout"}

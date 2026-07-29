@@ -7,7 +7,6 @@ import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
-  BrowserGetVersionResult,
   Cookie,
   CookieParam,
   DomainPolicy,
@@ -75,7 +74,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
 
 /**
- * V3Context
+ * BrowserContext
  *
  * Owns the root CDP connection and wires Target/Page events into Page.
  * Maintains one Page per top-level target, adopts OOPIF child sessions into the owner Page,
@@ -85,7 +84,7 @@ const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
  * Context never “guesses” owners; it simply forwards events (with the emitting session)
  * so Page can record the correct owner at event time.
  */
-export class V3Context {
+export class BrowserContext {
   constructor(
     readonly conn: CdpConnection,
     readonly logger: StagehandLogger,
@@ -129,10 +128,6 @@ export class V3Context {
     return this.conn.connected;
   }
 
-  async getVersion(): Promise<BrowserGetVersionResult> {
-    return await this.conn.send<BrowserGetVersionResult>("Browser.getVersion");
-  }
-
   installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;
@@ -165,10 +160,10 @@ export class V3Context {
       chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
     },
-  ): Promise<V3Context> {
+  ): Promise<BrowserContext> {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
-      const ctx = new V3Context(
+      const ctx = new BrowserContext(
         conn,
         opts.logger,
         opts.chromeTabs,
@@ -1031,6 +1026,7 @@ export class V3Context {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    page.dispose();
     this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);

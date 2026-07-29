@@ -19,7 +19,6 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
@@ -30,7 +29,6 @@ from ._generated.models import (
     ObserveOptions,
     ObserveResult,
     ProxyConfig,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -39,7 +37,6 @@ from ._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
     TelemetryConfig,
     Variables,
 )
@@ -380,27 +377,6 @@ class Stagehand:
     @property
     def initialized(self) -> bool:
         return self._initialized
-
-    async def ping(self) -> StagehandPingResult:
-        return await self._connected_rpc_client.send(
-            "ping",
-            EmptyParams(),
-            StagehandPingResult,
-        )
-
-    async def runtime_loopback_status(self) -> RuntimeLoopbackStatusResult:
-        return await self._connected_rpc_client.send(
-            "runtime.loopback_status",
-            EmptyParams(),
-            RuntimeLoopbackStatusResult,
-        )
-
-    async def browser_get_version(self) -> BrowserGetVersionResult:
-        return await self._connected_rpc_client.send(
-            "browser.get_version",
-            EmptyParams(),
-            BrowserGetVersionResult,
-        )
 
     async def metrics(self) -> StagehandMetrics:
         return await self._connected_rpc_client.send(

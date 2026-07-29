@@ -62,10 +62,9 @@ func configureProtocol(
 	browser resolvedBrowserSource,
 	telemetry TelemetryConfig,
 ) error {
-	protocolVersion := stagehandProtocolVersion
 	params := RuntimeConfigureParams{
-		ProtocolVersion: &protocolVersion,
-		ClientInfo: &ImplementationInfo{
+		ProtocolVersion: stagehandProtocolVersion,
+		ClientInfo: ImplementationInfo{
 			Name:    stagehandSDKClientName,
 			Version: stagehandSDKVersion,
 		},

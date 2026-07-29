@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.ts";
 import { CdpConnection } from "../understudy/cdp.ts";
-import { V3Context } from "../understudy/context.ts";
+import { BrowserContext } from "../understudy/context.ts";
 import type { Page } from "../understudy/page.ts";
 
 function createPage(targetId: string): Page {
@@ -31,7 +31,7 @@ function createContext() {
   return {
     connection,
     connectionState,
-    context: new V3Context(connection, logger as never, chromeTabs),
+    context: new BrowserContext(connection, logger as never, chromeTabs),
     chromeTabs,
     logger,
   };
@@ -48,7 +48,7 @@ function createOptions() {
   };
 }
 
-describe("V3Context first top-level page", () => {
+describe("BrowserContext first top-level page", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -60,27 +60,27 @@ describe("V3Context first top-level page", () => {
 
   it("keeps an existing top-level page without creating a fallback", async () => {
     vi.spyOn(CdpConnection, "connect").mockResolvedValue({ connected: true } as CdpConnection);
-    vi.spyOn(V3Context.prototype, "bootstrap").mockImplementation(async function () {
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockImplementation(async function () {
       this.typeByTarget.set("page-target", "page");
       this.pagesByTarget.set("page-target", createPage("page-target"));
     });
     const newPage = vi
-      .spyOn(V3Context.prototype, "newPage")
+      .spyOn(BrowserContext.prototype, "newPage")
       .mockResolvedValue(createPage("fallback-target"));
 
-    await V3Context.create("ws://cdp.test", createOptions());
+    await BrowserContext.create("ws://cdp.test", createOptions());
 
     expect(newPage).not.toHaveBeenCalled();
   });
 
   it("creates the blank fallback immediately when bootstrap reports no page", async () => {
     vi.spyOn(CdpConnection, "connect").mockResolvedValue({ connected: true } as CdpConnection);
-    vi.spyOn(V3Context.prototype, "bootstrap").mockResolvedValue();
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockResolvedValue();
     const newPage = vi
-      .spyOn(V3Context.prototype, "newPage")
+      .spyOn(BrowserContext.prototype, "newPage")
       .mockResolvedValue(createPage("fallback-target"));
 
-    await V3Context.create("ws://cdp.test", createOptions());
+    await BrowserContext.create("ws://cdp.test", createOptions());
 
     expect(newPage).toHaveBeenCalledOnce();
     expect(newPage).toHaveBeenCalledWith();

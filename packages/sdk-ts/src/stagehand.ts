@@ -4,11 +4,8 @@ import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
-  BrowserGetVersionResult,
   ObserveResult,
-  RuntimeLoopbackStatusResult,
   StagehandMetrics,
-  StagehandPingResult,
   StagehandRpcNotification,
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
@@ -72,18 +69,6 @@ export class Stagehand {
 
   get initialized(): boolean {
     return this.isInitialized;
-  }
-
-  async ping(): Promise<StagehandPingResult> {
-    return this.connectedRpcClient.send(StagehandMethods.ping, {});
-  }
-
-  async runtimeLoopbackStatus(): Promise<RuntimeLoopbackStatusResult> {
-    return this.connectedRpcClient.send(StagehandMethods.runtimeLoopbackStatus, {});
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return this.connectedRpcClient.send(StagehandMethods.browserGetVersion, {});
   }
 
   async metrics(): Promise<StagehandMetrics> {

@@ -19,6 +19,7 @@ from pydantic import (
 )
 
 from ._generated import models
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
@@ -504,6 +505,7 @@ async def connect_rpc_client(
     )
     client = RPCClient(cdp)
     configure = models.RuntimeConfigureParams(
+        protocol_version=STAGEHAND_PROTOCOL_VERSION,
         client_info=_STAGEHAND_SDK_CLIENT_INFO,
         cdp_url=cdp.web_socket_debugger_url,
         **({"telemetry": telemetry} if telemetry is not None else {}),
@@ -533,6 +535,8 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "page.go_forward",
         "page.screenshot",
         "page.wait_for_selector",
+        "page.webmcp_tools",
+        "page.webmcp_invocation_result",
     }:
         operation_timeout_ms = _numeric_property(_property(params, "options"), "timeout")
     elif method == "page.wait_for_load_state":

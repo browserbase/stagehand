@@ -23,6 +23,7 @@ const (
 	defaultChromeWidth  = 1280
 	defaultChromeHeight = 800
 	chromePollInterval  = 100 * time.Millisecond
+	webMCPChromeFlag    = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 )
 
 // Copyright 2017 Google Inc. All Rights Reserved.
@@ -202,16 +203,18 @@ func validateLocalBrowserOptions(options LocalBrowserSource) error {
 }
 
 func buildChromeArgs(options LocalBrowserSource, port int, userDataDir string) []string {
-	args := selectedDefaultChromeFlags(options.IgnoreDefaultArgs)
-
 	width, height := defaultChromeWidth, defaultChromeHeight
 	if options.Viewport != nil {
 		width, height = options.Viewport.Width, options.Viewport.Height
 	}
-	args = append(args,
+	args := selectedDefaultChromeFlags(options.IgnoreDefaultArgs)
+	args = append(args, selectedChromeFlags([]string{
 		"--enable-unsafe-extension-debugging",
 		"--remote-allow-origins=*",
 		fmt.Sprintf("--window-size=%d,%d", width, height),
+		webMCPChromeFlag,
+	}, options.IgnoreDefaultArgs)...)
+	args = append(args,
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		"--user-data-dir="+userDataDir,
 	)
@@ -258,19 +261,23 @@ func buildChromeArgs(options LocalBrowserSource, port int, userDataDir string) [
 }
 
 func selectedDefaultChromeFlags(ignore *IgnoreDefaultArgs) []string {
+	return selectedChromeFlags(defaultChromeFlags, ignore)
+}
+
+func selectedChromeFlags(flags []string, ignore *IgnoreDefaultArgs) []string {
 	if ignore != nil && ignore.All {
 		return nil
 	}
 	if ignore == nil || len(ignore.Args) == 0 {
-		return append([]string(nil), defaultChromeFlags...)
+		return append([]string(nil), flags...)
 	}
 
 	ignored := make(map[string]struct{}, len(ignore.Args))
 	for _, arg := range ignore.Args {
 		ignored[arg] = struct{}{}
 	}
-	result := make([]string, 0, len(defaultChromeFlags))
-	for _, arg := range defaultChromeFlags {
+	result := make([]string, 0, len(flags))
+	for _, arg := range flags {
 		if _, skip := ignored[arg]; !skip {
 			result = append(result, arg)
 		}
