@@ -14,10 +14,50 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  typescript:
-    name: TypeScript
+  determine-changes:
+    name: Determine changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
+      sdk-python: ${{ steps.filter.outputs.sdk-python }}
+      sdk-go: ${{ steps.filter.outputs.sdk-go }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
+        id: filter
+        with:
+          filters: |
+            server:
+              - 'packages/server/**'
+              - 'packages/protocol/**'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+              - '.github/**'
+            sdk-ts:
+              - 'packages/sdk-ts/**'
+              - 'packages/server/**'
+              - 'packages/protocol/**'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+              - '.github/**'
+            sdk-python:
+              - 'packages/sdk-python/**'
+              - 'packages/server/**'
+              - 'packages/protocol/**'
+              - 'pnpm-lock.yaml'
+              - '.github/**'
+            sdk-go:
+              - 'packages/sdk-go/**'
+              - 'packages/server/**'
+              - 'packages/protocol/**'
+              - '.github/**'
+  check:
+    name: Check
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [determine-changes]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -25,13 +65,149 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/sdk-python/.python-version
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: packages/sdk-go/internal/generator/go.sum
+
+      # Keep the legacy build command here so the generated protocol drift check
+      # still compares freshly generated output with the committed schema.
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
+      - run: uv lock --check
+        working-directory: packages/sdk-python
+      - run: uv run --locked python scripts/generate.py --check
+        working-directory: packages/sdk-python
+      - run: uv run --locked ruff format --check .
+        working-directory: packages/sdk-python
+      - run: uv run --locked ruff check .
+        working-directory: packages/sdk-python
+      - run: uv run --locked ty check
+        working-directory: packages/sdk-python
+      - run: go -C internal/generator mod download
+        working-directory: packages/sdk-go
+      - run: go -C internal/generator run . --check
+        working-directory: packages/sdk-go
+      - name: Check Go formatting
+        run: test -z "$(gofmt -l $(find . -name '*.go' -type f))"
+        working-directory: packages/sdk-go
+      - run: go vet $(go list ./... | grep -v '/examples$')
+        working-directory: packages/sdk-go
+      - run: go -C internal/generator vet ./...
+        working-directory: packages/sdk-go
+      - name: Check Go examples
+        run: sh scripts/check-examples.sh
+        working-directory: packages/sdk-go
+
+  cancel-after-check-failure:
+    name: Cancel after check failure
+    runs-on: ubuntu-latest
+    # Scoped here rather than workflow-wide: this is the only job that needs to write to the
+    # Actions API, and the fan-out means ~60 other jobs would otherwise inherit the privilege.
+    permissions:
+      contents: read
+      actions: write
+    needs: [check]
+    if: failure()
+    continue-on-error: true
+    steps:
+      - name: Cancel workflow run
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/cancel"
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [determine-changes]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - run: pnpm exec turbo run build
+
+      - name: Save Turbo cache
+        if: always()
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('pnpm-lock.yaml','pnpm-workspace.yaml','package.json','turbo.json') }}-${{ github.sha }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-artifacts
+          path: |
+            package.json
+            packages/protocol/stagehand.v4.json
+            packages/server/dist/**
+            packages/server/artifacts/**
+            packages/sdk-ts/dist/**
+            packages/evals/dist/**
+          retention-days: 1
+
+  unit-ts:
+    name: TypeScript unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.sdk-ts == 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm exec turbo run test:unit
       - run: pnpm exec vitest run
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+
+  browser-ts:
+    name: TypeScript browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.sdk-ts == 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm exec turbo run test:browser
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - name: Browserbase smoke test
@@ -42,10 +218,12 @@ jobs:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_SMOKE: "1"
 
-  python:
-    name: Python
+  python-checks:
+    name: Python checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.sdk-python == 'true'
     defaults:
       run:
         working-directory: packages/sdk-python
@@ -54,7 +232,39 @@ jobs:
 
       - uses: ./.github/actions/setup-node-pnpm
         with:
-          use-prebuilt-artifacts: "false"
+          use-prebuilt-artifacts: "true"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: packages/sdk-python/.python-version
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          working-directory: packages/sdk-python
+          enable-cache: true
+          cache-dependency-glob: packages/sdk-python/uv.lock
+
+      - run: uv sync --locked --dev
+      - run: uv run --locked pytest
+
+  python-wheel-smoke:
+    name: Python wheel smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, determine-changes]
+    if: needs.determine-changes.outputs.sdk-python == 'true'
+    defaults:
+      run:
+        working-directory: packages/sdk-python
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
 
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
@@ -74,13 +284,6 @@ jobs:
 
       - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
-      - run: uv sync --locked --dev
-      - run: uv lock --check
-      - run: uv run --locked python scripts/generate.py --check
-      - run: uv run --locked ruff format --check .
-      - run: uv run --locked ruff check .
-      - run: uv run --locked ty check
-      - run: uv run --locked pytest
       - run: just build
         working-directory: ${{ github.workspace }}
       - name: Smoke test installed Python wheel
@@ -93,35 +296,30 @@ jobs:
 
   extension-drift:
     name: Extension drift (Go embed vs server build)
-    # Same fork gate as go-windows: this job installs dependencies and builds the server, so
-    # it should not burn hosted-runner time on an unreviewed fork PR. The safe-to-test label
-    # lets a maintainer opt a specific external PR in.
+    # Same fork gate as go-windows: installs dependencies and builds the server, so it should
+    # not burn hosted-runner time on an unreviewed fork PR. safe-to-test lets a maintainer opt
+    # a specific external PR in.
     if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository ||
-      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+      needs.determine-changes.outputs.sdk-go == 'true' &&
+      (github.event_name == 'push' ||
+       github.event.pull_request.head.repo.full_name == github.repository ||
+       contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    needs: [build, determine-changes]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: "11.10.0"
-          run_install: false
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: pnpm
+          use-prebuilt-artifacts: "true"
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26.x"
           cache: false
 
-      - run: pnpm install --frozen-lockfile
       - run: pnpm --filter ./packages/server build
 
       # packages/sdk-go/internal/extensionassets/stagehand-extension.zip is committed and
@@ -131,10 +329,18 @@ jobs:
         run: go run ./internal/extensionpack --check
         working-directory: packages/sdk-go
 
-  go:
-    name: Go
+  go-checks:
+    name: Go checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    needs: [extension-drift, determine-changes]
+    # extension-drift is fork-gated, so it is *skipped* rather than failed on external PRs.
+    # A skipped dependency skips its dependents by default, which would silently stop running
+    # the Go suite on fork PRs. Run unless the drift check actually failed.
+    if: >-
+      !cancelled() &&
+      needs.extension-drift.result != 'failure' &&
+      needs.determine-changes.outputs.sdk-go == 'true'
     defaults:
       run:
         working-directory: packages/sdk-go
@@ -150,22 +356,77 @@ jobs:
           go-version: "1.26.x"
           cache-dependency-path: packages/sdk-go/internal/generator/go.sum
 
-      - run: go -C internal/generator mod download
-      - run: go -C internal/generator run . --check
-      - name: Check formatting
-        run: test -z "$(gofmt -l $(find . -name '*.go' -type f))"
-      - run: go vet $(go list ./... | grep -v '/examples$')
-      - run: go -C internal/generator vet ./...
-      - name: Check examples
-        run: sh scripts/check-examples.sh
       - run: go test $(go list ./... | grep -v '/examples$')
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - run: go -C internal/generator test ./...
       - run: go build $(go list ./... | grep -v '/examples$')
 
+  discover-integration:
+    name: Discover integration tests
+    runs-on: ubuntu-latest
+    needs: [determine-changes]
+    if: needs.determine-changes.outputs.server == 'true'
+    outputs:
+      integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
+      has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+          restore-turbo-cache: "false"
+
+      - name: Discover integration tests
+        id: set-matrix
+        run: |
+          integration_json=$(pnpm run test:integration -- --list)
+          echo "integration-tests=$integration_json" >> "$GITHUB_OUTPUT"
+
+          if [ "$integration_json" = "[]" ]; then
+            echo "has-integration-tests=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-integration-tests=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Found integration tests: $integration_json"
+
+  integration:
+    name: integration/${{ matrix.test.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [build, discover-integration]
+    if: needs.discover-integration.outputs.has-integration-tests == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        test: ${{ fromJson(needs.discover-integration.outputs.integration-tests) }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "true"
+
+      - uses: ./.github/actions/setup-chrome-verified
+
+      - run: pnpm run test:integration -- "${{ matrix.test.path }}"
+
+      - uses: ./.github/actions/upload-ctrf-report
+        if: always()
+        with:
+          name: ctrf/integration/${{ matrix.test.safe_name }}.json
+
+      - uses: ./.github/actions/upload-v8-coverage
+        if: always()
+        with:
+          name: coverage/integration/${{ matrix.test.safe_name }}
+
   go-windows:
     name: Go (Windows process management)
+    needs: [determine-changes]
     if: >-
       github.event_name == 'push' ||
       github.event.pull_request.head.repo.full_name == github.repository
