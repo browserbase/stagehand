@@ -1778,6 +1778,28 @@ type StagehandResultMetadata struct {
 
 	// Server-side cache status for this result
 	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+
+	// Aggregate LLM usage for this operation; omitted when the operation did not run
+	// inference
+	Usage *StagehandResultUsage `json:"usage,omitempty,omitzero"`
+}
+
+// Aggregate LLM usage for one Stagehand operation
+type StagehandResultUsage struct {
+	// Cached input tokens used by all LLM calls made for this operation
+	CachedInputTokens int `json:"cached_input_tokens"`
+
+	// Total time spent waiting for LLM inference during this operation
+	InferenceTimeMs int `json:"inference_time_ms"`
+
+	// Input tokens consumed by all LLM calls made for this operation
+	InputTokens int `json:"input_tokens"`
+
+	// Output tokens consumed by all LLM calls made for this operation
+	OutputTokens int `json:"output_tokens"`
+
+	// Reasoning tokens consumed by all LLM calls made for this operation
+	ReasoningTokens int `json:"reasoning_tokens"`
 }
 
 type TelemetryConfig struct {
@@ -2478,6 +2500,10 @@ type generatedModelCatalog struct {
 	// StagehandResultMetadata corresponds to the JSON schema field
 	// "StagehandResultMetadata".
 	StagehandResultMetadata *StagehandResultMetadata `json:"StagehandResultMetadata,omitempty,omitzero"`
+
+	// StagehandResultUsage corresponds to the JSON schema field
+	// "StagehandResultUsage".
+	StagehandResultUsage *StagehandResultUsage `json:"StagehandResultUsage,omitempty,omitzero"`
 
 	// TelemetryConfig corresponds to the JSON schema field "TelemetryConfig".
 	TelemetryConfig *TelemetryConfig `json:"TelemetryConfig,omitempty,omitzero"`

@@ -580,6 +580,52 @@ describe("JSON-RPC wire casing", () => {
     );
   });
 
+  it("round-trips result usage with snake_case wire fields", () => {
+    const apiUsage = {
+      inputTokens: 120,
+      outputTokens: 30,
+      reasoningTokens: 8,
+      cachedInputTokens: 40,
+      inferenceTimeMs: 275,
+    };
+    const wireUsage = {
+      input_tokens: 120,
+      output_tokens: 30,
+      reasoning_tokens: 8,
+      cached_input_tokens: 40,
+      inference_time_ms: 275,
+    };
+    const cases = [
+      {
+        definition: StagehandMethods.stagehandAct,
+        data: {
+          success: true,
+          message: "Clicked submit",
+          actionDescription: "Click submit",
+          actions: [],
+        },
+      },
+      {
+        definition: StagehandMethods.stagehandObserve,
+        data: [],
+      },
+      {
+        definition: StagehandMethods.stagehandExtract,
+        data: { callerChosenKey: 1 },
+      },
+    ] as const;
+
+    for (const { definition, data } of cases) {
+      const apiValue = { data, metadata: { usage: apiUsage } };
+      const wireValue = encodeWireValue(apiValue, definition.resultWire);
+
+      expect(wireValue).toMatchObject({ metadata: { usage: wireUsage } });
+      expect(wireSchema(definition.result, definition.resultWire).parse(wireValue)).toStrictEqual(
+        apiValue,
+      );
+    }
+  });
+
   it("keeps every generated method and notification shape snake_case", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as Record<string, unknown>;
     const properties = asRecord(protocol.properties);

@@ -1967,6 +1967,27 @@ class StagehandResultMetadata(WireModel):
     """Action ID for tracking"""
     cache_status: Optional[CacheStatus] = None
     """Server-side cache status for this result"""
+    usage: Optional[StagehandResultUsage] = None
+    """Aggregate LLM usage for this operation; omitted when the operation did not run inference"""
+
+
+class StagehandResultUsage(WireModel):
+    """Aggregate LLM usage for one Stagehand operation"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Input tokens consumed by all LLM calls made for this operation"""
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Output tokens consumed by all LLM calls made for this operation"""
+    reasoning_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Reasoning tokens consumed by all LLM calls made for this operation"""
+    cached_input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Cached input tokens used by all LLM calls made for this operation"""
+    inference_time_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    """Total time spent waiting for LLM inference during this operation"""
 
 
 class State(StrEnum):
