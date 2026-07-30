@@ -251,7 +251,8 @@ async function smartAct(stagehand: Stagehand, prompt: string) {
   for (const model of models) {
     // Planning is side-effect free, so escalating here is safe to repeat
     const plan = await stagehand.observe(prompt, { model }).catch(() => null);
-    if (!plan) {
+    // An empty plan means the model found no matching action, so escalate too
+    if (!plan || plan.data.length === 0) {
       console.log(`${model.modelName} failed, escalating...`);
       continue;
     }
@@ -285,6 +286,10 @@ async def smart_act(stagehand: Stagehand, prompt: str):
         try:
             plan = await stagehand.observe(instruction=prompt, model=config)
         except Exception:
+            plan = None
+
+        # An empty plan means the model found no matching action, so escalate too
+        if plan is None or not plan.data:
             print(f"{model['model_name']} failed, escalating...")
             continue
 
@@ -319,7 +324,8 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 		plan, err := client.Observe(ctx, &prompt, &stagehand.StagehandClientObserveOptions{
 			ObserveOptions: stagehand.ObserveOptions{Model: &models[i]},
 		})
-		if err != nil {
+		// An empty plan means the model found no matching action, so escalate too
+		if err != nil || len(plan.Data) == 0 {
 			fmt.Println("model failed, escalating...")
 			continue
 		}
@@ -359,7 +365,12 @@ class SessionManager {
       });
       await stagehand.init();
       return stagehand;
-    })();
+    })().catch((error) => {
+      // Drop the failed attempt so the next caller retries instead of
+      // re-awaiting the same rejection forever
+      this.sessions.delete(taskType);
+      throw error;
+    });
 
     this.sessions.set(taskType, pending);
     return pending;
@@ -368,7 +379,9 @@ class SessionManager {
   async closeAll(): Promise<void> {
     const pending = [...this.sessions.values()];
     this.sessions.clear();
-    const sessions = await Promise.all(pending);
+    // Settle tolerantly: one failed init must not skip closing healthy sessions
+    const settled = await Promise.allSettled(pending);
+    const sessions = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
     await Promise.all(sessions.map((s) => s.close()));
   }
 }
@@ -391,7 +404,13 @@ class SessionManager:
         if task is None:
             task = asyncio.create_task(self._open_session())
             self._sessions[task_type] = task
-        return await task
+        try:
+            return await task
+        except Exception:
+            # Drop the failed attempt so the next caller retries instead of
+            # re-awaiting the same rejection forever
+            self._sessions.pop(task_type, None)
+            raise
 
     async def _open_session(self) -> Stagehand:
         stagehand = Stagehand(
@@ -404,8 +423,9 @@ class SessionManager:
     async def close_all(self) -> None:
         tasks = list(self._sessions.values())
         self._sessions.clear()
-        sessions = await asyncio.gather(*tasks)
-        await asyncio.gather(*(s.close() for s in sessions))
+        # Settle tolerantly: one failed init must not skip closing healthy sessions
+        sessions = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*(s.close() for s in sessions if isinstance(s, Stagehand)))
 ```
 </View>
 

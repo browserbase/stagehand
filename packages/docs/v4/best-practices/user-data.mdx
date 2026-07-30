@@ -55,10 +55,24 @@ if err := client.Init(ctx); err != nil {
 </View>
 
 <Note>
-When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. `preserveUserDataDir` governs only that generated profile: turn it on to keep the temporary directory after shutdown. A directory you pass as `userDataDir` is kept either way, so the flag is not required for the setup above.
+When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. A directory you pass yourself is kept either way, so nothing extra is required for the setup above.
 </Note>
 
-{/* TODO: preserveUserDataDir is honored in Python and Go , where the delete only happens for a Stagehand-generated profile. TypeScript ignores the flag: sdk-ts/src/browserSource.ts forwards only userDataDir and port to chrome-launcher, whose destroyTmp always removes a generated profile and never removes one the caller supplied. Explicit userDataDir survives in all three. */}
+The preserve flag governs only that generated temporary profile, never a directory you passed yourself:
+
+<View title="TypeScript" icon="js">
+`preserveUserDataDir` is accepted but has no effect. A generated temporary profile is always deleted on shutdown.
+</View>
+
+<View title="Python" icon="python">
+`preserve_user_data_dir` keeps the generated temporary directory after shutdown when you turn it on.
+</View>
+
+<View title="Go" icon="golang">
+`PreserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
+</View>
+
+{/* TODO: preserveUserDataDir is honored in Python and Go, where the delete only happens for a Stagehand-generated profile. TypeScript ignores the flag: sdk-ts/src/browserSource.ts forwards only userDataDir and port to chrome-launcher, whose destroyTmp always removes a generated profile and never removes one the caller supplied. Explicit userDataDir survives in all three. */}
 
 ### Browserbase sessions
 

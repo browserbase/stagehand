@@ -378,15 +378,13 @@ When a selector is set, Stagehand hashes only that subtree. If the selector fail
 </Accordion>
 
 <Accordion title="Use variables for dynamic values">
-Using variables in `act()` lets you generalize a single cache entry across many different values. The cache key is built from the variable *keys*, not the values, so `{ email: "alice@example.com" }` and `{ email: "bob@example.com" }` share the same entry.
-
-Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever. The value also never reaches the model: Stagehand sends the variable name and substitutes the real value into the resolved action right before it runs.
+Variables keep a literal value out of the instruction you write. Stagehand sends the model the variable name and substitutes the real value into the resolved action right before it runs, so the value never reaches the model and the logged action keeps its `%placeholder%`.
 
 <Warning>
-The value does reach the cache service. Variables travel with the rest of the request payload when caching is on, so pass `cache: false` on any call that carries a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
+Do not assume two runs with different values share a cache entry. The variables you pass travel to the cache service with the rest of the request, so a different value may produce different key data and miss. Because they are transmitted, pass `cache: false` on any call carrying a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
 </Warning>
 
-{/* TODO: verify the claim above that the cache key is derived from variable keys rather than values. buildActCacheData transmits the whole options.variables record, and the comment says only key-participating fields are sent, which would mean differing values produce differing keys and break the sharing this accordion promises. */}
+{/* TODO: this accordion previously promised that the cache key is derived from variable keys rather than values, so that {email: alice} and {email: bob} shared one entry ("prime once and hit forever"). That promise was removed because it could not be verified and the available evidence contradicts it: buildActCacheData transmits the whole options.variables record, and the comment in that file says only key-participating fields are sent. If values are in fact excluded from the key, restore the generalization guidance; if they are not, consider whether this accordion belongs on the caching page at all, since variables would then offer no caching benefit. */}
 
 <View title="TypeScript" icon="js">
 ```typescript
