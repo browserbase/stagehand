@@ -26,13 +26,13 @@ export const runtimeHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     const buffer = await page.screenshot({
-      animations: options.animations,
-      caret: options.caret,
-      clip: options.clip,
-      fullPage: options.fullPage,
-      quality: options.quality,
+      ...(options.animations === undefined ? {} : { animations: options.animations }),
+      ...(options.caret === undefined ? {} : { caret: options.caret }),
+      ...(options.clip === undefined ? {} : { clip: options.clip }),
+      ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
+      ...(options.quality === undefined ? {} : { quality: options.quality }),
       timeout: 10_000,
-      type: options.type,
+      ...(options.type === undefined ? {} : { type: options.type }),
     });
     if (options.path) {
       await fs.writeFile(options.path, buffer);
