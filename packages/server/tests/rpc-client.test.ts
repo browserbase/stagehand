@@ -31,7 +31,7 @@ describe("worker RPCClient", () => {
           JSON.stringify({
             jsonrpc: "2.0",
             id: request.id,
-            result: { ok: true, runtime: "service_worker" },
+            result: [],
           }),
         );
       },
@@ -39,10 +39,7 @@ describe("worker RPCClient", () => {
     runtimeClient = new ChromeRuntimeClient(scope, "sendToHost");
     const client = new RPCClient(runtimeClient, new RPCRouter(runtime), 1_000);
 
-    await expect(client.send(StagehandMethods.ping, {})).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
+    await expect(client.send(StagehandMethods.contextPages, {})).resolves.toStrictEqual([]);
   });
 
   it("continues the active worker trace when requesting SDK work", async () => {
@@ -71,7 +68,7 @@ describe("worker RPCClient", () => {
           JSON.stringify({
             jsonrpc: "2.0",
             id: request.id,
-            result: { ok: true, runtime: "service_worker" },
+            result: [],
           }),
         );
       },
@@ -85,7 +82,7 @@ describe("worker RPCClient", () => {
     });
 
     try {
-      await context.with(parentContext, () => client.send(StagehandMethods.ping, {}));
+      await context.with(parentContext, () => client.send(StagehandMethods.contextPages, {}));
 
       expect(requestTraceparent).toMatch(/^00-4bf92f3577b34da6a3ce929d0e0e4736-[0-9a-f]{16}-01$/);
     } finally {

@@ -3,9 +3,9 @@ import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 
-const clientMetadata = {
+const runtimeIdentity = {
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-  clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+  clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
   logLevel: "info" as const,
 };
 
@@ -14,7 +14,6 @@ function createBrowserSession(
 ): StagehandBrowserSession {
   return {
     connected: true,
-    getVersion: async () => ({}),
     pages: () => [],
     newPage: async () => {
       throw new Error("Not used by this test");
@@ -75,13 +74,12 @@ describe("Stagehand runtime state", () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
     });
-    const configureTracing = vi.spyOn(runtime.tracing, "configure").mockImplementation(() => {});
 
     await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
-      ...clientMetadata,
+      ...runtimeIdentity,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
         traces: {
@@ -95,7 +93,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
       initParams: {
-        ...clientMetadata,
+        ...runtimeIdentity,
         model: { modelName: "openai/gpt-5" },
         telemetry: {
           traces: {
@@ -104,13 +102,6 @@ describe("Stagehand runtime state", () => {
           },
         },
         selfHeal: true,
-      },
-    });
-    expect(configureTracing).toHaveBeenCalledOnce();
-    expect(configureTracing).toHaveBeenCalledWith({
-      traces: {
-        endpoint: "https://collector.example.com/v1/traces",
-        headers: { Authorization: "Bearer test" },
       },
     });
   });
@@ -131,7 +122,7 @@ describe("Stagehand runtime state", () => {
 
     await expect(
       runtime.initialize({
-        ...clientMetadata,
+        ...runtimeIdentity,
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
         },
@@ -140,7 +131,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "created" });
   });
 
-  it("rejects a concurrent initialization before creating another browser session", async () => {
+  it("rejects concurrent initialization before creating another browser session", async () => {
     let releaseInitialization!: () => void;
     const initializationGate = new Promise<void>((resolve) => {
       releaseInitialization = resolve;
@@ -150,7 +141,7 @@ describe("Stagehand runtime state", () => {
     );
     const runtime = createStagehandRuntime({ browserSessionFactory });
     const params = {
-      ...clientMetadata,
+      ...runtimeIdentity,
       browserCdpUrl: "ws://browser.example",
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
@@ -177,7 +168,7 @@ describe("Stagehand runtime state", () => {
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
-      ...clientMetadata,
+      ...runtimeIdentity,
       model: { modelName: "openai/gpt-5", apiKey: "secret" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

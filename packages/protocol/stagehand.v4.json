@@ -6,32 +6,6 @@
     "methods": {
       "type": "object",
       "properties": {
-        "ping": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/StagehandPingResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
-        "browser.get_version": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/BrowserGetVersionResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "stagehand.init": {
           "type": "object",
           "properties": {
@@ -643,6 +617,58 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.webmcp_tools": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPToolsParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageWebMCPToolsResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_invoke_tool": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvokeToolParams"
+            },
+            "result": {
+              "$ref": "#/$defs/WebMCPInvocationDescriptor"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_invocation_result": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvocationResultParams"
+            },
+            "result": {
+              "$ref": "#/$defs/WebMCPToolResponse"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_cancel_invocation": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPCancelInvocationParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "locator.click": {
           "type": "object",
           "properties": {
@@ -853,8 +879,6 @@
         }
       },
       "required": [
-        "ping",
-        "browser.get_version",
         "stagehand.init",
         "stagehand.close",
         "stagehand.act",
@@ -902,6 +926,10 @@
         "page.wait_for_load_state",
         "page.wait_for_timeout",
         "page.wait_for_selector",
+        "page.webmcp_tools",
+        "page.webmcp_invoke_tool",
+        "page.webmcp_invocation_result",
+        "page.webmcp_cancel_invocation",
         "locator.click",
         "locator.fill",
         "locator.hover",
@@ -962,47 +990,6 @@
   "additionalProperties": false,
   "title": "Stagehand V4 Protocol",
   "$defs": {
-    "EmptyParams": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    },
-    "StagehandPingResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        },
-        "runtime": {
-          "type": "string",
-          "const": "service_worker"
-        }
-      },
-      "required": ["ok", "runtime"],
-      "additionalProperties": false
-    },
-    "BrowserGetVersionResult": {
-      "type": "object",
-      "properties": {
-        "protocol_version": {
-          "type": "string"
-        },
-        "product": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string"
-        },
-        "user_agent": {
-          "type": "string"
-        },
-        "js_version": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false
-    },
     "StagehandInitParams": {
       "type": "object",
       "properties": {
@@ -1175,7 +1162,8 @@
         "viewport": {
           "$ref": "#/$defs/BrowserbaseViewport"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseContext": {
       "type": "object",
@@ -1187,7 +1175,8 @@
           "type": "boolean"
         }
       },
-      "required": ["id"]
+      "required": ["id"],
+      "additionalProperties": false
     },
     "BrowserbaseFingerprint": {
       "type": "object",
@@ -1226,7 +1215,8 @@
         "screen": {
           "$ref": "#/$defs/BrowserbaseFingerprintScreen"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseFingerprintScreen": {
       "type": "object",
@@ -1243,7 +1233,8 @@
         "min_width": {
           "type": "number"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "BrowserbaseViewport": {
       "type": "object",
@@ -1254,7 +1245,8 @@
         "height": {
           "type": "number"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ProxyConfig": {
       "oneOf": [
@@ -1280,7 +1272,8 @@
           "$ref": "#/$defs/BrowserbaseProxyGeolocation"
         }
       },
-      "required": ["type"]
+      "required": ["type"],
+      "additionalProperties": false
     },
     "BrowserbaseProxyGeolocation": {
       "type": "object",
@@ -1295,7 +1288,8 @@
           "type": "string"
         }
       },
-      "required": ["country"]
+      "required": ["country"],
+      "additionalProperties": false
     },
     "ExternalProxyConfig": {
       "type": "object",
@@ -1317,7 +1311,8 @@
           "type": "string"
         }
       },
-      "required": ["type", "server"]
+      "required": ["type", "server"],
+      "additionalProperties": false
     },
     "BrowserbaseRegion": {
       "type": "string",
@@ -1528,6 +1523,11 @@
       "required": ["page_id"],
       "additionalProperties": false
     },
+    "EmptyParams": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
     "StagehandCloseResult": {
       "type": "object",
       "properties": {
@@ -1546,16 +1546,54 @@
           "type": "string",
           "minLength": 1
         },
-        "input": {
-          "type": "string",
-          "minLength": 1
+        "instruction": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "$ref": "#/$defs/Action"
+            }
+          ]
         },
         "options": {
           "$ref": "#/$defs/ActOptions"
         }
       },
-      "required": ["page_id", "input"],
+      "required": ["page_id", "instruction"],
       "additionalProperties": false
+    },
+    "Action": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "description": "CSS selector or XPath for the element",
+          "example": "[data-testid='submit-button']"
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of the action",
+          "example": "Click the submit button"
+        },
+        "method": {
+          "description": "The method to execute (click, fill, etc.)",
+          "example": "click",
+          "type": "string"
+        },
+        "arguments": {
+          "description": "Arguments to pass to the method",
+          "example": ["Hello World"],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["selector", "description"],
+      "additionalProperties": false,
+      "description": "Action object returned by observe and used by act"
     },
     "ActOptions": {
       "type": "object",
@@ -1588,7 +1626,8 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "Variables": {
       "type": "object",
@@ -1654,19 +1693,15 @@
     "ActResult": {
       "type": "object",
       "properties": {
-        "result": {
+        "data": {
           "$ref": "#/$defs/ActResultData"
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"]
+      "required": ["data", "metadata"],
+      "additionalProperties": false
     },
     "ActResultData": {
       "type": "object",
@@ -1694,37 +1729,22 @@
           "description": "List of actions that were executed"
         }
       },
-      "required": ["success", "message", "action_description", "actions"]
+      "required": ["success", "message", "action_description", "actions"],
+      "additionalProperties": false
     },
-    "Action": {
+    "StagehandResultMetadata": {
       "type": "object",
       "properties": {
-        "selector": {
-          "type": "string",
-          "description": "CSS selector or XPath for the element",
-          "example": "[data-testid='submit-button']"
-        },
-        "description": {
-          "type": "string",
-          "description": "Human-readable description of the action",
-          "example": "Click the submit button"
-        },
-        "method": {
-          "description": "The method to execute (click, fill, etc.)",
-          "example": "click",
+        "action_id": {
+          "description": "Action ID for tracking",
           "type": "string"
         },
-        "arguments": {
-          "description": "Arguments to pass to the method",
-          "example": ["Hello World"],
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+        "cache_status": {
+          "description": "Server-side cache status for this result",
+          "$ref": "#/$defs/CacheStatus"
         }
       },
-      "required": ["selector", "description"],
-      "description": "Action object returned by observe and used by act"
+      "additionalProperties": false
     },
     "CacheStatus": {
       "type": "string",
@@ -1791,27 +1811,24 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ObserveResult": {
       "type": "object",
       "properties": {
-        "result": {
+        "data": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/Action"
           }
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"]
+      "required": ["data", "metadata"],
+      "additionalProperties": false
     },
     "StagehandExtractParams": {
       "type": "object",
@@ -1903,24 +1920,53 @@
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ExtractResult": {
       "type": "object",
       "properties": {
-        "result": {
-          "description": "Extracted data matching the requested schema"
+        "data": {
+          "description": "Extracted data matching the requested schema",
+          "$ref": "#/$defs/__schema1"
         },
-        "action_id": {
-          "description": "Action ID for tracking",
-          "type": "string"
-        },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "metadata": {
+          "$ref": "#/$defs/StagehandResultMetadata"
         }
       },
-      "required": ["result"]
+      "required": ["data", "metadata"],
+      "additionalProperties": false
+    },
+    "__schema1": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema1"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema1"
+          }
+        }
+      ]
     },
     "StagehandMetrics": {
       "type": "object",
@@ -2170,85 +2216,12 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema1"
+            "$ref": "#/$defs/__schema2"
           }
         }
       },
       "required": ["type", "id", "name", "input"],
       "additionalProperties": false
-    },
-    "__schema1": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema1"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema1"
-          }
-        }
-      ]
-    },
-    "LLMToolResultContent": {
-      "type": "object",
-      "properties": {
-        "type": {
-          "type": "string",
-          "const": "tool_result"
-        },
-        "tool_use_id": {
-          "type": "string"
-        },
-        "content": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/LLMToolResultContentBlock"
-          }
-        },
-        "structured_content": {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema2"
-          }
-        },
-        "is_error": {
-          "type": "boolean"
-        }
-      },
-      "required": ["type", "tool_use_id", "content"],
-      "additionalProperties": false
-    },
-    "LLMToolResultContentBlock": {
-      "oneOf": [
-        {
-          "$ref": "#/$defs/LLMTextContent"
-        },
-        {
-          "$ref": "#/$defs/LLMImageContent"
-        }
-      ]
     },
     "__schema2": {
       "anyOf": [
@@ -2281,25 +2254,47 @@
         }
       ]
     },
-    "LLMJsonSchemaResponseFormat": {
+    "LLMToolResultContent": {
       "type": "object",
       "properties": {
         "type": {
           "type": "string",
-          "const": "json_schema"
+          "const": "tool_result"
         },
-        "name": {
+        "tool_use_id": {
           "type": "string"
         },
-        "description": {
-          "type": "string"
+        "content": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LLMToolResultContentBlock"
+          }
         },
-        "schema": {
-          "$ref": "#/$defs/__schema3"
+        "structured_content": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema3"
+          }
+        },
+        "is_error": {
+          "type": "boolean"
         }
       },
-      "required": ["type", "name", "schema"],
+      "required": ["type", "tool_use_id", "content"],
       "additionalProperties": false
+    },
+    "LLMToolResultContentBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/LLMTextContent"
+        },
+        {
+          "$ref": "#/$defs/LLMImageContent"
+        }
+      ]
     },
     "__schema3": {
       "anyOf": [
@@ -2328,6 +2323,57 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/__schema3"
+          }
+        }
+      ]
+    },
+    "LLMJsonSchemaResponseFormat": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "json_schema"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "schema": {
+          "$ref": "#/$defs/__schema4"
+        }
+      },
+      "required": ["type", "name", "schema"],
+      "additionalProperties": false
+    },
+    "__schema4": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema4"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema4"
           }
         }
       ]
@@ -2448,7 +2494,7 @@
               "type": "string"
             },
             "additionalProperties": {
-              "$ref": "#/$defs/__schema4"
+              "$ref": "#/$defs/__schema5"
             }
           }
         },
@@ -2462,7 +2508,7 @@
       "required": ["type"],
       "additionalProperties": false
     },
-    "__schema4": {
+    "__schema5": {
       "anyOf": [
         {
           "type": "string"
@@ -2479,7 +2525,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema5"
           }
         },
         {
@@ -2488,7 +2534,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema4"
+            "$ref": "#/$defs/__schema5"
           }
         }
       ]
@@ -2586,9 +2632,7 @@
         }
       },
       "required": ["role", "content", "output_format"],
-      "additionalProperties": {
-        "$ref": "#/$defs/__schema5"
-      }
+      "additionalProperties": false
     },
     "LLMUsage": {
       "type": "object",
@@ -2621,37 +2665,6 @@
       },
       "required": ["input_tokens", "output_tokens", "total_tokens"],
       "additionalProperties": false
-    },
-    "__schema5": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "number"
-        },
-        {
-          "type": "boolean"
-        },
-        {
-          "type": "null"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/__schema5"
-          }
-        },
-        {
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "$ref": "#/$defs/__schema5"
-          }
-        }
-      ]
     },
     "LLMStructuredGenerateResult": {
       "type": "object",
@@ -2687,9 +2700,7 @@
         }
       },
       "required": ["role", "content", "output_format", "structured_content"],
-      "additionalProperties": {
-        "$ref": "#/$defs/__schema5"
-      }
+      "additionalProperties": false
     },
     "__schema6": {
       "anyOf": [
@@ -2806,21 +2817,14 @@
       "additionalProperties": false
     },
     "ContextGetDomainPolicyResult": {
-      "type": "object",
-      "properties": {
-        "policy": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/DomainPolicy"
-            },
-            {
-              "type": "null"
-            }
-          ]
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DomainPolicy"
+        },
+        {
+          "type": "null"
         }
-      },
-      "required": ["policy"],
-      "additionalProperties": false
+      ]
     },
     "DomainPolicy": {
       "type": "object",
@@ -2877,17 +2881,10 @@
       "additionalProperties": false
     },
     "ContextCookiesResult": {
-      "type": "object",
-      "properties": {
-        "cookies": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/Cookie"
-          }
-        }
-      },
-      "required": ["cookies"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Cookie"
+      }
     },
     "Cookie": {
       "type": "object",
@@ -3036,14 +3033,7 @@
       "additionalProperties": false
     },
     "ContextClipboardReadTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "ContextClipboardWriteTextParams": {
       "type": "object",
@@ -3117,24 +3107,10 @@
       "additionalProperties": false
     },
     "PageUrlResult": {
-      "type": "object",
-      "properties": {
-        "url": {
-          "type": "string"
-        }
-      },
-      "required": ["url"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageTitleResult": {
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": ["title"],
-      "additionalProperties": false
+      "type": "string"
     },
     "PageCloseResult": {
       "type": "object",
@@ -3810,6 +3786,260 @@
       "required": ["matched"],
       "additionalProperties": false
     },
+    "PageWebMCPToolsParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/WebMCPToolsOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "WebMCPToolsOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "default": 1000,
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWebMCPToolsResult": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolDescriptor"
+          }
+        }
+      },
+      "required": ["tools"],
+      "additionalProperties": false
+    },
+    "WebMCPToolDescriptor": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "input_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        },
+        "annotations": {
+          "$ref": "#/$defs/WebMCPAnnotation"
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend_node_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["name", "description", "frame_id"],
+      "additionalProperties": false
+    },
+    "WebMCPJsonValue": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "__schema8": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema8"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema8"
+          }
+        }
+      ]
+    },
+    "WebMCPAnnotation": {
+      "type": "object",
+      "properties": {
+        "read_only": {
+          "type": "boolean"
+        },
+        "untrusted_content": {
+          "type": "boolean"
+        },
+        "autosubmit": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWebMCPInvokeToolParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        }
+      },
+      "required": ["page_id", "frame_id", "tool_name"],
+      "additionalProperties": false
+    },
+    "WebMCPInvocationDescriptor": {
+      "type": "object",
+      "properties": {
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        }
+      },
+      "required": ["invocation_id", "tool_name", "frame_id", "input"],
+      "additionalProperties": false
+    },
+    "PageWebMCPInvocationResultParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "$ref": "#/$defs/WebMCPResultOptions"
+        }
+      },
+      "required": ["page_id", "invocation_id"],
+      "additionalProperties": false
+    },
+    "WebMCPResultOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "WebMCPToolResponse": {
+      "type": "object",
+      "properties": {
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/WebMCPInvocationStatus"
+        },
+        "output": {
+          "$ref": "#/$defs/WebMCPJsonValue"
+        },
+        "error_text": {
+          "type": "string"
+        },
+        "exception": {
+          "$ref": "#/$defs/WebMCPRemoteObject"
+        }
+      },
+      "required": ["invocation_id", "status"],
+      "additionalProperties": false
+    },
+    "WebMCPInvocationStatus": {
+      "type": "string",
+      "enum": ["Completed", "Canceled", "Error"]
+    },
+    "WebMCPRemoteObject": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/WebMCPJsonValue"
+      }
+    },
+    "PageWebMCPCancelInvocationParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "invocation_id"],
+      "additionalProperties": false
+    },
     "LocatorClickParams": {
       "type": "object",
       "properties": {
@@ -3902,76 +4132,27 @@
       "additionalProperties": false
     },
     "LocatorCountResult": {
-      "type": "object",
-      "properties": {
-        "count": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 9007199254740991
-        }
-      },
-      "required": ["count"],
-      "additionalProperties": false
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
     },
     "LocatorIsCheckedResult": {
-      "type": "object",
-      "properties": {
-        "checked": {
-          "type": "boolean"
-        }
-      },
-      "required": ["checked"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInputValueResult": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "string"
-        }
-      },
-      "required": ["value"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorIsVisibleResult": {
-      "type": "object",
-      "properties": {
-        "visible": {
-          "type": "boolean"
-        }
-      },
-      "required": ["visible"],
-      "additionalProperties": false
+      "type": "boolean"
     },
     "LocatorInnerTextResult": {
-      "type": "object",
-      "properties": {
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": ["text"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorInnerHtmlResult": {
-      "type": "object",
-      "properties": {
-        "html": {
-          "type": "string"
-        }
-      },
-      "required": ["html"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorTextContentResult": {
-      "type": "object",
-      "properties": {
-        "text_content": {
-          "type": "string"
-        }
-      },
-      "required": ["text_content"],
-      "additionalProperties": false
+      "type": "string"
     },
     "LocatorScrollToParams": {
       "type": "object",
@@ -4225,17 +4406,10 @@
       "additionalProperties": false
     },
     "LocatorSelectOptionResult": {
-      "type": "object",
-      "properties": {
-        "values": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": ["values"],
-      "additionalProperties": false
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "StagehandLog": {
       "type": "object",
@@ -4264,10 +4438,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema8"
+        "$ref": "#/$defs/__schema9"
       }
     },
-    "__schema8": {
+    "__schema9": {
       "anyOf": [
         {
           "type": "string"
@@ -4284,7 +4458,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         },
         {
@@ -4293,67 +4467,13 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         }
       ]
     },
     "StagehandRpcRequest": {
       "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "ping"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "browser.get_version"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
         {
           "type": "object",
           "properties": {
@@ -5635,6 +5755,114 @@
             },
             "method": {
               "type": "string",
+              "const": "page.webmcp_tools"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPToolsParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_invoke_tool"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvokeToolParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_invocation_result"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvocationResultParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_cancel_invocation"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPCancelInvocationParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "locator.click"
             },
             "params": {
@@ -6088,7 +6316,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema9"
+          "$ref": "#/$defs/__schema10"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6097,7 +6325,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema9": {
+    "__schema10": {
       "anyOf": [
         {
           "type": "string"
@@ -6114,7 +6342,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         },
         {
@@ -6123,7 +6351,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]
@@ -6157,13 +6385,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema10"
+          "$ref": "#/$defs/__schema11"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -6180,7 +6408,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -6189,7 +6417,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]

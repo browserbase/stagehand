@@ -67,15 +67,17 @@ export function buildCacheContext(initParams: StagehandInitParams): CacheContext
 }
 
 /**
- * The `data` payloads mirror the API's v3 act/observe/extract schemas — only
- * the fields that participate in the cache key are sent (withCache threads
- * the caching threshold in separately). Model configuration is deliberately
+ * The `data` payloads mirror the external API's v3 act/observe/extract
+ * schemas — only the fields that participate in the cache key are sent
+ * (withCache threads the caching threshold in separately). The v3 act cache
+ * contract still calls its instruction `input`, so preserve that adapter key
+ * until the external API migrates. Model configuration is deliberately
  * omitted: it is not part of the cache key and its v4 shape does not parse
  * under the v3 schema.
  */
 export function buildActCacheData(params: StagehandActParams): Record<string, unknown> {
   return {
-    input: params.input,
+    input: params.instruction,
     options: params.options
       ? {
           variables: params.options.variables,
@@ -155,7 +157,7 @@ export interface CacheExecuteOutcome<Result> {
  * or whenever any cache step fails, including `onHit` itself — falls back to
  * `execute` and then persists the outcome's `cacheValue`.
  */
-export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
+export async function withCache<Result extends { metadata: { cacheStatus?: CacheStatus } }>({
   method,
   page,
   data,
@@ -212,7 +214,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   if (getResponse?.hit && getResponse.value !== undefined && getResponse.value !== null) {
     try {
       const result = await onHit(getResponse.value);
-      result.cacheStatus = "HIT";
+      result.metadata.cacheStatus = "HIT";
       logger.debug("Cache hit", {
         category: "cache",
         method,
@@ -239,7 +241,7 @@ export async function withCache<Result extends { cacheStatus?: CacheStatus }>({
   }
 
   const outcome = await execute();
-  outcome.result.cacheStatus = "MISS";
+  outcome.result.metadata.cacheStatus = "MISS";
 
   if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
     try {
