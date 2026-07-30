@@ -19,25 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: "11.10.0"
-          run_install: false
+          use-prebuilt-artifacts: "false"
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: pnpm
-
-      - uses: browser-actions/setup-chrome@v2
+      - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
-        with:
-          chrome-version: stable
-          install-dependencies: true
 
-      - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
@@ -60,26 +50,17 @@ jobs:
       run:
         working-directory: packages/sdk-python
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: pnpm/action-setup@v6
+      - uses: ./.github/actions/setup-node-pnpm
         with:
-          version: "11.10.0"
-          run_install: false
+          use-prebuilt-artifacts: "false"
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: pnpm
-
-      - uses: browser-actions/setup-chrome@v2
+      - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
-        with:
-          chrome-version: stable
-          install-dependencies: true
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version-file: packages/sdk-python/.python-version
 
@@ -91,10 +72,8 @@ jobs:
           enable-cache: true
           cache-dependency-glob: packages/sdk-python/uv.lock
 
-      - uses: extractions/setup-just@v3
+      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
 
-      - run: pnpm install --frozen-lockfile
-        working-directory: ${{ github.workspace }}
       - run: uv sync --locked --dev
       - run: uv lock --check
       - run: uv run --locked python scripts/generate.py --check
@@ -160,16 +139,13 @@ jobs:
       run:
         working-directory: packages/sdk-go
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: browser-actions/setup-chrome@v2
+      - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
-        with:
-          chrome-version: stable
-          install-dependencies: true
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26.x"
           cache-dependency-path: packages/sdk-go/internal/generator/go.sum
@@ -199,10 +175,10 @@ jobs:
       run:
         working-directory: packages/sdk-go
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: "1.26.x"
           cache: false
