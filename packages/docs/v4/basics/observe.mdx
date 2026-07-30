@@ -20,7 +20,9 @@ await stagehand.observe(instruction="find the login button")
 <View title="Go" icon="golang">
 ```go
 instruction := "find the login button"
-result, err := client.Observe(ctx, &instruction, nil)
+if _, err := client.Observe(ctx, &instruction, nil); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -83,6 +85,10 @@ if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 
 instruction := "find the learn more button"
 result, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "actions")
 ```
 </View>
 
@@ -145,6 +151,8 @@ actions := []stagehand.Action{
 		Selector:    "xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]",
 	},
 }
+
+fmt.Println(actions[0].Description, *actions[0].Method, actions[0].Selector)
 ```
 </View>
 
@@ -220,11 +228,15 @@ await stagehand.observe(instruction="what is the page title?")
 ```go
 // Too vague
 vague := "find buttons"
-_, err := client.Observe(ctx, &vague, nil)
+if _, err := client.Observe(ctx, &vague, nil); err != nil {
+	return err
+}
 
 // Use Extract() for data instead
 title := "what is the page title?"
-_, err = client.Observe(ctx, &title, nil)
+if _, err := client.Observe(ctx, &title, nil); err != nil {
+	return err
+}
 ```
 </View>
 </Tab>
@@ -284,6 +296,10 @@ result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObser
 		Selector: &selector,
 	},
 })
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "navigation links")
 ```
 </View>
 
@@ -326,6 +342,10 @@ result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObser
 		},
 	},
 })
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "call-to-action buttons")
 ```
 </View>
 
@@ -504,6 +524,13 @@ instruction := "find the login button"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
 	ObserveOptions: stagehand.ObserveOptions{Cache: &off},
 })
+if err != nil {
+	return err
+}
+
+if result.Metadata.CacheStatus != nil {
+	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
+}
 ```
 </View>
 
@@ -584,6 +611,10 @@ instruction := "find all product cards"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
 	Page: productsPage,
 })
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "product cards")
 ```
 </View>
 
@@ -651,6 +682,15 @@ Use `observe()` to find a container, then pass its selector to `extract()`. Extr
 
 <View title="TypeScript" icon="js">
 ```typescript
+const PricingSchema = z.object({
+  tiers: z.array(
+    z.object({
+      name: z.string(),
+      price: z.string(),
+    }),
+  ),
+});
+
 const { data: tables } = await stagehand.observe("find the pricing table");
 const [table] = tables;
 
@@ -659,11 +699,24 @@ const { data: pricing } = await stagehand.extract(
   PricingSchema,
   { selector: table.selector },
 );
+
+for (const tier of pricing.tiers) {
+  console.log(tier.name, tier.price);
+}
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
+class PricingTier(BaseModel):
+    name: str
+    price: str
+
+
+class Pricing(BaseModel):
+    tiers: list[PricingTier]
+
+
 observed = await stagehand.observe(instruction="find the pricing table")
 
 pricing = (await stagehand.extract(
@@ -671,11 +724,43 @@ pricing = (await stagehand.extract(
     schema=Pricing,
     selector=observed.data[0].selector,
 )).data
+
+for tier in pricing.tiers:
+    print(tier.name, tier.price)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
+type pricingTier struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+}
+
+type pricingTiers struct {
+	Tiers []pricingTier `json:"tiers"`
+}
+
+var pricingSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "tiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "string"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["tiers"],
+  "additionalProperties": false
+}`)
+
 instruction := "find the pricing table"
 observed, err := client.Observe(ctx, &instruction, nil)
 if err != nil {
@@ -686,9 +771,22 @@ if len(observed.Data) == 0 {
 }
 
 selector := observed.Data[0].Selector
-pricing, err := client.Extract(ctx, "extract all pricing tiers", pricingSchema, &stagehand.StagehandClientExtractOptions{
+pricing, err := stagehand.ExtractAs[pricingTiers](
+	ctx,
+	client,
+	"extract all pricing tiers",
+	pricingSchema,
+	&stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
-})
+	},
+)
+if err != nil {
+	return err
+}
+
+for _, tier := range pricing.Tiers {
+	fmt.Println(tier.Name, tier.Price)
+}
 ```
 </View>
 
@@ -798,6 +896,13 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 	actionCache[instruction] = observed.Data
 	return observed.Data, nil
 }
+
+// The second call for the same instruction is served from actionCache
+actions, err := cachedObserve(ctx, "find all form input fields")
+if err != nil {
+	return err
+}
+fmt.Println("cached", len(actions), "actions")
 ```
 </View>
 
@@ -922,11 +1027,15 @@ await stagehand.observe(
 // More specific instructions improve accuracy
 // Instead of:
 vague := "find the button"
-_, err := client.Observe(ctx, &vague, nil)
+if _, err := client.Observe(ctx, &vague, nil); err != nil {
+	return err
+}
 
 // Use context:
 specific := "find the red 'Delete' button in the user settings panel"
-_, err = client.Observe(ctx, &specific, nil)
+if _, err := client.Observe(ctx, &specific, nil); err != nil {
+	return err
+}
 ```
 </View>
 </Accordion>

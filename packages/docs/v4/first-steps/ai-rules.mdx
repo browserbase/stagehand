@@ -271,6 +271,8 @@ const { data } = await stagehand.extract(
 ### Inspecting Metadata
 
 ```typescript
+const TitleSchema = z.object({ title: z.string() });
+
 const result = await stagehand.extract("extract the page title", TitleSchema);
 
 console.log(result.data.title);
@@ -584,6 +586,10 @@ result = await stagehand.extract(
 ### Inspecting Metadata
 
 ```python
+class Title(BaseModel):
+    title: str
+
+
 result = await stagehand.extract(
     instruction="extract the page title",
     schema=Title,
@@ -739,9 +745,18 @@ page, err := browserContext.ActivePage(ctx)
 if err != nil {
 	return err
 }
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
+}
 
 // Create new pages if needed
 page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := page2.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
 ```
 
 For Browserbase cloud browsers, pass a Browserbase API key at the top level:
@@ -753,6 +768,9 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.BrowserbaseClientBrowserSource{},
 	Model:   &model,
 })
+if err := client.Init(ctx); err != nil {
+	return err
+}
 ```
 
 Stagehand never reads environment variables for you. Always pass keys explicitly.
@@ -763,17 +781,26 @@ Actions are called on the client (not the page). Use atomic, specific instructio
 
 ```go
 // Act on the current active page
-result, err := client.Act(ctx, "click the sign in button", nil)
+if _, err := client.Act(ctx, "click the sign in button", nil); err != nil {
+	return err
+}
 
 // Act on a specific page (when you need to target a page that isn't currently active)
-result, err := client.Act(ctx, "click the sign in button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "click the sign in button", &stagehand.StagehandClientActOptions{
 	Page: page2,
-})
+}); err != nil {
+	return err
+}
 ```
 
 `Act` takes either a `string` instruction or a `stagehand.Action`. It returns an `ActResult`: the action payload is on `result.Data`, and cache status is on `result.Metadata`:
 
 ```go
+result, err := client.Act(ctx, "click the sign in button", nil)
+if err != nil {
+	return err
+}
+
 if !result.Data.Success {
 	return fmt.Errorf("act failed: %s", result.Data.Message)
 }
@@ -788,13 +815,15 @@ Use variables for secrets. Values are substituted locally and never sent to the 
 
 ```go
 password := os.Getenv("USER_PASSWORD")
-_, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
 		},
 	},
-})
+}); err != nil {
+	return err
+}
 ```
 
 ### Observe Then Act Pattern (Recommended)
@@ -870,6 +899,19 @@ fmt.Println(data.Listings)
 `ExtractAs` decodes for you but discards the metadata. Call `client.Extract` directly when you want the raw `json.RawMessage` payload and the metadata alongside it:
 
 ```go
+type buttonText struct {
+	ButtonText string `json:"buttonText"`
+}
+
+var buttonTextSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "buttonText": {"type": "string"}
+  },
+  "required": ["buttonText"],
+  "additionalProperties": false
+}`)
+
 result, err := client.Extract(ctx, "extract the sign in button text", buttonTextSchema, nil)
 if err != nil {
 	return err
@@ -889,6 +931,15 @@ fmt.Println(decoded.ButtonText)
 Scope extraction to a specific element with `Selector`, and prune noise with `IgnoreSelectors`:
 
 ```go
+var articleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "body": {"type": "string"}
+  },
+  "required": ["body"],
+  "additionalProperties": false
+}`)
+
 selector := "#main-content"
 result, err := client.Extract(ctx, "extract the article body", articleSchema, &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{
@@ -896,6 +947,11 @@ result, err := client.Extract(ctx, "extract the article body", articleSchema, &s
 		IgnoreSelectors: []string{"nav", ".cookie-banner"},
 	},
 })
+if err != nil {
+	return err
+}
+
+fmt.Println(string(result.Data))
 ```
 
 ### URL Extraction
@@ -916,9 +972,23 @@ var linksSchema = json.RawMessage(`{
 ### Extracting from a Specific Page
 
 ```go
+var placeholderSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "placeholder": {"type": "string"}
+  },
+  "required": ["placeholder"],
+  "additionalProperties": false
+}`)
+
 result, err := client.Extract(ctx, "extract the placeholder text on the name field", placeholderSchema, &stagehand.StagehandClientExtractOptions{
 	Page: page2,
 })
+if err != nil {
+	return err
+}
+
+fmt.Println(string(result.Data))
 ```
 
 ### Inspecting Metadata
@@ -926,6 +996,15 @@ result, err := client.Extract(ctx, "extract the placeholder text on the name fie
 Both `ActionID` and `CacheStatus` are pointers, so check for nil before dereferencing:
 
 ```go
+var titleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "title": {"type": "string"}
+  },
+  "required": ["title"],
+  "additionalProperties": false
+}`)
+
 result, err := client.Extract(ctx, "extract the page title", titleSchema, nil)
 if err != nil {
 	return err
@@ -958,6 +1037,7 @@ for _, action := range observed.Data {
 Observing on a specific page:
 
 ```go
+instruction := "find the next page button"
 observed, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
 	Page: page2,
 })
@@ -985,6 +1065,10 @@ if err := page.Locator("#email").Fill(ctx, "user@example.com"); err != nil {
 	return err
 }
 count, err := page.Locator("li.result").Count(ctx)
+if err != nil {
+	return err
+}
+fmt.Println("results:", count)
 ```
 
 ### Multi-Page Workflows
@@ -1008,7 +1092,9 @@ if err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
 
 // Act/Extract/Observe operate on the current active page by default
 // Pass Page in the options struct to target a specific page
-_, err = client.Act(ctx, "click button", &stagehand.StagehandClientActOptions{Page: page1})
+if _, err := client.Act(ctx, "click button", &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+	return err
+}
 ```
 
 ### Caching
@@ -1022,6 +1108,9 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.BrowserbaseClientBrowserSource{},
 	Cache:   &cache,
 })
+if err := client.Init(ctx); err != nil {
+	return err
+}
 ```
 
 ## Cleanup
@@ -1030,7 +1119,9 @@ Always close the client. The idiomatic pattern is a named error return plus a de
 
 ```go
 func run(ctx context.Context) (err error) {
-	client := stagehand.New(params)
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		Browser: stagehand.LocalBrowserSource{Headless: true},
+	})
 	if err := client.Init(ctx); err != nil {
 		return err
 	}

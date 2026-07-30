@@ -19,7 +19,9 @@ await stagehand.act("click on add to cart")
 
 <View title="Go" icon="golang">
 ```go
-result, err := client.Act(ctx, "click on add to cart", nil)
+if _, err := client.Act(ctx, "click on add to cart", nil); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -68,7 +70,9 @@ await stagehand.act("click the add to cart button")
 if err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 	return err
 }
-result, err := client.Act(ctx, "click the add to cart button", nil)
+if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -190,6 +194,9 @@ result := stagehand.ActResult{
 		CacheStatus: &cacheStatus,
 	},
 }
+
+// Read the fields you care about off the result
+fmt.Println(result.Data.Message, *result.Metadata.CacheStatus)
 ```
 </View>
 
@@ -252,7 +259,9 @@ await stagehand.act("open the filters panel, choose 4-star rating, and click app
 <View title="Go" icon="golang">
 ```go
 // Too complex - trying to do multiple things at once
-result, err := client.Act(ctx, "open the filters panel, choose 4-star rating, and click apply", nil)
+if _, err := client.Act(ctx, "open the filters panel, choose 4-star rating, and click apply", nil); err != nil {
+	return err
+}
 ```
 </View>
 </Tab>
@@ -301,12 +310,14 @@ model := stagehand.KnownModel(stagehand.KnownModelConfig{
 })
 timeout := 10000.0
 
-result, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Model:   &model,
 		Timeout: &timeout,
 	},
-})
+}); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -375,18 +386,25 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
-_, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &off},
-})
+}); err != nil {
+	return err
+}
 
 // Or lower the hit-count threshold for a single call
 eager := stagehand.CacheWithThreshold(1)
-_, err = client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &eager},
-})
+}); err != nil {
+	return err
+}
 
 // Check whether a result was served from cache
 result, err := client.Act(ctx, "click the login button", nil)
+if err != nil {
+	return err
+}
 if result.Metadata.CacheStatus != nil {
 	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
 }
@@ -657,24 +675,30 @@ await stagehand.act("click the login button")
 <View title="Go" icon="golang">
 ```go
 // Variables use %variableName% syntax in the instruction
-_, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
 		},
 	},
-})
+}); err != nil {
+	return err
+}
 
-password := os.Getenv("USER_PASSWORD")
-_, err = client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+userPassword := os.Getenv("USER_PASSWORD")
+if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
-			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
+			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
 		},
 	},
-})
+}); err != nil {
+	return err
+}
 
-_, err = client.Act(ctx, "click the login button", nil)
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
 ```
 </View>
 

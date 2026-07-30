@@ -148,7 +148,8 @@ Product(name="Wireless Mouse", price=29.99, in_stock=True)
 
 <View title="Go" icon="golang">
 ```go
-product{Name: "Wireless Mouse", Price: 29.99, InStock: true}
+result := product{Name: "Wireless Mouse", Price: 29.99, InStock: true}
+fmt.Println(result.Name, result.Price, result.InStock)
 ```
 </View>
 
@@ -268,10 +269,11 @@ Apartments(apartments=[
 
 <View title="Go" icon="golang">
 ```go
-apartments{Apartments: []apartment{
+result := apartments{Apartments: []apartment{
 	{Address: "123 Main St", Price: "$1,200/mo", Sqft: 750},
 	{Address: "456 Oak Ave", Price: "$1,500/mo", Sqft: 900},
 }}
+fmt.Println(result.Apartments[0].Address, result.Apartments[0].Sqft)
 ```
 </View>
 
@@ -343,7 +345,8 @@ Price(price=19.99)
 
 <View title="Go" icon="golang">
 ```go
-price{Price: 19.99}
+result := price{Price: 19.99}
+fmt.Println(result.Price)
 ```
 </View>
 
@@ -462,6 +465,12 @@ result, err := client.Extract(ctx, "extract the repository name", repositorySche
 		Selector: &selector,
 	},
 })
+if err != nil {
+	return err
+}
+
+// Extract hands back the raw JSON; use stagehand.ExtractAs to decode into a type
+fmt.Println(string(result.Data))
 ```
 </View>
 
@@ -540,6 +549,9 @@ off := stagehand.CacheEnabled(false)
 result, err := client.Extract(ctx, "extract the repository name", repositorySchema, &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{Cache: &off},
 })
+if err != nil {
+	return err
+}
 
 // Cache status travels on the result metadata
 if result.Metadata.CacheStatus != nil {
@@ -1015,6 +1027,11 @@ extracted, err := stagehand.ExtractAs[products](
 	productsSchema,
 	nil,
 )
+if err != nil {
+	return err
+}
+
+fmt.Println("extracted", len(extracted.Products), "products")
 ```
 </View>
 </Accordion>
@@ -1173,6 +1190,13 @@ extracted, err := stagehand.ExtractAs[products](
 	productsSchema,
 	nil,
 )
+if err != nil {
+	return err
+}
+
+for _, item := range extracted.Products {
+	fmt.Println(item.Name, item.Price)
+}
 ```
 </View>
 </Accordion>
