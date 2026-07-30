@@ -9,6 +9,7 @@ import {
   claimStagehandBrowserHandle,
   createStagehandBrowserHandle,
   isStagehandBrowser,
+  releaseStagehandBrowserHandle,
   type BrowserbaseBrowser,
   type LocalBrowser,
   type StagehandBrowser,
@@ -187,6 +188,11 @@ export function createBrowserFactoriesForTest(
 /** @internal */
 export function claimStagehandBrowser(browser: StagehandBrowser): ClaimedStagehandBrowser {
   return claimStagehandBrowserHandle<ClaimedStagehandBrowser>(browser);
+}
+
+/** @internal */
+export function releaseStagehandBrowser(browser: StagehandBrowser): void {
+  releaseStagehandBrowserHandle(browser);
 }
 
 async function connectBrowser(options: {

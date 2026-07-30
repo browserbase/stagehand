@@ -99,6 +99,12 @@ export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowse
   return internals.attachment as Attachment;
 }
 
+/** @internal */
+export function releaseStagehandBrowserHandle(browser: StagehandBrowser): void {
+  const internals = requireBrowserHandleInternals(browser);
+  internals.claimed = false;
+}
+
 export function isStagehandBrowser(value: unknown): value is StagehandBrowser {
   return (
     typeof value === "object" &&

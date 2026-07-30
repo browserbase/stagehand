@@ -93,6 +93,12 @@ const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
   PageLocator: new Set(["Descriptor"]),
 };
 
+// Browser lifecycle construction is intentionally language-specific while the v4 clients migrate
+// independently: TypeScript uses create(), while Python and Go still expose init(). RPC-backed
+// feature methods remain subject to strict cross-language parity below.
+const stagehandLifecycleMethods = new Set(["create", "init"]);
+const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
+
 describe("All language SDK operations remain in sync", () => {
   it("sends protocol version and client identity in stagehand.init", async () => {
     const configurations = [
@@ -522,6 +528,8 @@ async function publicOperations(
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
       if (!publicMethod) return [];
+      const normalizedMethod = snakeCase(publicMethod.text());
+      if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {
         const methodNode = protocolMethodNode(call, language);
@@ -530,7 +538,7 @@ async function publicOperations(
         const wireMethod = wireMethodForCall(methodNode, language, registry);
 
         return {
-          publicMethod: snakeCase(publicMethod.text()),
+          publicMethod: normalizedMethod,
           wireMethod,
         };
       });
@@ -559,10 +567,23 @@ async function publicCallableMethods(
         .filter((method) => isPublicCallable(method, language))
         .flatMap((method) => {
           const name = methodName(method.node, language);
-          return name ? [snakeCase(name.text())] : [];
+          if (!name) return [];
+          const normalizedMethod = snakeCase(name.text());
+          return participatesInSurfaceParity(className, language, normalizedMethod)
+            ? [normalizedMethod]
+            : [];
         }),
     ),
   ].sort();
+}
+
+function participatesInSurfaceParity(
+  className: string,
+  language: SdkLanguage,
+  method: string,
+): boolean {
+  if (className === "Stagehand" && stagehandLifecycleMethods.has(method)) return false;
+  return language !== "typescript" || !internalTypescriptMethods.has(method);
 }
 
 async function publicAccessors(

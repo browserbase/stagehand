@@ -45,6 +45,10 @@ describe("published TypeScript SDK", () => {
             import { access, readFile } from "node:fs/promises";
             import { fileURLToPath } from "node:url";
             import {
+              browserbase,
+              BrowserbaseConnectOptionsSchema,
+              localBrowser,
+              LocalBrowserConnectOptionsSchema,
               Stagehand,
               WebMCPInvocation,
               WebMCPTool,
@@ -52,6 +56,14 @@ describe("published TypeScript SDK", () => {
             } from "@browserbasehq/stagehand";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
+            if (typeof localBrowser?.launch !== "function") {
+              throw new Error("localBrowser export is unavailable");
+            }
+            if (typeof browserbase?.connect !== "function") {
+              throw new Error("browserbase export is unavailable");
+            }
+            LocalBrowserConnectOptionsSchema.parse({ cdpUrl: "ws://127.0.0.1:9222" });
+            BrowserbaseConnectOptionsSchema.parse({ apiKey: "bb_key", sessionId: "session_123" });
             if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
             if (typeof WebMCPInvocation !== "function") {
               throw new Error("WebMCPInvocation export is unavailable");
