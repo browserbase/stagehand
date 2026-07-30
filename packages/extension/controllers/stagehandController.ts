@@ -59,7 +59,7 @@ export function createStagehandController(
 
       const model = params.options?.model ?? state.initParams.model;
       const gateway = buildGatewayContext(state.initParams);
-      if (!model && !gateway) {
+      if (typeof params.instruction === "string" && !model && !gateway) {
         throw new Error("An LLM was not configured during Stagehand initialization");
       }
 

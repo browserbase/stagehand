@@ -69,6 +69,10 @@ export async function act({
   gateway?: GatewayContext;
 }): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
+  if (typeof actInstruction === "string" && !model) {
+    throw new Error("An LLM was not configured during Stagehand initialization");
+  }
+
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
@@ -82,7 +86,7 @@ export async function act({
     clientLLMGenerate,
     logger,
     systemPrompt,
-    selfHeal,
+    selfHeal: selfHeal && model !== undefined,
     domSettleTimeoutMs,
     ensureTimeRemaining,
     gateway,
@@ -273,6 +277,10 @@ async function getActionFromLLM({
   xpathMap: Record<string, string>;
   context: ActContext;
 }): Promise<{ action?: Action; response: ActInferenceResponse }> {
+  if (!context.model) {
+    throw new Error("An LLM was not configured during Stagehand initialization");
+  }
+
   const response = await inference.act({
     instruction,
     domElements,
