@@ -9,6 +9,7 @@ import type {
 import { TimeoutError } from "../errors.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
@@ -45,6 +46,7 @@ export async function extract({
   logger,
   systemPrompt = "",
   cache,
+  gateway,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
@@ -53,6 +55,7 @@ export async function extract({
   logger: StagehandLogger;
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -134,7 +137,7 @@ export async function extract({
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as z.ZodObject,
-        generate: (input) => llmService.generate(model, input, clientLLMGenerate),
+        generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
       });

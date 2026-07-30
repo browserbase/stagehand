@@ -5,6 +5,7 @@ import * as llmService from "../services/llmService.js";
 
 vi.mock("ai", () => ({
   generateText: vi.fn(),
+  jsonSchema: vi.fn((schema: unknown) => schema),
   Output: {
     object: vi.fn((options: unknown) => options),
   },
@@ -59,6 +60,21 @@ describe("AI SDK language models", () => {
     });
   });
 
+  it("uses Chat Completions for OpenAI requests with stop sequences", () => {
+    const model = createAiSdkLanguageModel(
+      {
+        modelName: "openai/gpt-5.4-mini",
+        apiKey: "provider-secret",
+      },
+      { stopSequences: ["STOP"] },
+    );
+
+    expect(model).toMatchObject({
+      provider: "openai.chat",
+      modelId: "gpt-5.4-mini",
+    });
+  });
+
   it("routes a configured provider model through the AI SDK client", async () => {
     vi.mocked(generateText).mockResolvedValue({
       text: "Four",
@@ -88,6 +104,38 @@ describe("AI SDK language models", () => {
           provider: "openai.responses",
           modelId: "gpt-5.4-mini",
         }),
+      }),
+    );
+  });
+
+  it("routes OpenAI stop sequences through Chat Completions", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "Done",
+      output: undefined,
+      finishReason: "stop",
+      usage: {
+        inputTokens: 3,
+        outputTokens: 1,
+        totalTokens: 4,
+      },
+    } as never);
+
+    await llmService.generate(
+      {
+        modelName: "openai/gpt-5.4-mini",
+        apiKey: "provider-secret",
+      },
+      {
+        messages: [{ role: "user", content: { type: "text", text: "Stop before END" } }],
+        stopSequences: ["END"],
+      },
+      vi.fn(),
+    );
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({ provider: "openai.chat" }),
+        stopSequences: ["END"],
       }),
     );
   });
@@ -129,7 +177,65 @@ describe("generateWithAiSdk", () => {
       messages: [{ role: "user", content: [{ type: "text", text: "What is 2 + 2?" }] }],
       temperature: undefined,
       stopSequences: undefined,
+      tools: undefined,
+      toolChoice: undefined,
     });
+  });
+
+  it("forwards tools and tool choice", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "",
+      output: undefined,
+      finishReason: "tool-calls",
+      toolCalls: [
+        {
+          toolCallId: "call-1",
+          toolName: "get_weather",
+          input: { city: "Zurich" },
+        },
+      ],
+      usage: {
+        inputTokens: 12,
+        outputTokens: 3,
+        totalTokens: 15,
+      },
+    } as never);
+
+    const result = await generateWithAiSdk({} as never, {
+      messages: [{ role: "user", content: { type: "text", text: "Check the weather" } }],
+      tools: [
+        {
+          name: "get_weather",
+          description: "Gets the weather",
+          inputSchema: {
+            type: "object",
+            properties: { city: { type: "string" } },
+            required: ["city"],
+          },
+        },
+      ],
+      toolChoice: { mode: "required" },
+    });
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: {
+          get_weather: expect.objectContaining({
+            description: "Gets the weather",
+          }),
+        },
+        toolChoice: "required",
+      }),
+    );
+    expect(result.content).toEqual([
+      { type: "text", text: "" },
+      {
+        type: "tool_use",
+        id: "call-1",
+        name: "get_weather",
+        input: { city: "Zurich" },
+      },
+    ]);
   });
 
   it("converts protocol image blocks into AI SDK image parts", async () => {
