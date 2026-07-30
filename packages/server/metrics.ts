@@ -1,6 +1,6 @@
 import type { StagehandMetrics, StagehandResultUsage } from "../protocol/types.js";
 
-export type StagehandMetricMethod = "act" | "extract" | "observe";
+type StagehandMetricMethod = "act" | "extract" | "observe";
 
 const EMPTY_METRICS: StagehandMetrics = {
   actPromptTokens: 0,

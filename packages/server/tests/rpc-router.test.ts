@@ -7,32 +7,12 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
 
-const EMPTY_METRICS = {
-  actPromptTokens: 0,
-  actCompletionTokens: 0,
-  actReasoningTokens: 0,
-  actCachedInputTokens: 0,
-  actInferenceTimeMs: 0,
-  extractPromptTokens: 0,
-  extractCompletionTokens: 0,
-  extractReasoningTokens: 0,
-  extractCachedInputTokens: 0,
-  extractInferenceTimeMs: 0,
-  observePromptTokens: 0,
-  observeCompletionTokens: 0,
-  observeReasoningTokens: 0,
-  observeCachedInputTokens: 0,
-  observeInferenceTimeMs: 0,
-  totalPromptTokens: 0,
-  totalCompletionTokens: 0,
-  totalReasoningTokens: 0,
-  totalCachedInputTokens: 0,
-  totalInferenceTimeMs: 0,
-};
+const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
 
 describe("Stagehand RPC router", () => {
   it("creates one server span for every valid JSON-RPC request", async () => {

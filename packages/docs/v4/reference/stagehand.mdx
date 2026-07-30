@@ -44,7 +44,7 @@ await stagehand.close();
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
-Each Stagehand instance starts at zero. Only operations that return `metadata.usage` are added, so deterministic actions, cache hits, and calls that throw before returning a result leave the counters unchanged. Reading metrics does not reset them.
+Each Stagehand instance starts at zero. Only operations that return `metadata.usage` count toward totals, so deterministic actions, cache hits, and calls that throw before returning a result leave the counters unchanged. Reading metrics does not reset them.
 
 ```typescript
 const metrics = await stagehand.metrics();
@@ -593,7 +593,7 @@ await stagehand.close()
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
-Each Stagehand instance starts at zero. Only operations that return `metadata.usage` are added, so deterministic actions, cache hits, and calls that raise before returning a result leave the counters unchanged. Reading metrics does not reset them.
+Each Stagehand instance starts at zero. Only operations that return `metadata.usage` count toward totals, so deterministic actions, cache hits, and calls that raise before returning a result leave the counters unchanged. Reading metrics does not reset them.
 
 ```python
 metrics = await stagehand.metrics()
