@@ -135,7 +135,7 @@ Real-time event logging during automation execution.
 
 ### Verbosity level
 
-Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold.
+Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold. TypeScript and Python set that threshold; Go does not expose one and receives the default of `info` and above.
 
 <Tabs>
 <Tab title="Level: debug">
@@ -161,7 +161,7 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go delivers every record to OnLog; keep them all for maximum detail
+// Go has no level to raise: OnLog receives every record the runtime emits
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: func(entry stagehand.StagehandLog) {
@@ -214,7 +214,7 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Drop debug records to match the default level of the other SDKs
+// Go filters in OnLog: this keeps info and above, the default of the other SDKs
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: func(entry stagehand.StagehandLog) {
@@ -322,7 +322,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Warning>
-Turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets.
+In TypeScript and Python, turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets. Go has no level, so the runtime keeps generating records: leave `OnLog` unset to keep them out of your own sinks.
 </Warning>
 
 ---
@@ -333,7 +333,7 @@ Logs can be sent to different destinations, including your console and external 
 
 <Tabs>
 <Tab title="Pretty (default)">
-Human-readable, single-line console output written to standard error.
+Human-readable, single-line console output written to standard error. TypeScript and Python render this format for you; in Go you produce it in the callback.
 
 **When to use:** Development and interactive debugging
 
@@ -383,7 +383,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </View>
 
 <Accordion title="Output shape">
-Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. Output goes to standard error so it never mixes with your program's own standard output.
+Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. TypeScript and Python write it to standard error so it never mixes with your program's own standard output.
 </Accordion>
 </Tab>
 
@@ -435,7 +435,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 </Tab>
 <Tab title="Custom logger">
-Your own callback receives every log record that passes the level filter, in addition to the console output.
+Your own callback receives every log record that passes the level filter, alongside the console output in TypeScript and Python.
 
 **When to use:** Development, debugging, or when you don't need querying
 capabilities.
@@ -544,7 +544,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-The log callback runs in addition to console output, not instead of it, and the level gates both. Setting the level to `off` suppresses the callback as well as the console, so keep the level at the lowest severity you want to receive and do your own filtering inside the callback. Redirect standard error if you need the console itself to stay clean.
+The callback receives every record that passes the level gate, so do any finer filtering inside it. In TypeScript and Python the callback runs in addition to the console output rather than instead of it: the level gates both and `off` silences both, so keep the level at the lowest severity you want to receive and redirect standard error if the console itself needs to stay quiet. Go exposes no level and writes nothing to the console, so the callback is the only sink and always receives the runtime default of `info` and above.
 </Note>
 </Tab>
 
@@ -737,7 +737,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-Exceptions thrown by your callback, including rejected promises, are caught and reported on standard error. A failing logger will not take down your automation.
+In TypeScript and Python, exceptions thrown by your callback, including rejected promises, are caught and reported on standard error, so a failing logger will not take down your automation. Go does not recover from a panic in `OnLog`, so handle failures inside the callback.
 </Note>
 
 </Tab>
@@ -1029,7 +1029,7 @@ This is especially useful for debugging long workflows where you need to trace t
 **Development only** - Produces large volumes of output and contains page content. Do not use in production.
 </Warning>
 
-Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call.
+Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call. TypeScript and Python can raise the level to `debug`; Go cannot, so debug records never reach a Go callback.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -1206,10 +1206,10 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 |--------|---------|-------------|
 | level | `info` | Minimum level to emit: `off`, `error`, `warn`, `info`, or `debug` |
 | format | `pretty` | Console rendering: human-readable lines or one JSON object per line |
-| log callback | none | Receives every record that passes the level filter, in addition to console output |
+| log callback | none | Receives every record that passes the level filter, alongside the console output in TypeScript and Python |
 
 <Note>
-The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic.
+The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic. Go sends no level, so its runtime stays at `info`.
 </Note>
 
 ### Log structure

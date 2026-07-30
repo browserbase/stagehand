@@ -649,11 +649,21 @@ type LLMGenerateParams = {
     | { type: "json_schema"; name: string; schema: unknown };
 };
 
-// A message's content is one block or an array of them. Bedrock's `text` field
-// wants a string, so join the text blocks and skip the image blocks.
-function messageText(content: LLMContentBlock | LLMContentBlock[]): string {
+// A message's content is one block or an array of them. Converse takes a list
+// of content blocks, so map text to a text block and images (which
+// `extract({ screenshot: true })` sends) to Converse's image block.
+function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
   const blocks = Array.isArray(content) ? content : [content];
-  return blocks.map((block) => (block.type === "text" ? block.text : "")).join("");
+  return blocks.map((block) =>
+    block.type === "text"
+      ? { text: block.text }
+      : {
+          image: {
+            format: block.mimeType.replace("image/", ""),
+            source: { bytes: Buffer.from(block.data, "base64") },
+          },
+        },
+  );
 }
 
 async function generateWithBedrock(params: LLMGenerateParams) {
@@ -666,7 +676,7 @@ async function generateWithBedrock(params: LLMGenerateParams) {
     system: params.systemPrompt ? [{ text: params.systemPrompt }] : undefined,
     messages: params.messages.map((message) => ({
       role: message.role,
-      content: [{ text: messageText(message.content) }],
+      content: messageContent(message.content),
     })),
   }));
 
@@ -683,6 +693,7 @@ async function generateWithBedrock(params: LLMGenerateParams) {
 
 <View title="Python" icon="python">
 ```python
+import base64
 import json
 
 import boto3
@@ -690,13 +701,25 @@ import boto3
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
 
-def message_text(message):
-    # A message's content is one block or a list of them, each block a
-    # LLMTextContent or LLMImageContent under `.root`. Bedrock's `text` field
-    # wants a string, so join the text blocks and skip the image blocks.
+def content_block(block):
+    # Each block is a LLMTextContent or LLMImageContent under `.root`. Converse
+    # takes its own content blocks, so map text to a text block and images
+    # (which `extract(screenshot=True)` sends) to Converse's image block.
+    if block.root.type == "text":
+        return {"text": block.root.text}
+    return {
+        "image": {
+            "format": block.root.mime_type.removeprefix("image/"),
+            "source": {"bytes": base64.b64decode(block.root.data)},
+        }
+    }
+
+
+def message_content(message):
+    # A message's content is one block or a list of them.
     content = message.content
     blocks = content if isinstance(content, list) else [content]
-    return "".join(block.root.text for block in blocks if block.root.type == "text")
+    return [content_block(block) for block in blocks]
 
 
 async def generate_with_bedrock(params):
@@ -704,7 +727,7 @@ async def generate_with_bedrock(params):
         modelId="amazon.nova-pro-v1:0",
         system=[{"text": params.system_prompt}] if params.system_prompt else [],
         messages=[
-            {"role": message.role.value, "content": [{"text": message_text(message)}]}
+            {"role": message.role.value, "content": message_content(message)}
             for message in params.messages
         ],
     )
@@ -722,16 +745,27 @@ async def generate_with_bedrock(params):
 <View title="Go" icon="golang">
 ```go
 // A message's content is a slice of blocks, each one text, image, tool-use, or
-// tool-result. Bedrock's text block wants a string, so join the text blocks and
-// skip the rest.
-func messageText(message stagehand.LLMMessage) string {
-	var text strings.Builder
+// tool-result. Converse takes its own content blocks, so map text to a text
+// block and images (which extract sends when Screenshot is true) to an image
+// block.
+func messageContent(message stagehand.LLMMessage) ([]types.ContentBlock, error) {
+	blocks := make([]types.ContentBlock, 0, len(message.Content))
 	for _, block := range message.Content {
 		if content, ok := block.AsText(); ok {
-			text.WriteString(content.Text)
+			blocks = append(blocks, &types.ContentBlockMemberText{Value: content.Text})
+		}
+		if content, ok := block.AsImage(); ok {
+			data, err := base64.StdEncoding.DecodeString(content.Data)
+			if err != nil {
+				return nil, err
+			}
+			blocks = append(blocks, &types.ContentBlockMemberImage{Value: types.ImageBlock{
+				Format: types.ImageFormat(strings.TrimPrefix(content.MIMEType, "image/")),
+				Source: &types.ImageSourceMemberBytes{Value: data},
+			}})
 		}
 	}
-	return text.String()
+	return blocks, nil
 }
 
 func generateWithBedrock(
@@ -745,9 +779,13 @@ func generateWithBedrock(
 
 	messages := make([]types.Message, 0, len(request.Messages))
 	for _, message := range request.Messages {
+		content, err := messageContent(message)
+		if err != nil {
+			return stagehand.LLMGenerateResult{}, err
+		}
 		messages = append(messages, types.Message{
 			Role:    types.ConversationRole(message.Role),
-			Content: []types.ContentBlock{&types.ContentBlockMemberText{Value: messageText(message)}},
+			Content: content,
 		})
 	}
 
@@ -867,11 +905,20 @@ type LLMGenerateParams = {
     | { type: "json_schema"; name: string; schema: unknown };
 };
 
-// A message's content is one block or an array of them. Join the text blocks
-// and skip the image blocks to get the string the Responses API expects.
-function messageText(content: LLMContentBlock | LLMContentBlock[]): string {
+// A message's content is one block or an array of them. The Responses API takes
+// input parts, so map text to an input text part and images (which
+// `extract({ screenshot: true })` sends) to an input image data URL.
+function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
   const blocks = Array.isArray(content) ? content : [content];
-  return blocks.map((block) => (block.type === "text" ? block.text : "")).join("");
+  return blocks.map((block) =>
+    block.type === "text"
+      ? { type: "input_text", text: block.text }
+      : {
+          type: "input_image",
+          image_url: `data:${block.mimeType};base64,${block.data}`,
+          detail: "auto",
+        },
+  );
 }
 
 async function generateWithOpenAI(params: LLMGenerateParams) {
@@ -884,7 +931,7 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
     instructions: params.systemPrompt,
     input: params.messages.map((message) => ({
       role: message.role,
-      content: messageText(message.content),
+      content: messageContent(message.content),
     })),
     temperature: params.temperature,
     text: {
@@ -902,17 +949,6 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
     content: { type: "text", text: response.output_text },
     outputFormat: "json_schema",
     structuredContent: JSON.parse(response.output_text),
-    // usage is optional; map your provider's field names onto Stagehand's
-    // (`reasoningTokens` and `cachedInputTokens` are optional too)
-    ...(response.usage
-      ? {
-          usage: {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
-            totalTokens: response.usage.total_tokens,
-          },
-        }
-      : {}),
   };
 }
 ```
@@ -929,13 +965,24 @@ from stagehand import LLMStructuredGenerateResult
 openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 
-def message_text(message):
-    # A message's content is one block or a list of them, each block a
-    # LLMTextContent or LLMImageContent under `.root`. Join the text blocks and
-    # skip the image blocks to get the string the Responses API expects.
+def content_part(block):
+    # Each block is a LLMTextContent or LLMImageContent under `.root`. The
+    # Responses API takes input parts, so map text to an input text part and
+    # images (which `extract(screenshot=True)` sends) to an input image data URL.
+    if block.root.type == "text":
+        return {"type": "input_text", "text": block.root.text}
+    return {
+        "type": "input_image",
+        "image_url": f"data:{block.root.mime_type};base64,{block.root.data}",
+        "detail": "auto",
+    }
+
+
+def message_content(message):
+    # A message's content is one block or a list of them.
     content = message.content
     blocks = content if isinstance(content, list) else [content]
-    return "".join(block.root.text for block in blocks if block.root.type == "text")
+    return [content_part(block) for block in blocks]
 
 
 async def generate_with_openai(params):
@@ -944,7 +991,7 @@ async def generate_with_openai(params):
         model="gpt-5.4-mini",
         instructions=params.system_prompt,
         input=[
-            {"role": message.role.value, "content": message_text(message)}
+            {"role": message.role.value, "content": message_content(message)}
             for message in params.messages
         ],
         temperature=params.temperature,
@@ -998,6 +1045,10 @@ func generateWithOpenAI(
 }
 ```
 </View>
+
+<Note>
+Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
+</Note>
 </Step>
 
 <Step title="Pass the callback to Stagehand">
@@ -1131,6 +1182,10 @@ func generateWithYourProvider(
 }
 ```
 </View>
+
+<Note>
+A message's content is one content block or an array of them. Text blocks carry a string, and image blocks carry base64 data plus a MIME type. [`extract()` with the screenshot option](/v4/basics/extract) sends a viewport screenshot as an image block, so map image blocks onto your provider's own image format. A callback that reads only the text blocks answers a visual extraction from the accessibility tree alone.
+</Note>
 </Step>
 <Step title="Pass the callback to Stagehand">
 
