@@ -17,6 +17,7 @@ import {
   resolveCodexToolSurface,
 } from "../../framework/codexToolAdapter.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
+import { BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
 
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
@@ -86,7 +87,7 @@ describe("claude code tool adapter resolution", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
       browseCliVersion: "0.9.5",
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
     });
   });
 

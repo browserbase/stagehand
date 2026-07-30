@@ -5,6 +5,7 @@ import {
   deriveCategoryFilter,
   runCommand,
 } from "../../tui/commands/run.js";
+import { BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
 
 const runEvalsMock = vi.hoisted(() =>
   vi.fn(async () => ({
@@ -273,7 +274,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
       agentMode: null,
       harnessConfig: {
         harness: "claude_code",
@@ -333,7 +334,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
       agentMode: null,
       harnessConfig: {
         harness: "codex",
