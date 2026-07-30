@@ -633,14 +633,28 @@ const bedrock = new BedrockRuntimeClient({ region: "us-east-1" });
 
 // The shape Stagehand passes to your callback. The TypeScript SDK does not
 // re-export `LLMGenerateParams` yet, so spell out the fields you read.
+type LLMContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
 type LLMGenerateParams = {
-  messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: LLMContentBlock | LLMContentBlock[];
+  }>;
   systemPrompt?: string;
   temperature?: number;
   responseFormat?:
     | { type: "text" }
     | { type: "json_schema"; name: string; schema: unknown };
 };
+
+// A message's content is one block or an array of them. Bedrock's `text` field
+// wants a string, so join the text blocks and skip the image blocks.
+function messageText(content: LLMContentBlock | LLMContentBlock[]): string {
+  const blocks = Array.isArray(content) ? content : [content];
+  return blocks.map((block) => (block.type === "text" ? block.text : "")).join("");
+}
 
 async function generateWithBedrock(params: LLMGenerateParams) {
   if (params.responseFormat?.type !== "json_schema") {
@@ -676,6 +690,15 @@ import boto3
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
 
+def message_text(message):
+    # A message's content is one block or a list of them, each block a
+    # LLMTextContent or LLMImageContent under `.root`. Bedrock's `text` field
+    # wants a string, so join the text blocks and skip the image blocks.
+    content = message.content
+    blocks = content if isinstance(content, list) else [content]
+    return "".join(block.root.text for block in blocks if block.root.type == "text")
+
+
 async def generate_with_bedrock(params):
     response = bedrock.converse(
         modelId="amazon.nova-pro-v1:0",
@@ -698,6 +721,19 @@ async def generate_with_bedrock(params):
 
 <View title="Go" icon="golang">
 ```go
+// A message's content is a slice of blocks, each one text, image, tool-use, or
+// tool-result. Bedrock's text block wants a string, so join the text blocks and
+// skip the rest.
+func messageText(message stagehand.LLMMessage) string {
+	var text strings.Builder
+	for _, block := range message.Content {
+		if content, ok := block.AsText(); ok {
+			text.WriteString(content.Text)
+		}
+	}
+	return text.String()
+}
+
 func generateWithBedrock(
 	ctx context.Context,
 	params stagehand.LLMGenerateParams,
@@ -815,14 +851,28 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // The shape Stagehand passes to your callback. The TypeScript SDK does not
 // re-export `LLMGenerateParams` yet, so spell out the fields you read.
+type LLMContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
 type LLMGenerateParams = {
-  messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+  messages: Array<{
+    role: "user" | "assistant";
+    content: LLMContentBlock | LLMContentBlock[];
+  }>;
   systemPrompt?: string;
   temperature?: number;
   responseFormat?:
     | { type: "text" }
     | { type: "json_schema"; name: string; schema: unknown };
 };
+
+// A message's content is one block or an array of them. Join the text blocks
+// and skip the image blocks to get the string the Responses API expects.
+function messageText(content: LLMContentBlock | LLMContentBlock[]): string {
+  const blocks = Array.isArray(content) ? content : [content];
+  return blocks.map((block) => (block.type === "text" ? block.text : "")).join("");
+}
 
 async function generateWithOpenAI(params: LLMGenerateParams) {
   if (params.responseFormat?.type !== "json_schema") {
@@ -852,8 +902,17 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
     content: { type: "text", text: response.output_text },
     outputFormat: "json_schema",
     structuredContent: JSON.parse(response.output_text),
-    // usage is optional; map your provider's own field names onto Stagehand's
-    ...(response.usage ? { usage: toStagehandUsage(response.usage) } : {}),
+    // usage is optional; map your provider's field names onto Stagehand's
+    // (`reasoningTokens` and `cachedInputTokens` are optional too)
+    ...(response.usage
+      ? {
+          usage: {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+            totalTokens: response.usage.total_tokens,
+          },
+        }
+      : {}),
   };
 }
 ```
@@ -868,6 +927,15 @@ from openai import AsyncOpenAI
 from stagehand import LLMStructuredGenerateResult
 
 openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+
+def message_text(message):
+    # A message's content is one block or a list of them, each block a
+    # LLMTextContent or LLMImageContent under `.root`. Join the text blocks and
+    # skip the image blocks to get the string the Responses API expects.
+    content = message.content
+    blocks = content if isinstance(content, list) else [content]
+    return "".join(block.root.text for block in blocks if block.root.type == "text")
 
 
 async def generate_with_openai(params):

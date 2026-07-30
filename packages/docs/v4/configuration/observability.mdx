@@ -57,6 +57,8 @@ console.log("Proxy bytes:", sessionInfo.proxyBytes);
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from browserbase import Browserbase
 
 from stagehand import Stagehand
@@ -276,6 +278,8 @@ For local development, Stagehand provides performance monitoring and resource tr
 
 ### Performance tracking
 
+{/* TODO: these samples call stagehand.metrics(), which is typed end to end but currently throws "Method not implemented" in the runtime. Same caveat as the "Real-time metrics & monitoring" section below; verify both before publishing. */}
+
 <View title="TypeScript" icon="js">
 ```typescript
 import { Stagehand } from "@browserbasehq/stagehand";
@@ -323,6 +327,8 @@ console.log("Local Performance Summary:", {
 <View title="Python" icon="python">
 ```python
 from time import perf_counter
+
+from pydantic import BaseModel
 
 from stagehand import Stagehand, StagehandClientLoggingConfig
 

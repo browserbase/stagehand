@@ -44,6 +44,8 @@ const testing = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand, StagehandClientLoggingConfig
 
 # Development: full debug output, human-readable
@@ -117,6 +119,7 @@ case "production":
 case "test":
 	client = testing
 }
+
 if err := client.Init(ctx); err != nil {
 	return err
 }
@@ -541,7 +544,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-The log callback runs in addition to console output, not instead of it. Set the level to `off` if you want no console output, and do your own filtering inside the callback if you need finer control.
+The log callback runs in addition to console output, not instead of it, and the level gates both. Setting the level to `off` suppresses the callback as well as the console, so keep the level at the lowest severity you want to receive and do your own filtering inside the callback. Redirect standard error if you need the console itself to stay clean.
 </Note>
 </Tab>
 
@@ -603,8 +606,10 @@ func productionLogger(entry stagehand.StagehandLog) {
 		return
 	}
 	sentry.WithScope(func(scope *sentry.Scope) {
+		// Data values are json.RawMessage. Pass them through so Sentry keeps each
+		// field's JSON type instead of recording it as quoted text.
 		for key, value := range entry.Data {
-			scope.SetExtra(key, string(value))
+			scope.SetExtra(key, value)
 		}
 		scope.SetLevel(sentry.LevelError)
 		sentry.CaptureMessage(entry.Message)
@@ -667,8 +672,10 @@ func productionLogger(entry stagehand.StagehandLog) {
 		"status":  status,
 		"service": "stagehand-automation",
 	}
+	// Data values are json.RawMessage. Keep them raw so DataDog indexes numbers
+	// as numbers and strings as strings.
 	for key, value := range entry.Data {
-		payload[key] = string(value)
+		payload[key] = value
 	}
 	_ = submitDataDogLog(payload)
 }
