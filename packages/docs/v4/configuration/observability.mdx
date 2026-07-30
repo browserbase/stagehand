@@ -1004,6 +1004,109 @@ fmt.Printf("%+v\n", metrics)
 Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v4/best-practices/caching), which avoids the inference call entirely.
 </Note>
 
+### Operation history
+
+Metrics give you the totals. When you want the sequence of what happened, build the timeline yourself from the log callback: every act, observe, and extract emits records with their structured data already attached. There is no history accessor on the `Stagehand` instance.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Each captured entry is a log record plus the time it was captured
+const history: Array<{
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+}> = [];
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  logging: {
+    level: "debug",
+    format: "json",
+    onLog(log) {
+      history.push({ ...log, timestamp: new Date().toISOString() });
+    },
+  },
+});
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics
+console.log(history.filter((entry) => entry.level === "error"));
+console.log(await stagehand.metrics());
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from datetime import datetime, timezone
+
+from stagehand import Stagehand, StagehandClientLoggingConfig
+
+history: list[dict] = []
+
+
+def record(log) -> None:
+    entry = log.model_dump(mode="json")
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    history.append(entry)
+
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    logging=StagehandClientLoggingConfig(level="debug", format="json", on_log=record),
+)
+
+# ... run your automation
+
+# Inspect what happened, or write it to disk alongside the metrics
+print([entry for entry in history if entry["level"] == "error"])
+print(await stagehand.metrics())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+var history []stagehand.StagehandLog
+var mu sync.Mutex
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		OnLog: func(entry stagehand.StagehandLog) {
+			mu.Lock()
+			history = append(history, entry)
+			mu.Unlock()
+		},
+	},
+})
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics
+for _, entry := range history {
+	if entry.Level == stagehand.StagehandLogLevelError {
+		fmt.Printf("%+v\n", entry)
+	}
+}
+
+metrics, err := client.Metrics(ctx)
+if err != nil {
+	return err
+}
+fmt.Printf("%+v\n", metrics)
+```
+</View>
+
+<Note>
+The records you capture depend on the level. TypeScript and Python can raise it to `debug` for the fullest timeline; Go exposes no level and receives `info` and above.
+</Note>
+
+<Tip>
+On Browserbase, the session replay dashboard gives you the same timeline visually, including the network and console activity that never reaches a log callback.
+</Tip>
+
 ### Tracing
 
 Stagehand emits OpenTelemetry spans for every operation and for every log record, and propagates W3C trace context across the SDK and runtime boundary. Point it at your own OTLP collector to see full traces alongside the rest of your system.
