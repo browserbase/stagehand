@@ -70,12 +70,18 @@ describe("negotiateRuntimeCompatibility", () => {
       kind: "unknown",
       reason: "unreadable-marker",
     }));
-  it("reports unknown marker keys as unreadable", () =>
+  it("accepts operational readiness fields around the strict descriptor", () =>
     expect(
-      negotiateRuntimeCompatibility(requirement, { ...marker(4), status: "ready" }),
-    ).toMatchObject({
-      kind: "unknown",
-      reason: "unreadable-marker",
+      negotiateRuntimeCompatibility(requirement, {
+        ...marker(4),
+        name: "stagehand",
+        state: "ready",
+        connected: true,
+      }),
+    ).toStrictEqual({
+      kind: "compatible",
+      protocolVersion: 4,
+      serverInfo: { name: "stagehand", version: "4.0.0" },
     }));
   it("does not throw for an unreadable proxy", () => {
     const raw = new Proxy({}, { get: () => throwOnRead() });
