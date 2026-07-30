@@ -1,0 +1,134 @@
+---
+title: User data directory
+sidebarTitle: User data
+description: Persist browser data between sessions
+---
+
+## User data directory
+
+Persist browser data between sessions.
+
+### Local sessions
+
+For local sessions, point the browser source at a user data directory. Turn on the preserve option so the profile survives after Stagehand shuts the browser down:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  browser: {
+    type: "local",
+    userDataDir: "./browser-data",
+    preserveUserDataDir: true,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    browser="local",
+    user_data_dir="./browser-data",
+    preserve_user_data_dir=True,
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	Browser: stagehand.LocalBrowserSource{
+		UserDataDir:         "./browser-data",
+		PreserveUserDataDir: true,
+	},
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+<Note>
+When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs.
+</Note>
+
+### Browserbase sessions
+
+For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: {
+    type: "browserbase",
+    browserSettings: {
+      context: {
+        id: "my-context-id",
+        persist: true,
+      },
+    },
+  },
+});
+
+await stagehand.init();
+console.log("Session ID:", stagehand.browser.browserbaseSessionId);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import BrowserbaseBrowserSettings, Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    browser_settings=BrowserbaseBrowserSettings.model_validate({
+        "context": {
+            "id": "my-context-id",
+            "persist": True,
+        }
+    }),
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+persist := true
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{
+		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+			Context: &stagehand.BrowserbaseContext{
+				ID:      "my-context-id",
+				Persist: &persist,
+			},
+		},
+	},
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+<Warning>
+A persisted profile carries cookies, tokens, and site data across runs. Treat the directory or context ID as a credential: keep it out of version control and scope it to a single automation.
+</Warning>

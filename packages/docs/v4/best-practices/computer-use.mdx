@@ -1,0 +1,73 @@
+---
+title: Computer use agents
+description: Incorporate Computer Use APIs from Google, Anthropic, OpenAI, and Microsoft with one line of code in Stagehand.
+---
+
+{/* TODO: Computer use is not implemented in Stagehand v4. Restore this guide (viewport sizing for coordinate models, provider selection, highlightCursor) once CUA support lands. */}
+
+<Warning>
+**Planned. Not available in Stagehand v4.**
+
+Stagehand v4 has no computer-use mode. There is no `agent()` API to attach a CUA model to, and nothing that translates a model's raw coordinate actions into browser input.
+</Warning>
+
+## What to use instead
+
+Stagehand's primitives already work off the page's accessibility tree rather than screen coordinates, so they do not need a viewport pinned to a model's expected resolution and do not drift when layout shifts. Drive the page with [`observe()`](/v4/basics/observe) and [`act()`](/v4/basics/act), and reach for [`extract()`](/v4/basics/extract) with the screenshot option when a decision genuinely needs pixels.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Accessibility-tree driven: no coordinates, no viewport pinning
+const { data: actions } = await stagehand.observe("find the checkout button");
+const [action] = actions;
+if (action) {
+  await page.locator(action.selector).click();
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Accessibility-tree driven: no coordinates, no viewport pinning
+actions = (await stagehand.observe(instruction="find the checkout button")).data
+if actions:
+    await page.locator(actions[0].selector).click()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Accessibility-tree driven: no coordinates, no viewport pinning
+instruction := "find the checkout button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+if len(observed.Data) > 0 {
+	if err := page.Locator(observed.Data[0].Selector).Click(ctx, nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+<Note>
+If you need raw pointer control, `Page` exposes coordinate primitives directly: click, hover, scroll, drag and drop, type, and key press all accept explicit positions.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="play" href="/v4/basics/act">
+    Perform a single action with natural language
+  </Card>
+  <Card title="Observe" icon="magnifying-glass" href="/v4/basics/observe">
+    Discover and validate actions before executing them
+  </Card>
+  <Card title="Models" icon="brain" href="/v4/configuration/models">
+    Supported providers and per-call model overrides
+  </Card>
+  <Card title="Browser configuration" icon="browser" href="/v4/configuration/browser">
+    Viewport, region, and browser source settings
+  </Card>
+</CardGroup>

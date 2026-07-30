@@ -1,0 +1,123 @@
+---
+title: History tracking
+sidebarTitle: History tracking
+description: Track and analyze Stagehand operations with the history API
+---
+
+{/* TODO: The history API is not implemented in Stagehand v4. Restore this guide (entry structure, timing analysis, operation statistics, saving history) once history is populated and exposed. */}
+
+<Warning>
+**Planned. Not available in Stagehand v4.**
+
+Stagehand v4 does not record an operation history. There is no history accessor on the `Stagehand` instance, and the runtime does not accumulate act, observe, extract, or navigation entries.
+</Warning>
+
+## What to use instead
+
+Everything the history API was used for is available today through logging and metrics. Attach a log callback to capture the same events as they happen, with the structured data already attached.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Each captured entry is a log record plus the time it was captured
+const history: Array<{
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+}> = [];
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  logging: {
+    level: "debug",
+    format: "json",
+    onLog(log) {
+      history.push({ ...log, timestamp: new Date().toISOString() });
+    },
+  },
+});
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics
+console.log(history.filter((entry) => entry.level === "error"));
+console.log(await stagehand.metrics());
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from datetime import datetime, timezone
+
+from stagehand import Stagehand, StagehandClientLoggingConfig
+
+history: list[dict] = []
+
+
+def record(log) -> None:
+    entry = log.model_dump(mode="json")
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    history.append(entry)
+
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    logging=StagehandClientLoggingConfig(level="debug", format="json", on_log=record),
+)
+
+# ... run your automation
+
+# Inspect what happened, or write it to disk alongside the metrics
+print([entry for entry in history if entry["level"] == "error"])
+print(await stagehand.metrics())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+var history []stagehand.StagehandLog
+var mu sync.Mutex
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		OnLog: func(entry stagehand.StagehandLog) {
+			mu.Lock()
+			history = append(history, entry)
+			mu.Unlock()
+		},
+	},
+})
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics
+for _, entry := range history {
+	if entry.Level == stagehand.StagehandLogLevelError {
+		fmt.Printf("%+v\n", entry)
+	}
+}
+
+metrics, err := client.Metrics(ctx)
+if err != nil {
+	return err
+}
+fmt.Printf("%+v\n", metrics)
+```
+</View>
+
+<Tip>
+On Browserbase, the session replay dashboard gives you the same timeline visually, including the network and console activity that never reaches a log callback.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Logging" icon="file-lines" href="/v4/configuration/logging">
+    Capture structured records and route them to a file or an observability platform
+  </Card>
+  <Card title="Observability" icon="chart-line" href="/v4/configuration/observability">
+    Token counters, OpenTelemetry tracing, and Browserbase session monitoring
+  </Card>
+</CardGroup>

@@ -1,0 +1,585 @@
+---
+title: Caching actions
+description: Cache actions automatically to reduce costs and improve performance
+---
+
+Stagehand caches `act()`, `observe()`, and `extract()` results server-side to reduce LLM costs and speed up your automations. Caching is managed by Browserbase, so there is nothing to install, no cache files to manage, and no state to keep in sync across machines.
+
+---
+
+## Browserbase cache
+
+Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. Turn it on with the `cache` option and every `act()`, `observe()`, and `extract()` call is cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+
+The cache key is generated from the instruction, page content, and the options you pass. Model configuration is deliberately excluded, so switching models does not invalidate your cache. On a cache hit, the response is returned directly from the server with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
+
+<Note>
+Caching requires the Browserbase browser source and a top-level Browserbase API key. With the local or CDP browser source there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
+</Note>
+
+### Enabling on the constructor
+
+Pass `cache: true` to enable caching for all requests made by that instance:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: true,
+});
+
+await stagehand.init();
+const page = await stagehand.context.activePage();
+
+await page.goto("https://example.com");
+
+// Cached after the hit-count threshold is met
+await stagehand.act("click the login button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    cache=True,
+)
+
+await stagehand.init()
+page = await stagehand.context.active_page()
+
+await page.goto("https://example.com")
+
+# Cached after the hit-count threshold is met
+await stagehand.act("click the login button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+cache := stagehand.CacheEnabled(true)
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &cache,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+browserContext, err := client.Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+
+// Cached after the hit-count threshold is met
+_, err = client.Act(ctx, "click the login button", nil)
+```
+</View>
+
+### Disabling per call
+
+Override the instance setting for a single call by passing the cache option:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  cache: true,
+});
+
+await stagehand.init();
+const page = await stagehand.context.activePage();
+await page.goto("https://example.com");
+
+// This call skips the cache
+await stagehand.act("click the login button", { cache: false });
+
+// This call uses the cache as normal
+await stagehand.act("submit the form");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    cache=True,
+)
+
+await stagehand.init()
+page = await stagehand.context.active_page()
+await page.goto("https://example.com")
+
+# This call skips the cache
+await stagehand.act("click the login button", cache=False)
+
+# This call uses the cache as normal
+await stagehand.act("submit the form")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+cache := stagehand.CacheEnabled(true)
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Cache:  &cache,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+// This call skips the cache
+off := stagehand.CacheEnabled(false)
+if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{Cache: &off},
+}); err != nil {
+	return err
+}
+
+// This call uses the cache as normal
+_, err = client.Act(ctx, "submit the form", nil)
+```
+</View>
+
+### Cache threshold
+
+The threshold controls how many times an identical result must be observed before the cache starts serving it. A higher threshold means Stagehand waits until it is confident the result is stable; a threshold of `1` starts serving hits after a single successful run.
+
+Set it on the constructor to change the default for the instance, or per call to tune a single step. It overrides the threshold configured on your Browserbase project.
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  cache: { threshold: 2 }, // Serve hits after two identical results
+});
+
+await stagehand.init();
+
+const companiesSchema = z.object({ companies: z.array(z.string()) });
+
+// Prime this one step aggressively: the second call is a hit
+const { data } = await stagehand.extract(
+  "Extract the names of the first five companies listed on the page",
+  companiesSchema,
+  { cache: { threshold: 1 } },
+);
+console.log(data.companies);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import CacheOptions, Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    cache=CacheOptions(threshold=2),  # Serve hits after two identical results
+)
+
+await stagehand.init()
+
+
+class Companies(BaseModel):
+    companies: list[str]
+
+
+# Prime this one step aggressively: the second call is a hit
+result = await stagehand.extract(
+    instruction="Extract the names of the first five companies listed on the page",
+    schema=Companies,
+    cache=CacheOptions(threshold=1),
+)
+print(result.data.companies)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+instanceCache := stagehand.CacheWithThreshold(2) // Serve hits after two identical results
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Cache:  &instanceCache,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+var companiesSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "companies": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["companies"],
+  "additionalProperties": false
+}`)
+
+// Prime this one step aggressively: the second call is a hit
+eager := stagehand.CacheWithThreshold(1)
+result, err := client.Extract(
+	ctx,
+	"Extract the names of the first five companies listed on the page",
+	companiesSchema,
+	&stagehand.StagehandClientExtractOptions{
+		ExtractOptions: stagehand.ExtractOptions{Cache: &eager},
+	},
+)
+if err != nil {
+	return err
+}
+
+fmt.Println(string(result.Data))
+```
+</View>
+
+### Inspecting cache status
+
+Results carry a cache status of `HIT` or `MISS` so you can verify whether a result was served from cache:
+
+<View title="TypeScript" icon="js">
+```typescript
+const result = await stagehand.act("click the login button");
+console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+result = await stagehand.act("click the login button")
+print(result.metadata.cache_status)  # "HIT", "MISS", or None
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+result, err := client.Act(ctx, "click the login button", nil)
+if err != nil {
+	return err
+}
+
+if result.Metadata.CacheStatus != nil {
+	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
+}
+```
+</View>
+
+<Tip>
+Cache behavior is also visible in the [Browserbase session replay dashboard](https://docs.browserbase.com/features/observability#stagehand) and in Stagehand's own logs at the `debug` level.
+</Tip>
+
+### Limitations
+
+- The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. Browserbase filters out certain query parameters like referral trackers and analytics, but not all of them yet.
+- If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
+- Caching is best-effort. If the cache is unreachable, Stagehand falls back to normal inference rather than failing your run.
+- A cached `act()` result is replayed deterministically with self-healing turned off. If the recorded selector no longer resolves, Stagehand falls back to full inference.
+
+### Best practices
+
+<AccordionGroup>
+
+<Accordion title="Scope by selector">
+When targeting a specific part of a page, pass a selector to scope the accessibility tree snapshot to that container. This reduces token costs, speeds up inference, and, crucially for caching, means that changes *outside* the container don't affect the cache key.
+
+<View title="TypeScript" icon="js">
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = await stagehand.context.activePage();
+  await page.goto("https://www.google.com/search?q=browserbase");
+
+  await page.waitForLoadState("networkidle");
+
+  const result = await stagehand.observe("click the first search result", {
+    // Scope to the search results container so ads, headers,
+    // and other surrounding content don't pollute the cache key.
+    selector: "#rcnt",
+  });
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+async def example(stagehand: Stagehand) -> None:
+    page = await stagehand.context.active_page()
+    await page.goto("https://www.google.com/search?q=browserbase")
+
+    await page.wait_for_load_state("networkidle")
+
+    result = await stagehand.observe(
+        instruction="click the first search result",
+        # Scope to the search results container so ads, headers,
+        # and other surrounding content don't pollute the cache key.
+        selector="#rcnt",
+    )
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.Page) error {
+	if err := page.Goto(ctx, "https://www.google.com/search?q=browserbase", nil); err != nil {
+		return err
+	}
+
+	if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, nil); err != nil {
+		return err
+	}
+
+	// Scope to the search results container so ads, headers,
+	// and other surrounding content don't pollute the cache key.
+	selector := "#rcnt"
+	instruction := "click the first search result"
+	_, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+		ObserveOptions: stagehand.ObserveOptions{Selector: &selector},
+	})
+	return err
+}
+```
+</View>
+
+<Note>
+When a selector is set, Stagehand hashes only that subtree. If the selector fails to resolve, caching is skipped for that call rather than falling back to the whole page.
+</Note>
+</Accordion>
+
+<Accordion title="Use variables for dynamic values">
+Using variables in `act()` lets you generalize a single cache entry across many different values. The cache key is built from the variable *keys*, not the values, so `{ email: "alice@example.com" }` and `{ email: "bob@example.com" }` share the same entry.
+
+Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever. As a bonus, the secret never reaches the model or the cache record.
+
+<View title="TypeScript" icon="js">
+```typescript
+async function example(stagehand: Stagehand) {
+  const page = await stagehand.context.activePage();
+  await page.goto("https://example.com/login");
+
+  await page.waitForLoadState("networkidle");
+
+  // First run with alice@example.com is a MISS that primes the cache
+  // Any future run, regardless of email value, is a HIT
+  await stagehand.act(
+    "type %email% into the Email address field",
+    { variables: { email: "alice@example.com" } },
+  );
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+async def example(stagehand: Stagehand) -> None:
+    page = await stagehand.context.active_page()
+    await page.goto("https://example.com/login")
+
+    await page.wait_for_load_state("networkidle")
+
+    # First run with alice@example.com is a MISS that primes the cache
+    # Any future run, regardless of email value, is a HIT
+    await stagehand.act(
+        "type %email% into the Email address field",
+        variables={"email": "alice@example.com"},
+    )
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.Page) error {
+	if err := page.Goto(ctx, "https://example.com/login", nil); err != nil {
+		return err
+	}
+
+	if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, nil); err != nil {
+		return err
+	}
+
+	// First run with alice@example.com is a MISS that primes the cache
+	// Any future run, regardless of email value, is a HIT
+	_, err := client.Act(ctx, "type %email% into the Email address field", &stagehand.StagehandClientActOptions{
+		ActOptions: stagehand.ActOptions{
+			Variables: stagehand.Variables{
+				"email": stagehand.PrimitiveVariable(stagehand.StringVariable("alice@example.com")),
+			},
+		},
+	})
+	return err
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Stabilize the environment">
+Small differences in runtime state produce different accessibility trees and therefore different cache keys. Keep your environment as deterministic as possible:
+
+- **Fixed viewport size:** pin the viewport before your first action
+- **Consistent user agent and locale:** set these in your browser source options
+- **Block noisy third-party requests:** analytics, A/B testing scripts, and ad trackers can inject DOM nodes that shift the cache key on every load
+
+<View title="TypeScript" icon="js">
+```typescript
+const page = await stagehand.context.activePage();
+
+// Lock the viewport so the layout is identical across runs
+await page.setViewportSize(1280, 720);
+
+// Block third-party noise that pollutes the accessibility tree
+await stagehand.context.setDomainPolicy({
+  blockedDomains: ["*.google-analytics.com", "*.doubleclick.net"],
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+page = await stagehand.context.active_page()
+
+# Lock the viewport so the layout is identical across runs
+await page.set_viewport_size(1280, 720)
+
+# Block third-party noise that pollutes the accessibility tree
+await stagehand.context.set_domain_policy(
+    DomainPolicy(blocked_domains=["*.google-analytics.com", "*.doubleclick.net"])
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+browserContext, err := client.Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+
+// Lock the viewport so the layout is identical across runs
+if err := page.SetViewportSize(ctx, 1280, 720, nil); err != nil {
+	return err
+}
+
+// Block third-party noise that pollutes the accessibility tree
+if err := browserContext.SetDomainPolicy(ctx, &stagehand.DomainPolicy{
+	BlockedDomains: []string{"*.google-analytics.com", "*.doubleclick.net"},
+}); err != nil {
+	return err
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Keep prompts deterministic">
+The instruction string is part of the cache key. Even minor wording changes (synonyms, extra adjectives, punctuation) produce a new key and a cache miss.
+
+- Anchor instructions to visible UI labels: `"click the Sign in button"` not `"click the button to log me in"`
+- Keep instructions short and free of filler words
+- Avoid instructions that contain runtime-variable text inline; use variables instead
+
+<View title="TypeScript" icon="js">
+```typescript
+// Good: anchored to the visible label, no variance
+await stagehand.act("click the Sign in button");
+
+// Bad: inline dynamic value creates a new cache key every time
+await stagehand.act(`type ${email} into the Email address field`);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Good: anchored to the visible label, no variance
+await stagehand.act("click the Sign in button")
+
+# Bad: inline dynamic value creates a new cache key every time
+await stagehand.act(f"type {email} into the Email address field")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Good: anchored to the visible label, no variance
+if _, err := client.Act(ctx, "click the Sign in button", nil); err != nil {
+	return err
+}
+
+// Bad: inline dynamic value creates a new cache key every time
+if _, err := client.Act(ctx, fmt.Sprintf("type %s into the Email address field", email), nil); err != nil {
+	return err
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Pair caching with the Model Gateway">
+Both server-side caching and the [Model Gateway](/v4/configuration/models#model-gateway) run off the same Browserbase session and the same API key. Using them together means one bill for inference, browsers, and cache, and no provider keys to rotate.
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  model: { modelName: "openai/gpt-5" }, // Routed through Model Gateway
+  cache: true,                          // Served by Browserbase Cache
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    model="openai/gpt-5",  # Routed through Model Gateway
+    cache=True,            # Served by Browserbase Cache
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// Routed through Model Gateway: no model API key
+model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "openai/gpt-5"})
+cache := stagehand.CacheEnabled(true) // Served by Browserbase Cache
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+	Cache:   &cache,
+})
+```
+</View>
+</Accordion>
+
+</AccordionGroup>

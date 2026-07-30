@@ -1,0 +1,648 @@
+---
+title: 'Deploying Stagehand'
+description: 'Deploy your AI agents and automations to the cloud'
+---
+
+<Tip>
+**🌟 Preview: Browser Functions** - Deploy your web automation code directly on Browserbase with browser functions. Scale your `act()` automations in the cloud with zero infrastructure setup. Reach out to hello@browserbase.com to get beta access.
+</Tip>
+
+## Deploy on Vercel
+
+Securely run Stagehand on Browserbase inside a Vercel Function. This guide shows a minimal, production-safe HTTP endpoint you can call directly or on a schedule.
+
+### 1. Install Vercel CLI
+
+To download and install Vercel CLI, run one of the following commands:
+
+```bash
+pnpm i -g vercel
+# npm i -g vercel
+# yarn global add vercel
+# bun add -g vercel
+```
+
+### 2. Project layout
+
+<View title="TypeScript" icon="js">
+```text
+your-project/
+  api/
+    run.ts
+  package.json
+  tsconfig.json
+  vercel.json
+```
+</View>
+
+<View title="Python" icon="python">
+```text
+your-project/
+  api/
+    run.py
+  requirements.txt
+  vercel.json
+```
+</View>
+
+<View title="Go" icon="golang">
+```text
+your-project/
+  api/
+    run.go
+  go.mod
+  vercel.json
+```
+</View>
+
+Create the structure with:
+
+<View title="TypeScript" icon="js">
+```bash
+mkdir -p api
+touch api/run.ts package.json vercel.json tsconfig.json
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+mkdir -p api
+touch api/run.py requirements.txt vercel.json
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+mkdir -p api
+touch api/run.go vercel.json
+go mod init example.com/bb-stagehand-on-vercel
+```
+</View>
+
+### 3. `api/run.ts` (Node.js runtime)
+
+<View title="TypeScript" icon="js">
+```typescript
+// api/run.ts
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  try {
+    const stagehand = new Stagehand({
+      apiKey: process.env.BROWSERBASE_API_KEY!,
+      browser: {
+        type: "browserbase",
+        region: "us-west-2",
+        browserSettings: {
+          blockAds: true,
+        },
+      },
+      model: {
+        modelName: "google/gemini-2.5-flash",
+        apiKey: process.env.GOOGLE_API_KEY,
+      },
+      logging: { level: "warn", format: "json" },
+    });
+
+    await stagehand.init();
+    const page = await stagehand.context.activePage();
+    if (!page) throw new Error("Stagehand initialized without an active page");
+
+    await page.goto("https://www.stagehand.dev/");
+    await stagehand.act("click the evals button");
+
+    const { data } = await stagehand.extract(
+      "extract the fastest model",
+      z.object({ fastestModel: z.string() }),
+    );
+
+    await stagehand.close();
+
+    res.status(200).json({ ok: true, data: data.fastestModel });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ ok: false, error: msg });
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# api/run.py
+import json
+import os
+from http.server import BaseHTTPRequestHandler
+
+import anyio
+from pydantic import BaseModel
+
+from stagehand import BrowserbaseBrowserSettings, Stagehand, StagehandClientLoggingConfig
+
+
+class FastestModel(BaseModel):
+    fastest_model: str
+
+
+async def run() -> str:
+    stagehand = Stagehand(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        browser="browserbase",
+        region="us-west-2",
+        browser_settings=BrowserbaseBrowserSettings.model_validate({"block_ads": True}),
+        model="google/gemini-2.5-flash",
+        model_api_key=os.environ["GOOGLE_API_KEY"],
+        logging=StagehandClientLoggingConfig(level="warn", format="json"),
+    )
+
+    try:
+        await stagehand.init()
+        page = await stagehand.context.active_page()
+        if page is None:
+            raise RuntimeError("Stagehand initialized without an active page")
+
+        await page.goto("https://www.stagehand.dev/")
+        await stagehand.act("click the evals button")
+
+        result = await stagehand.extract(
+            instruction="extract the fastest model",
+            schema=FastestModel,
+        )
+        return result.data.fastest_model
+    finally:
+        await stagehand.close()
+
+
+class handler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        try:
+            data = anyio.run(run)
+            body = {"ok": True, "data": data}
+            status = 200
+        except Exception as error:
+            body = {"ok": False, "error": str(error)}
+            status = 500
+
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(body).encode())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// api/run.go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+type fastestModel struct {
+	FastestModel string `json:"fastest_model"`
+}
+
+var fastestModelSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"fastest_model": {"type": "string"}},
+  "required": ["fastest_model"],
+  "additionalProperties": false
+}`)
+
+func Handler(w http.ResponseWriter, r *http.Request) {
+	data, err := run(r.Context())
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": data})
+}
+
+func run(ctx context.Context) (result string, err error) {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	modelAPIKey := os.Getenv("GOOGLE_API_KEY")
+	region := stagehand.BrowserbaseRegionUSWest2
+	blockAds := true
+
+	model := stagehand.KnownModel(stagehand.KnownModelConfig{
+		ModelName: "google/gemini-2.5-flash",
+		APIKey:    &modelAPIKey,
+	})
+
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		APIKey: &apiKey,
+		Browser: stagehand.BrowserbaseClientBrowserSource{
+			Region: &region,
+			BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+				BlockAds: &blockAds,
+			},
+		},
+		Model: &model,
+		Logging: &stagehand.StagehandClientLoggingConfig{
+			OnLog: func(entry stagehand.StagehandLog) {
+				if entry.Level == stagehand.StagehandLogLevelError {
+					_ = json.NewEncoder(os.Stderr).Encode(entry)
+				}
+			},
+		},
+	})
+
+	if err := client.Init(ctx); err != nil {
+		return "", err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := client.Context()
+	if err != nil {
+		return "", err
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		return "", err
+	}
+	if page == nil {
+		return "", errors.New("Stagehand initialized without an active page")
+	}
+
+	if err := page.Goto(ctx, "https://www.stagehand.dev/", nil); err != nil {
+		return "", err
+	}
+	if _, err := client.Act(ctx, "click the evals button", nil); err != nil {
+		return "", err
+	}
+
+	extracted, err := stagehand.ExtractAs[fastestModel](
+		ctx,
+		client,
+		"extract the fastest model",
+		fastestModelSchema,
+		nil,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return extracted.FastestModel, nil
+}
+
+func main() {
+	http.HandleFunc("/api/run", Handler)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "3000"
+	}
+	fmt.Println("listening on", port)
+	_ = http.ListenAndServe(":"+port, nil)
+}
+```
+</View>
+
+### 4. `package.json`
+
+<View title="TypeScript" icon="js">
+```json
+{
+    "name": "bb-stagehand-on-vercel",
+    "private": true,
+    "type": "module",
+    "engines": { "node": ">=22.18" },
+    "dependencies": {
+      "@browserbasehq/stagehand": "^4.0.0",
+      "zod": "^4.0.0"
+    },
+    "devDependencies": {
+      "@types/node": "^22.0.0",
+      "@vercel/node": "^3.2.20",
+      "typescript": "^5.2.2"
+    }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```text
+# requirements.txt
+stagehand
+anyio
+```
+</View>
+
+<View title="Go" icon="golang">
+```text
+// go.mod
+module example.com/bb-stagehand-on-vercel
+
+go 1.26.0
+
+require github.com/browserbase/stagehand/packages/sdk-go v4.0.0
+```
+</View>
+
+### 5. `tsconfig.json`
+
+<View title="TypeScript" icon="js">
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "outDir": ".vercel/output/functions",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["api/**/*.ts"]
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```text
+Not applicable. Python functions on Vercel need no compiler configuration;
+declare your dependencies in requirements.txt instead.
+```
+</View>
+
+<View title="Go" icon="golang">
+```text
+Not applicable. Go functions on Vercel need no compiler configuration;
+declare your dependencies in go.mod instead.
+```
+</View>
+
+### 6. `vercel.json`
+
+<View title="TypeScript" icon="js">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.ts": {
+      "maxDuration": 60
+    }
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.py": {
+      "maxDuration": 60
+    }
+  }
+}
+```
+</View>
+
+<View title="Go" icon="golang">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.go": {
+      "maxDuration": 60
+    }
+  }
+}
+```
+</View>
+
+See Vercel's [configuring functions](https://vercel.com/docs/functions/configuring-functions) docs for more details.
+
+### 7. Link your project
+
+Link your local folder to a Vercel project before configuring environment variables:
+
+<View title="TypeScript" icon="js">
+```bash
+# authenticate if needed
+vercel login
+
+# link the current directory to a Vercel project (interactive)
+vercel link
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+# authenticate if needed
+vercel login
+
+# link the current directory to a Vercel project (interactive)
+vercel link
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+# authenticate if needed
+vercel login
+
+# link the current directory to a Vercel project (interactive)
+vercel link
+```
+</View>
+
+### 8. Environment variables
+
+Never commit secrets. Add variables via the Vercel CLI, then read them in your handler and pass them to the Stagehand constructor:
+
+<View title="TypeScript" icon="js">
+```bash
+vercel env add BROWSERBASE_API_KEY
+# (and your model key if needed)
+vercel env add GOOGLE_API_KEY
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+vercel env add BROWSERBASE_API_KEY
+# (and your model key if needed)
+vercel env add GOOGLE_API_KEY
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+vercel env add BROWSERBASE_API_KEY
+# (and your model key if needed)
+vercel env add GOOGLE_API_KEY
+```
+</View>
+
+<Tip>
+Using the [Model Gateway](/v4/configuration/models#model-gateway) means `BROWSERBASE_API_KEY` is the only secret you need to deploy.
+</Tip>
+
+See also: [Browser Configuration](/v4/configuration/browser) for details on required variables.
+
+### 9. Test locally
+
+Replicate the Vercel environment locally to exercise your Function before deploying. Run from the project root.
+
+<View title="TypeScript" icon="js">
+```bash
+# ensure dependencies are installed
+npm install
+
+# start the local Vercel dev server
+vercel dev --listen 5005
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+# ensure dependencies are installed
+pip install -r requirements.txt
+
+# start the local Vercel dev server
+vercel dev --listen 5005
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+# ensure dependencies are installed
+go mod tidy
+
+# start the local Vercel dev server
+vercel dev --listen 5005
+```
+</View>
+
+### 10. Deploy
+
+<View title="TypeScript" icon="js">
+```bash
+vercel
+vercel --prod
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+vercel
+vercel --prod
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+vercel
+vercel --prod
+```
+</View>
+
+### Execute the function
+
+#### Configure protection bypass for automation
+
+Before invoking the production URL, create a Protection Bypass for Automation:
+
+1. Generate a 32-character secret (you can use `openssl rand -hex 16`)
+2. Go to your project in Vercel
+3. Navigate to Settings, then Deployment Protection
+4. Add the secret to "Protection Bypass for Automation"
+
+Then invoke the function with the bypass header:
+
+<View title="TypeScript" icon="js">
+```bash
+curl -X POST \
+  -H "x-vercel-protection-bypass: <your-32-character-secret>" \
+  https://<your-deployment>/api/run
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+curl -X POST \
+  -H "x-vercel-protection-bypass: <your-32-character-secret>" \
+  https://<your-deployment>/api/run
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+curl -X POST \
+  -H "x-vercel-protection-bypass: <your-32-character-secret>" \
+  https://<your-deployment>/api/run
+```
+</View>
+
+### Optional: cron on Vercel
+
+Hit the same endpoint on a schedule by extending `vercel.json`:
+
+<View title="TypeScript" icon="js">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.ts": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.py": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+</View>
+
+<View title="Go" icon="golang">
+```json
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/run.go": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    { "path": "/api/run", "schedule": "0 * * * *" }
+  ]
+}
+```
+</View>
+
+### Features
+- **No local browsers needed** with the Browserbase browser source. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.
+- **Fast functionality**: Offload browser work to Browserbase and return JSON promptly.
+- **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
+- **Cheap repeat runs**: Turn on [server-side caching](/v4/best-practices/caching) so scheduled invocations replay recorded actions instead of paying for inference every hour.
