@@ -322,7 +322,9 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.options.locator == locator
     replay_params = recording.calls[4][1]
     assert isinstance(replay_params, StagehandActParams)
-    assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
+    assert replay_params.model_dump(by_alias=True)["instruction"] == action.model_dump(
+        by_alias=True
+    )
     extract_params = recording.calls[5][1]
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
