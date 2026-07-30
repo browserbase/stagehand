@@ -109,6 +109,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import { Page } from "./understudy/page.js";
+import { StagehandMetricsAccumulator } from "./metrics.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -270,6 +271,7 @@ export function createStagehandRuntime(
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
+  readonly metrics = new StagehandMetricsAccumulator();
   readonly state = createStore<StagehandRuntimeState>()(() =>
     StagehandRuntimeStateSchema.parse({ status: "created" }),
   );

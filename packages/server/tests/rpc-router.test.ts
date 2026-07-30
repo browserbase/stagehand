@@ -11,6 +11,29 @@ import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
 
+const EMPTY_METRICS = {
+  actPromptTokens: 0,
+  actCompletionTokens: 0,
+  actReasoningTokens: 0,
+  actCachedInputTokens: 0,
+  actInferenceTimeMs: 0,
+  extractPromptTokens: 0,
+  extractCompletionTokens: 0,
+  extractReasoningTokens: 0,
+  extractCachedInputTokens: 0,
+  extractInferenceTimeMs: 0,
+  observePromptTokens: 0,
+  observeCompletionTokens: 0,
+  observeReasoningTokens: 0,
+  observeCachedInputTokens: 0,
+  observeInferenceTimeMs: 0,
+  totalPromptTokens: 0,
+  totalCompletionTokens: 0,
+  totalReasoningTokens: 0,
+  totalCachedInputTokens: 0,
+  totalInferenceTimeMs: 0,
+};
+
 describe("Stagehand RPC router", () => {
   it("creates one server span for every valid JSON-RPC request", async () => {
     const spans = new InMemorySpanExporter();
@@ -24,7 +47,7 @@ describe("Stagehand RPC router", () => {
 
     await expect(
       router.handle(request({ id: 10, method: "stagehand.metrics", params: {} })),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     expect(spans.getFinishedSpans()).toContainEqual(
@@ -61,7 +84,7 @@ describe("Stagehand RPC router", () => {
           tracestate: "vendor=value",
         }),
       ),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const span = spans
@@ -133,7 +156,7 @@ describe("Stagehand RPC router", () => {
 
     await expect(
       router.handle(request({ id: 14, method: "stagehand.metrics", params: {} })),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const requestSpan = spans
