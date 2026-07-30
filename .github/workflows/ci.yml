@@ -112,6 +112,46 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
+  extension-drift:
+    name: Extension drift (Go embed vs server build)
+    # Same fork gate as go-windows: this job installs dependencies and builds the server, so
+    # it should not burn hosted-runner time on an unreviewed fork PR. The safe-to-test label
+    # lets a maintainer opt a specific external PR in.
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: false
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ./packages/server build
+
+      # packages/sdk-go/internal/extensionassets/stagehand-extension.zip is committed and
+      # go:embed'd, so Go tests and releases use it without ever building the server. Without
+      # this gate a change to the extension source ships a stale embedded copy while CI is green.
+      - name: Check embedded Go extension matches the built server extension
+        run: go run ./internal/extensionpack --check
+        working-directory: packages/sdk-go
+
   go:
     name: Go
     runs-on: ubuntu-latest

@@ -746,6 +746,7 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 			Endpoint: "https://example.com/v1/traces",
 			Headers:  TelemetryTracesHeaders{},
 		}},
+		RuntimeConfigureParamsLogLevelInfo,
 	)
 	if err != nil {
 		t.Fatalf("connectRPCClient() error = %v", err)
