@@ -73,5 +73,14 @@ describe("client-side LLM protocol", () => {
         structuredContent: { finalAnswer: "four" },
       }),
     ).toMatchObject({ structuredContent: { finalAnswer: "four" } });
+
+    expect(() =>
+      LLMGenerateResultSchema.parse({
+        role: "assistant",
+        content: { type: "text", text: "Four" },
+        outputFormat: "text",
+        providerMetadata: { requestId: "request-1" },
+      }),
+    ).toThrow();
   });
 });

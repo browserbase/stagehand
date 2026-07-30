@@ -51,6 +51,7 @@ type RegisteredRequestHandler = {
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
+
 const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),

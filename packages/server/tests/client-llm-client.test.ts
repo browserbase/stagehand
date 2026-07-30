@@ -53,7 +53,6 @@ describe("client LLM generation", () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => ({
         connected: true,
-        getVersion: async () => ({}),
         pages: () => [],
         activePage: async () => undefined,
         setActivePage: async () => {},
@@ -85,7 +84,7 @@ describe("client LLM generation", () => {
     });
     await runtime.initialize({
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       logLevel: "info",
       model: { source: "client" },
       telemetry: {

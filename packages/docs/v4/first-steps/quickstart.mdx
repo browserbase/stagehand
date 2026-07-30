@@ -48,14 +48,14 @@ try {
   const actions = await stagehand.observe(
     "Find the link that provides more information about Example Domain",
   );
-  console.log(actions);
+  console.log(actions.data);
 
   // Act: perform a natural-language action.
   const result = await stagehand.act(
     "Click the link that provides more information about Example Domain",
   );
-  if (!result.success) {
-    throw new Error(`act() failed: ${result.message}`);
+  if (!result.data.success) {
+    throw new Error(`act() failed: ${result.data.message}`);
   }
 
   // Extract: pull structured, typed data.
@@ -63,7 +63,7 @@ try {
     "Extract the page heading and description",
     z.object({ heading: z.string(), description: z.string() }),
   );
-  console.log(info);
+  console.log(info.data);
 } finally {
   await stagehand.close();
 }
@@ -125,21 +125,21 @@ async def main() -> None:
         actions = await stagehand.observe(
             instruction="Find the link that provides more information about Example Domain",
         )
-        print(actions)
+        print(actions.data)
 
         # Act: perform a natural-language action.
         result = await stagehand.act(
             "Click the link that provides more information about Example Domain"
         )
-        if not result.success:
-            raise RuntimeError(f"act() failed: {result.message}")
+        if not result.data.success:
+            raise RuntimeError(f"act() failed: {result.data.message}")
 
         # Extract: pull structured, typed data.
         info = await stagehand.extract(
             instruction="Extract the page heading and description",
             schema=PageInfo,
         )
-        print(info)
+        print(info.data)
     finally:
         await stagehand.close()
 

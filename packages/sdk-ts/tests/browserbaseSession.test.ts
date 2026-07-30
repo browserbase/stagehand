@@ -52,7 +52,11 @@ describe("Browserbase session creation", () => {
     const session = await client.createSession({
       keepAlive: false,
       region: "eu-central-1",
-      userMetadata: { suite: "unit" },
+      userMetadata: {
+        stagehand: "false",
+        stagehand_sdk_language: "python",
+        suite: "unit",
+      },
     });
 
     expect(provisionExtension).toHaveBeenCalledWith(browserbase);
@@ -60,7 +64,11 @@ describe("Browserbase session creation", () => {
       extensionId: "ext_stagehand",
       keepAlive: false,
       region: "eu-central-1",
-      userMetadata: { suite: "unit" },
+      userMetadata: {
+        stagehand: "true",
+        stagehand_sdk_language: "typescript",
+        suite: "unit",
+      },
     });
     expect(session.cdpUrl).toBe("wss://connect.browserbase.com/devtools/browser/session_123");
     expect(session.sessionId).toBe("session_123");

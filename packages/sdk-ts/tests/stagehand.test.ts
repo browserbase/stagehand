@@ -8,8 +8,8 @@ import { Stagehand } from "../src/index.js";
 import type { ResolvedBrowserSource } from "../src/browserSource.js";
 import { CDPConnectionClosedError } from "../src/cdpClient.js";
 import { RPCClient } from "../src/rpcClient.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "../src/sdkIdentity.js";
 import { createStagehandWithDependenciesForTest } from "../src/stagehand.js";
-import { STAGEHAND_SDK_VERSION } from "../src/version.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -99,7 +99,6 @@ describe("Stagehand", () => {
     const resolveBrowserSource = vi.fn(async (): Promise<ResolvedBrowserSource> => {
       return {
         cdpUrl: "http://127.0.0.1:9222",
-        residentBrowserConnection: false,
         keepAlive: true,
       };
     });
@@ -152,7 +151,7 @@ describe("Stagehand", () => {
         method: "stagehand.init",
         params: {
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
+          clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
           browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/exact-session",
           apiKey: "bb_key",
@@ -206,7 +205,7 @@ describe("Stagehand", () => {
         method: "stagehand.init",
         params: {
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
+          clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
           apiKey: "bb_key",
           browser: {
@@ -246,7 +245,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient,
@@ -264,7 +262,7 @@ describe("Stagehand", () => {
       method: "stagehand.init",
       params: {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-        clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
+        clientInfo: STAGEHAND_SDK_CLIENT_INFO,
         logLevel: "info",
         browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
         telemetry: {
@@ -277,16 +275,8 @@ describe("Stagehand", () => {
     });
   });
 
-  it("routes public runtime and metrics methods through the protocol", async () => {
+  it("routes public metrics through the protocol", async () => {
     const rpcClient = new FakeRPCClient();
-    rpcClient.queueResponse(StagehandMethods.ping, {
-      ok: true,
-      runtime: "service_worker",
-    });
-    rpcClient.queueResponse(StagehandMethods.browserGetVersion, {
-      protocolVersion: "1.3",
-      product: "Chrome/1",
-    });
     const metrics = {
       actPromptTokens: 1,
       actCompletionTokens: 2,
@@ -315,7 +305,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -324,20 +313,8 @@ describe("Stagehand", () => {
 
     await stagehand.init();
 
-    await expect(stagehand.ping()).resolves.toStrictEqual({
-      ok: true,
-      runtime: "service_worker",
-    });
-    await expect(stagehand.browserGetVersion()).resolves.toStrictEqual({
-      protocolVersion: "1.3",
-      product: "Chrome/1",
-    });
     await expect(stagehand.metrics()).resolves.toStrictEqual(metrics);
-    expect(rpcClient.calls.slice(1)).toStrictEqual([
-      { method: "ping", params: {} },
-      { method: "browser.get_version", params: {} },
-      { method: "stagehand.metrics", params: {} },
-    ]);
+    expect(rpcClient.calls.slice(1)).toStrictEqual([{ method: "stagehand.metrics", params: {} }]);
   });
 
   it("registers a client LLM and sends its serializable model reference during initialization", async () => {
@@ -359,7 +336,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -374,7 +350,7 @@ describe("Stagehand", () => {
         method: "stagehand.init",
         params: {
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
+          clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
           browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
           model: { source: "client" },
@@ -400,7 +376,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -417,8 +392,9 @@ describe("Stagehand", () => {
         method: "stagehand.init",
         params: {
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          clientInfo: { name: "stagehand-sdk-ts", version: STAGEHAND_SDK_VERSION },
+          clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
+          browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
           telemetry: {
             traces: {
               endpoint: "https://example.com/v1/traces",
@@ -448,7 +424,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -525,7 +500,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: false,
           keepAlive: true,
         }),
         connectRpcClient: async () => rpcClient,
@@ -564,7 +538,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: true,
           keepAlive: true,
           close: closeBrowser,
         }),
@@ -588,7 +561,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: true,
           keepAlive: false,
           close: closeBrowser,
         }),
@@ -613,7 +585,6 @@ describe("Stagehand", () => {
       {
         resolveBrowserSource: async () => ({
           cdpUrl: "http://127.0.0.1:9222",
-          residentBrowserConnection: true,
           keepAlive: false,
           close: async () => {
             throw cleanupError;

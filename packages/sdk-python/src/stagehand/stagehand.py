@@ -6,6 +6,7 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from importlib.metadata import version
 from pathlib import Path
 from types import TracebackType
 from typing import Literal, Self, TypeVar, overload
@@ -16,16 +17,13 @@ from ._generated.models import (
     Action,
     ActOptions,
     ActResult,
-    ActResultData,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
-    ExtractResult,
     ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -41,7 +39,6 @@ from ._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
     TelemetryConfig,
     Variables,
 )
@@ -57,6 +54,7 @@ from .client_models import (
     Cache,
     CdpBrowserSource,
     ClientLLM,
+    ExtractResult,
     LLMGenerateCallback,
     LocalBrowserSource,
     LocalProxyConfig,
@@ -64,6 +62,7 @@ from .client_models import (
     StagehandClientInitParams,
     StagehandClientLoggingConfig,
     _cache_config,
+    _ExtractWireResult,
     _model_config,
 )
 from .page import Page
@@ -384,20 +383,6 @@ class Stagehand:
     def initialized(self) -> bool:
         return self._initialized
 
-    async def ping(self) -> StagehandPingResult:
-        return await self._connected_rpc_client.send(
-            "ping",
-            EmptyParams(),
-            StagehandPingResult,
-        )
-
-    async def browser_get_version(self) -> BrowserGetVersionResult:
-        return await self._connected_rpc_client.send(
-            "browser.get_version",
-            EmptyParams(),
-            BrowserGetVersionResult,
-        )
-
     async def metrics(self) -> StagehandMetrics:
         return await self._connected_rpc_client.send(
             "stagehand.metrics",
@@ -461,7 +446,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str,
+        instruction: str | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -469,7 +454,7 @@ class Stagehand:
         timeout: float | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> ActResultData:
+    ) -> ActResult:
         options = ActOptions.model_validate({
             name: value
             for name, value in (
@@ -484,11 +469,14 @@ class Stagehand:
         target_page = page or await self.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        params = StagehandActParams(page_id=target_page.page_id, input=input)
+        params = StagehandActParams.model_validate({
+            "page_id": target_page.page_id,
+            "instruction": instruction,
+        })
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
-        return result.result
+        return result
 
     async def observe(
         self,
@@ -502,7 +490,7 @@ class Stagehand:
         ignore_selectors: list[str] | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> list[Action]:
+    ) -> ObserveResult:
         options = ObserveOptions.model_validate({
             name: value
             for name, value in (
@@ -523,7 +511,7 @@ class Stagehand:
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
-        return result.result
+        return result
 
     async def extract(
         self,
@@ -538,7 +526,7 @@ class Stagehand:
         screenshot: bool | None = None,
         locator: ProtocolLocator | None = None,
         cache: Cache | None = None,
-    ) -> ResultModel:
+    ) -> ExtractResult[ResultModel]:
         options = ExtractOptions.model_validate({
             name: value
             for name, value in (
@@ -562,11 +550,13 @@ class Stagehand:
         )
         if options.model_fields_set:
             params.options = options
-        result = await self._connected_rpc_client.send("stagehand.extract", params, ExtractResult)
-        value = (
-            result.result.model_dump() if isinstance(result.result, BaseModel) else result.result
+        result = await self._connected_rpc_client.send(
+            "stagehand.extract", params, _ExtractWireResult
         )
-        return schema.model_validate(value)
+        return ExtractResult(
+            data=schema.model_validate(result.data),
+            metadata=result.metadata,
+        )
 
     async def close(self) -> None:
         async with self._lifecycle_lock:
@@ -613,11 +603,11 @@ class Stagehand:
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
-        values["log_level"] = self.init_params.logging.level
         values["client_info"] = ImplementationInfo(
             name="stagehand-sdk-python",
-            version="0.1.0",
+            version=version("stagehand"),
         )
+        values["log_level"] = self.init_params.logging.level
         if browser_cdp_url is not None:
             values["browser_cdp_url"] = browser_cdp_url
         return StagehandInitParams.model_validate(values)

@@ -132,6 +132,53 @@ describe("generateWithAiSdk", () => {
     });
   });
 
+  it("converts protocol image blocks into AI SDK image parts", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "Screenshot heading",
+      output: undefined,
+      finishReason: "stop",
+      usage: {
+        inputTokens: 12,
+        outputTokens: 3,
+        totalTokens: 15,
+      },
+    } as never);
+
+    await generateWithAiSdk({} as never, {
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Extract the heading" },
+            {
+              type: "image",
+              data: "iVBORw0KGgo=",
+              mimeType: "image/png",
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extract the heading" },
+              {
+                type: "image",
+                image: "iVBORw0KGgo=",
+                mediaType: "image/png",
+              },
+            ],
+          },
+        ],
+      }),
+    );
+  });
+
   it("validates structured output against the requested JSON schema", async () => {
     vi.mocked(generateText).mockResolvedValue({
       text: "",

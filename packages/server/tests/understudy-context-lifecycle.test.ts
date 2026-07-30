@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CdpConnection } from "../understudy/cdp.js";
-import { V3Context } from "../understudy/context.js";
+import { BrowserContext } from "../understudy/context.js";
 
 function contextOptions(onConnected: () => void, onDisconnected: () => void) {
   return {
@@ -14,7 +14,7 @@ function contextOptions(onConnected: () => void, onDisconnected: () => void) {
   };
 }
 
-describe("V3Context connection lifecycle", () => {
+describe("BrowserContext connection lifecycle", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("reports a successful connection and deduplicates disconnect notification", async () => {
@@ -26,12 +26,12 @@ describe("V3Context connection lifecycle", () => {
       close: vi.fn(async () => {}),
     };
     vi.spyOn(CdpConnection, "connect").mockResolvedValue(connection as never);
-    vi.spyOn(V3Context.prototype, "bootstrap").mockResolvedValue();
-    vi.spyOn(V3Context.prototype, "ensureFirstTopLevelPage").mockResolvedValue({} as never);
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockResolvedValue();
+    vi.spyOn(BrowserContext.prototype, "ensureFirstTopLevelPage").mockResolvedValue({} as never);
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
-    await V3Context.create("ws://browser.example", contextOptions(onConnected, onDisconnected));
+    await BrowserContext.create("ws://browser.example", contextOptions(onConnected, onDisconnected));
     transportClosed?.();
     transportClosed?.();
 
@@ -48,12 +48,12 @@ describe("V3Context connection lifecycle", () => {
       close: vi.fn(async () => transportClosed?.()),
     };
     vi.spyOn(CdpConnection, "connect").mockResolvedValue(connection as never);
-    vi.spyOn(V3Context.prototype, "bootstrap").mockRejectedValue(new Error("bootstrap failed"));
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockRejectedValue(new Error("bootstrap failed"));
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
     await expect(
-      V3Context.create("ws://browser.example", contextOptions(onConnected, onDisconnected)),
+      BrowserContext.create("ws://browser.example", contextOptions(onConnected, onDisconnected)),
     ).rejects.toThrow("bootstrap failed");
 
     expect(onConnected).toHaveBeenCalledOnce();

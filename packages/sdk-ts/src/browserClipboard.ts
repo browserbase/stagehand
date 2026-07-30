@@ -15,11 +15,10 @@ export class BrowserClipboard {
   constructor(readonly rpcClient: RPCClient) {}
 
   async readText(options?: ClipboardOptions): Promise<string> {
-    const { text } = await this.rpcClient.send(
+    return await this.rpcClient.send(
       StagehandMethods.contextClipboardReadText,
       clipboardTarget(options),
     );
-    return text;
   }
 
   async writeText(text: string, options?: ClipboardOptions): Promise<void> {
