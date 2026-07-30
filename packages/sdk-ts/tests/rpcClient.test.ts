@@ -46,6 +46,7 @@ class ManualCDPTransport implements CDPTransport {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   readonly sent: JSONRPCMessage[] = [];
+  closeCalls = 0;
 
   async send(message: JSONRPCMessage): Promise<void> {
     this.sent.push(message);
@@ -55,7 +56,9 @@ class ManualCDPTransport implements CDPTransport {
     await this.onmessage?.(message);
   }
 
-  close(): void {}
+  close(): void {
+    this.closeCalls += 1;
+  }
 }
 
 describe("RPCClient", () => {
@@ -335,5 +338,15 @@ describe("RPCClient", () => {
 
     expect(calls).toBe(0);
     expect(cdp.sent).toStrictEqual([]);
+  });
+
+  it("can close without taking ownership of the CDP transport", () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp, 1_000);
+
+    client.close(new Error("detached"), { closeTransport: false });
+
+    expect(client.closed).toBe(true);
+    expect(cdp.closeCalls).toBe(0);
   });
 });

@@ -194,7 +194,10 @@ export class RPCClient {
     return () => this.notificationListeners.delete(listener);
   }
 
-  close(reason: Error = new Error("RPC client closed")): void {
+  close(
+    reason: Error = new Error("RPC client closed"),
+    options: { closeTransport?: boolean } = {},
+  ): void {
     if (this.closed) return;
     this.closed = true;
     this.requestHandlers.clear();
@@ -204,7 +207,9 @@ export class RPCClient {
     this.cdp.onmessage = undefined;
     this.cdp.onclose = undefined;
     this.cdp.onerror = undefined;
-    this.cdp.close();
+    if (options.closeTransport ?? true) {
+      this.cdp.close();
+    }
   }
 
   waitForResponse(id: number, method: RPCMethod): Promise<unknown> {
