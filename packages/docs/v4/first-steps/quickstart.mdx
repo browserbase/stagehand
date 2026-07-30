@@ -35,41 +35,9 @@ go get github.com/browserbase/stagehand/packages/sdk-go
 ```
 </View>
 
-## 2) Run it
+## 2) Write the script
 
-Set your API keys as environment variables, then run the example script. Stagehand runs on Browserbase cloud browsers by default, so you need a `BROWSERBASE_API_KEY` plus a key for your model provider.
-
-<View title="TypeScript" icon="js">
-```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
-npx tsx index.ts                         # Run the example script
-```
-</View>
-
-<View title="Python" icon="python">
-```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
-python main.py                           # Run the example script
-```
-</View>
-
-<View title="Go" icon="golang">
-```bash
-export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
-go run .                                 # Run the example script
-```
-</View>
-
-<Note>
-Stagehand never reads environment variables on your behalf. Read them in your own code and pass the values to the constructor, as shown below.
-</Note>
-
-## 3) Use Stagehand (act, extract, observe)
-
-Here is the full example script, exercising all three primitives:
+Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises all three primitives: act, extract, and observe.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -90,23 +58,26 @@ async function main() {
 
   console.log("Stagehand session started");
 
-  const page = await stagehand.context.activePage();
-  if (!page) throw new Error("Stagehand initialized without an active page");
+  try {
+    const page = await stagehand.context.activePage();
+    if (!page) throw new Error("Stagehand initialized without an active page");
 
-  await page.goto("https://stagehand.dev");
+    await page.goto("https://stagehand.dev");
 
-  const extractResult = await stagehand.extract(
-    "Extract the value proposition from the page.",
-    z.object({ valueProposition: z.string() }),
-  );
-  console.log("Extract result:\n", extractResult.data);
+    const extractResult = await stagehand.extract(
+      "Extract the value proposition from the page.",
+      z.object({ valueProposition: z.string() }),
+    );
+    console.log("Extract result:\n", extractResult.data);
 
-  await stagehand.act("Click the 'Evals' button.");
+    await stagehand.act("Click the 'Evals' button.");
 
-  const observeResult = await stagehand.observe("What can I click on this page?");
-  console.log("Observe result:\n", observeResult.data);
-
-  await stagehand.close();
+    const observeResult = await stagehand.observe("What can I click on this page?");
+    console.log("Observe result:\n", observeResult.data);
+  } finally {
+    // Always release the session, even when a step above throws
+    await stagehand.close();
+  }
 }
 
 main().catch((err) => {
@@ -141,24 +112,26 @@ async def main() -> None:
 
     print("Stagehand session started")
 
-    page = await stagehand.context.active_page()
-    if page is None:
-        raise RuntimeError("Stagehand initialized without an active page")
+    try:
+        page = await stagehand.context.active_page()
+        if page is None:
+            raise RuntimeError("Stagehand initialized without an active page")
 
-    await page.goto("https://stagehand.dev")
+        await page.goto("https://stagehand.dev")
 
-    extract_result = await stagehand.extract(
-        instruction="Extract the value proposition from the page.",
-        schema=ValueProposition,
-    )
-    print("Extract result:\n", extract_result.data)
+        extract_result = await stagehand.extract(
+            instruction="Extract the value proposition from the page.",
+            schema=ValueProposition,
+        )
+        print("Extract result:\n", extract_result.data)
 
-    await stagehand.act("Click the 'Evals' button.")
+        await stagehand.act("Click the 'Evals' button.")
 
-    observe_result = await stagehand.observe(instruction="What can I click on this page?")
-    print("Observe result:\n", observe_result.data)
-
-    await stagehand.close()
+        observe_result = await stagehand.observe(instruction="What can I click on this page?")
+        print("Observe result:\n", observe_result.data)
+    finally:
+        # Always release the session, even when a step above raises
+        await stagehand.close()
 
 
 asyncio.run(main())
@@ -259,6 +232,38 @@ func run(ctx context.Context) (err error) {
 
 	return nil
 }
+```
+</View>
+
+<Note>
+Stagehand never reads environment variables on your behalf. Read them in your own code and pass the values to the constructor, as the script above does.
+</Note>
+
+## 3) Run it
+
+Set your API keys as environment variables, then run the script. Stagehand runs on Browserbase cloud browsers by default, so you need a `BROWSERBASE_API_KEY` plus a key for your model provider.
+
+<View title="TypeScript" icon="js">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+npx tsx index.ts                         # Run the example script
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+python main.py                           # Run the example script
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+export OPENAI_API_KEY="sk-..."           # Your model provider key
+go run .                                 # Run the example script
 ```
 </View>
 

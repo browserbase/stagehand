@@ -30,13 +30,13 @@ result, err := client.Act(ctx, "click on add to cart", nil)
 ## Why use `act()`?
 
 <CardGroup cols={2}>
-  <Card title="Natural Language Instructions" icon="wand-magic-sparkles" href="#using-act">
+  <Card title="Natural language instructions" icon="wand-magic-sparkles" href="#using-act">
     Write automation in plain English. No selectors or complex syntax.
   </Card>
-  <Card title="Precise Control" icon="crosshairs" href="#best-practices">
+  <Card title="Precise control" icon="crosshairs" href="#best-practices">
     Build automations step by step. Define exactly what happens at every moment.
   </Card>
-  <Card title="Self-Healing" icon="bandage" href="#ensure-reliable-actions">
+  <Card title="Self-healing" icon="bandage" href="#ensure-reliable-actions">
     Actions automatically adapt when websites change.
   </Card>
   <Card title="Caching" icon="repeat" href="#reduce-model-costs">
@@ -73,7 +73,7 @@ result, err := client.Act(ctx, "click the add to cart button", nil)
 </View>
 
 <Note>
-**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration. Page snapshots merge every frame's accessibility tree by default.
+**iFrame and Shadow DOM support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration. Page snapshots merge every frame's accessibility tree by default.
 </Note>
 
 With `act`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use multiple `act` commands.
@@ -161,7 +161,11 @@ ActResult(
 
 <View title="Go" icon="golang">
 ```go
-stagehand.ActResult{
+clickMethod := "click"
+actionID := "act_01HZY..."
+cacheStatus := stagehand.CacheStatusMISS
+
+result := stagehand.ActResult{
 	Data: stagehand.ActResultData{
 		Success:           true,
 		Message:           "Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1]",
@@ -254,7 +258,7 @@ result, err := client.Act(ctx, "open the filters panel, choose 4-star rating, an
 </Tab>
 </Tabs>
 
-## Advanced Configuration
+## Advanced configuration
 
 You can pass additional options to configure the model, timeout, variables, and target page:
 
@@ -306,7 +310,7 @@ result, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown"
 ```
 </View>
 
-### Server-side Caching
+### Server-side caching
 
 <Note>
 `cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
@@ -393,7 +397,7 @@ if result.Metadata.CacheStatus != nil {
   Learn how the cache key is built, what the threshold does, and when results are invalidated.
 </Card>
 
-### Using with Custom Pages
+### Using with custom pages
 
 Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so there is no Puppeteer, Playwright, or Patchright page interop. Instead, target any page Stagehand manages by passing the `page` option:
 
@@ -467,11 +471,11 @@ _, err = client.Act(ctx, "click the next page button", &stagehand.StagehandClien
 
 This works with:
 - **Active page:** omit `page` and Stagehand uses `context.activePage()` (default)
-- **Existing pages:** index into `context.pages()`
+- **Existing pages:** receive the list from `context.pages()` first (await it in TypeScript and Python), then index into it
 - **New pages:** create one with `context.newPage()`
 - **Existing browsers:** attach to a browser you already run with the `cdp` browser source
 
-<Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -678,7 +682,7 @@ _, err = client.Act(ctx, "click the login button", nil)
 When handling sensitive data, turn logging off in your Stagehand configuration to prevent secrets from appearing in logs. See the [logging guide](/v4/configuration/logging) for more details.
 </Warning>
 
-<Card title="User Data Best Practices" icon="shield-check" iconType="sharp-solid" href="/v3/best-practices/user-data">
+<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v3/best-practices/user-data">
   Complete guide to persisting and securing browser state across sessions.
 </Card>
 
@@ -692,7 +696,7 @@ When handling sensitive data, turn logging off in your Stagehand configuration t
 
 **Solutions**:
 - Use clear and detailed instructions for what you want to accomplish
-- Review our [evals](https://stagehand.dev/evals) to find the best models for your use case
+- Review the [Stagehand evals](https://stagehand.dev/evals) to find the best models for your use case
 - Use [`observe()`](/v4/basics/observe) and verify the resulting action is within a list of expected actions
 
 **Solution 1: Validate with observe**
@@ -705,7 +709,9 @@ const expectedMethod = "click";
 try {
   await stagehand.act(prompt);
 } catch (error) {
-  if (error.message.includes("method not supported")) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("method not supported")) {
     // Observe the same prompt to get the planned action
     const { data: actions } = await stagehand.observe(prompt);
     const [action] = actions;
@@ -788,7 +794,9 @@ for (let attempt = 0; attempt <= maxRetries; attempt++) {
     await stagehand.act(prompt, { timeout: 10000 + (attempt * 5000) });
     break; // Success, exit retry loop
   } catch (error) {
-    if (error.message.includes("method not supported") && attempt < maxRetries) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("method not supported") && attempt < maxRetries) {
       // Exponential backoff: wait 2^attempt seconds
       const delay = Math.pow(2, attempt) * 1000;
       console.log(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
@@ -964,7 +972,7 @@ await stagehand.act("click the red 'Delete' button next to the user John Smith")
 // Or preview with observe first:
 const { data: actions } = await stagehand.observe("click the submit button in the checkout form");
 const [action] = actions;
-if (action.description.includes("checkout")) {
+if (action?.description.includes("checkout")) {
   await stagehand.act(action);
 }
 ```
@@ -983,7 +991,7 @@ await stagehand.act("click the red 'Delete' button next to the user John Smith")
 observed = await stagehand.observe(
     instruction="click the submit button in the checkout form"
 )
-if "checkout" in observed.data[0].description:
+if observed.data and "checkout" in observed.data[0].description:
     await stagehand.act(observed.data[0])
 ```
 </View>

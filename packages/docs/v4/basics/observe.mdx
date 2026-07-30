@@ -50,6 +50,9 @@ Use `observe()` to discover actionable elements on a page. Here's how to find a 
 <View title="TypeScript" icon="js">
 ```typescript
 const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
+}
 await page.goto("https://example.com");
 const { data: actions } = await stagehand.observe("find the learn more button");
 ```
@@ -58,6 +61,8 @@ const { data: actions } = await stagehand.observe("find the learn more button");
 <View title="Python" icon="python">
 ```python
 page = await stagehand.context.active_page()
+if page is None:
+    raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
 result = await stagehand.observe(instruction="find the learn more button")
 ```
@@ -69,6 +74,9 @@ page, err := browserContext.ActivePage(ctx)
 if err != nil {
 	return err
 }
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
+}
 if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
@@ -79,7 +87,7 @@ result, err := client.Observe(ctx, &instruction, nil)
 </View>
 
 <Note>
-**iFrame and Shadow DOM Support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
+**iFrame and Shadow DOM support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
 </Note>
 
 <Accordion title="Common use cases">
@@ -127,7 +135,9 @@ When you use `observe()`, Stagehand returns a result whose `data` field is a lis
 
 <View title="Go" icon="golang">
 ```go
-[]stagehand.Action{
+clickMethod := "click"
+
+actions := []stagehand.Action{
 	{
 		Description: "Learn more button",
 		Method:      &clickMethod,
@@ -220,7 +230,7 @@ _, err = client.Observe(ctx, &title, nil)
 </Tab>
 </Tabs>
 
-## Advanced Configuration
+## Advanced configuration
 
 You can pass additional options to configure the model, timeout, selector scope, ignored page regions, and placeholder variables:
 
@@ -323,7 +333,7 @@ result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObser
   The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes observation to a single resolved subtree.
 </Note>
 
-### Validate Then Act with Variables
+### Validate then act with variables
 
 For login and other safety-sensitive flows, use `observe()` to discover candidate actions, validate them, and then execute them. When you pass variables, `observe()` returns `%variableName%` placeholders in the suggested action arguments instead of raw secret values, so no secret ever reaches the model.
 
@@ -360,12 +370,19 @@ observed = await stagehand.observe(
     },
 )
 
-email_field = next(a for a in observed.data if "%username%" in (a.arguments or []))
-password_field = next(a for a in observed.data if "%password%" in (a.arguments or []))
+email_field = next(
+    (a for a in observed.data if "%username%" in (a.arguments or [])), None
+)
+password_field = next(
+    (a for a in observed.data if "%password%" in (a.arguments or [])), None
+)
 
+if email_field is not None and password_field is not None:
 # Replay the observed actions, resolving placeholders locally
 await stagehand.act(email_field, variables={"username": "user@example.com"})
-await stagehand.act(password_field, variables={"password": os.environ["USER_PASSWORD"]})
+    await stagehand.act(
+        password_field, variables={"password": os.environ["USER_PASSWORD"]}
+    )
 ```
 </View>
 
@@ -404,8 +421,8 @@ for i, action := range result.Data {
 	}
 }
 
-// Replay the observed actions, resolving placeholders locally
 if emailField != nil && passwordField != nil {
+	// Replay the observed actions, resolving placeholders locally
 	if _, err := client.Act(ctx, *emailField, &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
@@ -432,7 +449,7 @@ if emailField != nil && passwordField != nil {
 `act()` supports the same variables option with either input form. Pass an instruction when you want Stagehand to locate the field for you, or pass the observed `Action` to replay a known target, in both cases keeping the value out of the prompt.
 </Tip>
 
-### Server-side Caching
+### Server-side caching
 
 <Note>
 `cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
@@ -494,7 +511,7 @@ result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObser
   Cache status is reported on the result metadata, alongside the observed actions. You can also see it in the [Browserbase session replay dashboard](https://docs.browserbase.com/features/observability#stagehand) or in the session logs at debug level.
 </Note>
 
-### Using with Custom Pages
+### Using with custom pages
 
 Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so there is no Puppeteer, Playwright, or Patchright page interop. Instead, target any page Stagehand manages by passing the `page` option:
 
@@ -576,7 +593,7 @@ This works with:
 - **New pages:** create one on the context
 - **Existing browsers:** attach to a browser you already run with the `cdp` browser source
 
-<Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -584,7 +601,7 @@ This works with:
 
 ### Plan then execute
 
-Discover all actions once, then feed each one back to `act()` without additional LLM calls. This approach is 2-3x faster than separate instruction-driven `act()` calls.
+Discover all actions once, then feed each one back to `act()`. Passing an action rather than a string skips inference, so the loop below makes one model call for the whole form instead of one per field.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -630,7 +647,7 @@ for _, field := range observed.Data {
 
 ### Scope extractions
 
-Use `observe()` to narrow extraction scope and reduce token usage by up to 10x.
+Use `observe()` to find a container, then pass its selector to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -805,6 +822,9 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 ```typescript
 // Check page state before observing
 const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
+}
 await page.waitForLoadState("domcontentloaded");
 
 const { data: actions } = await stagehand.observe("find the submit button");
@@ -820,6 +840,8 @@ if (actions.length === 0) {
 ```python
 # Check page state before observing
 page = await stagehand.context.active_page()
+if page is None:
+    raise RuntimeError("Stagehand initialized without an active page")
 await page.wait_for_load_state("domcontentloaded")
 
 observed = await stagehand.observe(instruction="find the submit button")
@@ -838,6 +860,9 @@ if not observed.data:
 page, err := browserContext.ActivePage(ctx)
 if err != nil {
 	return err
+}
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
 }
 if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
 	return err
@@ -951,15 +976,24 @@ if err != nil {
 	return err
 }
 
+var action *stagehand.Action
+if len(observed.Data) > 0 {
+	action = &observed.Data[0]
+}
+
+method := "<none>"
+if action != nil && action.Method != nil {
+	method = *action.Method
+}
+
 // Validate method before acting
 validMethods := []string{"click", "fill", "type", "press"}
-if len(observed.Data) > 0 && observed.Data[0].Method != nil &&
-	slices.Contains(validMethods, *observed.Data[0].Method) {
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+if action != nil && slices.Contains(validMethods, method) {
+	if _, err := client.Act(ctx, *action, nil); err != nil {
 		return err
 	}
 } else {
-	fmt.Println("Unexpected method:", observed.Data[0].Method)
+	fmt.Println("Unexpected method:", method)
 }
 ```
 </View>
@@ -982,7 +1016,7 @@ if len(observed.Data) > 0 && observed.Data[0].Method != nil &&
     Build action caches to eliminate redundant LLM calls.
   </Card>
 
-  <Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
+  <Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
     Full `Stagehand` reference with detailed parameter documentation.
   </Card>
 </CardGroup>

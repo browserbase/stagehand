@@ -6,7 +6,7 @@ description: "Developers use Stagehand to reliably automate the web."
 
 Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
 
-## The Problem with Browser Automation
+## The problem with browser automation
 
 Traditional frameworks like Playwright and Puppeteer force you to write brittle scripts that break with every UI change. Web agents promise to solve this with AI, but leave you at the mercy of unpredictable behavior.
 
@@ -68,8 +68,14 @@ actions = (await stagehand.observe(instruction="find submit buttons")).data
 
 <View title="Go" icon="golang">
 ```go
+// ctx, client, and the encoding/json import come from the quickstart
+
 // Act: execute natural language actions
 actResult, err := client.Act(ctx, "click the login button", nil)
+if err != nil {
+	return err
+}
+fmt.Println(actResult.Data.Success)
 
 // Extract: pull structured data
 type price struct {
@@ -82,14 +88,22 @@ priceSchema := json.RawMessage(`{
   "additionalProperties": false
 }`)
 extracted, err := stagehand.ExtractAs[price](ctx, client, "extract the price", priceSchema, nil)
+if err != nil {
+	return err
+}
+fmt.Println(extracted.Price)
 
 // Observe: discover available actions
 instruction := "find submit buttons"
-observeResult, err := client.Observe(ctx, &instruction, nil)
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+fmt.Println(len(observed.Data), "candidate actions")
 ```
 </View>
 
-## Why Developers Choose Stagehand
+## Why developers choose Stagehand
 
 - **Precise Control:** Mix AI-powered actions with deterministic code. You decide exactly how much AI to use.
 - **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
@@ -99,11 +113,11 @@ observeResult, err := client.Observe(ctx, &instruction, nil)
 - **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback.
 - **Metrics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand).
 
-## Built for Modern Development
+## Built for modern development
 Stagehand is designed for developers building production browser automations and AI agents that need reliable web access.
 
 <AccordionGroup>
-  <Accordion title="Works Everywhere">
+  <Accordion title="Works everywhere">
     Compatible with all Chromium-based browsers: Chrome, Edge, Arc, Brave, and more. Stagehand drives the browser over the Chrome DevTools Protocol, so there is no Playwright or Puppeteer dependency.
   </Accordion>
   <Accordion title="Built by Browserbase">
@@ -111,9 +125,9 @@ Stagehand is designed for developers building production browser automations and
   </Accordion>
 </AccordionGroup>
 
-## Get Started in 60 Seconds
+## Get started in 60 seconds
 <Info>
-  **Pro tip**: For best results, we recommend using Stagehand with [Browserbase](https://www.browserbase.com) for reliable cloud browser infrastructure. It is the default browser source, and it unlocks [server-side caching](/v3/best-practices/caching) and the [Model Gateway](/v3/configuration/models#model-gateway).
+  **Pro tip**: For best results, Browserbase recommends using Stagehand with [Browserbase](https://www.browserbase.com) for reliable cloud browser infrastructure. It is the default browser source, and it unlocks [server-side caching](/v3/best-practices/caching) and the [Model Gateway](/v3/configuration/models#model-gateway).
 </Info>
 <CardGroup cols={2}>
   <Card
@@ -124,7 +138,7 @@ Stagehand is designed for developers building production browser automations and
     Build your first automation in under a minute
   </Card>
   <Card
-    title="View Templates"
+    title="View templates"
     icon="code"
     href="https://www.browserbase.com/templates"
   >

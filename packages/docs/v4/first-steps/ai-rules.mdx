@@ -1,5 +1,5 @@
 ---
-title: "AI Rules"
+title: "AI rules"
 description: "Give your AI coding assistant the rules it needs to write correct Stagehand v4 code."
 ---
 
@@ -16,7 +16,7 @@ You're likely using AI to write code, and there's a **right and wrong way to do 
   </Card>
 </CardGroup>
 
-## Using MCP Servers
+## Using MCP servers
 
 MCP (Model Context Protocol) servers act as intermediaries that connect AI systems to external data sources and tools. These servers enable your coding assistant to access real-time information, execute tasks, and retrieve structured data to enhance code generation accuracy.
 
@@ -53,7 +53,7 @@ Offers deep indexing of GitHub repositories and documentation. DeepWiki allows A
 ```
 </Accordion>
 
-<Accordion title="Stagehand Docs by Mintlify" icon="mintbit">
+<Accordion title="Stagehand docs by Mintlify" icon="mintbit">
 Direct access to official Stagehand documentation. This MCP server provides AI assistants with up-to-date API references, configuration options, and usage examples for accurate code generation. Mintlify auto-generates this server from the official docs, ensuring your AI assistant always has the latest information.
 
 **Usage:**
@@ -68,7 +68,7 @@ Direct access to official Stagehand documentation. This MCP server provides AI a
 ```
 </Accordion>
 
-**How MCP Servers Enhance Your Development:**
+**How MCP servers enhance your development:**
 - **Real-time Documentation Access:** AI assistants can query the latest Stagehand docs, examples, and best practices
 - **Context-Aware Code Generation:** Servers provide relevant code patterns and configurations based on your specific use case
 - **Reduced Integration Overhead:** Standardized protocol eliminates the need for custom integrations with each documentation source
@@ -184,7 +184,11 @@ To target a specific page:
 const { data: actions } = await stagehand.observe("select blue as the favorite color", {
   page: page2,
 });
-await stagehand.act(actions[0], { page: page2 });
+const [action] = actions;
+
+if (action) {
+  await stagehand.act(action, { page: page2 });
+}
 ```
 
 ## Extract
@@ -270,6 +274,7 @@ const { data } = await stagehand.extract(
 const result = await stagehand.extract("extract the page title", TitleSchema);
 
 console.log(result.data.title);
+console.log(result.metadata.actionId); // Action ID for tracing this call
 console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
 ```
 
@@ -282,7 +287,9 @@ Plan actions before executing them. Candidate actions are returned on `data`:
 const { data: actions } = await stagehand.observe("Click the sign in button");
 const [action] = actions;
 
-console.log(action.selector, action.method, action.arguments);
+if (action) {
+  console.log(action.selector, action.method, action.arguments);
+}
 ```
 
 Observing on a specific page:
@@ -345,6 +352,30 @@ try {
   await stagehand.close();
 }
 ```
+
+## Project Structure Best Practices
+
+- Read configuration from environment variables and pass it explicitly to the `Stagehand` constructor
+- Construct and initialize `Stagehand` in one place, then pass the instance into your automation functions
+- Use `async`/`await` consistently; `init`, `act`, `extract`, `observe`, and `close` all return promises
+- Keep Zod schemas next to the code that consumes them and reuse `z.infer` for the decoded type
+- Wrap every workflow in `try`/`finally` so `close` runs even when a step throws
+- Prefer narrow, atomic instructions over one instruction that describes a whole workflow
+
+## Security Notes
+
+- Never hard-code API keys. Read them from `process.env` and pass them explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider
+- Set `logging: { level: "off" }` when handling sensitive data so nothing sensitive reaches your logs
+- Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- TypeScript SDK: `@browserbasehq/stagehand` on npm
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
 ``````
 
 </View>
@@ -439,9 +470,9 @@ await stagehand.act(
 
 ```python
 result = await stagehand.observe(instruction="Click the sign in button")
-action = result.data[0]
+action = result.data[0] if result.data else None
 
-if action.method == "click":
+if action is not None and action.method == "click":
     await stagehand.act(action)
 ```
 
@@ -461,7 +492,7 @@ Extract data from pages using natural language instructions. The `extract` metho
 
 Every primitive returns a result with `data` and `metadata`. Your extracted model instance is on `data`; `metadata` carries the action ID and server-side cache status.
 
-### Structured Extraction with Schema (Recommended)
+### Basic Extraction (with schema)
 
 ```python
 from pydantic import BaseModel
@@ -550,15 +581,29 @@ result = await stagehand.extract(
 )
 ```
 
+### Inspecting Metadata
+
+```python
+result = await stagehand.extract(
+    instruction="extract the page title",
+    schema=Title,
+)
+
+print(result.data.title)
+print(result.metadata.action_id)  # Action ID for tracing this call
+print(result.metadata.cache_status)  # "HIT", "MISS", or None
+```
+
 ## Observe
 
 Plan actions before executing them. Candidate actions are returned on `data`:
 
 ```python
 result = await stagehand.observe(instruction="Click the sign in button")
-action = result.data[0]
+action = result.data[0] if result.data else None
 
-print(action.selector, action.method, action.arguments)
+if action is not None:
+    print(action.selector, action.method, action.arguments)
 ```
 
 Observing on a specific page:
@@ -627,6 +672,21 @@ async with Stagehand(browser="local", headless=True) as stagehand:
 - Use async context managers for resource management
 - Use type hints and Pydantic models for data validation
 - Handle exceptions appropriately with try/except blocks
+
+## Security Notes
+
+- Never hard-code API keys. Read them from `os.environ` and pass them explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider
+- Set `logging=StagehandClientLoggingConfig(level="off")` when handling sensitive data so nothing sensitive reaches your logs
+- Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- Python SDK: `stagehand` on PyPI
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
 ``````
 
 </View>
@@ -807,7 +867,7 @@ fmt.Println(data.Listings)
 
 ### Working With the Raw Result
 
-Call `client.Extract` directly when you want the metadata alongside the payload:
+`ExtractAs` decodes for you but discards the metadata. Call `client.Extract` directly when you want the raw `json.RawMessage` payload and the metadata alongside it:
 
 ```go
 result, err := client.Extract(ctx, "extract the sign in button text", buttonTextSchema, nil)
@@ -815,14 +875,13 @@ if err != nil {
 	return err
 }
 
+// result.Data is json.RawMessage, so decode it into your own type
 var decoded buttonText
 if err := json.Unmarshal(result.Data, &decoded); err != nil {
 	return err
 }
 
-if result.Metadata.CacheStatus != nil {
-	fmt.Println("cache:", *result.Metadata.CacheStatus)
-}
+fmt.Println(decoded.ButtonText)
 ```
 
 ### Targeted Extraction
@@ -862,6 +921,24 @@ result, err := client.Extract(ctx, "extract the placeholder text on the name fie
 })
 ```
 
+### Inspecting Metadata
+
+Both `ActionID` and `CacheStatus` are pointers, so check for nil before dereferencing:
+
+```go
+result, err := client.Extract(ctx, "extract the page title", titleSchema, nil)
+if err != nil {
+	return err
+}
+
+if result.Metadata.ActionID != nil {
+	fmt.Println("action:", *result.Metadata.ActionID) // Action ID for tracing this call
+}
+if result.Metadata.CacheStatus != nil {
+	fmt.Println("cache:", *result.Metadata.CacheStatus) // stagehand.CacheStatusHIT or stagehand.CacheStatusMISS
+}
+```
+
 ## Observe
 
 Plan actions before executing them. `Observe` takes an optional instruction pointer and returns candidate actions on `result.Data`:
@@ -887,8 +964,10 @@ observed, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObs
 if err != nil {
 	return err
 }
-if _, err := client.Act(ctx, observed.Data[0], &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
-	return err
+if len(observed.Data) > 0 {
+	if _, err := client.Act(ctx, observed.Data[0], &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
+		return err
+	}
 }
 ```
 
@@ -969,6 +1048,21 @@ func run(ctx context.Context) (err error) {
 - Check every returned `error`; do not discard them
 - Keep JSON Schemas next to the Go structs they decode into
 - Prefer `stagehand.ExtractAs` over manual `json.Unmarshal` when you do not need metadata
+
+## Security Notes
+
+- Never hard-code API keys. Read them with `os.Getenv` and pass their addresses explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `ActOptions.Variables` so they are substituted locally and never sent to the model provider
+- The Go client has no log level filter. Leave `Logging.OnLog` unset, or redact inside the handler, when handling sensitive data
+- Avoid broad instructions that may trigger unintended navigation; call `Observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- Go SDK: `github.com/browserbase/stagehand/packages/sdk-go`
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
 ``````
 
 </View>

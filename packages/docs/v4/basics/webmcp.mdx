@@ -62,19 +62,19 @@ fmt.Println(response.Status, response.Output)
 WebMCP tools are registered *by the page*. That makes them distinct from tools you wire into a model yourself: you do not define them, you discover whatever the site chose to publish.
 </Note>
 
-## Browser Support
+## Browser support
 
-WebMCP requires a Chromium build with the WebMCP features enabled. Stagehand adds the required flag for you on every local browser it launches:
+WebMCP requires a Chromium build with the WebMCP features enabled. Stagehand ships this flag as one of the default launch flags for every local browser it starts:
 
 ```
 --enable-features=WebMCPTesting,DevToolsWebMCPSupport
 ```
 
 <Warning>
-If you attach to a browser you started yourself with the `cdp` browser source, Stagehand cannot add the flag. Launch that browser with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
+Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself with the `cdp` browser source, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
 </Warning>
 
-## Listing Tools
+## Listing tools
 
 `page.tools()` takes a snapshot of what the page currently exposes. Call it again after navigating or after the page mounts new UI; the result is not live.
 
@@ -137,7 +137,7 @@ The listing timeout defaults to 1000 ms. Tools declared in iframes are included,
 Annotations are hints from the page, not guarantees enforced by the browser. Treat `untrustedContent` output as data, never as instructions.
 </Accordion>
 
-## Invoking Tools
+## Invoking tools
 
 Invoking is two steps: `invoke()` hands the call to the browser and returns immediately with a handle, then `result()` waits for the terminal response. Splitting them means a long-running tool does not block you, and you can cancel while it is in flight.
 
@@ -190,6 +190,11 @@ fmt.Println(descriptor.InvocationID, descriptor.ToolName, descriptor.Input)
 // Blocks until the tool reaches a terminal state
 resultTimeout := 30000.0
 response, err := invocation.Result(ctx, &stagehand.WebMCPResultOptions{Timeout: &resultTimeout})
+if err != nil {
+	return err
+}
+
+fmt.Println(response.Status, response.Output)
 ```
 </View>
 
@@ -197,7 +202,7 @@ response, err := invocation.Result(ctx, &stagehand.WebMCPResultOptions{Timeout: 
 Omitting the input sends an empty object. Validate your input against the tool's `inputSchema` before invoking if you want a clear failure locally rather than an `Error` response from the page.
 </Note>
 
-## Handling Results
+## Handling results
 
 A terminal response reports one of three statuses:
 
@@ -266,7 +271,7 @@ case stagehand.WebMCPInvocationStatusError:
 
 `result()` caches the terminal response, so calling it twice is cheap and returns the same value. A timeout or transport failure is not cached and can be retried.
 
-### Canceling an Invocation
+### Canceling an invocation
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -325,7 +330,7 @@ Cancellation is a request, not a guarantee. Chrome decides the terminal status, 
 
 Raise the listing timeout on pages that register tools after an async bootstrap. Set a result timeout whenever a tool could hang, so your automation fails loudly instead of stalling.
 
-## Combining With the Primitives
+## Combining with the primitives
 
 WebMCP and the primitives solve different problems, and mixing them is normal: use a tool where the page gives you one, and fall back to [`observe()`](/v4/basics/observe) and [`act()`](/v4/basics/act) where it does not.
 
@@ -397,9 +402,9 @@ if addToCart != nil {
 A tool invocation costs no LLM tokens and cannot pick the wrong element, so prefer one over an `act()` call whenever the page offers it.
 </Tip>
 
-## API Reference
+## API reference
 
-<Card title="Complete API Reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
   Full `Page`, `WebMCPTool`, and `WebMCPInvocation` reference with every option and field.
 </Card>
 
@@ -415,7 +420,7 @@ A tool invocation costs no LLM tokens and cannot pick the wrong element, so pref
   <Card title="Extract" icon="table" href="/v4/basics/extract">
     Pull typed, structured data off any page
   </Card>
-  <Card title="Browser Configuration" icon="browser" href="/v3/configuration/browser">
+  <Card title="Browser configuration" icon="browser" href="/v3/configuration/browser">
     Launch flags, browser sources, and attaching over CDP
   </Card>
 </CardGroup>

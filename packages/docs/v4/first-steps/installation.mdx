@@ -6,7 +6,7 @@ description: "Add Stagehand to an existing project."
 Install Stagehand in your current app.
 
 <Tip>
-We recommend using the Node.js runtime environment to run Stagehand scripts. Stagehand requires Node.js 22.18 or later, Python 3.11 or later, or Go 1.26 or later.
+Node.js is the recommended runtime environment for Stagehand scripts. Stagehand requires Node.js 22.18 or later, Python 3.11 or later, or Go 1.26 or later.
 
 **Bun is supported.** Stagehand drives the browser over the Chrome DevTools Protocol and has no Playwright dependency, so there is no runtime caveat.
 </Tip>
@@ -72,7 +72,7 @@ Read the values in your own app code and pass them explicitly to the constructor
 
 <View title="TypeScript" icon="js">
 ```typescript
-// Optional: load an env file yourself before constructing Stagehand
+// Optional: install dotenv first (pnpm add dotenv), then load an env file yourself
 import "dotenv/config";
 
 const stagehand = new Stagehand({
@@ -136,22 +136,27 @@ async function main() {
   });
 
   await stagehand.init();
-  const page = await stagehand.context.activePage();
-  if (!page) throw new Error("Stagehand initialized without an active page");
 
-  await page.goto("https://example.com");
+  // Close in a finally block so the session is released even if a step throws
+  try {
+    const page = await stagehand.context.activePage();
+    if (!page) throw new Error("Stagehand initialized without an active page");
 
-  // Act on the page
-  await stagehand.act("Click the learn more button");
+    await page.goto("https://example.com");
 
-  // Extract structured data
-  const { data } = await stagehand.extract(
-    "extract the description",
-    z.object({ description: z.string() }),
-  );
+    // Act on the page
+    await stagehand.act("Click the learn more button");
 
-  console.log(data.description);
-  await stagehand.close();
+    // Extract structured data
+    const { data } = await stagehand.extract(
+      "extract the description",
+      z.object({ description: z.string() }),
+    );
+
+    console.log(data.description);
+  } finally {
+    await stagehand.close();
+  }
 }
 
 main().catch((err) => {
@@ -183,23 +188,27 @@ async def main() -> None:
     )
 
     await stagehand.init()
-    page = await stagehand.context.active_page()
-    if page is None:
-        raise RuntimeError("Stagehand initialized without an active page")
 
-    await page.goto("https://example.com")
+    # Close in a finally block so the session is released even if a step raises
+    try:
+        page = await stagehand.context.active_page()
+        if page is None:
+            raise RuntimeError("Stagehand initialized without an active page")
 
-    # Act on the page
-    await stagehand.act("Click the learn more button")
+        await page.goto("https://example.com")
 
-    # Extract structured data
-    result = await stagehand.extract(
-        instruction="extract the description",
-        schema=Description,
-    )
+        # Act on the page
+        await stagehand.act("Click the learn more button")
 
-    print(result.data.description)
-    await stagehand.close()
+        # Extract structured data
+        result = await stagehand.extract(
+            instruction="extract the description",
+            schema=Description,
+        )
+
+        print(result.data.description)
+    finally:
+        await stagehand.close()
 
 
 asyncio.run(main())

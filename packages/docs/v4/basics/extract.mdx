@@ -50,7 +50,7 @@ extracted, err := stagehand.ExtractAs[repository](
 ```
 </View>
 
-`extract()` grabs structured data from a webpage. Every call takes an instruction and a schema: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python. The result is validated against your schema before it is returned, so what you get back is already typed.
+`extract()` grabs structured data from a webpage. Every call takes an instruction and a schema: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a [JSON Schema](https://json-schema.org) as `json.RawMessage` in Go. The result is validated against your schema before it is returned, so what you get back is already typed.
 
 ## Why use `extract()`?
 
@@ -67,7 +67,7 @@ extracted, err := stagehand.ExtractAs[repository](
 
 `extract()` returns a result with two fields: `data` holds the value matching the schema you passed, and `metadata` carries the action ID and server-side cache status. The shape of `data` depends on the schema:
 <Tabs>
-<Tab title="Basic Schema">
+<Tab title="Basic schema">
 
 When extracting with an object schema, the return type is inferred from that schema:
 
@@ -205,6 +205,27 @@ type apartments struct {
 	Apartments []apartment `json:"apartments"`
 }
 
+var apartmentsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "apartments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "address": {"type": "string"},
+          "price": {"type": "string"},
+          "sqft": {"type": "integer"}
+        },
+        "required": ["address", "price", "sqft"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["apartments"],
+  "additionalProperties": false
+}`)
+
 extracted, err := stagehand.ExtractAs[apartments](
 	ctx,
 	client,
@@ -219,36 +240,38 @@ extracted, err := stagehand.ExtractAs[apartments](
 
 <View title="TypeScript" icon="js">
 ```typescript
-[
-  {
-    address: "123 Main St",
-    price: "$1,200/mo",
-    sqft: 750
-  },
-  {
-    address: "456 Oak Ave",
-    price: "$1,500/mo",
-    sqft: 900
-  }
-]
+{
+  apartments: [
+    {
+      address: "123 Main St",
+      price: "$1,200/mo",
+      sqft: 750
+    },
+    {
+      address: "456 Oak Ave",
+      price: "$1,500/mo",
+      sqft: 900
+    }
+  ]
+}
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-[
+Apartments(apartments=[
     Apartment(address="123 Main St", price="$1,200/mo", sqft=750),
     Apartment(address="456 Oak Ave", price="$1,500/mo", sqft=900),
-]
+])
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-[]apartment{
+apartments{Apartments: []apartment{
 	{Address: "123 Main St", Price: "$1,200/mo", Sqft: 750},
 	{Address: "456 Oak Ave", Price: "$1,500/mo", Sqft: 900},
-}
+}}
 ```
 </View>
 
@@ -285,6 +308,13 @@ type price struct {
 	Price float64 `json:"price"`
 }
 
+var priceSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"price": {"type": "number"}},
+  "required": ["price"],
+  "additionalProperties": false
+}`)
+
 extracted, err := stagehand.ExtractAs[price](
 	ctx,
 	client,
@@ -299,19 +329,21 @@ extracted, err := stagehand.ExtractAs[price](
 
 <View title="TypeScript" icon="js">
 ```typescript
-19.99
+{
+  price: 19.99
+}
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-19.99
+Price(price=19.99)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-19.99
+price{Price: 19.99}
 ```
 </View>
 
@@ -368,7 +400,7 @@ extracted, err := stagehand.ExtractAs[contactLink](
 </Tab>
 </Tabs>
 
-## Advanced Configuration
+## Advanced configuration
 
 You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
 
@@ -379,7 +411,7 @@ const result = await stagehand.extract(
   z.object({ name: z.string() }),
   {
     model: {
-      modelName: "anthropic/claude-sonnet-4-5",
+      modelName: "anthropic/claude-sonnet-4-6",
       apiKey: process.env.ANTHROPIC_API_KEY,
     },
     timeout: 30000,
@@ -397,7 +429,7 @@ result = await stagehand.extract(
     instruction="extract the repository name",
     schema=Repository,
     model=ModelConfig.model_validate({
-        "model_name": "anthropic/claude-sonnet-4-5",
+        "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],
     }),
     timeout=30000,
@@ -408,9 +440,16 @@ result = await stagehand.extract(
 
 <View title="Go" icon="golang">
 ```go
+var repositorySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"name": {"type": "string"}},
+  "required": ["name"],
+  "additionalProperties": false
+}`)
+
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
 model := stagehand.KnownModel(stagehand.KnownModelConfig{
-	ModelName: "anthropic/claude-sonnet-4-5",
+	ModelName: "anthropic/claude-sonnet-4-6",
 	APIKey:    &modelAPIKey,
 })
 timeout := 30000.0
@@ -426,7 +465,7 @@ result, err := client.Extract(ctx, "extract the repository name", repositorySche
 ```
 </View>
 
-### Server-side Caching
+### Server-side caching
 
 <Note>
 `cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
@@ -480,6 +519,13 @@ print(result.metadata.cache_status)  # "HIT", "MISS", or None
 
 <View title="Go" icon="golang">
 ```go
+var repositorySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"name": {"type": "string"}},
+  "required": ["name"],
+  "additionalProperties": false
+}`)
+
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
@@ -502,7 +548,7 @@ if result.Metadata.CacheStatus != nil {
 ```
 </View>
 
-### Targeted Extract
+### Targeted extract
 
 Pass a selector to `extract` to target a specific element on the page.
 <Tip>
@@ -544,6 +590,13 @@ table_data = (await stagehand.extract(
 type tableRow struct {
 	Values []string `json:"values"`
 }
+
+var tableRowSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"values": {"type": "array", "items": {"type": "string"}}},
+  "required": ["values"],
+  "additionalProperties": false
+}`)
 
 // xPath or CSS selector
 selector := "xpath=/html/body/div/table/"
@@ -599,6 +652,16 @@ type article struct {
 	Body  string `json:"body"`
 }
 
+var articleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "title": {"type": "string"},
+    "body": {"type": "string"}
+  },
+  "required": ["title", "body"],
+  "additionalProperties": false
+}`)
+
 extracted, err := stagehand.ExtractAs[article](
 	ctx,
 	client,
@@ -617,7 +680,7 @@ extracted, err := stagehand.ExtractAs[article](
   The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes extraction to a single resolved subtree.
 </Note>
 
-### Visual Extract
+### Visual extract
 
 Turn the screenshot option on when the extraction needs visual information from the current viewport in addition to the page accessibility tree.
 
@@ -655,6 +718,13 @@ type saleBadge struct {
 	Text string `json:"text"`
 }
 
+var saleBadgeSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"text": {"type": "string"}},
+  "required": ["text"],
+  "additionalProperties": false
+}`)
+
 screenshot := true
 
 saleBadgeData, err := stagehand.ExtractAs[saleBadge](
@@ -677,7 +747,7 @@ saleBadgeData, err := stagehand.ExtractAs[saleBadge](
 ## Best practices
 
 
-### Extract with Context
+### Extract with context
 
 You can provide additional context to your schema to help the model extract the data more accurately.
 
@@ -767,7 +837,7 @@ extracted, err := stagehand.ExtractAs[apartments](
 ```
 </View>
 
-### Link Extraction
+### Link extraction
 <Note>
 To extract links or URLs, define the relevant field as a URL type.
 </Note>
@@ -853,8 +923,12 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 
 <View title="TypeScript" icon="js">
 ```typescript
-// Wait for content before extracting
-await page.waitForSelector(".product-listing");
+// waitForSelector reports whether the selector matched, so check it
+// before extracting: a timeout resolves to false without throwing.
+const listingReady = await page.waitForSelector(".product-listing");
+if (!listingReady) {
+  throw new Error("timed out waiting for .product-listing");
+}
 
 const { data } = await stagehand.extract(
   "extract all product names and prices",
@@ -870,8 +944,11 @@ const { data } = await stagehand.extract(
 
 <View title="Python" icon="python">
 ```python
-# Wait for content before extracting
-await page.wait_for_selector(".product-listing")
+# wait_for_selector reports whether the selector matched, so check it
+# before extracting: a timeout returns False without raising.
+listing_ready = await page.wait_for_selector(".product-listing")
+if not listing_ready:
+    raise TimeoutError("timed out waiting for .product-listing")
 
 
 class Product(BaseModel):
@@ -892,9 +969,14 @@ result = await stagehand.extract(
 
 <View title="Go" icon="golang">
 ```go
-// Wait for content before extracting
-if _, err := page.WaitForSelector(ctx, ".product-listing", nil); err != nil {
+// WaitForSelector returns (matched, error), so check matched before
+// extracting: a timeout reports false without returning an error.
+matched, err := page.WaitForSelector(ctx, ".product-listing", nil)
+if err != nil {
 	return err
+}
+if !matched {
+	return fmt.Errorf("timed out waiting for .product-listing")
 }
 
 type product struct {
@@ -905,6 +987,26 @@ type product struct {
 type products struct {
 	Products []product `json:"products"`
 }
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "string"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
 
 extracted, err := stagehand.ExtractAs[products](
 	ctx,
@@ -1035,6 +1137,35 @@ for _, element := range observed.Data {
 }
 
 // Then extract with specific targeting
+type product struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+}
+
+type products struct {
+	Products []product `json:"products"`
+}
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "the product title or name"},
+          "price": {"type": "string", "description": "the price as displayed, including currency"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
+
 extracted, err := stagehand.ExtractAs[products](
 	ctx,
 	client,
@@ -1103,6 +1234,35 @@ for page_num in page_numbers:
 
 <View title="Go" icon="golang">
 ```go
+type product struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+}
+
+type products struct {
+	Products []product `json:"products"`
+}
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "number"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
+
 // Instead of extracting everything at once
 var allData []product
 timeout := 60000.0 // 60 second timeout
