@@ -195,6 +195,7 @@ func connectRPCClient(
 	ctx context.Context,
 	options cdpClientOptions,
 	telemetry TelemetryConfig,
+	logLevel RuntimeConfigureParamsLogLevel,
 ) (*rpcClient, error) {
 	options = normalizeCDPClientOptions(options)
 	cdp, err := connectCDPClient(ctx, options)
@@ -210,6 +211,7 @@ func connectRPCClient(
 		rpc,
 		resolvedBrowserSource{cdpURL: cdp.webSocketDebuggerURL},
 		telemetry,
+		logLevel,
 	); err != nil {
 		return nil, errors.Join(err, rpc.close())
 	}
