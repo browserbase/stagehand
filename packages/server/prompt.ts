@@ -1,5 +1,5 @@
 import type { ChatMessage } from "./llm/LLMClient.js";
-import type { Variables, VariableValue } from "../protocol/types.js";
+import type { LLMImageContent, LLMMessage, Variables, VariableValue } from "../protocol/types.js";
 
 interface VariablePromptEntry {
   name: string;
@@ -84,9 +84,9 @@ export function buildExtractUserPrompt(
   instruction: string,
   domElements: string,
   isUsingPrintExtractedDataTool: boolean = false,
-  screenshotDataUrl?: string,
-): ChatMessage {
-  let content = screenshotDataUrl
+  screenshot?: LLMImageContent,
+): LLMMessage {
+  let content = screenshot
     ? `Instruction: ${instruction}
 DOM: ${domElements}
 Use the screenshot of the current viewport together with the accessibility tree to extract content from the page.`
@@ -99,19 +99,16 @@ ONLY print the content using the print_extracted_data tool provided.
 ONLY print the content using the print_extracted_data tool provided.`;
   }
 
-  if (screenshotDataUrl) {
+  if (screenshot) {
     return {
       role: "user",
-      content: [
-        { type: "text", text: content },
-        { type: "image_url", image_url: { url: screenshotDataUrl } },
-      ],
+      content: [{ type: "text", text: content }, screenshot],
     };
   }
 
   return {
     role: "user",
-    content,
+    content: { type: "text", text: content },
   };
 }
 

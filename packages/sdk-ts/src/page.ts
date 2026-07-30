@@ -26,6 +26,8 @@ import {
   normalizeInitScriptSource,
 } from "./pageScripts.js";
 import type { RPCClient } from "./rpcClient.js";
+import { WebMCPTool } from "./webmcp.js";
+import type { WebMCPToolsOptions } from "./clientSchemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
@@ -242,18 +244,26 @@ export class Page {
     });
   }
 
+  async tools(options?: WebMCPToolsOptions): Promise<WebMCPTool[]> {
+    const result = await this.rpcClient.send(StagehandMethods.pageWebMCPTools, {
+      pageId: this.pageId,
+      ...(options ? { options } : {}),
+    });
+    return result.tools.map(
+      (descriptor) => new WebMCPTool(this.rpcClient, this.pageId, descriptor),
+    );
+  }
+
   async url(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageUrl, {
+    return await this.rpcClient.send(StagehandMethods.pageUrl, {
       pageId: this.pageId,
     });
-    return result.url;
   }
 
   async title(): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageTitle, {
+    return await this.rpcClient.send(StagehandMethods.pageTitle, {
       pageId: this.pageId,
     });
-    return result.title;
   }
 
   async close(): Promise<void> {

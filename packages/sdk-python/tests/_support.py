@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import TypeVar, overload
 
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
+RootResultT = TypeVar("RootResultT")
 
 
 class RecordingRPCClient:
@@ -19,17 +20,34 @@ class RecordingRPCClient:
         self.notifications: dict[str, tuple[object, object]] = {}
         self.closed = False
 
+    @overload
+    async def send(
+        self,
+        method: str,
+        params: BaseModel,
+        result_model: type[RootModel[RootResultT]],
+    ) -> RootResultT: ...
+
+    @overload
     async def send(
         self,
         method: str,
         params: BaseModel,
         result_model: type[ResultT],
-    ) -> ResultT:
+    ) -> ResultT: ...
+
+    async def send(
+        self,
+        method: str,
+        params: BaseModel,
+        result_model: type[BaseModel],
+    ) -> object:
         self.calls.append((method, params, result_model))
         response = self.responses[method]
         if isinstance(response, BaseException):
             raise response
-        return result_model.model_validate(response, strict=True)
+        parsed_result = result_model.model_validate(response, strict=True)
+        return parsed_result.root if isinstance(parsed_result, RootModel) else parsed_result
 
     def on_request(
         self,
