@@ -198,6 +198,17 @@ export async function generateWithAiSdk(
       : {}),
   });
 
+  // The AI SDK result's `output` getter throws NoOutputGeneratedError unless
+  // the generation finished with "stop" (e.g. tool-call turns), so only read
+  // it when structured output was requested.
+  const generation = {
+    text: response.text,
+    finishReason: response.finishReason,
+    toolCalls: response.toolCalls,
+    usage: response.usage,
+    ...(params.responseFormat?.type === "json_schema" ? { output: response.output } : {}),
+  };
+
   const result = AiSdkGenerationSchema.transform((value) => {
     const content = [
       { type: "text" as const, text: value.text },
@@ -235,7 +246,7 @@ export async function generateWithAiSdk(
           ...result,
           outputFormat: "text" as const,
         };
-  }).parse(response);
+  }).parse(generation);
 
   const candidate: unknown = result;
   const validatedResult: unknown = createLLMGenerateResultSchema(params).parse(candidate);
