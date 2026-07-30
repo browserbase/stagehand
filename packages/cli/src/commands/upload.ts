@@ -1,10 +1,7 @@
 import { Args, Flags } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
 
 export default class Upload extends BrowseCommand {
   static override description =

@@ -29,8 +29,7 @@ export default class SessionsUpdate extends BrowseCommand {
       helpValue: "<status>",
     }),
     body: Flags.string({
-      description:
-        "Optional JSON request body. Merged with --status when provided.",
+      description: "Optional JSON request body. Merged with --status when provided.",
       helpValue: "<body>",
     }),
     stdin: Flags.boolean({

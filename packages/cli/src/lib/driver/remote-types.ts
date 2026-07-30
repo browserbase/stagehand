@@ -4,9 +4,7 @@ import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
 import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
-export type StagehandConstructorOptions = ConstructorParameters<
-  typeof Stagehand
->[0];
+export type StagehandConstructorOptions = ConstructorParameters<typeof Stagehand>[0];
 
 export interface RemoteDoctorResult {
   ok: boolean;

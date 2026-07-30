@@ -17,9 +17,7 @@ export const tabHandlers: DriverCommandHandlers = {
       active: true,
       index: context
         .pages()
-        .findIndex(
-          (candidate: DriverPage) => candidate.targetId() === page.targetId(),
-        ),
+        .findIndex((candidate: DriverPage) => candidate.targetId() === page.targetId()),
       targetId: page.targetId(),
       title: await manager.safeTitle(page),
       url: page.url(),
@@ -49,23 +47,18 @@ export const tabHandlers: DriverCommandHandlers = {
     }
 
     const active = context.activePage();
-    const resolved = tab
-      ? await resolveTab(manager, tab)
-      : resolveActiveTab(pages, active ?? null);
+    const resolved = tab ? await resolveTab(manager, tab) : resolveActiveTab(pages, active ?? null);
     const closedTargetId = resolved.page.targetId();
     const activeTargetId = active?.targetId();
     await resolved.page.close();
-    const remainingPages = context
-      .pages()
-      .filter((page) => page.targetId() !== closedTargetId);
+    const remainingPages = context.pages().filter((page) => page.targetId() !== closedTargetId);
     let selectedPage = activeTargetId
       ? remainingPages.find((page) => page.targetId() === activeTargetId)
       : undefined;
 
     if (!selectedPage) {
       selectedPage =
-        remainingPages[Math.min(resolved.index, remainingPages.length - 1)] ??
-        remainingPages[0];
+        remainingPages[Math.min(resolved.index, remainingPages.length - 1)] ?? remainingPages[0];
       if (selectedPage) {
         context.setActivePage(selectedPage);
       }
@@ -89,20 +82,13 @@ async function resolveTab(
   const index = Number.parseInt(tab, 10);
   if (/^\d+$/.test(tab)) {
     const page = pages[index];
-    if (!page)
-      throw new Error(
-        `Tab index ${index} out of range (0-${pages.length - 1}).`,
-      );
+    if (!page) throw new Error(`Tab index ${index} out of range (0-${pages.length - 1}).`);
     return { index, page };
   }
 
-  const targetIndex = pages.findIndex(
-    (page: DriverPage) => page.targetId() === tab,
-  );
+  const targetIndex = pages.findIndex((page: DriverPage) => page.targetId() === tab);
   if (targetIndex === -1) {
-    throw new Error(
-      `Tab targetId ${tab} was not found. Run browse tab list for current tabs.`,
-    );
+    throw new Error(`Tab targetId ${tab} was not found. Run browse tab list for current tabs.`);
   }
   return { index: targetIndex, page: pages[targetIndex]! };
 }
@@ -112,9 +98,7 @@ function resolveActiveTab(
   active: DriverPage | null,
 ): { index: number; page: DriverPage } {
   const activeTargetId = active?.targetId();
-  const index = activeTargetId
-    ? pages.findIndex((page) => page.targetId() === activeTargetId)
-    : 0;
+  const index = activeTargetId ? pages.findIndex((page) => page.targetId() === activeTargetId) : 0;
   const page = pages[index] ?? pages[0];
   if (!page) throw new Error("No active tab.");
   return { index: index >= 0 ? index : 0, page };

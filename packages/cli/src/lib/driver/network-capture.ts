@@ -28,10 +28,7 @@ interface ResponseMetadata {
 type CdpSession = {
   off?: (event: string, listener: (...args: unknown[]) => void) => void;
   on: (event: string, listener: (...args: unknown[]) => void) => void;
-  send: <T = unknown>(
-    method: string,
-    params?: Record<string, unknown>,
-  ) => Promise<T>;
+  send: <T = unknown>(method: string, params?: Record<string, unknown>) => Promise<T>;
 };
 
 type StagehandPageWithMainFrame = {
@@ -46,8 +43,7 @@ export class NetworkCapture {
   private readonly requestDirs = new Map<string, Promise<string | null>>();
   private readonly requestStartTimes = new Map<string, number>();
   private readonly responseMetadata = new Map<string, ResponseMetadata>();
-  private readonly listeners: Array<[string, (...args: unknown[]) => void]> =
-    [];
+  private readonly listeners: Array<[string, (...args: unknown[]) => void]> = [];
   private networkDir: string | null = null;
 
   constructor(private readonly session: string) {}
@@ -127,9 +123,7 @@ export class NetworkCapture {
       await Promise.all(
         entries
           .filter((entry) => entry.isDirectory())
-          .map((entry) =>
-            fs.rm(path.join(dir, entry.name), { recursive: true }),
-          ),
+          .map((entry) => fs.rm(path.join(dir, entry.name), { recursive: true })),
       );
       this.counter = 0;
       this.pendingRequests.clear();
@@ -146,10 +140,7 @@ export class NetworkCapture {
     }
   }
 
-  private addListener(
-    event: string,
-    listener: (...args: unknown[]) => void,
-  ): void {
+  private addListener(event: string, listener: (...args: unknown[]) => void): void {
     this.cdpSession?.on(event, listener);
     this.listeners.push([event, listener]);
   }
@@ -272,10 +263,7 @@ export class NetworkCapture {
       getRequestDirName(this.counter++, request.method, request.url),
     );
     await ensurePrivateDir(requestDir);
-    await writePrivateFile(
-      path.join(requestDir, "request.json"),
-      JSON.stringify(request, null, 2),
-    );
+    await writePrivateFile(path.join(requestDir, "request.json"), JSON.stringify(request, null, 2));
     return requestDir;
   }
 
@@ -306,11 +294,7 @@ export class NetworkCapture {
   }
 }
 
-function getRequestDirName(
-  counter: number,
-  method: string,
-  url: string,
-): string {
+function getRequestDirName(counter: number, method: string, url: string): string {
   try {
     const parsed = new URL(url);
     const domain = sanitizeForFilename(parsed.hostname, 30);

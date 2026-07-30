@@ -41,15 +41,13 @@ export default class Fetch extends BrowseCommand {
       description: "Enable Browserbase proxy support.",
     }),
     format: Flags.string({
-      description:
-        "Fetched content format. Defaults to markdown for token-efficient output.",
+      description: "Fetched content format. Defaults to markdown for token-efficient output.",
       helpValue: "<format>",
       options: [...fetchFormats],
       default: "markdown",
     }),
     schema: Flags.string({
-      description:
-        "JSON Schema for structured extraction. Required when --format json.",
+      description: "JSON Schema for structured extraction. Required when --format json.",
       helpValue: "<schema>",
     }),
     output: Flags.string({

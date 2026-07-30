@@ -28,10 +28,7 @@ interface OpenViaDaemonOptions {
   waitUntil?: "load" | "domcontentloaded" | "networkidle";
 }
 
-export async function ensureDriverDaemon({
-  session,
-  target,
-}: EnsureDaemonOptions): Promise<void> {
+export async function ensureDriverDaemon({ session, target }: EnsureDaemonOptions): Promise<void> {
   await ensureRuntimeDir();
   const existing = await tryDriverStatus(session);
   if (existing) {
@@ -41,11 +38,9 @@ export async function ensureDriverDaemon({
 
   const locked = await acquireLock(session);
   if (!locked) {
-    fail(
-      `Timed out waiting for driver daemon lock for session "${session}".`,
-      1,
-      { resultCode: "daemon_lock_timeout" },
-    );
+    fail(`Timed out waiting for driver daemon lock for session "${session}".`, 1, {
+      resultCode: "daemon_lock_timeout",
+    });
   }
 
   try {
@@ -96,9 +91,7 @@ export async function runDriverCommandViaDaemon(
   });
 }
 
-export async function getDriverStatus(
-  session: string,
-): Promise<DriverStatus | null> {
+export async function getDriverStatus(session: string): Promise<DriverStatus | null> {
   return tryDriverStatus(session);
 }
 
@@ -154,10 +147,7 @@ async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
   }
 }
 
-async function sendDriverRequest<T>(
-  session: string,
-  request: DriverRequest,
-): Promise<T> {
+async function sendDriverRequest<T>(session: string, request: DriverRequest): Promise<T> {
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
     const socket = net.createConnection(socketPath);
@@ -181,19 +171,15 @@ async function sendDriverRequest<T>(
     };
 
     const incompleteResponseError = (): Error => {
-      const detail = buffer
-        ? "with an incomplete response"
-        : "without a response";
+      const detail = buffer ? "with an incomplete response" : "without a response";
       return new Error(`Driver daemon session "${session}" closed ${detail}.`);
     };
 
     const timeout = setTimeout(() => {
       failRequest(
-        new CommandFailure(
-          `Timed out waiting for driver daemon session "${session}".`,
-          1,
-          { resultCode: "daemon_socket_timeout" },
-        ),
+        new CommandFailure(`Timed out waiting for driver daemon session "${session}".`, 1, {
+          resultCode: "daemon_socket_timeout",
+        }),
       );
     }, 35_000);
 
@@ -205,16 +191,12 @@ async function sendDriverRequest<T>(
       const newline = buffer.indexOf("\n");
       if (newline === -1) return;
       try {
-        const response = ResponseSchema.parse(
-          JSON.parse(buffer.slice(0, newline)),
-        );
+        const response = ResponseSchema.parse(JSON.parse(buffer.slice(0, newline)));
         if (response.type === "error") {
           failRequest(
             new CommandFailure(response.error, 1, {
               ...(response.code ? { resultCode: response.code } : {}),
-              ...(response.httpStatus !== undefined
-                ? { httpStatus: response.httpStatus }
-                : {}),
+              ...(response.httpStatus !== undefined ? { httpStatus: response.httpStatus } : {}),
             }),
           );
           return;
@@ -246,14 +228,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
 
   const child = spawn(
     process.execPath,
-    [
-      entrypoint,
-      "daemon",
-      "--session",
-      session,
-      "--target",
-      JSON.stringify(target),
-    ],
+    [entrypoint, "daemon", "--session", session, "--target", JSON.stringify(target)],
     {
       detached: true,
       env: process.env,
@@ -263,10 +238,7 @@ function spawnDaemon(session: string, target: ConnectionTarget): void {
   child.unref();
 }
 
-async function waitForSocketReady(
-  socketPath: string,
-  timeoutMs: number,
-): Promise<void> {
+async function waitForSocketReady(socketPath: string, timeoutMs: number): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await isSocketConnectable(socketPath, 500)) return;
@@ -275,10 +247,7 @@ async function waitForSocketReady(
   throw new Error(`Driver daemon socket was not ready after ${timeoutMs}ms.`);
 }
 
-function isSocketConnectable(
-  socketPath: string,
-  timeoutMs: number,
-): Promise<boolean> {
+function isSocketConnectable(socketPath: string, timeoutMs: number): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = net.createConnection(socketPath);
     const timer = setTimeout(() => {
@@ -302,10 +271,7 @@ async function cleanupStaleDaemonFiles(session: string): Promise<void> {
   await cleanupDaemonFiles(session, { includeLock: false });
 }
 
-async function acquireLock(
-  session: string,
-  timeoutMs = 10_000,
-): Promise<boolean> {
+async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean> {
   const lockPath = getLockPath(session);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {

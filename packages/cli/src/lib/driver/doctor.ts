@@ -2,17 +2,9 @@ import { promises as fs } from "node:fs";
 
 import { CommandFailure } from "../errors.js";
 import { getDriverStatus } from "./daemon/client.js";
-import {
-  getLockPath,
-  getPidPath,
-  getSocketPath,
-  runtimeDir,
-} from "./daemon/paths.js";
+import { getLockPath, getPidPath, getSocketPath, runtimeDir } from "./daemon/paths.js";
 import { isProcessAlive } from "./daemon/process.js";
-import {
-  discoverLocalCdp,
-  type LocalCdpDiscovery,
-} from "./local-cdp-discovery.js";
+import { discoverLocalCdp, type LocalCdpDiscovery } from "./local-cdp-discovery.js";
 import { hasExplicitDriverTarget, type DriverFlags } from "./command-cli.js";
 import { resolveConnectionTarget, targetsCompatible } from "./mode.js";
 import { getRemote } from "./remote-binding.js";
@@ -72,9 +64,7 @@ export async function buildDoctorReport(
   const env = deps.env ?? process.env;
   const getStatus = deps.getDriverStatus ?? getDriverStatus;
   const resolveTarget = deps.resolveConnectionTarget ?? resolveConnectionTarget;
-  const packageVersion = await (
-    deps.readPackageVersion ?? readPackageVersion
-  )();
+  const packageVersion = await (deps.readPackageVersion ?? readPackageVersion)();
 
   checks.push({
     details: { node: process.version, version: packageVersion },
@@ -112,8 +102,7 @@ export async function buildDoctorReport(
   }
 
   if (status?.browserbaseSessionId) {
-    const { browserbaseSessionId, browserbaseSessionUrl, browserbaseDebugUrl } =
-      status;
+    const { browserbaseSessionId, browserbaseSessionUrl, browserbaseDebugUrl } = status;
 
     const details: Record<string, unknown> = {
       sessionId: browserbaseSessionId,
@@ -152,8 +141,7 @@ export async function buildDoctorReport(
   } else {
     try {
       target = await resolveTarget(options.flags);
-      const incompatible =
-        status?.target && !targetsCompatible(status.target, target);
+      const incompatible = status?.target && !targetsCompatible(status.target, target);
       if (incompatible) {
         targetFailed = true;
         checks.push({
@@ -197,14 +185,7 @@ export async function buildDoctorReport(
   const verdict = reportVerdict(checks);
   return {
     checks,
-    next: nextStep(
-      verdict,
-      checks,
-      target,
-      options.flags,
-      options.session,
-      status,
-    ),
+    next: nextStep(verdict, checks, target, options.flags, options.session, status),
     paths,
     session: options.session,
     target,
@@ -217,9 +198,7 @@ export function renderDoctorReport(report: DoctorReport): string {
   const width = Math.max(...report.checks.map((check) => check.name.length), 7);
 
   for (const check of report.checks) {
-    lines.push(
-      `${statusLabel(check.status)} ${check.name.padEnd(width)} ${check.message}`,
-    );
+    lines.push(`${statusLabel(check.status)} ${check.name.padEnd(width)} ${check.message}`);
   }
 
   lines.push("", `Status: ${report.verdict}`);
@@ -389,10 +368,7 @@ async function exists(file: string): Promise<boolean> {
 async function readPackageVersion(): Promise<string> {
   try {
     const pkg = JSON.parse(
-      await fs.readFile(
-        new URL("../../../package.json", import.meta.url),
-        "utf8",
-      ),
+      await fs.readFile(new URL("../../../package.json", import.meta.url), "utf8"),
     ) as {
       version?: unknown;
     };
@@ -418,9 +394,7 @@ function nextStep(
 ): string | undefined {
   if (verdict !== "ok" || !target) return undefined;
   if (status && !hasExplicitDriverTarget(flags)) {
-    return session === "default"
-      ? "browse status"
-      : `browse status --session ${session}`;
+    return session === "default" ? "browse status" : `browse status --session ${session}`;
   }
 
   const parts = ["browse open", DEFAULT_URL];
@@ -441,10 +415,7 @@ function nextStep(
   if (session !== "default") parts.push("--session", session);
   if (
     checks.some(
-      (check) =>
-        check.name === "browser" ||
-        check.name === "browserbase" ||
-        check.name === "cdp",
+      (check) => check.name === "browser" || check.name === "browserbase" || check.name === "cdp",
     )
   ) {
     return parts.join(" ");
@@ -455,8 +426,7 @@ function nextStep(
 function formatTarget(target: ConnectionTarget): string {
   if (target.kind === "managed-local")
     return `managed-local, ${target.headless ? "headless" : "headed"}`;
-  if (target.kind === "cdp")
-    return target.targetId ? `cdp, target ${target.targetId}` : "cdp";
+  if (target.kind === "cdp") return target.targetId ? `cdp, target ${target.targetId}` : "cdp";
   if (target.kind === "remote") {
     const settings = [
       target.verified ? "verified" : null,

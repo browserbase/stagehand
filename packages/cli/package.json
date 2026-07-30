@@ -1,11 +1,19 @@
 {
   "name": "browse",
   "version": "0.9.5",
-  "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
-  "type": "module",
   "private": false,
+  "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
   "license": "MIT",
   "author": "Browserbase <support@browserbase.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "browse": "bin/run.js"
   },
@@ -17,74 +25,9 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
   "publishConfig": {
     "access": "public"
-  },
-  "oclif": {
-    "bin": "browse",
-    "dirname": "browse",
-    "commands": "./dist/commands",
-    "helpClass": "./dist/help.js",
-    "hooks": {
-      "init": "./dist/hooks/init.js",
-      "prerun": "./dist/hooks/prerun.js",
-      "finally": "./dist/hooks/finally.js",
-      "command_not_found": "./dist/hooks/command-not-found.js"
-    },
-    "topicSeparator": " ",
-    "topics": {
-      "cloud": {
-        "description": "Manage Browserbase cloud resources and APIs."
-      },
-      "cloud:projects": {
-        "description": "Manage Browserbase projects."
-      },
-      "cloud:contexts": {
-        "description": "Manage Browserbase contexts."
-      },
-      "cloud:extensions": {
-        "description": "Manage Browserbase Chrome extensions."
-      },
-      "cloud:sessions": {
-        "description": "Manage Browserbase browser sessions."
-      },
-      "cloud:sessions:downloads": {
-        "description": "Download Browserbase session artifacts."
-      },
-      "cloud:sessions:uploads": {
-        "description": "Upload files to Browserbase sessions."
-      },
-      "functions": {
-        "description": "Develop, publish, and invoke Browserbase Functions."
-      },
-      "mouse": {
-        "description": "Send raw mouse coordinate input."
-      },
-      "network": {
-        "description": "Capture browser network traffic for the active session."
-      },
-      "skills": {
-        "description": "Discover and install browser automation skills."
-      },
-      "tab": {
-        "description": "Manage browser tabs in the active session."
-      },
-      "templates": {
-        "description": "Browse and scaffold Browserbase templates."
-      }
-    }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/browserbase/stagehand.git",
-    "directory": "packages/cli"
-  },
-  "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
-  },
-  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",
-  "engines": {
-    "node": "^20.19.0 || >=22.12.0"
   },
   "scripts": {
     "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
@@ -132,5 +75,62 @@
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.59.3",
     "vitest": "^4.1.9"
+  },
+  "oclif": {
+    "bin": "browse",
+    "commands": "./dist/commands",
+    "dirname": "browse",
+    "helpClass": "./dist/help.js",
+    "hooks": {
+      "command_not_found": "./dist/hooks/command-not-found.js",
+      "finally": "./dist/hooks/finally.js",
+      "init": "./dist/hooks/init.js",
+      "prerun": "./dist/hooks/prerun.js"
+    },
+    "topicSeparator": " ",
+    "topics": {
+      "cloud": {
+        "description": "Manage Browserbase cloud resources and APIs."
+      },
+      "cloud:contexts": {
+        "description": "Manage Browserbase contexts."
+      },
+      "cloud:extensions": {
+        "description": "Manage Browserbase Chrome extensions."
+      },
+      "cloud:projects": {
+        "description": "Manage Browserbase projects."
+      },
+      "cloud:sessions": {
+        "description": "Manage Browserbase browser sessions."
+      },
+      "cloud:sessions:downloads": {
+        "description": "Download Browserbase session artifacts."
+      },
+      "cloud:sessions:uploads": {
+        "description": "Upload files to Browserbase sessions."
+      },
+      "functions": {
+        "description": "Develop, publish, and invoke Browserbase Functions."
+      },
+      "mouse": {
+        "description": "Send raw mouse coordinate input."
+      },
+      "network": {
+        "description": "Capture browser network traffic for the active session."
+      },
+      "skills": {
+        "description": "Discover and install browser automation skills."
+      },
+      "tab": {
+        "description": "Manage browser tabs in the active session."
+      },
+      "templates": {
+        "description": "Browse and scaffold Browserbase templates."
+      }
+    }
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   }
 }

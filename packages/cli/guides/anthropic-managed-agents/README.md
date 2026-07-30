@@ -1,7 +1,6 @@
 # Browser agents
 
 > Cookbook for Anthropic Managed Agents
-> 
 
 This guide shows how to equip your Managed Agents with a browser, search, and fetch tooling to navigate the web. The `browse` CLI powers your agents to run UI testing, conduct deep document research, fill web forms and complex browser automations.
 
@@ -57,13 +56,10 @@ metadata: {}
 ## 4. Try out a few browser agent use cases
 
 > Please run a full E2E test for UI regressions on this preview URL
-> 
 
 > Please check if Adam Smith is a licensed accountant in California
-> 
 
 > Please find the price of the Fellow Kettle on Target.com, and add to cart
-> 
 
 ```bash
 ant beta:sessions create \
@@ -74,4 +70,3 @@ ant beta:sessions create \
 When your Managed Agents use remote browsers through the CLI, you may watch and debug the live sessions in the [Browserbase sessions panel](https://browserbase.com/sessions).
 
 ![CleanShot 2026-06-05 at 13.27.05@2x.png](CleanShot_2026-06-05_at_13.27.052x.png)
-

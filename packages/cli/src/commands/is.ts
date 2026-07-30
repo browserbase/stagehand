@@ -1,14 +1,10 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
 
 export default class Is extends BrowseCommand {
-  static override description =
-    "Check element state by snapshot ref, XPath, or selector.";
+  static override description = "Check element state by snapshot ref, XPath, or selector.";
 
   static override examples = [
     "browse is visible @0-12",
@@ -34,10 +30,6 @@ export default class Is extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Is);
-    await runDriverCommandFromFlags(
-      "is",
-      { check: args.check, selector: args.selector },
-      flags,
-    );
+    await runDriverCommandFromFlags("is", { check: args.check, selector: args.selector }, flags);
   }
 }

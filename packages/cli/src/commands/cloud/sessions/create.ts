@@ -10,19 +10,10 @@ import {
 import { resolveContextRefOrFail } from "../../../lib/cloud/contexts-resolve.js";
 import { apiCommonFlags, toApiOptions } from "../../../lib/cloud/flags.js";
 import { fail } from "../../../lib/errors.js";
-import {
-  getCliVersion,
-  resolveInstallId,
-  toMetadataValue,
-} from "../../../lib/identity.js";
+import { getCliVersion, resolveInstallId, toMetadataValue } from "../../../lib/identity.js";
 import { BrowseCommand } from "../../../base.js";
 
-const REGIONS = [
-  "us-west-2",
-  "us-east-1",
-  "eu-central-1",
-  "ap-southeast-1",
-] as const;
+const REGIONS = ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"] as const;
 
 interface SessionCreateFlagInputs {
   proxies?: boolean;
@@ -41,9 +32,7 @@ interface SessionCreateFlagInputs {
   "extension-id"?: string;
 }
 
-function buildSessionCreateBody(
-  flags: SessionCreateFlagInputs,
-): Record<string, unknown> {
+function buildSessionCreateBody(flags: SessionCreateFlagInputs): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   const browserSettings: Record<string, unknown> = {};
 
@@ -53,8 +42,7 @@ function buildSessionCreateBody(
   if (flags.timeout !== undefined) body.timeout = flags.timeout;
   if (flags["extension-id"]) body.extensionId = flags["extension-id"];
 
-  if (flags.verified || flags["advanced-stealth"])
-    browserSettings.verified = true;
+  if (flags.verified || flags["advanced-stealth"]) browserSettings.verified = true;
   if (flags["block-ads"]) browserSettings.blockAds = true;
 
   if (flags["solve-captchas"] !== undefined) {
@@ -69,8 +57,7 @@ function buildSessionCreateBody(
 
   if (flags.viewport) {
     const match = flags.viewport.match(/^(\d+)x(\d+)$/);
-    if (!match)
-      fail("Invalid viewport format. Use WIDTHxHEIGHT (e.g. 1920x1080).");
+    if (!match) fail("Invalid viewport format. Use WIDTHxHEIGHT (e.g. 1920x1080).");
     const [, width, height] = match;
     browserSettings.viewport = {
       width: Number.parseInt(width!, 10),
@@ -104,9 +91,7 @@ function buildSessionCreateBody(
  * toMetadataValue() so the session-create validator never 400s on a stray
  * character or an over-length value.
  */
-async function applyCliAttribution(
-  body: Record<string, unknown>,
-): Promise<void> {
+async function applyCliAttribution(body: Record<string, unknown>): Promise<void> {
   const rawExisting =
     body.userMetadata && typeof body.userMetadata === "object"
       ? (body.userMetadata as Record<string, unknown>)
@@ -166,8 +151,7 @@ export default class SessionsCreate extends BrowseCommand {
       description: "Enable Browserbase Verified browser mode.",
     }),
     "solve-captchas": Flags.boolean({
-      description:
-        "Enable automatic CAPTCHA solving. Use --no-solve-captchas to disable.",
+      description: "Enable automatic CAPTCHA solving. Use --no-solve-captchas to disable.",
       allowNo: true,
     }),
     "block-ads": Flags.boolean({
@@ -194,8 +178,7 @@ export default class SessionsCreate extends BrowseCommand {
       description: "Persist context changes after session ends.",
     }),
     "record-session": Flags.boolean({
-      description:
-        "Enable session recording. Use --no-record-session to disable.",
+      description: "Enable session recording. Use --no-record-session to disable.",
       allowNo: true,
     }),
     "log-session": Flags.boolean({

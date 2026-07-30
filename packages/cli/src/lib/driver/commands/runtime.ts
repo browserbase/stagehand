@@ -69,8 +69,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
 
     if (type === "load") {
       await page.waitForLoadState(
-        (arg as "domcontentloaded" | "load" | "networkidle" | undefined) ??
-          "load",
+        (arg as "domcontentloaded" | "load" | "networkidle" | undefined) ?? "load",
         timeoutMs,
       );
     } else if (type === "selector") {
@@ -97,9 +96,7 @@ function parseTimeoutMs(value: string | undefined): number {
   if (value === undefined) return 0;
   const timeoutMs = Number(value);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 0) {
-    throw new Error(
-      "wait timeout requires a non-negative integer number of milliseconds.",
-    );
+    throw new Error("wait timeout requires a non-negative integer number of milliseconds.");
   }
 
   return timeoutMs;

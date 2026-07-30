@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { DriverError } from "../src/lib/driver/errors.js";
-import {
-  ErrorResponseSchema,
-  serializeResponse,
-} from "../src/lib/driver/daemon/protocol.js";
+import { ErrorResponseSchema, serializeResponse } from "../src/lib/driver/daemon/protocol.js";
 import { classifyRemoteInitError } from "../src/lib/driver/remote.js";
-import {
-  initFailureBackoffMs,
-  isChromeNotFoundError,
-} from "../src/lib/driver/session-manager.js";
+import { initFailureBackoffMs, isChromeNotFoundError } from "../src/lib/driver/session-manager.js";
 
 describe("classifyRemoteInitError", () => {
   it("maps 401 to an actionable invalid-key message", () => {
@@ -34,9 +28,7 @@ describe("classifyRemoteInitError", () => {
   });
 
   it("preserves the original message for other failures", () => {
-    const classified = classifyRemoteInitError(
-      new Error("session quota exceeded"),
-    );
+    const classified = classifyRemoteInitError(new Error("session quota exceeded"));
     expect(classified.code).toBe("remote_session_create_failed");
     expect(classified.httpStatus).toBeUndefined();
     expect(classified.message).toContain("session quota exceeded");
@@ -68,12 +60,9 @@ describe("initFailureBackoffMs", () => {
       expected: 5_000,
       description: "nonsense count -> first failure",
     },
-  ])(
-    "failure #$failureCount $description -> $expected ms",
-    ({ failureCount, expected }) => {
-      expect(initFailureBackoffMs(failureCount)).toBe(expected);
-    },
-  );
+  ])("failure #$failureCount $description -> $expected ms", ({ failureCount, expected }) => {
+    expect(initFailureBackoffMs(failureCount)).toBe(expected);
+  });
 });
 
 describe("isChromeNotFoundError", () => {
@@ -95,9 +84,7 @@ describe("isChromeNotFoundError", () => {
   });
 
   it("matches the message shape when no code is present", () => {
-    expect(
-      isChromeNotFoundError(new Error("No Chrome installations found.")),
-    ).toBe(true);
+    expect(isChromeNotFoundError(new Error("No Chrome installations found."))).toBe(true);
   });
 
   it("does not match unrelated errors", () => {
@@ -139,9 +126,7 @@ describe("driverInitHints", () => {
   });
 
   it("stays key-free in the local-only capability", async () => {
-    const { driverInitHints } = await import(
-      "../src/lib/driver/remote.disabled.js"
-    );
+    const { driverInitHints } = await import("../src/lib/driver/remote.disabled.js");
     const hints = driverInitHints();
     expect(hints.chromeNotFound).not.toContain("BROWSERBASE_API_KEY");
     expect(hints.repeatedInitFailure).not.toContain("BROWSERBASE_API_KEY");

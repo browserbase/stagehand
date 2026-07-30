@@ -1,8 +1,4 @@
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
 export interface CapturedRequest {
@@ -21,10 +17,7 @@ export interface FakeBrowserbaseServer {
 }
 
 export async function startFakeBrowserbaseServer(
-  handler: (
-    request: CapturedRequest,
-    response: ServerResponse,
-  ) => Promise<void> | void,
+  handler: (request: CapturedRequest, response: ServerResponse) => Promise<void> | void,
 ): Promise<FakeBrowserbaseServer> {
   const requests: CapturedRequest[] = [];
   const server = createServer(async (request, response) => {
@@ -85,22 +78,14 @@ async function readBody(request: IncomingMessage): Promise<Buffer> {
   return Buffer.concat(chunks);
 }
 
-export function jsonResponse(
-  response: ServerResponse,
-  statusCode: number,
-  body: unknown,
-): void {
+export function jsonResponse(response: ServerResponse, statusCode: number, body: unknown): void {
   response.writeHead(statusCode, {
     "content-type": "application/json",
   });
   response.end(JSON.stringify(body));
 }
 
-export function textResponse(
-  response: ServerResponse,
-  statusCode: number,
-  body: string,
-): void {
+export function textResponse(response: ServerResponse, statusCode: number, body: string): void {
   response.writeHead(statusCode, {
     "content-type": "text/plain",
   });

@@ -1,11 +1,4 @@
-import {
-  chmod,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
@@ -55,18 +48,12 @@ describe("functions API contracts", () => {
 
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/builds"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
           jsonResponse(response, 200, { id: "build_123" });
           return;
         }
 
-        if (
-          request.method === "GET" &&
-          request.path === "/v1/functions/builds/build_123"
-        ) {
+        if (request.method === "GET" && request.path === "/v1/functions/builds/build_123") {
           jsonResponse(response, 200, {
             builtFunctions: [{ id: "fn_123", name: "my-function" }],
             id: "build_123",
@@ -79,15 +66,7 @@ describe("functions API contracts", () => {
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
-          [
-            "functions",
-            "publish",
-            "index.ts",
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ],
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
           { cwd },
         );
 
@@ -97,16 +76,9 @@ describe("functions API contracts", () => {
           status: "COMPLETED",
         });
         expectRequest(requests[0], "POST", "/v1/functions/builds", "test-key");
-        expect(requests[0]?.headers["content-type"]).toContain(
-          "multipart/form-data",
-        );
+        expect(requests[0]?.headers["content-type"]).toContain("multipart/form-data");
         expect(requests[0]?.bodyText).toContain('"entrypoint":"index.ts"');
-        expectRequest(
-          requests[1],
-          "GET",
-          "/v1/functions/builds/build_123",
-          "test-key",
-        );
+        expectRequest(requests[1], "GET", "/v1/functions/builds/build_123", "test-key");
       },
     );
   });
@@ -120,20 +92,10 @@ describe("functions API contracts", () => {
     await mkdir(join(cwd, ".browserbase", "functions", "manifests"), {
       recursive: true,
     });
-    await writeFile(
-      join(cwd, ".browserbase", "functions", "manifests", "local.json"),
-      "{}",
-    );
+    await writeFile(join(cwd, ".browserbase", "functions", "manifests", "local.json"), "{}");
 
     const result = await runCli(
-      [
-        "functions",
-        "publish",
-        "index.ts",
-        "--dry-run",
-        "--api-key",
-        "test-key",
-      ],
+      ["functions", "publish", "index.ts", "--dry-run", "--api-key", "test-key"],
       {
         cwd,
         env: {
@@ -152,9 +114,7 @@ describe("functions API contracts", () => {
     expect(output.entrypoint).toBe("index.ts");
     expect(output.files).toContain("index.ts");
     expect(output.files).toContain("package.json");
-    expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(
-      false,
-    );
+    expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(false);
   });
 
   itPosix("exits nonzero when a build fails", async () => {
@@ -162,10 +122,7 @@ describe("functions API contracts", () => {
 
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/builds"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/builds") {
           jsonResponse(response, 200, { id: "build_failed" });
           return;
         }
@@ -177,15 +134,7 @@ describe("functions API contracts", () => {
       },
       async ({ baseUrl }) => {
         const result = await runCli(
-          [
-            "functions",
-            "publish",
-            "index.ts",
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ],
+          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
           { cwd },
         );
 
@@ -201,10 +150,7 @@ describe("functions API contracts", () => {
   it("invokes a deployed Function and polls invocation status", async () => {
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/fn_123/invoke") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_123",
@@ -213,10 +159,7 @@ describe("functions API contracts", () => {
           return;
         }
 
-        if (
-          request.method === "GET" &&
-          request.path === "/v1/functions/invocations/inv_123"
-        ) {
+        if (request.method === "GET" && request.path === "/v1/functions/invocations/inv_123") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_123",
@@ -247,21 +190,11 @@ describe("functions API contracts", () => {
           results: { ok: true },
           status: "COMPLETED",
         });
-        expectRequest(
-          requests[0],
-          "POST",
-          "/v1/functions/fn_123/invoke",
-          "test-key",
-        );
+        expectRequest(requests[0], "POST", "/v1/functions/fn_123/invoke", "test-key");
         expect(requests[0]?.jsonBody).toMatchObject({
           params: { url: "https://example.com" },
         });
-        expectRequest(
-          requests[1],
-          "GET",
-          "/v1/functions/invocations/inv_123",
-          "test-key",
-        );
+        expectRequest(requests[1], "GET", "/v1/functions/invocations/inv_123", "test-key");
       },
     );
   });
@@ -269,10 +202,7 @@ describe("functions API contracts", () => {
   it("exits nonzero when an invocation fails", async () => {
     await withServer(
       async (request, response) => {
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/functions/fn_123/invoke"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/functions/fn_123/invoke") {
           jsonResponse(response, 200, {
             functionId: "fn_123",
             id: "inv_failed",
@@ -331,16 +261,11 @@ describe("functions scaffolding and local dev", () => {
     expect(output.ok).toBe(true);
     expect(output.projectRoot.endsWith("demo-function")).toBe(true);
 
-    const entrypoint = await readFile(
-      join(cwd, "demo-function", "index.ts"),
-      "utf8",
+    const entrypoint = await readFile(join(cwd, "demo-function", "index.ts"), "utf8");
+    expect(entrypoint).toContain('import { defineFn } from "@browserbasehq/sdk-functions";');
+    expect(await readFile(join(cwd, "demo-function", ".env"), "utf8")).toContain(
+      "BROWSERBASE_API_KEY=",
     );
-    expect(entrypoint).toContain(
-      'import { defineFn } from "@browserbasehq/sdk-functions";',
-    );
-    expect(
-      await readFile(join(cwd, "demo-function", ".env"), "utf8"),
-    ).toContain("BROWSERBASE_API_KEY=");
   });
 
   it("runs a local dev server and invokes a function", async () => {
@@ -358,10 +283,7 @@ describe("functions scaffolding and local dev", () => {
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path === "/v1/sessions/sess_123"
-        ) {
+        if (request.method === "POST" && request.path === "/v1/sessions/sess_123") {
           jsonResponse(response, 200, {
             id: "sess_123",
             status: "REQUEST_RELEASE",
@@ -410,9 +332,7 @@ describe("functions scaffolding and local dev", () => {
           },
         );
         expect(optionsResponse.status).toBe(204);
-        expect(optionsResponse.headers.get("access-control-allow-origin")).toBe(
-          allowedOrigin,
-        );
+        expect(optionsResponse.headers.get("access-control-allow-origin")).toBe(allowedOrigin);
         expect(optionsResponse.headers.get("vary")).toBe("Origin");
         await expect(optionsResponse.text()).resolves.toBe("");
 
@@ -428,9 +348,7 @@ describe("functions scaffolding and local dev", () => {
           },
         );
         expect(invokeResponse.status).toBe(200);
-        expect(invokeResponse.headers.get("access-control-allow-origin")).toBe(
-          allowedOrigin,
-        );
+        expect(invokeResponse.headers.get("access-control-allow-origin")).toBe(allowedOrigin);
         await expect(invokeResponse.json()).resolves.toMatchObject({
           ok: true,
           params: { answer: 42 },
@@ -500,9 +418,7 @@ describe("functions scaffolding and local dev", () => {
           },
         );
         expect(optionsResponse.status).toBe(403);
-        expect(
-          optionsResponse.headers.get("access-control-allow-origin"),
-        ).toBeNull();
+        expect(optionsResponse.headers.get("access-control-allow-origin")).toBeNull();
 
         const invokeResponse = await fetch(
           `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
@@ -516,9 +432,7 @@ describe("functions scaffolding and local dev", () => {
           },
         );
         expect(invokeResponse.status).toBe(403);
-        expect(
-          invokeResponse.headers.get("access-control-allow-origin"),
-        ).toBeNull();
+        expect(invokeResponse.headers.get("access-control-allow-origin")).toBeNull();
         await expect(invokeResponse.json()).resolves.toMatchObject({
           error: "Origin is not allowed.",
         });
@@ -651,10 +565,7 @@ describe("functions scaffolding and local dev", () => {
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path.startsWith("/v1/sessions/sess_")
-        ) {
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_")) {
           jsonResponse(response, 500, { message: "cleanup failed" });
           return;
         }
@@ -729,10 +640,7 @@ describe("functions scaffolding and local dev", () => {
           return;
         }
 
-        if (
-          request.method === "POST" &&
-          request.path.startsWith("/v1/sessions/sess_")
-        ) {
+        if (request.method === "POST" && request.path.startsWith("/v1/sessions/sess_")) {
           jsonResponse(response, 200, { status: "REQUEST_RELEASE" });
           return;
         }
@@ -772,9 +680,7 @@ describe("functions scaffolding and local dev", () => {
         expect(first.headers.get("access-control-allow-origin")).toBeNull();
         await expect(first.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
-              "Invalid runtime response payload",
-            ),
+            errorMessage: expect.stringContaining("Invalid runtime response payload"),
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n");
@@ -783,9 +689,7 @@ describe("functions scaffolding and local dev", () => {
         expect(second.status).toBe(500);
         await expect(second.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
-              "Invalid runtime response payload",
-            ),
+            errorMessage: expect.stringContaining("Invalid runtime response payload"),
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n400\n");
@@ -974,9 +878,7 @@ async function getFreePort(): Promise<number> {
   if (!address || typeof address === "string") {
     throw new Error("Could not allocate test port.");
   }
-  await new Promise<void>((resolvePromise) =>
-    server.close(() => resolvePromise()),
-  );
+  await new Promise<void>((resolvePromise) => server.close(() => resolvePromise()));
   return address.port;
 }
 
@@ -984,22 +886,16 @@ async function invokeLocalFunction(
   port: number,
   params: Record<string, unknown>,
 ): Promise<Response> {
-  return await fetch(
-    `http://127.0.0.1:${port}/v1/functions/test-function/invoke`,
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ params }),
+  return await fetch(`http://127.0.0.1:${port}/v1/functions/test-function/invoke`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
     },
-  );
+    body: JSON.stringify({ params }),
+  });
 }
 
-async function waitForFileText(
-  filePath: string,
-  expectedText: string,
-): Promise<string> {
+async function waitForFileText(filePath: string, expectedText: string): Promise<string> {
   const deadline = Date.now() + 10_000;
   let lastText = "";
   while (Date.now() < deadline) {
@@ -1009,17 +905,13 @@ async function waitForFileText(
         return lastText;
       }
     } catch (error) {
-      if (
-        !(error instanceof Error && "code" in error && error.code === "ENOENT")
-      ) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
         throw error;
       }
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
-  throw new Error(
-    `Timed out waiting for ${filePath} to include ${expectedText}. Saw: ${lastText}`,
-  );
+  throw new Error(`Timed out waiting for ${filePath} to include ${expectedText}. Saw: ${lastText}`);
 }
 
 async function withServer(
@@ -1027,9 +919,7 @@ async function withServer(
     request: CapturedRequest,
     response: Parameters<typeof jsonResponse>[0],
   ) => Promise<void> | void,
-  callback: (
-    server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>,
-  ) => Promise<void>,
+  callback: (server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>) => Promise<void>,
 ): Promise<void> {
   const server = await startFakeBrowserbaseServer(handler);
   try {
@@ -1092,10 +982,7 @@ async function waitForStdout(
   });
 }
 
-async function waitForRequests(
-  requests: CapturedRequest[],
-  count: number,
-): Promise<void> {
+async function waitForRequests(requests: CapturedRequest[], count: number): Promise<void> {
   const deadline = Date.now() + 5_000;
   while (Date.now() < deadline) {
     if (requests.length >= count) {
@@ -1103,9 +990,7 @@ async function waitForRequests(
     }
     await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
   }
-  throw new Error(
-    `Timed out waiting for ${count} requests. Saw ${requests.length}.`,
-  );
+  throw new Error(`Timed out waiting for ${count} requests. Saw ${requests.length}.`);
 }
 
 async function waitForExit(

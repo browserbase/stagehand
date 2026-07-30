@@ -29,8 +29,7 @@ export default class ContextsCreate extends BrowseCommand {
   static override flags = {
     ...apiCommonFlags,
     name: Flags.string({
-      description:
-        "Save a local alias for the new context so you can reuse it by name.",
+      description: "Save a local alias for the new context so you can reuse it by name.",
       helpValue: "<name>",
     }),
     body: Flags.string({

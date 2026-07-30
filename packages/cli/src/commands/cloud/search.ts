@@ -1,17 +1,9 @@
 import { Args, Flags } from "@oclif/core";
 
-import {
-  outputJson,
-  requestBrowserbaseJson,
-  writeOutputFile,
-} from "../../lib/cloud/api.js";
+import { outputJson, requestBrowserbaseJson, writeOutputFile } from "../../lib/cloud/api.js";
 import { apiCommonFlags, toApiOptions } from "../../lib/cloud/flags.js";
 import { BrowseCommand } from "../../base.js";
-import {
-  outputFormatFlags,
-  outputTable,
-  resolveOutputFormat,
-} from "../../lib/output.js";
+import { outputFormatFlags, outputTable, resolveOutputFormat } from "../../lib/output.js";
 
 interface SearchResult {
   id: string;
@@ -30,8 +22,7 @@ interface SearchResponse {
 }
 
 export default class Search extends BrowseCommand {
-  static override description =
-    "Search the web using the Browserbase Search API.";
+  static override description = "Search the web using the Browserbase Search API.";
 
   static override examples = [
     `browse cloud search "best restaurants in SF"`,
@@ -63,15 +54,11 @@ export default class Search extends BrowseCommand {
     const { args, flags } = await this.parse(Search);
     const numResults = flags["num-results"];
 
-    const result = await requestBrowserbaseJson<SearchResponse>(
-      toApiOptions(flags),
-      "/v1/search",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: args.query, numResults }),
-      },
-    );
+    const result = await requestBrowserbaseJson<SearchResponse>(toApiOptions(flags), "/v1/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: args.query, numResults }),
+    });
 
     const outputFormat = resolveOutputFormat(flags);
     if (flags.output) {
@@ -102,10 +89,7 @@ export default class Search extends BrowseCommand {
   }
 }
 
-function outputSearchTable(
-  results: SearchResult[],
-  options: { wide?: boolean },
-): void {
+function outputSearchTable(results: SearchResult[], options: { wide?: boolean }): void {
   if (results.length === 0) {
     console.log("No search results found.");
     return;

@@ -57,8 +57,7 @@ export default [
         {
           selector:
             "CallExpression[callee.object.name='globalThis'][callee.property.name='Function']",
-          message:
-            "Dynamic function construction via globalThis.Function is prohibited.",
+          message: "Dynamic function construction via globalThis.Function is prohibited.",
         },
       ],
     },

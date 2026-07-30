@@ -43,9 +43,7 @@ describe("skills show", () => {
       const result = await runCli(["skills", "show"]);
 
       expect(result.exitCode).toBe(1);
-      expect(result.stderr).toContain(
-        "Could not read the bundled browse skill (SKILL.md)",
-      );
+      expect(result.stderr).toContain("Could not read the bundled browse skill (SKILL.md)");
     } finally {
       await rename(movedPath, skillMdPath);
     }

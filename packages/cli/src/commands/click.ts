@@ -1,10 +1,7 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../base.js";
-import {
-  driverCommandFlags,
-  runDriverCommandFromFlags,
-} from "../lib/driver/command-cli.js";
+import { driverCommandFlags, runDriverCommandFromFlags } from "../lib/driver/command-cli.js";
 
 export default class Click extends BrowseCommand {
   static override description =
@@ -29,10 +26,6 @@ export default class Click extends BrowseCommand {
 
   async run(): Promise<void> {
     const { args, flags } = await this.parse(Click);
-    await runDriverCommandFromFlags(
-      "click",
-      { selector: args.selector },
-      flags,
-    );
+    await runDriverCommandFromFlags("click", { selector: args.selector }, flags);
   }
 }

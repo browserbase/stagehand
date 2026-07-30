@@ -60,9 +60,7 @@ export const pageInfoHandlers: DriverCommandHandlers = {
   },
 
   async eval(manager, params) {
-    const { expression } = z
-      .object({ expression: z.string().min(1) })
-      .parse(params);
+    const { expression } = z.object({ expression: z.string().min(1) }).parse(params);
     const page = await manager.activePage();
     return { result: await page.evaluate(expression) };
   },

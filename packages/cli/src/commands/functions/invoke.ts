@@ -30,8 +30,7 @@ export default class FunctionsInvoke extends BrowseCommand {
       helpValue: "<baseUrl>",
     }),
     "check-status": Flags.string({
-      description:
-        "Invocation ID to inspect without creating a new invocation.",
+      description: "Invocation ID to inspect without creating a new invocation.",
       helpValue: "<invocationId>",
     }),
     "no-wait": Flags.boolean({

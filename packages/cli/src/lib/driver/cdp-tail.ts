@@ -16,22 +16,11 @@ export interface TailCdpOptions {
   pretty?: boolean;
 }
 
-export const DEFAULT_CDP_DOMAINS = [
-  "Network",
-  "Console",
-  "Runtime",
-  "Log",
-  "Page",
-];
+export const DEFAULT_CDP_DOMAINS = ["Network", "Console", "Runtime", "Log", "Page"];
 
-export async function tailCdp(
-  target: string,
-  options: TailCdpOptions = {},
-): Promise<void> {
+export async function tailCdp(target: string, options: TailCdpOptions = {}): Promise<void> {
   const wsUrl = await resolveWsTarget(target);
-  const domains = options.domains?.length
-    ? options.domains
-    : DEFAULT_CDP_DOMAINS;
+  const domains = options.domains?.length ? options.domains : DEFAULT_CDP_DOMAINS;
   const usePretty = options.pretty ?? false;
 
   let messageId = 1;
@@ -66,12 +55,7 @@ export async function tailCdp(
       }
 
       if (domain === "Page") {
-        send(
-          ws,
-          "Page.setLifecycleEventsEnabled",
-          { enabled: true },
-          sessionId,
-        );
+        send(ws, "Page.setLifecycleEventsEnabled", { enabled: true }, sessionId);
       }
     }
   }
@@ -83,10 +67,7 @@ export async function tailCdp(
     const cleanup = (): void => {
       if (closed) return;
       closed = true;
-      if (
-        ws.readyState === WebSocket.OPEN ||
-        ws.readyState === WebSocket.CONNECTING
-      ) {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close();
       }
       resolve();
@@ -122,9 +103,7 @@ export async function tailCdp(
       if (message.id !== undefined && pendingIds.has(message.id)) {
         pendingIds.delete(message.id);
         if (message.error) {
-          process.stderr.write(
-            `CDP error (id=${message.id}): ${message.error.message}\n`,
-          );
+          process.stderr.write(`CDP error (id=${message.id}): ${message.error.message}\n`);
         }
         return;
       }
@@ -134,11 +113,7 @@ export async function tailCdp(
           sessionId?: string;
           targetInfo?: { targetId?: string; type?: string };
         };
-        if (
-          params.sessionId &&
-          params.targetInfo?.type === "page" &&
-          params.targetInfo.targetId
-        ) {
+        if (params.sessionId && params.targetInfo?.type === "page" && params.targetInfo.targetId) {
           targetSessionMap.set(params.targetInfo.targetId, params.sessionId);
           enableDomains(ws, params.sessionId);
         }
@@ -199,23 +174,17 @@ function formatPrettyCdpMessage(message: CdpMessage): string | null {
 
   try {
     if (message.method === "Network.requestWillBeSent") {
-      const request = params?.request as
-        | { method?: string; url?: string }
-        | undefined;
+      const request = params?.request as { method?: string; url?: string } | undefined;
       if (request) line += ` ${request.method ?? "?"} ${request.url ?? ""}`;
     } else if (message.method === "Network.responseReceived") {
-      const response = params?.response as
-        | { status?: number; url?: string }
-        | undefined;
+      const response = params?.response as { status?: number; url?: string } | undefined;
       if (response) line += ` ${response.status ?? "?"} ${response.url ?? ""}`;
     } else if (message.method === "Network.loadingFailed") {
       line += ` ${(params?.errorText as string | undefined) ?? "Unknown error"}`;
     } else if (message.method === "Runtime.consoleAPICalled") {
       const type = (params?.type as string | undefined) ?? "log";
       const args =
-        (params?.args as
-          | Array<{ description?: string; value?: unknown }>
-          | undefined) ?? [];
+        (params?.args as Array<{ description?: string; value?: unknown }> | undefined) ?? [];
       line += ` [${type}] ${args.map((arg) => arg.description ?? arg.value ?? "").join(" ")}`;
     } else if (message.method === "Runtime.exceptionThrown") {
       const detail = params?.exceptionDetails as
@@ -229,9 +198,7 @@ function formatPrettyCdpMessage(message: CdpMessage): string | null {
       const name = params?.name as string | undefined;
       if (name) line += ` ${name}`;
     } else if (message.method === "Target.attachedToTarget") {
-      const info = params?.targetInfo as
-        | { type?: string; url?: string }
-        | undefined;
+      const info = params?.targetInfo as { type?: string; url?: string } | undefined;
       if (info) line += ` [${info.type ?? "?"}] ${info.url ?? ""}`;
     }
   } catch {

@@ -1,11 +1,7 @@
 import { Args } from "@oclif/core";
 
 import { BrowseCommand } from "../../base.js";
-import {
-  outputFormatFlags,
-  outputJson,
-  resolveOutputFormat,
-} from "../../lib/output.js";
+import { outputFormatFlags, outputJson, resolveOutputFormat } from "../../lib/output.js";
 import { getTemplateIfExists, listTemplates } from "../../lib/templates/api.js";
 import {
   outputTemplateTable,
@@ -14,8 +10,7 @@ import {
 } from "../../lib/templates/output.js";
 
 export default class TemplatesFind extends BrowseCommand {
-  static override description =
-    "Find Browserbase templates by slug, title, category, or tag.";
+  static override description = "Find Browserbase templates by slug, title, category, or tag.";
 
   static override examples = [
     "browse templates find google-trends-keywords",
@@ -51,9 +46,7 @@ export default class TemplatesFind extends BrowseCommand {
     }
 
     const templates = await listTemplates();
-    const matches = templates.filter((template) =>
-      templateMatchesQuery(template, args.query),
-    );
+    const matches = templates.filter((template) => templateMatchesQuery(template, args.query));
 
     if (outputFormat === "json") {
       outputJson({ query: args.query, templates: matches });

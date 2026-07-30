@@ -94,11 +94,7 @@ describe("local-only build", () => {
 
   it("keeps the local CDP driver and substitutes the disabled remote stub", async () => {
     expect(await exists(join(outDir, "commands/open.js"))).toBe(true);
-    expect(await exists(join(outDir, "lib/driver/session-manager.js"))).toBe(
-      true,
-    );
-    expect(await exists(join(outDir, "lib/driver/remote.disabled.js"))).toBe(
-      true,
-    );
+    expect(await exists(join(outDir, "lib/driver/session-manager.js"))).toBe(true);
+    expect(await exists(join(outDir, "lib/driver/remote.disabled.js"))).toBe(true);
   });
 });

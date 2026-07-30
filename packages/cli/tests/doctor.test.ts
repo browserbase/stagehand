@@ -7,11 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { buildDoctorReport } from "../src/lib/driver/doctor.js";
-import {
-  getLockPath,
-  getPidPath,
-  getSocketPath,
-} from "../src/lib/driver/daemon/paths.js";
+import { getLockPath, getPidPath, getSocketPath } from "../src/lib/driver/daemon/paths.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const cleanupPaths: string[] = [];
@@ -62,9 +58,7 @@ describe("doctor command", () => {
     });
 
     expect(result.exitCode).toBe(1);
-    expect(result.stdout).toContain(
-      "[fail] browserbase BROWSERBASE_API_KEY is not set",
-    );
+    expect(result.stdout).toContain("[fail] browserbase BROWSERBASE_API_KEY is not set");
     expect(result.stdout).toContain("Fix: export BROWSERBASE_API_KEY=...");
   });
 
@@ -135,19 +129,14 @@ describe("doctor command", () => {
 
     try {
       const port = await listen(server);
-      const result = await runCli(
-        ["doctor", "--cdp", `http://127.0.0.1:${port}`, "--json"],
-        {
-          env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
-        },
-      );
+      const result = await runCli(["doctor", "--cdp", `http://127.0.0.1:${port}`, "--json"], {
+        env: { BROWSERBASE_API_KEY: "", BROWSE_DAEMON_DIR: daemonDir },
+      });
 
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout)).toMatchObject({
         verdict: "ok",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "cdp", status: "ok" }),
-        ]),
+        checks: expect.arrayContaining([expect.objectContaining({ name: "cdp", status: "ok" })]),
       });
     } finally {
       await close(server);
@@ -169,9 +158,7 @@ describe("doctor command", () => {
 
       expect(result.exitCode).toBe(1);
       expect(result.stdout).toContain("[fail] daemon");
-      expect(result.stdout).toContain(
-        "Fix: browse stop --session stuck --force",
-      );
+      expect(result.stdout).toContain("Fix: browse stop --session stuck --force");
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
     }
@@ -192,9 +179,7 @@ describe("doctor command", () => {
 
       expect(result.exitCode).toBe(0);
       expect(result.stdout).toContain("Status: warn");
-      expect(result.stdout).toContain(
-        "Fix: browse stop --session locked --force",
-      );
+      expect(result.stdout).toContain("Fix: browse stop --session locked --force");
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
     }
@@ -232,15 +217,12 @@ describe("doctor command", () => {
     try {
       process.env.BROWSE_DAEMON_DIR = daemonDir;
       await listenSocket(server, getSocketPath(session));
-      const result = await runCli(
-        ["doctor", "--session", session, "--remote", "--json"],
-        {
-          env: {
-            BROWSERBASE_API_KEY: "test-key",
-            BROWSE_DAEMON_DIR: daemonDir,
-          },
+      const result = await runCli(["doctor", "--session", session, "--remote", "--json"], {
+        env: {
+          BROWSERBASE_API_KEY: "test-key",
+          BROWSE_DAEMON_DIR: daemonDir,
         },
-      );
+      });
 
       expect(result.exitCode).toBe(0);
       expect(JSON.parse(result.stdout)).toMatchObject({
@@ -308,9 +290,7 @@ describe("doctor report builder", () => {
 
       expect(report).toMatchObject({
         verdict: "ok",
-        checks: expect.arrayContaining([
-          expect.objectContaining({ name: "cdp", status: "ok" }),
-        ]),
+        checks: expect.arrayContaining([expect.objectContaining({ name: "cdp", status: "ok" })]),
       });
     } finally {
       restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
@@ -325,8 +305,7 @@ describe("doctor report builder", () => {
         getDriverStatus: async () => ({
           browserbaseDebugUrl: "https://www.browserbase.com/live/sess-123",
           browserbaseSessionId: "sess-123",
-          browserbaseSessionUrl:
-            "https://www.browserbase.com/sessions/sess-123",
+          browserbaseSessionUrl: "https://www.browserbase.com/sessions/sess-123",
           browserConnected: true,
           initialized: true,
           mode: "remote",
@@ -346,8 +325,7 @@ describe("doctor report builder", () => {
             liveViewUrl: "https://www.browserbase.com/live/sess-123",
             sessionId: "sess-123",
           }),
-          message:
-            "session sess-123 — https://www.browserbase.com/sessions/sess-123",
+          message: "session sess-123 — https://www.browserbase.com/sessions/sess-123",
           name: "browserbase",
           status: "ok",
         }),
@@ -381,9 +359,7 @@ describe("doctor report builder", () => {
         }),
       ]),
     );
-    expect(report.next).toBe(
-      "browse open https://example.com --remote --verified --proxies",
-    );
+    expect(report.next).toBe("browse open https://example.com --remote --verified --proxies");
   });
 });
 

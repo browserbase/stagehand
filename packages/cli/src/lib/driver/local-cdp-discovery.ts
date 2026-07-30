@@ -78,10 +78,7 @@ export async function readDevToolsActivePort(
   userDataDir: string,
 ): Promise<DevToolsActivePortInfo | null> {
   try {
-    const content = await fs.readFile(
-      path.join(userDataDir, "DevToolsActivePort"),
-      "utf8",
-    );
+    const content = await fs.readFile(path.join(userDataDir, "DevToolsActivePort"), "utf8");
     const lines = content.trim().split("\n");
     const port = Number.parseInt(lines[0]?.trim() ?? "", 10);
     if (!Number.isInteger(port) || port <= 0 || port > 65535) return null;

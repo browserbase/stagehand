@@ -27,7 +27,12 @@ function trimStack(s: string): string {
     .split("\n")
     .filter((l, i) => i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)))
     .slice(0, 4)
-    .map((l) => l.replace(/https?:\/\/[^/)]+/g, "").replace(/\?[^):]*/, "").trim())
+    .map((l) =>
+      l
+        .replace(/https?:\/\/[^/)]+/g, "")
+        .replace(/\?[^):]*/, "")
+        .trim(),
+    )
     .join("\n");
 }
 
@@ -49,13 +54,38 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
 
     if (m === "Runtime.consoleAPICalled" && ["error", "warning", "assert"].includes(p.type)) {
       const text = (p.args ?? []).map((a: any) => a.description || a.value || "").join(" ");
-      if (text && !/^%[os]/.test(text)) rec = { kind: `console.${p.type}`, domain: "Runtime", severity: p.type, text: trimStack(text) };
+      if (text && !/^%[os]/.test(text))
+        rec = {
+          kind: `console.${p.type}`,
+          domain: "Runtime",
+          severity: p.type,
+          text: trimStack(text),
+        };
     } else if (m === "Runtime.exceptionThrown") {
-      rec = { kind: "exception", domain: "Runtime", severity: "error", text: trimStack(p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "") };
+      rec = {
+        kind: "exception",
+        domain: "Runtime",
+        severity: "error",
+        text: trimStack(
+          p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
+        ),
+      };
     } else if (m === "Log.entryAdded" && ["error", "warning"].includes(p.entry?.level)) {
-      rec = { kind: `log.${p.entry.level}`, domain: "Log", severity: p.entry.level, text: p.entry.text, url: p.entry.url };
+      rec = {
+        kind: `log.${p.entry.level}`,
+        domain: "Log",
+        severity: p.entry.level,
+        text: p.entry.text,
+        url: p.entry.url,
+      };
     } else if (m === "Network.responseReceived" && (p.response?.status ?? 0) >= 400) {
-      rec = { kind: "network", domain: "Network", status: p.response.status, url: p.response.url, type: p.type };
+      rec = {
+        kind: "network",
+        domain: "Network",
+        status: p.response.status,
+        url: p.response.url,
+        type: p.type,
+      };
     } else if (m === "Network.loadingFailed" && p.errorText !== "net::ERR_ABORTED") {
       rec = { kind: "network.failed", domain: "Network", error: p.errorText, type: p.type };
     } else {

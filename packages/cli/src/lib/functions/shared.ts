@@ -2,11 +2,7 @@ import { stat } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 
 import { CommandFailure, fail } from "../errors.js";
-import {
-  classifyCommandHttpFailure,
-  readBrowserbaseError,
-  resolveApiKey,
-} from "../cloud/api.js";
+import { classifyCommandHttpFailure, readBrowserbaseError, resolveApiKey } from "../cloud/api.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
 
 const defaultFunctionsBaseUrl = "https://api.browserbase.com";
@@ -76,10 +72,7 @@ export async function functionsRequest(
   return response;
 }
 
-export async function functionsGet<T>(
-  config: FunctionsApiConfig,
-  path: string,
-): Promise<T> {
+export async function functionsGet<T>(config: FunctionsApiConfig, path: string): Promise<T> {
   const response = await functionsRequest(config, path);
   return (await response.json()) as T;
 }
@@ -99,10 +92,7 @@ export async function functionsPost<T>(
   return (await response.json()) as T;
 }
 
-export async function pollUntil<T>(
-  loader: () => Promise<T>,
-  options: PollOptions<T>,
-): Promise<T> {
+export async function pollUntil<T>(loader: () => Promise<T>, options: PollOptions<T>): Promise<T> {
   const intervalMs = options.intervalMs ?? 1_000;
   const maxAttempts = options.maxAttempts ?? 120;
 
@@ -111,16 +101,12 @@ export async function pollUntil<T>(
     if (options.done(result)) {
       return result;
     }
-    await new Promise((resolvePromise) =>
-      setTimeout(resolvePromise, intervalMs),
-    );
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, intervalMs));
   }
 
-  fail(
-    "Timed out while waiting for the Browserbase Functions operation to complete.",
-    1,
-    { resultCode: "functions_timeout" },
-  );
+  fail("Timed out while waiting for the Browserbase Functions operation to complete.", 1, {
+    resultCode: "functions_timeout",
+  });
 }
 
 export async function resolveEntrypoint(entrypoint: string): Promise<string> {
@@ -137,19 +123,14 @@ export async function resolveEntrypoint(entrypoint: string): Promise<string> {
   }
 
   const extension = extname(absolutePath).toLowerCase();
-  if (
-    ![".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts"].includes(extension)
-  ) {
+  if (![".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts"].includes(extension)) {
     fail(`Unsupported entrypoint extension: ${extension}`);
   }
 
   return absolutePath;
 }
 
-export function parseOptionalJsonValueArg(
-  rawValue: unknown,
-  label: string,
-): unknown {
+export function parseOptionalJsonValueArg(rawValue: unknown, label: string): unknown {
   if (!rawValue) {
     return {};
   }

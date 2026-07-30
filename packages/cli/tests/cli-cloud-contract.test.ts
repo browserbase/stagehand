@@ -130,11 +130,7 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        jsonResponse(
-          response,
-          200,
-          makeFetchResponse({ title: "Example" }, "application/json"),
-        );
+        jsonResponse(response, 200, makeFetchResponse({ title: "Example" }, "application/json"));
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -172,11 +168,7 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        jsonResponse(
-          response,
-          200,
-          makeFetchResponse("<html>hello</html>", "text/html"),
-        );
+        jsonResponse(response, 200, makeFetchResponse("<html>hello</html>", "text/html"));
       },
       async ({ baseUrl }) => {
         const result = await runCli([
@@ -216,11 +208,7 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        jsonResponse(
-          response,
-          200,
-          makeFetchResponse({ title: "Example" }, "application/json"),
-        );
+        jsonResponse(response, 200, makeFetchResponse({ title: "Example" }, "application/json"));
       },
       async ({ baseUrl }) => {
         const result = await runCli([
@@ -272,9 +260,7 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain(
-          "--schema is required when --format json.",
-        );
+        expect(result.stderr).toContain("--schema is required when --format json.");
         expect(requests).toHaveLength(0);
       },
     );
@@ -301,9 +287,7 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(1);
-        expect(result.stderr).toContain(
-          "--schema can only be used with --format json.",
-        );
+        expect(result.stderr).toContain("--schema can only be used with --format json.");
         expect(requests).toHaveLength(0);
       },
     );
@@ -510,9 +494,7 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
-        expect(result.stdout).toContain(
-          `Wrote 1 results for "test" to ${outputPath}.`,
-        );
+        expect(result.stdout).toContain(`Wrote 1 results for "test" to ${outputPath}.`);
         const written = JSON.parse(await readFile(outputPath, "utf8")) as {
           query: string;
         };
@@ -580,28 +562,19 @@ describe("cloud API contracts", () => {
       expectedPath: "/v1/projects/proj_123/usage",
       responseBody: { browserMinutes: 1, proxyBytes: 2 },
     },
-  ])(
-    "projects contract: %j",
-    async ({ args, expectedMethod, expectedPath, responseBody }) => {
-      await withServer(
-        async (_request, response) => {
-          jsonResponse(response, 200, responseBody);
-        },
-        async ({ baseUrl, requests }) => {
-          const result = await runCli([
-            ...args,
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ]);
+  ])("projects contract: %j", async ({ args, expectedMethod, expectedPath, responseBody }) => {
+    await withServer(
+      async (_request, response) => {
+        jsonResponse(response, 200, responseBody);
+      },
+      async ({ baseUrl, requests }) => {
+        const result = await runCli([...args, "--api-key", "test-key", "--base-url", baseUrl]);
 
-          expect(result.exitCode).toBe(0);
-          expectRequest(requests[0], expectedMethod, expectedPath, "test-key");
-        },
-      );
-    },
-  );
+        expect(result.exitCode).toBe(0);
+        expectRequest(requests[0], expectedMethod, expectedPath, "test-key");
+      },
+    );
+  });
 
   it("projects list can print a human-readable table", async () => {
     await withServer(
@@ -649,10 +622,7 @@ describe("cloud API contracts", () => {
       async ({ baseUrl, requests }) => {
         await writeFile(
           join(cwd, ".env"),
-          [
-            "BROWSERBASE_API_KEY=test-key",
-            `BROWSERBASE_BASE_URL=${baseUrl}`,
-          ].join("\n"),
+          ["BROWSERBASE_API_KEY=test-key", `BROWSERBASE_BASE_URL=${baseUrl}`].join("\n"),
         );
 
         const result = await runCli(["cloud", "projects", "list"], {
@@ -679,10 +649,7 @@ describe("cloud API contracts", () => {
       async ({ baseUrl, requests }) => {
         await writeFile(
           join(cwd, ".env"),
-          [
-            "BROWSERBASE_API_KEY=test-key",
-            `BROWSERBASE_BASE_URL=${baseUrl}`,
-          ].join("\n"),
+          ["BROWSERBASE_API_KEY=test-key", `BROWSERBASE_BASE_URL=${baseUrl}`].join("\n"),
         );
 
         const result = await runCli(["cloud", "projects", "list"], {
@@ -712,10 +679,7 @@ describe("cloud API contracts", () => {
       async ({ baseUrl, requests }) => {
         await writeFile(
           join(cwd, ".env"),
-          [
-            "BROWSERBASE_API_KEY=test-key",
-            `BROWSERBASE_BASE_URL=${baseUrl}`,
-          ].join("\n"),
+          ["BROWSERBASE_API_KEY=test-key", `BROWSERBASE_BASE_URL=${baseUrl}`].join("\n"),
         );
 
         const result = await runCli(["cloud", "projects", "list"], {
@@ -767,24 +731,14 @@ describe("cloud API contracts", () => {
     {
       // Pass a context id (UUID) so resolution hits the id-passthrough path
       // regardless of any locally-saved names.
-      args: [
-        "cloud",
-        "contexts",
-        "get",
-        "00000000-0000-4000-8000-000000000000",
-      ],
+      args: ["cloud", "contexts", "get", "00000000-0000-4000-8000-000000000000"],
       expectedMethod: "GET",
       expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
       responseBody: { id: "00000000-0000-4000-8000-000000000000" },
     },
     {
-      args: [
-        "cloud",
-        "contexts",
-        "update",
-        "00000000-0000-4000-8000-000000000000",
-      ],
+      args: ["cloud", "contexts", "update", "00000000-0000-4000-8000-000000000000"],
       expectedMethod: "PUT",
       expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
@@ -794,12 +748,7 @@ describe("cloud API contracts", () => {
       },
     },
     {
-      args: [
-        "cloud",
-        "contexts",
-        "delete",
-        "00000000-0000-4000-8000-000000000000",
-      ],
+      args: ["cloud", "contexts", "delete", "00000000-0000-4000-8000-000000000000"],
       expectedMethod: "DELETE",
       expectedPath: "/v1/contexts/00000000-0000-4000-8000-000000000000",
       expectedBody: undefined,
@@ -807,13 +756,7 @@ describe("cloud API contracts", () => {
     },
   ])(
     "contexts contract: %j",
-    async ({
-      args,
-      expectedMethod,
-      expectedPath,
-      expectedBody,
-      responseBody,
-    }) => {
+    async ({ args, expectedMethod, expectedPath, expectedBody, responseBody }) => {
       await withServer(
         async (_request, response) => {
           if (responseBody === null) {
@@ -824,13 +767,7 @@ describe("cloud API contracts", () => {
           jsonResponse(response, 200, responseBody);
         },
         async ({ baseUrl, requests }) => {
-          const result = await runCli([
-            ...args,
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ]);
+          const result = await runCli([...args, "--api-key", "test-key", "--base-url", baseUrl]);
 
           expect(result.exitCode).toBe(0);
           expectRequest(requests[0], expectedMethod, expectedPath, "test-key");
@@ -868,13 +805,7 @@ describe("cloud API contracts", () => {
           jsonResponse(response, 200, responseBody);
         },
         async ({ baseUrl, requests }) => {
-          const result = await runCli([
-            ...args,
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ]);
+          const result = await runCli([...args, "--api-key", "test-key", "--base-url", baseUrl]);
 
           expect(result.exitCode).toBe(0);
           expectRequest(requests[0], expectedMethod, expectedPath, "test-key");
@@ -906,9 +837,7 @@ describe("cloud API contracts", () => {
 
         expect(result.exitCode).toBe(0);
         expectRequest(requests[0], "POST", "/v1/extensions", "test-key");
-        expect(requests[0]?.headers["content-type"]).toContain(
-          "multipart/form-data",
-        );
+        expect(requests[0]?.headers["content-type"]).toContain("multipart/form-data");
         expect(requests[0]?.bodyText).toContain('filename="extension.zip"');
       },
     );
@@ -959,25 +888,13 @@ describe("cloud API contracts", () => {
     },
   ])(
     "sessions contract: %j",
-    async ({
-      args,
-      expectedMethod,
-      expectedPath,
-      expectedBody,
-      responseBody,
-    }) => {
+    async ({ args, expectedMethod, expectedPath, expectedBody, responseBody }) => {
       await withServer(
         async (_request, response) => {
           jsonResponse(response, 200, responseBody);
         },
         async ({ baseUrl, requests }) => {
-          const result = await runCli([
-            ...args,
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ]);
+          const result = await runCli([...args, "--api-key", "test-key", "--base-url", baseUrl]);
 
           expect(result.exitCode).toBe(0);
           expectRequest(requests[0], expectedMethod, expectedPath, "test-key");
@@ -1016,9 +933,7 @@ describe("cloud API contracts", () => {
 
         const url = new URL(requests[0]?.path ?? "/", "http://localhost");
         expect(url.pathname).toBe("/v1/sessions");
-        expect(url.searchParams.get("q")).toBe(
-          "user_metadata['env']:'staging'",
-        );
+        expect(url.searchParams.get("q")).toBe("user_metadata['env']:'staging'");
         expect(url.searchParams.get("status")).toBe("RUNNING");
       },
     );
@@ -1259,15 +1174,7 @@ describe("cloud API contracts", () => {
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
-          [
-            "cloud",
-            "sessions",
-            "create",
-            "--api-key",
-            "test-key",
-            "--base-url",
-            baseUrl,
-          ],
+          ["cloud", "sessions", "create", "--api-key", "test-key", "--base-url", baseUrl],
           { env: { BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: installIdFile } },
         );
 
@@ -1344,8 +1251,7 @@ describe("cloud API contracts", () => {
           // install_id is stripped regardless and never survives as the spoof.
           {
             env: {
-              BROWSERBASE_TELEMETRY_INSTALL_ID_FILE:
-                "/tmp/no-such-file-browse-test",
+              BROWSERBASE_TELEMETRY_INSTALL_ID_FILE: "/tmp/no-such-file-browse-test",
             },
           },
         );
@@ -1405,12 +1311,7 @@ describe("cloud API contracts", () => {
 
     await withServer(
       async (_request, response) => {
-        binaryResponse(
-          response,
-          200,
-          Buffer.from("zip-bytes"),
-          "application/zip",
-        );
+        binaryResponse(response, 200, Buffer.from("zip-bytes"), "application/zip");
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli([
@@ -1428,12 +1329,7 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
-        expectRequest(
-          requests[0],
-          "GET",
-          "/v1/sessions/sess_123/downloads",
-          "test-key",
-        );
+        expectRequest(requests[0], "GET", "/v1/sessions/sess_123/downloads", "test-key");
         expect(await readFile(outputPath, "utf8")).toBe("zip-bytes");
       },
     );
@@ -1463,15 +1359,8 @@ describe("cloud API contracts", () => {
         ]);
 
         expect(result.exitCode).toBe(0);
-        expectRequest(
-          requests[0],
-          "POST",
-          "/v1/sessions/sess_123/uploads",
-          "test-key",
-        );
-        expect(requests[0]?.headers["content-type"]).toContain(
-          "multipart/form-data",
-        );
+        expectRequest(requests[0], "POST", "/v1/sessions/sess_123/uploads", "test-key");
+        expect(requests[0]?.headers["content-type"]).toContain("multipart/form-data");
         expect(requests[0]?.bodyText).toContain('filename="upload.txt"');
       },
     );
@@ -1483,9 +1372,7 @@ async function withServer(
     request: CapturedRequest,
     response: Parameters<typeof jsonResponse>[0],
   ) => Promise<void> | void,
-  callback: (
-    server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>,
-  ) => Promise<void>,
+  callback: (server: Awaited<ReturnType<typeof startFakeBrowserbaseServer>>) => Promise<void>,
 ): Promise<void> {
   const server = await startFakeBrowserbaseServer(handler);
   try {
