@@ -6,6 +6,7 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from importlib.metadata import version
 from pathlib import Path
 from types import TracebackType
 from typing import Literal, Self, TypeVar, overload
@@ -23,6 +24,7 @@ from ._generated.models import (
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
+    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
@@ -43,6 +45,7 @@ from ._generated.models import (
 from ._generated.models import (
     Locator as ProtocolLocator,
 )
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
@@ -404,8 +407,6 @@ class Stagehand:
                     extension_dir=str(extension_dir),
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
-                    telemetry=self.init_params.telemetry,
-                    log_level=self.init_params.logging.level,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
@@ -426,9 +427,14 @@ class Stagehand:
                         generate,
                     )
 
+                browser_cdp_url = rpc_client.browser_web_socket_debugger_url
+                if not browser.resident_browser_connection and browser_cdp_url is None:
+                    raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(),
+                    self._worker_init_params(
+                        None if browser.resident_browser_connection else browser_cdp_url
+                    ),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
@@ -587,7 +593,7 @@ class Stagehand:
             )
         return self._rpc_client
 
-    def _worker_init_params(self) -> StagehandInitParams:
+    def _worker_init_params(self, browser_cdp_url: str | None) -> StagehandInitParams:
         values = self.init_params.model_dump(
             exclude={"browser", "logging", "model"},
             exclude_unset=True,
@@ -596,6 +602,14 @@ class Stagehand:
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
+        values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
+        values["client_info"] = ImplementationInfo(
+            name="stagehand-sdk-python",
+            version=version("stagehand"),
+        )
+        values["log_level"] = self.init_params.logging.level
+        if browser_cdp_url is not None:
+            values["browser_cdp_url"] = browser_cdp_url
         return StagehandInitParams.model_validate(values)
 
     async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:

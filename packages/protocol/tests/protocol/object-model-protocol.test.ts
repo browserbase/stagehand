@@ -6,7 +6,7 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
-import { PageLocatorSchema } from "../../schemas.js";
+import { PageLocatorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
@@ -26,6 +26,8 @@ describe("Stagehand object-model protocol", () => {
 
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -37,6 +39,9 @@ describe("Stagehand object-model protocol", () => {
     });
 
     expect(params).toStrictEqual({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      logLevel: "info",
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -555,10 +560,10 @@ describe("Stagehand object-model protocol", () => {
 
   it("accepts telemetry configuration as protocol data", () => {
     expect(
-      StagehandMethods.runtimeConfigure.params.parse({
-        protocolVersion: 1,
+      StagehandMethods.stagehandInit.params.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+        browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {
             endpoint: "https://otel.example.com/v1/traces",

@@ -1811,28 +1811,6 @@ class RgbaColor(WireModel):
     a: Optional[StrictFloat] = None
 
 
-class RuntimeConfigureParams(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Annotated[StrictInt, Field(gt=0, le=9007199254740991)]
-    client_info: ImplementationInfo
-    cdp_url: Annotated[StrictStr, Field(min_length=1)]
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
-    log_level: LogLevel = LogLevel.info
-
-
-class RuntimeConfigureResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: Literal[True]
-
-
 class SameSite(StrEnum):
     strict = "Strict"
     lax = "Lax"
@@ -1894,12 +1872,16 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    protocol_version: Literal[1]
+    client_info: ImplementationInfo
+    browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserbaseBrowserSource] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }
+    log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
     dom_settle_timeout_ms: Annotated[

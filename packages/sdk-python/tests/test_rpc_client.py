@@ -1,5 +1,4 @@
 import asyncio
-from importlib.metadata import version
 from typing import ClassVar, cast
 
 import pytest
@@ -7,7 +6,6 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import cdp_client
 from stagehand._generated import models
-from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
 
 JSON = dict[str, object]
@@ -451,16 +449,10 @@ class FakeCDPClient(QueueTransport):
 
     async def send(self, message: JSON) -> None:
         await super().send(message)
-        if message.get("method") == "runtime.configure":
-            await self.incoming.put({
-                "jsonrpc": "2.0",
-                "id": message["id"],
-                "result": {"configured": True},
-            })
 
 
 @pytest.mark.asyncio
-async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
+async def test_connect_rpc_client_passes_cdp_options_without_sending_an_rpc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(cdp_client, "CDPClient", FakeCDPClient)
@@ -484,25 +476,9 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "cdp_connect_timeout_ms": 1_003,
         }
         transport = FakeCDPClient.instances[-1]
-        assert transport.sent[0] == {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "runtime.configure",
-            "params": {
-                "protocol_version": STAGEHAND_PROTOCOL_VERSION,
-                "client_info": {
-                    "name": "stagehand-sdk-python",
-                    "version": version("stagehand"),
-                },
-                "cdp_url": "ws://resolved.example/devtools/browser/1",
-                "log_level": "info",
-                "telemetry": {
-                    "traces": {
-                        "endpoint": "https://example.com/v1/traces",
-                        "headers": {},
-                    }
-                },
-            },
-        }
+        assert transport.sent == []
+        assert client.browser_web_socket_debugger_url == (
+            "ws://resolved.example/devtools/browser/1"
+        )
     finally:
         await client.close()

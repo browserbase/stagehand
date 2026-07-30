@@ -1,5 +1,5 @@
 import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcClient.js";
-import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
@@ -25,6 +25,7 @@ import {
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
@@ -90,8 +91,6 @@ export class Stagehand {
           ? { preloadedExtension: true as const }
           : { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }),
         serviceWorkerUrlIncludes: "service-worker.js",
-        telemetry: clientInitParams.telemetry,
-        logLevel: clientInitParams.logging.level,
       });
       this.rpcClient = rpcClient;
       this.removeNotificationListener = rpcClient.onNotification((notification) =>
@@ -106,7 +105,7 @@ export class Stagehand {
 
       await rpcClient.send(
         StagehandMethods.stagehandInit,
-        stagehandInitParamsForWorker(clientInitParams, browser),
+        stagehandInitParamsForWorker(clientInitParams, browser, rpcClient),
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
@@ -231,15 +230,25 @@ export class Stagehand {
 function stagehandInitParamsForWorker(
   initParams: ResolvedStagehandClientInitParams,
   resolvedBrowser: ResolvedBrowserSource,
+  rpcClient: RPCClient,
 ) {
-  const { browser, logging: _logging, model, ...protocolParams } = initParams;
+  const { browser, logging, model, ...protocolParams } = initParams;
   const protocolModel = model && "generate" in model ? { source: "client" as const } : model;
 
   if (browser.type === "browserbase" && !resolvedBrowser.browserbaseSessionId) {
     throw new Error("Resolved Browserbase source is missing its session ID");
   }
+  if (!resolvedBrowser.residentBrowserConnection && !rpcClient.browserWebSocketDebuggerUrl) {
+    throw new Error("The browser CDP WebSocket URL is unavailable");
+  }
 
   return StagehandInitParamsSchema.parse({
+    protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+    clientInfo: STAGEHAND_SDK_CLIENT_INFO,
+    logLevel: logging.level,
+    ...(resolvedBrowser.residentBrowserConnection
+      ? {}
+      : { browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl }),
     ...protocolParams,
     ...(browser.type === "browserbase"
       ? {
@@ -264,6 +273,7 @@ export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
     {
       resolveBrowserSource: async () => ({
         cdpUrl: "test://stagehand",
+        residentBrowserConnection: false,
         keepAlive: true,
       }),
       connectRpcClient: async () => client,

@@ -1562,36 +1562,6 @@ type RgbaColor struct {
 	R float64 `json:"r"`
 }
 
-type RuntimeConfigureParams struct {
-	// CDPURL corresponds to the JSON schema field "cdp_url".
-	CDPURL string `json:"cdp_url"`
-
-	// ClientInfo corresponds to the JSON schema field "client_info".
-	ClientInfo ImplementationInfo `json:"client_info"`
-
-	// LogLevel corresponds to the JSON schema field "log_level".
-	LogLevel RuntimeConfigureParamsLogLevel `json:"log_level,omitempty,omitzero"`
-
-	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion int `json:"protocol_version"`
-
-	// Telemetry corresponds to the JSON schema field "telemetry".
-	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
-}
-
-type RuntimeConfigureParamsLogLevel string
-
-const RuntimeConfigureParamsLogLevelDebug RuntimeConfigureParamsLogLevel = "debug"
-const RuntimeConfigureParamsLogLevelError RuntimeConfigureParamsLogLevel = "error"
-const RuntimeConfigureParamsLogLevelInfo RuntimeConfigureParamsLogLevel = "info"
-const RuntimeConfigureParamsLogLevelOff RuntimeConfigureParamsLogLevel = "off"
-const RuntimeConfigureParamsLogLevelWarn RuntimeConfigureParamsLogLevel = "warn"
-
-type RuntimeConfigureResult struct {
-	// Configured corresponds to the JSON schema field "configured".
-	Configured bool `json:"configured"`
-}
-
 type SnapshotResult struct {
 	// FormattedTree corresponds to the JSON schema field "formatted_tree".
 	FormattedTree string `json:"formatted_tree"`
@@ -1644,15 +1614,27 @@ type StagehandInitParams struct {
 	// Browser corresponds to the JSON schema field "browser".
 	Browser *BrowserbaseBrowserSource `json:"browser,omitempty,omitzero"`
 
+	// BrowserCDPURL corresponds to the JSON schema field "browser_cdp_url".
+	BrowserCDPURL *string `json:"browser_cdp_url,omitempty,omitzero"`
+
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
+
+	// ClientInfo corresponds to the JSON schema field "client_info".
+	ClientInfo ImplementationInfo `json:"client_info"`
 
 	// DOMSettleTimeoutMs corresponds to the JSON schema field
 	// "dom_settle_timeout_ms".
 	DOMSettleTimeoutMs *int `json:"dom_settle_timeout_ms,omitempty,omitzero"`
 
+	// LogLevel corresponds to the JSON schema field "log_level".
+	LogLevel StagehandInitParamsLogLevel `json:"log_level,omitempty,omitzero"`
+
 	// Model corresponds to the JSON schema field "model".
 	Model *StagehandInitModel `json:"model,omitempty,omitzero"`
+
+	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
+	ProtocolVersion float64 `json:"protocol_version"`
 
 	// SelfHeal corresponds to the JSON schema field "self_heal".
 	SelfHeal *bool `json:"self_heal,omitempty,omitzero"`
@@ -1663,6 +1645,14 @@ type StagehandInitParams struct {
 	// Telemetry corresponds to the JSON schema field "telemetry".
 	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
+
+type StagehandInitParamsLogLevel string
+
+const StagehandInitParamsLogLevelDebug StagehandInitParamsLogLevel = "debug"
+const StagehandInitParamsLogLevelError StagehandInitParamsLogLevel = "error"
+const StagehandInitParamsLogLevelInfo StagehandInitParamsLogLevel = "info"
+const StagehandInitParamsLogLevelOff StagehandInitParamsLogLevel = "off"
+const StagehandInitParamsLogLevelWarn StagehandInitParamsLogLevel = "warn"
 
 type StagehandInitResult struct {
 	// Initialized corresponds to the JSON schema field "initialized".
@@ -2448,14 +2438,6 @@ type generatedModelCatalog struct {
 
 	// RgbaColor corresponds to the JSON schema field "RgbaColor".
 	RgbaColor *RgbaColor `json:"RgbaColor,omitempty,omitzero"`
-
-	// RuntimeConfigureParams corresponds to the JSON schema field
-	// "RuntimeConfigureParams".
-	RuntimeConfigureParams *RuntimeConfigureParams `json:"RuntimeConfigureParams,omitempty,omitzero"`
-
-	// RuntimeConfigureResult corresponds to the JSON schema field
-	// "RuntimeConfigureResult".
-	RuntimeConfigureResult *RuntimeConfigureResult `json:"RuntimeConfigureResult,omitempty,omitzero"`
 
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
 	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
