@@ -32,16 +32,18 @@
   "scripts": {
     "build": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.json && pnpm manifest",
     "build:local-only": "node -e \"const fs = require('fs'); fs.rmSync('dist', { recursive: true, force: true }); fs.rmSync('oclif.manifest.json', { force: true })\" && tsc -p tsconfig.local-only.json && pnpm manifest",
-    "check": "tsc --noEmit -p tsconfig.json",
+    "check": "pnpm typecheck",
     "cli": "pnpm build && node bin/run.js",
     "eslint": "eslint .",
     "eslint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier . --check --cache",
-    "lint": "pnpm format:check && pnpm eslint && pnpm check",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "pnpm format:check && pnpm eslint && pnpm typecheck",
     "manifest": "oclif manifest .",
     "test": "pnpm build && vitest run",
     "test:cli": "vitest run",
+    "test:unit": "pnpm build && vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

@@ -26,6 +26,11 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
+    "browse#build": {
+      "dependsOn": ["@browserbasehq/stagehand#build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!oclif.manifest.json"],
+      "outputs": ["dist/**", "oclif.manifest.json"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],

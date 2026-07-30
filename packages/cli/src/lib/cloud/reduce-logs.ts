@@ -13,9 +13,21 @@ interface RawLog {
   request?: { rawBody?: string; params?: unknown };
 }
 
-function paramsOf(e: RawLog): Record<string, any> {
+interface LogParams {
+  args?: Array<{ description?: string; value?: unknown }>;
+  entry?: { level?: string; text?: string; url?: string };
+  errorText?: string;
+  exceptionDetails?: {
+    exception?: { description?: string };
+    text?: string;
+  };
+  response?: { status?: number; url?: string };
+  type?: string;
+}
+
+function paramsOf(e: RawLog): LogParams {
   try {
-    return (JSON.parse(e.request?.rawBody ?? "{}").params as Record<string, any>) ?? {};
+    return (JSON.parse(e.request?.rawBody ?? "{}").params as LogParams) ?? {};
   } catch {
     return {};
   }
@@ -52,8 +64,12 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
     const m = e.method;
     let rec: Record<string, unknown> | null = null;
 
-    if (m === "Runtime.consoleAPICalled" && ["error", "warning", "assert"].includes(p.type)) {
-      const text = (p.args ?? []).map((a: any) => a.description || a.value || "").join(" ");
+    if (
+      m === "Runtime.consoleAPICalled" &&
+      p.type &&
+      ["error", "warning", "assert"].includes(p.type)
+    ) {
+      const text = (p.args ?? []).map((a) => a.description || a.value || "").join(" ");
       if (text && !/^%[os]/.test(text))
         rec = {
           kind: `console.${p.type}`,
@@ -70,7 +86,11 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
           p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
         ),
       };
-    } else if (m === "Log.entryAdded" && ["error", "warning"].includes(p.entry?.level)) {
+    } else if (
+      m === "Log.entryAdded" &&
+      p.entry?.level &&
+      ["error", "warning"].includes(p.entry.level)
+    ) {
       rec = {
         kind: `log.${p.entry.level}`,
         domain: "Log",
@@ -78,7 +98,7 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         text: p.entry.text,
         url: p.entry.url,
       };
-    } else if (m === "Network.responseReceived" && (p.response?.status ?? 0) >= 400) {
+    } else if (m === "Network.responseReceived" && p.response && (p.response.status ?? 0) >= 400) {
       rec = {
         kind: "network",
         domain: "Network",
