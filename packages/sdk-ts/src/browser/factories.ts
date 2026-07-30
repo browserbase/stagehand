@@ -131,7 +131,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           workerInitMetadata: {
             apiKey,
             browser: {
-              type: "browserbase",
               sessionId: session.sessionId,
               ...(sessionOptions.region === undefined ? {} : { region: sessionOptions.region }),
             },
@@ -163,7 +162,6 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           workerInitMetadata: {
             apiKey: options.apiKey,
             browser: {
-              type: "browserbase",
               sessionId: session.sessionId,
               ...(session.region === undefined ? {} : { region: session.region }),
             },

@@ -44,10 +44,8 @@ describe("Stagehand object-model protocol", () => {
       logLevel: "info",
       apiKey: "bb_key",
       browser: {
-        type: "browserbase",
         sessionId: "session_123",
         region: "eu-central-1",
-        userMetadata: { suite: "smoke" },
       },
       model: { modelName: "openai/gpt-5-mini" },
       telemetry: {

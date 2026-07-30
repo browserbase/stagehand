@@ -47,6 +47,8 @@ describe("Stagehand.create", () => {
     const stagehand = await Stagehand.create({ browser, apiKey: "bb_worker_key" });
 
     expect(stagehand.initialized).toBe(true);
+    expect(stagehand.browser).toBe(browser);
+    expect("init" in stagehand).toBe(false);
     expect(cdp.requests[0]).toMatchObject({
       method: "stagehand.init",
       params: {
@@ -58,7 +60,6 @@ describe("Stagehand.create", () => {
 
     await stagehand.close();
     expect(cdp.close).not.toHaveBeenCalled();
-    await expect(stagehand.init()).rejects.toThrow("cannot be reinitialized");
 
     await browser.close();
     expect(cdp.close).toHaveBeenCalledOnce();
