@@ -82,29 +82,30 @@ await stagehand.act("Open filters, choose 4-star rating, and click apply");
 
 ### Return value
 
-`act()` resolves to an `ActResultData` object.
+`act()` resolves to an `ActResult` with typed `data` and shared `metadata`.
 
 ```typescript
 const result = await stagehand.act("Click the sign in button");
 // {
-//   success: true,
-//   message: "Successfully clicked the sign in button",
-//   actionDescription: "Clicked button with text 'Sign in'",
-//   actions: [
-//     { selector: "xpath=/html/body/...", description: "Sign in", method: "click", arguments: [] }
-//   ]
+//   data: {
+//     success: true,
+//     message: "Successfully clicked the sign in button",
+//     actionDescription: "Clicked button with text 'Sign in'",
+//     actions: [...]
+//   },
+//   metadata: { cacheStatus: "MISS" }
 // }
 
-if (!result.success) {
-  throw new Error(`act() failed: ${result.message}`);
+if (!result.data.success) {
+  throw new Error(`act() failed: ${result.data.message}`);
 }
 ```
 
-Always check `success` before assuming the action ran. See the full field list in the
+Always check `data.success` before assuming the action ran. See the full field list in the
 [`stagehand` reference](/v4/reference/stagehand).
 
 <Card title="Complete act() reference" icon="book" href="/v4/reference/stagehand">
-  Full parameters, per-call options, and the `ActResultData` shape.
+  Full parameters, per-call options, and the `ActResult` shape.
 </Card>
 
 ## Advanced configuration
@@ -159,7 +160,9 @@ await stagehand.act("Click the login button");
 exists or to preview what `act()` will do.
 
 ```typescript
-const [candidate] = await stagehand.observe("Find the login button");
+const {
+  data: [candidate],
+} = await stagehand.observe("Find the login button");
 if (candidate) {
   await stagehand.act("Click the login button");
 }
@@ -180,7 +183,8 @@ On Browserbase, turn on caching
 so repeated, identical actions are served from a cache instead of calling the model again.
 
 ```typescript
-await stagehand.act("Click the sign in button", { cache: true });
+const result = await stagehand.act("Click the sign in button", { cache: true });
+console.log(result.metadata.cacheStatus);
 ```
 
 ## Troubleshooting
@@ -194,7 +198,9 @@ the target element exists before acting.
 ```typescript
 await page.waitForLoadState("domcontentloaded");
 
-const [candidate] = await stagehand.observe("Find the submit button");
+const {
+  data: [candidate],
+} = await stagehand.observe("Find the submit button");
 if (candidate) {
   await stagehand.act("Click the submit button", { timeout: 30_000 });
 }
@@ -214,7 +220,9 @@ await stagehand.act("Click the button");
 await stagehand.act("Click the red 'Delete' button next to the user John Smith");
 
 // Or preview with observe() and confirm the description before acting:
-const [candidate] = await stagehand.observe("Find the submit button in the checkout form");
+const {
+  data: [candidate],
+} = await stagehand.observe("Find the submit button in the checkout form");
 if (candidate?.description.toLowerCase().includes("checkout")) {
   await stagehand.act("Click the submit button in the checkout form");
 }
@@ -302,24 +310,25 @@ await stagehand.act("Open filters, choose 4-star rating, and click apply")
 
 ### Return value
 
-`act()` resolves to an `ActResultData` object.
+`act()` resolves to an `ActResult` with typed `data` and shared `metadata`.
 
 ```python
 result = await stagehand.act("Click the sign in button")
-# result.success            -> bool
-# result.message            -> str
-# result.action_description -> str
-# result.actions            -> list of executed actions
+# result.data.success            -> bool
+# result.data.message            -> str
+# result.data.action_description -> str
+# result.data.actions            -> list of executed actions
+# result.metadata.cache_status   -> "HIT", "MISS", or None
 
-if not result.success:
-    raise RuntimeError(f"act() failed: {result.message}")
+if not result.data.success:
+    raise RuntimeError(f"act() failed: {result.data.message}")
 ```
 
-Always check `success` before assuming the action ran. See the full field list in the
+Always check `data.success` before assuming the action ran. See the full field list in the
 [`stagehand` reference](/v4/reference/stagehand).
 
 <Card title="Complete act() reference" icon="book" href="/v4/reference/stagehand">
-  Full parameters, per-call options, and the `ActResultData` shape.
+  Full parameters, per-call options, and the `ActResult` shape.
 </Card>
 
 ## Advanced configuration
@@ -387,7 +396,7 @@ exists or to preview what `act()` will do.
 
 ```python
 candidates = await stagehand.observe(instruction="Find the login button")
-if candidates:
+if candidates.data:
     await stagehand.act("Click the login button")
 ```
 
@@ -406,7 +415,8 @@ On Browserbase, turn on caching
 so repeated, identical actions are served from a cache instead of calling the model again.
 
 ```python
-await stagehand.act("Click the sign in button", cache=True)
+result = await stagehand.act("Click the sign in button", cache=True)
+print(result.metadata.cache_status)
 ```
 
 ## Troubleshooting
@@ -421,7 +431,7 @@ the target element exists before acting.
 await page.wait_for_load_state("domcontentloaded")
 
 candidates = await stagehand.observe(instruction="Find the submit button")
-if candidates:
+if candidates.data:
     await stagehand.act("Click the submit button", timeout=30_000)
 ```
 
@@ -440,7 +450,7 @@ await stagehand.act("Click the red 'Delete' button next to the user John Smith")
 
 # Or preview with observe() and confirm the description before acting:
 candidates = await stagehand.observe(instruction="Find the submit button in the checkout form")
-if candidates and "checkout" in candidates[0].description.lower():
+if candidates.data and "checkout" in candidates.data[0].description.lower():
     await stagehand.act("Click the submit button in the checkout form")
 ```
 

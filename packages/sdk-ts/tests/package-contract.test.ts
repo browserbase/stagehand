@@ -44,9 +44,19 @@ describe("published TypeScript SDK", () => {
         `
             import { access, readFile } from "node:fs/promises";
             import { fileURLToPath } from "node:url";
-            import { Stagehand } from "@browserbasehq/stagehand";
+            import {
+              Stagehand,
+              WebMCPInvocation,
+              WebMCPTool,
+              WebMCPToolsOptionsSchema,
+            } from "@browserbasehq/stagehand";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
+            if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
+            if (typeof WebMCPInvocation !== "function") {
+              throw new Error("WebMCPInvocation export is unavailable");
+            }
+            WebMCPToolsOptionsSchema.parse({ timeout: 1000 });
             const entryUrl = import.meta.resolve("@browserbasehq/stagehand");
             const manifestUrl = new URL("./extension/manifest.json", entryUrl);
             await access(fileURLToPath(manifestUrl));

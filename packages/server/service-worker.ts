@@ -15,7 +15,7 @@ import {
 import { createStagehandRuntime, type StagehandRuntime } from "./runtime.js";
 import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.js";
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
-import { V3Context } from "./understudy/context.js";
+import { BrowserContext } from "./understudy/context.js";
 
 declare global {
   interface ImportMeta {
@@ -59,7 +59,7 @@ export function startStagehandServiceWorker(
         }
         const fallbackLocatorScriptSource = await locatorRuntimeResponse.text();
         const residentConnection = lifecycle?.bootstrapMode === "resident";
-        return V3Context.create(cdpUrl, {
+        return BrowserContext.create(cdpUrl, {
           websocketFactory: browserWebSocketFactory,
           logger,
           blankPageUrl: chrome.runtime.getURL("blank.html"),

@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import type {
   ClientModelReference,
   ExtractResult,
+  LLMImageContent,
   ModelConfig,
   StagehandExtractParams,
 } from "../../protocol/types.js";
@@ -9,6 +10,7 @@ import { TimeoutError } from "../errors.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
 import type { StagehandLogger } from "../logger.js";
+import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
 import type { EncodedId, ZodPathSegments } from "../types/private/internal.js";
 import { injectUrls, transformSchema } from "../utils.js";
@@ -45,7 +47,7 @@ export async function extract({
   cache,
 }: {
   params: StagehandExtractParams;
-  page: Pick<Page, "captureSnapshot">;
+  page: Pick<Page, "captureSnapshot" | "screenshot">;
   model: ModelConfig | ClientModelReference;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
@@ -58,12 +60,13 @@ export async function extract({
     (ms) => new TimeoutError("extract()", ms),
   );
 
-  if (options?.screenshot) {
-    // TODO: Add image content to the shared LLM protocol before enabling screenshot extraction.
-    throw new TypeError("extract({ screenshot: true }) is not implemented yet.");
-  }
-
   const focusSelector = options?.selector?.replace(/^xpath=/i, "") ?? "";
+
+  // Cache keys contain DOM state, not screenshot pixels. Do not serve a
+  // visual extraction from a cache entry that cannot represent its image.
+  if (options?.screenshot) {
+    return (await runExtraction()).result;
+  }
 
   return await cacheService.withCache<ExtractResult>({
     method: "extract",
@@ -73,7 +76,7 @@ export async function extract({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => ({ result: value }),
+    onHit: (value) => ({ data: z.json().parse(value), metadata: {} }),
     execute: () => runExtraction(),
   });
 
@@ -85,10 +88,27 @@ export async function extract({
     });
     ensureTimeRemaining();
 
-    logger.info("Starting extraction using an accessibility snapshot", {
-      category: "extraction",
-      instruction,
-    });
+    const screenshot = options?.screenshot
+      ? await (async () => {
+          ensureTimeRemaining();
+          const image = await page.screenshot({
+            fullPage: false,
+            type: "png",
+          });
+          ensureTimeRemaining();
+          return image;
+        })()
+      : undefined;
+
+    logger.info(
+      screenshot
+        ? "Starting extraction using an accessibility snapshot and viewport screenshot"
+        : "Starting extraction using an accessibility snapshot",
+      {
+        category: "extraction",
+        instruction,
+      },
+    );
 
     const schema = z.fromJSONSchema(params.schema as Parameters<typeof z.fromJSONSchema>[0]);
     const isObjectSchema = schema instanceof z.ZodObject;
@@ -100,6 +120,14 @@ export async function extract({
         });
     const [transformedSchema, urlFieldPaths] = transformUrlStringsToNumericIds(objectSchema);
 
+    const screenshotContent: LLMImageContent | undefined = screenshot
+      ? {
+          type: "image",
+          data: bytesToBase64(screenshot),
+          mimeType: "image/png",
+        }
+      : undefined;
+
     ensureTimeRemaining();
     const extractionResponse: ExtractionResponse<z.ZodObject> =
       await inference.extract<z.ZodObject>({
@@ -108,6 +136,7 @@ export async function extract({
         schema: transformedSchema as z.ZodObject,
         generate: (input) => llmService.generate(model, input, clientLLMGenerate),
         userProvidedInstructions: systemPrompt,
+        screenshot: screenshotContent,
       });
     ensureTimeRemaining();
 
@@ -147,7 +176,7 @@ export async function extract({
     );
 
     return {
-      result: { result: output },
+      result: { data: z.json().parse(output), metadata: {} },
       cacheValue: output,
       llmUsage: {
         inputTokens: prompt_tokens,

@@ -61,7 +61,7 @@ export async function act({
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
 }): Promise<ActResult> {
-  const { input, options } = params;
+  const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
@@ -77,6 +77,17 @@ export async function act({
   };
 
   ensureTimeRemaining();
+  if (typeof actInstruction !== "string") {
+    return actResult(
+      await takeDeterministicAction({
+        action: actInstruction,
+        variables,
+        context,
+      }),
+    );
+  }
+
+  const instruction = actInstruction;
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
 
@@ -87,15 +98,13 @@ export async function act({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => replayCachedActions(value, input, variables, context),
+    onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
       return {
         result,
         cacheValue:
-          result.result.success && result.result.actions.length > 0
-            ? result.result.actions
-            : undefined,
+          result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
       };
     },
   });
@@ -103,11 +112,15 @@ export async function act({
   async function runActPipeline(): Promise<ActResult> {
     const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
 
-    const instruction = buildActPrompt(input, Object.values(SupportedUnderstudyAction), variables);
+    const actPrompt = buildActPrompt(
+      instruction,
+      Object.values(SupportedUnderstudyAction),
+      variables,
+    );
 
     ensureTimeRemaining();
     const firstInference = await getActionFromLLM({
-      instruction,
+      instruction: actPrompt,
       domElements: combinedTree,
       xpathMap: combinedXpathMap,
       context,
@@ -120,7 +133,7 @@ export async function act({
       return actResult({
         success: false,
         message: "Failed to perform act: No action found",
-        actionDescription: input,
+        actionDescription: instruction,
         actions: [],
       });
     }
@@ -142,7 +155,7 @@ export async function act({
     );
     const changedTree = diffCombinedTrees(combinedTree, nextTree);
     const secondInstruction = buildStepTwoPrompt(
-      input,
+      instruction,
       describeAction(firstInference.action),
       Object.values(SupportedUnderstudyAction).filter(
         (
@@ -190,7 +203,7 @@ export async function act({
  */
 async function replayCachedActions(
   value: unknown,
-  input: string,
+  instruction: string,
   variables: Variables | undefined,
   context: ActContext,
 ): Promise<ActResult> {
@@ -215,7 +228,7 @@ async function replayCachedActions(
   return actResult({
     success: true,
     message: results.map((result) => result.message).join(" → "),
-    actionDescription: input,
+    actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
 }
@@ -459,7 +472,7 @@ function successfulActionResult(
 }
 
 function actResult(result: ActResultData): ActResult {
-  return { result };
+  return { data: result, metadata: {} };
 }
 
 function describeAction(action: Action): string {

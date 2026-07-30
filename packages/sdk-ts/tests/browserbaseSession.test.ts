@@ -43,7 +43,11 @@ describe("Browserbase session creation", () => {
       extensionId: "uploaded_extension_123",
       keepAlive: false,
       region: "eu-central-1",
-      userMetadata: { suite: "unit" },
+      userMetadata: {
+        stagehand: "false",
+        stagehand_sdk_language: "python",
+        suite: "unit",
+      },
     });
 
     expect(createSession).toHaveBeenCalledWith({
@@ -54,7 +58,11 @@ describe("Browserbase session creation", () => {
       extensionId: "uploaded_extension_123",
       keepAlive: false,
       region: "eu-central-1",
-      userMetadata: { suite: "unit" },
+      userMetadata: {
+        stagehand: "true",
+        stagehand_sdk_language: "typescript",
+        suite: "unit",
+      },
     });
     expect(session.cdpUrl).toBe("wss://connect.browserbase.com/devtools/browser/session_123");
     expect(session.sessionId).toBe("session_123");
@@ -80,6 +88,10 @@ describe("Browserbase session creation", () => {
 
     expect(createSession).toHaveBeenCalledWith({
       browserSettings: { extensions: ["onepassword", "browser-events", "stagehand"] },
+      userMetadata: {
+        stagehand: "true",
+        stagehand_sdk_language: "typescript",
+      },
     });
   });
 

@@ -1,7 +1,7 @@
 import Browserbase from "@browserbasehq/sdk";
 import type { BrowserbaseExtension, BrowserbaseSessionCreateParams } from "../../protocol/types.js";
-
 const STAGEHAND_BROWSER_EXTENSION = "stagehand";
+import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
 
 export type BrowserbaseSessionClient = {
   createSession(
@@ -42,7 +42,13 @@ export function createBrowserbaseSessionClient(
       let session: { id: string; connectUrl: string };
 
       try {
-        session = await browserbase.createSession(withStagehandExtension(params));
+        session = await browserbase.createSession({
+          ...withStagehandExtension(params),
+          userMetadata: {
+            ...params.userMetadata,
+            ...STAGEHAND_SESSION_METADATA,
+          },
+        });
       } catch (error) {
         throw new Error("Failed to create a Browserbase session", { cause: error });
       }

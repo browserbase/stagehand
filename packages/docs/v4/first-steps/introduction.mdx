@@ -45,12 +45,15 @@ try {
 
   // Observe: discover the available actions
   const actions = await stagehand.observe("Find the primary call-to-action");
+  console.log(actions.data);
 
   // Act: perform a natural-language action
   await stagehand.act("Click the primary call-to-action");
 
   // Extract: pull structured data
-  const { heading } = await stagehand.extract(
+  const {
+    data: { heading },
+  } = await stagehand.extract(
     "Extract the page heading",
     z.object({ heading: z.string() }),
   );
@@ -83,6 +86,7 @@ async def main() -> None:
 
         # Observe: discover the available actions
         actions = await stagehand.observe(instruction="Find the primary call-to-action")
+        print(actions.data)
 
         # Act: perform a natural-language action
         await stagehand.act("Click the primary call-to-action")
@@ -92,6 +96,7 @@ async def main() -> None:
             instruction="Extract the page heading",
             schema=PageInfo,
         )
+        print(page_info.data.heading)
     finally:
         await stagehand.close()
 
@@ -108,7 +113,7 @@ asyncio.run(main())
 - **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/v4/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/v4/reference/page).
 - **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
 - **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback.
-- **Metrics and diagnostics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand), and check connectivity with `ping()`.
+- **Metrics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand).
 
 ## Why developers choose Stagehand
 

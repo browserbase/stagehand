@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import serverPackageJson from "../package.json" with { type: "json" };
 import {
   startStagehandServiceWorker,
   type StagehandServiceWorkerScope,
@@ -12,16 +12,24 @@ describe("runtime descriptor", () => {
     const scope: StagehandServiceWorkerScope = {};
     startStagehandServiceWorker(scope);
 
-    expect(RuntimeDescriptorSchema.parse(scope.__stagehand_runtime)).toStrictEqual(
-      scope.__stagehand_runtime,
-    );
+    const descriptor = RuntimeDescriptorSchema.parse({
+      protocolVersion: scope.__stagehand_runtime?.protocolVersion,
+      serverInfo: scope.__stagehand_runtime?.serverInfo,
+    });
+    expect(descriptor).toStrictEqual({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      serverInfo: {
+        name: "stagehand",
+        version: serverPackageJson.version,
+      },
+    });
     expect(scope.__stagehand_runtime).toMatchObject({
       name: "stagehand",
       version: STAGEHAND_RUNTIME_VERSION,
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       serverInfo: {
         name: "stagehand",
-        version: STAGEHAND_RUNTIME_VERSION,
+        version: serverPackageJson.version,
       },
       state: "unconfigured",
       connected: false,
@@ -30,23 +38,19 @@ describe("runtime descriptor", () => {
   });
 
   it("matches the server package version", () => {
-    const serverPackage = JSON.parse(
-      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-    ) as { version: string };
-
-    expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackage.version);
+    expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackageJson.version);
   });
 
-  it("preserves unknown descriptor fields", () => {
+  it("rejects unknown descriptor fields", () => {
     const descriptor = {
       protocolVersion: 1,
       serverInfo: {
         name: "stagehand",
-        version: "4.0.0",
+        version: serverPackageJson.version,
       },
       status: "ready",
     };
 
-    expect(RuntimeDescriptorSchema.parse(descriptor)).toStrictEqual(descriptor);
+    expect(() => RuntimeDescriptorSchema.parse(descriptor)).toThrow();
   });
 });

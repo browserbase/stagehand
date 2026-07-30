@@ -2,6 +2,8 @@ import { z } from "zod/v4";
 import type {
   LLMGenerateParams,
   LLMGenerateResult,
+  LLMImageContent,
+  LLMMessage,
   LLMUsage,
   Variables,
 } from "../protocol/types.js";
@@ -94,12 +96,16 @@ async function generateStructured<Schema extends z.ZodType>(
   name: string,
   schema: Schema,
   systemPrompt: string,
-  userPrompt: string,
+  userPrompt: string | LLMMessage,
 ): Promise<{ data: z.output<Schema>; usage?: LLMUsage; durationMs: number }> {
   const startedAt = Date.now();
   const response = await generate({
     systemPrompt,
-    messages: [{ role: "user", content: { type: "text", text: userPrompt } }],
+    messages: [
+      typeof userPrompt === "string"
+        ? { role: "user", content: { type: "text", text: userPrompt } }
+        : userPrompt,
+    ],
     responseFormat: {
       type: "json_schema",
       name,
@@ -124,6 +130,7 @@ export async function extract<T extends z.ZodObject>(params: {
   schema: T;
   generate: GenerateLlm;
   userProvidedInstructions?: string;
+  screenshot?: LLMImageContent;
 }): Promise<
   z.infer<T> & {
     metadata: z.infer<typeof ExtractMetadataSchema>;
@@ -134,13 +141,14 @@ export async function extract<T extends z.ZodObject>(params: {
     inference_time_ms: number;
   }
 > {
-  const { instruction, domElements, schema, generate, userProvidedInstructions } = params;
+  const { instruction, domElements, schema, generate, userProvidedInstructions, screenshot } =
+    params;
   const extraction = await generateStructured(
     generate,
     "Extraction",
     schema,
-    promptText(buildExtractSystemPrompt(false, userProvidedInstructions, false)),
-    promptText(buildExtractUserPrompt(instruction, domElements)),
+    promptText(buildExtractSystemPrompt(false, userProvidedInstructions, Boolean(screenshot))),
+    buildExtractUserPrompt(instruction, domElements, false, screenshot),
   );
   const metadata = await generateStructured(
     generate,

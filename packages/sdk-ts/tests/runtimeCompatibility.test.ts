@@ -9,8 +9,6 @@ const requirement: RuntimeRequirement = {
   maximumProtocolVersion: 6,
 };
 const marker = (protocolVersion: number) => ({
-  name: "stagehand",
-  version: "stagehand.v4",
   protocolVersion,
   serverInfo: { name: "stagehand", version: "4.0.0" },
 });
@@ -72,12 +70,18 @@ describe("negotiateRuntimeCompatibility", () => {
       kind: "unknown",
       reason: "unreadable-marker",
     }));
-  it("accepts unknown marker keys", () =>
+  it("accepts operational readiness fields around the strict descriptor", () =>
     expect(
-      negotiateRuntimeCompatibility(requirement, { ...marker(4), status: "ready" }),
-    ).toMatchObject({
+      negotiateRuntimeCompatibility(requirement, {
+        ...marker(4),
+        name: "stagehand",
+        state: "ready",
+        connected: true,
+      }),
+    ).toStrictEqual({
       kind: "compatible",
       protocolVersion: 4,
+      serverInfo: { name: "stagehand", version: "4.0.0" },
     }));
   it("does not throw for an unreadable proxy", () => {
     const raw = new Proxy({}, { get: () => throwOnRead() });
@@ -88,7 +92,7 @@ describe("negotiateRuntimeCompatibility", () => {
   });
   it("is deterministic and does not mutate inputs", () => {
     const required = { ...requirement };
-    const reported = { ...marker(4), status: "ready" };
+    const reported = marker(4);
     const before = structuredClone({ required, reported });
     expect(negotiateRuntimeCompatibility(required, reported)).toEqual(
       negotiateRuntimeCompatibility(required, reported),

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Annotated, Any, Dict, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import (
     ConfigDict,
@@ -25,6 +25,7 @@ from stagehand._validation import (
 
 class ActOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -54,17 +55,16 @@ class ActOptions(WireModel):
 
 class ActResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
-    result: ActResultData
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    data: ActResultData
+    metadata: StagehandResultMetadata
 
 
 class ActResultData(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     success: Annotated[StrictBool, Field(examples=[True])]
@@ -97,6 +97,7 @@ class Action(WireModel):
     """Action object returned by observe and used by act"""
 
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     selector: Annotated[StrictStr, Field(examples=["[data-testid='submit-button']"])]
@@ -148,18 +149,6 @@ class Browser(StrEnum):
     safari = "safari"
 
 
-class BrowserGetVersionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Optional[StrictStr] = None
-    product: Optional[StrictStr] = None
-    revision: Optional[StrictStr] = None
-    user_agent: Optional[StrictStr] = None
-    js_version: Optional[StrictStr] = None
-
-
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -198,6 +187,7 @@ class BrowserbaseBrowserSource(WireModel):
 
 class BrowserbaseContext(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     id: StrictStr
@@ -212,6 +202,7 @@ class BrowserbaseExtension(StrEnum):
 
 class BrowserbaseFingerprint(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     browsers: Optional[list[Browser]] = None
@@ -224,6 +215,7 @@ class BrowserbaseFingerprint(WireModel):
 
 class BrowserbaseFingerprintScreen(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     max_height: Optional[StrictFloat] = None
@@ -234,6 +226,7 @@ class BrowserbaseFingerprintScreen(WireModel):
 
 class BrowserbaseProxyConfig(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     type: Literal["browserbase"]
@@ -243,6 +236,7 @@ class BrowserbaseProxyConfig(WireModel):
 
 class BrowserbaseProxyGeolocation(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     country: StrictStr
@@ -259,6 +253,7 @@ class BrowserbaseRegion(StrEnum):
 
 class BrowserbaseViewport(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     width: Optional[StrictFloat] = None
@@ -347,12 +342,8 @@ class ContextClipboardPasteParams(WireModel):
     shortcut: Optional[Shortcut] = None
 
 
-class ContextClipboardReadTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class ContextClipboardReadTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class ContextClipboardTarget(WireModel):
@@ -386,22 +377,6 @@ class ContextCookiesParams(WireModel):
         validate_by_name=True,
     )
     urls: Optional[Union[StrictStr, list[StrictStr]]] = None
-
-
-class ContextCookiesResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    cookies: list[Cookie]
-
-
-class ContextGetDomainPolicyResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    policy: Optional[DomainPolicy]
 
 
 class ContextNewPageParams(WireModel):
@@ -457,6 +432,10 @@ class Cookie(WireModel):
     http_only: StrictBool
     secure: StrictBool
     same_site: SameSite
+
+
+class ContextCookiesResult(RootModel[list[Cookie]]):
+    root: list[Cookie]
 
 
 class CookieParam(WireModel):
@@ -541,6 +520,10 @@ class DomainPolicy(WireModel):
     blocked_domains: Optional[list[StrictStr]] = None
 
 
+class ContextGetDomainPolicyResult(RootModel[Optional[DomainPolicy]]):
+    root: Optional[DomainPolicy]
+
+
 class EmptyParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -550,6 +533,7 @@ class EmptyParams(WireModel):
 
 class ExternalProxyConfig(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     type: Literal["external"]
@@ -561,6 +545,7 @@ class ExternalProxyConfig(WireModel):
 
 class ExtractOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -600,14 +585,12 @@ class ExtractOptions(WireModel):
 
 class ExtractResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
-    result: Any
+    data: Optional[FieldSchema1]
     """Extracted data matching the requested schema"""
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    metadata: StagehandResultMetadata
 
 
 class FieldSchema0(
@@ -626,6 +609,12 @@ class FieldSchema10(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
+
+
+class FieldSchema11(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
 class FieldSchema2(
@@ -708,6 +697,10 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
+class Instruction(RootModel[StrictStr]):
+    root: Annotated[StrictStr, Field(min_length=1)]
+
+
 class JSONRPCErrorObject(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -715,7 +708,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema10] = None
+    data: Optional[FieldSchema11] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -795,7 +788,7 @@ class LLMJsonSchemaResponseFormat(WireModel):
     type: Literal["json_schema"]
     name: StrictStr
     description: Optional[StrictStr] = None
-    schema_: Annotated[Optional[FieldSchema3], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema4], Field(alias="schema")]
 
 
 class LLMMessage(WireModel):
@@ -823,12 +816,9 @@ class LLMMessageGenerateParams(WireModel):
 
 class LLMMessageGenerateResult(WireModel):
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
         validate_by_name=True,
     )
-    __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
-    }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
     stop_reason: Optional[StrictStr] = None
@@ -861,12 +851,9 @@ class LLMGenerateParams(
 
 class LLMStructuredGenerateResult(WireModel):
     model_config = ConfigDict(
-        extra="allow",
+        extra="forbid",
         validate_by_name=True,
     )
-    __annotations__ = {
-        "__pydantic_extra__": Dict[str, Optional[FieldSchema5]],
-    }
     role: LLMRole
     content: Union[LLMMessageContentBlock, list[LLMMessageContentBlock]]
     stop_reason: Optional[StrictStr] = None
@@ -946,7 +933,7 @@ class LLMToolJson(WireModel):
     )
     field_schema: Annotated[Optional[StrictStr], Field(alias="$schema")] = None
     type: Literal["object"]
-    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema4]]]] = (
+    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema5]]]] = (
         None
     )
     required: Optional[list[StrictStr]] = None
@@ -960,7 +947,7 @@ class LLMToolResultContent(WireModel):
     type: Literal["tool_result"]
     tool_use_id: StrictStr
     content: list[LLMToolResultContentBlock]
-    structured_content: Optional[dict[StrictStr, Optional[FieldSchema2]]] = None
+    structured_content: Optional[dict[StrictStr, Optional[FieldSchema3]]] = None
     is_error: Optional[StrictBool] = None
 
 
@@ -976,7 +963,7 @@ class LLMToolUseContent(WireModel):
     type: Literal["tool_use"]
     id: StrictStr
     name: StrictStr
-    input: dict[StrictStr, Optional[FieldSchema1]]
+    input: dict[StrictStr, Optional[FieldSchema2]]
 
 
 class LLMMessageContentBlock(
@@ -1053,12 +1040,8 @@ class LocatorClickResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorCountResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    count: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+class LocatorCountResult(RootModel[StrictInt]):
+    root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
 class LocatorDescriptor(WireModel):
@@ -1127,44 +1110,24 @@ class LocatorHoverResult(WireModel):
     hovered: Literal[True]
 
 
-class LocatorInnerHtmlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    html: StrictStr
+class LocatorInnerHtmlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInnerTextResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text: StrictStr
+class LocatorInnerTextResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorInputValueResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    value: StrictStr
+class LocatorInputValueResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
-class LocatorIsCheckedResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    checked: StrictBool
+class LocatorIsCheckedResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
-class LocatorIsVisibleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    visible: StrictBool
+class LocatorIsVisibleResult(RootModel[StrictBool]):
+    root: StrictBool
 
 
 class LocatorScrollToParams(WireModel):
@@ -1197,12 +1160,8 @@ class LocatorSelectOptionParams(WireModel):
     values: Union[StrictStr, list[StrictStr]]
 
 
-class LocatorSelectOptionResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    values: list[StrictStr]
+class LocatorSelectOptionResult(RootModel[list[StrictStr]]):
+    root: list[StrictStr]
 
 
 class LocatorSendClickEventOptions(WireModel):
@@ -1235,12 +1194,8 @@ class LocatorSendClickEventResult(WireModel):
     clicked: Literal[True]
 
 
-class LocatorTextContentResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    text_content: StrictStr
+class LocatorTextContentResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class LocatorTypeOptions(WireModel):
@@ -1297,6 +1252,7 @@ class MouseButton(StrEnum):
 
 class ObserveOptions(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
@@ -1341,13 +1297,11 @@ class ObserveOptions(WireModel):
 
 class ObserveResult(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
-    result: list[Action]
-    action_id: Optional[StrictStr] = None
-    """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    data: list[Action]
+    metadata: StagehandResultMetadata
 
 
 class OpenAIModelName(RootModel[StrictStr]):
@@ -1717,12 +1671,8 @@ class PageSnapshotParams(WireModel):
     options: Optional[PageSnapshotOptions] = None
 
 
-class PageTitleResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    title: StrictStr
+class PageTitleResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageTypeOptions(WireModel):
@@ -1744,12 +1694,8 @@ class PageTypeParams(WireModel):
     options: Optional[PageTypeOptions] = None
 
 
-class PageUrlResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    url: StrictStr
+class PageUrlResult(RootModel[StrictStr]):
+    root: StrictStr
 
 
 class PageVoidResult(WireModel):
@@ -1807,6 +1753,55 @@ class PageWaitForTimeoutParams(WireModel):
     ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class PageWebMCPCancelInvocationParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageWebMCPInvocationResultParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    options: Optional[WebMCPResultOptions] = None
+
+
+class PageWebMCPInvokeToolParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    input: Annotated[dict[StrictStr, WebMCPJsonValue], Field(validate_default=True)] = {
+
+    }
+
+
+class PageWebMCPToolsParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[WebMCPToolsOptions] = None
+
+
+class PageWebMCPToolsResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    tools: list[WebMCPToolDescriptor]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -1855,7 +1850,7 @@ class StagehandActParams(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    input: Annotated[StrictStr, Field(min_length=1)]
+    instruction: Union[Instruction, Action]
     options: Optional[ActOptions] = None
 
 
@@ -1921,8 +1916,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
-    root: dict[StrictStr, Optional[FieldSchema8]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
+    root: dict[StrictStr, Optional[FieldSchema9]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -1969,13 +1964,15 @@ class StagehandObserveParams(WireModel):
     options: Optional[ObserveOptions] = None
 
 
-class StagehandPingResult(WireModel):
+class StagehandResultMetadata(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
-    ok: Literal[True]
-    runtime: Literal["service_worker"]
+    action_id: Optional[StrictStr] = None
+    """Action ID for tracking"""
+    cache_status: Optional[CacheStatus] = None
+    """Server-side cache status for this result"""
 
 
 class State(StrEnum):
@@ -2031,9 +2028,88 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
     root: dict[StrictStr, VariableValue]
 
 
+class WebMCPAnnotation(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    read_only: Optional[StrictBool] = None
+    untrusted_content: Optional[StrictBool] = None
+    autosubmit: Optional[StrictBool] = None
+
+
+class WebMCPInvocationDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    input: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPInvocationStatus(StrEnum):
+    completed = "Completed"
+    canceled = "Canceled"
+    error = "Error"
+
+
+class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
+    root: Optional[FieldSchema8]
+
+
+class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
+    root: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPResultOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
+class WebMCPToolDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    description: StrictStr
+    input_schema: Optional[dict[StrictStr, WebMCPJsonValue]] = None
+    annotations: Optional[WebMCPAnnotation] = None
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+
+
+class WebMCPToolResponse(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    status: WebMCPInvocationStatus
+    output: Optional[WebMCPJsonValue] = None
+    error_text: Optional[StrictStr] = None
+    exception: Optional[WebMCPRemoteObject] = None
+
+
+class WebMCPToolsOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[StrictFloat, Field(ge=0.0)] = 1000
+
+
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
+FieldSchema11.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

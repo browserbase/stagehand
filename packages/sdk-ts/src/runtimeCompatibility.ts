@@ -30,6 +30,11 @@ export const DEFAULT_RUNTIME_REQUIREMENT: RuntimeRequirement = Object.freeze({
   maximumProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
 });
 
+const RuntimeMarkerEnvelopeSchema = z.looseObject({
+  protocolVersion: z.unknown(),
+  serverInfo: z.unknown(),
+});
+
 export function negotiateRuntimeCompatibility(
   required: RuntimeRequirement,
   raw: unknown,
@@ -42,7 +47,17 @@ export function negotiateRuntimeCompatibility(
     };
 
   try {
-    const result = RuntimeDescriptorSchema.safeParse(raw);
+    const marker = RuntimeMarkerEnvelopeSchema.safeParse(raw);
+    if (!marker.success)
+      return {
+        kind: "unknown",
+        reason: "unreadable-marker",
+        detail: z.prettifyError(marker.error),
+      };
+    const result = RuntimeDescriptorSchema.safeParse({
+      protocolVersion: marker.data.protocolVersion,
+      serverInfo: marker.data.serverInfo,
+    });
     if (!result.success)
       return {
         kind: "unknown",
