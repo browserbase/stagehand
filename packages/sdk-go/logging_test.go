@@ -46,6 +46,10 @@ func (client *loggingProtocolClient) onNotification(
 	}
 }
 
+func (*loggingProtocolClient) browserWebSocketDebuggerURL() string {
+	return "ws://127.0.0.1:9222/devtools/browser/test"
+}
+
 func (client *loggingProtocolClient) close() error {
 	client.closed = true
 	return nil
@@ -68,12 +72,12 @@ func TestGoLoggingDefaultsToInfoPrettyAndRemovesListener(t *testing.T) {
 	if err := client.Init(context.Background()); err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
-	configure, ok := rpc.calls[0].params.(RuntimeConfigureParams)
+	initParams, ok := rpc.calls[0].params.(StagehandInitParams)
 	if !ok {
-		t.Fatalf("runtime.configure params = %T", rpc.calls[0].params)
+		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
 	}
-	if configure.LogLevel != RuntimeConfigureParamsLogLevelInfo {
-		t.Fatalf("log level = %q, want info", configure.LogLevel)
+	if initParams.LogLevel != StagehandInitParamsLogLevelInfo {
+		t.Fatalf("log level = %q, want info", initParams.LogLevel)
 	}
 
 	for _, log := range testStagehandLogs() {

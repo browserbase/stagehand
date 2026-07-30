@@ -1386,10 +1386,14 @@ export const TelemetryConfigSchema = z
 
 export const StagehandInitParamsSchema = z
   .strictObject({
+    protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+    clientInfo: ImplementationInfoSchema,
+    browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
@@ -1399,16 +1403,6 @@ export const StagehandInitParamsSchema = z
     }),
   })
   .meta({ id: "StagehandInitParams" });
-
-export const RuntimeConfigureParamsSchema = z
-  .strictObject({
-    protocolVersion: z.int().positive(),
-    clientInfo: ImplementationInfoSchema,
-    cdpUrl: z.string().min(1),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
-    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
-  })
-  .meta({ id: "RuntimeConfigureParams" });
 
 export const StagehandActParamsSchema = z
   .strictObject({
@@ -1788,12 +1782,6 @@ export const LocatorTypeParamsSchema = LocatorDescriptorSchema.extend({
 export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
-
-export const RuntimeConfigureResultSchema = z
-  .strictObject({
-    configured: z.literal(true),
-  })
-  .meta({ id: "RuntimeConfigureResult" });
 
 export const StagehandInitResultSchema = z
   .strictObject({

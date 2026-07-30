@@ -79,16 +79,13 @@ describe("client LLM generation", () => {
       clientLLMGenerate: request,
     });
 
-    await runtime.configureLoopback({
-      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      logLevel: "info",
       model: { source: "client" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import {
   BrowserClipboard,
   BrowserContext,
@@ -14,6 +15,7 @@ import {
   WebMCPTool,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "../src/sdkIdentity.js";
 import { createStagehandWithClientForTest } from "../src/stagehand.js";
 
 type ProtocolCall = { method: string; params: unknown };
@@ -25,6 +27,7 @@ class FakeProtocolClient extends RPCClient {
   constructor() {
     super(
       {
+        webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
         serviceWorker: {
           targetId: "worker-target",
           url: "chrome-extension://stagehand/service-worker.js",
@@ -77,6 +80,10 @@ function requestCall<Method extends RPCMethod>(
 }
 
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: STAGEHAND_SDK_CLIENT_INFO,
+  browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",
+  logLevel: "info",
   telemetry: {
     traces: {
       endpoint: "https://example.com/v1/traces",

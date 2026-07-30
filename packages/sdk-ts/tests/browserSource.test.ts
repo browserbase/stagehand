@@ -29,6 +29,7 @@ describe("resolveBrowserSource", () => {
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       browserbaseSessionId: "new-session",
       preloadedExtension: true,
+      residentBrowserConnection: false,
       keepAlive: false,
       close,
     });
@@ -100,12 +101,27 @@ describe("resolveBrowserSource", () => {
       ),
     ).resolves.toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
+      residentBrowserConnection: false,
       keepAlive: true,
       close,
     });
     expect(launchLocalBrowser).toHaveBeenCalledWith({
       headless: false,
       keepAlive: true,
+    });
+  });
+
+  it("uses client configuration for a local browser launched on another port", async () => {
+    const launchLocalBrowser = vi.fn(async () => ({
+      cdpUrl: "http://127.0.0.1:9333",
+      close: vi.fn(),
+    }));
+
+    await expect(
+      resolveBrowserSource({ browser: { type: "local", port: 9333 } }, { launchLocalBrowser }),
+    ).resolves.toMatchObject({
+      cdpUrl: "http://127.0.0.1:9333",
+      residentBrowserConnection: false,
     });
   });
 
@@ -121,6 +137,7 @@ describe("resolveBrowserSource", () => {
     ).resolves.toStrictEqual({
       cdpUrl: "wss://browser.example/devtools/browser/session",
       cdpHeaders: { Authorization: "Bearer secret" },
+      residentBrowserConnection: false,
       keepAlive: true,
     });
   });

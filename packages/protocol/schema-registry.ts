@@ -93,8 +93,6 @@ import {
   PageWebMCPInvokeToolParamsSchema,
   PageWebMCPToolsParamsSchema,
   PageWebMCPToolsResultSchema,
-  RuntimeConfigureParamsSchema,
-  RuntimeConfigureResultSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -114,11 +112,6 @@ export const StagehandSendToHostBindingSchema = z
   .meta({ id: "StagehandSendToHostBinding" });
 
 export const StagehandMethods = {
-  runtimeConfigure: {
-    name: "runtime.configure",
-    params: RuntimeConfigureParamsSchema,
-    result: RuntimeConfigureResultSchema,
-  },
   stagehandInit: {
     name: "stagehand.init",
     params: StagehandInitParamsSchema,
