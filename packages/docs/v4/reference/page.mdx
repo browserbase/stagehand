@@ -603,6 +603,37 @@ const snapshot = await page.snapshot();
   </ResponseField>
 </ResponseField>
 
+## tools()
+
+Return the WebMCP tools registered on the page.
+
+```typescript
+const tools = await page.tools();
+
+const searchTool = tools.find((tool) => tool.name === "search");
+if (!searchTool) throw new Error("Search tool is unavailable");
+
+console.log(searchTool.inputSchema);
+
+const invocation = await searchTool.invoke({
+  input: { query: "Stagehand" },
+});
+const result = await invocation.result();
+console.log(result.status, result.output);
+```
+
+<ParamField path="options" type="WebMCPToolsOptions" optional>
+  Options that configure tool discovery.
+
+  <ParamField path="options.timeout" type="number" optional>
+    Maximum time in milliseconds to wait for registered tools.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<WebMCPTool[]>">
+  The callable WebMCP tools registered on the page.
+</ResponseField>
+
 ## url()
 
 Return the page's current URL.
@@ -1208,6 +1239,32 @@ snapshot = await page.snapshot()
   <ResponseField name="result.xpath_map" type="dict[str, object]">
     The snapshot XPath lookup.
   </ResponseField>
+</ResponseField>
+
+## tools()
+
+Return the WebMCP tools registered on the page.
+
+```python
+tools = await page.tools()
+
+search_tool = next((tool for tool in tools if tool.name == "search"), None)
+if search_tool is None:
+    raise RuntimeError("Search tool is unavailable")
+
+print(search_tool.input_schema)
+
+invocation = await search_tool.invoke(input={"query": "Stagehand"})
+result = await invocation.result()
+print(result.status, result.output)
+```
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum time in milliseconds to wait for registered tools.
+</ParamField>
+
+<ResponseField name="result" type="list[WebMCPTool]">
+  The callable WebMCP tools registered on the page.
 </ResponseField>
 
 ## url()
