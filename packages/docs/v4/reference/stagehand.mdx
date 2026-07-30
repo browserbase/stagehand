@@ -266,6 +266,30 @@ const result = await stagehand.act("Click the sign in button");
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -377,6 +401,30 @@ const actions = await stagehand.observe("Find the sign in button");
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -476,6 +524,30 @@ console.log(product.data, product.metadata.cacheStatus);
 
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
   </ResponseField>
   </ResponseField>
 </ResponseField>
@@ -739,6 +811,30 @@ result = await stagehand.act("Click the sign in button")
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -847,6 +943,30 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -943,6 +1063,30 @@ print(product.data, product.metadata.cache_status)
 
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
+    Aggregate LLM usage for the operation.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
   </ResponseField>
   </ResponseField>
 </ResponseField>

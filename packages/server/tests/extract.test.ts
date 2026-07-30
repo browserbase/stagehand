@@ -283,7 +283,13 @@ describe("extract service", () => {
           content: { type: "text", text: "structured extraction" },
           outputFormat: "json_schema",
           structuredContent: { count: 1 },
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+            reasoningTokens: 2,
+            cachedInputTokens: 3,
+          },
         };
       }
       return {
@@ -291,7 +297,13 @@ describe("extract service", () => {
         content: { type: "text", text: "metadata" },
         outputFormat: "json_schema",
         structuredContent: { progress: "Extracted the count", completed: true },
-        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+          reasoningTokens: 5,
+          cachedInputTokens: 7,
+        },
       };
     });
 
@@ -314,7 +326,18 @@ describe("extract service", () => {
       logger: new StagehandLogger({ tracer: trace.getTracer("extract-service-test") }, () => {}),
     });
 
-    expect(result).toStrictEqual({ data: { count: 1 }, metadata: {} });
+    expect(result).toStrictEqual({
+      data: { count: 1 },
+      metadata: {
+        usage: {
+          inputTokens: 2,
+          outputTokens: 2,
+          reasoningTokens: 7,
+          cachedInputTokens: 10,
+          inferenceTimeMs: expect.any(Number),
+        },
+      },
+    });
   });
 });
 

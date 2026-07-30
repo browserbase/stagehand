@@ -144,8 +144,8 @@ export async function extract({
       metadata: { completed },
       prompt_tokens,
       completion_tokens,
-      reasoning_tokens: _reasoningTokens,
-      cached_input_tokens: _cachedInputTokens,
+      reasoning_tokens,
+      cached_input_tokens,
       inference_time_ms,
       ...rest
     } = extractionResponse;
@@ -176,7 +176,18 @@ export async function extract({
     );
 
     return {
-      result: { data: z.json().parse(output), metadata: {} },
+      result: {
+        data: z.json().parse(output),
+        metadata: {
+          usage: {
+            inputTokens: prompt_tokens,
+            outputTokens: completion_tokens,
+            reasoningTokens: reasoning_tokens,
+            cachedInputTokens: cached_input_tokens ?? 0,
+            inferenceTimeMs: inference_time_ms,
+          },
+        },
+      },
       cacheValue: output,
       llmUsage: {
         inputTokens: prompt_tokens,

@@ -147,7 +147,18 @@ export async function observe({
     });
 
     return {
-      result: { data: actions, metadata: {} },
+      result: {
+        data: actions,
+        metadata: {
+          usage: {
+            inputTokens: observation.prompt_tokens,
+            outputTokens: observation.completion_tokens,
+            reasoningTokens: observation.reasoning_tokens,
+            cachedInputTokens: observation.cached_input_tokens,
+            inferenceTimeMs: observation.inference_time_ms,
+          },
+        },
+      },
       cacheValue: actions.length > 0 ? actions : undefined,
       llmUsage: {
         inputTokens: observation.prompt_tokens,

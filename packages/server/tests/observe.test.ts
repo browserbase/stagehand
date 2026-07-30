@@ -166,7 +166,15 @@ describe("observe service", () => {
           arguments: ["xpath=/html/body/main/ul/li[2]"],
         },
       ],
-      metadata: {},
+      metadata: {
+        usage: {
+          inputTokens: 11,
+          outputTokens: 4,
+          reasoningTokens: 2,
+          cachedInputTokens: 3,
+          inferenceTimeMs: expect.any(Number),
+        },
+      },
     });
     expect(logs).toEqual(
       expect.arrayContaining([
