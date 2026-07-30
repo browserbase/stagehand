@@ -141,22 +141,22 @@ Perform an action described in natural language.
 const result = await stagehand.act("Click the sign in button");
 ```
 
-<ParamField path="input" type="Action | string">
+<ParamField path="instruction" type="Action | string">
   A natural-language action to perform, or an action returned by `observe()`.
 
-  <ParamField path="input.selector" type="string">
+  <ParamField path="instruction.selector" type="string">
     The CSS selector or XPath for the action target.
   </ParamField>
 
-  <ParamField path="input.description" type="string">
+  <ParamField path="instruction.description" type="string">
     A human-readable description of the action.
   </ParamField>
 
-  <ParamField path="input.method" type="string" optional>
+  <ParamField path="instruction.method" type="string" optional>
     The action method to execute.
   </ParamField>
 
-  <ParamField path="input.arguments" type="string[]" optional>
+  <ParamField path="instruction.arguments" type="string[]" optional>
     Arguments to pass to the action method.
   </ParamField>
 </ParamField>
@@ -617,22 +617,22 @@ Perform an action described in natural language.
 result = await stagehand.act("Click the sign in button")
 ```
 
-<ParamField path="input" type="Action | str">
+<ParamField path="instruction" type="Action | str">
   A natural-language action to perform, or an action returned by `observe()`.
 
-  <ParamField path="input.selector" type="str">
+  <ParamField path="instruction.selector" type="str">
     The CSS selector or XPath for the action target.
   </ParamField>
 
-  <ParamField path="input.description" type="str">
+  <ParamField path="instruction.description" type="str">
     A human-readable description of the action.
   </ParamField>
 
-  <ParamField path="input.method" type="str" optional>
+  <ParamField path="instruction.method" type="str" optional>
     The action method to execute.
   </ParamField>
 
-  <ParamField path="input.arguments" type="list[str]" optional>
+  <ParamField path="instruction.arguments" type="list[str]" optional>
     Arguments to pass to the action method.
   </ParamField>
 </ParamField>

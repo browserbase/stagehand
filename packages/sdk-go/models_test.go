@@ -159,10 +159,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 		{
 			name:  "act instruction",
 			value: ActInstruction("click the link"),
-			new:   func() any { return new(ActInput) },
+			new:   func() any { return new(ActInstructionValue) },
 			check: func(t *testing.T, value any) {
-				if instruction, ok := value.(*ActInput).AsInstruction(); !ok || instruction != "click the link" {
-					t.Fatal("decoded the wrong act input variant")
+				if instruction, ok := value.(*ActInstructionValue).AsInstruction(); !ok || instruction != "click the link" {
+					t.Fatal("decoded the wrong act instruction variant")
 				}
 			},
 		},
@@ -172,10 +172,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 				Selector:    "xpath=/html/body/button",
 				Description: "Submit button",
 			}),
-			new: func() any { return new(ActInput) },
+			new: func() any { return new(ActInstructionValue) },
 			check: func(t *testing.T, value any) {
-				if action, ok := value.(*ActInput).AsAction(); !ok || action.Description != "Submit button" {
-					t.Fatal("decoded the wrong act input variant")
+				if action, ok := value.(*ActInstructionValue).AsAction(); !ok || action.Description != "Submit button" {
+					t.Fatal("decoded the wrong act instruction variant")
 				}
 			},
 		},
@@ -252,6 +252,131 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			test.check(t, decoded)
+		})
+	}
+}
+
+func TestClosedObjectUnionVariantsRejectUnknownFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		new   func() any
+	}{
+		{
+			name:  "action",
+			input: `{"selector":"button","description":"Submit","unexpected":true}`,
+			new:   func() any { return new(ActInstructionValue) },
+		},
+		{
+			name:  "known model",
+			input: `{"model_name":"openai/gpt-5.6","unexpected":true}`,
+			new:   func() any { return new(ModelConfig) },
+		},
+		{
+			name:  "custom model",
+			input: `{"model_name":"private/model","base_url":"https://models.test/v1","unexpected":true}`,
+			new:   func() any { return new(ModelConfig) },
+		},
+		{
+			name:  "client init model",
+			input: `{"source":"client","unexpected":true}`,
+			new:   func() any { return new(StagehandInitModel) },
+		},
+		{
+			name:  "browserbase proxy",
+			input: `{"type":"browserbase","unexpected":true}`,
+			new:   func() any { return new(ProxyConfig) },
+		},
+		{
+			name:  "external proxy",
+			input: `{"type":"external","server":"http://proxy.test","unexpected":true}`,
+			new:   func() any { return new(ProxyConfig) },
+		},
+		{
+			name:  "described variable",
+			input: `{"value":true,"unexpected":true}`,
+			new:   func() any { return new(VariableValue) },
+		},
+		{
+			name:  "cookie regex",
+			input: `{"source":"^session","unexpected":true}`,
+			new:   func() any { return new(CookieFilter) },
+		},
+		{
+			name:  "caching options",
+			input: `{"threshold":1,"unexpected":true}`,
+			new:   func() any { return new(Caching) },
+		},
+		{
+			name:  "LLM text content",
+			input: `{"type":"text","text":"done","unexpected":true}`,
+			new:   func() any { return new(LLMMessageContentBlock) },
+		},
+		{
+			name:  "LLM image content",
+			input: `{"type":"image","data":"aW1hZ2U=","mime_type":"image/png","unexpected":true}`,
+			new:   func() any { return new(LLMMessageContentBlock) },
+		},
+		{
+			name:  "LLM tool use content",
+			input: `{"type":"tool_use","id":"tool-1","name":"search","input":{},"unexpected":true}`,
+			new:   func() any { return new(LLMMessageContentBlock) },
+		},
+		{
+			name:  "LLM tool result content",
+			input: `{"type":"tool_result","tool_use_id":"tool-1","content":[],"unexpected":true}`,
+			new:   func() any { return new(LLMMessageContentBlock) },
+		},
+		{
+			name:  "LLM tool result text block",
+			input: `{"type":"text","text":"done","unexpected":true}`,
+			new:   func() any { return new(LLMToolResultContentBlock) },
+		},
+		{
+			name:  "LLM message generate params",
+			input: `{"messages":[],"unexpected":true}`,
+			new:   func() any { return new(LLMGenerateParams) },
+		},
+		{
+			name: "LLM structured generate params",
+			input: `{
+				"messages":[],
+				"response_format":{"type":"json_schema","name":"answer","schema":{"type":"object"}},
+				"unexpected":true
+			}`,
+			new: func() any { return new(LLMGenerateParams) },
+		},
+		{
+			name: "LLM message generate result",
+			input: `{
+				"role":"assistant",
+				"content":{"type":"text","text":"done"},
+				"output_format":"text",
+				"unexpected":true
+			}`,
+			new: func() any { return new(LLMGenerateResult) },
+		},
+		{
+			name: "LLM structured generate result",
+			input: `{
+				"role":"assistant",
+				"content":{"type":"text","text":"done"},
+				"output_format":"json_schema",
+				"structured_content":{"ok":true},
+				"unexpected":true
+			}`,
+			new: func() any { return new(LLMGenerateResult) },
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := json.Unmarshal([]byte(test.input), test.new())
+			if err == nil || !strings.Contains(err.Error(), `unknown field "unexpected"`) {
+				t.Fatalf("Unmarshal() error = %v, want unknown-field error", err)
+			}
 		})
 	}
 }
@@ -333,8 +458,7 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 		"role":"assistant",
 		"content":{"type":"text","text":"done"},
 		"output_format":"json_schema",
-		"structured_content":{"ok":true},
-		"provider_request_id":"req_123"
+		"structured_content":{"ok":true}
 	}`)
 	var result LLMGenerateResult
 	if err := json.Unmarshal(resultJSON, &result); err != nil {
@@ -344,8 +468,8 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 	if !ok {
 		t.Fatal("decoded the wrong LLM result variant")
 	}
-	if string(structured.AdditionalProperties["provider_request_id"]) != `"req_123"` {
-		t.Fatal("did not retain LLM result additional property")
+	if string(structured.StructuredContent) != `{"ok":true}` {
+		t.Fatal("did not retain structured content")
 	}
 	roundTrip, err := json.Marshal(result)
 	if err != nil {
@@ -355,11 +479,21 @@ func TestLLMContentAndGenerateUnions(t *testing.T) {
 		"role":"assistant",
 		"content":[{"type":"text","text":"done"}],
 		"output_format":"json_schema",
-		"structured_content":{"ok":true},
-		"provider_request_id":"req_123"
+		"structured_content":{"ok":true}
 	}`)
 	if !jsonEqual(canonicalResult, roundTrip) {
 		t.Fatalf("LLM result round trip mismatch:\nwant %s\n got %s", canonicalResult, roundTrip)
+	}
+
+	unknownProviderField := []byte(`{
+		"role":"assistant",
+		"content":{"type":"text","text":"done"},
+		"output_format":"json_schema",
+		"structured_content":{"ok":true},
+		"provider_request_id":"req_123"
+	}`)
+	if err := json.Unmarshal(unknownProviderField, &result); err == nil {
+		t.Fatal("expected unknown provider field to fail")
 	}
 }
 

@@ -263,7 +263,7 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandAct;
     const apiValue = {
       pageId: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {
@@ -276,7 +276,7 @@ describe("JSON-RPC wire casing", () => {
     };
     const wireValue = {
       page_id: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {
