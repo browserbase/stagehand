@@ -1,16 +1,12 @@
-import { Stagehand } from "../src/index.js";
+import { localBrowser, Stagehand } from "../src/index.js";
 
 const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: false,
-  },
-});
+const browser = await localBrowser.launch({ headless: false });
+let stagehand: Stagehand | undefined;
 
 try {
-  await stagehand.init();
+  stagehand = await Stagehand.create({ browser });
 
   const page = await stagehand.context.activePage();
   if (!page) {
@@ -31,5 +27,9 @@ try {
 
   console.log(result);
 } finally {
-  await stagehand.close();
+  try {
+    await stagehand?.close();
+  } finally {
+    await browser.close();
+  }
 }
