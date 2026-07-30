@@ -24,6 +24,24 @@ import {
 import { getEnv } from "./env.js";
 import { EvalLogger } from "./logger.js";
 
+/**
+ * Resolve the V3 `experimental` flag for eval runs.
+ *
+ * Experimental features (hybrid agent mode, verifier agent callbacks) require
+ * it on the SDK path, so it defaults ON there. But core forbids `experimental`
+ * together with API mode (`ExperimentalNotConfiguredError`), so it is forced
+ * OFF whenever USE_API=true — even when the caller explicitly asks for it.
+ *
+ * Exported for unit testing.
+ */
+export function resolveExperimental(
+  requested: boolean | undefined,
+  useApi: boolean = process.env.USE_API === "true",
+): boolean {
+  if (useApi) return false;
+  return typeof requested === "boolean" ? requested : true;
+}
+
 type InitV3Args = {
   llmClient?: LLMClient;
   modelClientOptions?: ClientOptions;
@@ -108,10 +126,7 @@ export async function initV3({
         configOverrides?.chromeFlags,
     },
     model: resolvedModelConfig,
-    experimental:
-      typeof configOverrides?.experimental === "boolean"
-        ? configOverrides.experimental && process.env.USE_API !== "true" // experimental only when not using API
-        : false,
+    experimental: resolveExperimental(configOverrides?.experimental),
     verbose: verbose ? 2 : 0,
     browserbaseSessionCreateParams:
       configOverrides?.browserbaseSessionCreateParams,
