@@ -159,10 +159,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 		{
 			name:  "act instruction",
 			value: ActInstruction("click the link"),
-			new:   func() any { return new(ActInput) },
+			new:   func() any { return new(ActInstructionValue) },
 			check: func(t *testing.T, value any) {
-				if instruction, ok := value.(*ActInput).AsInstruction(); !ok || instruction != "click the link" {
-					t.Fatal("decoded the wrong act input variant")
+				if instruction, ok := value.(*ActInstructionValue).AsInstruction(); !ok || instruction != "click the link" {
+					t.Fatal("decoded the wrong act instruction variant")
 				}
 			},
 		},
@@ -172,10 +172,10 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 				Selector:    "xpath=/html/body/button",
 				Description: "Submit button",
 			}),
-			new: func() any { return new(ActInput) },
+			new: func() any { return new(ActInstructionValue) },
 			check: func(t *testing.T, value any) {
-				if action, ok := value.(*ActInput).AsAction(); !ok || action.Description != "Submit button" {
-					t.Fatal("decoded the wrong act input variant")
+				if action, ok := value.(*ActInstructionValue).AsAction(); !ok || action.Description != "Submit button" {
+					t.Fatal("decoded the wrong act instruction variant")
 				}
 			},
 		},
@@ -257,7 +257,7 @@ func TestClosedObjectUnionVariantsRejectUnknownFields(t *testing.T) {
 		{
 			name:  "action",
 			input: `{"selector":"button","description":"Submit","unexpected":true}`,
-			new:   func() any { return new(ActInput) },
+			new:   func() any { return new(ActInstructionValue) },
 		},
 		{
 			name:  "client init model",

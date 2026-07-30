@@ -67,15 +67,17 @@ export function buildCacheContext(initParams: StagehandInitParams): CacheContext
 }
 
 /**
- * The `data` payloads mirror the API's v3 act/observe/extract schemas — only
- * the fields that participate in the cache key are sent (withCache threads
- * the caching threshold in separately). Model configuration is deliberately
+ * The `data` payloads mirror the external API's v3 act/observe/extract
+ * schemas — only the fields that participate in the cache key are sent
+ * (withCache threads the caching threshold in separately). The v3 act cache
+ * contract still calls its instruction `input`, so preserve that adapter key
+ * until the external API migrates. Model configuration is deliberately
  * omitted: it is not part of the cache key and its v4 shape does not parse
  * under the v3 schema.
  */
 export function buildActCacheData(params: StagehandActParams): Record<string, unknown> {
   return {
-    input: params.input,
+    input: params.instruction,
     options: params.options
       ? {
           variables: params.options.variables,
