@@ -134,25 +134,44 @@ Use `OnLog` to send each displayed log to a file or your application logger. The
 additive: Stagehand continues to write its normal terminal output.
 
 ```go
-logFile, err := os.OpenFile(
-	"stagehand.jsonl",
-	os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-	0o600,
-)
-if err != nil {
-	return err
-}
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	// ...
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		Level:  stagehand.StagehandClientLogLevelInfo,
-		Format: stagehand.StagehandClientLogFormatPretty,
-		OnLog: func(log stagehand.StagehandLog) {
-			_ = json.NewEncoder(logFile).Encode(log)
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+func run(ctx context.Context) (err error) {
+	logFile, err := os.OpenFile(
+		"stagehand.jsonl",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
+		0o600,
+	)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, logFile.Close()) }()
+
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		// ...
+		Logging: &stagehand.StagehandClientLoggingConfig{
+			Level:  stagehand.StagehandClientLogLevelInfo,
+			Format: stagehand.StagehandClientLogFormatPretty,
+			OnLog: func(log stagehand.StagehandLog) {
+				_ = json.NewEncoder(logFile).Encode(log)
+			},
 		},
-	},
-})
+	})
+	if err := client.Init(ctx); err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	// Use the initialized client here.
+	return nil
+}
 ```
 
 </View>

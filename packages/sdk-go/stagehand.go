@@ -19,7 +19,6 @@ type Stagehand struct {
 	rpc                       protocolClient
 	browser                   *resolvedBrowserSource
 	context                   *BrowserContext
-	logging                   resolvedStagehandClientLoggingConfig
 	logWriter                 io.Writer
 	initialized               bool
 	removeLLMHandler          func()
@@ -229,7 +228,6 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	s.logging = logging
 
 	browser, err := s.adapters.resolveBrowserSource(ctx, s.initParams)
 	if err != nil {
@@ -250,10 +248,20 @@ func (s *Stagehand) Init(ctx context.Context) error {
 		)
 	}
 	s.rpc = rpc
-	s.removeNotificationHandler = rpc.onNotification(
+	notificationContext, cancelNotificationHandler := context.WithCancel(context.Background())
+	removeNotificationHandler := rpc.onNotification(
 		"stagehand.log",
-		s.handleStagehandLog,
+		func(log StagehandLog) {
+			if notificationContext.Err() != nil {
+				return
+			}
+			handleStagehandLog(log, logging)
+		},
 	)
+	s.removeNotificationHandler = func() {
+		cancelNotificationHandler()
+		removeNotificationHandler()
+	}
 	if generate := s.initParams.Generate; generate != nil {
 		s.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(generate))
 	}
@@ -424,11 +432,7 @@ func (s *Stagehand) releaseBrowser(ctx context.Context, preserveKeepAlive bool) 
 	return errors.Join(browserErr, cleanupErr)
 }
 
-func (s *Stagehand) handleStagehandLog(log StagehandLog) {
-	s.mu.RLock()
-	logging := s.logging
-	s.mu.RUnlock()
-
+func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLoggingConfig) {
 	if !isClientLogLevelEnabled(log.Level, logging.level) {
 		return
 	}

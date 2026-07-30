@@ -97,6 +97,78 @@ func TestGoLoggingDefaultsToInfoPrettyAndRemovesListener(t *testing.T) {
 	}
 }
 
+func TestGoLoggingRejectsQueuedNotificationsAfterRelease(t *testing.T) {
+	t.Parallel()
+
+	var firstSessionLogs []StagehandLog
+	rpc := &loggingProtocolClient{}
+	client := newStagehandWithClient(StagehandClientInitParams{
+		Logging: &StagehandClientLoggingConfig{
+			OnLog: func(log StagehandLog) {
+				firstSessionLogs = append(firstSessionLogs, log)
+			},
+		},
+	}, rpc)
+	var firstSessionOutput bytes.Buffer
+	client.logWriter = &firstSessionOutput
+
+	if err := client.Init(context.Background()); err != nil {
+		t.Fatalf("first Init() error = %v", err)
+	}
+	queuedHandler := rpc.notificationHandler
+	if queuedHandler == nil {
+		t.Fatal("first Init() did not register a logging notification listener")
+	}
+	if err := client.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	var secondSessionLogs []StagehandLog
+	client.initParams.Logging = &StagehandClientLoggingConfig{
+		OnLog: func(log StagehandLog) {
+			secondSessionLogs = append(secondSessionLogs, log)
+		},
+	}
+	var secondSessionOutput bytes.Buffer
+	client.logWriter = &secondSessionOutput
+	if err := client.Init(context.Background()); err != nil {
+		t.Fatalf("second Init() error = %v", err)
+	}
+
+	log := testStagehandLogs()[1]
+	queuedHandler(log)
+	if firstSessionOutput.Len() != 0 || len(firstSessionLogs) != 0 {
+		t.Fatalf(
+			"released session handled queued log: output = %q, callback logs = %#v",
+			firstSessionOutput.String(),
+			firstSessionLogs,
+		)
+	}
+	if secondSessionOutput.Len() != 0 || len(secondSessionLogs) != 0 {
+		t.Fatalf(
+			"queued log leaked into new session: output = %q, callback logs = %#v",
+			secondSessionOutput.String(),
+			secondSessionLogs,
+		)
+	}
+
+	rpc.emit(log)
+	if !strings.Contains(secondSessionOutput.String(), log.Message) {
+		t.Fatalf(
+			"active session output = %q, want message %q",
+			secondSessionOutput.String(),
+			log.Message,
+		)
+	}
+	if !reflect.DeepEqual(secondSessionLogs, []StagehandLog{log}) {
+		t.Fatalf(
+			"active session callback logs = %#v, want %#v",
+			secondSessionLogs,
+			[]StagehandLog{log},
+		)
+	}
+}
+
 func TestGoLoggingHonorsEveryThreshold(t *testing.T) {
 	t.Parallel()
 
