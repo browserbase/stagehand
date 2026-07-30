@@ -1,8 +1,8 @@
 # Stagehand browser module
 
 This TypeScript SDK module defines the browser lifecycle boundary proposed for
-Stagehand v4. It intentionally contains no browser-launching, CDP, or RPC
-implementation yet; those arrive in later stack entries.
+Stagehand v4. Browser factories in this directory own launch/connect behavior,
+extension readiness, and the lifetime of their CDP transport.
 
 The intended public SDK shape is:
 

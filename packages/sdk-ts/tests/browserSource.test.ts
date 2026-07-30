@@ -204,6 +204,19 @@ describe("localBrowserChromeFlags", () => {
     expect(flags).toContain("--enable-unsafe-extension-debugging");
   });
 
+  it("selectively omits the default window-size flag", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        ignoreDefaultArgs: ["--window-size=1280,800"],
+      },
+      launcherDefaults,
+      false,
+    );
+
+    expect(flags).not.toContain("--window-size=1280,800");
+    expect(flags).toContain(WEBMCP_CHROME_FLAG);
+  });
+
   it("appends launch options and user arguments after defaults", () => {
     const flags = localBrowserChromeFlags(
       {
