@@ -8,9 +8,11 @@ describe("validateChangeset", () => {
         `---
 "@browserbasehq/stagehand": minor # public TypeScript SDK
 "@browserbasehq/stagehand-python": patch
+"@browserbasehq/stagehand-go": patch
+"@browserbasehq/stagehand-server": patch
 ---
 
-Release both SDKs.
+Release the SDKs.
 `,
         "allowed.md",
       ),
@@ -21,14 +23,14 @@ Release both SDKs.
     expect(() =>
       validateChangeset(
         `---
-"@browserbasehq/stagehand-server": patch # private package
+"@browserbasehq/stagehand-docs": patch # private package
 ---
 
 Do not release this package.
 `,
         "forbidden.md",
       ),
-    ).toThrow("forbidden.md selects non-versioned packages: @browserbasehq/stagehand-server");
+    ).toThrow("forbidden.md selects non-versioned packages: @browserbasehq/stagehand-docs");
   });
 
   it("rejects malformed frontmatter", () => {

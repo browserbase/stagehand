@@ -153,15 +153,13 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if !ok {
 		t.Fatalf("runtime.configure params = %T", rpc.calls[0].params)
 	}
-	if configure.ProtocolVersion == nil ||
-		*configure.ProtocolVersion != stagehandProtocolVersion {
+	if configure.ProtocolVersion != stagehandProtocolVersion {
 		t.Fatalf("protocol version = %#v", configure.ProtocolVersion)
 	}
-	if configure.ClientInfo == nil ||
-		*configure.ClientInfo != (ImplementationInfo{
-			Name:    stagehandSDKClientName,
-			Version: stagehandSDKVersion,
-		}) {
+	if configure.ClientInfo != (ImplementationInfo{
+		Name:    stagehandSDKClientName,
+		Version: stagehandSDKVersion,
+	}) {
 		t.Fatalf("client info = %#v", configure.ClientInfo)
 	}
 	if !rpc.closed {
@@ -317,9 +315,9 @@ func TestActAcceptsObservedAction(t *testing.T) {
 	if !ok {
 		t.Fatalf("stagehand.act params = %T", rpc.calls[3].params)
 	}
-	got, ok := params.Input.AsAction()
+	got, ok := params.Instruction.AsAction()
 	if !ok || !reflect.DeepEqual(got, action) {
-		t.Fatalf("Act() input = %#v, want %#v", got, action)
+		t.Fatalf("Act() instruction = %#v, want %#v", got, action)
 	}
 }
 

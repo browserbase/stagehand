@@ -63,23 +63,6 @@ type Action struct {
 
 type AnthropicModelName string
 
-type BrowserGetVersionResult struct {
-	// JSVersion corresponds to the JSON schema field "js_version".
-	JSVersion *string `json:"js_version,omitempty,omitzero"`
-
-	// Product corresponds to the JSON schema field "product".
-	Product *string `json:"product,omitempty,omitzero"`
-
-	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *string `json:"protocol_version,omitempty,omitzero"`
-
-	// Revision corresponds to the JSON schema field "revision".
-	Revision *string `json:"revision,omitempty,omitzero"`
-
-	// UserAgent corresponds to the JSON schema field "user_agent".
-	UserAgent *string `json:"user_agent,omitempty,omitzero"`
-}
-
 type BrowserbaseBrowserSettings struct {
 	// AdvancedStealth corresponds to the JSON schema field "advanced_stealth".
 	AdvancedStealth *bool `json:"advanced_stealth,omitempty,omitzero"`
@@ -1517,6 +1500,54 @@ type PageWaitForTimeoutParams struct {
 	PageID string `json:"page_id"`
 }
 
+type PageWebMCPCancelInvocationParams struct {
+	// InvocationID corresponds to the JSON schema field "invocation_id".
+	InvocationID string `json:"invocation_id"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PageWebMCPInvocationResultParams struct {
+	// InvocationID corresponds to the JSON schema field "invocation_id".
+	InvocationID string `json:"invocation_id"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options *WebMCPResultOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PageWebMCPInvokeToolParams struct {
+	// FrameID corresponds to the JSON schema field "frame_id".
+	FrameID string `json:"frame_id"`
+
+	// Input corresponds to the JSON schema field "input".
+	Input PageWebMCPInvokeToolParamsInput `json:"input,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// ToolName corresponds to the JSON schema field "tool_name".
+	ToolName string `json:"tool_name"`
+}
+
+type PageWebMCPInvokeToolParamsInput map[string]json.RawMessage
+
+type PageWebMCPToolsParams struct {
+	// Options corresponds to the JSON schema field "options".
+	Options *WebMCPToolsOptions `json:"options,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+}
+
+type PageWebMCPToolsResult struct {
+	// Tools corresponds to the JSON schema field "tools".
+	Tools []WebMCPToolDescriptor `json:"tools"`
+}
+
 type RgbaColor struct {
 	// A corresponds to the JSON schema field "a".
 	A *float64 `json:"a,omitempty,omitzero"`
@@ -1536,13 +1567,13 @@ type RuntimeConfigureParams struct {
 	CDPURL string `json:"cdp_url"`
 
 	// ClientInfo corresponds to the JSON schema field "client_info".
-	ClientInfo *ImplementationInfo `json:"client_info,omitempty,omitzero"`
+	ClientInfo ImplementationInfo `json:"client_info"`
 
 	// LogLevel corresponds to the JSON schema field "log_level".
 	LogLevel RuntimeConfigureParamsLogLevel `json:"log_level,omitempty,omitzero"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion *int `json:"protocol_version,omitempty,omitzero"`
+	ProtocolVersion int `json:"protocol_version"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
 	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
@@ -1561,14 +1592,6 @@ type RuntimeConfigureResult struct {
 	Configured bool `json:"configured"`
 }
 
-type RuntimeLoopbackStatusResult struct {
-	// Configured corresponds to the JSON schema field "configured".
-	Configured bool `json:"configured"`
-
-	// Connected corresponds to the JSON schema field "connected".
-	Connected bool `json:"connected"`
-}
-
 type SnapshotResult struct {
 	// FormattedTree corresponds to the JSON schema field "formatted_tree".
 	FormattedTree string `json:"formatted_tree"`
@@ -1585,8 +1608,8 @@ type SnapshotResultURLMap map[string]string
 type SnapshotResultXPathMap map[string]string
 
 type StagehandActParams struct {
-	// Input corresponds to the JSON schema field "input".
-	Input ActInput `json:"input"`
+	// Instruction corresponds to the JSON schema field "instruction".
+	Instruction ActInstructionValue `json:"instruction"`
 
 	// Options corresponds to the JSON schema field "options".
 	Options *ActOptions `json:"options,omitempty,omitzero"`
@@ -1759,14 +1782,6 @@ type StagehandObserveParams struct {
 	PageID string `json:"page_id"`
 }
 
-type StagehandPingResult struct {
-	// Ok corresponds to the JSON schema field "ok".
-	Ok bool `json:"ok"`
-
-	// Runtime corresponds to the JSON schema field "runtime".
-	Runtime string `json:"runtime"`
-}
-
 type StagehandResultMetadata struct {
 	// Action ID for tracking
 	ActionID *string `json:"action_id,omitempty,omitzero"`
@@ -1792,6 +1807,90 @@ type TelemetryTracesHeaders map[string]string
 
 type Variables map[string]VariableValue
 
+type WebMCPAnnotation struct {
+	// Autosubmit corresponds to the JSON schema field "autosubmit".
+	Autosubmit *bool `json:"autosubmit,omitempty,omitzero"`
+
+	// ReadOnly corresponds to the JSON schema field "read_only".
+	ReadOnly *bool `json:"read_only,omitempty,omitzero"`
+
+	// UntrustedContent corresponds to the JSON schema field "untrusted_content".
+	UntrustedContent *bool `json:"untrusted_content,omitempty,omitzero"`
+}
+
+type WebMCPInvocationDescriptor struct {
+	// FrameID corresponds to the JSON schema field "frame_id".
+	FrameID string `json:"frame_id"`
+
+	// Input corresponds to the JSON schema field "input".
+	Input WebMCPInvocationDescriptorInput `json:"input"`
+
+	// InvocationID corresponds to the JSON schema field "invocation_id".
+	InvocationID string `json:"invocation_id"`
+
+	// ToolName corresponds to the JSON schema field "tool_name".
+	ToolName string `json:"tool_name"`
+}
+
+type WebMCPInvocationDescriptorInput map[string]json.RawMessage
+
+type WebMCPInvocationStatus string
+
+const WebMCPInvocationStatusCanceled WebMCPInvocationStatus = "Canceled"
+const WebMCPInvocationStatusCompleted WebMCPInvocationStatus = "Completed"
+const WebMCPInvocationStatusError WebMCPInvocationStatus = "Error"
+
+type WebMCPRemoteObject map[string]json.RawMessage
+
+type WebMCPResultOptions struct {
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+}
+
+type WebMCPToolDescriptor struct {
+	// Annotations corresponds to the JSON schema field "annotations".
+	Annotations *WebMCPAnnotation `json:"annotations,omitempty,omitzero"`
+
+	// BackendNodeID corresponds to the JSON schema field "backend_node_id".
+	BackendNodeID *int `json:"backend_node_id,omitempty,omitzero"`
+
+	// Description corresponds to the JSON schema field "description".
+	Description string `json:"description"`
+
+	// FrameID corresponds to the JSON schema field "frame_id".
+	FrameID string `json:"frame_id"`
+
+	// InputSchema corresponds to the JSON schema field "input_schema".
+	InputSchema WebMCPToolDescriptorInputSchema `json:"input_schema,omitempty,omitzero"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
+
+type WebMCPToolDescriptorInputSchema map[string]json.RawMessage
+
+type WebMCPToolResponse struct {
+	// ErrorText corresponds to the JSON schema field "error_text".
+	ErrorText *string `json:"error_text,omitempty,omitzero"`
+
+	// Exception corresponds to the JSON schema field "exception".
+	Exception WebMCPRemoteObject `json:"exception,omitempty,omitzero"`
+
+	// InvocationID corresponds to the JSON schema field "invocation_id".
+	InvocationID string `json:"invocation_id"`
+
+	// Output corresponds to the JSON schema field "output".
+	Output json.RawMessage `json:"output,omitempty,omitzero"`
+
+	// Status corresponds to the JSON schema field "status".
+	Status WebMCPInvocationStatus `json:"status"`
+}
+
+type WebMCPToolsOptions struct {
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout float64 `json:"timeout,omitempty,omitzero"`
+}
+
 type generatedModelCatalog struct {
 	// ActOptions corresponds to the JSON schema field "ActOptions".
 	ActOptions *ActOptions `json:"ActOptions,omitempty,omitzero"`
@@ -1807,10 +1906,6 @@ type generatedModelCatalog struct {
 
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
-
-	// BrowserGetVersionResult corresponds to the JSON schema field
-	// "BrowserGetVersionResult".
-	BrowserGetVersionResult *BrowserGetVersionResult `json:"BrowserGetVersionResult,omitempty,omitzero"`
 
 	// BrowserbaseBrowserSettings corresponds to the JSON schema field
 	// "BrowserbaseBrowserSettings".
@@ -2328,6 +2423,26 @@ type generatedModelCatalog struct {
 	// "PageWaitForTimeoutParams".
 	PageWaitForTimeoutParams *PageWaitForTimeoutParams `json:"PageWaitForTimeoutParams,omitempty,omitzero"`
 
+	// PageWebMCPCancelInvocationParams corresponds to the JSON schema field
+	// "PageWebMCPCancelInvocationParams".
+	PageWebMCPCancelInvocationParams *PageWebMCPCancelInvocationParams `json:"PageWebMCPCancelInvocationParams,omitempty,omitzero"`
+
+	// PageWebMCPInvocationResultParams corresponds to the JSON schema field
+	// "PageWebMCPInvocationResultParams".
+	PageWebMCPInvocationResultParams *PageWebMCPInvocationResultParams `json:"PageWebMCPInvocationResultParams,omitempty,omitzero"`
+
+	// PageWebMCPInvokeToolParams corresponds to the JSON schema field
+	// "PageWebMCPInvokeToolParams".
+	PageWebMCPInvokeToolParams *PageWebMCPInvokeToolParams `json:"PageWebMCPInvokeToolParams,omitempty,omitzero"`
+
+	// PageWebMCPToolsParams corresponds to the JSON schema field
+	// "PageWebMCPToolsParams".
+	PageWebMCPToolsParams *PageWebMCPToolsParams `json:"PageWebMCPToolsParams,omitempty,omitzero"`
+
+	// PageWebMCPToolsResult corresponds to the JSON schema field
+	// "PageWebMCPToolsResult".
+	PageWebMCPToolsResult *PageWebMCPToolsResult `json:"PageWebMCPToolsResult,omitempty,omitzero"`
+
 	// ProxyConfig corresponds to the JSON schema field "ProxyConfig".
 	ProxyConfig *ProxyConfig `json:"ProxyConfig,omitempty,omitzero"`
 
@@ -2341,10 +2456,6 @@ type generatedModelCatalog struct {
 	// RuntimeConfigureResult corresponds to the JSON schema field
 	// "RuntimeConfigureResult".
 	RuntimeConfigureResult *RuntimeConfigureResult `json:"RuntimeConfigureResult,omitempty,omitzero"`
-
-	// RuntimeLoopbackStatusResult corresponds to the JSON schema field
-	// "RuntimeLoopbackStatusResult".
-	RuntimeLoopbackStatusResult *RuntimeLoopbackStatusResult `json:"RuntimeLoopbackStatusResult,omitempty,omitzero"`
 
 	// SnapshotResult corresponds to the JSON schema field "SnapshotResult".
 	SnapshotResult *SnapshotResult `json:"SnapshotResult,omitempty,omitzero"`
@@ -2382,9 +2493,6 @@ type generatedModelCatalog struct {
 	// "StagehandObserveParams".
 	StagehandObserveParams *StagehandObserveParams `json:"StagehandObserveParams,omitempty,omitzero"`
 
-	// StagehandPingResult corresponds to the JSON schema field "StagehandPingResult".
-	StagehandPingResult *StagehandPingResult `json:"StagehandPingResult,omitempty,omitzero"`
-
 	// StagehandResultMetadata corresponds to the JSON schema field
 	// "StagehandResultMetadata".
 	StagehandResultMetadata *StagehandResultMetadata `json:"StagehandResultMetadata,omitempty,omitzero"`
@@ -2403,6 +2511,36 @@ type generatedModelCatalog struct {
 
 	// Variables corresponds to the JSON schema field "Variables".
 	Variables Variables `json:"Variables,omitempty,omitzero"`
+
+	// WebMCPAnnotation corresponds to the JSON schema field "WebMCPAnnotation".
+	WebMCPAnnotation *WebMCPAnnotation `json:"WebMCPAnnotation,omitempty,omitzero"`
+
+	// WebMCPInvocationDescriptor corresponds to the JSON schema field
+	// "WebMCPInvocationDescriptor".
+	WebMCPInvocationDescriptor *WebMCPInvocationDescriptor `json:"WebMCPInvocationDescriptor,omitempty,omitzero"`
+
+	// WebMCPInvocationStatus corresponds to the JSON schema field
+	// "WebMCPInvocationStatus".
+	WebMCPInvocationStatus *WebMCPInvocationStatus `json:"WebMCPInvocationStatus,omitempty,omitzero"`
+
+	// WebMCPJsonValue corresponds to the JSON schema field "WebMCPJsonValue".
+	WebMCPJsonValue json.RawMessage `json:"WebMCPJsonValue,omitempty,omitzero"`
+
+	// WebMCPRemoteObject corresponds to the JSON schema field "WebMCPRemoteObject".
+	WebMCPRemoteObject WebMCPRemoteObject `json:"WebMCPRemoteObject,omitempty,omitzero"`
+
+	// WebMCPResultOptions corresponds to the JSON schema field "WebMCPResultOptions".
+	WebMCPResultOptions *WebMCPResultOptions `json:"WebMCPResultOptions,omitempty,omitzero"`
+
+	// WebMCPToolDescriptor corresponds to the JSON schema field
+	// "WebMCPToolDescriptor".
+	WebMCPToolDescriptor *WebMCPToolDescriptor `json:"WebMCPToolDescriptor,omitempty,omitzero"`
+
+	// WebMCPToolResponse corresponds to the JSON schema field "WebMCPToolResponse".
+	WebMCPToolResponse *WebMCPToolResponse `json:"WebMCPToolResponse,omitempty,omitzero"`
+
+	// WebMCPToolsOptions corresponds to the JSON schema field "WebMCPToolsOptions".
+	WebMCPToolsOptions *WebMCPToolsOptions `json:"WebMCPToolsOptions,omitempty,omitzero"`
 
 	// Schema0 corresponds to the JSON schema field "__schema0".
 	Schema0 json.RawMessage `json:"__schema0,omitempty,omitzero"`
@@ -2430,4 +2568,7 @@ type generatedModelCatalog struct {
 
 	// Schema8 corresponds to the JSON schema field "__schema8".
 	Schema8 json.RawMessage `json:"__schema8,omitempty,omitzero"`
+
+	// Schema9 corresponds to the JSON schema field "__schema9".
+	Schema9 json.RawMessage `json:"__schema9,omitempty,omitzero"`
 }

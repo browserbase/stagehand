@@ -18,52 +18,52 @@ const (
 	outputFormatJSONSchema = "json_schema"
 )
 
-type actInputValue interface {
-	isActInput()
+type actInstructionValue interface {
+	isActInstructionValue()
 }
 
 type actInstruction string
 
-func (actInstruction) isActInput() {}
-func (Action) isActInput()         {}
+func (actInstruction) isActInstructionValue() {}
+func (Action) isActInstructionValue()         {}
 
-// ActInput is either a natural-language instruction or an observed action.
-type ActInput struct {
-	value actInputValue
+// ActInstructionValue is either a natural-language instruction or an observed action.
+type ActInstructionValue struct {
+	value actInstructionValue
 }
 
-// ActInstruction constructs a natural-language act input.
-func ActInstruction(value string) ActInput {
-	return ActInput{value: actInstruction(value)}
+// ActInstruction constructs a natural-language act instruction.
+func ActInstruction(value string) ActInstructionValue {
+	return ActInstructionValue{value: actInstruction(value)}
 }
 
-// ObservedAction constructs an act input from an action returned by Observe.
-func ObservedAction(value Action) ActInput {
-	return ActInput{value: value}
+// ObservedAction constructs an act instruction from an action returned by Observe.
+func ObservedAction(value Action) ActInstructionValue {
+	return ActInstructionValue{value: value}
 }
 
 // AsInstruction returns the instruction variant, if present.
-func (value ActInput) AsInstruction() (string, bool) {
+func (value ActInstructionValue) AsInstruction() (string, bool) {
 	instruction, ok := value.value.(actInstruction)
 	return string(instruction), ok
 }
 
 // AsAction returns the observed-action variant, if present.
-func (value ActInput) AsAction() (Action, bool) {
+func (value ActInstructionValue) AsAction() (Action, bool) {
 	action, ok := value.value.(Action)
 	return action, ok
 }
 
-func (value ActInput) MarshalJSON() ([]byte, error) {
+func (value ActInstructionValue) MarshalJSON() ([]byte, error) {
 	if value.value == nil {
-		return nil, errors.New("stagehand.ActInput is unset")
+		return nil, errors.New("stagehand.ActInstructionValue is unset")
 	}
 	return json.Marshal(value.value)
 }
 
-func (value *ActInput) UnmarshalJSON(data []byte) error {
+func (value *ActInstructionValue) UnmarshalJSON(data []byte) error {
 	if value == nil {
-		return errors.New("stagehand.ActInput: UnmarshalJSON on nil pointer")
+		return errors.New("stagehand.ActInstructionValue: UnmarshalJSON on nil pointer")
 	}
 	var instruction string
 	if err := json.Unmarshal(data, &instruction); err == nil {
@@ -71,8 +71,8 @@ func (value *ActInput) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var action Action
-	if err := json.Unmarshal(data, &action); err != nil {
-		return fmt.Errorf("decode act input: %w", err)
+	if err := decodeStrictVariantJSON(data, &action); err != nil {
+		return fmt.Errorf("decode act instruction: %w", err)
 	}
 	*value = ObservedAction(action)
 	return nil
@@ -135,7 +135,7 @@ func (value *ModelConfig) UnmarshalJSON(data []byte) error {
 			return errors.New("decode custom model config: base_url and model_name are required")
 		}
 		var decoded CustomModelConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode custom model config: %w", err)
 		}
 		*value = CustomModel(decoded)
@@ -146,7 +146,7 @@ func (value *ModelConfig) UnmarshalJSON(data []byte) error {
 		return errors.New("decode known model config: model_name is required")
 	}
 	var decoded KnownModelConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode known model config: %w", err)
 	}
 	*value = KnownModel(decoded)
@@ -201,14 +201,18 @@ func (value *StagehandInitModel) UnmarshalJSON(data []byte) error {
 	}
 	source, _ := stringProperty(data, "source")
 	if source == modelSourceClient {
+		var clientReference ClientModelReference
+		if err := decodeStrictVariantJSON(data, &clientReference); err != nil {
+			return fmt.Errorf("decode client init model: %w", err)
+		}
 		*value = ClientModel()
 		return nil
 	}
-	var decoded ModelConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	var serverModel ModelConfig
+	if err := decodeStrictVariantJSON(data, &serverModel); err != nil {
 		return fmt.Errorf("decode init model: %w", err)
 	}
-	*value = ServerModel(decoded)
+	*value = ServerModel(serverModel)
 	return nil
 }
 
@@ -266,13 +270,13 @@ func (value *ProxyConfig) UnmarshalJSON(data []byte) error {
 	switch discriminator {
 	case proxyTypeBrowserbase:
 		var decoded BrowserbaseProxyConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode Browserbase proxy: %w", err)
 		}
 		*value = BrowserbaseProxy(decoded)
 	case proxyTypeExternal:
 		var decoded ExternalProxyConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode external proxy: %w", err)
 		}
 		*value = ExternalProxy(decoded)
@@ -405,18 +409,18 @@ func (value *VariableValue) UnmarshalJSON(data []byte) error {
 		return errors.New("stagehand.VariableValue: UnmarshalJSON on nil pointer")
 	}
 	if firstJSONByte(data) == '{' {
-		var decoded DescribedVariableValue
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		var described DescribedVariableValue
+		if err := decodeStrictVariantJSON(data, &described); err != nil {
 			return fmt.Errorf("decode described variable: %w", err)
 		}
-		*value = DescribedVariable(decoded)
+		*value = DescribedVariable(described)
 		return nil
 	}
-	var decoded VariablePrimitive
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	var primitive VariablePrimitive
+	if err := json.Unmarshal(data, &primitive); err != nil {
 		return fmt.Errorf("decode primitive variable: %w", err)
 	}
-	*value = PrimitiveVariable(decoded)
+	*value = PrimitiveVariable(primitive)
 	return nil
 }
 
@@ -480,7 +484,7 @@ func (value *CookieFilter) UnmarshalJSON(data []byte) error {
 		return errors.New("decode cookie filter: expected string or object")
 	}
 	var decoded CookieRegex
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode regex cookie filter: %w", err)
 	}
 	*value = RegexCookie(decoded)

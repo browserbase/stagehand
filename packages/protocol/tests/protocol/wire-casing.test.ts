@@ -100,6 +100,84 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(schema, options).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("preserves opaque WebMCP schemas, inputs, outputs, and exception data", () => {
+    const tools = StagehandMethods.pageWebMCPTools;
+    const toolsResult = {
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          inputSchema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          frameId: "frame-1",
+        },
+      ],
+    };
+    const toolsWireResult = {
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          input_schema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          frame_id: "frame-1",
+        },
+      ],
+    };
+    expect(encodeWireValue(toolsResult, tools.resultWire)).toStrictEqual(toolsWireResult);
+    expect(wireSchema(tools.result, tools.resultWire).parse(toolsWireResult)).toStrictEqual(
+      toolsResult,
+    );
+
+    const invoke = StagehandMethods.pageWebMCPInvokeTool;
+    const invokeParams = {
+      pageId: "page-1",
+      frameId: "frame-1",
+      toolName: "search",
+      input: { searchQuery: "Stagehand" },
+    };
+    const invokeWireParams = {
+      page_id: "page-1",
+      frame_id: "frame-1",
+      tool_name: "search",
+      input: { searchQuery: "Stagehand" },
+    };
+    expect(encodeWireValue(invokeParams, invoke.paramsWire)).toStrictEqual(invokeWireParams);
+    expect(wireSchema(invoke.params, invoke.paramsWire).parse(invokeWireParams)).toStrictEqual(
+      invokeParams,
+    );
+
+    const response = StagehandMethods.pageWebMCPInvocationResult;
+    const responseResult = {
+      invocationId: "invocation-1",
+      status: "Error" as const,
+      output: { resultValue: "unchanged" },
+      errorText: "Tool failed",
+      exception: {
+        objectId: "remote-1",
+        value: { originalKey: "unchanged" },
+      },
+    };
+    const responseWireResult = {
+      invocation_id: "invocation-1",
+      status: "Error" as const,
+      output: { resultValue: "unchanged" },
+      error_text: "Tool failed",
+      exception: {
+        objectId: "remote-1",
+        value: { originalKey: "unchanged" },
+      },
+    };
+    expect(encodeWireValue(responseResult, response.resultWire)).toStrictEqual(responseWireResult);
+    expect(
+      wireSchema(response.result, response.resultWire).parse(responseWireResult),
+    ).toStrictEqual(responseResult);
+  });
+
   it("encodes locator parity params with snake_case wire fields", () => {
     const schema = StagehandMethods.locatorSendClickEvent.params;
     const apiValue = {
@@ -185,7 +263,7 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandAct;
     const apiValue = {
       pageId: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {
@@ -198,7 +276,7 @@ describe("JSON-RPC wire casing", () => {
     };
     const wireValue = {
       page_id: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {

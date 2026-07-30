@@ -4,11 +4,8 @@ import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
-  BrowserGetVersionResult,
   ObserveResult,
-  RuntimeLoopbackStatusResult,
   StagehandMetrics,
-  StagehandPingResult,
   StagehandRpcNotification,
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
@@ -69,18 +66,6 @@ export class Stagehand {
 
   get initialized(): boolean {
     return this.isInitialized;
-  }
-
-  async ping(): Promise<StagehandPingResult> {
-    return this.connectedRpcClient.send(StagehandMethods.ping, {});
-  }
-
-  async runtimeLoopbackStatus(): Promise<RuntimeLoopbackStatusResult> {
-    return this.connectedRpcClient.send(StagehandMethods.runtimeLoopbackStatus, {});
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return this.connectedRpcClient.send(StagehandMethods.browserGetVersion, {});
   }
 
   async metrics(): Promise<StagehandMetrics> {
@@ -148,14 +133,14 @@ export class Stagehand {
   }
 
   async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
-  async act(action: Action, options?: StagehandClientActOptions): Promise<ActResult>;
-  async act(input: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
+  async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
-      input,
+      instruction,
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 

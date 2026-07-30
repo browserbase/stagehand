@@ -19,7 +19,6 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
@@ -30,7 +29,6 @@ from ._generated.models import (
     ObserveOptions,
     ObserveResult,
     ProxyConfig,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -39,7 +37,6 @@ from ._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
     TelemetryConfig,
     Variables,
 )
@@ -383,27 +380,6 @@ class Stagehand:
     def initialized(self) -> bool:
         return self._initialized
 
-    async def ping(self) -> StagehandPingResult:
-        return await self._connected_rpc_client.send(
-            "ping",
-            EmptyParams(),
-            StagehandPingResult,
-        )
-
-    async def runtime_loopback_status(self) -> RuntimeLoopbackStatusResult:
-        return await self._connected_rpc_client.send(
-            "runtime.loopback_status",
-            EmptyParams(),
-            RuntimeLoopbackStatusResult,
-        )
-
-    async def browser_get_version(self) -> BrowserGetVersionResult:
-        return await self._connected_rpc_client.send(
-            "browser.get_version",
-            EmptyParams(),
-            BrowserGetVersionResult,
-        )
-
     async def metrics(self) -> StagehandMetrics:
         return await self._connected_rpc_client.send(
             "stagehand.metrics",
@@ -464,7 +440,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str | Action,
+        instruction: str | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -487,7 +463,10 @@ class Stagehand:
         target_page = page or await self.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        params = StagehandActParams.model_validate({"page_id": target_page.page_id, "input": input})
+        params = StagehandActParams.model_validate({
+            "page_id": target_page.page_id,
+            "instruction": instruction,
+        })
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
