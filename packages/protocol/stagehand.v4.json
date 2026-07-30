@@ -1587,7 +1587,7 @@
           "type": "string",
           "minLength": 1
         },
-        "input": {
+        "instruction": {
           "anyOf": [
             {
               "type": "string",
@@ -1602,7 +1602,7 @@
           "$ref": "#/$defs/ActOptions"
         }
       },
-      "required": ["page_id", "input"],
+      "required": ["page_id", "instruction"],
       "additionalProperties": false
     },
     "Action": {

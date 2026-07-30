@@ -440,7 +440,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str | Action,
+        instruction: str | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -463,7 +463,10 @@ class Stagehand:
         target_page = page or await self.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        params = StagehandActParams.model_validate({"page_id": target_page.page_id, "input": input})
+        params = StagehandActParams.model_validate({
+            "page_id": target_page.page_id,
+            "instruction": instruction,
+        })
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)

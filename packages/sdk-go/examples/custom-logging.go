@@ -36,6 +36,8 @@ func run(ctx context.Context) (err error) {
 		Browser: stagehand.LocalBrowserSource{Headless: true},
 		Model:   &model,
 		Logging: &stagehand.StagehandClientLoggingConfig{
+			Level:  stagehand.StagehandClientLogLevelInfo,
+			Format: stagehand.StagehandClientLogFormatPretty,
 			OnLog: func(entry stagehand.StagehandLog) {
 				_ = json.NewEncoder(logFile).Encode(entry)
 			},
