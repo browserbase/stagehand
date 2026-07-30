@@ -461,28 +461,38 @@ func isClientLogLevelEnabled(
 	level StagehandLogLevel,
 	threshold StagehandClientLogLevel,
 ) bool {
-	priority := map[string]int{
-		"debug": 10,
-		"info":  20,
-		"warn":  30,
-		"error": 40,
-		"off":   int(^uint(0) >> 1),
-	}
-	logPriority, ok := priority[string(level)]
+	logPriority, ok := clientLogLevelPriority(string(level))
 	if !ok {
 		return false
 	}
-	return logPriority >= priority[string(threshold)]
+	thresholdPriority, ok := clientLogLevelPriority(string(threshold))
+	if !ok {
+		return false
+	}
+	return logPriority >= thresholdPriority
+}
+
+func clientLogLevelPriority(level string) (int, bool) {
+	switch level {
+	case string(StagehandClientLogLevelDebug):
+		return 10, true
+	case string(StagehandClientLogLevelInfo):
+		return 20, true
+	case string(StagehandClientLogLevelWarn):
+		return 30, true
+	case string(StagehandClientLogLevelError):
+		return 40, true
+	case string(StagehandClientLogLevelOff):
+		return int(^uint(0) >> 1), true
+	default:
+		return 0, false
+	}
 }
 
 func renderStagehandLog(
 	log StagehandLog,
 	format StagehandClientLogFormat,
 ) (string, error) {
-	data, err := json.Marshal(log.Data)
-	if err != nil {
-		return "", err
-	}
 	if format == StagehandClientLogFormatJSON {
 		record := struct {
 			Level   StagehandLogLevel `json:"level"`
@@ -491,6 +501,10 @@ func renderStagehandLog(
 		}{Level: log.Level, Message: log.Message, Data: log.Data}
 		encoded, err := json.Marshal(record)
 		return string(encoded), err
+	}
+	data, err := json.Marshal(log.Data)
+	if err != nil {
+		return "", err
 	}
 	suffix := ""
 	if len(log.Data) != 0 {
