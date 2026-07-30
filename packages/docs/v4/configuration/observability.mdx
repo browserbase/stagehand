@@ -1084,8 +1084,15 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 
 // ... run your automation
 
-// Inspect what happened, or write it to disk alongside the metrics
-for _, entry := range history {
+// Inspect what happened, or write it to disk alongside the metrics.
+// Copy under the mutex: the callback runs on the notification goroutine, so
+// ranging over `history` directly would race with an incoming log.
+mu.Lock()
+captured := make([]stagehand.StagehandLog, len(history))
+copy(captured, history)
+mu.Unlock()
+
+for _, entry := range captured {
 	if entry.Level == stagehand.StagehandLogLevelError {
 		fmt.Printf("%+v\n", entry)
 	}

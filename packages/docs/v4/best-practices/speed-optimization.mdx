@@ -10,7 +10,7 @@ Stagehand performance depends on several factors: DOM processing speed, LLM infe
 
 ### 1. Plan ahead with observe
 
-Use a single `observe()` call to plan multiple actions, then execute them through their selectors:
+Use a single `observe()` call to plan multiple actions, then replay each returned `Action` through `act()`:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -22,9 +22,9 @@ await stagehand.act("Select country dropdown"); // LLM call #3
 // Use a single observe to plan all form fields: one LLM call
 const { data: formFields } = await stagehand.observe("Find all form fields to fill");
 
-// Execute all actions without further LLM inference
+// Replay each observed action: no further LLM inference
 for (const field of formFields) {
-  await page.locator(field.selector).fill(field.arguments?.[0] ?? "");
+  await stagehand.act(field);
 }
 ```
 </View>
@@ -39,9 +39,9 @@ await stagehand.act("Select country dropdown")  # LLM call #3
 # Use a single observe to plan all form fields: one LLM call
 form_fields = (await stagehand.observe(instruction="Find all form fields to fill")).data
 
-# Execute all actions without further LLM inference
+# Replay each observed action: no further LLM inference
 for field in form_fields:
-    await page.locator(field.selector).fill(field.arguments[0] if field.arguments else "")
+    await stagehand.act(field)
 ```
 </View>
 
@@ -59,13 +59,9 @@ if err != nil {
 	return err
 }
 
-// Execute all actions without further LLM inference
+// Replay each observed action: no further LLM inference
 for _, field := range observed.Data {
-	value := ""
-	if len(field.Arguments) > 0 {
-		value = field.Arguments[0]
-	}
-	if err := page.Locator(field.Selector).Fill(ctx, value); err != nil {
+	if _, err := client.Act(ctx, field, nil); err != nil {
 		return err
 	}
 }
@@ -73,8 +69,7 @@ for _, field := range observed.Data {
 </View>
 
 <Note>
-{/* TODO: the 2-3x figure is inherited from the v3 docs and has no source in this repo. Confirm against evals or soften to a qualitative claim. */}
-**Performance Tip**: Executing observed actions through a locator avoids LLM inference entirely. This approach is 2-3x faster than direct `act()` calls and is the recommended pattern for multi-step workflows.
+**Performance Tip**: Passing an observed `Action` back to `act()` replays its recorded method and arguments without another inference call. A planned workflow therefore costs one `observe()` inference instead of one per step, which is the recommended pattern for multi-step workflows.
 </Note>
 
 <Card title="Caching guide" icon="database" href="/v4/best-practices/caching">
@@ -265,6 +260,7 @@ class PerformanceTracker {
 
   getAverageTime(prompt: string): number {
     const times = this.speedMetrics.get(prompt) || [];
+    if (times.length === 0) return 0;
     return times.reduce((a, b) => a + b, 0) / times.length;
   }
 }
@@ -362,9 +358,9 @@ console.timeEnd("workflow"); // 8000ms
 console.time("workflow-optimized");
 const { data: workflowActions } = await stagehand.observe("Find form, submit, and confirm elements");
 
-// Execute actions sequentially to avoid conflicts
+// Replay actions sequentially to avoid conflicts
 for (const action of workflowActions) {
-  await page.locator(action.selector).click();
+  await stagehand.act(action);
 }
 console.timeEnd("workflow-optimized"); // 500ms
 ```
@@ -387,9 +383,9 @@ workflow_actions = (await stagehand.observe(
     instruction="Find form, submit, and confirm elements"
 )).data
 
-# Execute actions sequentially to avoid conflicts
+# Replay actions sequentially to avoid conflicts
 for action in workflow_actions:
-    await page.locator(action.selector).click()
+    await stagehand.act(action)
 print(f"workflow-optimized: {(perf_counter() - start) * 1000:.0f}ms")  # 500ms
 ```
 </View>
@@ -417,9 +413,9 @@ if err != nil {
 	return err
 }
 
-// Execute actions sequentially to avoid conflicts
+// Replay actions sequentially to avoid conflicts
 for _, action := range observed.Data {
-	if err := page.Locator(action.Selector).Click(ctx, nil); err != nil {
+	if _, err := client.Act(ctx, action, nil); err != nil {
 		return err
 	}
 }
@@ -434,7 +430,7 @@ Optimized workflow took 500ms
 ```
 
 <Tip>
-Server-side caching gets you the same result without restructuring your code: a cached `act()` replays the recorded action with no inference at all. See the [caching guide](/v4/best-practices/caching).
+Server-side caching gets you the same result without restructuring your code: when the replay succeeds, a cached `act()` runs the recorded action with no inference at all. If the recorded selector no longer resolves, Stagehand falls back to the full inference pipeline and caches the new action. See the [caching guide](/v4/best-practices/caching).
 </Tip>
 
 <CardGroup cols={1}>

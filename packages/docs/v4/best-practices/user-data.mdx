@@ -10,7 +10,7 @@ Persist browser data between sessions.
 
 ### Local sessions
 
-For local sessions, point the browser source at a user data directory. Turn on the preserve option so the profile survives after Stagehand shuts the browser down:
+For local sessions, point the browser source at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -20,7 +20,6 @@ const stagehand = new Stagehand({
   browser: {
     type: "local",
     userDataDir: "./browser-data",
-    preserveUserDataDir: true,
   },
 });
 
@@ -35,7 +34,6 @@ from stagehand import Stagehand
 stagehand = Stagehand(
     browser="local",
     user_data_dir="./browser-data",
-    preserve_user_data_dir=True,
 )
 
 await stagehand.init()
@@ -46,8 +44,7 @@ await stagehand.init()
 ```go
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.LocalBrowserSource{
-		UserDataDir:         "./browser-data",
-		PreserveUserDataDir: true,
+		UserDataDir: "./browser-data",
 	},
 })
 
@@ -58,8 +55,10 @@ if err := client.Init(ctx); err != nil {
 </View>
 
 <Note>
-When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs.
+When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. `preserveUserDataDir` governs only that generated profile: turn it on to keep the temporary directory after shutdown. A directory you pass as `userDataDir` is kept either way, so the flag is not required for the setup above.
 </Note>
+
+{/* TODO: preserveUserDataDir is honored in Python and Go , where the delete only happens for a Stagehand-generated profile. TypeScript ignores the flag: sdk-ts/src/browserSource.ts forwards only userDataDir and port to chrome-launcher, whose destroyTmp always removes a generated profile and never removes one the caller supplied. Explicit userDataDir survives in all three. */}
 
 ### Browserbase sessions
 
@@ -89,6 +88,8 @@ console.log("Session ID:", stagehand.browser.browserbaseSessionId);
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import BrowserbaseBrowserSettings, Stagehand
 
 stagehand = Stagehand(
@@ -105,6 +106,8 @@ stagehand = Stagehand(
 await stagehand.init()
 ```
 </View>
+
+{/* TODO: the Python View fails at init(): sdk-python/src/stagehand/browser_source.py raises NotImplementedError("Browserbase session creation is not implemented yet". TypeScript and Go create sessions normally. */}
 
 <View title="Go" icon="golang">
 ```go

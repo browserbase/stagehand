@@ -43,6 +43,8 @@ await stagehand.act("click the login button");
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand
 
 stagehand = Stagehand(
@@ -89,7 +91,9 @@ if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 }
 
 // Cached after the hit-count threshold is met
-_, err = client.Act(ctx, "click the login button", nil)
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -162,7 +166,9 @@ if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClien
 }
 
 // This call uses the cache as normal
-_, err = client.Act(ctx, "submit the form", nil)
+if _, err := client.Act(ctx, "submit the form", nil); err != nil {
+	return err
+}
 ```
 </View>
 
@@ -374,7 +380,13 @@ When a selector is set, Stagehand hashes only that subtree. If the selector fail
 <Accordion title="Use variables for dynamic values">
 Using variables in `act()` lets you generalize a single cache entry across many different values. The cache key is built from the variable *keys*, not the values, so `{ email: "alice@example.com" }` and `{ email: "bob@example.com" }` share the same entry.
 
-Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever. As a bonus, the secret never reaches the model or the cache record.
+Without variables you'd accumulate a separate cache miss for every unique email address you type. With variables you prime the cache once and hit it forever. The value also never reaches the model: Stagehand sends the variable name and substitutes the real value into the resolved action right before it runs.
+
+<Warning>
+The value does reach the cache service. Variables travel with the rest of the request payload when caching is on, so pass `cache: false` on any call that carries a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
+</Warning>
+
+{/* TODO: verify the claim above that the cache key is derived from variable keys rather than values. buildActCacheData transmits the whole options.variables record, and the comment says only key-participating fields are sent, which would mean differing values produce differing keys and break the sharing this accordion promises. */}
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -542,6 +554,8 @@ if _, err := client.Act(ctx, fmt.Sprintf("type %s into the Email address field",
 
 <Accordion title="Pair caching with the Model Gateway">
 Both server-side caching and the [Model Gateway](/v4/configuration/models#model-gateway) run off the same Browserbase session and the same API key. Using them together means one bill for inference, browsers, and cache, and no provider keys to rotate.
+
+{/* TODO: Model Gateway routing is not yet wired up in the v4 runtime, so a model config with no provider key constructs and init()s fine but throws on the first act()/observe()/extract(): packages/server/services/llmService.ts:29 raises "Direct model inference requires an API key" (the throw is only reachable from actService.ts:250, extractService.ts:137 and observeService.ts:86, never from init). Cached calls short-circuit before inference, so only cache misses fail. Same caveat as v4/configuration/models.mdx:69. Verify before publishing. */}
 
 <View title="TypeScript" icon="js">
 ```typescript

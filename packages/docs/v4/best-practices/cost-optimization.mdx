@@ -40,6 +40,8 @@ await stagehand.extract("summarize the contract terms", termsSchema, {
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import ModelConfig, Stagehand
 
 stagehand = Stagehand(
@@ -234,7 +236,7 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 
 ### Intelligent model switching
 
-Automatically fall back to cheaper models for simple tasks:
+Automatically fall back to cheaper models for simple tasks. Escalate on `observe()` rather than `act()`: `observe()` only plans and never touches the page, so a retry cannot repeat a click, submit, or purchase that already landed before the error surfaced. The winning plan is then handed to `act()` exactly once.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -247,11 +249,15 @@ async function smartAct(stagehand: Stagehand, prompt: string) {
   ] as const;
 
   for (const model of models) {
-    try {
-      return await stagehand.act(prompt, { model });
-    } catch (error) {
+    // Planning is side-effect free, so escalating here is safe to repeat
+    const plan = await stagehand.observe(prompt, { model }).catch(() => null);
+    if (!plan) {
       console.log(`${model.modelName} failed, escalating...`);
+      continue;
     }
+
+    // The page is touched once, by the first model that produced a plan
+    return await stagehand.act(plan.data[0], { model });
   }
 
   throw new Error(`No model could complete: ${prompt}`);
@@ -273,12 +279,17 @@ async def smart_act(stagehand: Stagehand, prompt: str):
     ]
 
     for model in models:
+        config = ModelConfig.model_validate(model)
+
+        # Planning is side-effect free, so escalating here is safe to repeat
         try:
-            return await stagehand.act(
-                prompt, model=ModelConfig.model_validate(model)
-            )
+            plan = await stagehand.observe(instruction=prompt, model=config)
         except Exception:
             print(f"{model['model_name']} failed, escalating...")
+            continue
+
+        # The page is touched once, by the first model that produced a plan
+        return await stagehand.act(plan.data[0], model=config)
 
     raise RuntimeError(f"No model could complete: {prompt}")
 ```
@@ -304,13 +315,19 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 	}
 
 	for i := range models {
-		result, err := client.Act(ctx, prompt, &stagehand.StagehandClientActOptions{
+		// Planning is side-effect free, so escalating here is safe to repeat
+		plan, err := client.Observe(ctx, &prompt, &stagehand.StagehandClientObserveOptions{
+			ObserveOptions: stagehand.ObserveOptions{Model: &models[i]},
+		})
+		if err != nil {
+			fmt.Println("model failed, escalating...")
+			continue
+		}
+
+		// The page is touched once, by the first model that produced a plan
+		return client.Act(ctx, plan.Data[0], &stagehand.StagehandClientActOptions{
 			ActOptions: stagehand.ActOptions{Model: &models[i]},
 		})
-		if err == nil {
-			return result, nil
-		}
-		fmt.Println("model failed, escalating...")
 	}
 
 	return stagehand.ActResult{}, fmt.Errorf("no model could complete: %s", prompt)
@@ -325,26 +342,34 @@ Reuse browser sessions across multiple tasks:
 <View title="TypeScript" icon="js">
 ```typescript
 class SessionManager {
-  private sessions = new Map<string, Stagehand>();
+  // Store the in-flight promise, not the resolved instance: two callers racing
+  // on the same task type would otherwise each start a session and leak one
+  private sessions = new Map<string, Promise<Stagehand>>();
 
-  async getSession(taskType: string): Promise<Stagehand> {
+  getSession(taskType: string): Promise<Stagehand> {
     const existing = this.sessions.get(taskType);
     if (existing) {
       return existing;
     }
 
-    const stagehand = new Stagehand({
-      apiKey: process.env.BROWSERBASE_API_KEY,
-      browser: { type: "browserbase" },
-    });
-    await stagehand.init();
-    this.sessions.set(taskType, stagehand);
-    return stagehand;
+    const pending = (async () => {
+      const stagehand = new Stagehand({
+        apiKey: process.env.BROWSERBASE_API_KEY,
+        browser: { type: "browserbase" },
+      });
+      await stagehand.init();
+      return stagehand;
+    })();
+
+    this.sessions.set(taskType, pending);
+    return pending;
   }
 
   async closeAll(): Promise<void> {
-    await Promise.all([...this.sessions.values()].map((s) => s.close()));
+    const pending = [...this.sessions.values()];
     this.sessions.clear();
+    const sessions = await Promise.all(pending);
+    await Promise.all(sessions.map((s) => s.close()));
   }
 }
 ```
@@ -357,24 +382,30 @@ import asyncio
 
 class SessionManager:
     def __init__(self) -> None:
-        self._sessions: dict[str, Stagehand] = {}
+        # Store the in-flight task, not the resolved instance: two callers racing
+        # on the same task type would otherwise each start a session and leak one
+        self._sessions: dict[str, asyncio.Task[Stagehand]] = {}
 
     async def get_session(self, task_type: str) -> Stagehand:
-        existing = self._sessions.get(task_type)
-        if existing is not None:
-            return existing
+        task = self._sessions.get(task_type)
+        if task is None:
+            task = asyncio.create_task(self._open_session())
+            self._sessions[task_type] = task
+        return await task
 
+    async def _open_session(self) -> Stagehand:
         stagehand = Stagehand(
             api_key=os.environ["BROWSERBASE_API_KEY"],
             browser="browserbase",
         )
         await stagehand.init()
-        self._sessions[task_type] = stagehand
         return stagehand
 
     async def close_all(self) -> None:
-        await asyncio.gather(*(s.close() for s in self._sessions.values()))
+        tasks = list(self._sessions.values())
         self._sessions.clear()
+        sessions = await asyncio.gather(*tasks)
+        await asyncio.gather(*(s.close() for s in sessions))
 ```
 </View>
 
@@ -386,6 +417,8 @@ type sessionManager struct {
 }
 
 func (m *sessionManager) getSession(ctx context.Context, taskType string) (*stagehand.Stagehand, error) {
+	// The lock spans Init so two callers racing on the same task type cannot
+	// each start a session and leak one
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -425,15 +458,18 @@ func (m *sessionManager) closeAll(ctx context.Context) error {
 
 ## Cost monitoring
 
-Track your spending to identify optimization opportunities. See the [observability guide](/v4/configuration/observability) for detailed metrics:
+Track your spending to identify optimization opportunities. See the [observability guide](/v4/configuration/observability) for detailed metrics.
+
+Stagehand reports token counts, not dollars. Keep prompt and completion tokens separate: providers bill them at different rates, so a single blended rate over the total is wrong for every model. Multiply each count by the input and output rates on your provider's pricing page to turn these into currency.
+
+{/* TODO: these samples call stagehand.metrics(), which is typed end to end but currently throws "Method not implemented by the smoke runtime" in packages/server/controllers/stagehandController.ts */}
 
 <View title="TypeScript" icon="js">
 ```typescript
 // Monitor token usage
 const metrics = await stagehand.metrics();
-const totalTokens = metrics.totalPromptTokens + metrics.totalCompletionTokens;
-console.log(`Total tokens: ${totalTokens}`);
-console.log(`Estimated cost: $${totalTokens * 0.00001}`);
+console.log(`Prompt tokens: ${metrics.totalPromptTokens}`);
+console.log(`Completion tokens: ${metrics.totalCompletionTokens}`);
 
 // Tokens served from your provider's prompt cache cost less
 console.log(`Cached input tokens: ${metrics.totalCachedInputTokens}`);
@@ -444,9 +480,8 @@ console.log(`Cached input tokens: ${metrics.totalCachedInputTokens}`);
 ```python
 # Monitor token usage
 metrics = await stagehand.metrics()
-total_tokens = metrics.total_prompt_tokens + metrics.total_completion_tokens
-print(f"Total tokens: {total_tokens}")
-print(f"Estimated cost: ${total_tokens * 0.00001}")
+print(f"Prompt tokens: {metrics.total_prompt_tokens}")
+print(f"Completion tokens: {metrics.total_completion_tokens}")
 
 # Tokens served from your provider's prompt cache cost less
 print(f"Cached input tokens: {metrics.total_cached_input_tokens}")
@@ -460,9 +495,8 @@ metrics, err := client.Metrics(ctx)
 if err != nil {
 	return err
 }
-totalTokens := metrics.TotalPromptTokens + metrics.TotalCompletionTokens
-fmt.Printf("Total tokens: %.0f\n", totalTokens)
-fmt.Printf("Estimated cost: $%.4f\n", totalTokens*0.00001)
+fmt.Printf("Prompt tokens: %.0f\n", metrics.TotalPromptTokens)
+fmt.Printf("Completion tokens: %.0f\n", metrics.TotalCompletionTokens)
 
 // Tokens served from your provider's prompt cache cost less
 fmt.Printf("Cached input tokens: %.0f\n", metrics.TotalCachedInputTokens)
@@ -483,6 +517,7 @@ Set spending limits to prevent unexpected costs:
 ```typescript
 class BudgetGuard {
   private dailySpend = 0;
+  private spendDay = new Date().toDateString();
   private maxDailyBudget: number;
 
   constructor(maxDailyBudget: number = 25) {
@@ -490,6 +525,14 @@ class BudgetGuard {
   }
 
   checkBudget(estimatedCost: number): void {
+    // Roll the window when the calendar day changes, otherwise the first day's
+    // total blocks the process for the rest of its life
+    const today = new Date().toDateString();
+    if (today !== this.spendDay) {
+      this.spendDay = today;
+      this.dailySpend = 0;
+    }
+
     if (this.dailySpend + estimatedCost > this.maxDailyBudget) {
       throw new Error(`Daily budget exceeded: $${this.maxDailyBudget}`);
     }
@@ -501,12 +544,23 @@ class BudgetGuard {
 
 <View title="Python" icon="python">
 ```python
+from datetime import date
+
+
 class BudgetGuard:
     def __init__(self, max_daily_budget: float = 25) -> None:
         self.daily_spend = 0.0
+        self.spend_day = date.today()
         self.max_daily_budget = max_daily_budget
 
     def check_budget(self, estimated_cost: float) -> None:
+        # Roll the window when the calendar day changes, otherwise the first day's
+        # total blocks the process for the rest of its life
+        today = date.today()
+        if today != self.spend_day:
+            self.spend_day = today
+            self.daily_spend = 0.0
+
         if self.daily_spend + estimated_cost > self.max_daily_budget:
             raise RuntimeError(f"Daily budget exceeded: ${self.max_daily_budget}")
         self.daily_spend += estimated_cost
@@ -518,6 +572,7 @@ class BudgetGuard:
 type budgetGuard struct {
 	mu             sync.Mutex
 	dailySpend     float64
+	spendDay       string
 	maxDailyBudget float64
 }
 
@@ -525,12 +580,22 @@ func newBudgetGuard(maxDailyBudget float64) *budgetGuard {
 	if maxDailyBudget == 0 {
 		maxDailyBudget = 25
 	}
-	return &budgetGuard{maxDailyBudget: maxDailyBudget}
+	return &budgetGuard{
+		maxDailyBudget: maxDailyBudget,
+		spendDay:       time.Now().Format(time.DateOnly),
+	}
 }
 
 func (g *budgetGuard) checkBudget(estimatedCost float64) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	// Roll the window when the calendar day changes, otherwise the first day's
+	// total blocks the process for the rest of its life
+	if today := time.Now().Format(time.DateOnly); today != g.spendDay {
+		g.spendDay = today
+		g.dailySpend = 0
+	}
 
 	if g.dailySpend+estimatedCost > g.maxDailyBudget {
 		return fmt.Errorf("daily budget exceeded: $%.2f", g.maxDailyBudget)

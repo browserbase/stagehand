@@ -1,19 +1,17 @@
 ---
 title: "MCP integrations"
-description: "Using Model Context Protocol (MCP) integrations to enhance agent capabilities"
+description: "Call Model Context Protocol (MCP) servers alongside Stagehand's primitives"
 ---
 
 {/* TODO: MCP integrations depend on stagehand.agent(), which does not exist in v4, and there is no MCP client in the v4 runtime. Restore this guide once both land. */}
 
-<Warning>
-**Planned. Not available in Stagehand v4.**
+<Note>
+In v3, MCP integrations attached external tool servers to a Stagehand agent. Stagehand v4 has no autonomous agent and ships no MCP client, so there is no integrations surface to configure. Call your MCP servers from your own code instead, as below.
+</Note>
 
-MCP integrations attached external tool servers to a Stagehand agent. Stagehand v4 has no agent API and ships no MCP client, so there is no integrations surface to configure.
-</Warning>
+## Calling MCP servers from your code
 
-## What to use instead
-
-Call your MCP servers from your own code and interleave the results with Stagehand's primitives. Because v4 has no autonomous loop, you are already writing the orchestration, so adding a tool call is one more step in the sequence.
+Interleave your tool results with Stagehand's primitives. Because v4 has no autonomous loop, you are already writing the orchestration, so a tool call is one more step in the sequence.
 
 <View title="TypeScript" icon="js">
 ```typescript

@@ -89,6 +89,8 @@ if len(cartButtons) > 0 {
 
 ### Form handling & validation
 
+`valueFor` (`value_for` in Python) is a helper you supply: it maps an observed field description to the value you want to type.
+
 <View title="TypeScript" icon="js">
 ```typescript
 // Analyze form structure before filling
@@ -256,16 +258,25 @@ async function planCheckoutWorkflow() {
   await page.goto("/cart");
   const { data: cartActions } = await stagehand.observe("Find checkout and cart modification options");
 
-  // Step 2: Checkout page analysis
-  const checkoutButton = cartActions.find(a => a.description.includes("checkout"));
+  // Step 2: Checkout page analysis. Descriptions are model-generated, so
+  // lowercase them before matching.
+  const checkoutButton = cartActions.find(a =>
+    a.description.toLowerCase().includes("checkout")
+  );
   if (checkoutButton) await page.locator(checkoutButton.selector).click();
 
   const { data: checkoutActions } = await stagehand.observe("Find payment forms and shipping options");
 
   // Step 3: Plan execution order
-  const shippingFields = checkoutActions.filter(a => a.description.includes("shipping"));
-  const paymentFields = checkoutActions.filter(a => a.description.includes("payment"));
-  const submitButton = checkoutActions.find(a => a.description.includes("complete order"));
+  const shippingFields = checkoutActions.filter(a =>
+    a.description.toLowerCase().includes("shipping")
+  );
+  const paymentFields = checkoutActions.filter(a =>
+    a.description.toLowerCase().includes("payment")
+  );
+  const submitButton = checkoutActions.find(a =>
+    a.description.toLowerCase().includes("complete order")
+  );
 
   return { shippingFields, paymentFields, submitButton };
 }
@@ -286,9 +297,10 @@ async def plan_checkout_workflow():
         instruction="Find checkout and cart modification options"
     )).data
 
-    # Step 2: Checkout page analysis
+    # Step 2: Checkout page analysis. Descriptions are model-generated, so
+    # lowercase them before matching.
     checkout_button = next(
-        (a for a in cart_actions if "checkout" in a.description), None
+        (a for a in cart_actions if "checkout" in a.description.lower()), None
     )
     if checkout_button is not None:
         await page.locator(checkout_button.selector).click()
@@ -298,10 +310,12 @@ async def plan_checkout_workflow():
     )).data
 
     # Step 3: Plan execution order
-    shipping_fields = [a for a in checkout_actions if "shipping" in a.description]
-    payment_fields = [a for a in checkout_actions if "payment" in a.description]
+    shipping_fields = [
+        a for a in checkout_actions if "shipping" in a.description.lower()
+    ]
+    payment_fields = [a for a in checkout_actions if "payment" in a.description.lower()]
     submit_button = next(
-        (a for a in checkout_actions if "complete order" in a.description), None
+        (a for a in checkout_actions if "complete order" in a.description.lower()), None
     )
 
     return shipping_fields, payment_fields, submit_button
@@ -339,9 +353,10 @@ func planCheckoutWorkflow(
 		return plan, err
 	}
 
-	// Step 2: Checkout page analysis
+	// Step 2: Checkout page analysis. Descriptions are model-generated, so
+	// lowercase them before matching.
 	for _, action := range cartActions.Data {
-		if strings.Contains(action.Description, "checkout") {
+		if strings.Contains(strings.ToLower(action.Description), "checkout") {
 			if err := page.Locator(action.Selector).Click(ctx, nil); err != nil {
 				return plan, err
 			}
@@ -357,12 +372,13 @@ func planCheckoutWorkflow(
 
 	// Step 3: Plan execution order
 	for i, action := range checkoutActions.Data {
+		description := strings.ToLower(action.Description)
 		switch {
-		case strings.Contains(action.Description, "shipping"):
+		case strings.Contains(description, "shipping"):
 			plan.ShippingFields = append(plan.ShippingFields, action)
-		case strings.Contains(action.Description, "payment"):
+		case strings.Contains(description, "payment"):
 			plan.PaymentFields = append(plan.PaymentFields, action)
-		case strings.Contains(action.Description, "complete order"):
+		case strings.Contains(description, "complete order"):
 			plan.SubmitButton = &checkoutActions.Data[i]
 		}
 	}
