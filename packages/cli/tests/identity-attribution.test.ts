@@ -100,7 +100,7 @@ describe("remoteStagehandOptions — userMetadata", () => {
 
       const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
-      const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<string, string>;
+      const meta = opts.browser?.userMetadata as Record<string, string>;
 
       expect(meta).toBeDefined();
       expect(meta.browse_cli).toBe("true");
@@ -122,7 +122,7 @@ describe("remoteStagehandOptions — userMetadata", () => {
     try {
       const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
-      const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<string, string>;
+      const meta = opts.browser?.userMetadata as Record<string, string>;
 
       expect(meta.install_id).toBeDefined();
       // Only allowed chars; UUID hyphens are fine
@@ -146,7 +146,7 @@ describe("remoteStagehandOptions — userMetadata", () => {
     try {
       const { remoteStagehandOptions } = await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
-      const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<string, string>;
+      const meta = opts.browser?.userMetadata as Record<string, string>;
 
       expect(meta.browse_cli).toBe("true");
       expect(typeof meta.cli_version).toBe("string");

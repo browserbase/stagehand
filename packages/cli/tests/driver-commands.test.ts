@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
@@ -144,6 +145,26 @@ describe("driver commands", () => {
     expect(() =>
       parseRequest(JSON.stringify({ command: "not.real", id: "1", type: "command" })),
     ).toThrow();
+  });
+
+  it("maps the CLI navigation timeout contract to the V4 page option", async () => {
+    const page = { goto: vi.fn().mockResolvedValue(undefined) };
+    const manager = {
+      openResult: vi.fn().mockResolvedValue({ url: "https://example.com" }),
+      pageForOpen: vi.fn().mockResolvedValue(page),
+    } as unknown as Parameters<NonNullable<(typeof navigationHandlers)["open"]>>[0];
+
+    await expect(
+      navigationHandlers.open!(manager, {
+        timeoutMs: 5_000,
+        url: "https://example.com",
+        waitUntil: "load",
+      }),
+    ).resolves.toEqual({ url: "https://example.com" });
+    expect(page.goto).toHaveBeenCalledWith("https://example.com", {
+      timeout: 5_000,
+      waitUntil: "load",
+    });
   });
 
   it("selects a remaining tab after closing the active tab", async () => {
@@ -457,9 +478,9 @@ class FakeCdpSession {
 
 type FakeTabPage = {
   close: ReturnType<typeof vi.fn>;
-  targetId: () => string;
+  pageId: string;
   title: () => Promise<string>;
-  url: () => string;
+  url: () => Promise<string>;
 };
 
 function createFakeTabManager(targetIds: string[], activeIndex: number) {
@@ -470,9 +491,9 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
       close: vi.fn(async () => {
         pages = pages.filter((candidate) => candidate !== page);
       }),
-      targetId: () => targetId,
+      pageId: targetId,
       title: async () => targetId,
-      url: () => `https://example.com/${targetId}`,
+      url: async () => `https://example.com/${targetId}`,
     };
     return page;
   };
@@ -480,9 +501,9 @@ function createFakeTabManager(targetIds: string[], activeIndex: number) {
   pages = targetIds.map(makePage);
   active = pages[activeIndex] ?? null;
   const context = {
-    activePage: () => active,
-    pages: () => pages,
-    setActivePage: vi.fn((page: FakeTabPage) => {
+    activePage: async () => active,
+    pages: async () => pages,
+    setActivePage: vi.fn(async (page: FakeTabPage) => {
       active = page;
     }),
   };

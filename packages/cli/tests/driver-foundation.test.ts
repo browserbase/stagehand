@@ -668,20 +668,16 @@ describe("driver foundation", () => {
     }
   });
 
-  it("closes Stagehand when initialization fails", async () => {
-    const init = vi.fn().mockRejectedValue(new Error("init failed"));
-    const close = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close,
-        context: {},
-        init,
-      };
-    });
+  it("closes the browser when Stagehand.create fails", async () => {
+    const closeBrowser = vi.fn().mockResolvedValue(undefined);
+    const browser = { close: closeBrowser, context: {} };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockRejectedValue(new Error("init failed"));
 
     vi.resetModules();
-    vi.doMock("stagehand-v3", () => ({
-      Stagehand,
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -694,28 +690,24 @@ describe("driver foundation", () => {
 
       await expect(manager.open("https://example.com")).rejects.toThrow("init failed");
       await expect(manager.open("https://example.com")).rejects.toThrow("init failed");
-      expect(Stagehand).toHaveBeenCalledTimes(1);
-      expect(init).toHaveBeenCalledTimes(1);
-      expect(close).toHaveBeenCalledTimes(1);
+      expect(launch).toHaveBeenCalledTimes(1);
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(closeBrowser).toHaveBeenCalledTimes(1);
     } finally {
-      vi.doUnmock("stagehand-v3");
+      vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
     }
   });
 
   it("passes Chrome args to managed local Stagehand launches", async () => {
-    const init = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close: vi.fn().mockResolvedValue(undefined),
-        context: {},
-        init,
-      };
-    });
+    const browser = { close: vi.fn().mockResolvedValue(undefined), context: {} };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockResolvedValue({ browser, close: vi.fn() });
 
     vi.resetModules();
-    vi.doMock("stagehand-v3", () => ({
-      Stagehand,
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -729,34 +721,26 @@ describe("driver foundation", () => {
 
       await manager.stagehandInstance();
 
-      expect(Stagehand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          env: "LOCAL",
-          localBrowserLaunchOptions: {
-            args: ["--no-focus-on-navigate"],
-            headless: false,
-          },
-        }),
-      );
+      expect(launch).toHaveBeenCalledWith({
+        args: ["--no-focus-on-navigate"],
+        headless: false,
+      });
+      expect(create).toHaveBeenCalledWith({ browser, logging: { level: "off" } });
     } finally {
-      vi.doUnmock("stagehand-v3");
+      vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
     }
   });
 
   it("passes ignored default Chrome args to managed local Stagehand launches", async () => {
-    const init = vi.fn().mockResolvedValue(undefined);
-    const Stagehand = vi.fn(function () {
-      return {
-        close: vi.fn().mockResolvedValue(undefined),
-        context: {},
-        init,
-      };
-    });
+    const browser = { close: vi.fn().mockResolvedValue(undefined), context: {} };
+    const launch = vi.fn().mockResolvedValue(browser);
+    const create = vi.fn().mockResolvedValue({ browser, close: vi.fn() });
 
     vi.resetModules();
-    vi.doMock("stagehand-v3", () => ({
-      Stagehand,
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      localBrowser: { connect: vi.fn(), launch },
+      Stagehand: { create },
     }));
 
     try {
@@ -770,17 +754,13 @@ describe("driver foundation", () => {
 
       await manager.stagehandInstance();
 
-      expect(Stagehand).toHaveBeenCalledWith(
-        expect.objectContaining({
-          env: "LOCAL",
-          localBrowserLaunchOptions: {
-            headless: true,
-            ignoreDefaultArgs: ["--enable-automation"],
-          },
-        }),
-      );
+      expect(launch).toHaveBeenCalledWith({
+        headless: true,
+        ignoreDefaultArgs: ["--enable-automation"],
+      });
+      expect(create).toHaveBeenCalledWith({ browser, logging: { level: "off" } });
     } finally {
-      vi.doUnmock("stagehand-v3");
+      vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
     }
   });
@@ -791,18 +771,17 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "created-target",
+      pageId: "created-target",
     };
     const pages: (typeof page)[] = [];
     const context = {
-      activePage: vi.fn(() => undefined),
-      awaitActivePage: vi.fn(),
+      activePage: vi.fn(async () => undefined),
       newPage: vi.fn(async () => {
         pages.push(page);
         return page;
       }),
-      pages: vi.fn(() => pages),
-      setActivePage: vi.fn(),
+      pages: vi.fn(async () => pages),
+      setActivePage: vi.fn(async () => undefined),
     };
 
     vi.spyOn(
@@ -812,7 +791,6 @@ describe("driver foundation", () => {
     Object.assign(manager, { context });
 
     await expect(manager.pageForOpen()).resolves.toBe(page);
-    expect(context.awaitActivePage).not.toHaveBeenCalled();
     expect(context.newPage).toHaveBeenCalledOnce();
     expect(context.setActivePage).toHaveBeenCalledWith(page);
   });
@@ -823,13 +801,12 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "existing-target",
+      pageId: "existing-target",
     };
     const context = {
-      activePage: vi.fn(() => undefined),
-      awaitActivePage: vi.fn(),
-      pages: vi.fn(() => [page]),
-      setActivePage: vi.fn(),
+      activePage: vi.fn(async () => undefined),
+      pages: vi.fn(async () => [page]),
+      setActivePage: vi.fn(async () => undefined),
     };
 
     vi.spyOn(
@@ -839,7 +816,6 @@ describe("driver foundation", () => {
     Object.assign(manager, { context });
 
     await expect(manager.activePage()).resolves.toBe(page);
-    expect(context.awaitActivePage).not.toHaveBeenCalled();
     expect(context.setActivePage).toHaveBeenCalledWith(page);
   });
 
@@ -849,15 +825,15 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     const page = {
-      targetId: () => "page-1",
+      pageId: "page-1",
       title: vi.fn(async () => "Example"),
-      url: () => "https://example.com",
+      url: async () => "https://example.com",
     };
     const context = {
-      activePage: vi.fn(() => {
+      activePage: vi.fn(async () => {
         throw new Error("No Page found for awaitActivePage: no page available");
       }),
-      pages: vi.fn(() => [page]),
+      pages: vi.fn(async () => [page]),
     };
 
     Object.assign(manager, { context, stagehand: {} });
@@ -885,9 +861,9 @@ describe("driver foundation", () => {
     ).mockResolvedValue();
     Object.assign(manager, {
       context: {
-        pages: () => [
+        pages: async () => [
           {
-            targetId: () => "different-target",
+            pageId: "different-target",
           },
         ],
       },
