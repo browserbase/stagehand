@@ -61,11 +61,6 @@ describe("resident browser proxy", () => {
           telemetry: { traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} } },
         }),
       ).resolves.toMatchObject({ initialized: true });
-      await expect(rpcClient.send(StagehandMethods.browserGetVersion, {})).resolves.toMatchObject({
-        protocolVersion: "1.3",
-        product: expect.stringContaining("Chrome/"),
-      });
-
       const existingPages = await rpcClient.send(StagehandMethods.contextPages, {});
       expect(existingPages).toHaveLength(1);
       const page = await rpcClient.send(StagehandMethods.contextNewPage, {

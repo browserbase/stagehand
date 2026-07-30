@@ -87,18 +87,21 @@ describe("context lifecycle and configuration command schemas", () => {
     expect(ContextSetDomainPolicyParamsSchema.parse({ policy: null })).toStrictEqual({
       policy: null,
     });
-    expect(ContextGetDomainPolicyResultSchema.parse({ policy: null })).toStrictEqual({
-      policy: null,
-    });
+    expect(ContextGetDomainPolicyResultSchema.parse(null)).toBeNull();
     expect(
       ContextGetDomainPolicyResultSchema.parse({
-        policy: { blockedDomains: ["ads.example.com"] },
+        blockedDomains: ["ads.example.com"],
       }),
-    ).toStrictEqual({ policy: { blockedDomains: ["ads.example.com"] } });
+    ).toStrictEqual({ blockedDomains: ["ads.example.com"] });
 
     expect(() => ContextSetDomainPolicyParamsSchema.parse({})).toThrow();
     expect(() => ContextSetDomainPolicyParamsSchema.parse({ policy: undefined })).toThrow();
-    expect(() => ContextGetDomainPolicyResultSchema.parse({ policy: null, extra: true })).toThrow();
+    expect(() =>
+      ContextGetDomainPolicyResultSchema.parse({
+        blockedDomains: ["ads.example.com"],
+        extra: true,
+      }),
+    ).toThrow();
   });
 
   it("keeps context mutation and close results strict", () => {
@@ -139,15 +142,8 @@ describe("context cookie command schemas", () => {
   });
 
   it("parses cookie results and rejects invalid browser values", () => {
-    expect(ContextCookiesResultSchema.parse({ cookies: [cookie] })).toStrictEqual({
-      cookies: [cookie],
-    });
-    expect(() =>
-      ContextCookiesResultSchema.parse({
-        cookies: [{ ...cookie, sameSite: "Invalid" }],
-      }),
-    ).toThrow();
-    expect(() => ContextCookiesResultSchema.parse({ cookies: [], extra: true })).toThrow();
+    expect(ContextCookiesResultSchema.parse([cookie])).toStrictEqual([cookie]);
+    expect(() => ContextCookiesResultSchema.parse([{ ...cookie, sameSite: "Invalid" }])).toThrow();
   });
 
   it("validates cookies before adding them", () => {
@@ -252,12 +248,8 @@ describe("context clipboard command schemas", () => {
     expect(() => ContextClipboardPasteParamsSchema.parse({ shortcut: "Shift+V" })).toThrow();
   });
 
-  it("parses strict clipboard read results", () => {
-    expect(ContextClipboardReadTextResultSchema.parse({ text: "copied text" })).toStrictEqual({
-      text: "copied text",
-    });
-    expect(() =>
-      ContextClipboardReadTextResultSchema.parse({ text: "copied text", extra: true }),
-    ).toThrow();
+  it("parses clipboard read results", () => {
+    expect(ContextClipboardReadTextResultSchema.parse("copied text")).toBe("copied text");
+    expect(() => ContextClipboardReadTextResultSchema.parse(1)).toThrow();
   });
 });

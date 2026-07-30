@@ -7,6 +7,7 @@ import {
   type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "./browserbaseExtension.js";
+import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
 
 export type BrowserbaseSessionClient = {
   createSession(
@@ -55,6 +56,10 @@ export function createBrowserbaseSessionClient(
         session = await browserbase.createSession({
           ...params,
           extensionId: extension.extensionId,
+          userMetadata: {
+            ...params.userMetadata,
+            ...STAGEHAND_SESSION_METADATA,
+          },
         });
       } catch (error) {
         await extension.cleanup().catch(() => undefined);

@@ -9,7 +9,8 @@ from stagehand._generated.models import (
     LocatorClickResult,
     LocatorCountResult,
     LocatorDescriptor,
-    LocatorSelectOptionResult,
+    LocatorInputValueResult,
+    LocatorIsCheckedResult,
 )
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
@@ -21,8 +22,8 @@ from ._support import RecordingRPCClient
 async def test_locator_methods_use_generated_models_and_keep_the_descriptor_internal() -> None:
     recording = RecordingRPCClient({
         "locator.click": LocatorClickResult(clicked=True),
-        "locator.count": LocatorCountResult(count=2),
-        "locator.select_option": LocatorSelectOptionResult(values=["one"]),
+        "locator.count": 2,
+        "locator.select_option": ["one"],
     })
     locator = Locator(
         cast(RPCClient, recording),
@@ -50,6 +51,27 @@ async def test_locator_methods_use_generated_models_and_keep_the_descriptor_inte
         LocatorDescriptor(page_id="page-1", selector="select", nth=1),
         LocatorCountResult,
     )
+
+
+@pytest.mark.asyncio
+async def test_locator_boolean_and_string_getters_return_scalars() -> None:
+    recording = RecordingRPCClient({
+        "locator.is_checked": True,
+        "locator.input_value": "selected",
+    })
+    locator = Locator(
+        cast(RPCClient, recording),
+        page_id="page-1",
+        selector="select",
+    )
+
+    assert await locator.is_checked() is True
+    assert await locator.input_value() == "selected"
+    descriptor = LocatorDescriptor(page_id="page-1", selector="select")
+    assert recording.calls == [
+        ("locator.is_checked", descriptor, LocatorIsCheckedResult),
+        ("locator.input_value", descriptor, LocatorInputValueResult),
+    ]
 
 
 def test_locator_first_and_nth_validate_the_generated_descriptor() -> None:

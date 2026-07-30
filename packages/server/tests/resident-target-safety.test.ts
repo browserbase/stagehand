@@ -1,7 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
-import { V3Context, isSupportedWebTarget } from "../understudy/context.js";
+import { BrowserContext, isSupportedWebTarget } from "../understudy/context.js";
 import { CdpConnection, STAGEHAND_WEB_TARGET_FILTER } from "../understudy/cdp.js";
 import { Page } from "../understudy/page.js";
 
@@ -49,7 +49,7 @@ describe("resident target attachment safety", () => {
 
   it("filters the initial sweep before manually attaching", async () => {
     const attachToTarget = vi.fn(async () => ({}));
-    const context = new V3Context(
+    const context = new BrowserContext(
       {
         on: vi.fn(),
         enableAutoAttach: vi.fn(async () => {}),
@@ -75,7 +75,7 @@ describe("resident target attachment safety", () => {
   it("attaches a previously ignored page after it navigates to an injectable URL", async () => {
     let targetInfoChanged: ((event: Protocol.Target.TargetInfoChangedEvent) => void) | undefined;
     const attachToTarget = vi.fn(async () => ({}));
-    const context = new V3Context(
+    const context = new BrowserContext(
       {
         on: vi.fn((event: string, handler: (event: never) => void) => {
           if (event === "Target.targetInfoChanged") targetInfoChanged = handler;
@@ -105,7 +105,7 @@ describe("resident target attachment safety", () => {
           resolveAttachment = resolve;
         }),
     );
-    const context = new V3Context(
+    const context = new BrowserContext(
       {
         on: vi.fn((event: string, handler: (event: never) => void) => {
           if (event === "Target.targetInfoChanged") targetInfoChanged = handler;
@@ -156,7 +156,7 @@ describe("resident target attachment safety", () => {
   it("resumes and detaches an ignored target that arrives paused", async () => {
     const send = vi.fn(async () => ({}));
     const close = vi.fn(async () => {});
-    const context = new V3Context(
+    const context = new BrowserContext(
       {
         getSession: vi.fn(() => ({ send, close })),
       } as never,
@@ -173,19 +173,19 @@ describe("resident target attachment safety", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it("does not create a blank page during resident V3Context bootstrap", async () => {
+  it("does not create a blank page during resident BrowserContext bootstrap", async () => {
     const connection = {
       connected: true,
       onTransportClosed: vi.fn(),
       close: vi.fn(async () => {}),
     } as unknown as CdpConnection;
     vi.spyOn(CdpConnection, "connect").mockResolvedValue(connection);
-    vi.spyOn(V3Context.prototype, "bootstrap").mockResolvedValue();
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockResolvedValue();
     const ensureFirstTopLevelPage = vi
-      .spyOn(V3Context.prototype, "ensureFirstTopLevelPage")
+      .spyOn(BrowserContext.prototype, "ensureFirstTopLevelPage")
       .mockResolvedValue();
 
-    await V3Context.create("ws://browser-proxy.test", {
+    await BrowserContext.create("ws://browser-proxy.test", {
       websocketFactory: vi.fn(),
       blankPageUrl: "chrome-extension://stagehand/blank.html",
       fallbackLocatorScriptSource: "",
@@ -286,7 +286,7 @@ describe("resident target attachment safety", () => {
           rejectPreparation = reject;
         }),
     };
-    const context = new V3Context(
+    const context = new BrowserContext(
       {} as never,
       {} as never,
       chromeTabs,

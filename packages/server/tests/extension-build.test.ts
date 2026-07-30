@@ -17,6 +17,9 @@ const stagehandExtensionArchive = fileURLToPath(
 const stagehandExtensionMetadata = fileURLToPath(
   new URL("../artifacts/stagehand-extension.metadata.json", import.meta.url),
 );
+const stagehandExtensionSourceManifest = fileURLToPath(
+  new URL("../manifest.json", import.meta.url),
+);
 const expectedManifestVersion = serverPackageJson.version.replace(/[+-].*$/u, "");
 
 const ManifestSchema = z.looseObject({
@@ -46,6 +49,18 @@ const ManifestSchema = z.looseObject({
 });
 
 describe("extension build", () => {
+  it("injects the server package version instead of storing a manifest placeholder", async () => {
+    const sourceManifest = JSON.parse(
+      await readFile(stagehandExtensionSourceManifest, "utf8"),
+    ) as Record<string, unknown>;
+    const builtManifest = ManifestSchema.parse(
+      JSON.parse(await readFile(path.join(stagehandExtensionDistDir, "manifest.json"), "utf8")),
+    );
+
+    expect(sourceManifest).not.toHaveProperty("version");
+    expect(builtManifest.version).toBe(expectedManifestVersion);
+  });
+
   it("has a loadable MV3 extension artifact", async () => {
     const manifest = ManifestSchema.parse(
       JSON.parse(await readFile(path.join(stagehandExtensionDistDir, "manifest.json"), "utf8")),

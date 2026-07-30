@@ -2,11 +2,10 @@ import { connectRPCClient, type RPCClient, type RPCClientOptions } from "./rpcCl
 import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
-  ActResultData,
   Action,
-  BrowserGetVersionResult,
+  ActResult,
+  ObserveResult,
   StagehandMetrics,
-  StagehandPingResult,
   StagehandRpcNotification,
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
@@ -26,7 +25,7 @@ import {
 } from "./clientSchemas.js";
 import { CDPConnectionClosedError } from "./cdpClient.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "./extensionAssets.js";
-import { STAGEHAND_SDK_VERSION } from "./version.js";
+import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 
 type StagehandAdapters = {
   resolveBrowserSource?: (initParams: StagehandClientInitParams) => Promise<ResolvedBrowserSource>;
@@ -34,10 +33,12 @@ type StagehandAdapters = {
 };
 
 const stagehandAdapters = new WeakMap<Stagehand, StagehandAdapters>();
-const STAGEHAND_SDK_CLIENT_INFO = {
-  name: "stagehand-sdk-ts",
-  version: STAGEHAND_SDK_VERSION,
-} as const;
+
+type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
+
+export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
+  data: z.output<Schema>;
+};
 
 export class Stagehand {
   browserContext: BrowserContext | undefined;
@@ -66,14 +67,6 @@ export class Stagehand {
 
   get initialized(): boolean {
     return this.isInitialized;
-  }
-
-  async ping(): Promise<StagehandPingResult> {
-    return this.connectedRpcClient.send(StagehandMethods.ping, {});
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return this.connectedRpcClient.send(StagehandMethods.browserGetVersion, {});
   }
 
   async metrics(): Promise<StagehandMetrics> {
@@ -138,20 +131,25 @@ export class Stagehand {
     this.closePromise = undefined;
   }
 
-  async act(input: string, options?: StagehandClientActOptions): Promise<ActResultData> {
+  async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
-      input,
+      instruction,
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return response.result;
+    return response;
   }
 
-  async observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<Action[]> {
+  async observe(
+    instruction?: string,
+    options?: StagehandClientObserveOptions,
+  ): Promise<ObserveResult> {
     const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -161,14 +159,14 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return response.result;
+    return response;
   }
 
   async extract<Schema extends z.ZodType>(
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<z.output<Schema>> {
+  ): Promise<ExtractResult<Schema>> {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
@@ -180,7 +178,10 @@ export class Stagehand {
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 
-    return schema.parse(response.result);
+    return {
+      ...response,
+      data: schema.parse(response.data),
+    };
   }
 
   close(): Promise<void> {
@@ -247,9 +248,7 @@ function stagehandInitParamsForWorker(
     logLevel: logging.level,
     ...(resolvedBrowser.residentBrowserConnection
       ? {}
-      : {
-          browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl,
-        }),
+      : { browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl }),
     ...protocolParams,
     ...(browser.type === "browserbase"
       ? {
