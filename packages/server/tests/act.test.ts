@@ -113,7 +113,7 @@ describe("act service", () => {
     const result = await actService.act({
       params: {
         pageId: "page-1",
-        input: "Fill in the email field",
+        instruction: "Fill in the email field",
         options: {
           variables: {
             accountEmail: {
@@ -177,7 +177,7 @@ describe("act service", () => {
     const result = await actService.act({
       params: {
         pageId: "page-1",
-        input: {
+        instruction: {
           selector: "xpath=/html/body/button[1]",
           description: "Submit button",
           method: "click",
@@ -250,7 +250,7 @@ describe("act service", () => {
       );
 
     const result = await actService.act({
-      params: { pageId: "page-1", input: "Choose Switzerland from the country dropdown" },
+      params: { pageId: "page-1", instruction: "Choose Switzerland from the country dropdown" },
       page,
       model: { source: "client" },
       clientLLMGenerate,
@@ -291,7 +291,7 @@ describe("act service", () => {
     performAction.mockRejectedValueOnce(new Error("Element detached")).mockResolvedValueOnce();
 
     const result = await actService.act({
-      params: { pageId: "page-1", input: "Click the submit button" },
+      params: { pageId: "page-1", instruction: "Click the submit button" },
       page,
       model: { source: "client" },
       clientLLMGenerate,
@@ -322,7 +322,7 @@ describe("act service", () => {
     );
 
     const result = await actService.act({
-      params: { pageId: "page-1", input: "Click a missing button" },
+      params: { pageId: "page-1", instruction: "Click a missing button" },
       page,
       model: { source: "client" },
       clientLLMGenerate: vi.fn(async (): Promise<LLMGenerateResult> => actGeneration(null)),
@@ -365,7 +365,7 @@ describe("act service", () => {
     );
 
     const miss = await actService.act({
-      params: { pageId: "page-1", input: "Click submit" },
+      params: { pageId: "page-1", instruction: "Click submit" },
       page,
       model: { source: "client" },
       clientLLMGenerate,
@@ -380,7 +380,7 @@ describe("act service", () => {
     clientLLMGenerate.mockClear();
 
     const hit = await actService.act({
-      params: { pageId: "page-1", input: "Click submit" },
+      params: { pageId: "page-1", instruction: "Click submit" },
       page,
       model: { source: "client" },
       clientLLMGenerate,
@@ -417,7 +417,7 @@ describe("act service", () => {
       actService.act({
         params: {
           pageId: "page-1",
-          input: "Click the submit button",
+          instruction: "Click the submit button",
           options: { timeout: 5 },
         },
         page,

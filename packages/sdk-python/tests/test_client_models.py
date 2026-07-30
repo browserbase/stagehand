@@ -88,6 +88,15 @@ def test_client_configuration_rejects_unknown_sdk_options() -> None:
         })
 
 
+@pytest.mark.parametrize("timeout", [True, 9_007_199_254_740_992])
+def test_client_configuration_rejects_invalid_dom_settle_timeouts(timeout: object) -> None:
+    with pytest.raises(ValidationError):
+        StagehandClientInitParams.model_validate({
+            "browser": {"type": "local"},
+            "dom_settle_timeout_ms": timeout,
+        })
+
+
 def test_client_logging_uses_info_and_pretty_output_by_default() -> None:
     params = StagehandClientInitParams.model_validate({"browser": {"type": "local"}})
 

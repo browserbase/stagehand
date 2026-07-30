@@ -205,7 +205,6 @@ func materializeStagehandExtension(
 func connectResolvedBrowser(
 	ctx context.Context,
 	browser resolvedBrowserSource,
-	telemetry TelemetryConfig,
 ) (protocolClient, error) {
 	return connectRPCClient(ctx, cdpClientOptions{
 		cdpURL:                   browser.cdpURL,
@@ -214,5 +213,5 @@ func connectResolvedBrowser(
 		preloadedExtension:       browser.preloadedExtension,
 		serviceWorkerURLIncludes: "service-worker.js",
 		connectTimeout:           browser.connectTimeout,
-	}, telemetry)
+	})
 }

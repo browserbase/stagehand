@@ -1,10 +1,13 @@
 package stagehand
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -105,6 +108,135 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 	})
 }
 
+func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
+	chromePath, err := findChromePath("")
+	if err != nil {
+		t.Skipf("Chrome is not installed: %v", err)
+	}
+
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(
+			`<!doctype html><html><head><title>Stagehand Go Screenshot</title></head>` +
+				`<body><h1>Stagehand Go Screenshot</h1></body></html>`,
+		))
+	}))
+	defer fixture.Close()
+
+	screenshots := make(chan LLMImageContent, 1)
+	generate := func(
+		_ context.Context,
+		params LLMGenerateParams,
+	) (LLMGenerateResult, error) {
+		structured, ok := params.AsStructured()
+		if !ok {
+			return LLMGenerateResult{}, errors.New("smoke LLM only supports structured generation")
+		}
+		for _, message := range structured.Messages {
+			for _, block := range message.Content {
+				if image, ok := block.AsImage(); ok {
+					select {
+					case screenshots <- image:
+					default:
+					}
+				}
+			}
+		}
+
+		content := json.RawMessage(`{"heading":"Stagehand Go Screenshot"}`)
+		if structured.ResponseFormat.Name == "Metadata" {
+			content = json.RawMessage(
+				`{"progress":"The requested heading was extracted","completed":true}`,
+			)
+		}
+		return StructuredGenerateResult(LLMStructuredGenerateResult{
+			Role: LLMRoleAssistant,
+			Content: LLMMessageContent{
+				TextContentBlock(LLMTextContent{Text: string(content)}),
+			},
+			StructuredContent: content,
+		}), nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	client := New(StagehandClientInitParams{
+		Browser: LocalBrowserSource{
+			ExecutablePath:   chromePath,
+			Headless:         true,
+			ConnectTimeoutMs: 15_000,
+		},
+		Generate: generate,
+	})
+	closeStagehandAfterTest(t, client)
+	if err := client.Init(ctx); err != nil {
+		t.Fatalf("Stagehand.Init() with screenshot LLM error = %v", err)
+	}
+	browserContext, err := client.Context()
+	if err != nil {
+		t.Fatalf("Stagehand.Context() error = %v", err)
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
+	}
+	if page == nil {
+		page, err = browserContext.NewPage(ctx, ContextNewPageParams{})
+		if err != nil {
+			t.Fatalf("BrowserContext.NewPage() error = %v", err)
+		}
+	}
+	if err := page.Goto(ctx, fixture.URL, nil); err != nil {
+		t.Fatalf("Page.Goto() error = %v", err)
+	}
+
+	screenshot := true
+	result, err := client.Extract(
+		ctx,
+		"Extract the page heading",
+		json.RawMessage(
+			`{"type":"object","properties":{"heading":{"type":"string"}},"required":["heading"]}`,
+		),
+		&StagehandClientExtractOptions{
+			ExtractOptions: ExtractOptions{Screenshot: &screenshot},
+			Page:           page,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Stagehand.Extract() with screenshot error = %v", err)
+	}
+	var extracted struct {
+		Heading string `json:"heading"`
+	}
+	if err := json.Unmarshal(result.Data, &extracted); err != nil {
+		t.Fatalf("decode Extract() data: %v", err)
+	}
+	if extracted.Heading != "Stagehand Go Screenshot" {
+		t.Fatalf("Extract() heading = %q", extracted.Heading)
+	}
+
+	var image LLMImageContent
+	select {
+	case image = <-screenshots:
+	default:
+		t.Fatal("client LLM did not receive the requested extraction screenshot")
+	}
+	if image.Type != "image" || image.MIMEType != "image/png" {
+		t.Fatalf("screenshot content = %#v", image)
+	}
+	png, err := base64.StdEncoding.DecodeString(image.Data)
+	if err != nil {
+		t.Fatalf("decode LLM screenshot: %v", err)
+	}
+	if signature := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}; !bytes.HasPrefix(png, signature) {
+		t.Fatalf("LLM screenshot is not PNG data: %v", png[:min(len(png), len(signature))])
+	}
+
+	if err := client.Close(ctx); err != nil {
+		t.Fatalf("Stagehand.Close() with screenshot LLM error = %v", err)
+	}
+}
+
 func TestStagehandBrowserbaseIntegration(t *testing.T) {
 	if os.Getenv("BROWSERBASE_SMOKE") != "1" {
 		t.Skip("set BROWSERBASE_SMOKE=1 to run the Browserbase integration test")
@@ -122,7 +254,7 @@ func TestStagehandBrowserbaseIntegration(t *testing.T) {
 			KeepAlive: testPointer(false),
 			Timeout:   testPointer(300.0),
 			UserMetadata: map[string]json.RawMessage{
-				"suite": json.RawMessage(`"stagehand-v4-go-public-smoke"`),
+				"suite": json.RawMessage(`"stagehand-go-public-smoke"`),
 			},
 		},
 	})
@@ -147,13 +279,6 @@ func assertLiveStagehand(
 	t.Helper()
 	if !client.Initialized() {
 		t.Fatal("Stagehand.Initialized() = false after Init")
-	}
-	ping, err := client.Ping(ctx)
-	if err != nil {
-		t.Fatalf("Stagehand.Ping() error = %v", err)
-	}
-	if !ping.Ok || ping.Runtime != "service_worker" {
-		t.Fatalf("Stagehand.Ping() = %#v", ping)
 	}
 	browserContext, err := client.Context()
 	if err != nil {

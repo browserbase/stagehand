@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 	"sync"
 )
 
@@ -16,6 +19,7 @@ type Stagehand struct {
 	rpc                       protocolClient
 	browser                   *resolvedBrowserSource
 	context                   *BrowserContext
+	logWriter                 io.Writer
 	initialized               bool
 	removeLLMHandler          func()
 	removeNotificationHandler func()
@@ -23,7 +27,11 @@ type Stagehand struct {
 
 // New creates a Stagehand client. Init performs browser and transport setup.
 func New(initParams StagehandClientInitParams) *Stagehand {
-	return &Stagehand{initParams: initParams, adapters: defaultClientAdapters()}
+	return &Stagehand{
+		initParams: initParams,
+		adapters:   defaultClientAdapters(),
+		logWriter:  os.Stderr,
+	}
 }
 
 // Context returns the initialized browser context.
@@ -36,44 +44,21 @@ func (s *Stagehand) Context() (*BrowserContext, error) {
 	return s.context, nil
 }
 
+// Browser returns a detached snapshot of the resolved browser connection.
+func (s *Stagehand) Browser() (ResolvedBrowserSource, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.browser == nil {
+		return ResolvedBrowserSource{}, ErrNotInitialized
+	}
+	return s.browser.snapshot(), nil
+}
+
 // Initialized reports whether Init completed successfully.
 func (s *Stagehand) Initialized() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.initialized
-}
-
-// Ping checks the Stagehand runtime.
-func (s *Stagehand) Ping(ctx context.Context) (StagehandPingResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return StagehandPingResult{}, err
-	}
-	var result StagehandPingResult
-	err = rpc.call(ctx, "ping", EmptyParams{}, &result)
-	return result, err
-}
-
-// RuntimeLoopbackStatus reports the runtime's CDP loopback state.
-func (s *Stagehand) RuntimeLoopbackStatus(ctx context.Context) (RuntimeLoopbackStatusResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return RuntimeLoopbackStatusResult{}, err
-	}
-	var result RuntimeLoopbackStatusResult
-	err = rpc.call(ctx, "runtime.loopback_status", EmptyParams{}, &result)
-	return result, err
-}
-
-// BrowserGetVersion returns version information from the connected browser.
-func (s *Stagehand) BrowserGetVersion(ctx context.Context) (BrowserGetVersionResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return BrowserGetVersionResult{}, err
-	}
-	var result BrowserGetVersionResult
-	err = rpc.call(ctx, "browser.get_version", EmptyParams{}, &result)
-	return result, err
 }
 
 // Metrics returns aggregate Stagehand operation metrics.
@@ -90,7 +75,7 @@ func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 // Act performs an AI-guided action on the selected or active page.
 func (s *Stagehand) Act(
 	ctx context.Context,
-	input any,
+	instruction any,
 	options *StagehandClientActOptions,
 ) (ActResult, error) {
 	rpc, err := s.connectedProtocol()
@@ -101,16 +86,19 @@ func (s *Stagehand) Act(
 	if err != nil {
 		return ActResult{}, err
 	}
-	var actInput ActInput
-	switch value := input.(type) {
+	var actInstruction ActInstructionValue
+	switch value := instruction.(type) {
 	case string:
-		actInput = ActInstruction(value)
+		actInstruction = ActInstruction(value)
 	case Action:
-		actInput = ObservedAction(value)
+		actInstruction = ObservedAction(value)
 	default:
-		return ActResult{}, fmt.Errorf("act input must be a string or stagehand.Action, got %T", input)
+		return ActResult{}, fmt.Errorf(
+			"act instruction must be a string or stagehand.Action, got %T",
+			instruction,
+		)
 	}
-	params := StagehandActParams{PageID: page.PageID(), Input: actInput}
+	params := StagehandActParams{PageID: page.PageID(), Instruction: actInstruction}
 	if options != nil {
 		params.Options = &options.ActOptions
 	}
@@ -206,6 +194,10 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	if s.initParams.Model != nil && s.initParams.Generate != nil {
 		return errors.New("stagehand: Model and Generate are mutually exclusive")
 	}
+	logging, err := resolveLoggingConfig(s.initParams.Logging, s.logWriter)
+	if err != nil {
+		return err
+	}
 
 	browser, err := s.adapters.resolveBrowserSource(ctx, s.initParams)
 	if err != nil {
@@ -213,7 +205,10 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	}
 	s.browser = &browser
 
-	rpc, err := s.adapters.connectProtocol(ctx, browser, s.initParams.Telemetry)
+	rpc, err := s.adapters.connectProtocol(
+		ctx,
+		browser,
+	)
 	if err != nil {
 		return errors.Join(
 			fmt.Errorf("connect protocol: %w", err),
@@ -221,16 +216,25 @@ func (s *Stagehand) Init(ctx context.Context) error {
 		)
 	}
 	s.rpc = rpc
-	onLog := func(StagehandLog) {}
-	if s.initParams.Logging != nil && s.initParams.Logging.OnLog != nil {
-		onLog = s.initParams.Logging.OnLog
+	notificationContext, cancelNotificationHandler := context.WithCancel(context.Background())
+	removeNotificationHandler := rpc.onNotification(
+		"stagehand.log",
+		func(log StagehandLog) {
+			if notificationContext.Err() != nil {
+				return
+			}
+			handleStagehandLog(log, logging)
+		},
+	)
+	s.removeNotificationHandler = func() {
+		cancelNotificationHandler()
+		removeNotificationHandler()
 	}
-	s.removeNotificationHandler = rpc.onNotification("stagehand.log", onLog)
 	if generate := s.initParams.Generate; generate != nil {
 		s.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(generate))
 	}
 
-	initParams := s.workerInitParams(browser)
+	initParams := s.workerInitParams(browser, logging.level, rpc.browserWebSocketDebuggerURL())
 	var initResult StagehandInitResult
 	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
 		return s.initFailure(ctx, err)
@@ -267,11 +271,22 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 	return s.rpc, nil
 }
 
-func (s *Stagehand) workerInitParams(browser resolvedBrowserSource) StagehandInitParams {
+func (s *Stagehand) workerInitParams(
+	browser resolvedBrowserSource,
+	logLevel StagehandClientLogLevel,
+	browserCDPURL string,
+) StagehandInitParams {
 	params := StagehandInitParams{
-		APIKey:             s.initParams.APIKey,
-		Cache:              s.initParams.Cache,
+		APIKey:        s.initParams.APIKey,
+		BrowserCDPURL: &browserCDPURL,
+		Cache:         s.initParams.Cache,
+		ClientInfo: ImplementationInfo{
+			Name:    stagehandSDKClientName,
+			Version: stagehandSDKVersion,
+		},
 		DOMSettleTimeoutMs: s.initParams.DOMSettleTimeoutMs,
+		LogLevel:           StagehandInitParamsLogLevel(logLevel),
+		ProtocolVersion:    stagehandProtocolVersion,
 		SelfHeal:           s.initParams.SelfHeal,
 		SystemPrompt:       s.initParams.SystemPrompt,
 		Telemetry:          s.initParams.Telemetry,
@@ -396,6 +411,92 @@ func (s *Stagehand) releaseBrowser(ctx context.Context, preserveKeepAlive bool) 
 	return errors.Join(browserErr, cleanupErr)
 }
 
+func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLoggingConfig) {
+	if !isClientLogLevelEnabled(log.Level, logging.level) {
+		return
+	}
+	rendered, err := renderStagehandLog(log, logging.format)
+	if err != nil {
+		fmt.Fprintf(logging.writer, "[stagehand] ERROR render log failed: %v\n", err)
+		return
+	}
+	fmt.Fprintln(logging.writer, rendered)
+	if logging.onLog == nil {
+		return
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			fmt.Fprintf(
+				logging.writer,
+				"[stagehand] ERROR onLog callback failed: %v\n",
+				recovered,
+			)
+		}
+	}()
+	logging.onLog(log)
+}
+
+func isClientLogLevelEnabled(
+	level StagehandLogLevel,
+	threshold StagehandClientLogLevel,
+) bool {
+	logPriority, ok := clientLogLevelPriority(string(level))
+	if !ok {
+		return false
+	}
+	thresholdPriority, ok := clientLogLevelPriority(string(threshold))
+	if !ok {
+		return false
+	}
+	return logPriority >= thresholdPriority
+}
+
+func clientLogLevelPriority(level string) (int, bool) {
+	switch level {
+	case string(StagehandClientLogLevelDebug):
+		return 10, true
+	case string(StagehandClientLogLevelInfo):
+		return 20, true
+	case string(StagehandClientLogLevelWarn):
+		return 30, true
+	case string(StagehandClientLogLevelError):
+		return 40, true
+	case string(StagehandClientLogLevelOff):
+		return int(^uint(0) >> 1), true
+	default:
+		return 0, false
+	}
+}
+
+func renderStagehandLog(
+	log StagehandLog,
+	format StagehandClientLogFormat,
+) (string, error) {
+	if format == StagehandClientLogFormatJSON {
+		record := struct {
+			Level   StagehandLogLevel `json:"level"`
+			Message string            `json:"message"`
+			Data    StagehandLogData  `json:"data"`
+		}{Level: log.Level, Message: log.Message, Data: log.Data}
+		encoded, err := json.Marshal(record)
+		return string(encoded), err
+	}
+	data, err := json.Marshal(log.Data)
+	if err != nil {
+		return "", err
+	}
+	suffix := ""
+	if len(log.Data) != 0 {
+		suffix = " " + string(data)
+	}
+	return fmt.Sprintf(
+		"[stagehand] %s %s%s",
+		strings.ToUpper(string(log.Level)),
+		log.Message,
+		suffix,
+	), nil
+}
+
 func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolClient) *Stagehand {
 	client := New(initParams)
 	client.adapters = clientAdapters{
@@ -403,13 +504,9 @@ func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolCl
 			return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
 		},
 		connectProtocol: func(
-			ctx context.Context,
-			browser resolvedBrowserSource,
-			telemetry TelemetryConfig,
+			_ context.Context,
+			_ resolvedBrowserSource,
 		) (protocolClient, error) {
-			if err := configureProtocol(ctx, rpc, browser, telemetry); err != nil {
-				return nil, err
-			}
 			return rpc, nil
 		},
 	}

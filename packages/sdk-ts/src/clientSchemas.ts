@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod/v4";
+import * as ProtocolSchemas from "../../protocol/schemas.js";
 import {
   ActOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
@@ -48,6 +49,12 @@ export const CdpBrowserSourceSchema = z
     headers: z.record(z.string(), z.string()).optional(),
   })
   .meta({ id: "CdpBrowserSource" });
+
+export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial();
+
+export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial();
+
+export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema;
 
 export const BrowserSourceSchema = z
   .discriminatedUnion("type", [
@@ -102,14 +109,20 @@ export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
 
-export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend({
-  browser: BrowserSourceSchema.default({ type: "browserbase" }),
-  model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
-  logging: StagehandClientLoggingConfigSchema.default({
-    level: "info",
-    format: "pretty",
-  }),
+export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.omit({
+  protocolVersion: true,
+  clientInfo: true,
+  browserCdpUrl: true,
+  logLevel: true,
 })
+  .extend({
+    browser: BrowserSourceSchema.default({ type: "browserbase" }),
+    model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+    logging: StagehandClientLoggingConfigSchema.default({
+      level: "info",
+      format: "pretty",
+    }),
+  })
   .superRefine((params, context) => {
     if (params.browser.type === "browserbase" && params.apiKey === undefined) {
       context.addIssue({
@@ -132,3 +145,6 @@ export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtrac
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
+export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
+export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;

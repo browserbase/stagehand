@@ -51,7 +51,8 @@ type rpcTransport interface {
 }
 
 type rpcClient struct {
-	transport rpcTransport
+	transport           rpcTransport
+	browserWebSocketURL string
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -72,6 +73,10 @@ type rpcClient struct {
 }
 
 var _ protocolClient = (*rpcClient)(nil)
+
+func (client *rpcClient) browserWebSocketDebuggerURL() string {
+	return client.browserWebSocketURL
+}
 
 type pendingRPCRequest struct {
 	method   string

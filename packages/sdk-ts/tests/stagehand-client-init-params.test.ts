@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StagehandInitParamsSchema } from "../../protocol/schemas.js";
+import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -283,6 +283,8 @@ describe("Stagehand client browser sources", () => {
     expect(() => StagehandInitParamsSchema.parse(clientInitParams)).toThrow();
     expect(
       StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         ...protocolParams,
         browser: {
           ...clientInitParams.browser,
@@ -290,6 +292,9 @@ describe("Stagehand client browser sources", () => {
         },
       }),
     ).toStrictEqual({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      logLevel: "info",
       apiKey: "bb_key",
       browser: {
         type: "browserbase",
@@ -330,11 +335,15 @@ describe("Stagehand client browser sources", () => {
   it("keeps local and CDP browser connection settings out of the worker schema", () => {
     expect(() =>
       StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         browser: { type: "local" },
       }),
     ).toThrow();
     expect(() =>
       StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         browser: {
           type: "cdp",
           cdpUrl: "wss://browser.example/devtools/browser/session",

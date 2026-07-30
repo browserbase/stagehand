@@ -11,13 +11,6 @@ describe("RPCClientOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: "/tmp/stagehand-extension",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
     });
   });
 
@@ -30,13 +23,6 @@ describe("RPCClientOptionsSchema", () => {
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionId: "abcdefghijklmnopabcdefghijklmnop",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
     });
   });
 
@@ -48,19 +34,12 @@ describe("RPCClientOptionsSchema", () => {
       }),
     ).toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-      logLevel: "info",
       preloadedExtension: true,
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
     });
   });
 
-  it("accepts a custom OTLP traces destination", () => {
-    expect(
+  it("rejects telemetry because it belongs to stagehand.init", () => {
+    expect(() =>
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
@@ -71,14 +50,7 @@ describe("RPCClientOptionsSchema", () => {
           },
         },
       }),
-    ).toMatchObject({
-      telemetry: {
-        traces: {
-          endpoint: "https://collector.example.com/v1/traces",
-          headers: { Authorization: "Bearer test" },
-        },
-      },
-    });
+    ).toThrow();
   });
 
   it("rejects options without an explicit extension load mode", () => {

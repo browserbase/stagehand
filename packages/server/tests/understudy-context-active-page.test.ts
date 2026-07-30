@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ChromeTabTargetController } from "../understudy/chromeTabs.ts";
-import { V3Context } from "../understudy/context.ts";
+import { BrowserContext } from "../understudy/context.ts";
 import type { Page } from "../understudy/page.ts";
 
 function createContext(activeTargetId?: string) {
@@ -10,7 +10,7 @@ function createContext(activeTargetId?: string) {
     tabIdForTargetId: vi.fn(async () => undefined),
     activateTarget: vi.fn(async () => {}),
   };
-  const context = new V3Context({} as never, {} as never, chromeTabs);
+  const context = new BrowserContext({} as never, {} as never, chromeTabs);
   return { chromeTabs, context };
 }
 
@@ -18,7 +18,7 @@ function createPage(targetId: string): Page {
   return { targetId: () => targetId } as Page;
 }
 
-describe("V3Context active page", () => {
+describe("BrowserContext active page", () => {
   it("resolves Chrome's active target through the understudy page registry", async () => {
     const { chromeTabs, context } = createContext("page-target");
     const page = createPage("page-target");

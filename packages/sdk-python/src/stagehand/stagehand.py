@@ -6,6 +6,7 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from importlib.metadata import version
 from pathlib import Path
 from types import TracebackType
 from typing import Literal, Self, TypeVar, overload
@@ -18,18 +19,17 @@ from ._generated.models import (
     ActResult,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
+    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
     ObserveOptions,
     ObserveResult,
     ProxyConfig,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -38,13 +38,13 @@ from ._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
     TelemetryConfig,
     Variables,
 )
 from ._generated.models import (
     Locator as ProtocolLocator,
 )
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
@@ -380,27 +380,6 @@ class Stagehand:
     def initialized(self) -> bool:
         return self._initialized
 
-    async def ping(self) -> StagehandPingResult:
-        return await self._connected_rpc_client.send(
-            "ping",
-            EmptyParams(),
-            StagehandPingResult,
-        )
-
-    async def runtime_loopback_status(self) -> RuntimeLoopbackStatusResult:
-        return await self._connected_rpc_client.send(
-            "runtime.loopback_status",
-            EmptyParams(),
-            RuntimeLoopbackStatusResult,
-        )
-
-    async def browser_get_version(self) -> BrowserGetVersionResult:
-        return await self._connected_rpc_client.send(
-            "browser.get_version",
-            EmptyParams(),
-            BrowserGetVersionResult,
-        )
-
     async def metrics(self) -> StagehandMetrics:
         return await self._connected_rpc_client.send(
             "stagehand.metrics",
@@ -426,8 +405,6 @@ class Stagehand:
                     preloaded_extension=browser.preloaded_extension,
                     service_worker_url_includes="service-worker.js",
                     cdp_connect_timeout_ms=browser.connect_timeout_ms or 10_000,
-                    telemetry=self.init_params.telemetry,
-                    log_level=self.init_params.logging.level,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
@@ -448,9 +425,15 @@ class Stagehand:
                         generate,
                     )
 
+                browser_cdp_url = rpc_client.browser_web_socket_debugger_url
+                if not browser.resident_browser_connection and browser_cdp_url is None:
+                    raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(browser),
+                    self._worker_init_params(
+                        browser,
+                        None if browser.resident_browser_connection else browser_cdp_url,
+                    ),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
@@ -467,7 +450,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str | Action,
+        instruction: str | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -490,7 +473,10 @@ class Stagehand:
         target_page = page or await self.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        params = StagehandActParams.model_validate({"page_id": target_page.page_id, "input": input})
+        params = StagehandActParams.model_validate({
+            "page_id": target_page.page_id,
+            "instruction": instruction,
+        })
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
@@ -614,6 +600,7 @@ class Stagehand:
     def _worker_init_params(
         self,
         browser: ResolvedBrowserSource,
+        browser_cdp_url: str | None,
     ) -> StagehandInitParams:
         values = self.init_params.model_dump(
             exclude={"browser", "logging", "model"},
@@ -635,6 +622,14 @@ class Stagehand:
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
+        values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
+        values["client_info"] = ImplementationInfo(
+            name="stagehand-sdk-python",
+            version=version("stagehand"),
+        )
+        values["log_level"] = self.init_params.logging.level
+        if browser_cdp_url is not None:
+            values["browser_cdp_url"] = browser_cdp_url
         return StagehandInitParams.model_validate(values)
 
     async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:

@@ -1,15 +1,20 @@
 import asyncio
-from importlib.metadata import version
 from typing import ClassVar, cast
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import cdp_client
 from stagehand._generated import models
 from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
 
 JSON = dict[str, object]
+
+
+class RPCResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ok: bool
 
 
 class QueueTransport:
@@ -144,40 +149,40 @@ async def test_on_request_uses_explicit_models_and_returns_validated_results() -
     transport = QueueTransport()
     client = RPCClient(transport)
 
-    async def handle_ping(params: models.EmptyParams) -> models.StagehandPingResult:
+    async def handle_request(params: models.EmptyParams) -> RPCResult:
         assert params == models.EmptyParams()
-        return models.StagehandPingResult(ok=True, runtime="service_worker")
+        return RPCResult(ok=True)
 
     remove_first = client.on_request(
-        "ping",
+        "test.request",
         models.EmptyParams,
-        models.StagehandPingResult,
-        handle_ping,
+        RPCResult,
+        handle_request,
     )
     remove_current = client.on_request(
-        "ping",
+        "test.request",
         models.EmptyParams,
-        models.StagehandPingResult,
-        handle_ping,
+        RPCResult,
+        handle_request,
     )
     remove_first()
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": 7,
-        "method": "ping",
+        "method": "test.request",
         "params": {},
     })
     assert await asyncio.wait_for(transport.outgoing.get(), timeout=1) == {
         "jsonrpc": "2.0",
         "id": 7,
-        "result": {"ok": True, "runtime": "service_worker"},
+        "result": {"ok": True},
     }
 
     remove_current()
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": 8,
-        "method": "ping",
+        "method": "test.request",
         "params": {},
     })
     try:
@@ -273,14 +278,14 @@ async def test_on_request_rejects_invalid_params_and_reports_handler_errors() ->
     transport = QueueTransport()
     client = RPCClient(transport)
 
-    def fail(_params: models.EmptyParams) -> models.StagehandPingResult:
+    def fail(_params: models.EmptyParams) -> RPCResult:
         raise LookupError("model callback failed")
 
-    client.on_request("ping", models.EmptyParams, models.StagehandPingResult, fail)
+    client.on_request("test.request", models.EmptyParams, RPCResult, fail)
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": 9,
-        "method": "ping",
+        "method": "test.request",
         "params": {"unexpected": True},
     })
     assert await asyncio.wait_for(transport.outgoing.get(), timeout=1) == {
@@ -292,7 +297,7 @@ async def test_on_request_rejects_invalid_params_and_reports_handler_errors() ->
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": 10,
-        "method": "ping",
+        "method": "test.request",
         "params": {},
     })
     try:
@@ -371,9 +376,7 @@ async def test_receive_sends_standard_parse_and_invalid_request_errors() -> None
 async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
     transport = QueueTransport()
     client = RPCClient(transport)
-    call = asyncio.create_task(
-        client.send("ping", models.EmptyParams(), models.StagehandPingResult)
-    )
+    call = asyncio.create_task(client.send("test.request", models.EmptyParams(), RPCResult))
     request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
     await transport.incoming.put({
         "jsonrpc": "2.0",
@@ -399,16 +402,14 @@ async def test_timeout_and_transport_close_reject_pending_requests() -> None:
     timeout_transport = QueueTransport()
     timeout_client = RPCClient(timeout_transport, request_timeout_ms=10)
     try:
-        with pytest.raises(TimeoutError, match="RPC request timed out: ping"):
-            await timeout_client.send("ping", models.EmptyParams(), models.StagehandPingResult)
+        with pytest.raises(TimeoutError, match=r"RPC request timed out: test\.request"):
+            await timeout_client.send("test.request", models.EmptyParams(), RPCResult)
     finally:
         await timeout_client.close()
 
     failing_transport = FailingReceiveTransport()
     failing_client = RPCClient(failing_transport)
-    call = asyncio.create_task(
-        failing_client.send("ping", models.EmptyParams(), models.StagehandPingResult)
-    )
+    call = asyncio.create_task(failing_client.send("test.request", models.EmptyParams(), RPCResult))
     await asyncio.wait_for(failing_transport.outgoing.get(), timeout=1)
     failing_transport.fail.set()
     with pytest.raises(RuntimeError, match="transport reader failed"):
@@ -420,14 +421,12 @@ async def test_timeout_and_transport_close_reject_pending_requests() -> None:
 async def test_invalid_response_closes_client_and_rejects_pending_request() -> None:
     transport = QueueTransport()
     client = RPCClient(transport)
-    call = asyncio.create_task(
-        client.send("ping", models.EmptyParams(), models.StagehandPingResult)
-    )
+    call = asyncio.create_task(client.send("test.request", models.EmptyParams(), RPCResult))
     request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": request["id"],
-        "result": {"ok": True, "runtime": "service_worker"},
+        "result": {"ok": True},
         "unexpected": True,
     })
 
@@ -450,16 +449,10 @@ class FakeCDPClient(QueueTransport):
 
     async def send(self, message: JSON) -> None:
         await super().send(message)
-        if message.get("method") == "runtime.configure":
-            await self.incoming.put({
-                "jsonrpc": "2.0",
-                "id": message["id"],
-                "result": {"configured": True},
-            })
 
 
 @pytest.mark.asyncio
-async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
+async def test_connect_rpc_client_passes_cdp_options_without_sending_an_rpc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(cdp_client, "CDPClient", FakeCDPClient)
@@ -484,24 +477,9 @@ async def test_connect_rpc_client_passes_cdp_options_and_configures_the_runtime(
             "cdp_connect_timeout_ms": 1_003,
         }
         transport = FakeCDPClient.instances[-1]
-        assert transport.sent[0] == {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "runtime.configure",
-            "params": {
-                "client_info": {
-                    "name": "stagehand-sdk-python",
-                    "version": version("stagehand"),
-                },
-                "cdp_url": "ws://resolved.example/devtools/browser/1",
-                "log_level": "info",
-                "telemetry": {
-                    "traces": {
-                        "endpoint": "https://example.com/v1/traces",
-                        "headers": {},
-                    }
-                },
-            },
-        }
+        assert transport.sent == []
+        assert client.browser_web_socket_debugger_url == (
+            "ws://resolved.example/devtools/browser/1"
+        )
     finally:
         await client.close()
