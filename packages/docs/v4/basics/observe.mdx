@@ -896,13 +896,6 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 	actionCache[instruction] = observed.Data
 	return observed.Data, nil
 }
-
-// The second call for the same instruction is served from actionCache
-actions, err := cachedObserve(ctx, "find all form input fields")
-if err != nil {
-	return err
-}
-fmt.Println("cached", len(actions), "actions")
 ```
 </View>
 
