@@ -193,10 +193,6 @@ const result = await stagehand.act("Click the sign in button");
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -317,10 +313,6 @@ const actions = await stagehand.observe("Find the sign in button");
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -431,10 +423,6 @@ console.log(product.data, product.metadata.cacheStatus);
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
-    </ParamField>
-
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
     </ParamField>
 
     <ParamField path="options.model.headers" type="object" optional>
@@ -648,10 +636,6 @@ result = await stagehand.act("Click the sign in button")
   The model provider API key.
 </ParamField>
 
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
-</ParamField>
-
 <ParamField path="model.headers" type="dict[str, object]" optional>
   Additional model provider headers.
 </ParamField>
@@ -765,10 +749,6 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   The model provider API key.
 </ParamField>
 
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
-</ParamField>
-
 <ParamField path="model.headers" type="dict[str, object]" optional>
   Additional model provider headers.
 </ParamField>
@@ -876,10 +856,6 @@ print(product.data, product.metadata.cache_status)
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
-</ParamField>
-
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
 </ParamField>
 
 <ParamField path="model.headers" type="dict[str, object]" optional>

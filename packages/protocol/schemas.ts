@@ -824,27 +824,12 @@ const ModelConnectionSchema = z
   })
   .meta({ id: "ModelConnection" });
 
-export const KnownModelConfigSchema = ModelConnectionSchema.extend({
+export const ModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
     description: "An explicitly supported model name with its provider prefix",
     example: "openai/gpt-5.4-mini",
   }),
-}).meta({ id: "KnownModelConfig" });
-
-export const CustomModelConfigSchema = ModelConnectionSchema.extend({
-  modelName: z.string().min(1).meta({
-    description: "Model name accepted by the custom OpenAI-compatible endpoint",
-    example: "private/model-v2",
-  }),
-  baseURL: z.url().meta({
-    description: "Base URL for the custom OpenAI-compatible endpoint",
-    example: "https://models.example.com/v1",
-  }),
-}).meta({ id: "CustomModelConfig" });
-
-export const ModelConfigSchema = z
-  .union([KnownModelConfigSchema, CustomModelConfigSchema])
-  .meta({ id: "ModelConfig" });
+}).meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */
 export const ClientModelReferenceSchema = z

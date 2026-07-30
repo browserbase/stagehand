@@ -13,7 +13,8 @@ type ActOptions struct {
 	// Serializable element locator for the action target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// Timeout in ms for the action
@@ -430,23 +431,6 @@ const CookieSameSiteLax CookieSameSite = "Lax"
 const CookieSameSiteNone CookieSameSite = "None"
 const CookieSameSiteStrict CookieSameSite = "Strict"
 
-type CustomModelConfig struct {
-	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
-
-	// Base URL for the custom OpenAI-compatible endpoint
-	BaseURL string `json:"base_url"`
-
-	// Custom headers sent with every request to the model provider
-	Headers CustomModelConfigHeaders `json:"headers,omitempty,omitzero"`
-
-	// Model name accepted by the custom OpenAI-compatible endpoint
-	ModelName string `json:"model_name"`
-}
-
-// Custom headers sent with every request to the model provider
-type CustomModelConfigHeaders map[string]string
-
 type DescribedVariableValue struct {
 	// Description corresponds to the JSON schema field "description".
 	Description *string `json:"description,omitempty,omitzero"`
@@ -490,7 +474,8 @@ type ExtractOptions struct {
 	// Serializable element locator for the extraction target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
@@ -523,20 +508,6 @@ type ImplementationInfo struct {
 	// Version corresponds to the JSON schema field "version".
 	Version string `json:"version"`
 }
-
-type KnownModelConfig struct {
-	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
-
-	// Custom headers sent with every request to the model provider
-	Headers KnownModelConfigHeaders `json:"headers,omitempty,omitzero"`
-
-	// ModelName corresponds to the JSON schema field "model_name".
-	ModelName ModelName `json:"model_name"`
-}
-
-// Custom headers sent with every request to the model provider
-type KnownModelConfigHeaders map[string]string
 
 type LLMAnnotations struct {
 	// Audience corresponds to the JSON schema field "audience".
@@ -1015,6 +986,20 @@ type LocatorTypeResult struct {
 	Typed bool `json:"typed"`
 }
 
+type ModelConfig struct {
+	// API key for the model provider
+	APIKey *string `json:"api_key,omitempty,omitzero"`
+
+	// Custom headers sent with every request to the model provider
+	Headers ModelConfigHeaders `json:"headers,omitempty,omitzero"`
+
+	// ModelName corresponds to the JSON schema field "model_name".
+	ModelName ModelName `json:"model_name"`
+}
+
+// Custom headers sent with every request to the model provider
+type ModelConfigHeaders map[string]string
+
 type MouseButton string
 
 const MouseButtonLeft MouseButton = "left"
@@ -1031,7 +1016,8 @@ type ObserveOptions struct {
 	// Serializable element locator for the observation target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// CSS selector to scope observation to a specific element
@@ -2037,9 +2023,6 @@ type generatedModelCatalog struct {
 	// CookieRegex corresponds to the JSON schema field "CookieRegex".
 	CookieRegex *CookieRegex `json:"CookieRegex,omitempty,omitzero"`
 
-	// CustomModelConfig corresponds to the JSON schema field "CustomModelConfig".
-	CustomModelConfig *CustomModelConfig `json:"CustomModelConfig,omitempty,omitzero"`
-
 	// DescribedVariableValue corresponds to the JSON schema field
 	// "DescribedVariableValue".
 	DescribedVariableValue *DescribedVariableValue `json:"DescribedVariableValue,omitempty,omitzero"`
@@ -2067,9 +2050,6 @@ type generatedModelCatalog struct {
 
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
-
-	// KnownModelConfig corresponds to the JSON schema field "KnownModelConfig".
-	KnownModelConfig *KnownModelConfig `json:"KnownModelConfig,omitempty,omitzero"`
 
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
 	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`

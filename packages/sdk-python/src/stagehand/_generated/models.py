@@ -461,36 +461,6 @@ class CookieFilter(RootModel[Union[StrictStr, CookieRegex]]):
     root: Union[StrictStr, CookieRegex]
 
 
-class CustomModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[StrictStr, Field(examples=["private/model-v2"], min_length=1)]
-    """
-    Model name accepted by the custom OpenAI-compatible endpoint
-
-    Example: 'private/model-v2'
-    """
-    base_url: Annotated[WireUrl, Field(examples=["https://models.example.com/v1"])]
-    """
-    Base URL for the custom OpenAI-compatible endpoint
-
-    Example: 'https://models.example.com/v1'
-    """
-
-
 class DescribedVariableValue(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -711,25 +681,6 @@ class JSONRPCRequestId(RootModel[StrictInt]):
 
 class JSONRPCErrorResponseId(RootModel[Optional[JSONRPCRequestId]]):
     root: Optional[JSONRPCRequestId]
-
-
-class KnownModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
-    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class LLMAnnotations(WireModel):
@@ -1234,8 +1185,23 @@ class Mode(StrEnum):
     none = "none"
 
 
-class ModelConfig(RootModel[Union[KnownModelConfig, CustomModelConfig]]):
-    root: Union[KnownModelConfig, CustomModelConfig]
+class ModelConfig(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    api_key: Annotated[
+        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
+    ] = None
+    """
+    API key for the model provider
+
+    Example: 'sk-some-openai-api-key'
+    """
+    headers: Optional[dict[StrictStr, StrictStr]] = None
+    """Custom headers sent with every request to the model provider"""
+    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
+    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class MouseButton(StrEnum):

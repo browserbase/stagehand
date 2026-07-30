@@ -65,7 +65,6 @@ import type {
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
-  CustomModelConfigSchema,
   GoogleModelIdSchema,
   GoogleModelNameSchema,
   GoogleServiceAccountAuthSchema,
@@ -130,7 +129,6 @@ import type {
   ModelProviderSchema,
   GroqModelIdSchema,
   GroqModelNameSchema,
-  KnownModelConfigSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
@@ -234,8 +232,6 @@ export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
 export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
 export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
 export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
-export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
-export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;

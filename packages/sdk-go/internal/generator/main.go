@@ -42,7 +42,6 @@ var customDefinitions = map[string]string{
 	"LLMStructuredGenerateResult":  "LLMStructuredGenerateResult",
 	"LLMToolResultContentBlock":    "LLMToolResultContentBlock",
 	"LoadState":                    "LoadState",
-	"ModelConfig":                  "ModelConfig",
 	"ModelName":                    "ModelName",
 	"ProxyConfig":                  "ProxyConfig",
 	"VariablePrimitive":            "VariablePrimitive",
