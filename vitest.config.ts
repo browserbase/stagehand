@@ -13,7 +13,12 @@ export default defineConfig({
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/server/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
-      "scripts/release/**/*.test.ts",
+      "scripts/**/*.test.ts",
     ],
+    // Integration specs launch real Chrome and are owned solely by
+    // vitest.integration.config.ts, driven through `pnpm run test:integration`. Without this
+    // they would also be swept up by the packages/sdk-ts/tests/** glob above and run as part
+    // of the cacheable unit suite.
+    exclude: ["**/node_modules/**", "**/dist/**", "packages/sdk-ts/tests/integration/**"],
   },
 });
