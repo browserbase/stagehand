@@ -75,7 +75,7 @@ func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 // Act performs an AI-guided action on the selected or active page.
 func (s *Stagehand) Act(
 	ctx context.Context,
-	input any,
+	instruction any,
 	options *StagehandClientActOptions,
 ) (ActResult, error) {
 	rpc, err := s.connectedProtocol()
@@ -86,16 +86,19 @@ func (s *Stagehand) Act(
 	if err != nil {
 		return ActResult{}, err
 	}
-	var actInput ActInput
-	switch value := input.(type) {
+	var actInstruction ActInstructionValue
+	switch value := instruction.(type) {
 	case string:
-		actInput = ActInstruction(value)
+		actInstruction = ActInstruction(value)
 	case Action:
-		actInput = ObservedAction(value)
+		actInstruction = ObservedAction(value)
 	default:
-		return ActResult{}, fmt.Errorf("act input must be a string or stagehand.Action, got %T", input)
+		return ActResult{}, fmt.Errorf(
+			"act instruction must be a string or stagehand.Action, got %T",
+			instruction,
+		)
 	}
-	params := StagehandActParams{PageID: page.PageID(), Input: actInput}
+	params := StagehandActParams{PageID: page.PageID(), Instruction: actInstruction}
 	if options != nil {
 		params.Options = &options.ActOptions
 	}

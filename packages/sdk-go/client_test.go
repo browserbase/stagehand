@@ -315,9 +315,9 @@ func TestActAcceptsObservedAction(t *testing.T) {
 	if !ok {
 		t.Fatalf("stagehand.act params = %T", rpc.calls[3].params)
 	}
-	got, ok := params.Input.AsAction()
+	got, ok := params.Instruction.AsAction()
 	if !ok || !reflect.DeepEqual(got, action) {
-		t.Fatalf("Act() input = %#v, want %#v", got, action)
+		t.Fatalf("Act() instruction = %#v, want %#v", got, action)
 	}
 }
 

@@ -133,14 +133,14 @@ export class Stagehand {
   }
 
   async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
-  async act(action: Action, options?: StagehandClientActOptions): Promise<ActResult>;
-  async act(input: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
+  async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
-      input,
+      instruction,
       ...(options === undefined ? {} : { options: protocolOptions }),
     });
 

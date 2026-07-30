@@ -661,7 +661,7 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
-class Input(RootModel[StrictStr]):
+class Instruction(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(min_length=1)]
 
 
@@ -1832,7 +1832,7 @@ class StagehandActParams(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    input: Union[Input, Action]
+    instruction: Union[Instruction, Action]
     options: Optional[ActOptions] = None
 
 
