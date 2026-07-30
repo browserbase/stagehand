@@ -14,7 +14,6 @@ import {
   ExtractOptionsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
-  LocalBrowserLaunchOptionsSchema,
   ModelConfigSchema,
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
@@ -38,9 +37,31 @@ export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSche
   })
   .meta({ id: "BrowserbaseClientBrowserSource" });
 
-export const LocalBrowserSourceSchema = LocalBrowserLaunchOptionsSchema.extend({
+export const LocalBrowserSourceSchema = ProtocolSchemas.LocalBrowserLaunchOptionsSchema.extend({
   type: z.literal("local"),
 }).meta({ id: "LocalBrowserSource" });
+
+export const LocalBrowserLaunchOptionsSchema = ProtocolSchemas.LocalBrowserLaunchOptionsSchema;
+
+export const LocalBrowserConnectOptionsSchema = z
+  .strictObject({
+    cdpUrl: z.string().min(1),
+    connectTimeoutMs: z.number().int().positive().optional(),
+    extensionId: z.string().min(1).optional(),
+  })
+  .meta({ id: "LocalBrowserConnectOptions" });
+
+export const BrowserbaseLaunchOptionsSchema = BrowserbaseSessionCreateParamsSchema.extend({
+  apiKey: z.string().min(1),
+}).meta({ id: "BrowserbaseLaunchOptions" });
+
+export const BrowserbaseConnectOptionsSchema = z
+  .strictObject({
+    apiKey: z.string().min(1),
+    sessionId: z.string().min(1),
+    connectTimeoutMs: z.number().int().positive().optional(),
+  })
+  .meta({ id: "BrowserbaseConnectOptions" });
 
 export const CdpBrowserSourceSchema = z
   .strictObject({
@@ -143,6 +164,10 @@ export type StagehandClientActOptions = z.input<typeof StagehandClientActOptions
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
+export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
+export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
+export type BrowserbaseLaunchOptions = z.infer<typeof BrowserbaseLaunchOptionsSchema>;
+export type BrowserbaseConnectOptions = z.infer<typeof BrowserbaseConnectOptionsSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
 export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
