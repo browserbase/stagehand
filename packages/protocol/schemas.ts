@@ -1269,6 +1269,72 @@ export const PageRefSchema = z
   })
   .meta({ id: "PageRef" });
 
+export const WebMCPAnnotationSchema = z
+  .strictObject({
+    readOnly: z.boolean().optional(),
+    untrustedContent: z.boolean().optional(),
+    autosubmit: z.boolean().optional(),
+  })
+  .meta({ id: "WebMCPAnnotation" });
+
+const WebMCPJsonValueSchema = z.json().meta({ id: "WebMCPJsonValue" });
+
+export const WebMCPToolDescriptorSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    description: z.string(),
+    inputSchema: z.record(z.string(), WebMCPJsonValueSchema).optional(),
+    annotations: WebMCPAnnotationSchema.optional(),
+    frameId: z.string().min(1),
+    backendNodeId: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPToolDescriptor" });
+
+export const WebMCPToolsOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().default(1_000),
+  })
+  .meta({ id: "WebMCPToolsOptions" });
+
+export const WebMCPInvokeOptionsSchema = z
+  .strictObject({
+    input: z.record(z.string(), WebMCPJsonValueSchema).default({}),
+  })
+  .meta({ id: "WebMCPInvokeOptions" });
+
+export const WebMCPResultOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPResultOptions" });
+
+export const WebMCPInvocationDescriptorSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    toolName: z.string().min(1),
+    frameId: z.string().min(1),
+    input: z.record(z.string(), WebMCPJsonValueSchema),
+  })
+  .meta({ id: "WebMCPInvocationDescriptor" });
+
+export const WebMCPInvocationStatusSchema = z
+  .enum(["Completed", "Canceled", "Error"])
+  .meta({ id: "WebMCPInvocationStatus" });
+
+export const WebMCPRemoteObjectSchema = z
+  .record(z.string(), WebMCPJsonValueSchema)
+  .meta({ id: "WebMCPRemoteObject" });
+
+export const WebMCPToolResponseSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    status: WebMCPInvocationStatusSchema,
+    output: WebMCPJsonValueSchema.optional(),
+    errorText: z.string().optional(),
+    exception: WebMCPRemoteObjectSchema.optional(),
+  })
+  .meta({ id: "WebMCPToolResponse" });
+
 export const LocatorDescriptorSchema = z
   .strictObject({
     pageId: z.string(),
@@ -1336,8 +1402,8 @@ export const StagehandInitParamsSchema = z
 
 export const RuntimeConfigureParamsSchema = z
   .strictObject({
-    protocolVersion: z.int().positive().optional(),
-    clientInfo: ImplementationInfoSchema.optional(),
+    protocolVersion: z.int().positive(),
+    clientInfo: ImplementationInfoSchema,
     cdpUrl: z.string().min(1),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
@@ -1452,6 +1518,43 @@ export const PageIdParamsSchema = z
     pageId: z.string(),
   })
   .meta({ id: "PageIdParams" });
+
+export const PageWebMCPToolsParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    options: WebMCPToolsOptionsSchema.optional(),
+  })
+  .meta({ id: "PageWebMCPToolsParams" });
+
+export const PageWebMCPToolsResultSchema = z
+  .strictObject({
+    tools: z.array(WebMCPToolDescriptorSchema),
+  })
+  .meta({ id: "PageWebMCPToolsResult" });
+
+export const PageWebMCPInvokeToolParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    frameId: z.string().min(1),
+    toolName: z.string().min(1),
+    ...WebMCPInvokeOptionsSchema.shape,
+  })
+  .meta({ id: "PageWebMCPInvokeToolParams" });
+
+export const PageWebMCPInvocationResultParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+    options: WebMCPResultOptionsSchema.optional(),
+  })
+  .meta({ id: "PageWebMCPInvocationResultParams" });
+
+export const PageWebMCPCancelInvocationParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+  })
+  .meta({ id: "PageWebMCPCancelInvocationParams" });
 
 export const MouseButtonSchema = z.enum(["left", "right", "middle"]).meta({ id: "MouseButton" });
 
@@ -1686,35 +1789,11 @@ export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
-export const StagehandPingResultSchema = z
-  .strictObject({
-    ok: z.literal(true),
-    runtime: z.literal("service_worker"),
-  })
-  .meta({ id: "StagehandPingResult" });
-
 export const RuntimeConfigureResultSchema = z
   .strictObject({
     configured: z.literal(true),
   })
   .meta({ id: "RuntimeConfigureResult" });
-
-export const RuntimeLoopbackStatusResultSchema = z
-  .strictObject({
-    configured: z.boolean(),
-    connected: z.boolean(),
-  })
-  .meta({ id: "RuntimeLoopbackStatusResult" });
-
-export const BrowserGetVersionResultSchema = z
-  .strictObject({
-    protocolVersion: z.string().optional(),
-    product: z.string().optional(),
-    revision: z.string().optional(),
-    userAgent: z.string().optional(),
-    jsVersion: z.string().optional(),
-  })
-  .meta({ id: "BrowserGetVersionResult" });
 
 export const StagehandInitResultSchema = z
   .strictObject({

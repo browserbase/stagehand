@@ -71,7 +71,7 @@ func (value *ActInstructionValue) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var action Action
-	if err := json.Unmarshal(data, &action); err != nil {
+	if err := decodeStrictVariantJSON(data, &action); err != nil {
 		return fmt.Errorf("decode act instruction: %w", err)
 	}
 	*value = ObservedAction(action)
@@ -135,7 +135,7 @@ func (value *ModelConfig) UnmarshalJSON(data []byte) error {
 			return errors.New("decode custom model config: base_url and model_name are required")
 		}
 		var decoded CustomModelConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode custom model config: %w", err)
 		}
 		*value = CustomModel(decoded)
@@ -146,7 +146,7 @@ func (value *ModelConfig) UnmarshalJSON(data []byte) error {
 		return errors.New("decode known model config: model_name is required")
 	}
 	var decoded KnownModelConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode known model config: %w", err)
 	}
 	*value = KnownModel(decoded)
@@ -201,14 +201,18 @@ func (value *StagehandInitModel) UnmarshalJSON(data []byte) error {
 	}
 	source, _ := stringProperty(data, "source")
 	if source == modelSourceClient {
+		var clientReference ClientModelReference
+		if err := decodeStrictVariantJSON(data, &clientReference); err != nil {
+			return fmt.Errorf("decode client init model: %w", err)
+		}
 		*value = ClientModel()
 		return nil
 	}
-	var decoded ModelConfig
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	var serverModel ModelConfig
+	if err := decodeStrictVariantJSON(data, &serverModel); err != nil {
 		return fmt.Errorf("decode init model: %w", err)
 	}
-	*value = ServerModel(decoded)
+	*value = ServerModel(serverModel)
 	return nil
 }
 
@@ -266,13 +270,13 @@ func (value *ProxyConfig) UnmarshalJSON(data []byte) error {
 	switch discriminator {
 	case proxyTypeBrowserbase:
 		var decoded BrowserbaseProxyConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode Browserbase proxy: %w", err)
 		}
 		*value = BrowserbaseProxy(decoded)
 	case proxyTypeExternal:
 		var decoded ExternalProxyConfig
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode external proxy: %w", err)
 		}
 		*value = ExternalProxy(decoded)
@@ -405,18 +409,18 @@ func (value *VariableValue) UnmarshalJSON(data []byte) error {
 		return errors.New("stagehand.VariableValue: UnmarshalJSON on nil pointer")
 	}
 	if firstJSONByte(data) == '{' {
-		var decoded DescribedVariableValue
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		var described DescribedVariableValue
+		if err := decodeStrictVariantJSON(data, &described); err != nil {
 			return fmt.Errorf("decode described variable: %w", err)
 		}
-		*value = DescribedVariable(decoded)
+		*value = DescribedVariable(described)
 		return nil
 	}
-	var decoded VariablePrimitive
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	var primitive VariablePrimitive
+	if err := json.Unmarshal(data, &primitive); err != nil {
 		return fmt.Errorf("decode primitive variable: %w", err)
 	}
-	*value = PrimitiveVariable(decoded)
+	*value = PrimitiveVariable(primitive)
 	return nil
 }
 
@@ -480,7 +484,7 @@ func (value *CookieFilter) UnmarshalJSON(data []byte) error {
 		return errors.New("decode cookie filter: expected string or object")
 	}
 	var decoded CookieRegex
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode regex cookie filter: %w", err)
 	}
 	*value = RegexCookie(decoded)

@@ -6,19 +6,6 @@
     "methods": {
       "type": "object",
       "properties": {
-        "ping": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/StagehandPingResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
         "runtime.configure": {
           "type": "object",
           "properties": {
@@ -27,32 +14,6 @@
             },
             "result": {
               "$ref": "#/$defs/RuntimeConfigureResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
-        "runtime.loopback_status": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/RuntimeLoopbackStatusResult"
-            }
-          },
-          "required": ["params", "result"],
-          "additionalProperties": false
-        },
-        "browser.get_version": {
-          "type": "object",
-          "properties": {
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "result": {
-              "$ref": "#/$defs/BrowserGetVersionResult"
             }
           },
           "required": ["params", "result"],
@@ -669,6 +630,58 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.webmcp_tools": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPToolsParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageWebMCPToolsResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_invoke_tool": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvokeToolParams"
+            },
+            "result": {
+              "$ref": "#/$defs/WebMCPInvocationDescriptor"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_invocation_result": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvocationResultParams"
+            },
+            "result": {
+              "$ref": "#/$defs/WebMCPToolResponse"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.webmcp_cancel_invocation": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageWebMCPCancelInvocationParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "locator.click": {
           "type": "object",
           "properties": {
@@ -879,10 +892,7 @@
         }
       },
       "required": [
-        "ping",
         "runtime.configure",
-        "runtime.loopback_status",
-        "browser.get_version",
         "stagehand.init",
         "stagehand.close",
         "stagehand.act",
@@ -930,6 +940,10 @@
         "page.wait_for_load_state",
         "page.wait_for_timeout",
         "page.wait_for_selector",
+        "page.webmcp_tools",
+        "page.webmcp_invoke_tool",
+        "page.webmcp_invocation_result",
+        "page.webmcp_cancel_invocation",
         "locator.click",
         "locator.fill",
         "locator.hover",
@@ -990,26 +1004,6 @@
   "additionalProperties": false,
   "title": "Stagehand V4 Protocol",
   "$defs": {
-    "EmptyParams": {
-      "type": "object",
-      "properties": {},
-      "additionalProperties": false
-    },
-    "StagehandPingResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        },
-        "runtime": {
-          "type": "string",
-          "const": "service_worker"
-        }
-      },
-      "required": ["ok", "runtime"],
-      "additionalProperties": false
-    },
     "RuntimeConfigureParams": {
       "type": "object",
       "properties": {
@@ -1040,7 +1034,7 @@
           "enum": ["off", "error", "warn", "info", "debug"]
         }
       },
-      "required": ["cdp_url"],
+      "required": ["protocol_version", "client_info", "cdp_url"],
       "additionalProperties": false
     },
     "ImplementationInfo": {
@@ -1098,40 +1092,6 @@
         }
       },
       "required": ["configured"],
-      "additionalProperties": false
-    },
-    "RuntimeLoopbackStatusResult": {
-      "type": "object",
-      "properties": {
-        "configured": {
-          "type": "boolean"
-        },
-        "connected": {
-          "type": "boolean"
-        }
-      },
-      "required": ["configured", "connected"],
-      "additionalProperties": false
-    },
-    "BrowserGetVersionResult": {
-      "type": "object",
-      "properties": {
-        "protocol_version": {
-          "type": "string"
-        },
-        "product": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string"
-        },
-        "user_agent": {
-          "type": "string"
-        },
-        "js_version": {
-          "type": "string"
-        }
-      },
       "additionalProperties": false
     },
     "StagehandInitParams": {
@@ -1602,6 +1562,11 @@
         }
       },
       "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "EmptyParams": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false
     },
     "StagehandCloseResult": {
@@ -3862,6 +3827,260 @@
       "required": ["matched"],
       "additionalProperties": false
     },
+    "PageWebMCPToolsParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/WebMCPToolsOptions"
+        }
+      },
+      "required": ["page_id"],
+      "additionalProperties": false
+    },
+    "WebMCPToolsOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "default": 1000,
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWebMCPToolsResult": {
+      "type": "object",
+      "properties": {
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebMCPToolDescriptor"
+          }
+        }
+      },
+      "required": ["tools"],
+      "additionalProperties": false
+    },
+    "WebMCPToolDescriptor": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "input_schema": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        },
+        "annotations": {
+          "$ref": "#/$defs/WebMCPAnnotation"
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "backend_node_id": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["name", "description", "frame_id"],
+      "additionalProperties": false
+    },
+    "WebMCPJsonValue": {
+      "$ref": "#/$defs/__schema8"
+    },
+    "__schema8": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema8"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema8"
+          }
+        }
+      ]
+    },
+    "WebMCPAnnotation": {
+      "type": "object",
+      "properties": {
+        "read_only": {
+          "type": "boolean"
+        },
+        "untrusted_content": {
+          "type": "boolean"
+        },
+        "autosubmit": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "PageWebMCPInvokeToolParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        }
+      },
+      "required": ["page_id", "frame_id", "tool_name"],
+      "additionalProperties": false
+    },
+    "WebMCPInvocationDescriptor": {
+      "type": "object",
+      "properties": {
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tool_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frame_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "input": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/WebMCPJsonValue"
+          }
+        }
+      },
+      "required": ["invocation_id", "tool_name", "frame_id", "input"],
+      "additionalProperties": false
+    },
+    "PageWebMCPInvocationResultParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "$ref": "#/$defs/WebMCPResultOptions"
+        }
+      },
+      "required": ["page_id", "invocation_id"],
+      "additionalProperties": false
+    },
+    "WebMCPResultOptions": {
+      "type": "object",
+      "properties": {
+        "timeout": {
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "WebMCPToolResponse": {
+      "type": "object",
+      "properties": {
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/WebMCPInvocationStatus"
+        },
+        "output": {
+          "$ref": "#/$defs/WebMCPJsonValue"
+        },
+        "error_text": {
+          "type": "string"
+        },
+        "exception": {
+          "$ref": "#/$defs/WebMCPRemoteObject"
+        }
+      },
+      "required": ["invocation_id", "status"],
+      "additionalProperties": false
+    },
+    "WebMCPInvocationStatus": {
+      "type": "string",
+      "enum": ["Completed", "Canceled", "Error"]
+    },
+    "WebMCPRemoteObject": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/WebMCPJsonValue"
+      }
+    },
+    "PageWebMCPCancelInvocationParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "invocation_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "invocation_id"],
+      "additionalProperties": false
+    },
     "LocatorClickParams": {
       "type": "object",
       "properties": {
@@ -4260,10 +4479,10 @@
         "type": "string"
       },
       "additionalProperties": {
-        "$ref": "#/$defs/__schema8"
+        "$ref": "#/$defs/__schema9"
       }
     },
-    "__schema8": {
+    "__schema9": {
       "anyOf": [
         {
           "type": "string"
@@ -4280,7 +4499,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         },
         {
@@ -4289,7 +4508,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema8"
+            "$ref": "#/$defs/__schema9"
           }
         }
       ]
@@ -4308,91 +4527,10 @@
             },
             "method": {
               "type": "string",
-              "const": "ping"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
               "const": "runtime.configure"
             },
             "params": {
               "$ref": "#/$defs/RuntimeConfigureParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "runtime.loopback_status"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
-            },
-            "traceparent": {
-              "type": "string"
-            },
-            "tracestate": {
-              "type": "string"
-            }
-          },
-          "required": ["jsonrpc", "id", "method", "params"],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "jsonrpc": {
-              "type": "string",
-              "const": "2.0"
-            },
-            "id": {
-              "$ref": "#/$defs/JSONRPCRequestId"
-            },
-            "method": {
-              "type": "string",
-              "const": "browser.get_version"
-            },
-            "params": {
-              "$ref": "#/$defs/EmptyParams"
             },
             "traceparent": {
               "type": "string"
@@ -5685,6 +5823,114 @@
             },
             "method": {
               "type": "string",
+              "const": "page.webmcp_tools"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPToolsParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_invoke_tool"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvokeToolParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_invocation_result"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPInvocationResultParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.webmcp_cancel_invocation"
+            },
+            "params": {
+              "$ref": "#/$defs/PageWebMCPCancelInvocationParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "locator.click"
             },
             "params": {
@@ -6138,7 +6384,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema9"
+          "$ref": "#/$defs/__schema10"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6147,7 +6393,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema9": {
+    "__schema10": {
       "anyOf": [
         {
           "type": "string"
@@ -6164,7 +6410,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         },
         {
@@ -6173,7 +6419,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema9"
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]
@@ -6207,13 +6453,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema10"
+          "$ref": "#/$defs/__schema11"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -6230,7 +6476,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -6239,7 +6485,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]

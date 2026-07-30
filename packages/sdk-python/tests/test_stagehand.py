@@ -20,7 +20,6 @@ from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
-    BrowserGetVersionResult,
     CacheStatus,
     ClientModelReference,
     KnownModelConfig,
@@ -33,7 +32,6 @@ from stagehand._generated.models import (
     ModelConfig,
     ObserveResult,
     PageRef,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -42,7 +40,6 @@ from stagehand._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
     StagehandResultMetadata,
 )
 from stagehand.browser_source import ResolvedBrowserSource
@@ -198,22 +195,13 @@ async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_struct
 
 
 @pytest.mark.asyncio
-async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
+async def test_stagehand_routes_public_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     metrics = StagehandMetrics.model_validate({
         field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
     })
     recording = RecordingRPCClient({
-        "ping": StagehandPingResult(ok=True, runtime="service_worker"),
-        "runtime.loopback_status": RuntimeLoopbackStatusResult(
-            configured=True,
-            connected=True,
-        ),
-        "browser.get_version": BrowserGetVersionResult(
-            protocol_version="1.3",
-            product="Chrome/1",
-        ),
         "stagehand.metrics": metrics,
     })
     recording.responses["stagehand.init"] = StagehandInitResult(initialized=True, pages=[])
@@ -230,20 +218,8 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
     await stagehand.init()
 
     assert stagehand.browser.cdp_url == "test://browser"
-    assert await stagehand.ping() == StagehandPingResult(ok=True, runtime="service_worker")
-    assert await stagehand.runtime_loopback_status() == RuntimeLoopbackStatusResult(
-        configured=True,
-        connected=True,
-    )
-    assert await stagehand.browser_get_version() == BrowserGetVersionResult(
-        protocol_version="1.3",
-        product="Chrome/1",
-    )
     assert await stagehand.metrics() == metrics
     assert [method for method, _, _ in recording.calls[1:]] == [
-        "ping",
-        "runtime.loopback_status",
-        "browser.get_version",
         "stagehand.metrics",
     ]
 

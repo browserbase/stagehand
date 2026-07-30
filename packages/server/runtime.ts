@@ -1,5 +1,4 @@
 import type {
-  BrowserGetVersionResult,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -86,12 +85,22 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
+  PageWebMCPCancelInvocationParams,
+  PageWebMCPInvocationResultParams,
+  PageWebMCPInvokeToolParams,
+  PageWebMCPToolsParams,
+  PageWebMCPToolsResult,
   RuntimeConfigureParams,
   RuntimeConfigureResult,
-  RuntimeLoopbackStatusResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../protocol/types.js";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
@@ -144,6 +153,17 @@ export type UnderstudyRuntimePage = {
   ): Promise<boolean>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
+  listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
+  invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor>;
+  waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse>;
+  cancelWebMCPInvocation(invocationId: string): Promise<void>;
   title(): Promise<string>;
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
@@ -199,7 +219,6 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
-  getVersion(): Promise<BrowserGetVersionResult>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
@@ -265,13 +284,6 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  loopbackStatus(): RuntimeLoopbackStatusResult {
-    return {
-      configured: this.browserSession !== undefined,
-      connected: this.browserSession?.connected ?? false,
-    };
-  }
-
   async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
     this.logger.setLevel(params.logLevel);
     const { cdpUrl } = params;
@@ -309,10 +321,6 @@ export class StagehandRuntime {
       initialized: true,
       pages,
     };
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return await this.requireBrowserSession().getVersion();
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
@@ -571,6 +579,36 @@ export class StagehandRuntime {
 
   async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {
     return await this.resolvePage(params.pageId).snapshot(params.options);
+  }
+
+  async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
+    return {
+      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
+    };
+  }
+
+  async pageWebMCPInvokeTool(
+    params: PageWebMCPInvokeToolParams,
+  ): Promise<WebMCPInvocationDescriptor> {
+    return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
+      input: params.input,
+    });
+  }
+
+  async pageWebMCPInvocationResult(
+    params: PageWebMCPInvocationResultParams,
+  ): Promise<WebMCPToolResponse> {
+    return await this.resolvePage(params.pageId).waitForWebMCPInvocationResult(
+      params.invocationId,
+      params.options,
+    );
+  }
+
+  async pageWebMCPCancelInvocation(
+    params: PageWebMCPCancelInvocationParams,
+  ): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).cancelWebMCPInvocation(params.invocationId);
+    return { ok: true };
   }
 
   pageUrl(params: PageIdParams): PageUrlResult {

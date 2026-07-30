@@ -19,6 +19,10 @@ type rpcTransportReceive struct {
 	err     error
 }
 
+type rpcTestResult struct {
+	OK bool `json:"ok"`
+}
+
 type queueRPCTransport struct {
 	sent      chan json.RawMessage
 	incoming  chan rpcTransportReceive
@@ -183,17 +187,17 @@ func TestRPCClientRegistersPendingBeforeTransportCanRespond(t *testing.T) {
 			transport.receiveJSON(`{
 				"jsonrpc": "2.0",
 				"id": ` + jsonNumber(request.ID) + `,
-				"result": {"ok": true, "runtime": "service_worker"}
+				"result": {"ok": true}
 			}`)
 		}
 	}
 	client := newTestRPCClient(t, transport)
 
-	var result StagehandPingResult
-	if err := client.call(context.Background(), "ping", EmptyParams{}, &result); err != nil {
+	var result rpcTestResult
+	if err := client.call(context.Background(), "test.request", EmptyParams{}, &result); err != nil {
 		t.Fatalf("call() error = %v", err)
 	}
-	if !result.Ok || result.Runtime != "service_worker" {
+	if !result.OK {
 		t.Fatalf("call() result = %#v", result)
 	}
 }
@@ -215,13 +219,13 @@ func TestRPCClientHandlesNestedInboundRequestWhileCallIsPending(t *testing.T) {
 
 	callDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		callDone <- client.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		callDone <- client.call(context.Background(), "test.request", EmptyParams{}, &result)
 	}()
 	assertRPCJSON(t, receiveSentRPC(t, transport), `{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"method": "ping",
+		"method": "test.request",
 		"params": {}
 	}`)
 
@@ -240,7 +244,7 @@ func TestRPCClientHandlesNestedInboundRequestWhileCallIsPending(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"result": {"ok": true, "runtime": "service_worker"}
+		"result": {"ok": true}
 	}`)
 	if err := receiveCallError(t, callDone); err != nil {
 		t.Fatalf("call() error = %v", err)
@@ -328,8 +332,8 @@ func TestRPCClientReturnsMethodAndHandlerErrors(t *testing.T) {
 		newRequestHandler(func(
 			context.Context,
 			EmptyParams,
-		) (StagehandPingResult, error) {
-			return StagehandPingResult{}, errors.New("client handler failed")
+		) (rpcTestResult, error) {
+			return rpcTestResult{}, errors.New("client handler failed")
 		}),
 	)
 	transport.receiveJSON(`{
@@ -356,8 +360,8 @@ func TestRPCClientPreservesJSONRPCErrorCodeAndData(t *testing.T) {
 	client := newTestRPCClient(t, transport)
 	callDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		callDone <- client.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		callDone <- client.call(context.Background(), "test.request", EmptyParams{}, &result)
 	}()
 	_ = receiveSentRPC(t, transport)
 	transport.receiveJSON(`{
@@ -499,8 +503,8 @@ func TestRPCClientLogCallbackCanMakeReentrantCall(t *testing.T) {
 	client := newTestRPCClient(t, transport)
 	callbackDone := make(chan error, 1)
 	client.onNotification("stagehand.log", func(StagehandLog) {
-		var result StagehandPingResult
-		callbackDone <- client.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		callbackDone <- client.call(context.Background(), "test.request", EmptyParams{}, &result)
 	})
 
 	transport.receiveJSON(`{
@@ -513,13 +517,13 @@ func TestRPCClientLogCallbackCanMakeReentrantCall(t *testing.T) {
 	if err := json.Unmarshal(request, &envelope); err != nil {
 		t.Fatalf("decode reentrant request: %v", err)
 	}
-	if envelope.Method != "ping" {
-		t.Fatalf("reentrant method = %q, want ping", envelope.Method)
+	if envelope.Method != "test.request" {
+		t.Fatalf("reentrant method = %q, want test.request", envelope.Method)
 	}
 	response, _ := json.Marshal(rpcSuccessEnvelope{
 		JSONRPC: jsonRPCVersion,
 		ID:      envelope.ID,
-		Result:  json.RawMessage(`{"ok":true,"runtime":"service_worker"}`),
+		Result:  json.RawMessage(`{"ok":true}`),
 	})
 	transport.incoming <- rpcTransportReceive{message: response}
 	if err := receiveCallError(t, callbackDone); err != nil {
@@ -560,8 +564,8 @@ func TestRPCClientWaitsForResponseAndRejectsCanceledOrFailedCalls(t *testing.T) 
 	delayedClient := newTestRPCClient(t, delayedTransport)
 	delayedDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		delayedDone <- delayedClient.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		delayedDone <- delayedClient.call(context.Background(), "test.request", EmptyParams{}, &result)
 	}()
 	_ = receiveSentRPC(t, delayedTransport)
 	select {
@@ -572,7 +576,7 @@ func TestRPCClientWaitsForResponseAndRejectsCanceledOrFailedCalls(t *testing.T) 
 	delayedTransport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"result": {"ok": true, "runtime": "service_worker"}
+		"result": {"ok": true}
 	}`)
 	if err := receiveCallError(t, delayedDone); err != nil {
 		t.Fatalf("delayed call error = %v", err)
@@ -583,8 +587,8 @@ func TestRPCClientWaitsForResponseAndRejectsCanceledOrFailedCalls(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancelDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		cancelDone <- cancelClient.call(ctx, "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		cancelDone <- cancelClient.call(ctx, "test.request", EmptyParams{}, &result)
 	}()
 	_ = receiveSentRPC(t, cancelTransport)
 	cancel()
@@ -596,8 +600,8 @@ func TestRPCClientWaitsForResponseAndRejectsCanceledOrFailedCalls(t *testing.T) 
 	failingClient := newTestRPCClient(t, failingTransport)
 	failingDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		failingDone <- failingClient.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		failingDone <- failingClient.call(context.Background(), "test.request", EmptyParams{}, &result)
 	}()
 	_ = receiveSentRPC(t, failingTransport)
 	failingTransport.failReceive(errors.New("transport reader failed"))
@@ -621,14 +625,14 @@ func TestRPCClientInvalidResponseClosesClientAndRejectsPendingCall(t *testing.T)
 	}
 	callDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		callDone <- client.call(context.Background(), "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		callDone <- client.call(context.Background(), "test.request", EmptyParams{}, &result)
 	}()
 	_ = receiveSentRPC(t, transport)
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"result": {"ok": true, "runtime": "service_worker"},
+		"result": {"ok": true},
 		"unexpected": true
 	}`)
 
@@ -656,9 +660,9 @@ func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 		newRequestHandler(func(
 			ctx context.Context,
 			_ EmptyParams,
-		) (StagehandPingResult, error) {
+		) (rpcTestResult, error) {
 			inboundTrace <- trace.SpanContextFromContext(ctx)
-			return StagehandPingResult{Ok: true, Runtime: "service_worker"}, nil
+			return rpcTestResult{OK: true}, nil
 		}),
 	)
 
@@ -692,13 +696,13 @@ func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 	)
 	callDone := make(chan error, 1)
 	go func() {
-		var result StagehandPingResult
-		callDone <- client.call(outboundContext, "ping", EmptyParams{}, &result)
+		var result rpcTestResult
+		callDone <- client.call(outboundContext, "test.request", EmptyParams{}, &result)
 	}()
 	assertRPCJSON(t, receiveSentRPC(t, transport), `{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"method": "ping",
+		"method": "test.request",
 		"params": {},
 		"traceparent": "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
 		"tracestate": "stagehand=test"
@@ -706,7 +710,7 @@ func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 1,
-		"result": {"ok": true, "runtime": "service_worker"}
+		"result": {"ok": true}
 	}`)
 	if err := receiveCallError(t, callDone); err != nil {
 		t.Fatalf("call() error = %v", err)
