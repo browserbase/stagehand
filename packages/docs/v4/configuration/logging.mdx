@@ -875,7 +875,7 @@ finally:
 ```
 </View>
 
-<View title="Go" icon="go">
+<View title="Go" icon="golang">
 
 ```go
 client := stagehand.New(stagehand.StagehandClientInitParams{
@@ -941,29 +941,6 @@ func run(ctx context.Context) (err error) {
 }
 ```
 
-</View>
-
-Each callback receives the event as a structured log:
-<View title="Go" icon="golang">
-```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			_ = json.NewEncoder(logFile).Encode(entry)
-		},
-	},
-})
-
-if err := client.Init(ctx); err != nil {
-	return err
-}
-defer func() {
-	err = errors.Join(err, client.Close(ctx), logFile.Close())
-}()
-
-// ... your automation
-```
 </View>
 
 ### Viewing logs
