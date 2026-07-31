@@ -93,6 +93,15 @@ export const CacheGetResponseSchema = z.object({
   hitCount: z.number().optional(),
   /** Present on a hit: age of the cached entry in ms. */
   ageMs: z.number().optional(),
+  /** Present on a hit: LLM tokens the cached entry avoided spending. The API
+   * reports savings in its own `{input, output, total}` shape. */
+  tokensSaved: z
+    .object({
+      input: z.number(),
+      output: z.number(),
+      total: z.number(),
+    })
+    .optional(),
 });
 
 export const CacheSetResponseSchema = z.object({

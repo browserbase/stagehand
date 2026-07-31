@@ -247,10 +247,43 @@ type BrowserbaseViewport struct {
 	Width *float64 `json:"width,omitempty,omitzero"`
 }
 
+type CacheMetadata struct {
+	// Age of the served cache entry in milliseconds; hits only
+	AgeMs *int `json:"age_ms,omitempty,omitzero"`
+
+	// Times this cache key has been seen, including this request; compare with
+	// threshold to see how close the key is to being served
+	Count *int `json:"count,omitempty,omitzero"`
+
+	// Why the cache did not serve this request; misses only. Reported by the server:
+	// "not_found", "threshold", "empty_array", "timeout", "error", "bypass",
+	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed"
+	// (the cache request itself failed) and "replay_failed" (a cached value was found
+	// but could not be applied)
+	MissReason *string `json:"miss_reason,omitempty,omitzero"`
+
+	// Hit-count threshold in effect for this key
+	Threshold *int `json:"threshold,omitempty,omitzero"`
+
+	// LLM tokens avoided by serving this request from cache; hits only
+	TokensSaved *CacheTokenSavings `json:"tokens_saved,omitempty,omitzero"`
+}
+
 type CacheStatus string
 
 const CacheStatusHIT CacheStatus = "HIT"
 const CacheStatusMISS CacheStatus = "MISS"
+
+type CacheTokenSavings struct {
+	// InputTokens corresponds to the JSON schema field "input_tokens".
+	InputTokens int `json:"input_tokens"`
+
+	// OutputTokens corresponds to the JSON schema field "output_tokens".
+	OutputTokens int `json:"output_tokens"`
+
+	// TotalTokens corresponds to the JSON schema field "total_tokens".
+	TotalTokens int `json:"total_tokens"`
+}
 
 type CerebrasModelName string
 
@@ -1776,6 +1809,9 @@ type StagehandResultMetadata struct {
 	// Action ID for tracking
 	ActionID *string `json:"action_id,omitempty,omitzero"`
 
+	// Cache observability details for this result; absent when no cache lookup ran
+	CacheMetadata *CacheMetadata `json:"cache_metadata,omitempty,omitzero"`
+
 	// Server-side cache status for this result
 	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
 }
@@ -1930,8 +1966,14 @@ type generatedModelCatalog struct {
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
 
+	// CacheMetadata corresponds to the JSON schema field "CacheMetadata".
+	CacheMetadata *CacheMetadata `json:"CacheMetadata,omitempty,omitzero"`
+
 	// CacheStatus corresponds to the JSON schema field "CacheStatus".
 	CacheStatus *CacheStatus `json:"CacheStatus,omitempty,omitzero"`
+
+	// CacheTokenSavings corresponds to the JSON schema field "CacheTokenSavings".
+	CacheTokenSavings *CacheTokenSavings `json:"CacheTokenSavings,omitempty,omitzero"`
 
 	// Caching corresponds to the JSON schema field "Caching".
 	Caching *Caching `json:"Caching,omitempty,omitzero"`

@@ -263,6 +263,44 @@ const result = await stagehand.act("Click the sign in button");
     Whether server-side caching served or computed the result.
   </ResponseField>
 
+  <ResponseField name="result.metadata.cacheMetadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cacheMetadata.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.ageMs" type="number" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
@@ -374,6 +412,44 @@ const actions = await stagehand.observe("Find the sign in button");
     Whether server-side caching served or computed the result.
   </ResponseField>
 
+  <ResponseField name="result.metadata.cacheMetadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cacheMetadata.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.ageMs" type="number" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
@@ -472,6 +548,44 @@ console.log(product.data, product.metadata.cacheStatus);
 
   <ResponseField name="result.metadata.cacheStatus" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.cacheMetadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cacheMetadata.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.ageMs" type="number" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cacheMetadata.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cacheMetadata.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
   </ResponseField>
 
   <ResponseField name="result.metadata.actionId" type="string" optional>
@@ -736,6 +850,44 @@ result = await stagehand.act("Click the sign in button")
     Whether server-side caching served or computed the result.
   </ResponseField>
 
+  <ResponseField name="result.metadata.cache_metadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache_metadata.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.age_ms" type="int" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
@@ -844,6 +996,44 @@ actions = await stagehand.observe(instruction="Find the sign in button")
     Whether server-side caching served or computed the result.
   </ResponseField>
 
+  <ResponseField name="result.metadata.cache_metadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache_metadata.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.age_ms" type="int" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
@@ -939,6 +1129,44 @@ print(product.data, product.metadata.cache_status)
 
   <ResponseField name="result.metadata.cache_status" type="CacheStatus" optional>
     Whether server-side caching served or computed the result.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.cache_metadata" type="CacheMetadata" optional>
+    Cache observability for this result; absent when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache_metadata.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.age_ms" type="int" optional>
+      Age of the served cache entry in milliseconds; hits only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache_metadata.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache_metadata.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
   </ResponseField>
 
   <ResponseField name="result.metadata.action_id" type="str" optional>

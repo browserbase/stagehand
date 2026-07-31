@@ -1032,6 +1032,42 @@ export const ActionSchema = z
 // Act
 // =============================================================================
 
+/** LLM tokens avoided by serving a request from the cache. */
+export const CacheTokenSavingsSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative(),
+    outputTokens: z.number().int().nonnegative(),
+    totalTokens: z.number().int().nonnegative(),
+  })
+  .meta({ id: "CacheTokenSavings" });
+
+/**
+ * Cache observability for one act/observe/extract call. Present whenever a
+ * cache lookup ran, so `cacheStatus` alone no longer has to explain itself:
+ * a miss carries why it missed, and a hit carries how established the entry is.
+ */
+export const CacheMetadataSchema = z
+  .strictObject({
+    count: z.number().int().nonnegative().optional().meta({
+      description:
+        "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+    }),
+    threshold: z.number().int().positive().optional().meta({
+      description: "Hit-count threshold in effect for this key",
+    }),
+    ageMs: z.number().int().nonnegative().optional().meta({
+      description: "Age of the served cache entry in milliseconds; hits only",
+    }),
+    missReason: z.string().optional().meta({
+      description:
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+    }),
+    tokensSaved: CacheTokenSavingsSchema.optional().meta({
+      description: "LLM tokens avoided by serving this request from cache; hits only",
+    }),
+  })
+  .meta({ id: "CacheMetadata" });
+
 export const StagehandResultMetadataSchema = z
   .strictObject({
     actionId: z.string().optional().meta({
@@ -1039,6 +1075,9 @@ export const StagehandResultMetadataSchema = z
     }),
     cacheStatus: CacheStatusSchema.optional().meta({
       description: "Server-side cache status for this result",
+    }),
+    cacheMetadata: CacheMetadataSchema.optional().meta({
+      description: "Cache observability details for this result; absent when no cache lookup ran",
     }),
   })
   .meta({ id: "StagehandResultMetadata" });
