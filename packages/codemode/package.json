@@ -1,0 +1,39 @@
+{
+  "name": "@browserbasehq/stagehand-codemode",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Stagehand V4 code-mode runtime and MCP server",
+  "bin": {
+    "stagehand-codemode": "./dist/cli.mjs"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run --config vitest.config.ts",
+    "test:live": "pnpm run build && node tests/live-smoke.mjs",
+    "test:unit": "pnpm run test",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "catalog:",
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
