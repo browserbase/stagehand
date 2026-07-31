@@ -113,6 +113,14 @@ export async function stopDriverDaemon(
       type: "stop",
     });
   } catch (error) {
+    if (
+      !force &&
+      error instanceof CommandFailure &&
+      error.telemetry.resultCode === "daemon_not_running"
+    ) {
+      await cleanupStoppedDaemonFiles(session);
+      return { stopped: false };
+    }
     if (!force) throw error;
     await cleanupDaemonFiles(session);
     return { stopped: true };
@@ -207,6 +215,10 @@ async function sendDriverRequest<T>(session: string, request: DriverRequest): Pr
       }
     });
     socket.on("error", (error) => {
+      if (isDaemonUnavailableError(error)) {
+        failRequest(daemonNotRunningError(session, request));
+        return;
+      }
       failRequest(error);
     });
     socket.on("end", () => {
@@ -271,7 +283,22 @@ async function cleanupStaleDaemonFiles(session: string): Promise<void> {
   await cleanupDaemonFiles(session, { includeLock: false });
 }
 
-async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean> {
+async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
+  const locked = await acquireLock(session);
+  if (!locked) return;
+  try {
+    const status = await tryDriverStatus(session);
+    if (status?.session === session) return;
+    await cleanupDaemonFiles(session, { includeLock: false });
+  } finally {
+    await releaseLock(session);
+  }
+}
+
+async function acquireLock(
+  session: string,
+  timeoutMs = 10_000,
+): Promise<boolean> {
   const lockPath = getLockPath(session);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -327,4 +354,33 @@ async function removeStaleLock(lockPath: string): Promise<boolean> {
 
 function requestId(): string {
   return `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isDaemonUnavailableError(error: Error): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ECONNREFUSED" || code === "ENOENT";
+}
+
+function daemonNotRunningError(
+  session: string,
+  request: DriverRequest,
+): CommandFailure {
+  const sessionFlag =
+    session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
+  const startCommand =
+    request.type === "open"
+      ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`
+      : `browse open <url>${sessionFlag}`;
+
+  return new CommandFailure(
+    `Driver daemon session "${session}" is not running. Start it with: ${startCommand}`,
+    1,
+    { resultCode: "daemon_not_running" },
+  );
+}
+
+function formatCommandArgument(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  const escaped = value.replaceAll("'", "'\"'\"'");
+  return `'${escaped}'`;
 }

@@ -13,21 +13,24 @@ interface RawLog {
   request?: { rawBody?: string; params?: unknown };
 }
 
-interface LogParams {
+interface CdpLogParams {
   args?: Array<{ description?: string; value?: unknown }>;
-  entry?: { level?: string; text?: string; url?: string };
-  errorText?: string;
+  entry?: { level?: string; text?: unknown; url?: unknown };
+  errorText?: unknown;
   exceptionDetails?: {
     exception?: { description?: string };
     text?: string;
   };
-  response?: { status?: number; url?: string };
+  response?: { status?: number; url?: unknown };
   type?: string;
 }
 
-function paramsOf(e: RawLog): LogParams {
+function paramsOf(e: RawLog): CdpLogParams {
   try {
-    return (JSON.parse(e.request?.rawBody ?? "{}").params as LogParams) ?? {};
+    const parsed = JSON.parse(e.request?.rawBody ?? "{}") as {
+      params?: CdpLogParams;
+    };
+    return parsed.params ?? {};
   } catch {
     return {};
   }
@@ -37,7 +40,10 @@ function paramsOf(e: RawLog): LogParams {
 function trimStack(s: string): string {
   return (s || "")
     .split("\n")
-    .filter((l, i) => i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)))
+    .filter(
+      (l, i) =>
+        i === 0 || (/\/src\//.test(l) && !/node_modules|\.vite/.test(l)),
+    )
     .slice(0, 4)
     .map((l) =>
       l
@@ -48,7 +54,10 @@ function trimStack(s: string): string {
     .join("\n");
 }
 
-export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown[] {
+export function reduceLogs(
+  raw: RawLog[],
+  opts: ReduceLogsOptions = {},
+): unknown[] {
   const out: Record<string, unknown>[] = [];
   const seen = new Set<string>();
   const push = (rec: Record<string, unknown>) => {
@@ -62,14 +71,20 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
   for (const e of raw) {
     const p = paramsOf(e);
     const m = e.method;
+    const responseStatus = p.response?.status;
     let rec: Record<string, unknown> | null = null;
 
     if (
       m === "Runtime.consoleAPICalled" &&
-      p.type &&
+      typeof p.type === "string" &&
       ["error", "warning", "assert"].includes(p.type)
     ) {
-      const text = (p.args ?? []).map((a) => a.description || a.value || "").join(" ");
+      const text = (Array.isArray(p.args) ? p.args : [])
+        .map((a) =>
+          a && typeof a === "object" ? a.description || a.value || "" : "",
+        )
+        .filter(Boolean)
+        .join(" ");
       if (text && !/^%[os]/.test(text))
         rec = {
           kind: `console.${p.type}`,
@@ -83,13 +98,15 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         domain: "Runtime",
         severity: "error",
         text: trimStack(
-          p.exceptionDetails?.exception?.description ?? p.exceptionDetails?.text ?? "",
+          p.exceptionDetails?.exception?.description ??
+            p.exceptionDetails?.text ??
+            "",
         ),
       };
     } else if (
       m === "Log.entryAdded" &&
-      p.entry?.level &&
-      ["error", "warning"].includes(p.entry.level)
+      typeof p.entry?.level === "string" &&
+      ["error", "warning"].includes(p.entry?.level)
     ) {
       rec = {
         kind: `log.${p.entry.level}`,
@@ -98,21 +115,33 @@ export function reduceLogs(raw: RawLog[], opts: ReduceLogsOptions = {}): unknown
         text: p.entry.text,
         url: p.entry.url,
       };
-    } else if (m === "Network.responseReceived" && p.response && (p.response.status ?? 0) >= 400) {
+    } else if (
+      m === "Network.responseReceived" &&
+      typeof responseStatus === "number" &&
+      responseStatus >= 400
+    ) {
       rec = {
         kind: "network",
         domain: "Network",
-        status: p.response.status,
-        url: p.response.url,
+        status: responseStatus,
+        url: p.response?.url,
         type: p.type,
       };
-    } else if (m === "Network.loadingFailed" && p.errorText !== "net::ERR_ABORTED") {
-      rec = { kind: "network.failed", domain: "Network", error: p.errorText, type: p.type };
+    } else if (
+      m === "Network.loadingFailed" &&
+      p.errorText !== "net::ERR_ABORTED"
+    ) {
+      rec = {
+        kind: "network.failed",
+        domain: "Network",
+        error: p.errorText,
+        type: p.type,
+      };
     } else {
-      continue; // everything else (byte-chunk / lifecycle events) is noise
+      continue;
     }
 
-    if (!rec) continue; // e.g. a console.error whose text was empty / formatting noise
+    if (!rec) continue;
     if (opts.failedRequests && rec.domain !== "Network") continue;
     push(rec);
   }
