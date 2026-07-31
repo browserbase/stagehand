@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import cast
 
 import pytest
@@ -311,3 +312,23 @@ async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_ident
             PageVoidResult,
         ),
     ]
+
+
+def test_optional_page_arguments_are_keyword_only() -> None:
+    """Required arguments are positional; anything with a default must be keyword-only."""
+    offenders: list[str] = []
+
+    for name in dir(Page):
+        if name.startswith("_"):
+            continue
+        attribute = inspect.getattr_static(Page, name)
+        if not (inspect.isfunction(attribute) or inspect.iscoroutinefunction(attribute)):
+            continue
+        for parameter in inspect.signature(attribute).parameters.values():
+            if (
+                parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+                and parameter.default is not inspect.Parameter.empty
+            ):
+                offenders.append(f"Page.{name}({parameter.name}=...)")
+
+    assert offenders == []
