@@ -9,7 +9,7 @@ Create a `Locator` from a page selector, then reuse it for element interactions 
 Selectors pierce shadow DOM, including closed roots.
 
 <Warning>
-**Closed roots require a navigated page.** Piercing them needs a frame with a real origin, and a tab still sitting at `about:blank` has none, so a selector crossing a closed root will not match there. Open roots still resolve. Navigate to an `http:` or `https:` URL first; Stagehand switches back automatically.
+**Closed roots require a navigated page.** Piercing them needs a frame with a real origin, and a tab still sitting at `about:blank` has none, so a selector crossing a closed root will not match there. Open roots still resolve. Navigate the tab to an `http:` or `https:` URL first.
 </Warning>
 
 <View title="TypeScript" icon="js">
