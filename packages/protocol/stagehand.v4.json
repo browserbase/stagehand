@@ -1090,7 +1090,8 @@
           "$ref": "#/$defs/BrowserbaseRegion"
         }
       },
-      "required": ["session_id"]
+      "required": ["session_id"],
+      "additionalProperties": false
     },
     "BrowserbaseRegion": {
       "type": "string",

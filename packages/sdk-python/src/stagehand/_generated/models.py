@@ -151,6 +151,7 @@ class Browser(StrEnum):
 
 class BrowserSessionMetadata(WireModel):
     model_config = ConfigDict(
+        extra="forbid",
         validate_by_name=True,
     )
     session_id: Annotated[StrictStr, Field(min_length=1)]
