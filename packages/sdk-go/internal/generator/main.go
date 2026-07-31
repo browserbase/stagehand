@@ -67,13 +67,13 @@ var customDefinitions = map[string]string{
 var customProperties = map[string]string{
 	"$defs/BrowserbaseSessionCreateParams/properties/proxies":       "BrowserbaseProxies",
 	"$defs/BrowserbaseSessionCreateParams/properties/user_metadata": "map[string]json.RawMessage",
-	"$defs/ContextCookiesParams/properties/urls":              "StringList",
-	"$defs/ExtractResult/properties/result":                   "json.RawMessage",
-	"$defs/LLMMessage/properties/content":                     "LLMMessageContent",
-	"$defs/LocatorScrollToParams/properties/percent":          "ScrollPercent",
-	"$defs/LocatorSelectOptionParams/properties/values":       "StringList",
-	"$defs/StagehandActParams/properties/instruction":         "ActInstructionValue",
-	"$defs/StagehandInitParams/properties/model":              "StagehandInitModel",
+	"$defs/ContextCookiesParams/properties/urls":                    "StringList",
+	"$defs/ExtractResult/properties/result":                         "json.RawMessage",
+	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
+	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
+	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",
+	"$defs/StagehandActParams/properties/instruction":               "ActInstructionValue",
+	"$defs/StagehandInitParams/properties/model":                    "StagehandInitModel",
 }
 
 // Omissis normally applies the configured Go initialisms. Its case splitter

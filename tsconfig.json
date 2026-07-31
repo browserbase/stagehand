@@ -4,7 +4,6 @@
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "allowImportingTsExtensions": true,
-    "esModuleInterop": true,
-    "stripInternal": true
+    "esModuleInterop": true
   }
 }

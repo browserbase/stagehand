@@ -13,7 +13,6 @@ import { BrowserContext } from "./browserContext.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
-  StagehandClientCreateConfigSchema,
   StagehandCreateOptionsSchema,
   StagehandClientObserveOptionsSchema,
   type StagehandClientActOptions,
@@ -50,21 +49,6 @@ export class Stagehand {
     private readonly browserHandle: StagehandBrowser,
     readonly initParams: ResolvedStagehandClientCreateConfig,
   ) {}
-
-  /** @internal */
-  static createWithClientForTest(client: RPCClient): Stagehand {
-    const browser = {
-      provider: "local",
-      origin: "connected",
-      closed: false,
-      close: async () => {},
-    } as StagehandBrowser;
-    const stagehand = new Stagehand(browser, StagehandClientCreateConfigSchema.parse({}));
-    stagehand.rpcClient = client;
-    stagehand.browserContext = new BrowserContext(client);
-    stagehand.isInitialized = true;
-    return stagehand;
-  }
 
   static async create(input: StagehandCreateOptions): Promise<Stagehand> {
     const { browser, ...initParams } = StagehandCreateOptionsSchema.parse(input);
@@ -237,10 +221,6 @@ function stagehandCreateParamsForWorker(
     ...browser.workerInitMetadata,
     ...(protocolModel === undefined ? {} : { model: protocolModel }),
   });
-}
-
-export function createStagehandWithClientForTest(client: RPCClient): Stagehand {
-  return Stagehand.createWithClientForTest(client);
 }
 
 const LOG_LEVEL_PRIORITY = {

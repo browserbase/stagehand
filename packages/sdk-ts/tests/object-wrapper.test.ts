@@ -10,11 +10,11 @@ import {
   BrowserContext,
   Locator,
   Page,
+  Stagehand,
   WebMCPInvocation,
   WebMCPTool,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
-import { createStagehandWithClientForTest } from "../src/stagehand.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -67,6 +67,14 @@ class FakeProtocolClient extends RPCClient {
   }
 
   close(): void {}
+}
+
+function createStagehandWithClientForTest(client: RPCClient): Stagehand {
+  const stagehand = Object.create(Stagehand.prototype) as Stagehand;
+  stagehand.rpcClient = client;
+  stagehand.browserContext = new BrowserContext(client);
+  stagehand.isInitialized = true;
+  return stagehand;
 }
 
 function requestCall<Method extends RPCMethod>(
