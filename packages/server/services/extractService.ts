@@ -31,7 +31,7 @@ interface ExtractionResponseBase {
   prompt_tokens: number;
   completion_tokens: number;
   reasoning_tokens: number;
-  cached_input_tokens?: number;
+  cached_input_tokens: number;
   inference_time_ms: number;
 }
 
@@ -183,7 +183,7 @@ export async function extract({
             inputTokens: prompt_tokens,
             outputTokens: completion_tokens,
             reasoningTokens: reasoning_tokens,
-            cachedInputTokens: cached_input_tokens ?? 0,
+            cachedInputTokens: cached_input_tokens,
             inferenceTimeMs: inference_time_ms,
           },
         },

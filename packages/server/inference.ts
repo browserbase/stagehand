@@ -137,7 +137,7 @@ export async function extract<T extends z.ZodObject>(params: {
     prompt_tokens: number;
     completion_tokens: number;
     reasoning_tokens: number;
-    cached_input_tokens?: number;
+    cached_input_tokens: number;
     inference_time_ms: number;
   }
 > {
