@@ -76,10 +76,6 @@ expectTypeOf(StagehandMethods.pageWaitForSelector.name).toEqualTypeOf<"page.wait
 expectTypeOf<z.output<typeof StagehandMethods.pageWaitForSelector.result>>().toEqualTypeOf<{
   matched: boolean;
 }>();
-expectTypeOf(StagehandMethods.browserGetVersion.name).toEqualTypeOf<"browser.get_version">();
-expectTypeOf<z.input<typeof StagehandMethods.browserGetVersion.params>>().toEqualTypeOf<
-  Record<string, never>
->();
 expectTypeOf(StagehandMethods.locatorSelectOption.name).toEqualTypeOf<"locator.select_option">();
 expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEqualTypeOf<{
   pageId: string;
@@ -87,9 +83,9 @@ expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEq
   nth?: number;
   values: string | string[];
 }>();
-expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toEqualTypeOf<{
-  values: string[];
-}>();
+expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toEqualTypeOf<
+  string[]
+>();
 expectTypeOf<StagehandRequest["method"]>().toEqualTypeOf<z.output<typeof StagehandMethodSchema>>();
 expectTypeOf<z.output<typeof StagehandMethodSchema>>().toEqualTypeOf<RegisteredStagehandMethod>();
 expectTypeOf(StagehandNotifications.log.name).toEqualTypeOf<"stagehand.log">();

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveBrowserSource, type BrowserbaseSessionClient } from "../src/browserSource.js";
+import {
+  localBrowserChromeFlags,
+  resolveBrowserSource,
+  WEBMCP_CHROME_FLAG,
+  type BrowserbaseSessionClient,
+} from "../src/browserSource.js";
 
 describe("resolveBrowserSource", () => {
   it("creates a Browserbase session from the default browser source", async () => {
@@ -24,6 +29,7 @@ describe("resolveBrowserSource", () => {
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/new-session",
       browserbaseSessionId: "new-session",
       preloadedExtension: true,
+      residentBrowserConnection: false,
       keepAlive: false,
       close,
     });
@@ -95,12 +101,27 @@ describe("resolveBrowserSource", () => {
       ),
     ).resolves.toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
+      residentBrowserConnection: false,
       keepAlive: true,
       close,
     });
     expect(launchLocalBrowser).toHaveBeenCalledWith({
       headless: false,
       keepAlive: true,
+    });
+  });
+
+  it("uses client configuration for a local browser launched on another port", async () => {
+    const launchLocalBrowser = vi.fn(async () => ({
+      cdpUrl: "http://127.0.0.1:9333",
+      close: vi.fn(),
+    }));
+
+    await expect(
+      resolveBrowserSource({ browser: { type: "local", port: 9333 } }, { launchLocalBrowser }),
+    ).resolves.toMatchObject({
+      cdpUrl: "http://127.0.0.1:9333",
+      residentBrowserConnection: false,
     });
   });
 
@@ -116,6 +137,7 @@ describe("resolveBrowserSource", () => {
     ).resolves.toStrictEqual({
       cdpUrl: "wss://browser.example/devtools/browser/session",
       cdpHeaders: { Authorization: "Bearer secret" },
+      residentBrowserConnection: false,
       keepAlive: true,
     });
   });
@@ -139,5 +161,65 @@ describe("resolveBrowserSource", () => {
     ).rejects.toThrow();
     expect(createSession).not.toHaveBeenCalled();
     expect(launchLocalBrowser).not.toHaveBeenCalled();
+  });
+});
+
+describe("localBrowserChromeFlags", () => {
+  const launcherDefaults = ["--disable-extensions", "--disable-background-networking"];
+
+  it("enables WebMCP without disabling the Stagehand extension", () => {
+    expect(localBrowserChromeFlags({}, launcherDefaults, false)).toEqual([
+      "--disable-background-networking",
+      "--enable-unsafe-extension-debugging",
+      "--remote-allow-origins=*",
+      "--window-size=1280,800",
+      WEBMCP_CHROME_FLAG,
+    ]);
+  });
+
+  it("omits all default flags when ignoreDefaultArgs is true", () => {
+    expect(
+      localBrowserChromeFlags(
+        {
+          ignoreDefaultArgs: true,
+          args: ["--user-supplied"],
+        },
+        launcherDefaults,
+        false,
+      ),
+    ).toEqual(["--user-supplied"]);
+  });
+
+  it("selectively omits the WebMCP flag while retaining other defaults", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        ignoreDefaultArgs: [WEBMCP_CHROME_FLAG],
+      },
+      launcherDefaults,
+      false,
+    );
+
+    expect(flags).not.toContain(WEBMCP_CHROME_FLAG);
+    expect(flags).toContain("--disable-background-networking");
+    expect(flags).toContain("--enable-unsafe-extension-debugging");
+  });
+
+  it("appends launch options and user arguments after defaults", () => {
+    const flags = localBrowserChromeFlags(
+      {
+        headless: true,
+        devtools: true,
+        args: ["--custom-flag"],
+      },
+      launcherDefaults,
+      true,
+    );
+
+    expect(flags.slice(-4)).toEqual([
+      "--headless",
+      "--auto-open-devtools-for-tabs",
+      "--no-sandbox",
+      "--custom-flag",
+    ]);
   });
 });

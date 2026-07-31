@@ -31,8 +31,8 @@ async def main() -> None:
 
         print(json.dumps(result.model_dump(mode="json", by_alias=True), indent=2))
 
-        if not result.success:
-            raise RuntimeError(f"act() failed: {result.message}")
+        if not result.data.success:
+            raise RuntimeError(f"act() failed: {result.data.message}")
     finally:
         await stagehand.close()
 

@@ -6,6 +6,7 @@
  */
 
 import { z } from "zod/v4";
+import * as ProtocolSchemas from "../../protocol/schemas.js";
 import {
   ActOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
@@ -24,7 +25,7 @@ import { Page } from "./page.js";
 
 const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
   extensionId: true,
-}).strict();
+});
 
 /** Browserbase source fields exposed by the TS SDK. Stagehand provisions its own extension. */
 export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.omit({
@@ -35,23 +36,25 @@ export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSche
     type: z.literal("browserbase"),
     browserSettings: BrowserbaseClientBrowserSettingsSchema.optional(),
   })
-  .strict()
   .meta({ id: "BrowserbaseClientBrowserSource" });
 
 export const LocalBrowserSourceSchema = LocalBrowserLaunchOptionsSchema.extend({
   type: z.literal("local"),
-})
-  .strict()
-  .meta({ id: "LocalBrowserSource" });
+}).meta({ id: "LocalBrowserSource" });
 
 export const CdpBrowserSourceSchema = z
-  .object({
+  .strictObject({
     type: z.literal("cdp"),
     cdpUrl: z.string().min(1),
     headers: z.record(z.string(), z.string()).optional(),
   })
-  .strict()
   .meta({ id: "CdpBrowserSource" });
+
+export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial();
+
+export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial();
+
+export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema;
 
 export const BrowserSourceSchema = z
   .discriminatedUnion("type", [
@@ -63,13 +66,12 @@ export const BrowserSourceSchema = z
 
 /** An LLM callback implemented locally by the SDK consumer. It never crosses the wire. */
 export const ClientLLMSchema = z
-  .object({
+  .strictObject({
     generate: z.function({
       input: [LLMGenerateParamsSchema],
       output: z.promise(LLMGenerateResultSchema),
     }),
   })
-  .strict()
   .meta({ id: "ClientLLM" });
 
 export const StagehandClientLogLevelSchema = z
@@ -95,36 +97,32 @@ export const StagehandClientLoggingConfigSchema = z
   })
   .meta({ id: "StagehandClientLoggingConfig" });
 
-export const StagehandClientActOptionsSchema = ActOptionsSchema.unwrap()
-  .extend({
-    page: z.instanceof(Page).optional(),
-  })
-  .strict()
-  .meta({ id: "StagehandClientActOptions" });
+export const StagehandClientActOptionsSchema = ActOptionsSchema.extend({
+  page: z.instanceof(Page).optional(),
+}).meta({ id: "StagehandClientActOptions" });
 
-export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.unwrap()
-  .extend({
-    page: z.instanceof(Page).optional(),
-  })
-  .strict()
-  .meta({ id: "StagehandClientObserveOptions" });
+export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.extend({
+  page: z.instanceof(Page).optional(),
+}).meta({ id: "StagehandClientObserveOptions" });
 
-export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.unwrap()
-  .extend({
-    page: z.instanceof(Page).optional(),
-  })
-  .strict()
-  .meta({ id: "StagehandClientExtractOptions" });
+export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
+  page: z.instanceof(Page).optional(),
+}).meta({ id: "StagehandClientExtractOptions" });
 
-export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.extend({
-  browser: BrowserSourceSchema.default({ type: "browserbase" }),
-  model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
-  logging: StagehandClientLoggingConfigSchema.default({
-    level: "info",
-    format: "pretty",
-  }),
+export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.omit({
+  protocolVersion: true,
+  clientInfo: true,
+  browserCdpUrl: true,
+  logLevel: true,
 })
-  .strict()
+  .extend({
+    browser: BrowserSourceSchema.default({ type: "browserbase" }),
+    model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+    logging: StagehandClientLoggingConfigSchema.default({
+      level: "info",
+      format: "pretty",
+    }),
+  })
   .superRefine((params, context) => {
     if (params.browser.type === "browserbase" && params.apiKey === undefined) {
       context.addIssue({
@@ -147,3 +145,6 @@ export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtrac
 export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
+export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
+export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;

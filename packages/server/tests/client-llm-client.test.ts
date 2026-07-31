@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import { generateWithClientLlm } from "../llm/clientLlmClient.js";
 import * as llmService from "../services/llmService.js";
 import { createStagehandRuntime } from "../runtime.js";
@@ -52,7 +53,6 @@ describe("client LLM generation", () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => ({
         connected: true,
-        getVersion: async () => ({}),
         pages: () => [],
         activePage: async () => undefined,
         setActivePage: async () => {},
@@ -79,15 +79,14 @@ describe("client LLM generation", () => {
       clientLLMGenerate: request,
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
       agentIndicator: false,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      logLevel: "info",
       model: { source: "client" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

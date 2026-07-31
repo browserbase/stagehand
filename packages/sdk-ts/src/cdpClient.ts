@@ -248,7 +248,7 @@ export class CDPClient {
         { name: STAGEHAND_SEND_TO_HOST_BINDING },
         attached.sessionId,
       );
-      await waitForRuntimeReady(client, attached.sessionId, {
+      await waitForRuntimeReceiver(client, attached.sessionId, {
         timeout: options.discoveryTimeoutMs,
         runtimeRequirement: options.runtimeRequirement,
         allowFallbackInstall: options.allowFallbackInstall,
@@ -385,17 +385,27 @@ export class CDPClient {
 
 type CDPCommandSender = Pick<CDPClient, "sendCommand">;
 
-export async function waitForRuntimeReady(
+type RuntimeWaitOptions = {
+  timeout: number;
+  pollIntervalMs?: number;
+  delayFn?: (ms: number) => Promise<void>;
+  nowFn?: () => number;
+  runtimeRequirement?: RuntimeRequirement;
+  allowFallbackInstall?: boolean;
+};
+
+export async function waitForRuntimeReceiver(
   cdp: CDPCommandSender,
   sessionId: string,
-  options: {
-    timeout: number;
-    pollIntervalMs?: number;
-    delayFn?: (ms: number) => Promise<void>;
-    nowFn?: () => number;
-    runtimeRequirement?: RuntimeRequirement;
-    allowFallbackInstall?: boolean;
-  },
+  options: RuntimeWaitOptions,
+): Promise<void> {
+  await waitForRuntime(cdp, sessionId, options);
+}
+
+async function waitForRuntime(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: RuntimeWaitOptions,
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
@@ -438,7 +448,7 @@ export async function waitForRuntimeReady(
   }
 
   throw new Error(
-    `Timed out waiting for the Stagehand extension runtime to become ready${
+    `Timed out waiting for the Stagehand extension runtime RPC receiver${
       lastError ? ` (${lastError})` : ""
     }`,
     { cause: lastReadiness },

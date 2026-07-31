@@ -5,236 +5,86 @@ description: "Extract structured data from a webpage."
 
 ## What is `extract()`?
 
-`extract()` reads a page and returns data that matches a schema you define. The result is
-validated against that schema, so you get fully typed data back.
-
 <View title="TypeScript" icon="js">
-
-Define the schema as a [Zod](https://zod.dev) object:
-
 ```typescript
-import { z } from "zod";
-
-const product = await stagehand.extract(
-  "Extract the product name and price",
-  z.object({
-    name: z.string(),
-    price: z.number(),
-  }),
-);
-// product: { name: string; price: number }
-```
-
-## Why use `extract()`?
-
-<CardGroup cols="2">
-  <Card title="Typed output" icon="brackets-curly">
-    Results are validated and typed against your schema.
-  </Card>
-  <Card title="Resilient" icon="shield-check">
-    Reads meaning, not markup, so there are no brittle scraping selectors.
-  </Card>
-  <Card title="Scoped" icon="crop">
-    Narrow extraction to part of the page for speed and accuracy.
-  </Card>
-  <Card title="Visual" icon="image">
-    Optionally include a screenshot for layout-dependent data.
-  </Card>
-</CardGroup>
-
-## Using `extract()`
-
-Describe exactly the shape you want. Add fields for lists, nested objects, and optional
-values, and use field descriptions to guide the model.
-
-```typescript
-import { z } from "zod";
-
-const results = await stagehand.extract(
-  "Extract each search result",
-  z.object({
-    results: z.array(
-      z.object({
-        title: z.string(),
-        url: z.string().describe("The absolute link to the result"),
-        rating: z.number().optional(),
-      }),
-    ),
-  }),
+await stagehand.extract(
+  "extract the name of the repository",
+  z.object({ name: z.string() }),
 );
 ```
-
-### Return value
-
-`extract()` resolves to data that matches your schema, with no wrapper object. In
-TypeScript the type is inferred from the Zod schema; in Python it's an instance of your
-Pydantic model. When the schema is an array or list, you get an array or list back.
-
-```typescript
-const product = await stagehand.extract(
-  "Extract the product details",
-  z.object({ name: z.string(), price: z.number(), inStock: z.boolean() }),
-);
-// product is typed as { name: string; price: number; inStock: boolean }
-// e.g. { name: "Wireless Mouse", price: 29.99, inStock: true }
-
-console.log(product.name, product.price);
-```
-
-## Advanced configuration
-
-```typescript
-const data = await stagehand.extract("Extract the article body", schema, {
-  selector: "#main-content",
-  ignoreSelectors: ["nav", ".cookie-banner"],
-  screenshot: true,
-  timeout: 30_000,
-  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
-});
-```
-
-- `page`: the page to extract from. Defaults to the active page.
-- `selector`: a CSS selector that scopes extraction to one element and its subtree.
-- `ignoreSelectors`: elements to exclude, such as ads, chrome, and boilerplate.
-- `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
-- `timeout`: maximum time in milliseconds.
-- `model`: override the model for this call.
-- `cache`: reuse a prior result for this call.
-
-### Scoped extraction
-
-When a page is large, scoping to the relevant region with `selector` (and excluding noise
-with `ignoreSelectors`) is faster, cheaper, and more accurate than extracting from the
-whole document.
-
-```typescript
-const { price } = await stagehand.extract(
-  "Extract the sale price",
-  z.object({ price: z.number() }),
-  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
-);
-```
-
-### Visual extraction
-
-Set `screenshot` to include an image of the current viewport in the model call. This helps
-when the data depends on layout or styling that isn't obvious from the DOM alone.
-
-### Cache repeated extractions
-
-On Browserbase, turn on caching
-so repeated, identical extractions are served from a cache instead of calling the model again.
-
-```typescript
-const product = await stagehand.extract(
-  "Extract the product name and price",
-  z.object({ name: z.string(), price: z.number() }),
-  { cache: true },
-);
-```
-
-## Best practices
-
-- **Ask for exactly what you need:** Smaller schemas are faster and more reliable than
-  "extract everything."
-- **Use descriptions:** Field descriptions disambiguate similar values (for example, which
-  price is the sale price).
-- **Scope first:** Reach for `selector`/`ignoreSelectors` before extracting from a busy
-  page.
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="Missing or empty fields">
-    Make the instruction and field descriptions more specific, mark truly optional fields
-    as optional, and confirm the data is actually present in the scoped region.
-  </Accordion>
-  <Accordion title="Wrong value picked">
-
-Narrow with `selector`, exclude distractors with `ignoreSelectors`, or enable `screenshot`
-when the correct value is clear visually but ambiguous in the DOM.
-
-```typescript
-const { price } = await stagehand.extract(
-  "Extract the sale price, not the original price",
-  z.object({ price: z.number() }),
-  { selector: "#product-summary", ignoreSelectors: [".related-products"] },
-);
-```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
 
 <View title="Python" icon="python">
-
-Define the schema as a [Pydantic](https://docs.pydantic.dev/) model:
-
 ```python
-from pydantic import BaseModel
-
-
-class Product(BaseModel):
+class Repository(BaseModel):
     name: str
-    price: float
 
 
-product = await stagehand.extract(
-    instruction="Extract the product name and price",
-    schema=Product,
+await stagehand.extract(
+    instruction="extract the name of the repository",
+    schema=Repository,
 )
-# product.name -> str, product.price -> float
 ```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type repository struct {
+	Name string `json:"name"`
+}
+
+var repositorySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"name": {"type": "string"}},
+  "required": ["name"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[repository](
+	ctx,
+	client,
+	"extract the name of the repository",
+	repositorySchema,
+	nil,
+)
+```
+</View>
+
+`extract()` grabs structured data from a webpage. Every call takes an instruction and a schema: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a [JSON Schema](https://json-schema.org) as `json.RawMessage` in Go. The result is validated against your schema before it is returned, so what you get back is already typed.
 
 ## Why use `extract()`?
 
-<CardGroup cols="2">
-  <Card title="Typed output" icon="brackets-curly">
-    Results are validated and typed against your schema.
+<CardGroup cols={2}>
+  <Card title="Structured" icon="brackets-curly" href="#basic-schema">
+    Turn messy webpage data into clean objects that follow a schema.
   </Card>
-  <Card title="Resilient" icon="shield-check">
-    Reads meaning, not markup, so there are no brittle scraping selectors.
-  </Card>
-  <Card title="Scoped" icon="crop">
-    Narrow extraction to part of the page for speed and accuracy.
-  </Card>
-  <Card title="Visual" icon="image">
-    Optionally include a screenshot for layout-dependent data.
+  <Card title="Resilient" icon="dumbbell" href="#extract-with-context">
+    Build resilient extractions that don't break when the website changes
   </Card>
 </CardGroup>
 
-## Using `extract()`
+## Return value
 
-Describe exactly the shape you want. Add fields for lists, nested objects, and optional
-values, and use field descriptions to guide the model.
+`extract()` returns a result with two fields: `data` holds the value matching the schema you passed, and `metadata` carries the action ID and server-side cache status. The shape of `data` depends on the schema:
+<Tabs>
+<Tab title="Basic schema">
 
-```python
-from pydantic import BaseModel, Field
+When extracting with an object schema, the return type is inferred from that schema:
 
-
-class Result(BaseModel):
-    title: str
-    url: str = Field(description="The absolute link to the result")
-    rating: float | None = None
-
-
-class SearchResults(BaseModel):
-    results: list[Result]
-
-
-results = await stagehand.extract(
-    instruction="Extract each search result",
-    schema=SearchResults,
-)
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "extract product details",
+  z.object({
+    name: z.string(),
+    price: z.number(),
+    inStock: z.boolean(),
+  }),
+);
 ```
+</View>
 
-### Return value
-
-`extract()` resolves to data that matches your schema, with no wrapper object. In
-TypeScript the type is inferred from the Zod schema; in Python it's an instance of your
-Pydantic model. When the schema is an array or list, you get an array or list back.
-
+<View title="Python" icon="python">
 ```python
 class Product(BaseModel):
     name: str
@@ -242,115 +92,1239 @@ class Product(BaseModel):
     in_stock: bool
 
 
-product = await stagehand.extract(
-    instruction="Extract the product details",
+result = await stagehand.extract(
+    instruction="extract product details",
     schema=Product,
 )
-# product is a Product instance, e.g. Product(name="Wireless Mouse", price=29.99, in_stock=True)
-
-print(product.name, product.price)
 ```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type product struct {
+	Name    string  `json:"name"`
+	Price   float64 `json:"price"`
+	InStock bool    `json:"in_stock"`
+}
+
+var productSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "name": {"type": "string"},
+    "price": {"type": "number"},
+    "in_stock": {"type": "boolean"}
+  },
+  "required": ["name", "price", "in_stock"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[product](
+	ctx,
+	client,
+	"extract product details",
+	productSchema,
+	nil,
+)
+```
+</View>
+
+**Example result:**
+
+<View title="TypeScript" icon="js">
+```typescript
+{
+  name: "Wireless Mouse",
+  price: 29.99,
+  inStock: true
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+Product(name="Wireless Mouse", price=29.99, in_stock=True)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+result := product{Name: "Wireless Mouse", Price: 29.99, InStock: true}
+fmt.Println(result.Name, result.Price, result.InStock)
+```
+</View>
+
+</Tab>
+<Tab title="Array">
+
+To extract a list, wrap it in a field on your schema:
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "extract all apartment listings",
+  z.object({
+    apartments: z.array(
+      z.object({
+        address: z.string(),
+        price: z.string(),
+        sqft: z.number(),
+      }),
+    ),
+  }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class Apartment(BaseModel):
+    address: str
+    price: str
+    sqft: int
+
+
+class Apartments(BaseModel):
+    apartments: list[Apartment]
+
+
+result = await stagehand.extract(
+    instruction="extract all apartment listings",
+    schema=Apartments,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type apartment struct {
+	Address string `json:"address"`
+	Price   string `json:"price"`
+	Sqft    int    `json:"sqft"`
+}
+
+type apartments struct {
+	Apartments []apartment `json:"apartments"`
+}
+
+var apartmentsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "apartments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "address": {"type": "string"},
+          "price": {"type": "string"},
+          "sqft": {"type": "integer"}
+        },
+        "required": ["address", "price", "sqft"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["apartments"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[apartments](
+	ctx,
+	client,
+	"extract all apartment listings",
+	apartmentsSchema,
+	nil,
+)
+```
+</View>
+
+**Example result:**
+
+<View title="TypeScript" icon="js">
+```typescript
+{
+  apartments: [
+    {
+      address: "123 Main St",
+      price: "$1,200/mo",
+      sqft: 750
+    },
+    {
+      address: "456 Oak Ave",
+      price: "$1,500/mo",
+      sqft: 900
+    }
+  ]
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+Apartments(apartments=[
+    Apartment(address="123 Main St", price="$1,200/mo", sqft=750),
+    Apartment(address="456 Oak Ave", price="$1,500/mo", sqft=900),
+])
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+result := apartments{Apartments: []apartment{
+	{Address: "123 Main St", Price: "$1,200/mo", Sqft: 750},
+	{Address: "456 Oak Ave", Price: "$1,500/mo", Sqft: 900},
+}}
+fmt.Println(result.Apartments[0].Address, result.Apartments[0].Sqft)
+```
+</View>
+
+</Tab>
+<Tab title="Primitive">
+
+To extract a single value, give it a named field:
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "extract the price",
+  z.object({ price: z.number() }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class Price(BaseModel):
+    price: float
+
+
+result = await stagehand.extract(
+    instruction="extract the price",
+    schema=Price,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type price struct {
+	Price float64 `json:"price"`
+}
+
+var priceSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"price": {"type": "number"}},
+  "required": ["price"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[price](
+	ctx,
+	client,
+	"extract the price",
+	priceSchema,
+	nil,
+)
+```
+</View>
+
+**Example result:**
+
+<View title="TypeScript" icon="js">
+```typescript
+{
+  price: 19.99
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+Price(price=19.99)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+result := price{Price: 19.99}
+fmt.Println(result.Price)
+```
+</View>
+
+You can also extract strings, booleans, and URLs:
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "extract the contact page link",
+  z.object({ url: z.url() }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from pydantic import AnyUrl
+
+
+class ContactLink(BaseModel):
+    url: AnyUrl
+
+
+result = await stagehand.extract(
+    instruction="extract the contact page link",
+    schema=ContactLink,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type contactLink struct {
+	URL string `json:"url"`
+}
+
+var contactLinkSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"url": {"type": "string", "format": "uri"}},
+  "required": ["url"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[contactLink](
+	ctx,
+	client,
+	"extract the contact page link",
+	contactLinkSchema,
+	nil,
+)
+```
+</View>
+
+</Tab>
+</Tabs>
 
 ## Advanced configuration
 
+You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
+
+<View title="TypeScript" icon="js">
+```typescript
+const result = await stagehand.extract(
+  "extract the repository name",
+  z.object({ name: z.string() }),
+  {
+    model: {
+      modelName: "anthropic/claude-sonnet-4-6",
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    },
+    timeout: 30000,
+    selector: "//header", // Focus on specific area
+  },
+);
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
 from stagehand import ModelConfig
 
-
-data = await stagehand.extract(
-    instruction="Extract the article body",
-    schema=schema,
-    selector="#main-content",
-    ignore_selectors=["nav", ".cookie-banner"],
-    screenshot=True,
-    timeout=30_000,
-    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
-)
-```
-
-- `page`: the page to extract from. Defaults to the active page.
-- `selector`: a CSS selector that scopes extraction to one element and its subtree.
-- `ignore_selectors`: elements to exclude, such as ads, chrome, and boilerplate.
-- `screenshot`: include a screenshot of the viewport for layout-dependent extraction.
-- `timeout`: maximum time in milliseconds.
-- `model`: override the complete model configuration for this call.
-- `cache`: reuse a prior result for this call.
-
-### Scoped extraction
-
-When a page is large, scoping to the relevant region with `selector` (and excluding noise
-with `ignore_selectors`) is faster, cheaper, and more accurate than extracting from the
-whole document.
-
-```python
 result = await stagehand.extract(
-    instruction="Extract the sale price",
-    schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    instruction="extract the repository name",
+    schema=Repository,
+    model=ModelConfig.model_validate({
+        "model_name": "anthropic/claude-sonnet-4-6",
+        "api_key": os.environ["ANTHROPIC_API_KEY"],
+    }),
+    timeout=30000,
+    selector="//header",  # Focus on specific area
 )
 ```
+</View>
 
-### Visual extraction
+<View title="Go" icon="golang">
+```go
+var repositorySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"name": {"type": "string"}},
+  "required": ["name"],
+  "additionalProperties": false
+}`)
 
-Set `screenshot` to include an image of the current viewport in the model call. This helps
-when the data depends on layout or styling that isn't obvious from the DOM alone.
+modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "anthropic/claude-sonnet-4-6",
+	APIKey:    &modelAPIKey,
+})
+timeout := 30000.0
+selector := "//header" // Focus on specific area
 
-### Cache repeated extractions
+result, err := client.Extract(ctx, "extract the repository name", repositorySchema, &stagehand.StagehandClientExtractOptions{
+	ExtractOptions: stagehand.ExtractOptions{
+		Model:    &model,
+		Timeout:  &timeout,
+		Selector: &selector,
+	},
+})
+if err != nil {
+	return err
+}
 
-On Browserbase, turn on caching
-so repeated, identical extractions are served from a cache instead of calling the model again.
+// Extract hands back the raw JSON; use stagehand.ExtractAs to decode into a type
+fmt.Println(string(result.Data))
+```
+</View>
 
+### Server-side caching
+
+<Note>
+`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+</Note>
+
+When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Enable server-side caching for the entire instance
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: true,
+});
+
+// Or disable it for a single call
+const result = await stagehand.extract(
+  "extract the repository name",
+  z.object({ name: z.string() }),
+  { cache: false },
+);
+
+// Cache status travels on the result metadata
+console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
-product = await stagehand.extract(
-    instruction="Extract the product name and price",
-    schema=Product,
+from stagehand import Stagehand
+
+# Enable server-side caching for the entire instance
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
     cache=True,
 )
+
+# Or disable it for a single call
+result = await stagehand.extract(
+    instruction="extract the repository name",
+    schema=Repository,
+    cache=False,
+)
+
+# Cache status travels on the result metadata
+print(result.metadata.cache_status)  # "HIT", "MISS", or None
 ```
+</View>
+
+<View title="Go" icon="golang">
+```go
+var repositorySchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"name": {"type": "string"}},
+  "required": ["name"],
+  "additionalProperties": false
+}`)
+
+// Enable server-side caching for the entire instance
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+instanceCache := stagehand.CacheEnabled(true)
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &instanceCache,
+})
+
+// Or disable it for a single call
+off := stagehand.CacheEnabled(false)
+result, err := client.Extract(ctx, "extract the repository name", repositorySchema, &stagehand.StagehandClientExtractOptions{
+	ExtractOptions: stagehand.ExtractOptions{Cache: &off},
+})
+if err != nil {
+	return err
+}
+
+// Cache status travels on the result metadata
+if result.Metadata.CacheStatus != nil {
+	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
+}
+```
+</View>
+
+### Targeted extract
+
+Pass a selector to `extract` to target a specific element on the page.
+<Tip>
+This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
+</Tip>
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: tableData } = await stagehand.extract(
+  "Extract the values of the third row",
+  z.object({
+    values: z.array(z.string()),
+  }),
+  {
+    // xPath or CSS selector
+    selector: "xpath=/html/body/div/table/",
+  },
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class TableRow(BaseModel):
+    values: list[str]
+
+
+table_data = (await stagehand.extract(
+    instruction="Extract the values of the third row",
+    schema=TableRow,
+    # xPath or CSS selector
+    selector="xpath=/html/body/div/table/",
+)).data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type tableRow struct {
+	Values []string `json:"values"`
+}
+
+var tableRowSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"values": {"type": "array", "items": {"type": "string"}}},
+  "required": ["values"],
+  "additionalProperties": false
+}`)
+
+// xPath or CSS selector
+selector := "xpath=/html/body/div/table/"
+
+tableData, err := stagehand.ExtractAs[tableRow](
+	ctx,
+	client,
+	"Extract the values of the third row",
+	tableRowSchema,
+	&stagehand.StagehandClientExtractOptions{
+		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+	},
+)
+```
+</View>
+
+You can also exclude specific nodes (including their descendant nodes) with the ignore-selectors option.
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: article } = await stagehand.extract(
+  "extract the article title and body",
+  z.object({
+    title: z.string(),
+    body: z.string(),
+  }),
+  {
+    ignoreSelectors: [".ad", ".newsletter-modal", "nav.related-posts"],
+  },
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class Article(BaseModel):
+    title: str
+    body: str
+
+
+article = (await stagehand.extract(
+    instruction="extract the article title and body",
+    schema=Article,
+    ignore_selectors=[".ad", ".newsletter-modal", "nav.related-posts"],
+)).data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type article struct {
+	Title string `json:"title"`
+	Body  string `json:"body"`
+}
+
+var articleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "title": {"type": "string"},
+    "body": {"type": "string"}
+  },
+  "required": ["title", "body"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[article](
+	ctx,
+	client,
+	"extract the article title and body",
+	articleSchema,
+	&stagehand.StagehandClientExtractOptions{
+		ExtractOptions: stagehand.ExtractOptions{
+			IgnoreSelectors: []string{".ad", ".newsletter-modal", "nav.related-posts"},
+		},
+	},
+)
+```
+</View>
+
+<Note>
+  The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes extraction to a single resolved subtree.
+</Note>
+
+### Visual extract
+
+Turn the screenshot option on when the extraction needs visual information from the current viewport in addition to the page accessibility tree.
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: saleBadge } = await stagehand.extract(
+  "extract the text shown in the visible sale badge",
+  z.object({
+    text: z.string(),
+  }),
+  {
+    screenshot: true,
+  },
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class SaleBadge(BaseModel):
+    text: str
+
+
+sale_badge = (await stagehand.extract(
+    instruction="extract the text shown in the visible sale badge",
+    schema=SaleBadge,
+    screenshot=True,
+)).data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type saleBadge struct {
+	Text string `json:"text"`
+}
+
+var saleBadgeSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"text": {"type": "string"}},
+  "required": ["text"],
+  "additionalProperties": false
+}`)
+
+screenshot := true
+
+saleBadgeData, err := stagehand.ExtractAs[saleBadge](
+	ctx,
+	client,
+	"extract the text shown in the visible sale badge",
+	saleBadgeSchema,
+	&stagehand.StagehandClientExtractOptions{
+		ExtractOptions: stagehand.ExtractOptions{Screenshot: &screenshot},
+	},
+)
+```
+</View>
+
+<Note>
+  The screenshot option captures the current viewport, not the full page. Visual extractions always bypass the server-side cache, because a cache key is built from DOM state and cannot represent the pixels the model saw.
+</Note>
+
 
 ## Best practices
 
-- **Ask for exactly what you need:** Smaller schemas are faster and more reliable than
-  "extract everything."
-- **Use descriptions:** Field descriptions disambiguate similar values (for example, which
-  price is the sale price).
-- **Scope first:** Reach for `selector`/`ignore_selectors` before extracting from a busy
-  page.
+
+### Extract with context
+
+You can provide additional context to your schema to help the model extract the data more accurately.
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "Extract ALL the apartment listings and their details, including address, price, and square feet.",
+  z.object({
+    apartments: z.array(
+      z.object({
+        address: z.string().describe("the address of the apartment"),
+        price: z.string().describe("the price of the apartment"),
+        squareFeet: z.string().describe("the square footage of the apartment"),
+      }),
+    ),
+  }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from pydantic import BaseModel, Field
+
+
+class Apartment(BaseModel):
+    address: str = Field(description="the address of the apartment")
+    price: str = Field(description="the price of the apartment")
+    square_feet: str = Field(description="the square footage of the apartment")
+
+
+class Apartments(BaseModel):
+    apartments: list[Apartment]
+
+
+result = await stagehand.extract(
+    instruction=(
+        "Extract ALL the apartment listings and their details, "
+        "including address, price, and square feet."
+    ),
+    schema=Apartments,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type apartment struct {
+	Address     string `json:"address"`
+	Price       string `json:"price"`
+	SquareFeet  string `json:"square_feet"`
+}
+
+type apartments struct {
+	Apartments []apartment `json:"apartments"`
+}
+
+// Field descriptions live in the JSON Schema you pass to Extract
+var apartmentsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "apartments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "address": {"type": "string", "description": "the address of the apartment"},
+          "price": {"type": "string", "description": "the price of the apartment"},
+          "square_feet": {"type": "string", "description": "the square footage of the apartment"}
+        },
+        "required": ["address", "price", "square_feet"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["apartments"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[apartments](
+	ctx,
+	client,
+	"Extract ALL the apartment listings and their details, including address, price, and square feet.",
+	apartmentsSchema,
+	nil,
+)
+```
+</View>
+
+### Link extraction
+<Note>
+To extract links or URLs, define the relevant field as a URL type.
+</Note>
+
+Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data } = await stagehand.extract(
+  "extract the link to the 'contact us' page",
+  // note the usage of z.url() for URL validation
+  z.object({ contactLink: z.url() }),
+);
+
+console.log("the link to the contact us page is: ", data.contactLink);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from pydantic import AnyUrl, BaseModel
+
+
+class ContactLink(BaseModel):
+    # note the usage of AnyUrl for URL validation
+    contact_link: AnyUrl
+
+
+result = await stagehand.extract(
+    instruction="extract the link to the 'contact us' page",
+    schema=ContactLink,
+)
+
+print("the link to the contact us page is: ", result.data.contact_link)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type contactLink struct {
+	ContactLink string `json:"contact_link"`
+}
+
+// note the "format": "uri" annotation for URL extraction
+var contactLinkSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"contact_link": {"type": "string", "format": "uri"}},
+  "required": ["contact_link"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[contactLink](
+	ctx,
+	client,
+	"extract the link to the 'contact us' page",
+	contactLinkSchema,
+	nil,
+)
+if err != nil {
+	return err
+}
+
+fmt.Println("the link to the contact us page is: ", extracted.ContactLink)
+```
+</View>
+
+<Tip>
+Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs to URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final result.
+</Tip>
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Missing or empty fields">
-    Make the instruction and field descriptions more specific, mark truly optional fields
-    as optional, and confirm the data is actually present in the scoped region.
-  </Accordion>
-  <Accordion title="Wrong value picked">
+<Accordion title="Empty or partial results">
+**Problem**: `extract()` returns empty or incomplete data
 
-Narrow with `selector`, exclude distractors with `ignore_selectors`, or enable `screenshot`
-when the correct value is clear visually but ambiguous in the DOM.
+**Solutions**:
+- **Check your instruction clarity:** Make sure your instruction is specific and describes exactly what data you want to extract
+- **Verify the data exists:** Use `observe()` first to confirm the data is present on the page
+- **Wait for dynamic content:** If the page loads content dynamically, wait for it before extracting
 
+**Solution: Wait for content before extracting**
+
+<View title="TypeScript" icon="js">
+```typescript
+// waitForSelector reports whether the selector matched, so check it
+// before extracting: a timeout resolves to false without throwing.
+const listingReady = await page.waitForSelector(".product-listing");
+if (!listingReady) {
+  throw new Error("timed out waiting for .product-listing");
+}
+
+const { data } = await stagehand.extract(
+  "extract all product names and prices",
+  z.object({
+    products: z.array(z.object({
+      name: z.string(),
+      price: z.string(),
+    })),
+  }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
+# wait_for_selector reports whether the selector matched, so check it
+# before extracting: a timeout returns False without raising.
+listing_ready = await page.wait_for_selector(".product-listing")
+if not listing_ready:
+    raise TimeoutError("timed out waiting for .product-listing")
+
+
+class Product(BaseModel):
+    name: str
+    price: str
+
+
+class Products(BaseModel):
+    products: list[Product]
+
+
 result = await stagehand.extract(
-    instruction="Extract the sale price, not the original price",
-    schema=Product,
-    selector="#product-summary",
-    ignore_selectors=[".related-products"],
+    instruction="extract all product names and prices",
+    schema=Products,
 )
 ```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
+
+<View title="Go" icon="golang">
+```go
+// WaitForSelector returns (matched, error), so check matched before
+// extracting: a timeout reports false without returning an error.
+matched, err := page.WaitForSelector(ctx, ".product-listing", nil)
+if err != nil {
+	return err
+}
+if !matched {
+	return fmt.Errorf("timed out waiting for .product-listing")
+}
+
+type product struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+}
+
+type products struct {
+	Products []product `json:"products"`
+}
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "string"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[products](
+	ctx,
+	client,
+	"extract all product names and prices",
+	productsSchema,
+	nil,
+)
+if err != nil {
+	return err
+}
+
+fmt.Println("extracted", len(extracted.Products), "products")
+```
+</View>
+</Accordion>
+
+<Accordion title="Schema validation errors">
+**Problem**: Getting schema validation errors or type mismatches
+
+**Solutions**:
+- **Use optional fields:** Make fields optional if the data might not always be present
+- **Use flexible types:** Consider using a string instead of a number for prices that might include currency symbols
+- **Add descriptions:** Describe each field to help the model understand its requirements
+
+**Solution: More flexible schema**
+
+<View title="TypeScript" icon="js">
+```typescript
+const schema = z.object({
+  price: z.string().describe("price including currency symbol, e.g., '$19.99'"),
+  availability: z.string().optional().describe("stock status if available"),
+  rating: z.number().optional(),
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class ProductDetails(BaseModel):
+    price: str = Field(description="price including currency symbol, e.g., '$19.99'")
+    availability: str | None = Field(default=None, description="stock status if available")
+    rating: float | None = None
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Optional fields are pointers, and descriptions live in the JSON Schema
+type productDetails struct {
+	Price        string   `json:"price"`
+	Availability *string  `json:"availability,omitempty"`
+	Rating       *float64 `json:"rating,omitempty"`
+}
+
+var productDetailsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "price": {"type": "string", "description": "price including currency symbol, e.g., '$19.99'"},
+    "availability": {"type": "string", "description": "stock status if available"},
+    "rating": {"type": "number"}
+  },
+  "required": ["price"],
+  "additionalProperties": false
+}`)
+```
+</View>
+</Accordion>
+
+<Accordion title="Inconsistent results">
+**Problem**: Extraction results vary between runs
+
+**Solutions**:
+- **Be more specific in instructions:** Instead of "extract prices", use "extract the numerical price value for each item"
+- **Use context in schema descriptions:** Add field descriptions to guide the model
+- **Combine with observe:** Use `observe()` to understand the page structure first
+
+**Solution: Validate with observe first**
+
+<View title="TypeScript" icon="js">
+```typescript
+// First observe to understand the page structure
+const { data: elements } = await stagehand.observe("find all product listings");
+console.log("Found elements:", elements.map(e => e.description));
+
+// Then extract with specific targeting
+const { data } = await stagehand.extract(
+  "extract name and price from each product listing shown on the page",
+  z.object({
+    products: z.array(z.object({
+      name: z.string().describe("the product title or name"),
+      price: z.string().describe("the price as displayed, including currency"),
+    })),
+  }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# First observe to understand the page structure
+observed = await stagehand.observe(instruction="find all product listings")
+print("Found elements:", [element.description for element in observed.data])
+
+
+# Then extract with specific targeting
+class Product(BaseModel):
+    name: str = Field(description="the product title or name")
+    price: str = Field(description="the price as displayed, including currency")
+
+
+class Products(BaseModel):
+    products: list[Product]
+
+
+result = await stagehand.extract(
+    instruction="extract name and price from each product listing shown on the page",
+    schema=Products,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// First observe to understand the page structure
+instruction := "find all product listings"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+for _, element := range observed.Data {
+	fmt.Println("Found element:", element.Description)
+}
+
+// Then extract with specific targeting
+type product struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+}
+
+type products struct {
+	Products []product `json:"products"`
+}
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string", "description": "the product title or name"},
+          "price": {"type": "string", "description": "the price as displayed, including currency"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[products](
+	ctx,
+	client,
+	"extract name and price from each product listing shown on the page",
+	productsSchema,
+	nil,
+)
+if err != nil {
+	return err
+}
+
+for _, item := range extracted.Products {
+	fmt.Println(item.Name, item.Price)
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Performance issues">
+**Problem**: Extraction is slow or timing out
+
+**Solutions**:
+- **Reduce scope:** Extract smaller chunks of data in multiple calls rather than everything at once
+- **Use targeted instructions:** Be specific about which part of the page to focus on
+- **Consider pagination:** For large datasets, extract one page at a time
+- **Increase timeout:** Use the timeout option for complex extractions
+
+**Solution: Break down large extractions**
+
+<View title="TypeScript" icon="js">
+```typescript
+// Instead of extracting everything at once
+const allData = [];
+const pageNumbers = [1, 2, 3, 4, 5];
+
+for (const pageNum of pageNumbers) {
+  await stagehand.act(`navigate to page ${pageNum}`);
+
+  const { data } = await stagehand.extract(
+    "extract product data from the current page only",
+    z.object({
+      products: z.array(z.object({
+        name: z.string(),
+        price: z.number(),
+      })),
+    }),
+    { timeout: 60000 }, // 60 second timeout
+  );
+
+  allData.push(...data.products);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Instead of extracting everything at once
+all_data = []
+page_numbers = [1, 2, 3, 4, 5]
+
+for page_num in page_numbers:
+    await stagehand.act(f"navigate to page {page_num}")
+
+    result = await stagehand.extract(
+        instruction="extract product data from the current page only",
+        schema=Products,
+        timeout=60000,  # 60 second timeout
+    )
+
+    all_data.extend(result.data.products)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type product struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+}
+
+type products struct {
+	Products []product `json:"products"`
+}
+
+var productsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "products": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "number"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["products"],
+  "additionalProperties": false
+}`)
+
+// Instead of extracting everything at once
+var allData []product
+timeout := 60000.0 // 60 second timeout
+
+for pageNum := 1; pageNum <= 5; pageNum++ {
+	if _, err := client.Act(ctx, fmt.Sprintf("navigate to page %d", pageNum), nil); err != nil {
+		return err
+	}
+
+	extracted, err := stagehand.ExtractAs[products](
+		ctx,
+		client,
+		"extract product data from the current page only",
+		productsSchema,
+		&stagehand.StagehandClientExtractOptions{
+			ExtractOptions: stagehand.ExtractOptions{Timeout: &timeout},
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	allData = append(allData, extracted.Products...)
+}
+```
+</View>
+</Accordion>
+</AccordionGroup>
 
 ## Next steps
 
-<CardGroup cols="2">
-  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
-    Perform actions with natural language.
+<CardGroup cols={2}>
+
+  <Card title="Act" icon="play" href="/v4/basics/act">
+    Execute actions efficiently
   </Card>
-  <Card title="Observe" icon="eye" href="/v4/basics/observe">
-    Discover available actions on a page.
+
+  <Card title="Observe" icon="magnifying-glass" href="/v4/basics/observe">
+    Analyze pages and preview actions
   </Card>
 </CardGroup>

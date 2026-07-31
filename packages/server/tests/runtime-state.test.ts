@@ -1,13 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
+
+const runtimeIdentity = {
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+  logLevel: "info" as const,
+};
 
 function createBrowserSession(
   overrides: Partial<StagehandBrowserSession> = {},
 ): StagehandBrowserSession {
   return {
     connected: true,
-    getVersion: async () => ({}),
     pages: () => [],
     newPage: async () => {
       throw new Error("Not used by this test");
@@ -42,14 +48,11 @@ describe("Stagehand runtime state", () => {
       setAgentIndicatorActive,
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      ...runtimeIdentity,
       agentIndicator: true,
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
@@ -73,14 +76,11 @@ describe("Stagehand runtime state", () => {
       setAgentIndicatorActive,
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      ...runtimeIdentity,
       agentIndicator: false,
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
@@ -97,15 +97,12 @@ describe("Stagehand runtime state", () => {
       browserSessionFactory: async () => createBrowserSession(),
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
       agentIndicator: false,
+      ...runtimeIdentity,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
         traces: {
@@ -119,6 +116,7 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({
       status: "initialized",
       initParams: {
+        ...runtimeIdentity,
         agentIndicator: false,
         model: { modelName: "openai/gpt-5" },
         telemetry: {
@@ -142,16 +140,13 @@ describe("Stagehand runtime state", () => {
         }),
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
 
     await expect(
       runtime.initialize({
+        ...runtimeIdentity,
         agentIndicator: false,
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
@@ -161,20 +156,44 @@ describe("Stagehand runtime state", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "created" });
   });
 
+  it("rejects concurrent initialization before creating another browser session", async () => {
+    let releaseInitialization!: () => void;
+    const initializationGate = new Promise<void>((resolve) => {
+      releaseInitialization = resolve;
+    });
+    const browserSessionFactory = vi.fn(async () =>
+      createBrowserSession({ prepareForInitialization: async () => await initializationGate }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const params = {
+      ...runtimeIdentity,
+      browserCdpUrl: "ws://browser.example",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+
+    const firstInitialization = runtime.initialize(params);
+    await expect(runtime.initialize(params)).rejects.toThrow(
+      "Stagehand initialization is already in progress",
+    );
+    expect(browserSessionFactory).toHaveBeenCalledOnce();
+
+    releaseInitialization();
+    await expect(firstInitialization).resolves.toMatchObject({ initialized: true });
+  });
+
   it("clears initialized configuration when Stagehand closes", async () => {
     const close = vi.fn();
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession({ close }),
     });
 
-    await runtime.configureLoopback({
+    await runtime.replaceBrowserConnection({
       cdpUrl: "ws://browser.example",
-      logLevel: "info",
-      telemetry: {
-        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
-      },
     });
     await runtime.initialize({
+      ...runtimeIdentity,
       agentIndicator: false,
       model: { modelName: "openai/gpt-5", apiKey: "secret" },
       telemetry: {

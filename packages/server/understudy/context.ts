@@ -7,7 +7,6 @@ import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandAPIClient } from "../api.js";
 import type {
-  BrowserGetVersionResult,
   Cookie,
   CookieParam,
   DomainPolicy,
@@ -73,10 +72,11 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
 }
 
 const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
+const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
 const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no top-level Page)";
 
 /**
- * V3Context
+ * BrowserContext
  *
  * Owns the root CDP connection and wires Target/Page events into Page.
  * Maintains one Page per top-level target, adopts OOPIF child sessions into the owner Page,
@@ -86,7 +86,7 @@ const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no to
  * Context never “guesses” owners; it simply forwards events (with the emitting session)
  * so Page can record the correct owner at event time.
  */
-export class V3Context {
+export class BrowserContext {
   constructor(
     readonly conn: CdpConnection,
     readonly logger: StagehandLogger,
@@ -130,10 +130,6 @@ export class V3Context {
     return this.conn.connected;
   }
 
-  async getVersion(): Promise<BrowserGetVersionResult> {
-    return await this.conn.send<BrowserGetVersionResult>("Browser.getVersion");
-  }
-
   installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;
@@ -166,10 +162,10 @@ export class V3Context {
       chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
     },
-  ): Promise<V3Context> {
+  ): Promise<BrowserContext> {
     const connectTask = async () => {
       const conn = await CdpConnection.connect(wsUrl, opts.websocketFactory, opts.logger);
-      const ctx = new V3Context(
+      const ctx = new BrowserContext(
         conn,
         opts.logger,
         opts.chromeTabs,
@@ -267,8 +263,25 @@ export class V3Context {
 
   /** Return the understudy Page for Chrome's active tab in its last-focused window. */
   public async activePage(): Promise<Page | undefined> {
-    const targetId = await this.chromeTabs.activeTargetId();
-    return targetId === undefined ? undefined : this.pagesByTarget.get(targetId);
+    const deadline = Date.now() + DEFAULT_ACTIVE_PAGE_TIMEOUT_MS;
+    let targetId: string | undefined;
+
+    while (Date.now() < deadline) {
+      targetId = await this.chromeTabs.activeTargetId();
+      if (targetId === undefined) return undefined;
+
+      const page = this.pagesByTarget.get(targetId);
+      if (page) return page;
+
+      // Chrome can activate a popup before its auto-attached target has
+      // completed Page creation and registration in pagesByTarget.
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
+    throw new TimeoutError(
+      `activePage: active target not registered (${targetId ?? "unknown"})`,
+      DEFAULT_ACTIVE_PAGE_TIMEOUT_MS,
+    );
   }
 
   /** Select the Chrome tab that owns a known understudy Page. */
@@ -1062,6 +1075,7 @@ export class V3Context {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    page.dispose();
     this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);

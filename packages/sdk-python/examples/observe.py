@@ -31,12 +31,12 @@ async def main() -> None:
 
         print(
             json.dumps(
-                [action.model_dump(mode="json", by_alias=True) for action in actions],
+                [action.model_dump(mode="json", by_alias=True) for action in actions.data],
                 indent=2,
             )
         )
 
-        if not actions:
+        if not actions.data:
             raise RuntimeError("observe() returned no matching actions")
     finally:
         await stagehand.close()

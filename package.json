@@ -14,13 +14,21 @@
   },
   "type": "module",
   "scripts": {
-    "check": "oxfmt --check . && oxlint . && tsc --noEmit -p packages/protocol/tsconfig.json && pnpm --filter ./packages/docs check",
+    "check": "turbo run fmt:check lint typecheck",
     "docs": "pnpm --filter ./packages/docs dev",
     "fmt": "oxfmt --write .",
-    "test": "pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build && pnpm --recursive --if-present test && vitest run rules/ast-grep",
-    "build": "pnpm --filter ./packages/protocol build && pnpm --filter ./packages/server build && pnpm --filter ./packages/sdk-ts build"
+    "fmt:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "test": "turbo run test:unit test:browser",
+    "test:unit": "vitest run rules/ast-grep scripts",
+    "test:integration": "tsx scripts/test-integration.ts",
+    "build": "turbo run build",
+    "generate:python": "uv --directory packages/sdk-python run --locked python scripts/generate.py",
+    "generate:go": "go -C packages/sdk-go generate ./...",
+    "build:wheel": "uv --directory packages/sdk-python run --locked python scripts/build.py"
   },
   "devDependencies": {
+    "@ast-grep/lang-go": "catalog:",
     "@ast-grep/lang-python": "catalog:",
     "@ast-grep/napi": "catalog:",
     "@changesets/changelog-github": "catalog:",
@@ -36,7 +44,9 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
+    "smol-toml": "catalog:",
     "tsx": "catalog:",
+    "turbo": "^2.8.10",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
