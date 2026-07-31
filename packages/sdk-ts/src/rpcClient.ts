@@ -196,7 +196,7 @@ export class RPCClient {
 
   close(
     reason: Error = new Error("RPC client closed"),
-    options: { closeTransport?: boolean } = {},
+    { closeTransport = true }: { closeTransport?: boolean } = {},
   ): void {
     if (this.closed) return;
     this.closed = true;
