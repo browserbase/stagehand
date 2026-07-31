@@ -1156,10 +1156,10 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 |--------|---------|-------------|
 | level | `info` | Minimum level to emit: `off`, `error`, `warn`, `info`, or `debug` |
 | format | `pretty` | Console rendering: human-readable lines or one JSON object per line |
-| log callback | none | Receives every record that passes the level filter, alongside the console output in TypeScript and Python |
+| log callback | none | Receives every record that passes the level filter, alongside the console output |
 
 <Note>
-The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic. Go sends no level, so its runtime stays at `info`.
+The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic.
 </Note>
 
 ### Log structure
