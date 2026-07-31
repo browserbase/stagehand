@@ -6,6 +6,12 @@ icon: "crosshairs"
 
 Create a `Locator` from a page selector, then reuse it for element interactions and state queries. `first()` and `nth()` refine the local locator descriptor; the resulting descriptor is sent with later operations.
 
+Selectors pierce shadow DOM, including closed roots.
+
+<Warning>
+**Closed roots require a navigated page.** Piercing them needs a frame with a real origin, and a tab still sitting at `about:blank` has none, so a selector crossing a closed root will not match there. Open roots still resolve. Navigate to an `http:` or `https:` URL first; Stagehand switches back automatically.
+</Warning>
+
 <View title="TypeScript" icon="js">
 
 ## Quick start

@@ -457,7 +457,7 @@ const matched = await page.waitForSelector("main");
   Options that configure this operation.
 
 <ParamField path="options.pierceShadow" type="boolean" optional>
-  Whether to traverse shadow roots.
+  Whether to traverse shadow roots. Closed roots require a navigated page; see the [locator reference](/v4/reference/locator).
 </ParamField>
 
 <ParamField path="options.state" type="string" optional>
@@ -1114,7 +1114,7 @@ matched = await page.wait_for_selector("main", state="visible")
 </ParamField>
 
 <ParamField path="pierce_shadow" type="bool | None" optional>
-  Whether to traverse shadow roots.
+  Whether to traverse shadow roots. Closed roots require a navigated page; see the [locator reference](/v4/reference/locator).
 </ParamField>
 
 <ResponseField name="result" type="bool">
