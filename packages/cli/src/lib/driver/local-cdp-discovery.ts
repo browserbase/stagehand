@@ -91,26 +91,6 @@ export async function readDevToolsActivePort(
   }
 }
 
-function isPortReachable(port: number, timeoutMs = 500): Promise<boolean> {
-  return new Promise((resolve) => {
-    const socket = net.createConnection({ host: "127.0.0.1", port });
-    const timer = setTimeout(() => {
-      socket.destroy();
-      resolve(false);
-    }, timeoutMs);
-
-    socket.on("connect", () => {
-      clearTimeout(timer);
-      socket.destroy();
-      resolve(true);
-    });
-    socket.on("error", () => {
-      clearTimeout(timer);
-      resolve(false);
-    });
-  });
-}
-
 async function probeJsonVersion(port: number): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 2000);
@@ -129,6 +109,20 @@ async function probeJsonVersion(port: number): Promise<string | null> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * A DevToolsActivePort file only reflects the browser instance that wrote it.
+ * If a different process later binds the same port (a very likely collision,
+ * since 9222 is the near-universal default debugging port), the cached
+ * port+wsPath pair points at a target that no longer exists. Confirm the
+ * port's live /json/version still reports this exact wsPath before trusting it.
+ */
+async function isDevToolsActivePortFresh(
+  info: DevToolsActivePortInfo,
+): Promise<boolean> {
+  const liveWsUrl = await probeJsonVersion(info.port);
+  return liveWsUrl === buildDevToolsWsUrl(info.port, info.wsPath);
 }
 
 async function verifyCdpWebSocket(wsUrl: string): Promise<boolean> {
@@ -181,7 +175,7 @@ async function resolveDevToolsActivePortUrl(
   for (const dir of userDataDirs) {
     const info = await readDevToolsActivePort(dir);
     if (!info || info.port !== port) continue;
-    if (!(await isPortReachable(info.port))) continue;
+    if (!(await isDevToolsActivePortFresh(info))) continue;
     return buildDevToolsWsUrl(info.port, info.wsPath);
   }
 
@@ -212,7 +206,7 @@ export async function discoverLocalCdp(
 
   for (const dir of userDataDirs) {
     const info = await readDevToolsActivePort(dir);
-    if (!info || !(await isPortReachable(info.port))) continue;
+    if (!info || !(await isDevToolsActivePortFresh(info))) continue;
     candidates.push({
       source: `DevToolsActivePort:${dir}`,
       wsUrl: buildDevToolsWsUrl(info.port, info.wsPath),
