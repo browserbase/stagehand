@@ -25,7 +25,7 @@ export type RunningCodeModeHttpServer = {
 
 export function createCodeModeMcpServer(manager: CodeSessionManager): McpServer {
   const server = new McpServer({
-    name: "stagehand-v4-codemode",
+    name: "stagehand-codemode",
     version: "0.1.0",
   });
 
