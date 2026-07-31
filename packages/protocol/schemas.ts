@@ -964,7 +964,7 @@ export const BrowserbaseSessionCreateParamsSchema = z
 
 /** Browser session metadata used by provider-independent worker services. */
 export const BrowserSessionMetadataSchema = z
-  .object({
+  .strictObject({
     sessionId: z.string().min(1),
     region: BrowserbaseRegionSchema.optional(),
   })
