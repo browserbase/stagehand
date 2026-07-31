@@ -12,9 +12,14 @@ import {
   type ForwardedEnv,
 } from "./daemon/forwarded-env.js";
 import { DriverError } from "./errors.js";
+import {
+  filterCookiesByDomains,
+  normalizeCookieDomains,
+} from "./cookie-sync.js";
 import { discoverLocalCdp } from "./local-cdp-discovery.js";
 import { NetworkCapture } from "./network-capture.js";
 import { getRemote } from "./remote-binding.js";
+import { resolveWsTarget } from "./resolve-ws.js";
 import type {
   BrowserbaseIdentity,
   ConnectionTarget,
@@ -149,6 +154,73 @@ export class DriverSessionManager {
     }
 
     return this.stagehand;
+  }
+
+  async syncCookiesFromLocal(options: {
+    all?: boolean;
+    domains: string[];
+    sourceCdp?: string;
+  }): Promise<Record<string, unknown>> {
+    if (this.target.kind !== "remote") {
+      throw new DriverError(
+        "Cookie sync requires a remote Browserbase session.",
+        {
+          code: "cookie_sync_requires_remote",
+        },
+      );
+    }
+
+    const domains = normalizeCookieDomains(options.domains);
+    if (!options.all && domains.length === 0) {
+      throw new DriverError(
+        "Cookie sync requires at least one domain, or an explicit all-cookies opt-in.",
+        { code: "cookie_sync_scope_required" },
+      );
+    }
+
+    const endpoint = options.sourceCdp
+      ? await resolveWsTarget(options.sourceCdp)
+      : (await discoverLocalCdp())?.wsUrl;
+    if (!endpoint) {
+      throw new DriverError(
+        "No debuggable local browser found. Enable Chrome remote debugging, or pass --source-cdp <url|port>.",
+        { code: "cookie_sync_source_not_found" },
+      );
+    }
+
+    const source = new Stagehand({
+      disablePino: true,
+      env: "LOCAL",
+      localBrowserLaunchOptions: { cdpUrl: endpoint },
+      verbose: 0,
+    });
+
+    try {
+      await source.init();
+      const sourceCookies = await source.context.cookies();
+      const cookies = options.all
+        ? sourceCookies
+        : filterCookiesByDomains(sourceCookies, domains);
+      if (cookies.length === 0) {
+        throw new DriverError(
+          options.all
+            ? "Local Chrome has no cookies to sync."
+            : `Local Chrome has no cookies matching: ${domains.join(", ")}.`,
+          { code: "cookie_sync_no_matches" },
+        );
+      }
+      const destination = await this.browserContext();
+      await destination.addCookies(cookies);
+
+      return {
+        ...this.browserbaseIdentity(),
+        domains: options.all ? ["*"] : domains,
+        session: this.session,
+        syncedCookies: cookies.length,
+      };
+    } finally {
+      await source.close().catch(() => undefined);
+    }
   }
 
   async status(): Promise<DriverStatus> {

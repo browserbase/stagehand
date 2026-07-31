@@ -74,12 +74,24 @@ export async function remoteStagehandOptions(
     userMetadata.install_id = toMetadataValue(installId);
   }
 
+  const browserSettings = {
+    ...(target?.verified ? { verified: true } : {}),
+    ...(target?.contextId
+      ? {
+          context: {
+            id: target.contextId,
+            persist: target.persist ?? true,
+          },
+        }
+      : {}),
+  };
+
   return {
     apiKey,
     browserbaseSessionCreateParams: {
       userMetadata,
       ...(target?.proxies ? { proxies: true } : {}),
-      ...(target?.verified ? { browserSettings: { verified: true } } : {}),
+      ...(Object.keys(browserSettings).length > 0 ? { browserSettings } : {}),
     },
     disableAPI: true,
     disablePino: true,

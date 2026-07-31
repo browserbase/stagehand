@@ -67,7 +67,7 @@ Use local mode for development, localhost, trusted sites, and fast iteration. Us
 
 `--local` requires Chrome or Chromium already installed on the machine. In containers, CI, and sandboxes with no browser installed, use `--remote` instead of `--local`. If `--local` fails with "No Chrome or Chromium found" and `BROWSERBASE_API_KEY` is set, switch to `--remote` — do not retry `--local`.
 
-For a Verified and/or proxied remote session, add `--verified` and/or `--proxies` to `--remote` — a single command that keeps the Browserbase session identity, so `browse status` and `browse doctor` report the session ID and live-view URL. `--verified` requires a Browserbase Scale plan. These flags only apply to `--remote` and are sticky for the session's lifetime, like `--headed`. Reach for `browse cloud sessions create` + `--cdp` only when you need session options `open` doesn't expose (region, keep-alive, contexts).
+For a Verified and/or proxied remote session, add `--verified` and/or `--proxies` to `--remote` — a single command that keeps the Browserbase session identity, so `browse status` and `browse doctor` report the session ID and live-view URL. `--verified` requires a Browserbase Scale plan. These flags only apply to `--remote` and are sticky for the session's lifetime, like `--headed`. Reach for `browse cloud sessions create` + `--cdp` only when you need session options `open` doesn't expose (region or keep-alive).
 
 Choose headed/headless and local/remote mode when starting a session. A running session keeps its mode: passing a conflicting flag such as `--headed` to an already-running headless session fails until you run `browse stop --session <name>` or target a different session.
 
@@ -249,6 +249,19 @@ For remote sessions with context persistence:
 browse cloud sessions create --context-id <context-id> --persist
 ```
 
+To move an existing login from local Chrome into a remote session, enable
+Chrome remote debugging and sync only the required cookie domains:
+
+```bash
+browse cookies sync --domain github.com --session github
+browse open https://github.com --session github
+```
+
+Use `--persist` to create a new reusable context, or `--context <id|name>` to
+refresh an existing context. Never use `--all` unless the user explicitly wants
+every local cookie copied; cookies are credentials and the domain-scoped form is
+the safe default.
+
 Contexts persist cookies and local storage (logins) across sessions. Name a
 context once with `--name` to save a local alias, then reuse the name anywhere a
 context ID is accepted instead of memorizing the ID:
@@ -260,7 +273,7 @@ browse cloud sessions create --context-id github --persist
 browse cloud contexts list                          # show saved names
 ```
 
-Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, contexts, full `--stdin` body).
+Use `--verified` when the task needs Browserbase Verified browser mode. To drive a Verified/proxied session directly, prefer `browse open <url> --remote --verified --proxies` over create-then-attach — it keeps the session identity so `browse status`/`browse doctor` can report it. Use `browse cloud sessions create` for session options the driver flags don't cover (region, keep-alive, full `--stdin` body).
 
 Use `browse cloud fetch` when the user needs a simple HTTP fetch without browser interaction. It returns markdown-formatted page content by default; pass `--format raw` for the original response body or `--format json --schema <schema>` for structured extraction. Use `browse cloud search` when the user asks for web search results.
 

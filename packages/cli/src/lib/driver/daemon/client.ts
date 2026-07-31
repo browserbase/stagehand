@@ -87,13 +87,17 @@ export async function runDriverCommandViaDaemon(
   command: DriverCommandName,
   params?: unknown,
 ): Promise<unknown> {
-  return sendDriverRequest(session, {
-    command,
-    forwardedEnv: await collectForwardedEnv(),
-    id: requestId(),
-    params,
-    type: "command",
-  });
+  return sendDriverRequest(
+    session,
+    {
+      command,
+      forwardedEnv: await collectForwardedEnv(),
+      id: requestId(),
+      params,
+      type: "command",
+    },
+    command === "cookies.sync" ? 90_000 : undefined,
+  );
 }
 
 export async function getDriverStatus(
@@ -165,6 +169,7 @@ async function tryDriverStatus(session: string): Promise<DriverStatus | null> {
 async function sendDriverRequest<T>(
   session: string,
   request: DriverRequest,
+  timeoutMs = 35_000,
 ): Promise<T> {
   const socketPath = getSocketPath(session);
   return new Promise<T>((resolve, reject) => {
@@ -203,7 +208,7 @@ async function sendDriverRequest<T>(
           { resultCode: "daemon_socket_timeout" },
         ),
       );
-    }, 35_000);
+    }, timeoutMs);
 
     socket.on("connect", () => {
       socket.write(`${JSON.stringify(request)}\n`);
