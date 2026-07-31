@@ -287,15 +287,9 @@ func run(ctx context.Context) (result string, err error) {
 			},
 		},
 		Model: &model,
-		// Go has no logging level option, so the server streams info and above
-		// and OnLog decides what to keep. Match the warn level used elsewhere.
 		Logging: &stagehand.StagehandClientLoggingConfig{
-			OnLog: func(entry stagehand.StagehandLog) {
-				switch entry.Level {
-				case stagehand.StagehandLogLevelWarn, stagehand.StagehandLogLevelError:
-					_ = json.NewEncoder(os.Stderr).Encode(entry)
-				}
-			},
+			Level:  stagehand.StagehandClientLogLevelWarn,
+			Format: stagehand.StagehandClientLogFormatJSON,
 		},
 	})
 

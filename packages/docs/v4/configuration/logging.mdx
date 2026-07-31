@@ -5,7 +5,7 @@ description: "Control terminal output and forward structured Stagehand logs."
 
 Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
 
-All logging is configured through a single `logging` option on the constructor. Use the language selector to see the exact shape your SDK accepts: some expose a level and an output format alongside the record callback, others hand you the record stream and let you filter and format it yourself.
+All logging is configured through a single `logging` option on the constructor: a level, an output format, and a callback that receives each record. Use the language selector to see the exact shape your SDK accepts.
 
 ## Quick start
 
@@ -77,23 +77,23 @@ testing = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// The Go SDK exposes a single OnLog callback: you own filtering and formatting.
-// Development: print everything, human-readable
+// Development: full debug output, human-readable
 development := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.LocalBrowserSource{},
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s %v\n", entry.Level, entry.Message, entry.Data)
-		},
+		Level:  stagehand.StagehandClientLogLevelDebug,
+		Format: stagehand.StagehandClientLogFormatPretty,
 	},
 	// restOfYourConfiguration...
 })
 
-// Production: machine-readable, forwarded to your platform
+// Production: standard logging, machine-readable, forwarded to your platform
 production := stagehand.New(stagehand.StagehandClientInitParams{
 	APIKey: &apiKey,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: yourProductionLogger, // Send to Sentry, DataDog, or similar
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatJSON,
+		OnLog:  yourProductionLogger, // Send to Sentry, DataDog, or similar
 	},
 	// restOfYourConfiguration...
 })
@@ -102,11 +102,8 @@ production := stagehand.New(stagehand.StagehandClientInitParams{
 testing := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.LocalBrowserSource{},
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelWarn || entry.Level == stagehand.StagehandLogLevelError {
-				yourTestLogger(entry)
-			}
-		},
+		Level: stagehand.StagehandClientLogLevelWarn,
+		OnLog: yourTestLogger,
 	},
 	// restOfYourConfiguration...
 })
@@ -135,7 +132,7 @@ Real-time event logging during automation execution.
 
 ### Verbosity level
 
-Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold. TypeScript and Python set that threshold; Go does not expose one and receives the default of `info` and above.
+Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold. Every SDK sets that threshold the same way, and the default is `info`.
 
 <Tabs>
 <Tab title="Level: debug">
@@ -161,12 +158,9 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go has no level to raise: OnLog receives every record the runtime emits
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s %v\n", entry.Level, entry.Message, entry.Data)
-		},
+		Level: stagehand.StagehandClientLogLevelDebug, // Maximum detail
 	},
 	// restOfYourConfiguration...
 })
@@ -214,15 +208,9 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go filters in OnLog: this keeps info and above, the default of the other SDKs
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelDebug {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s\n", entry.Level, entry.Message)
-		},
+		Level: stagehand.StagehandClientLogLevelInfo, // Default level
 	},
 	// restOfYourConfiguration...
 })
@@ -322,7 +310,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Warning>
-In TypeScript and Python, turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets. Go has no level, so the runtime keeps generating records: leave `OnLog` unset to keep them out of your own sinks.
+Turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets.
 </Warning>
 
 ---
@@ -333,7 +321,7 @@ Logs can be sent to different destinations, including your console and external 
 
 <Tabs>
 <Tab title="Pretty (default)">
-Human-readable, single-line console output written to standard error. TypeScript and Python render this format for you; in Go you produce it in the callback.
+Human-readable, single-line console output written to standard error.
 
 **When to use:** Development and interactive debugging
 
@@ -383,7 +371,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </View>
 
 <Accordion title="Output shape">
-Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. TypeScript and Python write it to standard error so it never mixes with your program's own standard output.
+Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. Stagehand writes it to standard error so it never mixes with your program's own standard output.
 </Accordion>
 </Tab>
 
@@ -435,7 +423,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 </Tab>
 <Tab title="Custom logger">
-Your own callback receives every log record that passes the level filter, alongside the console output in TypeScript and Python.
+Your own callback receives every log record that passes the level filter, alongside the console output.
 
 **When to use:** Development, debugging, or when you don't need querying
 capabilities.
@@ -541,7 +529,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-The callback receives every record that passes the level gate, so do any finer filtering inside it. In TypeScript and Python the callback runs in addition to the console output rather than instead of it: the level gates both and `off` silences both, so keep the level at the lowest severity you want to receive and redirect standard error if the console itself needs to stay quiet. Go exposes no level and writes nothing to the console, so the callback is the only sink and always receives the runtime default of `info` and above.
+The callback receives every record that passes the level gate, so do any finer filtering inside it. It runs in addition to the console output rather than instead of it: the level gates both and `off` silences both. Keep the level at the lowest severity you want to receive, and redirect standard error if the console itself needs to stay quiet.
 </Note>
 </Tab>
 
@@ -734,7 +722,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-In TypeScript and Python, exceptions thrown by your callback, including rejected promises, are caught and reported on standard error, so a failing logger will not take down your automation. Go does not recover from a panic in `OnLog`, so handle failures inside the callback.
+Failures inside your callback are caught and reported on standard error, so a failing logger will not take down your automation. That covers exceptions and rejected promises in TypeScript and Python, and a panic in Go.
 </Note>
 
 </Tab>
@@ -1000,7 +988,7 @@ This is especially useful for debugging long workflows where you need to trace t
 **Development only** - Produces large volumes of output and contains page content. Do not use in production.
 </Warning>
 
-Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call. TypeScript and Python can raise the level to `debug`; Go cannot, so debug records never reach a Go callback.
+Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -1160,7 +1148,7 @@ stagehand = Stagehand(
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	// ... your other configurations (Browser, Model, etc.)
 
-	// Go exposes only the callback. Filtering and formatting are yours.
+	// Filter and format inside the callback when you forward records yourself.
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: func(entry stagehand.StagehandLog) {},
 	},
