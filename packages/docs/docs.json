@@ -42,7 +42,12 @@
           },
           {
             "group": "Configuration",
-            "pages": ["v4/configuration/logging"]
+            "pages": [
+              "v4/configuration/browser",
+              "v4/configuration/models",
+              "v4/configuration/logging",
+              "v4/configuration/observability"
+            ]
           },
           {
             "group": "SDK reference",
