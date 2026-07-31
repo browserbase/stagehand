@@ -21,11 +21,14 @@ async function startFakeCdpServer(
 ): Promise<{
   port: number;
   wsUrl: string;
+  requestCount: () => number;
   close: () => Promise<void>;
 }> {
   let wsUrl = "";
+  let requests = 0;
   const server: Server = createServer((req, res) => {
     if (req.url === "/json/version") {
+      requests += 1;
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ webSocketDebuggerUrl: wsUrl }));
       return;
@@ -41,6 +44,7 @@ async function startFakeCdpServer(
   return {
     port,
     wsUrl,
+    requestCount: () => requests,
     close: () => new Promise((resolve) => server.close(() => resolve())),
   };
 }
@@ -151,6 +155,65 @@ describe("local CDP discovery", () => {
 
     expect(discovered?.wsUrl).toBe(liveWsUrl);
     expect(discovered?.source).toBe(`port:${port}`);
+  });
+
+  it('resolveWsTargetFromPort trusts a live browser that reports "localhost" instead of "127.0.0.1"', async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "browse-cdp-host-"));
+    tempDirs.push(userDataDir);
+
+    // Chrome's /json/version response can echo back whichever host the
+    // request used (or a fixed default), so a live browser can legitimately
+    // report "localhost" even though we always probe via 127.0.0.1.
+    const { port, close } = await startFakeCdpServer(
+      (p) => `ws://localhost:${p}/devtools/browser/current-id`,
+    );
+    servers.push(close);
+
+    await writeDevToolsActivePort(
+      userDataDir,
+      port,
+      "/devtools/browser/current-id",
+    );
+
+    const resolved = await resolveWsTargetFromPort(port, {
+      userDataDirs: [userDataDir],
+    });
+
+    // The cached candidate is still trusted (built from the recorded
+    // port + wsPath), since only the path -- not the host string -- is used
+    // to confirm freshness.
+    expect(resolved).toBe(`ws://127.0.0.1:${port}/devtools/browser/current-id`);
+  });
+
+  it("discoverLocalCdp probes a port shared by a cached candidate and a fallback port only once", async () => {
+    const userDataDir = await mkdtemp(join(tmpdir(), "browse-cdp-memo-"));
+    tempDirs.push(userDataDir);
+
+    const {
+      port,
+      wsUrl: liveWsUrl,
+      close,
+      requestCount,
+    } = await startFakeCdpServer(
+      (p) => `ws://127.0.0.1:${p}/devtools/browser/live-id`,
+    );
+    servers.push(close);
+
+    // The same port shows up both as a (stale) cached candidate and as a
+    // fallback port -- discovery should only hit /json/version once for it.
+    await writeDevToolsActivePort(
+      userDataDir,
+      port,
+      "/devtools/browser/stale-id",
+    );
+
+    const discovered = await discoverLocalCdp({
+      userDataDirs: [userDataDir],
+      fallbackPorts: [port],
+    });
+
+    expect(discovered?.wsUrl).toBe(liveWsUrl);
+    expect(requestCount()).toBe(1);
   });
 
   it("discoverLocalCdp returns null when no candidate is live", async () => {
