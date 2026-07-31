@@ -1,11 +1,25 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  launchLocalBrowser,
   localBrowserChromeFlags,
   resolveBrowserSource,
   WEBMCP_CHROME_FLAG,
   type BrowserbaseSessionClient,
 } from "../src/browserSource.js";
 
+const chromeLauncher = vi.hoisted(() => ({
+  launch: vi.fn(),
+  defaultFlags: vi.fn(() => [] as string[]),
+  getInstallations: vi.fn(() => [] as string[]),
+}));
+
+vi.mock("chrome-launcher", () => ({
+  launch: chromeLauncher.launch,
+  Launcher: {
+    defaultFlags: chromeLauncher.defaultFlags,
+    getInstallations: chromeLauncher.getInstallations,
+  },
+}));
 describe("resolveBrowserSource", () => {
   it("creates a Browserbase session from the default browser source", async () => {
     const close = vi.fn();
@@ -161,6 +175,41 @@ describe("resolveBrowserSource", () => {
     ).rejects.toThrow();
     expect(createSession).not.toHaveBeenCalled();
     expect(launchLocalBrowser).not.toHaveBeenCalled();
+  });
+});
+
+describe("launchLocalBrowser", () => {
+  it("passes an explicit executable path to chrome-launcher without discovery", async () => {
+    const kill = vi.fn();
+    chromeLauncher.launch.mockResolvedValueOnce({ port: 9333, kill });
+
+    const browser = await launchLocalBrowser({ executablePath: "/custom/chrome" });
+
+    expect(chromeLauncher.launch).toHaveBeenCalledWith(
+      expect.objectContaining({ chromePath: "/custom/chrome" }),
+    );
+    expect(browser.cdpUrl).toBe("http://127.0.0.1:9333");
+    browser.close();
+    expect(kill).toHaveBeenCalledOnce();
+  });
+
+  it("resolves a browser automatically with chrome-launcher's compatibility discoveries", async () => {
+    const kill = vi.fn();
+    const findChromeExecutable = vi.fn(
+      (options: { legacyInstallations?: () => readonly string[] }) => {
+        return options.legacyInstallations?.()[0] ?? "/missing/chrome";
+      },
+    );
+    chromeLauncher.getInstallations.mockReturnValueOnce(["/opt/google/chrome-wrapper"]);
+    chromeLauncher.launch.mockResolvedValueOnce({ port: 9444, kill });
+
+    await launchLocalBrowser({}, { findChromeExecutable });
+
+    expect(findChromeExecutable).toHaveBeenCalledOnce();
+    expect(chromeLauncher.getInstallations).toHaveBeenCalledOnce();
+    expect(chromeLauncher.launch).toHaveBeenCalledWith(
+      expect.objectContaining({ chromePath: "/opt/google/chrome-wrapper" }),
+    );
   });
 });
 
