@@ -1312,8 +1312,8 @@ await stagehand.act("click the login button")
 
 # Uses a stronger model for one hard extraction
 data = (await stagehand.extract(
-    instruction="summarize the pricing table",
-    schema=Pricing,
+    "summarize the pricing table",
+    Pricing,
     model=ModelConfig.model_validate({
         "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],

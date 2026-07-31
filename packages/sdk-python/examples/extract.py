@@ -31,8 +31,8 @@ async def main() -> None:
             await page.goto("https://example.com")
 
             page_info = await stagehand.extract(
-                instruction="Extract the page heading and description",
-                schema=PageInfo,
+                "Extract the page heading and description",
+                PageInfo,
             )
 
             print(json.dumps(page_info.model_dump(mode="json"), indent=2))

@@ -42,11 +42,11 @@ async def main() -> None:
             async def extract_companies() -> tuple[ExtractResult[Companies], int]:
                 start = perf_counter()
                 result = await stagehand.extract(
-                    instruction=(
+                    (
                         "Extract the names and descriptions of the first five companies "
                         "listed on the page"
                     ),
-                    schema=Companies,
+                    Companies,
                     page=page,
                     cache=True,
                 )

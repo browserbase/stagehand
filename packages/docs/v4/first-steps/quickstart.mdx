@@ -120,14 +120,14 @@ async def main() -> None:
         await page.goto("https://stagehand.dev")
 
         extract_result = await stagehand.extract(
-            instruction="Extract the value proposition from the page.",
-            schema=ValueProposition,
+            "Extract the value proposition from the page.",
+            ValueProposition,
         )
         print("Extract result:\n", extract_result.data)
 
         await stagehand.act("Click the 'Evals' button.")
 
-        observe_result = await stagehand.observe(instruction="What can I click on this page?")
+        observe_result = await stagehand.observe("What can I click on this page?")
         print("Observe result:\n", observe_result.data)
     finally:
         # Always release the session, even when a step above raises
