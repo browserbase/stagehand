@@ -38,7 +38,7 @@
           },
           {
             "group": "The basics",
-            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe"]
+            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe", "v4/basics/webmcp"]
           },
           {
             "group": "Configuration",
