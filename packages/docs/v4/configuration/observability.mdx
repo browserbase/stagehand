@@ -192,6 +192,8 @@ async function querySessionsByMetadata(query: string) {
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from browserbase import Browserbase
 
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
@@ -388,12 +390,7 @@ if err != nil {
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelDebug {
-				return // Monitor performance without debug noise
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s\n", entry.Level, entry.Message)
-		},
+		Level: stagehand.StagehandClientLogLevelInfo, // Monitor without debug noise
 	},
 })
 if err != nil {
@@ -670,6 +667,7 @@ console.log("Automation Summary:", {
 
 <View title="Python" icon="python">
 ```python
+import os
 from time import perf_counter
 
 from stagehand import Stagehand, browserbase
@@ -1039,6 +1037,7 @@ console.log(await stagehand.metrics());
 
 <View title="Python" icon="python">
 ```python
+import os
 from datetime import datetime, timezone
 
 from stagehand import Stagehand, StagehandClientLoggingConfig
@@ -1074,6 +1073,8 @@ apiKey := os.Getenv("BROWSERBASE_API_KEY")
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	APIKey: &apiKey,
 	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelDebug,
+		Format: stagehand.StagehandClientLogFormatJSON,
 		OnLog: func(entry stagehand.StagehandLog) {
 			mu.Lock()
 			history = append(history, entry)

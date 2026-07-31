@@ -271,18 +271,16 @@ silent = Stagehand(
 // Errors only
 errorsOnly := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level != stagehand.StagehandLogLevelError {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] ERROR %s\n", entry.Message)
-		},
+		Level: stagehand.StagehandClientLogLevelError,
 	},
 	// restOfYourConfiguration...
 })
 
-// Nothing at all: omit Logging entirely, and Go writes no output
+// Nothing at all
 silent := stagehand.New(stagehand.StagehandClientInitParams{
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level: stagehand.StagehandClientLogLevelOff,
+	},
 	// restOfYourConfiguration...
 })
 
@@ -347,18 +345,10 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go prints nothing unless you ask it to. This reproduces the pretty format.
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			suffix := ""
-			if len(entry.Data) > 0 {
-				if encoded, err := json.Marshal(entry.Data); err == nil {
-					suffix = " " + string(encoded)
-				}
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s%s\n", strings.ToUpper(string(entry.Level)), entry.Message, suffix)
-		},
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
 	},
 	// restOfYourConfiguration...
 })
@@ -402,9 +392,8 @@ stagehand = Stagehand(
 ```go
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			_ = json.NewEncoder(os.Stderr).Encode(entry)
-		},
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatJSON,
 	},
 	// restOfYourConfiguration...
 })
@@ -1042,6 +1031,7 @@ func captureInference(inferenceFile *os.File) func(stagehand.StagehandLog) {
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	Browser: stagehand.LocalBrowserSource{},
 	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level: stagehand.StagehandClientLogLevelDebug,
 		OnLog: captureInference(inferenceFile),
 	},
 })
@@ -1148,9 +1138,10 @@ stagehand = Stagehand(
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	// ... your other configurations (Browser, Model, etc.)
 
-	// Filter and format inside the callback when you forward records yourself.
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {},
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
+		OnLog:  func(entry stagehand.StagehandLog) {},
 	},
 })
 

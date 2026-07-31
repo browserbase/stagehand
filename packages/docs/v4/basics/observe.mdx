@@ -262,6 +262,10 @@ const { data: actions } = await stagehand.observe("find navigation links", {
 
 <View title="Python" icon="python">
 ```python
+import os
+
+from stagehand import ModelConfig
+
 # Custom model configuration
 result = await stagehand.observe(
     "find navigation links",
@@ -396,8 +400,8 @@ password_field = next(
 )
 
 if email_field is not None and password_field is not None:
-# Replay the observed actions, resolving placeholders locally
-await stagehand.act(email_field, variables={"username": "user@example.com"})
+    # Replay the observed actions, resolving placeholders locally
+    await stagehand.act(email_field, variables={"username": "user@example.com"})
     await stagehand.act(
         password_field, variables={"password": os.environ["USER_PASSWORD"]}
     )
@@ -493,6 +497,8 @@ const { data: actions } = await stagehand.observe("find the login button", { cac
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand
 
 # Enable server-side caching for the entire instance
@@ -626,7 +632,7 @@ This works with:
 - **New pages:** create one on the context
 - **Existing browsers:** attach to a browser you already run with the `cdp` browser source
 
-<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v4/references/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -674,7 +680,7 @@ for _, field := range observed.Data {
 ```
 </View>
 
-<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v3/references/stagehand">
+<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v4/references/stagehand">
   Complete guide to planning actions with `observe()`.
 </Card>
 
@@ -779,7 +785,7 @@ pricing, err := stagehand.ExtractAs[pricingTiers](
 	"extract all pricing tiers",
 	pricingSchema,
 	&stagehand.StagehandClientExtractOptions{
-	ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
 	},
 )
 if err != nil {
@@ -1041,7 +1047,7 @@ if _, err := client.Observe(ctx, &specific, nil); err != nil {
 **Solutions**:
 - Validate the method before using it
 - Check [supported actions](/v4/basics/act) for valid method names
-- Reach for a [locator](/v3/references/stagehand) when you want to call a specific method instead of trusting the suggestion
+- Reach for a [locator](/v4/references/stagehand) when you want to call a specific method instead of trusting the suggestion
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -1120,7 +1126,7 @@ if action != nil && slices.Contains(validMethods, method) {
     Build action caches to eliminate redundant LLM calls.
   </Card>
 
-  <Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+  <Card title="Complete API reference" icon="book" href="/v4/references/stagehand">
     Full `Stagehand` reference with detailed parameter documentation.
   </Card>
 </CardGroup>
