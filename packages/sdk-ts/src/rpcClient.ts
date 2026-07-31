@@ -207,7 +207,7 @@ export class RPCClient {
     this.cdp.onmessage = undefined;
     this.cdp.onclose = undefined;
     this.cdp.onerror = undefined;
-    if (options.closeTransport ?? true) {
+    if (closeTransport) {
       this.cdp.close();
     }
   }
