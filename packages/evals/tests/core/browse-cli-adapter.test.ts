@@ -5,8 +5,8 @@ import {
   BrowseCliSession,
   browseCliStartupArgs,
   buildBrowseCliProcessArgs,
-  createBrowseCliSessionName,
 } from "../../core/tools/browse_cli.js";
+import { createBrowseCliSessionName } from "../../browseCliPaths.js";
 
 describe("browse_cli V4 adapter", () => {
   it("places session selection on each V4 command and uses mode-specific startup commands", () => {

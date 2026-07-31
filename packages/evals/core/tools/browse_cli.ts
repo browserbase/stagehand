@@ -14,7 +14,11 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import { BROWSE_CLI_BUILD_ARTIFACTS, BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
+import {
+  BROWSE_CLI_BUILD_ARTIFACTS,
+  BROWSE_CLI_ENTRYPOINT,
+  createBrowseCliSessionName,
+} from "../../browseCliPaths.js";
 import { getRepoRootDir } from "../../runtimePaths.js";
 
 const execFileAsync = promisify(execFile);
@@ -670,12 +674,6 @@ function connectionModeFromProfile(startupProfile: StartupProfile): ConnectionMo
   }
 
   return "launch";
-}
-
-export function createBrowseCliSessionName(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).slice(2, 6);
-  return `eval-${process.pid}-${timestamp}-${random}`;
 }
 
 export class BrowseCliTool implements CoreTool {
