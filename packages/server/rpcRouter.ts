@@ -10,13 +10,15 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods } from "../protocol/schema-registry.js";
-import type { StagehandRpcRequest } from "../protocol/types.js";
+import type {
+  StagehandInitParams,
+  StagehandInitResult,
+  StagehandRpcRequest,
+} from "../protocol/types.js";
 import { z } from "zod/v4";
-import { createBrowserController } from "./controllers/browserController.js";
 import { createContextController } from "./controllers/contextController.js";
 import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
-import { createRuntimeController } from "./controllers/runtimeController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
 import type { StagehandLogger } from "./logger.js";
 import type { StagehandRuntime } from "./runtime.js";
@@ -27,18 +29,25 @@ export type HandlerContext = {
   logger: StagehandLogger;
 };
 
+export type RPCRouterOptions = {
+  initializeStagehand?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  closeStagehand?: () => Promise<void>;
+};
+
 export class RPCRouter {
-  readonly runtimeController;
-  readonly browserController;
   readonly stagehandController;
   readonly contextController;
   readonly pageController;
   readonly locatorController;
 
-  constructor(readonly runtime: StagehandRuntime) {
-    this.runtimeController = createRuntimeController(runtime);
-    this.browserController = createBrowserController(runtime);
-    this.stagehandController = createStagehandController(runtime);
+  constructor(
+    readonly runtime: StagehandRuntime,
+    options: RPCRouterOptions = {},
+  ) {
+    this.stagehandController = createStagehandController(runtime, {
+      ...(options.initializeStagehand ? { initialize: options.initializeStagehand } : {}),
+      ...(options.closeStagehand ? { close: options.closeStagehand } : {}),
+    });
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
@@ -84,26 +93,6 @@ export class RPCRouter {
 
   async route(request: StagehandRpcRequest, context: HandlerContext): Promise<unknown> {
     switch (request.method) {
-      case "ping":
-        return this.runtimeController.ping(
-          parseParams(StagehandMethods.ping, request.params),
-          context,
-        );
-      case "runtime.configure":
-        return this.runtimeController.configure(
-          parseParams(StagehandMethods.runtimeConfigure, request.params),
-          context,
-        );
-      case "runtime.loopback_status":
-        return this.runtimeController.loopbackStatus(
-          parseParams(StagehandMethods.runtimeLoopbackStatus, request.params),
-          context,
-        );
-      case "browser.get_version":
-        return this.browserController.getVersion(
-          parseParams(StagehandMethods.browserGetVersion, request.params),
-          context,
-        );
       case "stagehand.init":
         return this.stagehandController.init(
           parseParams(StagehandMethods.stagehandInit, request.params),
@@ -317,6 +306,26 @@ export class RPCRouter {
       case "page.snapshot":
         return this.pageController.snapshot(
           parseParams(StagehandMethods.pageSnapshot, request.params),
+          context,
+        );
+      case "page.webmcp_tools":
+        return this.pageController.webMCPTools(
+          parseParams(StagehandMethods.pageWebMCPTools, request.params),
+          context,
+        );
+      case "page.webmcp_invoke_tool":
+        return this.pageController.webMCPInvokeTool(
+          parseParams(StagehandMethods.pageWebMCPInvokeTool, request.params),
+          context,
+        );
+      case "page.webmcp_invocation_result":
+        return this.pageController.webMCPInvocationResult(
+          parseParams(StagehandMethods.pageWebMCPInvocationResult, request.params),
+          context,
+        );
+      case "page.webmcp_cancel_invocation":
+        return this.pageController.webMCPCancelInvocation(
+          parseParams(StagehandMethods.pageWebMCPCancelInvocation, request.params),
           context,
         );
       case "page.url":

@@ -1,6 +1,8 @@
 import { StagehandClientInitParamsSchema, type BrowserSource } from "./clientSchemas.js";
-import { BrowserbaseSessionCreateParamsSchema } from "../../protocol/schemas.js";
-import { LocalBrowserLaunchOptionsSchema } from "../../protocol/pending-schemas.js";
+import {
+  BrowserbaseSessionCreateParamsSchema,
+  LocalBrowserLaunchOptionsSchema,
+} from "../../protocol/schemas.js";
 import {
   createBrowserbaseSessionClient,
   type BrowserbaseSessionClient,
@@ -13,11 +15,21 @@ export type { BrowserbaseSessionClient, BrowserbaseSessionClientFactory };
 type LocalBrowserSource = Extract<BrowserSource, { type: "local" }>;
 type LocalBrowserLaunchOptions = Omit<LocalBrowserSource, "type">;
 
+export const WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport";
+
+const STAGEHAND_DEFAULT_CHROME_FLAGS = [
+  "--enable-unsafe-extension-debugging",
+  "--remote-allow-origins=*",
+  "--window-size=1280,800",
+  WEBMCP_CHROME_FLAG,
+] as const;
+
 export type ResolvedBrowserSource = {
   cdpUrl: string;
   cdpHeaders?: Record<string, string>;
   browserbaseSessionId?: string;
   preloadedExtension?: boolean;
+  residentBrowserConnection?: boolean;
   keepAlive: boolean;
   close?: () => Promise<void> | void;
 };
@@ -57,6 +69,7 @@ export async function resolveBrowserSource(
       cdpUrl: session.cdpUrl,
       browserbaseSessionId: session.sessionId,
       preloadedExtension: true,
+      residentBrowserConnection: false,
       keepAlive: browser.keepAlive ?? false,
       close: session.close,
     };
@@ -67,6 +80,7 @@ export async function resolveBrowserSource(
     const launched = await (dependencies.launchLocalBrowser ?? launchLocalBrowser)(launchOptions);
     return {
       cdpUrl: launched.cdpUrl,
+      residentBrowserConnection: false,
       keepAlive: launchOptions.keepAlive ?? false,
       close: launched.close,
     };
@@ -75,6 +89,7 @@ export async function resolveBrowserSource(
   return {
     cdpUrl: browser.cdpUrl,
     ...(browser.headers === undefined ? {} : { cdpHeaders: browser.headers }),
+    residentBrowserConnection: false,
     keepAlive: true,
   };
 }
@@ -93,17 +108,9 @@ export async function launchLocalBrowser(
     chromePath,
     startingUrl: "about:blank",
     ignoreDefaultFlags: true,
-    chromeFlags: [
-      ...Launcher.defaultFlags().filter((flag) => flag !== "--disable-extensions"),
-      "--enable-unsafe-extension-debugging",
-      "--remote-allow-origins=*",
-      "--window-size=1280,800",
-      ...(options.headless === true ? ["--headless"] : []),
-      ...(options.devtools ? ["--auto-open-devtools-for-tabs"] : []),
-      ...(process.env.CI ? ["--no-sandbox"] : []),
-    ],
+    chromeFlags: localBrowserChromeFlags(options, Launcher.defaultFlags(), Boolean(process.env.CI)),
     userDataDir: options.userDataDir,
-    port: options.port,
+    ...(options.port === undefined ? {} : { port: options.port }),
     logLevel: "silent",
   });
 
@@ -111,4 +118,29 @@ export async function launchLocalBrowser(
     cdpUrl: `http://127.0.0.1:${chrome.port}`,
     close: () => chrome.kill(),
   };
+}
+
+export function localBrowserChromeFlags(
+  options: LocalBrowserLaunchOptions,
+  launcherDefaultFlags: string[],
+  isCI: boolean,
+): string[] {
+  const ignoredDefaultArgs = options.ignoreDefaultArgs;
+  const ignoredFlags = new Set(Array.isArray(ignoredDefaultArgs) ? ignoredDefaultArgs : []);
+  const includeDefaults = ignoredDefaultArgs !== true;
+
+  return [
+    ...(includeDefaults
+      ? launcherDefaultFlags.filter(
+          (flag) => flag !== "--disable-extensions" && !ignoredFlags.has(flag),
+        )
+      : []),
+    ...(includeDefaults
+      ? STAGEHAND_DEFAULT_CHROME_FLAGS.filter((flag) => !ignoredFlags.has(flag))
+      : []),
+    ...(options.headless === true ? ["--headless"] : []),
+    ...(options.devtools ? ["--auto-open-devtools-for-tabs"] : []),
+    ...(isCI ? ["--no-sandbox"] : []),
+    ...(options.args ?? []),
+  ];
 }

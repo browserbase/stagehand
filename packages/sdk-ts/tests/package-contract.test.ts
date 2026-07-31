@@ -29,7 +29,7 @@ describe("published TypeScript SDK", () => {
             type: "module",
             packageManager: "pnpm@11.10.0",
             dependencies: {
-              "@browserbasehq/stagehand-v4-spike-sdk-ts": "file:../stagehand-sdk.tgz",
+              "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
           },
           null,
@@ -44,10 +44,20 @@ describe("published TypeScript SDK", () => {
         `
             import { access, readFile } from "node:fs/promises";
             import { fileURLToPath } from "node:url";
-            import { Stagehand } from "@browserbasehq/stagehand-v4-spike-sdk-ts";
+            import {
+              Stagehand,
+              WebMCPInvocation,
+              WebMCPTool,
+              WebMCPToolsOptionsSchema,
+            } from "@browserbasehq/stagehand";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
-            const entryUrl = import.meta.resolve("@browserbasehq/stagehand-v4-spike-sdk-ts");
+            if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
+            if (typeof WebMCPInvocation !== "function") {
+              throw new Error("WebMCPInvocation export is unavailable");
+            }
+            WebMCPToolsOptionsSchema.parse({ timeout: 1000 });
+            const entryUrl = import.meta.resolve("@browserbasehq/stagehand");
             const archiveUrl = new URL("./assets/stagehand-extension.zip", entryUrl);
             const manifestUrl = new URL("./extension/manifest.json", entryUrl);
             await access(fileURLToPath(archiveUrl));

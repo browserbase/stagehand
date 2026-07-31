@@ -106,60 +106,53 @@ class Locator:
         )
 
     async def count(self) -> int:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.count",
             self._descriptor,
             LocatorCountResult,
         )
-        return result.count
 
     async def is_checked(self) -> bool:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.is_checked",
             self._descriptor,
             LocatorIsCheckedResult,
         )
-        return result.checked
 
     async def input_value(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.input_value",
             self._descriptor,
             LocatorInputValueResult,
         )
-        return result.value
 
     async def is_visible(self) -> bool:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.is_visible",
             self._descriptor,
             LocatorIsVisibleResult,
         )
-        return result.visible
 
     async def inner_text(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.inner_text",
             self._descriptor,
             LocatorInnerTextResult,
         )
-        return result.text
 
     async def inner_html(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.inner_html",
             self._descriptor,
             LocatorInnerHtmlResult,
         )
-        return result.html
 
     async def text_content(self) -> str:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.text_content",
             self._descriptor,
             LocatorTextContentResult,
         )
-        return result.text_content
 
     async def scroll_to(self, percent: float | str) -> None:
         await self._rpc_client.send(
@@ -241,7 +234,7 @@ class Locator:
         )
 
     async def select_option(self, values: str | Sequence[str]) -> list[str]:
-        result = await self._rpc_client.send(
+        return await self._rpc_client.send(
             "locator.select_option",
             LocatorSelectOptionParams.model_validate({
                 **self._descriptor.model_dump(exclude_unset=True),
@@ -249,7 +242,6 @@ class Locator:
             }),
             LocatorSelectOptionResult,
         )
-        return result.values
 
     def first(self) -> Self:
         return self.nth(0)

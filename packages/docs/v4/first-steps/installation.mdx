@@ -1,0 +1,339 @@
+---
+title: "Installation"
+description: "Add Stagehand to an existing project."
+---
+
+Install Stagehand in your current app.
+
+<Tip>
+Node.js is the recommended runtime environment for Stagehand scripts. Stagehand requires Node.js 22.18 or later, Python 3.11 or later, or Go 1.26 or later.
+
+**Bun is supported.** Stagehand drives the browser over the Chrome DevTools Protocol and has no Playwright dependency, so there is no runtime caveat.
+</Tip>
+
+### Install dependencies
+
+<View title="TypeScript" icon="js">
+```bash
+pnpm install @browserbasehq/stagehand zod
+# npm add @browserbasehq/stagehand zod
+# yarn add @browserbasehq/stagehand zod
+# bun add @browserbasehq/stagehand zod
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+pip install stagehand
+# uv add stagehand
+# poetry add stagehand
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+go get github.com/browserbase/stagehand/packages/sdk-go
+```
+</View>
+
+<Tip>
+If you plan to run locally, you need to have [Chrome](https://www.google.com/chrome/) installed on your machine. For cloud browser sessions, skip this.
+</Tip>
+
+### Configure environment
+
+Set environment variables for your Browserbase API key and your model provider key:
+
+<View title="TypeScript" icon="js">
+```bash
+export OPENAI_API_KEY=your_api_key
+export BROWSERBASE_API_KEY=your_api_key
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+export OPENAI_API_KEY=your_api_key
+export BROWSERBASE_API_KEY=your_api_key
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+export OPENAI_API_KEY=your_api_key
+export BROWSERBASE_API_KEY=your_api_key
+```
+</View>
+
+<Note>
+Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
+
+Read the values in your own app code and pass them explicitly to the constructor:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Optional: install dotenv first (pnpm add dotenv), then load an env file yourself
+import "dotenv/config";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="openai/gpt-5.4-mini",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Every optional field is a pointer, so read your keys into variables first
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("OPENAI_API_KEY")
+
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "openai/gpt-5.4-mini",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Model:  &model,
+})
+```
+</View>
+</Note>
+
+### Use in your codebase
+
+Add Stagehand where you need browser automation.
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+async function main() {
+  const stagehand = new Stagehand({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    browser: { type: "browserbase" },
+    model: {
+      modelName: "openai/gpt-5.4-mini",
+      apiKey: process.env.OPENAI_API_KEY,
+    },
+  });
+
+  await stagehand.init();
+
+  // Close in a finally block so the session is released even if a step throws
+  try {
+    const page = await stagehand.context.activePage();
+    if (!page) throw new Error("Stagehand initialized without an active page");
+
+    await page.goto("https://example.com");
+
+    // Act on the page
+    await stagehand.act("Click the learn more button");
+
+    // Extract structured data
+    const { data } = await stagehand.extract(
+      "extract the description",
+      z.object({ description: z.string() }),
+    );
+
+    console.log(data.description);
+  } finally {
+    await stagehand.close();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand
+
+
+class Description(BaseModel):
+    description: str
+
+
+async def main() -> None:
+    stagehand = Stagehand(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        browser="browserbase",
+        model="openai/gpt-5.4-mini",
+        model_api_key=os.environ["OPENAI_API_KEY"],
+    )
+
+    await stagehand.init()
+
+    # Close in a finally block so the session is released even if a step raises
+    try:
+        page = await stagehand.context.active_page()
+        if page is None:
+            raise RuntimeError("Stagehand initialized without an active page")
+
+        await page.goto("https://example.com")
+
+        # Act on the page
+        await stagehand.act("Click the learn more button")
+
+        # Extract structured data
+        result = await stagehand.extract(
+            instruction="extract the description",
+            schema=Description,
+        )
+
+        print(result.data.description)
+    finally:
+        await stagehand.close()
+
+
+asyncio.run(main())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+type description struct {
+	Description string `json:"description"`
+}
+
+var descriptionSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"description": {"type": "string"}},
+  "required": ["description"],
+  "additionalProperties": false
+}`)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	modelAPIKey := os.Getenv("OPENAI_API_KEY")
+	model := stagehand.KnownModel(stagehand.KnownModelConfig{
+		ModelName: "openai/gpt-5.4-mini",
+		APIKey:    &modelAPIKey,
+	})
+
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		APIKey:  &apiKey,
+		Browser: stagehand.BrowserbaseClientBrowserSource{},
+		Model:   &model,
+	})
+
+	if err := client.Init(ctx); err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := client.Context()
+	if err != nil {
+		return err
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		return err
+	}
+	if page == nil {
+		return errors.New("Stagehand initialized without an active page")
+	}
+
+	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+		return err
+	}
+
+	// Act on the page
+	if _, err := client.Act(ctx, "Click the learn more button", nil); err != nil {
+		return err
+	}
+
+	// Extract structured data
+	extracted, err := stagehand.ExtractAs[description](
+		ctx,
+		client,
+		"extract the description",
+		descriptionSchema,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(extracted.Description)
+	return nil
+}
+```
+</View>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/v4/configuration/browser"
+  >
+    Browser sources, Browserbase vs local, logging, timeouts, LLM customization
+  </Card>
+  <Card
+    title="Act"
+    icon="arrow-pointer"
+    href="/v4/basics/act"
+  >
+    Perform precise actions with natural language
+  </Card>
+  <Card
+    title="Extract"
+    icon="download"
+    href="/v4/basics/extract"
+  >
+    Typed data extraction with schemas
+  </Card>
+  <Card
+    title="Observe"
+    icon="eye"
+    href="/v4/basics/observe"
+  >
+    Discover elements and suggested actions
+  </Card>
+</CardGroup>

@@ -6,16 +6,22 @@ from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt
 
-from stagehand import LLMGenerateInput, LLMGenerateOutput, Page, ProtocolLocator, Stagehand
+from stagehand import (
+    LLMGenerateInput,
+    LLMGenerateOutput,
+    LLMImageContent,
+    Page,
+    ProtocolLocator,
+    Stagehand,
+)
 from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
-    BrowserGetVersionResult,
+    CacheStatus,
     ClientModelReference,
-    ExtractResult,
     KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -26,7 +32,6 @@ from stagehand._generated.models import (
     ModelConfig,
     ObserveResult,
     PageRef,
-    RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
     StagehandExtractParams,
@@ -35,7 +40,8 @@ from stagehand._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    StagehandPingResult,
+    StagehandResultMetadata,
+    TelemetryConfig,
 )
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
@@ -56,6 +62,7 @@ BlockingResultT = TypeVar("BlockingResultT", bound=BaseModel)
 
 class PageInfo(BaseModel):
     heading: str
+    count: StrictInt
 
 
 def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
@@ -109,13 +116,11 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
     })
-    connect_args: dict[str, object] = {}
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
         return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
 
-    async def connect(**kwargs: object) -> RPCClient:
-        connect_args.update(kwargs)
+    async def connect(**_: object) -> RPCClient:
         return cast(RPCClient, recording)
 
     monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
@@ -133,12 +138,83 @@ async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_defau
     ]:
         await notification_listener(StagehandLog.model_validate(log))
 
-    assert connect_args["log_level"] == "info"
+    assert cast(StagehandInitParams, recording.calls[0][1]).log_level == "info"
     assert capsys.readouterr().err.splitlines() == [
         '[stagehand] INFO Page opened {"pageId":"page-1"}',
         "[stagehand] WARN Selector fallback",
         '[stagehand] ERROR Action failed {"retryable":false}',
     ]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_forwards_client_initialization_options_and_resolved_cdp_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(
+        browser="cdp",
+        cdp_url="test://browser",
+        telemetry=TelemetryConfig.model_validate({
+            "traces": {
+                "endpoint": "https://telemetry.example/v1/traces",
+                "headers": {"authorization": "secret"},
+            }
+        }),
+        system_prompt="Use the test policy",
+        self_heal=True,
+        dom_settle_timeout_ms=2_500,
+        cache=CacheOptions(threshold=3),
+    )
+
+    await stagehand.init()
+
+    init_params = cast(StagehandInitParams, recording.calls[0][1])
+    assert init_params.browser_cdp_url == recording.browser_web_socket_debugger_url
+    assert init_params.telemetry.traces.endpoint == "https://telemetry.example/v1/traces"
+    assert init_params.telemetry.traces.headers == {"authorization": "secret"}
+    assert init_params.system_prompt == "Use the test policy"
+    assert init_params.self_heal is True
+    assert init_params.dom_settle_timeout_ms == 2_500
+    assert init_params.cache is not None
+    cache = init_params.cache.root
+    assert not isinstance(cache, bool)
+    assert cache.threshold == 3
+
+
+@pytest.mark.asyncio
+async def test_stagehand_rejects_missing_resolved_cdp_url_before_init(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = RecordingRPCClient({
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+    })
+    recording.browser_web_socket_debugger_url = None
+
+    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
+        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
+
+    async def connect(**_: object) -> RPCClient:
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
+    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
+    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
+
+    with pytest.raises(RuntimeError, match="CDP WebSocket URL is unavailable"):
+        await stagehand.init()
+
+    assert recording.calls == []
 
 
 @pytest.mark.asyncio
@@ -189,22 +265,13 @@ async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_struct
 
 
 @pytest.mark.asyncio
-async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
+async def test_stagehand_routes_public_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     metrics = StagehandMetrics.model_validate({
         field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
     })
     recording = RecordingRPCClient({
-        "ping": StagehandPingResult(ok=True, runtime="service_worker"),
-        "runtime.loopback_status": RuntimeLoopbackStatusResult(
-            configured=True,
-            connected=True,
-        ),
-        "browser.get_version": BrowserGetVersionResult(
-            protocol_version="1.3",
-            product="Chrome/1",
-        ),
         "stagehand.metrics": metrics,
     })
     recording.responses["stagehand.init"] = StagehandInitResult(initialized=True, pages=[])
@@ -221,20 +288,8 @@ async def test_stagehand_routes_public_runtime_status_and_metrics_methods(
     await stagehand.init()
 
     assert stagehand.browser.cdp_url == "test://browser"
-    assert await stagehand.ping() == StagehandPingResult(ok=True, runtime="service_worker")
-    assert await stagehand.runtime_loopback_status() == RuntimeLoopbackStatusResult(
-        configured=True,
-        connected=True,
-    )
-    assert await stagehand.browser_get_version() == BrowserGetVersionResult(
-        protocol_version="1.3",
-        product="Chrome/1",
-    )
     assert await stagehand.metrics() == metrics
     assert [method for method, _, _ in recording.calls[1:]] == [
-        "ping",
-        "runtime.loopback_status",
-        "browser.get_version",
         "stagehand.metrics",
     ]
 
@@ -253,9 +308,20 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
-        "stagehand.act": ActResult(result=act_result),
-        "stagehand.observe": ObserveResult(result=[action]),
-        "stagehand.extract": ExtractResult(result={"heading": "Example Domain"}),
+        "stagehand.act": ActResult.model_validate({
+            "data": act_result,
+            "metadata": {"cache_status": "HIT"},
+        }),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache_status": "MISS"},
+        }),
+        # Keep this as raw wire JSON: extract() must preserve integer values
+        # until the caller's Pydantic schema validates them.
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+        },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
     locator = ProtocolLocator(selector="main")
@@ -281,22 +347,31 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         cache=CacheOptions(threshold=1),
     )
     actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    replay_result = await stagehand.act(actions.data[0], page=page)
     page_info = await stagehand.extract(
         instruction="Extract the heading",
         schema=PageInfo,
         page=page,
         model=model,
+        screenshot=True,
         locator=locator,
     )
 
-    assert action_result == act_result
-    assert actions == [action]
-    assert page_info == PageInfo(heading="Example Domain")
+    assert action_result.data == act_result
+    assert action_result.metadata.cache_status == "HIT"
+    assert actions.data == [action]
+    assert actions.metadata.cache_status == "MISS"
+    assert replay_result.data == act_result
+    assert replay_result.metadata.cache_status == "HIT"
+    assert page_info.data == PageInfo(heading="Example Domain", count=1)
+    assert isinstance(page_info.data.count, int)
+    assert page_info.metadata.cache_status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",
         "stagehand.act",
         "context.active_page",
         "stagehand.observe",
+        "stagehand.act",
         "stagehand.extract",
     ]
     act_params = recording.calls[1][1]
@@ -315,11 +390,17 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.options is not None
     assert observe_params.options.model == model
     assert observe_params.options.locator == locator
-    extract_params = recording.calls[4][1]
+    replay_params = recording.calls[4][1]
+    assert isinstance(replay_params, StagehandActParams)
+    assert replay_params.model_dump(by_alias=True)["instruction"] == action.model_dump(
+        by_alias=True
+    )
+    extract_params = recording.calls[5][1]
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
     assert extract_params.options.model == model
+    assert extract_params.options.screenshot is True
     assert extract_params.options.locator == locator
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
@@ -419,7 +500,19 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     callback_result = await handler(
         LLMGenerateParams.model_validate({
-            "messages": [{"role": "user", "content": {"type": "text", "text": "Answer"}}],
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Answer"},
+                        {
+                            "type": "image",
+                            "data": "iVBORw0KGgo=",
+                            "mime_type": "image/png",
+                        },
+                    ],
+                }
+            ],
             "response_format": {
                 "type": "json_schema",
                 "name": "answer",
@@ -429,6 +522,10 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
     )
     assert len(callback_params) == 1
     assert isinstance(callback_params[0], LLMStructuredGenerateParams)
+    callback_content = callback_params[0].messages[0].content
+    assert isinstance(callback_content, list)
+    assert isinstance(callback_content[1].root, LLMImageContent)
+    assert callback_content[1].root.mime_type == "image/png"
     assert isinstance(callback_result.root, LLMStructuredGenerateResult)
     init_params = recording.calls[0][1]
     assert isinstance(init_params, StagehandInitParams)

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from stagehand.browser_source import (
+    _WEBMCP_CHROME_FLAG,
     ResolvedBrowserSource,
     _chrome_file_candidates,
     _find_chrome_path,
+    _local_browser_flags,
     resolve_browser_source,
 )
-from stagehand.client_models import StagehandClientInitParams
+from stagehand.client_models import LocalBrowserSource, StagehandClientInitParams
 
 
 @pytest.mark.asyncio
@@ -252,3 +256,75 @@ async def test_explicit_executable_path_bypasses_discovery(
 
     assert launched is not None
     assert launched[0] == "/custom/chrome"
+def test_local_browser_flags_enable_webmcp_by_default(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(type="local"),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert _WEBMCP_CHROME_FLAG in flags
+    assert "--enable-unsafe-extension-debugging" in flags
+    assert "--remote-allow-origins=*" in flags
+
+
+def test_local_browser_flags_omit_defaults_when_requested(
+    tmp_path: Path,
+) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(
+            type="local",
+            ignore_default_args=True,
+            args=["--user-supplied"],
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert flags == [
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={tmp_path}",
+        "--user-supplied",
+        "about:blank",
+    ]
+
+
+def test_local_browser_flags_can_selectively_omit_webmcp(
+    tmp_path: Path,
+) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(type="local", ignore_default_args=[_WEBMCP_CHROME_FLAG]),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert _WEBMCP_CHROME_FLAG not in flags
+    assert "--enable-unsafe-extension-debugging" in flags
+    assert "--disable-background-networking" in flags
+
+
+def test_local_browser_flags_append_user_arguments(
+    tmp_path: Path,
+) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(
+            type="local",
+            headless=True,
+            devtools=True,
+            args=["--custom-flag"],
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=True,
+    )
+
+    assert flags[-5:] == [
+        "--headless",
+        "--auto-open-devtools-for-tabs",
+        "--no-sandbox",
+        "--custom-flag",
+        "about:blank",
+    ]

@@ -1,0 +1,1175 @@
+---
+title: "AI rules"
+description: "Give your AI coding assistant the rules it needs to write correct Stagehand v4 code."
+---
+
+You're likely using AI to write code, and there's a **right and wrong way to do it.** This page is a collection of rules, configs, and copy-paste snippets to allow your AI agents/assistants to write performant, Stagehand code as fast as possible.
+
+## Quickstart
+
+<CardGroup cols={2}>
+  <Card title="Add MCP servers" icon="screwdriver-wrench">
+    Configure Context7, DeepWiki, and Stagehand Docs in your MCP client.
+  </Card>
+  <Card title="Pin editor rules" icon="memo">
+    Drop in `cursorrules` and `claude.md` so AI agents/assistants always emit Stagehand patterns.
+  </Card>
+</CardGroup>
+
+## Using MCP servers
+
+MCP (Model Context Protocol) servers act as intermediaries that connect AI systems to external data sources and tools. These servers enable your coding assistant to access real-time information, execute tasks, and retrieve structured data to enhance code generation accuracy.
+
+The following **MCP servers** provide specialized access to Stagehand documentation and related resources:
+
+<Accordion title="Context7 by Upstash" icon="database">
+Provides semantic search across documentation and codebase context. Context7 enables AI assistants to find relevant code patterns, examples, and implementation details from your project history. It maintains contextual understanding of your development workflow and can surface related solutions from previous work.
+
+**Installation:**
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"]
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="DeepWiki by Cognition" icon="book-open">
+Offers deep indexing of GitHub repositories and documentation. DeepWiki allows AI agents to understand project architecture, API references, and best practices from the entire Stagehand ecosystem. It provides comprehensive knowledge about repository structure, code relationships, and development patterns.
+
+**Installation:**
+```json
+{
+  "mcpServers": {
+    "deepwiki": {
+      "url": "https://mcp.deepwiki.com/mcp"
+    }
+  }
+}
+```
+</Accordion>
+
+<Accordion title="Stagehand docs by Mintlify" icon="mintbit">
+Direct access to official Stagehand documentation. This MCP server provides AI assistants with up-to-date API references, configuration options, and usage examples for accurate code generation. Mintlify auto-generates this server from the official docs, ensuring your AI assistant always has the latest information.
+
+**Usage:**
+```json
+{
+  "mcpServers": {
+    "stagehand-docs": {
+      "url": "https://docs.stagehand.dev/mcp"
+    }
+  }
+}
+```
+</Accordion>
+
+**How MCP servers enhance your development:**
+- **Real-time Documentation Access:** AI assistants can query the latest Stagehand docs, examples, and best practices
+- **Context-Aware Code Generation:** Servers provide relevant code patterns and configurations based on your specific use case
+- **Reduced Integration Overhead:** Standardized protocol eliminates the need for custom integrations with each documentation source
+- **Enhanced Accuracy:** AI agents receive structured, up-to-date information rather than relying on potentially outdated training data
+
+<Tip>
+**Prompting tip:**
+Explicitly ask your coding agent/assistant to use these MCP servers to fetch relevant information from the docs so they have better context and know how to write proper Stagehand code.
+
+ie. **"Use the stagehand-docs MCP to fetch the act/observe guidelines, then generate code that follows them. Prefer cached observe results."**
+</Tip>
+
+## Editor rule files (copy-paste)
+
+Drop these in `.cursorrules`, `windsurfrules`, `claude.md`, or any agent rule framework:
+
+
+<View title="TypeScript" icon="js">
+
+``````md
+# Stagehand Project
+
+This is a project that uses Stagehand v4, a browser automation framework with AI-powered `act`, `extract`, and `observe` methods.
+
+The main class can be imported as `Stagehand` from `@browserbasehq/stagehand`.
+
+**Key Classes:**
+
+- `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
+- `stagehand.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
+- `page`: Individual page objects accessed via `stagehand.context.activePage()`, `stagehand.context.pages()`, or created with `stagehand.context.newPage()`
+
+There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
+
+## Initialize
+
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  // Browser source: "browserbase" (default), "local", or "cdp"
+  browser: { type: "local", headless: true },
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+  logging: { level: "info", format: "pretty" },
+});
+
+await stagehand.init();
+
+// Access the browser context and pages
+const page = await stagehand.context.activePage();
+const context = stagehand.context;
+
+// Create new pages if needed
+const page2 = await stagehand.context.newPage();
+```
+
+For Browserbase cloud browsers, pass a Browserbase API key at the top level:
+
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+});
+```
+
+Stagehand never reads environment variables for you. Always pass keys explicitly.
+
+## Act
+
+Actions are called on the `stagehand` instance (not the page). `act` takes either a string instruction or an `Action` from `observe`. Use atomic, specific instructions:
+
+```typescript
+// Act on the current active page
+await stagehand.act("click the sign in button");
+
+// Act on a specific page (when you need to target a page that isn't currently active)
+await stagehand.act("click the sign in button", { page: page2 });
+```
+
+**Important:** Act instructions should be atomic and specific:
+
+- Good: "Click the sign in button" or "Type 'hello' into the search input"
+- Bad: "Order me pizza" or "Type in the search bar and hit enter" (multi-step)
+
+Use `variables` for secrets. Values are substituted locally and never sent to the model:
+
+```typescript
+await stagehand.act("type %password% into the password field", {
+  variables: { password: process.env.USER_PASSWORD },
+});
+```
+
+### Observe Then Act Pattern (Recommended)
+
+`act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
+
+```typescript
+const { data: actions } = await stagehand.observe("Click the sign in button");
+const [action] = actions;
+
+if (action?.method === "click") {
+  await stagehand.act(action);
+}
+```
+
+To target a specific page:
+
+```typescript
+const { data: actions } = await stagehand.observe("select blue as the favorite color", {
+  page: page2,
+});
+const [action] = actions;
+
+if (action) {
+  await stagehand.act(action, { page: page2 });
+}
+```
+
+## Extract
+
+Extract data from pages using natural language instructions. The `extract` method is called on the `stagehand` instance and always takes both an instruction and a schema.
+
+Every primitive returns `{ data, metadata }`. Your extracted value is on `data`; `metadata` carries the action ID and server-side cache status.
+
+### Basic Extraction (with schema)
+
+```typescript
+import { z } from "zod/v4";
+
+const { data } = await stagehand.extract(
+  "extract all apartment listings with prices and addresses",
+  z.object({
+    listings: z.array(
+      z.object({
+        price: z.string(),
+        address: z.string(),
+      }),
+    ),
+  }),
+);
+
+console.log(data.listings);
+```
+
+### Simple Extraction
+
+A schema is always required, so wrap single values in an object:
+
+```typescript
+const { data } = await stagehand.extract(
+  "extract the sign in button text",
+  z.object({ buttonText: z.string() }),
+);
+
+console.log(data.buttonText); // "Sign in"
+```
+
+### Targeted Extraction
+
+Scope extraction to a specific element with `selector`, and prune noise with `ignoreSelectors`:
+
+```typescript
+const { data } = await stagehand.extract(
+  "extract the reason why script injection fails",
+  z.object({ reason: z.string() }),
+  {
+    selector: "#main-content",
+    ignoreSelectors: ["nav", ".cookie-banner"],
+  },
+);
+```
+
+### URL Extraction
+
+When extracting links or URLs, use `z.url()`:
+
+```typescript
+const { data } = await stagehand.extract(
+  "extract all navigation links",
+  z.object({
+    links: z.array(z.url()),
+  }),
+);
+```
+
+### Extracting from a Specific Page
+
+```typescript
+const { data } = await stagehand.extract(
+  "extract the placeholder text on the name field",
+  z.object({ placeholder: z.string() }),
+  { page: page2 },
+);
+```
+
+### Inspecting Metadata
+
+```typescript
+const TitleSchema = z.object({ title: z.string() });
+
+const result = await stagehand.extract("extract the page title", TitleSchema);
+
+console.log(result.data.title);
+console.log(result.metadata.actionId); // Action ID for tracing this call
+console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+```
+
+## Observe
+
+Plan actions before executing them. Candidate actions are returned on `data`:
+
+```typescript
+// Get candidate actions on the current active page
+const { data: actions } = await stagehand.observe("Click the sign in button");
+const [action] = actions;
+
+if (action) {
+  console.log(action.selector, action.method, action.arguments);
+}
+```
+
+Observing on a specific page:
+
+```typescript
+const { data: actions } = await stagehand.observe("find the next page button", {
+  page: page2,
+});
+await stagehand.act(actions[0], { page: page2 });
+```
+
+## Advanced Features
+
+### Locators
+
+Use `page.locator(selector)` for deterministic, non-AI interactions. Selectors returned by `observe` are XPath strings prefixed with `xpath=`:
+
+```typescript
+await page.locator("xpath=/html/body/div[2]/button").click();
+await page.locator("#email").fill("user@example.com");
+const count = await page.locator("li.result").count();
+```
+
+### Multi-Page Workflows
+
+```typescript
+const page1 = await stagehand.context.newPage();
+await page1.goto("https://example.com");
+
+const page2 = await stagehand.context.newPage();
+await page2.goto("https://example2.com");
+
+// Act/extract/observe operate on the current active page by default
+// Pass { page } option to target a specific page
+await stagehand.act("click button", { page: page1 });
+await stagehand.extract("get title", z.object({ title: z.string() }), { page: page2 });
+```
+
+### Caching
+
+Server-side caching requires a Browserbase browser source and a Browserbase API key:
+
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: true, // or { threshold: 1 }
+});
+```
+
+## Cleanup
+
+Always close Stagehand in a `finally` block:
+
+```typescript
+try {
+  await stagehand.init();
+  // ...
+} finally {
+  await stagehand.close();
+}
+```
+
+## Project Structure Best Practices
+
+- Read configuration from environment variables and pass it explicitly to the `Stagehand` constructor
+- Construct and initialize `Stagehand` in one place, then pass the instance into your automation functions
+- Use `async`/`await` consistently; `init`, `act`, `extract`, `observe`, and `close` all return promises
+- Keep Zod schemas next to the code that consumes them and reuse `z.infer` for the decoded type
+- Wrap every workflow in `try`/`finally` so `close` runs even when a step throws
+- Prefer narrow, atomic instructions over one instruction that describes a whole workflow
+
+## Security Notes
+
+- Never hard-code API keys. Read them from `process.env` and pass them explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider
+- Set `logging: { level: "off" }` when handling sensitive data so nothing sensitive reaches your logs
+- Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- TypeScript SDK: `@browserbasehq/stagehand` on npm
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
+``````
+
+</View>
+
+<View title="Python" icon="python">
+
+``````md
+# Stagehand Python Project
+
+This is a project that uses Stagehand v4 for Python, which provides AI-powered browser automation with `act`, `extract`, and `observe` methods.
+
+The main class can be imported as `Stagehand` from `stagehand`.
+
+**Key Classes:**
+
+- `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
+- `stagehand.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
+- `page`: Individual page objects accessed via `stagehand.context.active_page()`, `stagehand.context.pages()`, or created with `stagehand.context.new_page()`
+
+There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
+
+All Stagehand methods are async. `observe` and `extract` take keyword-only arguments.
+
+## Initialize
+
+```python
+import os
+
+from stagehand import Stagehand, StagehandClientLoggingConfig
+
+stagehand = Stagehand(
+    # Browser source: "browserbase" (default), "local", or "cdp"
+    browser="local",
+    headless=True,
+    model="openai/gpt-5.4-mini",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+    logging=StagehandClientLoggingConfig(level="info", format="pretty"),
+)
+
+await stagehand.init()
+
+# Access the browser context and pages
+page = await stagehand.context.active_page()
+context = stagehand.context
+
+# Create new pages if needed
+page2 = await stagehand.context.new_page()
+```
+
+For Browserbase cloud browsers, pass a Browserbase API key:
+
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    model="openai/gpt-5.4-mini",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+)
+```
+
+Stagehand never reads environment variables for you. Always pass keys explicitly.
+
+## Act
+
+Actions are called on the `stagehand` instance (not the page). `act` takes either a string instruction or an `Action` from `observe`. Use atomic, specific instructions:
+
+```python
+# Act on the current active page
+await stagehand.act("click the sign in button")
+
+# Act on a specific page (when you need to target a page that isn't currently active)
+await stagehand.act("click the sign in button", page=page2)
+```
+
+**Important:** Act instructions should be atomic and specific:
+
+- Good: "Click the sign in button" or "Type 'hello' into the search input"
+- Bad: "Order me pizza" or "Type in the search bar and hit enter" (multi-step)
+
+Use `variables` for secrets. Values are substituted locally and never sent to the model:
+
+```python
+await stagehand.act(
+    "type %password% into the password field",
+    variables={"password": os.environ["USER_PASSWORD"]},
+)
+```
+
+### Observe Then Act Pattern (Recommended)
+
+`act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
+
+```python
+result = await stagehand.observe(instruction="Click the sign in button")
+action = result.data[0] if result.data else None
+
+if action is not None and action.method == "click":
+    await stagehand.act(action)
+```
+
+To target a specific page:
+
+```python
+result = await stagehand.observe(
+    instruction="select blue as the favorite color",
+    page=page2,
+)
+await stagehand.act(result.data[0], page=page2)
+```
+
+## Extract
+
+Extract data from pages using natural language instructions. The `extract` method is called on the `stagehand` instance and always takes both an instruction and a Pydantic model.
+
+Every primitive returns a result with `data` and `metadata`. Your extracted model instance is on `data`; `metadata` carries the action ID and server-side cache status.
+
+### Basic Extraction (with schema)
+
+```python
+from pydantic import BaseModel
+
+
+class Listing(BaseModel):
+    price: str
+    address: str
+
+
+class Listings(BaseModel):
+    listings: list[Listing]
+
+
+result = await stagehand.extract(
+    instruction="extract all apartment listings with prices and addresses",
+    schema=Listings,
+)
+
+print(result.data.listings)
+```
+
+### Simple Extraction
+
+A schema is always required, so wrap single values in a model:
+
+```python
+class ButtonText(BaseModel):
+    button_text: str
+
+
+result = await stagehand.extract(
+    instruction="extract the sign in button text",
+    schema=ButtonText,
+)
+
+print(result.data.button_text)  # "Sign in"
+```
+
+### Targeted Extraction
+
+Scope extraction to a specific element with `selector`, and prune noise with `ignore_selectors`:
+
+```python
+class Reason(BaseModel):
+    reason: str
+
+
+result = await stagehand.extract(
+    instruction="extract the reason why script injection fails",
+    schema=Reason,
+    selector="#main-content",
+    ignore_selectors=["nav", ".cookie-banner"],
+)
+```
+
+### URL Extraction
+
+When extracting links or URLs, type the field as a URL:
+
+```python
+from pydantic import AnyUrl, BaseModel
+
+
+class Links(BaseModel):
+    links: list[AnyUrl]
+
+
+result = await stagehand.extract(
+    instruction="extract all navigation links",
+    schema=Links,
+)
+```
+
+### Extracting from a Specific Page
+
+```python
+class Placeholder(BaseModel):
+    placeholder: str
+
+
+result = await stagehand.extract(
+    instruction="extract the placeholder text on the name field",
+    schema=Placeholder,
+    page=page2,
+)
+```
+
+### Inspecting Metadata
+
+```python
+class Title(BaseModel):
+    title: str
+
+
+result = await stagehand.extract(
+    instruction="extract the page title",
+    schema=Title,
+)
+
+print(result.data.title)
+print(result.metadata.action_id)  # Action ID for tracing this call
+print(result.metadata.cache_status)  # "HIT", "MISS", or None
+```
+
+## Observe
+
+Plan actions before executing them. Candidate actions are returned on `data`:
+
+```python
+result = await stagehand.observe(instruction="Click the sign in button")
+action = result.data[0] if result.data else None
+
+if action is not None:
+    print(action.selector, action.method, action.arguments)
+```
+
+Observing on a specific page:
+
+```python
+result = await stagehand.observe(
+    instruction="find the next page button",
+    page=page2,
+)
+await stagehand.act(result.data[0], page=page2)
+```
+
+## Advanced Features
+
+### Locators
+
+Use `page.locator(selector)` for deterministic, non-AI interactions. Selectors returned by `observe` are XPath strings prefixed with `xpath=`:
+
+```python
+await page.locator("xpath=/html/body/div[2]/button").click()
+await page.locator("#email").fill("user@example.com")
+count = await page.locator("li.result").count()
+```
+
+### Multi-Page Workflows
+
+```python
+page1 = await stagehand.context.new_page()
+await page1.goto("https://example.com")
+
+page2 = await stagehand.context.new_page()
+await page2.goto("https://example2.com")
+
+# Act/extract/observe operate on the current active page by default
+# Pass page= to target a specific page
+await stagehand.act("click button", page=page1)
+await stagehand.extract(instruction="get title", schema=Title, page=page2)
+```
+
+### Caching
+
+Server-side caching requires a Browserbase browser source and a Browserbase API key:
+
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    cache=True,  # or CacheOptions(threshold=1)
+)
+```
+
+## Cleanup
+
+Use the async context manager, or always close in a `finally` block:
+
+```python
+async with Stagehand(browser="local", headless=True) as stagehand:
+    ...
+```
+
+## Project Structure Best Practices
+
+- Store configurations in environment variables or config files
+- Use async/await patterns consistently
+- Implement main automation logic in async functions
+- Use async context managers for resource management
+- Use type hints and Pydantic models for data validation
+- Handle exceptions appropriately with try/except blocks
+
+## Security Notes
+
+- Never hard-code API keys. Read them from `os.environ` and pass them explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider
+- Set `logging=StagehandClientLoggingConfig(level="off")` when handling sensitive data so nothing sensitive reaches your logs
+- Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- Python SDK: `stagehand` on PyPI
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
+``````
+
+</View>
+
+<View title="Go" icon="golang">
+
+``````md
+# Stagehand Go Project
+
+This is a project that uses Stagehand v4 for Go, which provides AI-powered browser automation with `Act`, `Extract`, and `Observe` methods.
+
+Import the package as `stagehand "github.com/browserbase/stagehand/packages/sdk-go"`.
+
+**Key Types:**
+
+- `*stagehand.Stagehand`: Main client, constructed with `stagehand.New`, providing `Act`, `Extract`, and `Observe`
+- `*stagehand.BrowserContext`: Returned by `client.Context()`, manages pages, cookies, and the clipboard
+- `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, params)`
+
+There is no agent API in v4. Compose `Observe`, `Act`, and `Extract` in your own control flow instead.
+
+Every method takes a `context.Context` as its first argument and returns an `error` as its last. Optional struct fields are pointers, so read values into variables and take their address.
+
+## Initialize
+
+```go
+apiKey := os.Getenv("OPENAI_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "openai/gpt-5.4-mini",
+	APIKey:    &apiKey,
+})
+
+// Browser source: BrowserbaseClientBrowserSource (default), LocalBrowserSource, or CDPBrowserSource
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	Browser: stagehand.LocalBrowserSource{Headless: true},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+// Access the browser context and pages
+browserContext, err := client.Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
+}
+
+// Create new pages if needed
+page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := page2.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+```
+
+For Browserbase cloud browsers, pass a Browserbase API key at the top level:
+
+```go
+browserbaseAPIKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &browserbaseAPIKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+
+Stagehand never reads environment variables for you. Always pass keys explicitly.
+
+## Act
+
+Actions are called on the client (not the page). Use atomic, specific instructions:
+
+```go
+// Act on the current active page
+if _, err := client.Act(ctx, "click the sign in button", nil); err != nil {
+	return err
+}
+
+// Act on a specific page (when you need to target a page that isn't currently active)
+if _, err := client.Act(ctx, "click the sign in button", &stagehand.StagehandClientActOptions{
+	Page: page2,
+}); err != nil {
+	return err
+}
+```
+
+`Act` takes either a `string` instruction or a `stagehand.Action`. It returns an `ActResult`: the action payload is on `result.Data`, and cache status is on `result.Metadata`:
+
+```go
+result, err := client.Act(ctx, "click the sign in button", nil)
+if err != nil {
+	return err
+}
+
+if !result.Data.Success {
+	return fmt.Errorf("act failed: %s", result.Data.Message)
+}
+```
+
+**Important:** Act instructions should be atomic and specific:
+
+- Good: "Click the sign in button" or "Type 'hello' into the search input"
+- Bad: "Order me pizza" or "Type in the search bar and hit enter" (multi-step)
+
+Use variables for secrets. Values are substituted locally and never sent to the model:
+
+```go
+password := os.Getenv("USER_PASSWORD")
+if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{
+		Variables: stagehand.Variables{
+			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
+		},
+	},
+}); err != nil {
+	return err
+}
+```
+
+### Observe Then Act Pattern (Recommended)
+
+`Act` accepts either a string instruction or an `Action` returned by `Observe`. Use `Observe` to inspect the candidate action, then pass it back to `Act` for deterministic replay with no inference:
+
+```go
+instruction := "Click the sign in button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0].Method == "click" {
+	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+		return err
+	}
+}
+```
+
+## Extract
+
+Extract data from pages using natural language instructions. `Extract` takes an instruction and a JSON Schema, and returns the raw JSON payload. Use the generic `stagehand.ExtractAs` helper to decode straight into a Go type.
+
+### Basic Extraction (with schema)
+
+```go
+type listing struct {
+	Price   string `json:"price"`
+	Address string `json:"address"`
+}
+
+type listings struct {
+	Listings []listing `json:"listings"`
+}
+
+var listingsSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "listings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "price": {"type": "string"},
+          "address": {"type": "string"}
+        },
+        "required": ["price", "address"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["listings"],
+  "additionalProperties": false
+}`)
+
+data, err := stagehand.ExtractAs[listings](
+	ctx,
+	client,
+	"extract all apartment listings with prices and addresses",
+	listingsSchema,
+	nil,
+)
+if err != nil {
+	return err
+}
+
+fmt.Println(data.Listings)
+```
+
+### Working With the Raw Result
+
+`ExtractAs` decodes for you but discards the metadata. Call `client.Extract` directly when you want the raw `json.RawMessage` payload and the metadata alongside it:
+
+```go
+type buttonText struct {
+	ButtonText string `json:"buttonText"`
+}
+
+var buttonTextSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "buttonText": {"type": "string"}
+  },
+  "required": ["buttonText"],
+  "additionalProperties": false
+}`)
+
+result, err := client.Extract(ctx, "extract the sign in button text", buttonTextSchema, nil)
+if err != nil {
+	return err
+}
+
+// result.Data is json.RawMessage, so decode it into your own type
+var decoded buttonText
+if err := json.Unmarshal(result.Data, &decoded); err != nil {
+	return err
+}
+
+fmt.Println(decoded.ButtonText)
+```
+
+### Targeted Extraction
+
+Scope extraction to a specific element with `Selector`, and prune noise with `IgnoreSelectors`:
+
+```go
+var articleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "body": {"type": "string"}
+  },
+  "required": ["body"],
+  "additionalProperties": false
+}`)
+
+selector := "#main-content"
+result, err := client.Extract(ctx, "extract the article body", articleSchema, &stagehand.StagehandClientExtractOptions{
+	ExtractOptions: stagehand.ExtractOptions{
+		Selector:        &selector,
+		IgnoreSelectors: []string{"nav", ".cookie-banner"},
+	},
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(string(result.Data))
+```
+
+### URL Extraction
+
+When extracting links or URLs, declare the field as a URI-formatted string in your schema:
+
+```go
+var linksSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "links": {"type": "array", "items": {"type": "string", "format": "uri"}}
+  },
+  "required": ["links"],
+  "additionalProperties": false
+}`)
+```
+
+### Extracting from a Specific Page
+
+```go
+var placeholderSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "placeholder": {"type": "string"}
+  },
+  "required": ["placeholder"],
+  "additionalProperties": false
+}`)
+
+result, err := client.Extract(ctx, "extract the placeholder text on the name field", placeholderSchema, &stagehand.StagehandClientExtractOptions{
+	Page: page2,
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(string(result.Data))
+```
+
+### Inspecting Metadata
+
+Both `ActionID` and `CacheStatus` are pointers, so check for nil before dereferencing:
+
+```go
+var titleSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "title": {"type": "string"}
+  },
+  "required": ["title"],
+  "additionalProperties": false
+}`)
+
+result, err := client.Extract(ctx, "extract the page title", titleSchema, nil)
+if err != nil {
+	return err
+}
+
+if result.Metadata.ActionID != nil {
+	fmt.Println("action:", *result.Metadata.ActionID) // Action ID for tracing this call
+}
+if result.Metadata.CacheStatus != nil {
+	fmt.Println("cache:", *result.Metadata.CacheStatus) // stagehand.CacheStatusHIT or stagehand.CacheStatusMISS
+}
+```
+
+## Observe
+
+Plan actions before executing them. `Observe` takes an optional instruction pointer and returns candidate actions on `result.Data`:
+
+```go
+instruction := "Click the sign in button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+for _, action := range observed.Data {
+	fmt.Println(action.Selector, action.Description)
+}
+```
+
+Observing on a specific page:
+
+```go
+instruction := "find the next page button"
+observed, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	Page: page2,
+})
+if err != nil {
+	return err
+}
+if len(observed.Data) > 0 {
+	if _, err := client.Act(ctx, observed.Data[0], &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
+		return err
+	}
+}
+```
+
+## Advanced Features
+
+### Locators
+
+Use `page.Locator(selector)` for deterministic, non-AI interactions. Selectors returned by `Observe` are XPath strings prefixed with `xpath=`:
+
+```go
+if err := page.Locator("xpath=/html/body/div[2]/button").Click(ctx, nil); err != nil {
+	return err
+}
+if err := page.Locator("#email").Fill(ctx, "user@example.com"); err != nil {
+	return err
+}
+count, err := page.Locator("li.result").Count(ctx)
+if err != nil {
+	return err
+}
+fmt.Println("results:", count)
+```
+
+### Multi-Page Workflows
+
+```go
+page1, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := page1.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+
+page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
+	return err
+}
+
+// Act/Extract/Observe operate on the current active page by default
+// Pass Page in the options struct to target a specific page
+if _, err := client.Act(ctx, "click button", &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+	return err
+}
+```
+
+### Caching
+
+Server-side caching requires a Browserbase browser source and a Browserbase API key:
+
+```go
+cache := stagehand.CacheEnabled(true) // or stagehand.CacheWithThreshold(1)
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &browserbaseAPIKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &cache,
+})
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+
+## Cleanup
+
+Always close the client. The idiomatic pattern is a named error return plus a deferred `errors.Join`:
+
+```go
+func run(ctx context.Context) (err error) {
+	client := stagehand.New(stagehand.StagehandClientInitParams{
+		Browser: stagehand.LocalBrowserSource{Headless: true},
+	})
+	if err := client.Init(ctx); err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	// ...
+	return nil
+}
+```
+
+## Project Structure Best Practices
+
+- Read configuration from environment variables and pass it explicitly
+- Thread `context.Context` through every call so cancellation works
+- Check every returned `error`; do not discard them
+- Keep JSON Schemas next to the Go structs they decode into
+- Prefer `stagehand.ExtractAs` over manual `json.Unmarshal` when you do not need metadata
+
+## Security Notes
+
+- Never hard-code API keys. Read them with `os.Getenv` and pass their addresses explicitly; Stagehand reads no environment variables for you
+- Pass secrets through `ActOptions.Variables` so they are substituted locally and never sent to the model provider
+- The Go client has no log level filter. Leave `Logging.OnLog` unset, or redact inside the handler, when handling sensitive data
+- Avoid broad instructions that may trigger unintended navigation; call `Observe` first, then replay the returned `Action`
+
+## Resources/References
+
+- Go SDK: `github.com/browserbase/stagehand/packages/sdk-go`
+- Stagehand documentation: https://docs.stagehand.dev
+- Stagehand Docs MCP (Mintlify): https://docs.stagehand.dev/mcp
+- Context7 MCP (Upstash): https://github.com/upstash/context7
+- DeepWiki MCP: https://mcp.deepwiki.com/
+``````
+
+</View>
+
+## Security notes
+
+- Do not embed secrets in docs or rule files; use environment variables in MCP configs.
+- Pass secrets through `variables` so they are substituted locally and never sent to the model provider.
+- Set `logging.level` to `"off"` when handling sensitive data so nothing sensitive reaches your logs.
+- Avoid broad actions that may trigger unintended navigation; prefer `observe` first.
+
+## Resources/references
+
+- Context7 MCP (Upstash)
+  - https://github.com/upstash/context7
+- DeepWiki MCP
+  - https://mcp.deepwiki.com/
+- Stagehand Docs MCP (Mintlify)
+  - https://docs.stagehand.dev/mcp

@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { JSONRPCRequestSchema, JSONRPCResponseSchema } from "../../protocol/json-rpc/schemas.ts";
 import type { JSONRPCResponse } from "../../protocol/json-rpc/types.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
   StagehandRpcNotificationSchema,
@@ -45,14 +46,20 @@ import type {
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
-  SnapshotResult,
   PageTypeParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
+  SnapshotResult,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../../protocol/types.ts";
 
 vi.mock("../understudy/context.js", () => ({
-  V3Context: {
+  BrowserContext: {
     create: vi.fn(),
   },
 }));
@@ -98,7 +105,7 @@ class FakeRuntimeClipboard {
 class FakeBrowserSession implements StagehandBrowserSession {
   closed = false;
   connected = true;
-  getVersionCalls = 0;
+  prepareForInitializationCalls = 0;
   readonly pageRefs: FakeUnderstudyRuntimePage[];
   activePageRef: UnderstudyRuntimePage | undefined;
   readonly setActivePageCalls: UnderstudyRuntimePage[] = [];
@@ -112,23 +119,13 @@ class FakeBrowserSession implements StagehandBrowserSession {
   readonly clearCookiesCalls: Array<UnderstudyRuntimeClearCookieOptions | undefined> = [];
   readonly clipboard = new FakeRuntimeClipboard();
 
-  constructor(
-    pages: FakeUnderstudyRuntimePage[] = [],
-    readonly version = {
-      protocolVersion: "1.3",
-      product: "Chrome/143.0.0.0",
-      revision: "@abc123",
-      userAgent: "Mozilla/5.0",
-      jsVersion: "14.3",
-    },
-  ) {
+  constructor(pages: FakeUnderstudyRuntimePage[] = []) {
     this.pageRefs = pages;
     this.activePageRef = pages.at(-1);
   }
 
-  async getVersion() {
-    this.getVersionCalls += 1;
-    return this.version;
+  async prepareForInitialization(): Promise<void> {
+    this.prepareForInitializationCalls += 1;
   }
 
   pages(): UnderstudyRuntimePage[] {
@@ -235,6 +232,18 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   }> = [];
   readonly screenshotCalls: Array<UnderstudyRuntimeScreenshotOptions | undefined> = [];
   readonly snapshotCalls: Array<PageSnapshotOptions | undefined> = [];
+  readonly listWebMCPToolsCalls: Array<Partial<WebMCPToolsOptions> | undefined> = [];
+  readonly invokeWebMCPToolCalls: Array<{
+    frameId: string;
+    toolName: string;
+    options?: Partial<WebMCPInvokeOptions>;
+  }> = [];
+  readonly waitForWebMCPInvocationResultCalls: Array<{
+    invocationId: string;
+    options?: WebMCPResultOptions;
+  }> = [];
+  readonly cancelWebMCPInvocationCalls: string[] = [];
+  readonly webMCPInvocations = new Set<string>();
   readonly locatorRefs: FakeUnderstudyRuntimeLocator[] = [];
   readonly locatorsBySelector = new Map<string, FakeUnderstudyRuntimeLocator>();
   closed = false;
@@ -252,6 +261,22 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     formattedTree: "root",
     xpathMap: { frameOne: "/html/body" },
     urlMap: { frameOne: "https://example.test" },
+  };
+  webMCPTools: WebMCPToolDescriptor[] = [
+    {
+      name: "search",
+      description: "Search this site",
+      inputSchema: {
+        type: "object",
+        properties: { searchQuery: { type: "string" } },
+      },
+      frameId: "frame-1",
+    },
+  ];
+  webMCPToolResponse: WebMCPToolResponse = {
+    invocationId: "page-a-invocation-1",
+    status: "Completed",
+    output: { resultValue: "done" },
   };
 
   constructor(
@@ -371,6 +396,45 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return this.snapshotResult;
   }
 
+  async listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]> {
+    this.listWebMCPToolsCalls.push(options);
+    return this.webMCPTools;
+  }
+
+  async invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor> {
+    this.invokeWebMCPToolCalls.push({ frameId, toolName, options });
+    const invocationId = `${this.id}-invocation-${this.webMCPInvocations.size + 1}`;
+    this.webMCPInvocations.add(invocationId);
+    return {
+      invocationId,
+      toolName,
+      frameId,
+      input: options?.input ?? {},
+    };
+  }
+
+  async waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse> {
+    this.waitForWebMCPInvocationResultCalls.push({ invocationId, options });
+    if (!this.webMCPInvocations.has(invocationId)) {
+      throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.id}".`);
+    }
+    return { ...this.webMCPToolResponse, invocationId };
+  }
+
+  async cancelWebMCPInvocation(invocationId: string): Promise<void> {
+    this.cancelWebMCPInvocationCalls.push(invocationId);
+    if (!this.webMCPInvocations.has(invocationId)) {
+      throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.id}".`);
+    }
+  }
+
   targetId(): string {
     return this.id;
   }
@@ -424,7 +488,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
       innerHtml?: string;
       count?: number;
       centroid?: LocatorCentroidResult;
-      selectedValues?: LocatorSelectOptionResult["values"];
+      selectedValues?: LocatorSelectOptionResult;
     } = {},
   ) {}
 
@@ -549,10 +613,8 @@ async function createConfiguredHandler(
   await handle({
     jsonrpc: "2.0",
     id: 1,
-    method: "runtime.configure",
-    params: {
-      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-    },
+    method: "stagehand.init",
+    params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
   });
 
   return handle;
@@ -563,18 +625,19 @@ async function createConfiguredRuntime(session: FakeBrowserSession) {
     browserSessionFactory: async () => session,
   });
 
-  await runtime.configureLoopback({
+  await runtime.replaceBrowserConnection({
     cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-    logLevel: "info",
-    telemetry: {
-      traces: {
-        endpoint: "https://example.com/v1/traces",
-        headers: {},
-      },
-    },
   });
 
   return runtime;
+}
+
+function configuredInitParams(cdpUrl: string) {
+  return {
+    protocol_version: STAGEHAND_PROTOCOL_VERSION,
+    client_info: { name: "stagehand-sdk-test", version: "1.0.0" },
+    browser_cdp_url: cdpUrl,
+  };
 }
 
 describe("Stagehand worker clients", () => {
@@ -592,7 +655,7 @@ describe("Stagehand worker clients", () => {
 
     expect(scope).toMatchObject({
       __stagehand_runtime: {
-        protocolVersion: 4,
+        protocolVersion: 1,
         serverInfo: {
           name: "stagehand",
           version: "4.0.0",
@@ -610,14 +673,19 @@ describe("Stagehand worker clients", () => {
     } = {
       [STAGEHAND_SEND_TO_HOST_BINDING]: (payload) => messages.push(JSON.parse(payload)),
     };
-    startStagehandServiceWorker(scope);
+    startStagehandServiceWorker(
+      scope,
+      createStagehandRuntime({
+        browserSessionFactory: async () => new FakeBrowserSession(),
+      }),
+    );
 
     await scope.__stagehandReceiveFromHost?.(
       JSON.stringify({
         jsonrpc: "2.0",
         id: 7,
-        method: "ping",
-        params: {},
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
       }),
     );
 
@@ -627,8 +695,8 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 7,
       result: {
-        ok: true,
-        runtime: "service_worker",
+        initialized: true,
+        pages: [],
       },
     });
     expect(
@@ -646,7 +714,9 @@ describe("Stagehand worker clients", () => {
     };
     startStagehandServiceWorker(scope);
 
-    await scope.__stagehandReceiveFromHost?.(JSON.stringify({ method: "ping", params: {} }));
+    await scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({ method: "stagehand.close", params: {} }),
+    );
 
     expect(messages).toContainEqual({
       jsonrpc: "2.0",
@@ -694,45 +764,7 @@ describe("Stagehand worker clients", () => {
     );
   });
 
-  it("handles ping", async () => {
-    await expect(
-      createHandle()({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "ping",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 1,
-      result: {
-        ok: true,
-        runtime: "service_worker",
-      },
-    });
-  });
-
-  it("reports unconfigured loopback status", async () => {
-    const handle = createHandle();
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
-  });
-
-  it("configures the browser session and reports connected status", async () => {
+  it("configures the browser session during stagehand.init", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -746,39 +778,23 @@ describe("Stagehand worker clients", () => {
       handle({
         jsonrpc: "2.0",
         id: 1,
-        method: "runtime.configure",
-        params: {
-          cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-        },
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 1,
       result: {
-        configured: true,
+        initialized: true,
+        pages: [],
       },
     });
 
     expect(sessions).toHaveLength(1);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 4,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 4,
-      result: {
-        configured: true,
-        connected: true,
-      },
-    });
+    expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("closes the previous browser session when reconfigured", async () => {
+  it("rejects a second stagehand.init without replacing the browser session", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -791,23 +807,20 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/first",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/first"),
     });
-    await handle({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/second",
-      },
-    });
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "stagehand.init",
+        params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/second"),
+      }),
+    ).resolves.toMatchObject({ error: { message: "Stagehand has already been initialized" } });
 
-    expect(sessions).toHaveLength(2);
-    expect(sessions[0]?.closed).toBe(true);
-    expect(sessions[1]?.closed).toBe(false);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.closed).toBe(false);
   });
 
   it("closes the browser session on stagehand.close", async () => {
@@ -819,10 +832,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -841,65 +852,6 @@ describe("Stagehand worker clients", () => {
     });
 
     expect(session.closed).toBe(true);
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 3,
-        method: "runtime.loopback_status",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 3,
-      result: {
-        configured: false,
-        connected: false,
-      },
-    });
-  });
-
-  it("calls Browser.getVersion through the browser session", async () => {
-    const session = new FakeBrowserSession([], {
-      protocolVersion: "1.3",
-      product: "Chrome/143.0.0.0",
-      revision: "@abc123",
-      userAgent: "Mozilla/5.0",
-      jsVersion: "14.3",
-    });
-    const handle = createHandle({
-      browserSessionFactory: async () => session,
-    });
-
-    await handle({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
-    });
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 6,
-        method: "browser.get_version",
-        params: {},
-      }),
-    ).resolves.toStrictEqual({
-      jsonrpc: "2.0",
-      id: 6,
-      result: {
-        protocol_version: "1.3",
-        product: "Chrome/143.0.0.0",
-        revision: "@abc123",
-        user_agent: "Mozilla/5.0",
-        js_version: "14.3",
-      },
-    });
-
-    expect(session.getVersionCalls).toBe(1);
   });
 
   it("returns a clear error for context.pages before runtime is configured", async () => {
@@ -935,10 +887,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -973,10 +923,8 @@ describe("Stagehand worker clients", () => {
     await handle({
       jsonrpc: "2.0",
       id: 1,
-      method: "runtime.configure",
-      params: {
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
-      },
+      method: "stagehand.init",
+      params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/session"),
     });
 
     await expect(
@@ -1197,10 +1145,8 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 15,
       result: {
-        policy: {
-          allowed_domains: ["example.test"],
-          blocked_domains: ["blocked.example.test"],
-        },
+        allowed_domains: ["example.test"],
+        blocked_domains: ["blocked.example.test"],
       },
     });
 
@@ -1238,7 +1184,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 17,
-      result: { policy: null },
+      result: null,
     });
 
     expect(context.setDomainPolicyCalls).toStrictEqual([null]);
@@ -1270,20 +1216,18 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 18,
-      result: {
-        cookies: [
-          {
-            name: "session-id",
-            value: "abc123",
-            domain: "example.test",
-            path: "/",
-            expires: -1,
-            http_only: true,
-            secure: true,
-            same_site: "Lax",
-          },
-        ],
-      },
+      result: [
+        {
+          name: "session-id",
+          value: "abc123",
+          domain: "example.test",
+          path: "/",
+          expires: -1,
+          http_only: true,
+          secure: true,
+          same_site: "Lax",
+        },
+      ],
     });
     await expect(
       handle({
@@ -1360,7 +1304,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 22,
-      result: { text: "clipboard text" },
+      result: "clipboard text",
     });
     await expect(
       handle({
@@ -1837,6 +1781,140 @@ describe("Stagehand worker clients", () => {
     expect(page.snapshotCalls).toStrictEqual([{ includeIframes: true }]);
   });
 
+  it("routes WebMCP discovery and invocation operations through the owning page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 40,
+        method: "page.webmcp_tools",
+        params: {
+          page_id: "page-a",
+          options: { timeout: 250 },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 40,
+      result: {
+        tools: [
+          {
+            name: "search",
+            description: "Search this site",
+            input_schema: {
+              type: "object",
+              properties: { searchQuery: { type: "string" } },
+            },
+            frame_id: "frame-1",
+          },
+        ],
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 41,
+        method: "page.webmcp_invoke_tool",
+        params: {
+          page_id: "page-a",
+          frame_id: "frame-1",
+          tool_name: "search",
+          input: { searchQuery: "Stagehand" },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 41,
+      result: {
+        invocation_id: "page-a-invocation-1",
+        tool_name: "search",
+        frame_id: "frame-1",
+        input: { searchQuery: "Stagehand" },
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 42,
+        method: "page.webmcp_invocation_result",
+        params: {
+          page_id: "page-a",
+          invocation_id: "page-a-invocation-1",
+          options: { timeout: 5_000 },
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 42,
+      result: {
+        invocation_id: "page-a-invocation-1",
+        status: "Completed",
+        output: { resultValue: "done" },
+      },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 43,
+        method: "page.webmcp_cancel_invocation",
+        params: {
+          page_id: "page-a",
+          invocation_id: "page-a-invocation-1",
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 43,
+      result: { ok: true },
+    });
+
+    expect(page.listWebMCPToolsCalls).toStrictEqual([{ timeout: 250 }]);
+    expect(page.invokeWebMCPToolCalls).toStrictEqual([
+      {
+        frameId: "frame-1",
+        toolName: "search",
+        options: { input: { searchQuery: "Stagehand" } },
+      },
+    ]);
+    expect(page.waitForWebMCPInvocationResultCalls).toStrictEqual([
+      {
+        invocationId: "page-a-invocation-1",
+        options: { timeout: 5_000 },
+      },
+    ]);
+    expect(page.cancelWebMCPInvocationCalls).toStrictEqual(["page-a-invocation-1"]);
+  });
+
+  it("rejects use of a WebMCP invocation through another page", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
+    const otherPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/other");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page, otherPage]));
+    const invocation = await runtime.pageWebMCPInvokeTool({
+      pageId: "page-a",
+      frameId: "frame-1",
+      toolName: "search",
+      input: {},
+    });
+
+    await expect(
+      runtime.pageWebMCPInvocationResult({
+        pageId: "page-b",
+        invocationId: invocation.invocationId,
+      }),
+    ).rejects.toThrow(
+      `WebMCP invocation "${invocation.invocationId}" was not found on page "page-b".`,
+    );
+    expect(page.waitForWebMCPInvocationResultCalls).toStrictEqual([]);
+    expect(otherPage.waitForWebMCPInvocationResultCalls).toStrictEqual([
+      { invocationId: invocation.invocationId, options: undefined },
+    ]);
+  });
+
   it("rejects screenshot masks from another page", async () => {
     const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
     const otherPage = new FakeUnderstudyRuntimePage("page-b", "https://example.test/other");
@@ -1870,9 +1948,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 10,
-      result: {
-        url: "https://example.test/current",
-      },
+      result: "https://example.test/current",
     });
   });
 
@@ -1895,9 +1971,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 11,
-      result: {
-        title: "Current Title",
-      },
+      result: "Current Title",
     });
   });
 
@@ -2030,9 +2104,7 @@ describe("Stagehand worker clients", () => {
         pageId: "page-a",
         selector: "section.visible",
       }),
-    ).resolves.toStrictEqual({
-      visible: true,
-    });
+    ).resolves.toBe(true);
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("section.visible");
@@ -2051,9 +2123,7 @@ describe("Stagehand worker clients", () => {
         pageId: "page-a",
         selector: "p.message",
       }),
-    ).resolves.toStrictEqual({
-      textContent: "hello from locator",
-    });
+    ).resolves.toBe("hello from locator");
 
     expect(page.locatorRefs).toHaveLength(1);
     expect(page.locatorRefs[0]?.selector).toBe("p.message");
@@ -2071,9 +2141,7 @@ describe("Stagehand worker clients", () => {
         selector: "li.item",
         nth: 2,
       }),
-    ).resolves.toStrictEqual({
-      count: 1,
-    });
+    ).resolves.toBe(1);
 
     expect(locator.nthCalls).toStrictEqual([2]);
   });
@@ -2097,17 +2165,11 @@ describe("Stagehand worker clients", () => {
       selector: "input.email",
     };
 
-    await expect(runtime.locatorCount(descriptor)).resolves.toStrictEqual({ count: 3 });
-    await expect(runtime.locatorIsChecked(descriptor)).resolves.toStrictEqual({ checked: true });
-    await expect(runtime.locatorInputValue(descriptor)).resolves.toStrictEqual({
-      value: "user@example.com",
-    });
-    await expect(runtime.locatorInnerText(descriptor)).resolves.toStrictEqual({
-      text: "visible text",
-    });
-    await expect(runtime.locatorInnerHtml(descriptor)).resolves.toStrictEqual({
-      html: "<span>visible text</span>",
-    });
+    await expect(runtime.locatorCount(descriptor)).resolves.toBe(3);
+    await expect(runtime.locatorIsChecked(descriptor)).resolves.toBe(true);
+    await expect(runtime.locatorInputValue(descriptor)).resolves.toBe("user@example.com");
+    await expect(runtime.locatorInnerText(descriptor)).resolves.toBe("visible text");
+    await expect(runtime.locatorInnerHtml(descriptor)).resolves.toBe("<span>visible text</span>");
     await expect(runtime.locatorCentroid(descriptor)).resolves.toStrictEqual({ x: 12, y: 34 });
   });
 
@@ -2141,7 +2203,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({ typed: true });
     await expect(
       runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
-    ).resolves.toStrictEqual({ values: ["b"] });
+    ).resolves.toStrictEqual(["b"]);
 
     expect(locator.scrollToCalls).toStrictEqual([50]);
     expect(locator.highlightCalls).toStrictEqual([
@@ -2259,9 +2321,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 15,
-      result: {
-        visible: true,
-      },
+      result: true,
     });
   });
 
@@ -2286,9 +2346,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 16,
-      result: {
-        text_content: "hello from locator",
-      },
+      result: "hello from locator",
     });
   });
 
@@ -2315,9 +2373,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 17,
-      result: {
-        count: 2,
-      },
+      result: 2,
     });
 
     await expect(
@@ -2334,9 +2390,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 18,
-      result: {
-        values: ["pro"],
-      },
+      result: ["pro"],
     });
 
     expect(locator.nthCalls).toStrictEqual([0]);
@@ -2391,33 +2445,12 @@ describe("Stagehand worker clients", () => {
     });
   });
 
-  it("returns a clear error before loopback is configured", async () => {
-    const handle = createHandle();
-
-    await expect(
-      handle({
-        jsonrpc: "2.0",
-        id: 6,
-        method: "browser.get_version",
-        params: {},
-      }),
-    ).resolves.toMatchObject({
-      jsonrpc: "2.0",
-      id: 6,
-      error: {
-        code: -32603,
-        message: "Stagehand loopback CDP is not configured",
-        data: { name: "Error" },
-      },
-    });
-  });
-
   it("returns invalid params for known methods with bad params", async () => {
     await expect(
       createHandle()({
         jsonrpc: "2.0",
         id: 2,
-        method: "ping",
+        method: "stagehand.metrics",
         params: { extra: true },
       }),
     ).resolves.toMatchObject({

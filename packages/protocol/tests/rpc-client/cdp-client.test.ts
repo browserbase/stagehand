@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
   StagehandRuntimeIncompatibleError,
   waitForPreloadedStagehandServiceWorker,
-  waitForRuntimeReady,
+  waitForRuntimeReceiver,
   waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
 
@@ -234,7 +235,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const readiness = [
       {
         marker: {
-          protocolVersion: 4,
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           serverInfo: { name: "other", version: "1" },
         },
         hasReceiver: false,
@@ -393,7 +394,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
   });
 });
 
-describe("waitForRuntimeReady", () => {
+describe("waitForRuntimeReceiver", () => {
   it("resolves when the attached runtime exposes the Stagehand marker and RPC receiver", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
@@ -402,7 +403,7 @@ describe("waitForRuntimeReady", () => {
     }));
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         timeout: 1_000,
         delayFn: async () => {},
       }),
@@ -429,7 +430,7 @@ describe("waitForRuntimeReady", () => {
     let now = 0;
     const readiness = [
       {
-        marker: runtimeMarker(4),
+        marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
         hasReceiver: false,
       },
       readyRuntime(),
@@ -441,7 +442,7 @@ describe("waitForRuntimeReady", () => {
     }));
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         pollIntervalMs: 5,
         timeout: 100,
         nowFn: () => now,
@@ -460,7 +461,7 @@ describe("waitForRuntimeReady", () => {
       result: {
         value: {
           marker: {
-            protocolVersion: 4,
+            protocolVersion: STAGEHAND_PROTOCOL_VERSION,
             serverInfo: { name: "other-extension", version: "1" },
           },
           hasReceiver: false,
@@ -469,7 +470,7 @@ describe("waitForRuntimeReady", () => {
     }));
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeout: 2,
         nowFn: () => now,
@@ -477,7 +478,7 @@ describe("waitForRuntimeReady", () => {
           now += ms;
         },
       }),
-    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime to become ready");
+    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime RPC receiver");
   });
 
   it("keeps retrying when readiness evaluation throws", async () => {
@@ -497,7 +498,7 @@ describe("waitForRuntimeReady", () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => results.shift() ?? {});
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeout: 10,
         nowFn: () => now,
@@ -515,7 +516,7 @@ describe("waitForRuntimeReady", () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({}));
 
     const error = await rejectedError(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeout: 1,
         nowFn: () => now,
@@ -537,7 +538,7 @@ describe("waitForRuntimeReady", () => {
     }));
 
     const error = await rejectedError(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         pollIntervalMs: 1,
         timeout: 1,
         nowFn: () => now,
@@ -549,7 +550,7 @@ describe("waitForRuntimeReady", () => {
 
     expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
     expect(error.message).toContain(
-      "Timed out waiting for the Stagehand extension runtime to become ready",
+      "Timed out waiting for the Stagehand extension runtime RPC receiver",
     );
     expect(error.message).toContain("protocolVersion=3");
     expect(error.message).not.toContain("undefined");
@@ -561,7 +562,7 @@ describe("waitForRuntimeReady", () => {
     }));
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
+      waitForRuntimeReceiver(cdp, "worker-session", {
         allowFallbackInstall: false,
         timeout: 1_000,
         nowFn: () => 0,
@@ -570,22 +571,27 @@ describe("waitForRuntimeReady", () => {
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });
 
-  it("accepts compatible markers with unknown descriptor fields", async () => {
+  it("does not accept markers with unknown descriptor fields", async () => {
+    let now = 0;
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          marker: { ...runtimeMarker(4), status: "ready" },
+          marker: { ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION), status: "ready" },
           hasReceiver: true,
         },
       },
     }));
 
     await expect(
-      waitForRuntimeReady(cdp, "worker-session", {
-        timeout: 1_000,
-        delayFn: async () => {},
+      waitForRuntimeReceiver(cdp, "worker-session", {
+        pollIntervalMs: 1,
+        timeout: 1,
+        nowFn: () => now,
+        delayFn: async (ms) => {
+          now += ms;
+        },
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime RPC receiver");
   });
 });
 
@@ -600,7 +606,7 @@ function target(targetId: string, url: string): TargetInfo {
 
 function readyRuntime(): Record<string, unknown> {
   return {
-    marker: runtimeMarker(4),
+    marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
     hasReceiver: true,
   };
 }

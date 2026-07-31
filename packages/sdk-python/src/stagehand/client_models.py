@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Literal
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ._generated import models as _models
 from ._generated.models import (
@@ -17,10 +17,29 @@ from ._generated.models import (
     LLMStructuredGenerateResult,
     ModelConfig,
     ProxyConfig,
-    StagehandInitParams,
     StagehandLog,
+    StagehandResultMetadata,
+    TelemetryConfig,
 )
 from ._validation import WireModel
+
+ExtractData = TypeVar("ExtractData", bound=BaseModel)
+
+
+class ExtractResult(WireModel, Generic[ExtractData]):
+    model_config = ConfigDict(extra="forbid")
+
+    data: ExtractData
+    metadata: StagehandResultMetadata
+
+
+class _ExtractWireResult(WireModel):
+    """Internal extract response model that preserves arbitrary JSON values."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    data: Any
+    metadata: StagehandResultMetadata
 
 
 class LocalProxyConfig(WireModel):
@@ -127,9 +146,19 @@ class StagehandClientLoggingConfig(WireModel):
     on_log: StagehandOnLog | None = None
 
 
-class StagehandClientInitParams(StagehandInitParams):
+class StagehandClientInitParams(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: Annotated[str | None, Field(min_length=1)] = None
     browser: BrowserSource = BrowserbaseBrowserSource(type="browserbase")
     model: ModelConfig | ClientLLM | None = None
+    telemetry: TelemetryConfig | None = None
+    system_prompt: str | None = None
+    self_heal: bool | None = None
+    dom_settle_timeout_ms: Annotated[
+        int | None, Field(gt=0, le=9_007_199_254_740_991, strict=True)
+    ] = None
+    cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
     @model_validator(mode="after")

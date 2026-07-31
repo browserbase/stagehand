@@ -11,6 +11,17 @@ SDK_ROOT = Path(__file__).resolve().parents[1]
 SERVER_EXTENSION_ROOT = SDK_ROOT.parent / "server" / "dist"
 
 
+def clean_distribution_directory(output_directory: Path) -> None:
+    for pattern in (
+        "stagehand-*.whl",
+        "stagehand-*.tar.gz",
+        "stagehand_v4-*.whl",
+        "stagehand_v4-*.tar.gz",
+    ):
+        for existing_distribution in output_directory.glob(pattern):
+            existing_distribution.unlink()
+
+
 def main() -> None:
     if not (SERVER_EXTENSION_ROOT / "manifest.json").is_file():
         raise SystemExit("Stagehand extension is not built; run the root `just build` command.")
@@ -67,11 +78,7 @@ def main() -> None:
 
         output_directory = SDK_ROOT / "dist"
         output_directory.mkdir(exist_ok=True)
-        for existing_distribution in (
-            *output_directory.glob("stagehand_v4-*.whl"),
-            *output_directory.glob("stagehand_v4-*.tar.gz"),
-        ):
-            existing_distribution.unlink()
+        clean_distribution_directory(output_directory)
         for distribution in (*wheels, *source_distributions):
             shutil.copy2(distribution, output_directory / distribution.name)
 

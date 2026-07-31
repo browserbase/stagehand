@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "check": "mint validate && mint broken-links --check-anchors --check-redirects --check-snippets && mint a11y --skip-contrast",
+    "typecheck": "pnpm run check",
+    "test:unit": "vitest run --root ../.. packages/docs/tests",
     "dev": "mint dev",
     "sync-sdk": "node scripts/sync-sdk-docs.js"
   },
   "devDependencies": {
+    "@mdx-js/mdx": "catalog:",
     "mint": "catalog:"
   }
 }

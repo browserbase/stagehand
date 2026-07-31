@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { encodeWireValue, toWireJsonSchema, wireSchema } from "../../json-rpc/wire-casing.js";
 import { StagehandNotifications, StagehandMethods } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const snakeCaseMethodSegment = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -100,6 +101,84 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(schema, options).parse(wireValue)).toStrictEqual(apiValue);
   });
 
+  it("preserves opaque WebMCP schemas, inputs, outputs, and exception data", () => {
+    const tools = StagehandMethods.pageWebMCPTools;
+    const toolsResult = {
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          inputSchema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          frameId: "frame-1",
+        },
+      ],
+    };
+    const toolsWireResult = {
+      tools: [
+        {
+          name: "search",
+          description: "Search",
+          input_schema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          frame_id: "frame-1",
+        },
+      ],
+    };
+    expect(encodeWireValue(toolsResult, tools.resultWire)).toStrictEqual(toolsWireResult);
+    expect(wireSchema(tools.result, tools.resultWire).parse(toolsWireResult)).toStrictEqual(
+      toolsResult,
+    );
+
+    const invoke = StagehandMethods.pageWebMCPInvokeTool;
+    const invokeParams = {
+      pageId: "page-1",
+      frameId: "frame-1",
+      toolName: "search",
+      input: { searchQuery: "Stagehand" },
+    };
+    const invokeWireParams = {
+      page_id: "page-1",
+      frame_id: "frame-1",
+      tool_name: "search",
+      input: { searchQuery: "Stagehand" },
+    };
+    expect(encodeWireValue(invokeParams, invoke.paramsWire)).toStrictEqual(invokeWireParams);
+    expect(wireSchema(invoke.params, invoke.paramsWire).parse(invokeWireParams)).toStrictEqual(
+      invokeParams,
+    );
+
+    const response = StagehandMethods.pageWebMCPInvocationResult;
+    const responseResult = {
+      invocationId: "invocation-1",
+      status: "Error" as const,
+      output: { resultValue: "unchanged" },
+      errorText: "Tool failed",
+      exception: {
+        objectId: "remote-1",
+        value: { originalKey: "unchanged" },
+      },
+    };
+    const responseWireResult = {
+      invocation_id: "invocation-1",
+      status: "Error" as const,
+      output: { resultValue: "unchanged" },
+      error_text: "Tool failed",
+      exception: {
+        objectId: "remote-1",
+        value: { originalKey: "unchanged" },
+      },
+    };
+    expect(encodeWireValue(responseResult, response.resultWire)).toStrictEqual(responseWireResult);
+    expect(
+      wireSchema(response.result, response.resultWire).parse(responseWireResult),
+    ).toStrictEqual(responseResult);
+  });
+
   it("encodes locator parity params with snake_case wire fields", () => {
     const schema = StagehandMethods.locatorSendClickEvent.params;
     const apiValue = {
@@ -185,7 +264,7 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandAct;
     const apiValue = {
       pageId: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {
@@ -198,7 +277,7 @@ describe("JSON-RPC wire casing", () => {
     };
     const wireValue = {
       page_id: "page_1",
-      input: "Fill the email field",
+      instruction: "Fill the email field",
       options: {
         timeout: 5_000,
         variables: {
@@ -248,34 +327,30 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(clipboard.params).parse(clipboardWireParams)).toStrictEqual(clipboardParams);
 
     const cookies = StagehandMethods.contextCookies;
-    const cookiesResult = {
-      cookies: [
-        {
-          name: "session",
-          value: "abc123",
-          domain: "example.com",
-          path: "/",
-          expires: -1,
-          httpOnly: true,
-          secure: true,
-          sameSite: "Lax" as const,
-        },
-      ],
-    };
-    const cookiesWireResult = {
-      cookies: [
-        {
-          name: "session",
-          value: "abc123",
-          domain: "example.com",
-          path: "/",
-          expires: -1,
-          http_only: true,
-          secure: true,
-          same_site: "Lax" as const,
-        },
-      ],
-    };
+    const cookiesResult = [
+      {
+        name: "session",
+        value: "abc123",
+        domain: "example.com",
+        path: "/",
+        expires: -1,
+        httpOnly: true,
+        secure: true,
+        sameSite: "Lax" as const,
+      },
+    ];
+    const cookiesWireResult = [
+      {
+        name: "session",
+        value: "abc123",
+        domain: "example.com",
+        path: "/",
+        expires: -1,
+        http_only: true,
+        secure: true,
+        same_site: "Lax" as const,
+      },
+    ];
     expect(encodeWireValue(cookiesResult)).toStrictEqual(cookiesWireResult);
     expect(wireSchema(cookies.result).parse(cookiesWireResult)).toStrictEqual(cookiesResult);
   });
@@ -334,6 +409,9 @@ describe("JSON-RPC wire casing", () => {
   it("preserves arbitrary map keys while encoding nested configuration", () => {
     const definition = StagehandMethods.stagehandInit;
     const apiValue = {
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      logLevel: "info" as const,
       apiKey: "bb_key",
       browser: {
         type: "browserbase" as const,
@@ -354,6 +432,9 @@ describe("JSON-RPC wire casing", () => {
     };
 
     const wireValue = {
+      protocol_version: STAGEHAND_PROTOCOL_VERSION,
+      client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+      log_level: "info",
       api_key: "bb_key",
       browser: {
         type: "browserbase",
@@ -398,12 +479,12 @@ describe("JSON-RPC wire casing", () => {
   it("preserves arbitrary extraction result keys", () => {
     const definition = StagehandMethods.stagehandExtract;
     const apiValue = {
-      result: { userName: "Sam" },
-      actionId: "action_1",
+      data: { userName: "Sam" },
+      metadata: { actionId: "action_1", cacheStatus: "HIT" as const },
     };
     const wireValue = {
-      result: { userName: "Sam" },
-      action_id: "action_1",
+      data: { userName: "Sam" },
+      metadata: { action_id: "action_1", cache_status: "HIT" },
     };
 
     expect(encodeWireValue(apiValue, definition.resultWire)).toStrictEqual(wireValue);
@@ -436,6 +517,66 @@ describe("JSON-RPC wire casing", () => {
     expect(encodeWireValue(apiValue, definition.paramsWire)).toStrictEqual(wireValue);
     expect(wireSchema(definition.params, definition.paramsWire).parse(wireValue)).toStrictEqual(
       apiValue,
+    );
+  });
+
+  it("cases structured act and observe result data while preserving extracted JSON", () => {
+    const act = StagehandMethods.stagehandAct;
+    const actApiValue = {
+      data: {
+        success: true,
+        message: "Clicked the button",
+        actionDescription: "Clicked submit",
+        actions: [{ selector: "#submit", description: "Submit" }],
+      },
+      metadata: { cacheStatus: "MISS" as const },
+    };
+    const actWireValue = {
+      data: {
+        success: true,
+        message: "Clicked the button",
+        action_description: "Clicked submit",
+        actions: [{ selector: "#submit", description: "Submit" }],
+      },
+      metadata: { cache_status: "MISS" },
+    };
+
+    expect(encodeWireValue(actApiValue, act.resultWire)).toStrictEqual(actWireValue);
+    expect(wireSchema(act.result, act.resultWire).parse(actWireValue)).toStrictEqual(actApiValue);
+
+    const observe = StagehandMethods.stagehandObserve;
+    const observeApiValue = {
+      data: [
+        {
+          selector: "#submit",
+          description: "Submit",
+          method: "click",
+          arguments: ["withValue"],
+        },
+      ],
+      metadata: { actionId: "action_1" },
+    };
+    const observeWireValue = {
+      data: [
+        {
+          selector: "#submit",
+          description: "Submit",
+          method: "click",
+          arguments: ["withValue"],
+        },
+      ],
+      metadata: { action_id: "action_1" },
+    };
+
+    expect(encodeWireValue(observeApiValue, observe.resultWire)).toStrictEqual(observeWireValue);
+    expect(wireSchema(observe.result, observe.resultWire).parse(observeWireValue)).toStrictEqual(
+      observeApiValue,
+    );
+
+    const extract = StagehandMethods.stagehandExtract;
+    const extractWireValue = { data: { callerChosenKey: 1 }, metadata: {} };
+    expect(wireSchema(extract.result, extract.resultWire).parse(extractWireValue)).toStrictEqual(
+      extractWireValue,
     );
   });
 
