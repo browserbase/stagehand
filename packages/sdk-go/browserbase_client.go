@@ -824,6 +824,11 @@ func (response browserbaseRetrieveSessionResponse) validate() error {
 	if strings.TrimSpace(*response.ID) == "" {
 		return errors.New("id cannot be empty")
 	}
+	if response.ConnectURL != nil {
+		if err := validateBrowserbaseURL("connectUrl", *response.ConnectURL, "ws", "wss"); err != nil {
+			return err
+		}
+	}
 	if response.Region != nil && !isBrowserbaseRegion(*response.Region) {
 		return fmt.Errorf("invalid region %q", *response.Region)
 	}
