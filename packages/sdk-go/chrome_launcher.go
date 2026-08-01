@@ -84,7 +84,7 @@ type chromeProcess struct {
 
 func launchLocalBrowser(
 	ctx context.Context,
-	options LocalBrowserSource,
+	options LocalBrowserLaunchOptions,
 ) (resolvedBrowserSource, error) {
 	launched, err := launchChrome(ctx, options)
 	if err != nil {
@@ -97,10 +97,21 @@ func launchLocalBrowser(
 	}, nil
 }
 
-func launchChrome(
+type chromeLaunchOptions interface {
+	LocalBrowserLaunchOptions | LocalBrowserSource
+}
+
+func launchChrome[Options chromeLaunchOptions](
 	ctx context.Context,
-	options LocalBrowserSource,
+	input Options,
 ) (*launchedChrome, error) {
+	var options LocalBrowserLaunchOptions
+	switch value := any(input).(type) {
+	case LocalBrowserLaunchOptions:
+		options = value
+	case LocalBrowserSource:
+		options = localBrowserLaunchOptions(value)
+	}
 	if ctx == nil {
 		return nil, errors.New("stagehand Chrome launch context is required")
 	}
@@ -176,7 +187,7 @@ func launchChrome(
 	return launched, nil
 }
 
-func validateLocalBrowserOptions(options LocalBrowserSource) error {
+func validateLocalBrowserOptions(options LocalBrowserLaunchOptions) error {
 	if options.Port < 0 || options.Port > 65_535 {
 		return errors.New("stagehand Chrome port must be 0 or between 1 and 65535")
 	}
@@ -200,13 +211,10 @@ func validateLocalBrowserOptions(options LocalBrowserSource) error {
 			return errors.New("stagehand authenticated local browser proxies are not implemented")
 		}
 	}
-	if options.DownloadsPath != "" || options.AcceptDownloads != nil {
-		return errors.New("stagehand local browser download options require post-connect CDP setup")
-	}
 	return nil
 }
 
-func buildChromeArgs(options LocalBrowserSource, port int, userDataDir string) []string {
+func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir string) []string {
 	width, height := defaultChromeWidth, defaultChromeHeight
 	if options.Viewport != nil {
 		width, height = options.Viewport.Width, options.Viewport.Height
@@ -374,7 +382,7 @@ func availablePort() (int, error) {
 	return port, nil
 }
 
-func chromeLaunchTimeout(options LocalBrowserSource) time.Duration {
+func chromeLaunchTimeout(options LocalBrowserLaunchOptions) time.Duration {
 	if options.ConnectTimeoutMs > 0 {
 		return time.Duration(options.ConnectTimeoutMs) * time.Millisecond
 	}

@@ -1,0 +1,156 @@
+package stagehand
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"time"
+)
+
+// BrowserProvider identifies the service providing a browser.
+type BrowserProvider string
+
+const (
+	// BrowserProviderLocal identifies a locally running browser.
+	BrowserProviderLocal BrowserProvider = "local"
+	// BrowserProviderBrowserbase identifies a Browserbase browser.
+	BrowserProviderBrowserbase BrowserProvider = "browserbase"
+)
+
+// BrowserOrigin identifies whether a browser was launched or connected.
+type BrowserOrigin string
+
+const (
+	// BrowserOriginLaunched identifies a browser launched by this SDK.
+	BrowserOriginLaunched BrowserOrigin = "launched"
+	// BrowserOriginConnected identifies an existing browser connection.
+	BrowserOriginConnected BrowserOrigin = "connected"
+)
+
+// Browser is a factory-created browser whose Stagehand extension is ready.
+type Browser struct {
+	mu             browserMutex
+	provider       BrowserProvider
+	origin         BrowserOrigin
+	claimed        bool
+	closeRequested bool
+	closeResult    error
+	cdp            *cdpClient
+	commandTimeout time.Duration
+	workerAPIKey   *string
+	workerBrowser  *BrowserSessionMetadata
+	ownsSource     bool
+	closeSource    func(context.Context) error
+	cleanup        func() error
+}
+
+type browserMutex struct {
+	sync.Mutex
+	closeDone chan struct{}
+}
+
+// Provider returns the browser provider.
+func (browser *Browser) Provider() BrowserProvider {
+	if browser == nil {
+		return ""
+	}
+	return browser.provider
+}
+
+// Origin returns whether the browser was launched or connected.
+func (browser *Browser) Origin() BrowserOrigin {
+	if browser == nil {
+		return ""
+	}
+	return browser.origin
+}
+
+// Closed reports whether browser teardown has been requested.
+func (browser *Browser) Closed() bool {
+	if browser == nil {
+		return true
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	return browser.closeRequested
+}
+
+// Close tears down the browser-owned resources once and memoizes the result.
+func (browser *Browser) Close(ctx context.Context) error {
+	if browser == nil {
+		return nil
+	}
+	browser.mu.Lock()
+	if browser.closeRequested {
+		done := browser.mu.closeDone
+		browser.mu.Unlock()
+		if done == nil {
+			return browser.closeResult
+		}
+		<-done
+		browser.mu.Lock()
+		result := browser.closeResult
+		browser.mu.Unlock()
+		return result
+	}
+	browser.closeRequested = true
+	browser.mu.closeDone = make(chan struct{})
+	done := browser.mu.closeDone
+	browser.mu.Unlock()
+
+	var cdpErr error
+	if browser.cdp != nil {
+		cdpErr = browser.cdp.Close()
+	}
+	var sourceErr error
+	if browser.ownsSource && browser.closeSource != nil {
+		sourceErr = browser.closeSource(ctx)
+	}
+	var cleanupErr error
+	if browser.cleanup != nil {
+		cleanupErr = browser.cleanup()
+	}
+	result := errors.Join(cdpErr, sourceErr, cleanupErr)
+	browser.mu.Lock()
+	browser.closeResult = result
+	close(done)
+	browser.mu.Unlock()
+	return result
+}
+
+type claimedBrowser struct {
+	cdp            *cdpClient
+	commandTimeout time.Duration
+	workerAPIKey   *string
+	workerBrowser  *BrowserSessionMetadata
+}
+
+func claimBrowser(browser *Browser) (claimedBrowser, error) {
+	if browser == nil {
+		return claimedBrowser{}, errors.New("browser is required")
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	if browser.closeRequested {
+		return claimedBrowser{}, errors.New("cannot attach Stagehand to a closed browser")
+	}
+	if browser.claimed {
+		return claimedBrowser{}, errors.New("this browser is already attached to a Stagehand instance")
+	}
+	browser.claimed = true
+	return claimedBrowser{
+		cdp:            browser.cdp,
+		commandTimeout: browser.commandTimeout,
+		workerAPIKey:   browser.workerAPIKey,
+		workerBrowser:  browser.workerBrowser,
+	}, nil
+}
+
+func releaseBrowserClaim(browser *Browser) {
+	if browser == nil {
+		return
+	}
+	browser.mu.Lock()
+	browser.claimed = false
+	browser.mu.Unlock()
+}

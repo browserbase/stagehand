@@ -91,11 +91,12 @@ func TestResolveBrowserSourceSupportsEveryClientMode(t *testing.T) {
 			browserSourceResolverDependencies{
 				launchLocal: func(
 					_ context.Context,
-					got LocalBrowserSource,
+					got LocalBrowserLaunchOptions,
 				) (resolvedBrowserSource, error) {
 					launchCalls++
-					if !reflect.DeepEqual(got, source) {
-						t.Fatalf("local source = %#v, want %#v", got, source)
+					want := localBrowserLaunchOptions(source)
+					if !reflect.DeepEqual(got, want) {
+						t.Fatalf("local source = %#v, want %#v", got, want)
 					}
 					return resolvedBrowserSource{
 						cdpURL: "http://127.0.0.1:9222",
@@ -193,7 +194,7 @@ func TestResolveBrowserSourceCleansPartialFailures(t *testing.T) {
 		browserSourceResolverDependencies{
 			launchLocal: func(
 				context.Context,
-				LocalBrowserSource,
+				LocalBrowserLaunchOptions,
 			) (resolvedBrowserSource, error) {
 				return resolvedBrowserSource{}, launchErr
 			},
