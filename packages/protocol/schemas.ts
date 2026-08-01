@@ -962,11 +962,13 @@ export const BrowserbaseSessionCreateParamsSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
 
-/** Browserbase configuration available to both the SDK and the service worker. */
-export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
-  type: z.literal("browserbase"),
-  sessionId: z.string().min(1),
-}).meta({ id: "BrowserbaseBrowserSource" });
+/** Browser session metadata used by provider-independent worker services. */
+export const BrowserSessionMetadataSchema = z
+  .strictObject({
+    sessionId: z.string().min(1),
+    region: BrowserbaseRegionSchema.optional(),
+  })
+  .meta({ id: "BrowserSessionMetadata" });
 
 /** Browser launch options for local browsers. */
 export const LocalBrowserLaunchOptionsSchema = z
@@ -1390,7 +1392,7 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
-    browser: BrowserbaseBrowserSourceSchema.optional(),
+    browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),

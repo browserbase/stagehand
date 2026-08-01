@@ -8,10 +8,10 @@
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "../../protocol/schemas.js";
+import type { StagehandLog } from "../../protocol/types.js";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
-  BrowserbaseSessionCreateParamsSchema,
   ExtractOptionsSchema,
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
@@ -19,19 +19,9 @@ import {
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
-  StagehandLogSchema,
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
-
-/** Browserbase source fields exposed by the TS SDK. */
-export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
-  type: z.literal("browserbase"),
-}).meta({ id: "BrowserbaseClientBrowserSource" });
-
-export const LocalBrowserSourceSchema = ProtocolSchemas.LocalBrowserLaunchOptionsSchema.extend({
-  type: z.literal("local"),
-}).meta({ id: "LocalBrowserSource" });
 
 export const LocalBrowserLaunchOptionsSchema = z
   .strictObject({
@@ -120,27 +110,11 @@ export const BrowserbaseSessionConnectionSchema = z
   })
   .meta({ id: "BrowserbaseSessionConnection" });
 
-export const CdpBrowserSourceSchema = z
-  .strictObject({
-    type: z.literal("cdp"),
-    cdpUrl: z.string().min(1),
-    headers: z.record(z.string(), z.string()).optional(),
-  })
-  .meta({ id: "CdpBrowserSource" });
-
 export const WebMCPToolsOptionsSchema = ProtocolSchemas.WebMCPToolsOptionsSchema.partial();
 
 export const WebMCPInvokeOptionsSchema = ProtocolSchemas.WebMCPInvokeOptionsSchema.partial();
 
 export const WebMCPResultOptionsSchema = ProtocolSchemas.WebMCPResultOptionsSchema;
-
-export const BrowserSourceSchema = z
-  .discriminatedUnion("type", [
-    BrowserbaseBrowserSourceSchema,
-    LocalBrowserSourceSchema,
-    CdpBrowserSourceSchema,
-  ])
-  .meta({ id: "BrowserSource" });
 
 /** An LLM callback implemented locally by the SDK consumer. It never crosses the wire. */
 export const ClientLLMSchema = z
@@ -161,10 +135,10 @@ export const StagehandClientLogFormatSchema = z
   .meta({ id: "StagehandClientLogFormat" });
 
 export const StagehandClientOnLogSchema = z
-  .function({
-    input: [StagehandLogSchema],
-    output: z.union([z.void(), z.promise(z.void())]),
-  })
+  .custom<(log: StagehandLog) => void | Promise<void>>(
+    (value) => typeof value === "function",
+    "onLog must be a function",
+  )
   .meta({ id: "StagehandClientOnLog" });
 
 export const StagehandClientLoggingConfigSchema = z
@@ -186,31 +160,6 @@ export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.extend({
 export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
-
-export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.omit({
-  protocolVersion: true,
-  clientInfo: true,
-  browserCdpUrl: true,
-  logLevel: true,
-})
-  .extend({
-    browser: BrowserSourceSchema.default({ type: "browserbase" }),
-    model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
-    logging: StagehandClientLoggingConfigSchema.default({
-      level: "info",
-      format: "pretty",
-    }),
-  })
-  .superRefine((params, context) => {
-    if (params.browser.type === "browserbase" && params.apiKey === undefined) {
-      context.addIssue({
-        code: "custom",
-        path: ["apiKey"],
-        message: "A Browserbase API key is required for the Browserbase browser source",
-      });
-    }
-  })
-  .meta({ id: "StagehandClientInitParams" });
 
 export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
   protocolVersion: true,
@@ -248,7 +197,6 @@ export type ResolvedStagehandClientLoggingConfig = z.output<
 export type StagehandClientActOptions = z.input<typeof StagehandClientActOptionsSchema>;
 export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserveOptionsSchema>;
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
-export type BrowserSource = z.infer<typeof BrowserSourceSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type BrowserbaseLaunchOptions = z.infer<typeof BrowserbaseLaunchOptionsSchema>;
@@ -258,8 +206,6 @@ export type BrowserbaseSessionRetrieveResult = z.infer<
   typeof BrowserbaseSessionRetrieveResultSchema
 >;
 export type BrowserbaseSessionConnection = z.infer<typeof BrowserbaseSessionConnectionSchema>;
-export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
-export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
 export type StagehandClientCreateConfig = z.input<typeof StagehandClientCreateConfigSchema>;
 export type ResolvedStagehandClientCreateConfig = z.output<
   typeof StagehandClientCreateConfigSchema

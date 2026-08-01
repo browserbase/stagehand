@@ -108,7 +108,6 @@ describe("Stagehand browser factories", () => {
     expect(claimed.workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
       browser: {
-        type: "browserbase",
         sessionId: "session_123",
         region: "us-west-2",
       },
@@ -146,7 +145,6 @@ describe("Stagehand browser factories", () => {
     expect(claimStagehandBrowser(browser).workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
       browser: {
-        type: "browserbase",
         sessionId: "session_123",
         region: "eu-central-1",
       },

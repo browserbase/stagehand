@@ -17,7 +17,7 @@ import type {
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
-  BrowserbaseBrowserSourceSchema,
+  BrowserSessionMetadataSchema,
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
@@ -392,7 +392,7 @@ export type StagehandMethod = z.infer<typeof StagehandMethodSchema>;
 export type StagehandSendToHostBinding = z.infer<typeof StagehandSendToHostBindingSchema>;
 
 export type ApiKeyAuth = z.infer<typeof ApiKeyAuthSchema>;
-export type BrowserbaseBrowserSource = z.infer<typeof BrowserbaseBrowserSourceSchema>;
+export type BrowserSessionMetadata = z.infer<typeof BrowserSessionMetadataSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 export type Caching = z.infer<typeof CachingSchema>;

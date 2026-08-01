@@ -65,15 +65,15 @@ var customDefinitions = map[string]string{
 }
 
 var customProperties = map[string]string{
-	"$defs/BrowserbaseBrowserSource/properties/proxies":       "BrowserbaseProxies",
-	"$defs/BrowserbaseBrowserSource/properties/user_metadata": "map[string]json.RawMessage",
-	"$defs/ContextCookiesParams/properties/urls":              "StringList",
-	"$defs/ExtractResult/properties/result":                   "json.RawMessage",
-	"$defs/LLMMessage/properties/content":                     "LLMMessageContent",
-	"$defs/LocatorScrollToParams/properties/percent":          "ScrollPercent",
-	"$defs/LocatorSelectOptionParams/properties/values":       "StringList",
-	"$defs/StagehandActParams/properties/instruction":         "ActInstructionValue",
-	"$defs/StagehandInitParams/properties/model":              "StagehandInitModel",
+	"$defs/BrowserbaseSessionCreateParams/properties/proxies":       "BrowserbaseProxies",
+	"$defs/BrowserbaseSessionCreateParams/properties/user_metadata": "map[string]json.RawMessage",
+	"$defs/ContextCookiesParams/properties/urls":                    "StringList",
+	"$defs/ExtractResult/properties/result":                         "json.RawMessage",
+	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
+	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
+	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",
+	"$defs/StagehandActParams/properties/instruction":               "ActInstructionValue",
+	"$defs/StagehandInitParams/properties/model":                    "StagehandInitModel",
 }
 
 // Omissis normally applies the configured Go initialisms. Its case splitter
@@ -380,7 +380,7 @@ func reachableDefinitions(protocol, definitions map[string]any) (map[string]stru
 		}
 		return nil
 	}
-	for _, key := range []string{"methods", "notifications"} {
+	for _, key := range []string{"methods", "notifications", "legacy_client_models"} {
 		entry, ok := properties[key]
 		if !ok {
 			return nil, fmt.Errorf("protocol properties missing %q", key)
