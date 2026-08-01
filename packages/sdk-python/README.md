@@ -34,9 +34,11 @@ For hosted browsers, import `browserbase` from `stagehand` and use
 `browserbase.launch(api_key=...)` or `browserbase.connect(api_key=..., session_id=...)` instead of
 `local_browser`. A launched session is released when you `close()` the browser handle, except with
 `keep_alive=True`: that handle's `close()` only disconnects, and the session keeps running until it
-is released out of band (Browserbase dashboard or API) or reaches its configured timeout. Sessions
-reached through `browserbase.connect()` are never released by `close()` — whoever created the
-session owns it.
+is released out of band (Browserbase dashboard or API) or reaches its configured timeout. The
+Stagehand extension that `launch()` uploaded for that session is retained on the account for the
+same reason, so a `keep_alive=True` workflow that launches repeatedly accumulates extensions until
+they are deleted out of band. Sessions reached through `browserbase.connect()` are never released by
+`close()` — whoever created the session owns it.
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.

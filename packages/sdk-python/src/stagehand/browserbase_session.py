@@ -125,7 +125,11 @@ class _OfficialBrowserbaseAPI:
 
         async with AsyncBrowserbase(api_key=self._api_key) as client:
             session = await client.sessions.retrieve(session_id)
-        return session.id, session.connect_url, BrowserbaseRegion(session.region)
+        return (
+            session.id,
+            session.connect_url,
+            (BrowserbaseRegion(session.region) if session.region is not None else None),
+        )
 
     async def release_session(self, session_id: str) -> None:
         from browserbase import AsyncBrowserbase

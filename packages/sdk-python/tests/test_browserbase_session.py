@@ -384,6 +384,14 @@ async def test_connect_validates_sanitizes_and_normalizes(
     assert fake_api.retrieve_calls[-1] == "input"
 
 
+async def test_connect_preserves_missing_region(fake_api: FakeBrowserbaseAPI) -> None:
+    fake_api.retrieve_result = ("session-id", "wss://browser", None)
+
+    connection = await _BrowserbaseSessionClient(fake_api).connect_session("session-id")
+
+    assert connection.region is None
+
+
 def test_build_extension_archive_places_manifest_at_root(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
