@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from stagehand import browser
 from stagehand._generated.models import (
+    BrowserbaseBrowserSettings,
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
 )
@@ -507,6 +508,16 @@ async def test_browserbase_validation_precedes_api_calls(
     _, api_keys = _install_browserbase_client(monkeypatch)
     with pytest.raises(ValueError, match="api_key"):
         await browserbase.launch(api_key="")
+    with pytest.raises(ValueError, match="^extension_id must not be empty$"):
+        await browserbase.launch(api_key="api-key", extension_id="  ")
+    with pytest.raises(
+        ValueError,
+        match="^browser_settings.extension_id must not be empty$",
+    ):
+        await browserbase.launch(
+            api_key="api-key",
+            browser_settings=BrowserbaseBrowserSettings(extension_id="  "),
+        )
     with pytest.raises(ValidationError):
         await browserbase.connect(api_key="", session_id="session")
     with pytest.raises(ValidationError):

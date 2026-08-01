@@ -26,5 +26,11 @@ def build_extension_archive() -> bytes:
             directories.sort()
             for filename in sorted(files):
                 path = Path(root) / filename
-                output.write(path, path.relative_to(extension_dir).as_posix())
+                info = zipfile.ZipInfo(
+                    path.relative_to(extension_dir).as_posix(),
+                    date_time=(1980, 1, 1, 0, 0, 0),
+                )
+                info.external_attr = 0o644 << 16
+                info.compress_type = zipfile.ZIP_DEFLATED
+                output.writestr(info, path.read_bytes())
     return archive.getvalue()

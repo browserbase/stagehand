@@ -216,7 +216,7 @@ class _BrowserbaseSessionClient:
         except BaseException as error:
             await self._delete_extension_best_effort(owned_extension_id)
             if isinstance(error, Exception):
-                raise BrowserbaseSessionError("Failed to create a Browserbase session") from error
+                raise BrowserbaseSessionError("Failed to create a Browserbase session") from None
             raise
 
         session_id = raw_session_id.strip()
@@ -246,8 +246,8 @@ class _BrowserbaseSessionClient:
             retrieved_id, connect_url, region = await self._api.retrieve_session(
                 normalized_session_id
             )
-        except Exception as error:
-            raise BrowserbaseSessionError("Failed to retrieve the Browserbase session") from error
+        except Exception:
+            raise BrowserbaseSessionError("Failed to retrieve the Browserbase session") from None
         cdp_url = connect_url.strip() if connect_url is not None else ""
         if not cdp_url:
             raise BrowserbaseSessionError("Browserbase session is not available for connection")

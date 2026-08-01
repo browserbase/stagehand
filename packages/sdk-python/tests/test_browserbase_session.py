@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 import zipfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -253,8 +254,12 @@ async def test_create_failure_deletes_owned_extension_best_effort(
 ) -> None:
     fake_api.create_error = OSError("secret API failure")
     fake_api.delete_errors = [OSError("cleanup failed")]
-    with pytest.raises(BrowserbaseSessionError, match="^Failed to create a Browserbase session$"):
+    with pytest.raises(
+        BrowserbaseSessionError,
+        match="^Failed to create a Browserbase session$",
+    ) as raised:
         await _BrowserbaseSessionClient(fake_api).create_session(BrowserbaseSessionCreateParams())
+    assert raised.value.__cause__ is None
     assert fake_api.delete_calls == ["uploaded-extension"]
 
 
@@ -360,8 +365,9 @@ async def test_connect_validates_sanitizes_and_normalizes(
     with pytest.raises(
         BrowserbaseSessionError,
         match="^Failed to retrieve the Browserbase session$",
-    ):
+    ) as raised:
         await client.connect_session(" session ")
+    assert raised.value.__cause__ is None
     fake_api.retrieve_error = None
     fake_api.retrieve_result = (" ", None, None)
     with pytest.raises(
@@ -390,3 +396,18 @@ def test_build_extension_archive_places_manifest_at_root(
 
     with zipfile.ZipFile(io.BytesIO(build_extension_archive())) as archive:
         assert archive.namelist() == ["manifest.json", "scripts/worker.js"]
+
+
+def test_build_extension_archive_ignores_file_mtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text("{}")
+    monkeypatch.setattr("stagehand.extension_assets.extension_directory", lambda: tmp_path)
+
+    first = build_extension_archive()
+    os.utime(manifest, (1_000_000_000, 1_000_000_000))
+    second = build_extension_archive()
+
+    assert first == second
