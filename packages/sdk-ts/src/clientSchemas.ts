@@ -22,6 +22,7 @@ import {
   StagehandLogSchema,
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
+import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
 
 /** Browserbase source fields exposed by the TS SDK. */
 export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
@@ -211,6 +212,34 @@ export const StagehandClientInitParamsSchema = StagehandInitParamsSchema.omit({
   })
   .meta({ id: "StagehandClientInitParams" });
 
+export const StagehandClientCreateConfigSchema = StagehandInitParamsSchema.omit({
+  protocolVersion: true,
+  clientInfo: true,
+  browserCdpUrl: true,
+  logLevel: true,
+  browser: true,
+})
+  .extend({
+    model: z.union([ModelConfigSchema, ClientLLMSchema]).optional(),
+    logging: StagehandClientLoggingConfigSchema.default({
+      level: "info",
+      format: "pretty",
+    }),
+  })
+  .strict()
+  .meta({ id: "StagehandClientCreateConfig" });
+
+export const StagehandBrowserSchema = z
+  .custom<StagehandBrowser>(
+    isStagehandBrowser,
+    "browser must be created by localBrowser or browserbase",
+  )
+  .meta({ id: "StagehandBrowser" });
+
+export const StagehandCreateOptionsSchema = StagehandClientCreateConfigSchema.extend({
+  browser: StagehandBrowserSchema,
+}).meta({ id: "StagehandCreateOptions" });
+
 export type ClientLLM = z.infer<typeof ClientLLMSchema>;
 export type StagehandClientLoggingConfig = z.input<typeof StagehandClientLoggingConfigSchema>;
 export type ResolvedStagehandClientLoggingConfig = z.output<
@@ -231,6 +260,12 @@ export type BrowserbaseSessionRetrieveResult = z.infer<
 export type BrowserbaseSessionConnection = z.infer<typeof BrowserbaseSessionConnectionSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
+export type StagehandClientCreateConfig = z.input<typeof StagehandClientCreateConfigSchema>;
+export type ResolvedStagehandClientCreateConfig = z.output<
+  typeof StagehandClientCreateConfigSchema
+>;
+export type StagehandCreateOptions = z.input<typeof StagehandCreateOptionsSchema>;
+export type ResolvedStagehandCreateOptions = z.output<typeof StagehandCreateOptionsSchema>;
 export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
 export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
 export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;
