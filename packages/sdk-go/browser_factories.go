@@ -31,7 +31,10 @@ type LocalBrowserLaunchOptions struct {
 	ConnectTimeoutMs    int
 	DownloadsPath       string
 	AcceptDownloads     *bool
-	KeepAlive           bool
+	// KeepAlive transfers ownership of the launched browser lifetime to the caller.
+	// Browser.Close leaves the process running and does not remove a temporary
+	// user data directory.
+	KeepAlive bool
 }
 
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
@@ -160,6 +163,9 @@ func ConnectLocalBrowser(ctx context.Context, options LocalBrowserConnectOptions
 }
 
 func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrowserConnectOptions, dependencies browserFactoryDependencies) (*Browser, error) {
+	if err := validateBrowserConnectTimeout(options.ConnectTimeoutMs); err != nil {
+		return nil, err
+	}
 	extensionDir := ""
 	var cleanup func() error
 	if options.ExtensionID == "" {
@@ -210,6 +216,9 @@ func ConnectBrowserbase(ctx context.Context, options BrowserbaseConnectOptions) 
 }
 
 func connectBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseConnectOptions, dependencies browserFactoryDependencies) (*Browser, error) {
+	if err := validateBrowserConnectTimeout(options.ConnectTimeoutMs); err != nil {
+		return nil, err
+	}
 	client, err := browserbaseClientForFactory(options.APIKey, dependencies)
 	if err != nil {
 		return nil, err
@@ -225,6 +234,13 @@ func connectBrowserbaseWithDependencies(ctx context.Context, options Browserbase
 		connectTimeoutMs: options.ConnectTimeoutMs, workerAPIKey: &options.APIKey,
 		workerBrowser: &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
 	}, dependencies)
+}
+
+func validateBrowserConnectTimeout(connectTimeoutMs int) error {
+	if connectTimeoutMs < 0 {
+		return errors.New("stagehand browser connect timeout cannot be negative")
+	}
+	return nil
 }
 
 func browserbaseClientForFactory(apiKey string, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
@@ -299,7 +315,11 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		}
 		var sourceErr error
 		if ownsSource && options.source.close != nil {
-			sourceErr = options.source.close(ctx)
+			closeCtx := context.Background()
+			if ctx != nil {
+				closeCtx = context.WithoutCancel(ctx)
+			}
+			sourceErr = options.source.close(closeCtx)
 		}
 		var cleanupErr error
 		if options.source.cleanup != nil {
@@ -309,7 +329,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	}
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
-		commandTimeout: commandTimeout, workerAPIKey: options.workerAPIKey,
+		workerAPIKey:  options.workerAPIKey,
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, cleanup: options.source.cleanup,
 	}, nil

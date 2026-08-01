@@ -290,6 +290,50 @@ func TestBrowserbaseHTTPClientRetrievesSessions(t *testing.T) {
 	}
 }
 
+func TestBrowserbaseRetrieveSessionResponseValidatesOptionalConnectURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		connectURL *string
+		wantError  string
+	}{
+		{
+			name: "absent",
+		},
+		{
+			name:       "secure websocket",
+			connectURL: testPointer("wss://connect.browserbase.com/session_123"),
+		},
+		{
+			name:       "HTTP scheme",
+			connectURL: testPointer("http://connect.browserbase.com/session_123"),
+			wantError:  "connectUrl must use one of these schemes: ws, wss",
+		},
+		{
+			name:       "relative",
+			connectURL: testPointer("connect/session_123"),
+			wantError:  "connectUrl must be an absolute URL",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := browserbaseRetrieveSessionResponse{
+				ID:         testPointer("session_123"),
+				ConnectURL: test.connectURL,
+			}
+			err := response.validate()
+			if test.wantError == "" {
+				if err != nil {
+					t.Fatalf("validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("validate() error = %v, want containing %q", err, test.wantError)
+			}
+		})
+	}
+}
+
 func TestBrowserbaseHTTPClientDoesNotReplayResourceCreation(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(

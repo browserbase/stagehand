@@ -190,8 +190,8 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 					t.Fatalf("createSession() error = %v", err)
 				}
 			case "create failure":
-				if !errors.Is(err, createErr) {
-					t.Fatalf("createSession() error = %v, want create error", err)
+				if err == nil || err.Error() != "failed to create a Browserbase session" {
+					t.Fatalf("createSession() error = %v", err)
 				}
 			case "invalid session":
 				if err == nil {
@@ -301,7 +301,7 @@ func TestBrowserbaseSessionClientConnectSession(t *testing.T) {
 			}
 			return browserbaseRetrieveSessionResponse{
 				ID:         testPointer("session_123"),
-				ConnectURL: testPointer(" wss://connect.browserbase.com/session_123 "),
+				ConnectURL: testPointer("wss://connect.browserbase.com/session_123"),
 				Region:     &region,
 			}, nil
 		},
@@ -335,8 +335,7 @@ func TestBrowserbaseSessionClientConnectSessionRejectsUnavailableSession(t *test
 			string,
 		) (browserbaseRetrieveSessionResponse, error) {
 			return browserbaseRetrieveSessionResponse{
-				ID:         testPointer("session_123"),
-				ConnectURL: testPointer(" "),
+				ID: testPointer("session_123"),
 			}, nil
 		},
 	}
@@ -350,8 +349,14 @@ func TestBrowserbaseSessionClientConnectSessionRejectsUnavailableSession(t *test
 	}
 }
 
-func TestBrowserbaseSessionClientConnectSessionWrapsRetrieveFailure(t *testing.T) {
-	retrieveErr := errors.New("session lookup failed")
+func TestBrowserbaseSessionClientConnectSessionSanitizesRetrieveFailure(t *testing.T) {
+	upstreamBody := `{"message":"recognizable retrieve failure"}`
+	retrieveErr := &BrowserbaseAPIError{
+		Method:     "GET",
+		Path:       "/v1/sessions/session_123",
+		StatusCode: 503,
+		Body:       upstreamBody,
+	}
 	api := &fakeBrowserbaseAPI{
 		retrieveSessionFunc: func(
 			context.Context,
@@ -362,16 +367,23 @@ func TestBrowserbaseSessionClientConnectSessionWrapsRetrieveFailure(t *testing.T
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 	_, err := client.connectSession(context.Background(), "session_123")
-	if !errors.Is(err, retrieveErr) ||
-		!strings.Contains(err.Error(), "retrieve Browserbase session") ||
-		strings.Contains(err.Error(), "bb_test") ||
-		strings.Contains(err.Error(), "connect.browserbase.com") {
+	var apiErr *BrowserbaseAPIError
+	if err == nil || err.Error() != "failed to retrieve the Browserbase session" ||
+		errors.As(err, &apiErr) ||
+		strings.Contains(err.Error(), upstreamBody) ||
+		strings.Contains(err.Error(), "recognizable retrieve failure") {
 		t.Fatalf("connectSession() error = %v", err)
 	}
 }
 
-func TestBrowserbaseSessionClientCleansExtensionAfterCreateFailure(t *testing.T) {
-	createErr := errors.New("concurrency limit reached")
+func TestBrowserbaseSessionClientSanitizesCreateFailureAndCleansExtension(t *testing.T) {
+	upstreamBody := `{"message":"recognizable create failure"}`
+	createErr := &BrowserbaseAPIError{
+		Method:     "POST",
+		Path:       "/v1/sessions",
+		StatusCode: 429,
+		Body:       upstreamBody,
+	}
 	deletedExtensionID := ""
 	api := &fakeBrowserbaseAPI{
 		createSessionFunc: func(
@@ -388,8 +400,12 @@ func TestBrowserbaseSessionClientCleansExtensionAfterCreateFailure(t *testing.T)
 	client := newBrowserbaseTestSessionClient(t, api)
 
 	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
-	if !errors.Is(err, createErr) {
-		t.Fatalf("createSession() error = %v, want create error", err)
+	var apiErr *BrowserbaseAPIError
+	if err == nil || err.Error() != "failed to create a Browserbase session" ||
+		errors.As(err, &apiErr) ||
+		strings.Contains(err.Error(), upstreamBody) ||
+		strings.Contains(err.Error(), "recognizable create failure") {
+		t.Fatalf("createSession() error = %v", err)
 	}
 	if deletedExtensionID != "ext_stagehand" {
 		t.Fatalf("deleted extension = %q, want ext_stagehand", deletedExtensionID)
@@ -424,14 +440,83 @@ func TestBrowserbaseSessionClientCleansInvalidSession(t *testing.T) {
 	client := newBrowserbaseTestSessionClient(t, api)
 
 	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
-	if err == nil || !strings.Contains(err.Error(), "connectUrl must be an absolute URL") {
-		t.Fatalf("createSession() error = %v, want invalid connectUrl", err)
+	if err == nil || err.Error() != "failed to create a Browserbase session" {
+		t.Fatalf("createSession() error = %v", err)
 	}
 	if releasedSessionID != "session_123" {
 		t.Fatalf("released session = %q, want session_123", releasedSessionID)
 	}
 	if deletedExtensionID != "ext_stagehand" {
 		t.Fatalf("deleted extension = %q, want ext_stagehand", deletedExtensionID)
+	}
+}
+
+func TestBrowserbaseSessionClientCleanupIgnoresCreateContextCancellation(t *testing.T) {
+	tests := []struct {
+		name        string
+		response    browserbaseCreateSessionResponse
+		createErr   error
+		wantRelease int
+	}{
+		{
+			name:      "create failure",
+			createErr: context.Canceled,
+		},
+		{
+			name: "invalid session",
+			response: func() browserbaseCreateSessionResponse {
+				response := validBrowserbaseCreateSessionResponse("session_123")
+				response.ConnectURL = testPointer("relative-connect-url")
+				return response
+			}(),
+			wantRelease: 1,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			api := &fakeBrowserbaseAPI{
+				createSessionFunc: func(
+					context.Context,
+					browserbaseCreateSessionRequest,
+				) (browserbaseCreateSessionResponse, error) {
+					cancel()
+					if test.createErr != nil {
+						return test.response, ctx.Err()
+					}
+					return test.response, nil
+				},
+				deleteExtensionFunc: func(ctx context.Context, _ string) error {
+					if err := ctx.Err(); err != nil {
+						t.Fatalf("deleteExtension() context error = %v", err)
+					}
+					return nil
+				},
+				releaseSessionFunc: func(
+					ctx context.Context,
+					sessionID string,
+				) (browserbaseSessionResponse, error) {
+					if err := ctx.Err(); err != nil {
+						t.Fatalf("releaseSession() context error = %v", err)
+					}
+					return validBrowserbaseSessionResponse(sessionID), nil
+				},
+			}
+			client := newBrowserbaseTestSessionClient(t, api)
+
+			_, err := client.createSession(ctx, BrowserbaseLaunchOptions{})
+			if err == nil {
+				t.Fatal("createSession() error = nil")
+			}
+			if api.deleteExtensionCalls != 1 || api.releaseSessionCalls != test.wantRelease {
+				t.Fatalf(
+					"cleanup calls = delete %d, release %d; want 1, %d",
+					api.deleteExtensionCalls,
+					api.releaseSessionCalls,
+					test.wantRelease,
+				)
+			}
+		})
 	}
 }
 
