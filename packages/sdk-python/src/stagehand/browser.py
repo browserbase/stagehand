@@ -448,21 +448,29 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
         raise
 
     async def close() -> None:
-        if process.returncode is None:
-            if sys.platform == "win32":
-                process.terminate()
-            else:
-                os.killpg(process.pid, signal.SIGTERM)
-            try:
-                await asyncio.wait_for(process.wait(), timeout=3)
-            except TimeoutError:
-                if sys.platform == "win32":
-                    process.kill()
-                else:
-                    os.killpg(process.pid, signal.SIGKILL)
-                await process.wait()
-        if temporary_profile and options.preserve_user_data_dir is not True:
-            await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
+        try:
+            if process.returncode is None:
+                try:
+                    if sys.platform == "win32":
+                        process.terminate()
+                    else:
+                        os.killpg(process.pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=3)
+                except TimeoutError:
+                    try:
+                        if sys.platform == "win32":
+                            process.kill()
+                        else:
+                            os.killpg(process.pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                    await process.wait()
+        finally:
+            if temporary_profile and options.preserve_user_data_dir is not True:
+                await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
 
     from .browser_source import ResolvedBrowserSource
 

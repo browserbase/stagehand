@@ -14,6 +14,7 @@ from stagehand.browser import (
     StagehandBrowser,
     _claim_browser,
     _connect_browser,
+    _launch_local_browser,
     _local_browser_flags,
     _release_browser,
     _WorkerInitMetadata,
@@ -367,6 +368,38 @@ def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) ->
         "--custom-flag",
         "about:blank",
     ]
+
+
+async def test_local_browser_close_ignores_vanished_process_and_removes_profile(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    profile = tmp_path / "profile"
+    profile.mkdir()
+
+    class FakeProcess:
+        returncode = None
+        pid = 123
+
+        def terminate(self) -> None:
+            raise ProcessLookupError
+
+        async def wait(self) -> int:
+            return 0
+
+    async def create_subprocess_exec(*_args: object, **_kwargs: object) -> FakeProcess:
+        return FakeProcess()
+
+    monkeypatch.setattr(browser, "_find_chrome_path", lambda: "/path/to/chrome")
+    monkeypatch.setattr(browser, "_available_port", lambda: 9222)
+    monkeypatch.setattr(browser.tempfile, "mkdtemp", lambda **_kwargs: str(profile))
+    monkeypatch.setattr(browser.asyncio, "create_subprocess_exec", create_subprocess_exec)
+    monkeypatch.setattr(browser.sys, "platform", "win32")
+
+    source = await _launch_local_browser(LocalBrowserLaunchOptions())
+    await source.close()
+
+    assert not profile.exists()
 
 
 def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
