@@ -32,8 +32,11 @@ See [`examples`](examples) for action, extraction, observation, and custom LLM u
 
 For hosted browsers, import `browserbase` from `stagehand` and use
 `browserbase.launch(api_key=...)` or `browserbase.connect(api_key=..., session_id=...)` instead of
-`local_browser`. With `keep_alive=True`, the caller is responsible for releasing the Browserbase
-session.
+`local_browser`. A launched session is released when you `close()` the browser handle, except with
+`keep_alive=True`: that handle's `close()` only disconnects, and the session keeps running until it
+is released out of band (Browserbase dashboard or API) or reaches its configured timeout. Sessions
+reached through `browserbase.connect()` are never released by `close()` — whoever created the
+session owns it.
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.

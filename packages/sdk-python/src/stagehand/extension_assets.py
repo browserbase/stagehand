@@ -31,6 +31,7 @@ def build_extension_archive() -> bytes:
                     date_time=(1980, 1, 1, 0, 0, 0),
                 )
                 info.external_attr = 0o644 << 16
+                info.create_system = 3
                 info.compress_type = zipfile.ZIP_DEFLATED
                 output.writestr(info, path.read_bytes())
     return archive.getvalue()
