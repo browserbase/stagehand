@@ -528,8 +528,8 @@ if err != nil {
 	return err
 }
 
-if result.Metadata.CacheStatus != nil {
-	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
+if result.Metadata.Cache != nil {
+	fmt.Println(result.Metadata.Cache.Status) // "HIT" or "MISS"
 }
 ```
 </View>

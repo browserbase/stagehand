@@ -480,11 +480,11 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandExtract;
     const apiValue = {
       data: { userName: "Sam" },
-      metadata: { actionId: "action_1", cacheStatus: "HIT" as const },
+      metadata: { actionId: "action_1", cache: { status: "HIT" as const } },
     };
     const wireValue = {
       data: { userName: "Sam" },
-      metadata: { action_id: "action_1", cache_status: "HIT" },
+      metadata: { action_id: "action_1", cache: { status: "HIT" } },
     };
 
     expect(encodeWireValue(apiValue, definition.resultWire)).toStrictEqual(wireValue);
@@ -529,7 +529,7 @@ describe("JSON-RPC wire casing", () => {
         actionDescription: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cacheStatus: "MISS" as const },
+      metadata: { cache: { status: "MISS" as const, missReason: "not_found" } },
     };
     const actWireValue = {
       data: {
@@ -538,7 +538,7 @@ describe("JSON-RPC wire casing", () => {
         action_description: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cache_status: "MISS" },
+      metadata: { cache: { status: "MISS", miss_reason: "not_found" } },
     };
 
     expect(encodeWireValue(actApiValue, act.resultWire)).toStrictEqual(actWireValue);

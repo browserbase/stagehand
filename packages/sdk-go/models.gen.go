@@ -248,9 +248,6 @@ type BrowserbaseViewport struct {
 }
 
 type CacheMetadata struct {
-	// Age of the served cache entry in milliseconds; hits only
-	AgeMs *int `json:"age_ms,omitempty,omitzero"`
-
 	// Times this cache key has been seen, including this request; compare with
 	// threshold to see how close the key is to being served
 	Count *int `json:"count,omitempty,omitzero"`
@@ -261,6 +258,9 @@ type CacheMetadata struct {
 	// (the cache request itself failed) and "replay_failed" (a cached value was found
 	// but could not be applied)
 	MissReason *string `json:"miss_reason,omitempty,omitzero"`
+
+	// Whether server-side caching served or computed this result
+	Status CacheStatus `json:"status"`
 
 	// Hit-count threshold in effect for this key
 	Threshold *int `json:"threshold,omitempty,omitzero"`
@@ -1810,10 +1810,7 @@ type StagehandResultMetadata struct {
 	ActionID *string `json:"action_id,omitempty,omitzero"`
 
 	// Cache observability details for this result; absent when no cache lookup ran
-	CacheMetadata *CacheMetadata `json:"cache_metadata,omitempty,omitzero"`
-
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	Cache *CacheMetadata `json:"cache,omitempty,omitzero"`
 }
 
 type TelemetryConfig struct {

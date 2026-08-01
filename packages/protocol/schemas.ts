@@ -1042,21 +1042,21 @@ export const CacheTokenSavingsSchema = z
   .meta({ id: "CacheTokenSavings" });
 
 /**
- * Cache observability for one act/observe/extract call. Present whenever a
- * cache lookup ran, so `cacheStatus` alone no longer has to explain itself:
- * a miss carries why it missed, and a hit carries how established the entry is.
+ * Cache observability for one act/observe/extract call. Present exactly when a
+ * cache lookup ran, and self-explaining: a miss carries why it missed, a hit
+ * carries how established the entry is.
  */
 export const CacheMetadataSchema = z
   .strictObject({
+    status: CacheStatusSchema.meta({
+      description: "Whether server-side caching served or computed this result",
+    }),
     count: z.number().int().nonnegative().optional().meta({
       description:
         "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
     }),
     threshold: z.number().int().positive().optional().meta({
       description: "Hit-count threshold in effect for this key",
-    }),
-    ageMs: z.number().int().nonnegative().optional().meta({
-      description: "Age of the served cache entry in milliseconds; hits only",
     }),
     missReason: z.string().optional().meta({
       description:
@@ -1073,10 +1073,7 @@ export const StagehandResultMetadataSchema = z
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
-    }),
-    cacheMetadata: CacheMetadataSchema.optional().meta({
+    cache: CacheMetadataSchema.optional().meta({
       description: "Cache observability details for this result; absent when no cache lookup ran",
     }),
   })

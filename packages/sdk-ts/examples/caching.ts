@@ -49,12 +49,9 @@ try {
   };
 
   // A miss reports why it missed; a hit reports how established the entry is
-  // and the LLM tokens it saved.
+  // and the LLM tokens it saved. Absent entirely when caching did not run.
   const reportCache = ({ metadata }: { metadata: StagehandResultMetadata }) => {
-    console.log(`Cache status: ${metadata.cacheStatus ?? "disabled"}`);
-    if (metadata.cacheMetadata) {
-      console.log(`Cache details: ${JSON.stringify(metadata.cacheMetadata)}`);
-    }
+    console.log(`Cache: ${JSON.stringify(metadata.cache ?? "disabled")}`);
   };
 
   const first = await extractCompanies();

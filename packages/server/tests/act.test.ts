@@ -373,7 +373,7 @@ describe("act service", () => {
       cache,
     });
 
-    expect(miss.metadata.cacheStatus).toBe("MISS");
+    expect(miss.metadata.cache?.status).toBe("MISS");
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: miss.data.actions }));
 
     get.mockResolvedValueOnce({ hit: true, value: miss.data.actions, cacheKey: "key" });
@@ -388,7 +388,7 @@ describe("act service", () => {
       cache,
     });
 
-    expect(hit.metadata.cacheStatus).toBe("HIT");
+    expect(hit.metadata.cache?.status).toBe("HIT");
     expect(hit.data.actions).toStrictEqual(miss.data.actions);
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });

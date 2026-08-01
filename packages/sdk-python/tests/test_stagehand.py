@@ -20,6 +20,7 @@ from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
+    CacheMetadata,
     CacheStatus,
     ClientModelReference,
     KnownModelConfig,
@@ -310,17 +311,17 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         "context.active_page": PageRef(page_id="active-page"),
         "stagehand.act": ActResult.model_validate({
             "data": act_result,
-            "metadata": {"cache_status": "HIT"},
+            "metadata": {"cache": {"status": "HIT"}},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache_status": "MISS"},
+            "metadata": {"cache": {"status": "MISS"}},
         }),
         # Keep this as raw wire JSON: extract() must preserve integer values
         # until the caller's Pydantic schema validates them.
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+            "metadata": StagehandResultMetadata(cache=CacheMetadata(status=CacheStatus.hit)),
         },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
@@ -358,14 +359,14 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     )
 
     assert action_result.data == act_result
-    assert action_result.metadata.cache_status == "HIT"
+    assert action_result.metadata.cache.status == "HIT"
     assert actions.data == [action]
-    assert actions.metadata.cache_status == "MISS"
+    assert actions.metadata.cache.status == "MISS"
     assert replay_result.data == act_result
-    assert replay_result.metadata.cache_status == "HIT"
+    assert replay_result.metadata.cache.status == "HIT"
     assert page_info.data == PageInfo(heading="Example Domain", count=1)
     assert isinstance(page_info.data.count, int)
-    assert page_info.metadata.cache_status == "HIT"
+    assert page_info.metadata.cache.status == "HIT"
     assert [call[0] for call in recording.calls] == [
         "stagehand.init",
         "stagehand.act",

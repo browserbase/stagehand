@@ -838,7 +838,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -864,7 +864,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" } },
     });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
@@ -938,7 +938,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cache: { status: "MISS" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -965,7 +965,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cache: { status: "MISS" } },
     });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,
@@ -1020,7 +1020,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
     await stagehand.init();
@@ -1031,7 +1031,7 @@ describe("Stagehand TS object wrapper", () => {
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" } },
     });
     expect(client.calls).toStrictEqual([
       stagehandInitCall,

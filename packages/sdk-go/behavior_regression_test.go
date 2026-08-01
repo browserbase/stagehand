@@ -166,8 +166,8 @@ func TestStagehandOperationsPreserveResultEnvelopes(t *testing.T) {
 					Actions:           []Action{},
 				},
 				Metadata: StagehandResultMetadata{
-					ActionID:    testPointer("action-act"),
-					CacheStatus: testPointer(CacheStatusMISS),
+					ActionID:      testPointer("action-act"),
+					Cache: &CacheMetadata{Status: CacheStatusMISS},
 				},
 			},
 			invoke: func(client *Stagehand) (any, error) {
@@ -187,8 +187,8 @@ func TestStagehandOperationsPreserveResultEnvelopes(t *testing.T) {
 					Selector:    "#submit",
 				}},
 				Metadata: StagehandResultMetadata{
-					ActionID:    testPointer("action-observe"),
-					CacheStatus: testPointer(CacheStatusHIT),
+					ActionID:      testPointer("action-observe"),
+					Cache: &CacheMetadata{Status: CacheStatusHIT},
 				},
 			},
 			invoke: func(client *Stagehand) (any, error) {
@@ -206,8 +206,8 @@ func TestStagehandOperationsPreserveResultEnvelopes(t *testing.T) {
 			response: ExtractResult{
 				Data: json.RawMessage(`{"heading":"Example"}`),
 				Metadata: StagehandResultMetadata{
-					ActionID:    testPointer("action-extract"),
-					CacheStatus: testPointer(CacheStatusMISS),
+					ActionID:      testPointer("action-extract"),
+					Cache: &CacheMetadata{Status: CacheStatusMISS},
 				},
 			},
 			invoke: func(client *Stagehand) (any, error) {

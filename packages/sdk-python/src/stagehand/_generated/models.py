@@ -259,12 +259,12 @@ class CacheMetadata(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    status: CacheStatus
+    """Whether server-side caching served or computed this result"""
     count: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     """Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served"""
     threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     """Hit-count threshold in effect for this key"""
-    age_ms: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
-    """Age of the served cache entry in milliseconds; hits only"""
     miss_reason: Optional[StrictStr] = None
     """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
     tokens_saved: Optional[CacheTokenSavings] = None
@@ -1992,9 +1992,7 @@ class StagehandResultMetadata(WireModel):
     )
     action_id: Optional[StrictStr] = None
     """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
-    cache_metadata: Optional[CacheMetadata] = None
+    cache: Optional[CacheMetadata] = None
     """Cache observability details for this result; absent when no cache lookup ran"""
 
 

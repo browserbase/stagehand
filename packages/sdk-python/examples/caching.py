@@ -57,12 +57,12 @@ async def main() -> None:
         first, first_duration_ms = await extract_companies()
         print(f"First extraction ({first_duration_ms}ms):")
         print(json.dumps(first.data.model_dump(mode="json"), indent=2))
-        print(f"Cache status: {first.metadata.cache_status or 'disabled'}")
+        print(f"Cache: {first.metadata.cache or 'disabled'}")
 
         second, second_duration_ms = await extract_companies()
         print(f"Second extraction ({second_duration_ms}ms):")
         print(json.dumps(second.data.model_dump(mode="json"), indent=2))
-        print(f"Cache status: {second.metadata.cache_status or 'disabled'}")
+        print(f"Cache: {second.metadata.cache or 'disabled'}")
     finally:
         await stagehand.close()
 

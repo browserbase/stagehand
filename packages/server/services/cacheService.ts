@@ -35,8 +35,6 @@ import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
  * execution and must never break the action.
  */
 
-type CacheStatus = "HIT" | "MISS";
-
 /** The page surface the cache needs to assemble the raw CDP tree payload. */
 interface CachePage {
   url(): string;
@@ -152,16 +150,14 @@ export interface CacheExecuteOutcome<Result> {
 /**
  * Cache observability for a served hit. Deliberately never carries
  * `missReason`, and a miss builder never carries hit-only fields, so a result
- * can't report both stories at once. Undefined when the server sent no detail
- * to report — `cacheStatus` already says a lookup ran, so an empty object
- * would add nothing.
+ * can't report both stories at once.
  */
-function hitMetadata(response: CacheGetResponse): CacheMetadata | undefined {
+function hitMetadata(response: CacheGetResponse): CacheMetadata {
   const { tokensSaved } = response;
-  const metadata: CacheMetadata = {
+  return {
+    status: "HIT",
     ...(response.hitCount !== undefined && { count: response.hitCount }),
     ...(response.threshold !== undefined && { threshold: response.threshold }),
-    ...(response.ageMs !== undefined && { ageMs: response.ageMs }),
     ...(tokensSaved !== undefined && {
       tokensSaved: {
         inputTokens: tokensSaved.input,
@@ -170,7 +166,6 @@ function hitMetadata(response: CacheGetResponse): CacheMetadata | undefined {
       },
     }),
   };
-  return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 /**
@@ -180,6 +175,7 @@ function hitMetadata(response: CacheGetResponse): CacheMetadata | undefined {
  */
 function missMetadata(response: CacheGetResponse | null, reason?: string): CacheMetadata {
   return {
+    status: "MISS",
     missReason: reason ?? response?.missReason ?? "unknown",
     ...(response?.hitCount !== undefined && { count: response.hitCount }),
     ...(response?.threshold !== undefined && { threshold: response.threshold }),
@@ -195,11 +191,7 @@ function missMetadata(response: CacheGetResponse | null, reason?: string): Cache
  * or whenever any cache step fails, including `onHit` itself — falls back to
  * `execute` and then persists the outcome's `cacheValue`.
  */
-export async function withCache<
-  Result extends {
-    metadata: { cacheStatus?: CacheStatus; cacheMetadata?: CacheMetadata };
-  },
->({
+export async function withCache<Result extends { metadata: { cache?: CacheMetadata } }>({
   method,
   page,
   data,
@@ -257,11 +249,7 @@ export async function withCache<
   if (getResponse?.hit && getResponse.value !== undefined && getResponse.value !== null) {
     try {
       const result = await onHit(getResponse.value);
-      result.metadata.cacheStatus = "HIT";
-      const metadata = hitMetadata(getResponse);
-      if (metadata) {
-        result.metadata.cacheMetadata = metadata;
-      }
+      result.metadata.cache = hitMetadata(getResponse);
       logger.debug("Cache hit", {
         category: "cache",
         method,
@@ -292,8 +280,7 @@ export async function withCache<
   }
 
   const outcome = await execute();
-  outcome.result.metadata.cacheStatus = "MISS";
-  outcome.result.metadata.cacheMetadata = cacheMetadata;
+  outcome.result.metadata.cache = cacheMetadata;
 
   if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
     try {

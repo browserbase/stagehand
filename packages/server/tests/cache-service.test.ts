@@ -13,16 +13,16 @@ describe("cache service", () => {
 
     const result = await runWithCache({ get, execute });
 
-    // No detail from the server, so no cacheMetadata: cacheStatus already
-    // says a lookup ran.
     expect(result).toStrictEqual({
       data: { answer: 42 },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" } },
     });
     expect(execute).not.toHaveBeenCalled();
   });
 
-  it("reports hit count, age, threshold, and token savings on a hit", async () => {
+  // ageMs is in the fixture because the API sends it, and deliberately absent
+  // from the assertion: it is logged, not surfaced on the result.
+  it("reports hit count, threshold, and token savings on a hit", async () => {
     const get = vi.fn().mockResolvedValue({
       hit: true,
       value: { answer: 42 },
@@ -36,11 +36,10 @@ describe("cache service", () => {
     const result = await runWithCache({ get, execute: executesTo({ answer: 0 }) });
 
     expect(result.metadata).toStrictEqual({
-      cacheStatus: "HIT",
-      cacheMetadata: {
+      cache: {
+        status: "HIT",
         count: 3,
         threshold: 2,
-        ageMs: 1500,
         tokensSaved: { inputTokens: 8000, outputTokens: 120, totalTokens: 8120 },
       },
     });
@@ -56,7 +55,7 @@ describe("cache service", () => {
 
     expect(result).toStrictEqual({
       data: { answer: 42 },
-      metadata: { cacheStatus: "MISS", cacheMetadata: { missReason: "not_found" } },
+      metadata: { cache: { status: "MISS", missReason: "not_found" } },
     });
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: { answer: 42 } }));
   });
@@ -75,7 +74,8 @@ describe("cache service", () => {
       execute: executesTo({ answer: 42 }),
     });
 
-    expect(result.metadata.cacheMetadata).toStrictEqual({
+    expect(result.metadata.cache).toStrictEqual({
+      status: "MISS",
       missReason: "threshold",
       count: 2,
       threshold: 3,
@@ -89,8 +89,7 @@ describe("cache service", () => {
     });
 
     expect(result.metadata).toStrictEqual({
-      cacheStatus: "MISS",
-      cacheMetadata: { missReason: "read_failed" },
+      cache: { status: "MISS", missReason: "read_failed" },
     });
   });
 
@@ -111,8 +110,7 @@ describe("cache service", () => {
     });
 
     expect(result.metadata).toStrictEqual({
-      cacheStatus: "MISS",
-      cacheMetadata: { missReason: "replay_failed", count: 4 },
+      cache: { status: "MISS", missReason: "replay_failed", count: 4 },
     });
     expect(execute).toHaveBeenCalled();
   });
@@ -132,7 +130,7 @@ describe("cache service", () => {
 
 interface TestResult {
   data: unknown;
-  metadata: { cacheStatus?: "HIT" | "MISS"; cacheMetadata?: CacheMetadata };
+  metadata: { cache?: CacheMetadata };
 }
 
 function baseArgs() {
