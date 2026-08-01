@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import zipfile
 from collections.abc import Mapping
@@ -10,11 +11,28 @@ import pytest
 
 from stagehand import browserbase_session
 from stagehand._generated.models import (
+    Browser,
     BrowserbaseBrowserSettings,
+    BrowserbaseContext,
+    BrowserbaseFingerprint,
+    BrowserbaseFingerprintScreen,
+    BrowserbaseProxyConfig,
+    BrowserbaseProxyGeolocation,
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
+    BrowserbaseViewport,
+    Device,
+    ExternalProxyConfig,
+    HttpVersion,
+    OperatingSystem,
+    Os,
+    ProxyConfig,
 )
-from stagehand.browserbase_session import BrowserbaseSessionError, _BrowserbaseSessionClient
+from stagehand.browserbase_session import (
+    BrowserbaseSessionError,
+    _BrowserbaseSessionClient,
+    _session_create_kwargs,
+)
 from stagehand.extension_assets import build_extension_archive
 
 
@@ -23,7 +41,7 @@ class FakeBrowserbaseAPI:
         self.upload_result = "uploaded-extension"
         self.upload_error: Exception | None = None
         self.create_result = ("session-id", "wss://browser")
-        self.create_error: Exception | None = None
+        self.create_error: BaseException | None = None
         self.retrieve_result: tuple[str, str | None, BrowserbaseRegion | None] = (
             "session-id",
             "wss://browser",
@@ -86,6 +104,108 @@ def fake_api(monkeypatch: pytest.MonkeyPatch) -> FakeBrowserbaseAPI:
     return FakeBrowserbaseAPI()
 
 
+def test_session_create_kwargs_camel_cases_fingerprint_fields() -> None:
+    options = BrowserbaseSessionCreateParams(
+        browser_settings=BrowserbaseBrowserSettings(
+            advanced_stealth=True,
+            context=BrowserbaseContext(id="context-id", persist=True),
+            extension_id="nested-extension",
+            fingerprint=BrowserbaseFingerprint(
+                browsers=[Browser.chrome, Browser.firefox],
+                devices=[Device.desktop, Device.mobile],
+                http_version=HttpVersion.field_2,
+                locales=["en-US", "fr-FR"],
+                operating_systems=[OperatingSystem.linux, OperatingSystem.macos],
+                screen=BrowserbaseFingerprintScreen(
+                    max_height=1440.0,
+                    max_width=2560.0,
+                    min_height=720.0,
+                    min_width=1280.0,
+                ),
+            ),
+            os=Os.linux,
+            viewport=BrowserbaseViewport(width=1920.0, height=1080.0),
+        ),
+        extension_id="options-extension",
+        keep_alive=True,
+        proxies=[
+            ProxyConfig(
+                BrowserbaseProxyConfig(
+                    type="browserbase",
+                    domain_pattern="*.example.com",
+                    geolocation=BrowserbaseProxyGeolocation(
+                        country="US",
+                        city="San Francisco",
+                        state="CA",
+                    ),
+                )
+            ),
+            ProxyConfig(
+                ExternalProxyConfig(
+                    type="external",
+                    server="http://proxy.example.com",
+                    domain_pattern="example.org",
+                    username="user",
+                    password="password",
+                )
+            ),
+        ],
+        region=BrowserbaseRegion.us_west_2,
+        timeout=30.0,
+        user_metadata={"source": "options"},
+    )
+
+    kwargs = _session_create_kwargs(
+        options,
+        user_metadata={"source": "argument"},
+        extension_id="argument-extension",
+    )
+
+    assert kwargs["browser_settings"]["fingerprint"] == {
+        "browsers": ["chrome", "firefox"],
+        "devices": ["desktop", "mobile"],
+        "httpVersion": "2",
+        "locales": ["en-US", "fr-FR"],
+        "operatingSystems": ["linux", "macos"],
+        "screen": {
+            "maxHeight": 1440.0,
+            "maxWidth": 2560.0,
+            "minHeight": 720.0,
+            "minWidth": 1280.0,
+        },
+    }
+    assert kwargs["browser_settings"]["advanced_stealth"] is True
+    assert "timeout" not in kwargs
+    assert kwargs["api_timeout"] == 30.0
+    assert kwargs["extension_id"] == "argument-extension"
+    assert kwargs["user_metadata"] == {"source": "argument"}
+
+
+def test_session_create_kwargs_renames_only_present_fingerprint_fields() -> None:
+    options = BrowserbaseSessionCreateParams(
+        browser_settings=BrowserbaseBrowserSettings(
+            fingerprint=BrowserbaseFingerprint(http_version=HttpVersion.field_1)
+        )
+    )
+
+    kwargs = _session_create_kwargs(options, user_metadata={}, extension_id=None)
+
+    assert kwargs["browser_settings"]["fingerprint"] == {"httpVersion": "1"}
+
+
+def test_session_create_kwargs_omits_absent_optional_fields() -> None:
+    kwargs = _session_create_kwargs(
+        BrowserbaseSessionCreateParams(),
+        user_metadata={"stagehand": "true"},
+        extension_id=None,
+    )
+
+    assert "browser_settings" not in kwargs
+    assert "extension_id" not in kwargs
+    assert "api_timeout" not in kwargs
+    assert kwargs["user_metadata"] == {"stagehand": "true"}
+
+
 async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowserbaseAPI) -> None:
     options = BrowserbaseSessionCreateParams(
         user_metadata={
@@ -134,6 +254,15 @@ async def test_create_failure_deletes_owned_extension_best_effort(
     fake_api.create_error = OSError("secret API failure")
     fake_api.delete_errors = [OSError("cleanup failed")]
     with pytest.raises(BrowserbaseSessionError, match="^Failed to create a Browserbase session$"):
+        await _BrowserbaseSessionClient(fake_api).create_session(BrowserbaseSessionCreateParams())
+    assert fake_api.delete_calls == ["uploaded-extension"]
+
+
+async def test_create_cancellation_deletes_owned_extension(
+    fake_api: FakeBrowserbaseAPI,
+) -> None:
+    fake_api.create_error = asyncio.CancelledError()
+    with pytest.raises(asyncio.CancelledError):
         await _BrowserbaseSessionClient(fake_api).create_session(BrowserbaseSessionCreateParams())
     assert fake_api.delete_calls == ["uploaded-extension"]
 

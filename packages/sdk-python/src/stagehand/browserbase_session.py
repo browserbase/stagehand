@@ -18,6 +18,49 @@ class BrowserbaseSessionError(RuntimeError):
     pass
 
 
+def _session_create_kwargs(
+    options: BrowserbaseSessionCreateParams,
+    *,
+    user_metadata: Mapping[str, Any],
+    extension_id: str | None,
+) -> dict[str, Any]:
+    values: dict[str, Any] = options.model_dump(
+        by_alias=False,
+        exclude_none=True,
+        exclude={"extension_id", "user_metadata", "timeout"},
+    )
+    browser_settings = values.get("browser_settings")
+    if isinstance(browser_settings, dict):
+        fingerprint = browser_settings.get("fingerprint")
+        if isinstance(fingerprint, dict):
+            fingerprint_key_mapping = {
+                "http_version": "httpVersion",
+                "operating_systems": "operatingSystems",
+            }
+            for source_key, target_key in fingerprint_key_mapping.items():
+                if source_key in fingerprint:
+                    fingerprint[target_key] = fingerprint.pop(source_key)
+
+            screen = fingerprint.get("screen")
+            if isinstance(screen, dict):
+                screen_key_mapping = {
+                    "max_height": "maxHeight",
+                    "max_width": "maxWidth",
+                    "min_height": "minHeight",
+                    "min_width": "minWidth",
+                }
+                for source_key, target_key in screen_key_mapping.items():
+                    if source_key in screen:
+                        screen[target_key] = screen.pop(source_key)
+
+    kwargs: dict[str, Any] = {**values, "user_metadata": dict(user_metadata)}
+    if extension_id is not None:
+        kwargs["extension_id"] = extension_id
+    if options.timeout is not None:
+        kwargs["api_timeout"] = options.timeout
+    return kwargs
+
+
 class _BrowserbaseAPI(Protocol):
     async def upload_extension(self, archive: bytes) -> str: ...
 
@@ -51,10 +94,10 @@ class _OfficialBrowserbaseAPI:
         return extension.id
 
     async def delete_extension(self, extension_id: str) -> None:
-        from browserbase import AsyncBrowserbase
+        from browserbase import AsyncBrowserbase, omit
 
         async with AsyncBrowserbase(api_key=self._api_key) as client:
-            await client.extensions.delete(extension_id)
+            await client.extensions.delete(extension_id, extra_headers={"Content-Type": omit})
 
     async def create_session(
         self,
@@ -65,16 +108,11 @@ class _OfficialBrowserbaseAPI:
     ) -> tuple[str, str]:
         from browserbase import AsyncBrowserbase
 
-        values = options.model_dump(
-            by_alias=False,
-            exclude_none=True,
-            exclude={"extension_id", "user_metadata", "timeout"},
+        kwargs = _session_create_kwargs(
+            options,
+            user_metadata=user_metadata,
+            extension_id=extension_id,
         )
-        kwargs: dict[str, Any] = {**values, "user_metadata": dict(user_metadata)}
-        if extension_id is not None:
-            kwargs["extension_id"] = extension_id
-        if options.timeout is not None:
-            kwargs["api_timeout"] = options.timeout
         async with AsyncBrowserbase(api_key=self._api_key) as client:
             session = await client.sessions.create(**kwargs)
         return session.id, session.connect_url
@@ -175,9 +213,11 @@ class _BrowserbaseSessionClient:
                 user_metadata=user_metadata,
                 extension_id=extension_id,
             )
-        except Exception as error:
+        except BaseException as error:
             await self._delete_extension_best_effort(owned_extension_id)
-            raise BrowserbaseSessionError("Failed to create a Browserbase session") from error
+            if isinstance(error, Exception):
+                raise BrowserbaseSessionError("Failed to create a Browserbase session") from error
+            raise
 
         session_id = raw_session_id.strip()
         cdp_url = raw_cdp_url.strip()
