@@ -113,7 +113,7 @@ describe("extension build", () => {
       ],
       options_page: "wake-service-worker.html",
     });
-    expect(manifest.permissions).toEqual(["debugger", "offscreen", "scripting", "tabs"]);
+    expect(manifest.permissions).toEqual(["debugger", "offscreen"]);
     expect(manifest.host_permissions).toEqual(["<all_urls>"]);
     expect(serviceWorker).toContain("__stagehandReceiveFromHost");
     expect(serviceWorker).toContain("offscreen/service-worker-heartbeat.html");
