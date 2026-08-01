@@ -2,7 +2,13 @@ import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateResult, LLMImageContent } from "../../../protocol/types.js";
-import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
+import {
+  localBrowser,
+  Stagehand,
+  type BrowserContext,
+  type Page,
+  type StagehandBrowser,
+} from "../../src/index.js";
 
 type FixtureServer = {
   url: string;
@@ -12,15 +18,14 @@ type FixtureServer = {
 describe("Stagehand TS SDK launch/connect smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let stagehand: Stagehand | undefined;
+  let browser: StagehandBrowser | undefined;
   const extractionScreenshots: LLMImageContent[] = [];
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
-    stagehand = new Stagehand({
-      browser: {
-        type: "local",
-        headless: true,
-      },
+    browser = await localBrowser.launch({ headless: true });
+    stagehand = await Stagehand.create({
+      browser,
       model: {
         generate: async (params): Promise<LLMGenerateResult> => {
           if (params.responseFormat?.type !== "json_schema") {
@@ -123,12 +128,18 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         level: "off",
       },
     });
-    await stagehand.init();
   }, 45_000);
 
   afterAll(async () => {
-    await stagehand?.close();
-    await fixtureServer?.close();
+    try {
+      await stagehand?.close();
+    } finally {
+      try {
+        await browser?.close();
+      } finally {
+        await fixtureServer?.close();
+      }
+    }
   });
 
   it("drives a real browser through the public TS object model", async () => {
