@@ -94,7 +94,7 @@ const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 // Browser lifecycle construction is intentionally language-specific while the v4 clients migrate
-// independently: TypeScript uses create(), while Python and Go still expose init(). RPC-backed
+// independently: TypeScript and Python use create(), while Go still exposes init(). RPC-backed
 // feature methods remain subject to strict cross-language parity below.
 const stagehandLifecycleMethods = new Set(["create", "init"]);
 const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
