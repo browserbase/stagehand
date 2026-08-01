@@ -454,7 +454,13 @@ async def test_close_can_detach_without_closing_transport() -> None:
         "method": "test.buffered",
         "params": {},
     })
-    await asyncio.sleep(0)
+
+    async def wait_for_buffered_notification() -> None:
+        while not client._pending_notifications:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(wait_for_buffered_notification(), timeout=1)
+    assert client._pending_notifications
 
     reason = RuntimeError("detached")
     await client.close(reason, close_transport=False)
