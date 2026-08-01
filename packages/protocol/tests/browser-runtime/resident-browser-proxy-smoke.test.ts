@@ -67,6 +67,14 @@ describe("resident browser proxy", () => {
         url: "data:text/html,<title>Resident proxy smoke</title>",
       });
       await expect(
+        rpcClient.send(StagehandMethods.contextSetActivePage, {
+          pageId: page.pageId,
+        }),
+      ).resolves.toStrictEqual({ ok: true });
+      await expect(rpcClient.send(StagehandMethods.contextActivePage, {})).resolves.toMatchObject({
+        pageId: page.pageId,
+      });
+      await expect(
         rpcClient.send(StagehandMethods.pageEvaluate, {
           pageId: page.pageId,
           expression: "document.title",
