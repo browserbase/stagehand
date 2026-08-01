@@ -75,6 +75,23 @@ wheels = [
 ]
 
 [[package]]
+name = "browserbase"
+version = "1.15.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/61/1c/ea686d5adb345fa1ba0f0a900abbbda7abece3afd2c05068c56baa975d94/browserbase-1.15.0.tar.gz", hash = "sha256:d3861de5bbec38603238810daf6bc49d3637bdece0ad0e7703519fff7e78ef52", size = 166908, upload-time = "2026-07-14T00:58:27.863Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b5/59/f1c97fcbd362d48274501f4844b640a35c1a1001675035a7055d8df5e004/browserbase-1.15.0-py3-none-any.whl", hash = "sha256:096c427d7382397b1a0a11fb43b4f27ef9ff5ca02694fbf283c975ff71d09d34", size = 144614, upload-time = "2026-07-14T00:58:26.597Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.6.17"
 source = { registry = "https://pypi.org/simple" }
@@ -746,6 +763,7 @@ name = "stagehand"
 version = "4.0.0"
 source = { editable = "." }
 dependencies = [
+    { name = "browserbase" },
     { name = "pydantic" },
     { name = "websockets" },
 ]
@@ -762,6 +780,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "browserbase", specifier = ">=1.15,<2" },
     { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "websockets", specifier = ">=16.1.1" },
 ]

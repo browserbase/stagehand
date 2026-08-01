@@ -8,6 +8,10 @@ import pytest
 from pydantic import ValidationError
 
 from stagehand import browser
+from stagehand._generated.models import (
+    BrowserbaseRegion,
+    BrowserbaseSessionCreateParams,
+)
 from stagehand.browser import (
     StagehandBrowser,
     _claim_browser,
@@ -367,8 +371,142 @@ def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) ->
     ]
 
 
-async def test_browserbase_factories_are_reserved() -> None:
-    with pytest.raises(NotImplementedError, match="Browserbase sessions are not implemented yet"):
-        await browserbase.launch(api_key="test")
-    with pytest.raises(NotImplementedError, match="Browserbase sessions are not implemented yet"):
-        await browserbase.connect(api_key="test", session_id="session")
+class FakeBrowserbaseSession:
+    def __init__(
+        self,
+        *,
+        session_id: str = "session-id",
+        cdp_url: str = "wss://browserbase",
+        region: BrowserbaseRegion | None = None,
+    ) -> None:
+        self.session_id = session_id
+        self.cdp_url = cdp_url
+        self.region = region
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+
+
+class FakeBrowserbaseClient:
+    def __init__(self) -> None:
+        self.created = FakeBrowserbaseSession()
+        self.connected = FakeBrowserbaseSession(region=BrowserbaseRegion.eu_central_1)
+        self.create_calls: list[BrowserbaseSessionCreateParams] = []
+        self.connect_calls: list[str] = []
+
+    async def create_session(
+        self,
+        options: BrowserbaseSessionCreateParams,
+    ) -> FakeBrowserbaseSession:
+        self.create_calls.append(options)
+        return self.created
+
+    async def connect_session(self, session_id: str) -> FakeBrowserbaseSession:
+        self.connect_calls.append(session_id)
+        return self.connected
+
+
+def _install_browserbase_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[FakeBrowserbaseClient, list[str]]:
+    client = FakeBrowserbaseClient()
+    api_keys: list[str] = []
+
+    def factory(api_key: str) -> FakeBrowserbaseClient:
+        api_keys.append(api_key)
+        return client
+
+    monkeypatch.setattr(browser, "_create_browserbase_session_client", factory)
+    return client, api_keys
+
+
+async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    client, api_keys = _install_browserbase_client(monkeypatch)
+    handle = await browserbase.launch(
+        api_key="api-key",
+        region=BrowserbaseRegion.us_east_1,
+    )
+
+    arguments = fake_cdp.connect_arguments[-1]
+    assert arguments["preloaded_extension"] is True
+    assert arguments["extension_dir"] is None
+    assert arguments["extension_id"] is None
+    claimed = _claim_browser(handle)
+    assert claimed.worker_init_metadata.api_key == "api-key"
+    assert claimed.worker_init_metadata.browser is not None
+    assert claimed.worker_init_metadata.browser.model_dump(exclude_none=True) == {
+        "session_id": "session-id",
+        "region": BrowserbaseRegion.us_east_1,
+    }
+    _release_browser(handle)
+    await handle.close()
+
+    assert api_keys == ["api-key"]
+    assert client.created.close_calls == 1
+    assert fake_cdp.instances[-1].close_calls == 1
+
+
+async def test_browserbase_launch_keep_alive_does_not_close_session(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    client, _ = _install_browserbase_client(monkeypatch)
+    handle = await browserbase.launch(api_key="api-key", keep_alive=True)
+    await handle.close()
+    assert client.created.close_calls == 0
+    assert fake_cdp.instances[-1].close_calls == 1
+
+
+async def test_browserbase_connect_never_owns_session_and_selects_extension_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    client, _ = _install_browserbase_client(monkeypatch)
+    preloaded = await browserbase.connect(api_key="api-key", session_id="session")
+    assert fake_cdp.connect_arguments[-1]["preloaded_extension"] is True
+    claimed = _claim_browser(preloaded)
+    assert claimed.worker_init_metadata.browser is not None
+    assert claimed.worker_init_metadata.browser.region == BrowserbaseRegion.eu_central_1
+    _release_browser(preloaded)
+    await preloaded.close()
+
+    caller_extension = await browserbase.connect(
+        api_key="api-key",
+        session_id="session",
+        extension_id="caller-extension",
+    )
+    arguments = fake_cdp.connect_arguments[-1]
+    assert arguments["preloaded_extension"] is False
+    assert arguments["extension_id"] == "caller-extension"
+    await caller_extension.close()
+
+    assert client.connect_calls == ["session", "session"]
+    assert client.connected.close_calls == 0
+
+
+async def test_browserbase_launch_connect_failure_closes_owned_session(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    client, _ = _install_browserbase_client(monkeypatch)
+    fake_cdp.connect_error = RuntimeError("connect failed")
+    with pytest.raises(RuntimeError, match="connect failed"):
+        await browserbase.launch(api_key="api-key")
+    assert client.created.close_calls == 1
+
+
+async def test_browserbase_validation_precedes_api_calls(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, api_keys = _install_browserbase_client(monkeypatch)
+    with pytest.raises(ValueError, match="api_key"):
+        await browserbase.launch(api_key="")
+    with pytest.raises(ValidationError):
+        await browserbase.connect(api_key="", session_id="session")
+    with pytest.raises(ValidationError):
+        await browserbase.connect(api_key="api-key", session_id="")
+    assert api_keys == []

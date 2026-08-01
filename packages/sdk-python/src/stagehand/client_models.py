@@ -102,6 +102,15 @@ class LocalBrowserConnectOptions(WireModel):
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 
 
+class BrowserbaseConnectOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key: Annotated[str, Field(min_length=1)]
+    session_id: Annotated[str, Field(min_length=1)]
+    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
+    extension_id: Annotated[str | None, Field(min_length=1)] = None
+
+
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
 LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
 LLMGenerateCallback = Callable[[LLMGenerateInput], Awaitable[LLMGenerateOutput]]

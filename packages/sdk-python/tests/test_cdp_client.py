@@ -251,6 +251,164 @@ async def test_connect_requires_exactly_one_extension_source() -> None:
             extension_id="stagehand-extension",
         )
 
+    with pytest.raises(ValueError, match="Exactly one"):
+        await CDPClient.connect(
+            cdp_url="ws://127.0.0.1/devtools/browser/test",
+            extension_dir="/tmp/stagehand-extension",
+            preloaded_extension=True,
+        )
+    with pytest.raises(ValueError, match="Exactly one"):
+        await CDPClient.connect(
+            cdp_url="ws://127.0.0.1/devtools/browser/test",
+            extension_id="stagehand-extension",
+            preloaded_extension=True,
+        )
+
+
+async def test_connect_discovers_a_ready_preloaded_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        method = message["method"]
+        if method == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "worker-target",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://preloaded/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            return {"result": {"sessionId": "worker-session"}}
+        if method == "Runtime.evaluate":
+            return {"result": {"result": {"value": _ready_marker()}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, __: int) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, __: int) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    client = await CDPClient.connect(
+        cdp_url="wss://browserbase",
+        preloaded_extension=True,
+    )
+    try:
+        assert client.service_worker.extension_id == "preloaded"
+        assert "Extensions.loadUnpacked" not in [message["method"] for message in socket.sent]
+    finally:
+        await client.close()
+
+
+async def test_preloaded_discovery_detaches_stale_worker_then_accepts_ready_worker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get_targets_calls = 0
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        nonlocal get_targets_calls
+        method = message["method"]
+        if method == "Target.getTargets":
+            get_targets_calls += 1
+            name = "stale" if get_targets_calls == 1 else "ready"
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": name,
+                            "type": "service_worker",
+                            "title": name,
+                            "url": f"chrome-extension://{name}/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        if method == "Target.attachToTarget":
+            target_id = cast(dict[str, object], message["params"])["targetId"]
+            return {"result": {"sessionId": f"{target_id}-session"}}
+        if method == "Runtime.evaluate":
+            if message.get("sessionId") == "stale-session":
+                stale = _ready_marker()
+                stale["hasReceiver"] = False
+                return {"result": {"result": {"value": stale}}}
+            return {"result": {"result": {"value": _ready_marker()}}}
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, __: int) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, __: int) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    client = await CDPClient.connect(
+        cdp_url="wss://browserbase",
+        preloaded_extension=True,
+        discovery_timeout_ms=1_000,
+    )
+    try:
+        assert client.service_worker.target_id == "ready"
+        detach = [
+            message for message in socket.sent if message["method"] == "Target.detachFromTarget"
+        ]
+        assert cast(dict[str, object], detach[0]["params"])["sessionId"] == "stale-session"
+    finally:
+        await client.close()
+
+
+async def test_preloaded_discovery_timeout_reports_observed_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        if message["method"] == "Target.getTargets":
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "page",
+                            "type": "page",
+                            "title": "Page",
+                            "url": "https://example.com",
+                        }
+                    ]
+                }
+            }
+        return {"result": {}}
+
+    socket = FakeWebSocket(response_for)
+
+    async def resolve(_: str, __: int) -> str:
+        return "ws://127.0.0.1/devtools/browser/test"
+
+    async def connect(_: str, __: int) -> FakeWebSocket:
+        return socket
+
+    monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
+    monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
+    with pytest.raises(
+        TimeoutError,
+        match="Timed out discovering the preloaded Stagehand service worker.*page:https://example.com",
+    ):
+        await CDPClient.connect(
+            cdp_url="wss://browserbase",
+            preloaded_extension=True,
+            discovery_timeout_ms=1,
+        )
+    assert socket.closed is True
+
 
 class TestNegotiateRuntime:
     """Mirrors the TypeScript negotiation tests so the two SDKs cannot drift apart.

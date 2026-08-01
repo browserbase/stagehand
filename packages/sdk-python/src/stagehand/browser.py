@@ -7,19 +7,28 @@ import signal
 import socket
 import sys
 import tempfile
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
-from ._generated.models import BrowserSessionMetadata
+from ._generated.models import (
+    BrowserbaseBrowserSettings,
+    BrowserbaseRegion,
+    BrowserbaseSessionCreateParams,
+    BrowserSessionMetadata,
+    ProxyConfig,
+)
+from .browserbase_session import _create_browserbase_session_client
 from .cdp_client import CDPClient
 from .client_models import (
+    BrowserbaseConnectOptions,
     LocalBrowserConnectOptions,
     LocalBrowserLaunchOptions,
     LocalProxyConfig,
     LocalViewport,
 )
+from .extension_assets import extension_directory
 
 _WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 
@@ -188,6 +197,7 @@ async def _connect_browser(
     source: _BrowserConnectionSource,
     extension_dir: str | None = None,
     extension_id: str | None = None,
+    preloaded_extension: bool = False,
     connect_timeout_ms: int | None = None,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
     worker_init_metadata: _WorkerInitMetadata,
@@ -200,6 +210,7 @@ async def _connect_browser(
             cdp_url=source.cdp_url,
             extension_dir=extension_dir,
             extension_id=extension_id,
+            preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
             discovery_timeout_ms=timeout_ms,
             command_timeout_ms=_COMMAND_TIMEOUT_MS,
@@ -245,13 +256,6 @@ async def _connect_browser(
         close,
         _token=_BROWSER_TOKEN,
     )
-
-
-def _resolve_extension_dir() -> Path:
-    extension_dir = Path(__file__).with_name("_extension")
-    if not (extension_dir / "manifest.json").is_file():
-        extension_dir = Path(__file__).resolve().parents[3] / "server" / "dist"
-    return extension_dir
 
 
 class LocalBrowser:
@@ -375,7 +379,7 @@ class LocalBrowser:
             provider="local",
             origin="launched",
             source=source,
-            extension_dir=str(_resolve_extension_dir()),
+            extension_dir=str(extension_directory()),
             connect_timeout_ms=options.connect_timeout_ms,
             after_connect=(
                 configure_downloads
@@ -401,7 +405,7 @@ class LocalBrowser:
             )
             if value is not None
         })
-        extension_dir = None if options.extension_id is not None else str(_resolve_extension_dir())
+        extension_dir = None if options.extension_id is not None else str(extension_directory())
         return await _connect_browser(
             provider="local",
             origin="connected",
@@ -423,11 +427,89 @@ class _ConnectedBrowserSource:
 
 
 class BrowserbaseBrowser:
-    async def launch(self, **_kwargs: object) -> StagehandBrowser:
-        raise NotImplementedError("Browserbase sessions are not implemented yet")
+    async def launch(
+        self,
+        *,
+        api_key: str,
+        browser_settings: BrowserbaseBrowserSettings | None = None,
+        extension_id: str | None = None,
+        keep_alive: bool | None = None,
+        proxies: bool | list[ProxyConfig] | None = None,
+        region: BrowserbaseRegion | None = None,
+        timeout: float | None = None,
+        user_metadata: Mapping[str, Any] | None = None,
+    ) -> StagehandBrowser:
+        if not api_key:
+            raise ValueError("api_key must not be empty")
+        options = BrowserbaseSessionCreateParams.model_validate({
+            name: value
+            for name, value in (
+                ("browser_settings", browser_settings),
+                ("extension_id", extension_id),
+                ("keep_alive", keep_alive),
+                ("proxies", proxies),
+                ("region", region),
+                ("timeout", timeout),
+                ("user_metadata", dict(user_metadata) if user_metadata is not None else None),
+            )
+            if value is not None
+        })
+        session = await _create_browserbase_session_client(api_key).create_session(options)
+        source = ResolvedBrowserSource(
+            cdp_url=session.cdp_url,
+            keep_alive=options.keep_alive or False,
+            _close_callback=session.close,
+        )
+        return await _connect_browser(
+            provider="browserbase",
+            origin="launched",
+            source=source,
+            preloaded_extension=True,
+            worker_init_metadata=_WorkerInitMetadata(
+                api_key=api_key,
+                browser=BrowserSessionMetadata(
+                    session_id=session.session_id,
+                    region=options.region,
+                ),
+            ),
+        )
 
-    async def connect(self, **_kwargs: object) -> StagehandBrowser:
-        raise NotImplementedError("Browserbase sessions are not implemented yet")
+    async def connect(
+        self,
+        *,
+        api_key: str,
+        session_id: str,
+        connect_timeout_ms: int | None = None,
+        extension_id: str | None = None,
+    ) -> StagehandBrowser:
+        options = BrowserbaseConnectOptions.model_validate({
+            name: value
+            for name, value in (
+                ("api_key", api_key),
+                ("session_id", session_id),
+                ("connect_timeout_ms", connect_timeout_ms),
+                ("extension_id", extension_id),
+            )
+            if value is not None
+        })
+        connection = await _create_browserbase_session_client(options.api_key).connect_session(
+            options.session_id
+        )
+        return await _connect_browser(
+            provider="browserbase",
+            origin="connected",
+            source=_ConnectedBrowserSource(connection.cdp_url),
+            extension_id=options.extension_id,
+            preloaded_extension=options.extension_id is None,
+            connect_timeout_ms=options.connect_timeout_ms,
+            worker_init_metadata=_WorkerInitMetadata(
+                api_key=options.api_key,
+                browser=BrowserSessionMetadata(
+                    session_id=connection.session_id,
+                    region=connection.region,
+                ),
+            ),
+        )
 
 
 local_browser = LocalBrowser()
