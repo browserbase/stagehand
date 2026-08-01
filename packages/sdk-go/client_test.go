@@ -254,6 +254,52 @@ func TestClientSerializesConcurrentClose(t *testing.T) {
 	}
 }
 
+func TestClientCloseMemoizesFirstFailure(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{
+		responses: map[string]any{
+			"stagehand.init": StagehandInitResult{Initialized: true},
+		},
+		callErrors: map[string]error{
+			"stagehand.close": errors.New("stagehand close failed"),
+		},
+	}
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	firstErr := client.Close(context.Background())
+	if firstErr == nil {
+		t.Fatal("first Close() error = nil")
+	}
+	secondResult := make(chan error, 1)
+	go func() {
+		secondResult <- client.Close(context.Background())
+	}()
+	secondErr := <-secondResult
+	if secondErr == nil {
+		t.Fatal("second Close() error = nil")
+	}
+	if secondErr.Error() != firstErr.Error() {
+		t.Fatalf("second Close() error = %q, want %q", secondErr, firstErr)
+	}
+
+	closeCalls := 0
+	for _, call := range rpc.calls {
+		if call.method == "stagehand.close" {
+			closeCalls++
+		}
+	}
+	if closeCalls != 1 {
+		t.Fatalf("stagehand.close calls = %d, want 1", closeCalls)
+	}
+	if client.Initialized() {
+		t.Fatal("client remained initialized after Close")
+	}
+}
+
 func TestActAcceptsObservedAction(t *testing.T) {
 	t.Parallel()
 

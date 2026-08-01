@@ -18,6 +18,8 @@ type Stagehand struct {
 	browser                   *Browser
 	context                   *BrowserContext
 	initialized               bool
+	closed                    bool
+	closeResult               error
 	removeLLMHandler          func()
 	removeNotificationHandler func()
 }
@@ -241,6 +243,9 @@ func ExtractAs[T any](
 func (s *Stagehand) Close(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return s.closeResult
+	}
 
 	var closeErr error
 	if s.context != nil && s.rpc != nil {
@@ -265,7 +270,9 @@ func (s *Stagehand) Close(ctx context.Context) error {
 	}
 	s.context = nil
 	s.initialized = false
-	return errors.Join(closeErr, rpcErr)
+	s.closed = true
+	s.closeResult = errors.Join(closeErr, rpcErr)
+	return s.closeResult
 }
 
 func (s *Stagehand) connectedProtocol() (protocolClient, error) {
