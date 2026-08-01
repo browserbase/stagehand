@@ -219,17 +219,22 @@ async def _connect_browser(
         if after_connect is not None:
             await after_connect(cdp_client)
     except BaseException as error:
-        cleanup_errors: list[Exception] = []
+        cleanup_errors: list[BaseException] = []
         if cdp_client is not None:
             try:
                 await cdp_client.close()
-            except Exception as cleanup_error:
+            except BaseException as cleanup_error:
                 cleanup_errors.append(cleanup_error)
         if owns_source:
             try:
                 await source.close()
-            except Exception as cleanup_error:
+            except BaseException as cleanup_error:
                 cleanup_errors.append(cleanup_error)
+        if not isinstance(error, Exception):
+            raise
+        for cleanup_error in cleanup_errors:
+            if not isinstance(cleanup_error, Exception):
+                raise cleanup_error
         if cleanup_errors:
             raise BaseExceptionGroup(
                 "Browser connection failed and browser cleanup also failed",

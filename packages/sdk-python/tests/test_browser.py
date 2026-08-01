@@ -33,7 +33,7 @@ class FakeCDPClient:
     connect_arguments: ClassVar[list[dict[str, object]]] = []
     instances: ClassVar[list[FakeCDPClient]] = []
     connect_error: ClassVar[BaseException | None] = None
-    close_error: ClassVar[Exception | None] = None
+    close_error: ClassVar[BaseException | None] = None
 
     def __init__(self) -> None:
         self.close_calls = 0
@@ -256,6 +256,42 @@ async def test_connect_cancellation_closes_owned_source(
     with pytest.raises(asyncio.CancelledError):
         await _connected_handle(source)
 
+    assert source.close_calls == 1
+
+
+async def test_connect_cancellation_propagates_when_owned_source_cleanup_fails(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    fake_cdp.connect_error = asyncio.CancelledError()
+    source = FakeSource(keep_alive=False, close_error=OSError("cleanup failed"))
+
+    with pytest.raises(asyncio.CancelledError) as raised:
+        await _connected_handle(source)
+
+    assert not isinstance(raised.value, BaseExceptionGroup)
+    assert source.close_calls == 1
+
+
+async def test_cdp_cleanup_cancellation_does_not_skip_owned_source_cleanup(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    fake_cdp.close_error = asyncio.CancelledError()
+    source = FakeSource(keep_alive=False)
+
+    async def fail_after_connect(_client: browser.CDPClient) -> None:
+        raise RuntimeError("configuration failed")
+
+    with pytest.raises(asyncio.CancelledError):
+        await _connect_browser(
+            provider="local",
+            origin="launched",
+            source=source,
+            extension_dir="/extension",
+            after_connect=fail_after_connect,
+            worker_init_metadata=_metadata(),
+        )
+
+    assert fake_cdp.instances[-1].close_calls == 1
     assert source.close_calls == 1
 
 
