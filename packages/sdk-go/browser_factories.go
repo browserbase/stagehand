@@ -123,7 +123,7 @@ func launchLocalBrowserWithDependencies(ctx context.Context, options *LocalBrows
 	if resolvedOptions.AcceptDownloads != nil && *resolvedOptions.AcceptDownloads && resolvedOptions.DownloadsPath == "" {
 		return nil, errors.New("downloadsPath is required when acceptDownloads is true")
 	}
-	extensionDir, cleanup, err := materializeBrowserExtension(dependencies)
+	extensionDir, cleanup, err := materializeStagehandExtension(dependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 	var cleanup func() error
 	if options.ExtensionID == "" {
 		var err error
-		extensionDir, cleanup, err = materializeBrowserExtension(dependencies)
+		extensionDir, cleanup, err = materializeStagehandExtension(dependencies)
 		if err != nil {
 			return nil, err
 		}
@@ -258,10 +258,6 @@ func browserbaseClientForFactory(apiKey string, dependencies browserFactoryDepen
 		return nil, fmt.Errorf("create Stagehand Browserbase client: %w", err)
 	}
 	return client, nil
-}
-
-func materializeBrowserExtension(dependencies browserFactoryDependencies) (string, func() error, error) {
-	return materializeStagehandExtension(dependencies)
 }
 
 func materializeStagehandExtension(dependencies browserFactoryDependencies) (string, func() error, error) {

@@ -449,18 +449,3 @@ func renderStagehandLog(
 		suffix,
 	), nil
 }
-
-func newStagehandWithClient(options CreateOptions, rpc protocolClient, writers ...io.Writer) (*Stagehand, error) {
-	browser := options.Browser
-	if browser == nil {
-		browser = &Browser{}
-		options.Browser = browser
-	}
-	writer := io.Writer(os.Stderr)
-	if len(writers) > 0 {
-		writer = writers[0]
-	}
-	return createWithAdapters(context.Background(), options, clientAdapters{
-		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
-	}, writer)
-}
