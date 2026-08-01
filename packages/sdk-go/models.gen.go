@@ -63,6 +63,14 @@ type Action struct {
 
 type AnthropicModelName string
 
+type BrowserSessionMetadata struct {
+	// Region corresponds to the JSON schema field "region".
+	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+}
+
 type BrowserbaseBrowserSettings struct {
 	// AdvancedStealth corresponds to the JSON schema field "advanced_stealth".
 	AdvancedStealth *bool `json:"advanced_stealth,omitempty,omitzero"`
@@ -113,35 +121,6 @@ const BrowserbaseBrowserSettingsOSMac BrowserbaseBrowserSettingsOS = "mac"
 const BrowserbaseBrowserSettingsOSMobile BrowserbaseBrowserSettingsOS = "mobile"
 const BrowserbaseBrowserSettingsOSTablet BrowserbaseBrowserSettingsOS = "tablet"
 const BrowserbaseBrowserSettingsOSWindows BrowserbaseBrowserSettingsOS = "windows"
-
-type BrowserbaseBrowserSource struct {
-	// BrowserSettings corresponds to the JSON schema field "browser_settings".
-	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
-
-	// ExtensionID corresponds to the JSON schema field "extension_id".
-	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
-
-	// KeepAlive corresponds to the JSON schema field "keep_alive".
-	KeepAlive *bool `json:"keep_alive,omitempty,omitzero"`
-
-	// Proxies corresponds to the JSON schema field "proxies".
-	Proxies *BrowserbaseProxies `json:"proxies,omitempty,omitzero"`
-
-	// Region corresponds to the JSON schema field "region".
-	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
-
-	// SessionID corresponds to the JSON schema field "session_id".
-	SessionID string `json:"session_id"`
-
-	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
-
-	// Type corresponds to the JSON schema field "type".
-	Type string `json:"type"`
-
-	// UserMetadata corresponds to the JSON schema field "user_metadata".
-	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
-}
 
 type BrowserbaseContext struct {
 	// ID corresponds to the JSON schema field "id".
@@ -238,6 +217,29 @@ const BrowserbaseRegionAPSoutheast1 BrowserbaseRegion = "ap-southeast-1"
 const BrowserbaseRegionEUCentral1 BrowserbaseRegion = "eu-central-1"
 const BrowserbaseRegionUSEast1 BrowserbaseRegion = "us-east-1"
 const BrowserbaseRegionUSWest2 BrowserbaseRegion = "us-west-2"
+
+type BrowserbaseSessionCreateParams struct {
+	// BrowserSettings corresponds to the JSON schema field "browser_settings".
+	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
+
+	// ExtensionID corresponds to the JSON schema field "extension_id".
+	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
+
+	// KeepAlive corresponds to the JSON schema field "keep_alive".
+	KeepAlive *bool `json:"keep_alive,omitempty,omitzero"`
+
+	// Proxies corresponds to the JSON schema field "proxies".
+	Proxies *BrowserbaseProxies `json:"proxies,omitempty,omitzero"`
+
+	// Region corresponds to the JSON schema field "region".
+	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// UserMetadata corresponds to the JSON schema field "user_metadata".
+	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
+}
 
 type BrowserbaseViewport struct {
 	// Height corresponds to the JSON schema field "height".
@@ -1645,7 +1647,7 @@ type StagehandInitParams struct {
 	APIKey *string `json:"api_key,omitempty,omitzero"`
 
 	// Browser corresponds to the JSON schema field "browser".
-	Browser *BrowserbaseBrowserSource `json:"browser,omitempty,omitzero"`
+	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
 
 	// BrowserCDPURL corresponds to the JSON schema field "browser_cdp_url".
 	BrowserCDPURL *string `json:"browser_cdp_url,omitempty,omitzero"`
@@ -1930,13 +1932,13 @@ type generatedModelCatalog struct {
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
 
+	// BrowserSessionMetadata corresponds to the JSON schema field
+	// "BrowserSessionMetadata".
+	BrowserSessionMetadata *BrowserSessionMetadata `json:"BrowserSessionMetadata,omitempty,omitzero"`
+
 	// BrowserbaseBrowserSettings corresponds to the JSON schema field
 	// "BrowserbaseBrowserSettings".
 	BrowserbaseBrowserSettings *BrowserbaseBrowserSettings `json:"BrowserbaseBrowserSettings,omitempty,omitzero"`
-
-	// BrowserbaseBrowserSource corresponds to the JSON schema field
-	// "BrowserbaseBrowserSource".
-	BrowserbaseBrowserSource *BrowserbaseBrowserSource `json:"BrowserbaseBrowserSource,omitempty,omitzero"`
 
 	// BrowserbaseContext corresponds to the JSON schema field "BrowserbaseContext".
 	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty,omitzero"`
@@ -1959,6 +1961,10 @@ type generatedModelCatalog struct {
 
 	// BrowserbaseRegion corresponds to the JSON schema field "BrowserbaseRegion".
 	BrowserbaseRegion *BrowserbaseRegion `json:"BrowserbaseRegion,omitempty,omitzero"`
+
+	// BrowserbaseSessionCreateParams corresponds to the JSON schema field
+	// "BrowserbaseSessionCreateParams".
+	BrowserbaseSessionCreateParams *BrowserbaseSessionCreateParams `json:"BrowserbaseSessionCreateParams,omitempty,omitzero"`
 
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`

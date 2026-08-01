@@ -48,6 +48,7 @@ func TestGeneratedCatalogMatchesReachableProtocolDefinitions(t *testing.T) {
 	}
 	visit(properties["methods"])
 	visit(properties["notifications"])
+	visit(properties["legacy_client_models"])
 
 	catalog := reflect.TypeOf(generatedModelCatalog{})
 	generated := make(map[string]struct{}, catalog.NumField())
