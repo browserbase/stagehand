@@ -9,6 +9,8 @@ from pydantic import ValidationError
 
 from stagehand import browser
 from stagehand.browser import (
+    _DEFAULT_CHROME_FLAGS,
+    _WEBMCP_CHROME_FLAG,
     StagehandBrowser,
     _claim_browser,
     _connect_browser,
@@ -18,7 +20,7 @@ from stagehand.browser import (
     browserbase,
     local_browser,
 )
-from stagehand.client_models import LocalBrowserLaunchOptions
+from stagehand.client_models import LocalBrowserLaunchOptions, LocalViewport
 
 
 class FakeCDPClient:
@@ -365,6 +367,47 @@ def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) ->
         "--custom-flag",
         "about:blank",
     ]
+
+
+def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(
+            viewport=LocalViewport(width=1440, height=900),
+            ignore_default_args=True,
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1440,900" in flags
+    assert _WEBMCP_CHROME_FLAG not in flags
+    assert set(_DEFAULT_CHROME_FLAGS).isdisjoint(flags)
+
+
+def test_local_browser_flags_keep_ignored_explicit_viewport(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(
+            viewport=LocalViewport(width=1440, height=900),
+            ignore_default_args=["--window-size=1440,900"],
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1440,900" in flags
+
+
+def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserLaunchOptions(ignore_default_args=["--window-size=1280,800"]),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1280,800" not in flags
 
 
 async def test_browserbase_factories_are_reserved() -> None:
