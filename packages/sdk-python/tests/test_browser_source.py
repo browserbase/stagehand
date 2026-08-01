@@ -5,12 +5,13 @@ from pathlib import Path
 import pytest
 
 from stagehand.browser_source import (
+    _DEFAULT_CHROME_FLAGS,
     _WEBMCP_CHROME_FLAG,
     ResolvedBrowserSource,
     _local_browser_flags,
     resolve_browser_source,
 )
-from stagehand.client_models import LocalBrowserSource, StagehandClientInitParams
+from stagehand.client_models import LocalBrowserSource, LocalViewport, StagehandClientInitParams
 
 
 @pytest.mark.asyncio
@@ -120,6 +121,52 @@ def test_local_browser_flags_omit_defaults_when_requested(
         "--user-supplied",
         "about:blank",
     ]
+
+
+def test_local_browser_flags_keep_explicit_viewport_without_defaults(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(
+            type="local",
+            viewport=LocalViewport(width=1440, height=900),
+            ignore_default_args=True,
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1440,900" in flags
+    assert _WEBMCP_CHROME_FLAG not in flags
+    assert set(_DEFAULT_CHROME_FLAGS).isdisjoint(flags)
+
+
+def test_local_browser_flags_keep_ignored_explicit_viewport(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(
+            type="local",
+            viewport=LocalViewport(width=1440, height=900),
+            ignore_default_args=["--window-size=1440,900"],
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1440,900" in flags
+
+
+def test_local_browser_flags_can_omit_implicit_default_viewport(tmp_path: Path) -> None:
+    flags = _local_browser_flags(
+        LocalBrowserSource(
+            type="local",
+            ignore_default_args=["--window-size=1280,800"],
+        ),
+        port=9222,
+        user_data_dir=tmp_path,
+        is_ci=False,
+    )
+
+    assert "--window-size=1280,800" not in flags
 
 
 def test_local_browser_flags_can_selectively_omit_webmcp(

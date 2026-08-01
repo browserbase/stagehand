@@ -485,17 +485,14 @@ def _local_browser_flags(
     ignored_default_args = options.ignore_default_args
     ignored_flags = set(ignored_default_args) if isinstance(ignored_default_args, list) else set()
     include_defaults = ignored_default_args is not True
-    window_size = options.viewport
     stagehand_default_flags = (
         "--enable-unsafe-extension-debugging",
         "--remote-allow-origins=*",
-        (
-            f"--window-size={window_size.width},{window_size.height}"
-            if window_size is not None
-            else "--window-size=1280,800"
-        ),
-        _WEBMCP_CHROME_FLAG,
     )
+    viewport = (
+        options.viewport if options.viewport is not None else LocalViewport(width=1280, height=800)
+    )
+    window_size_flag = f"--window-size={viewport.width},{viewport.height}"
 
     return [
         *(
@@ -506,6 +503,17 @@ def _local_browser_flags(
         *(
             [flag for flag in stagehand_default_flags if flag not in ignored_flags]
             if include_defaults
+            else []
+        ),
+        *(
+            [window_size_flag]
+            if options.viewport is not None
+            or (include_defaults and window_size_flag not in ignored_flags)
+            else []
+        ),
+        *(
+            [_WEBMCP_CHROME_FLAG]
+            if include_defaults and _WEBMCP_CHROME_FLAG not in ignored_flags
             else []
         ),
         f"--remote-debugging-port={port}",
