@@ -85,7 +85,7 @@ describe("Stagehand client browser sources", () => {
     ).toThrow();
   });
 
-  it("rejects Browserbase extension IDs because the SDK provisions its own extension", () => {
+  it("accepts caller-owned Browserbase extension IDs", () => {
     const browserSources = [
       {
         type: "browserbase",
@@ -98,7 +98,10 @@ describe("Stagehand client browser sources", () => {
     ];
 
     for (const browser of browserSources) {
-      expect(() => StagehandClientInitParamsSchema.parse({ apiKey: "bb_key", browser })).toThrow();
+      expect(StagehandClientInitParamsSchema.parse({ apiKey: "bb_key", browser })).toMatchObject({
+        apiKey: "bb_key",
+        browser,
+      });
     }
   });
 

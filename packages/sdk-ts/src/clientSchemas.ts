@@ -6,10 +6,11 @@
  */
 
 import { z } from "zod/v4";
+import type Browserbase from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "../../protocol/schemas.js";
 import {
   ActOptionsSchema,
-  BrowserbaseBrowserSettingsSchema,
+  BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   ExtractOptionsSchema,
   LLMGenerateParamsSchema,
@@ -22,26 +23,45 @@ import {
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
 
-const BrowserbaseClientBrowserSettingsSchema = BrowserbaseBrowserSettingsSchema.omit({
-  extensionId: true,
-});
-
-/** Browserbase source fields exposed by the TS SDK. Stagehand provisions its own extension. */
-export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.omit({
-  browserSettings: true,
-  extensionId: true,
-})
-  .extend({
-    type: z.literal("browserbase"),
-    browserSettings: BrowserbaseClientBrowserSettingsSchema.optional(),
-  })
-  .meta({ id: "BrowserbaseClientBrowserSource" });
+/** Browserbase source fields exposed by the TS SDK. */
+export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
+  type: z.literal("browserbase"),
+}).meta({ id: "BrowserbaseClientBrowserSource" });
 
 export const LocalBrowserSourceSchema = ProtocolSchemas.LocalBrowserLaunchOptionsSchema.extend({
   type: z.literal("local"),
 }).meta({ id: "LocalBrowserSource" });
 
-export const LocalBrowserLaunchOptionsSchema = ProtocolSchemas.LocalBrowserLaunchOptionsSchema;
+export const LocalBrowserLaunchOptionsSchema = z
+  .strictObject({
+    args: z.array(z.string()).optional(),
+    executablePath: z.string().optional(),
+    port: z.number().optional(),
+    userDataDir: z.string().optional(),
+    preserveUserDataDir: z.boolean().optional(),
+    headless: z.boolean().optional(),
+    devtools: z.boolean().optional(),
+    chromiumSandbox: z.boolean().optional(),
+    ignoreDefaultArgs: z.union([z.boolean(), z.array(z.string())]).optional(),
+    proxy: z
+      .strictObject({
+        server: z.string(),
+        bypass: z.string().optional(),
+        username: z.string().optional(),
+        password: z.string().optional(),
+      })
+      .optional(),
+    locale: z.string().optional(),
+    viewport: z.strictObject({ width: z.number(), height: z.number() }).optional(),
+    deviceScaleFactor: z.number().optional(),
+    hasTouch: z.boolean().optional(),
+    ignoreHTTPSErrors: z.boolean().optional(),
+    connectTimeoutMs: z.number().optional(),
+    downloadsPath: z.string().optional(),
+    acceptDownloads: z.boolean().optional(),
+    keepAlive: z.boolean().optional(),
+  })
+  .meta({ id: "LocalBrowserLaunchOptions" });
 
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
@@ -51,17 +71,53 @@ export const LocalBrowserConnectOptionsSchema = z
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
-export const BrowserbaseLaunchOptionsSchema = BrowserbaseSessionCreateParamsSchema.extend({
-  apiKey: z.string().min(1),
-}).meta({ id: "BrowserbaseLaunchOptions" });
+type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & { apiKey: string };
+
+/**
+ * Browserbase owns the session option surface. Keep this object loose so newly added SDK options
+ * pass through without requiring a Stagehand protocol or schema update.
+ */
+export const BrowserbaseLaunchOptionsSchema = z
+  .looseObject({
+    apiKey: z.string().min(1),
+    type: z.never().optional(),
+  })
+  .meta({ id: "BrowserbaseLaunchOptions" }) as z.ZodType<BrowserbaseLaunchOptionsInput>;
 
 export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
     sessionId: z.string().min(1),
     connectTimeoutMs: z.number().int().positive().optional(),
+    extensionId: z.string().min(1).optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });
+
+/** Data returned by the Browserbase SDK after creating a session. */
+export const BrowserbaseSessionCreateResultSchema = z
+  .object({
+    id: z.string(),
+    connectUrl: z.string(),
+  })
+  .meta({ id: "BrowserbaseSessionCreateResult" });
+
+/** Data returned by the Browserbase SDK when retrieving a session. */
+export const BrowserbaseSessionRetrieveResultSchema = z
+  .object({
+    id: z.string(),
+    connectUrl: z.string().optional(),
+    region: BrowserbaseRegionSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseSessionRetrieveResult" });
+
+/** Normalized connection data shared by Browserbase launch and connect flows. */
+export const BrowserbaseSessionConnectionSchema = z
+  .strictObject({
+    sessionId: z.string().trim().min(1),
+    cdpUrl: z.string().trim().min(1),
+    region: BrowserbaseRegionSchema.optional(),
+  })
+  .meta({ id: "BrowserbaseSessionConnection" });
 
 export const CdpBrowserSourceSchema = z
   .strictObject({
@@ -168,6 +224,11 @@ export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptions
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
 export type BrowserbaseLaunchOptions = z.infer<typeof BrowserbaseLaunchOptionsSchema>;
 export type BrowserbaseConnectOptions = z.infer<typeof BrowserbaseConnectOptionsSchema>;
+export type BrowserbaseSessionCreateResult = z.infer<typeof BrowserbaseSessionCreateResultSchema>;
+export type BrowserbaseSessionRetrieveResult = z.infer<
+  typeof BrowserbaseSessionRetrieveResultSchema
+>;
+export type BrowserbaseSessionConnection = z.infer<typeof BrowserbaseSessionConnectionSchema>;
 export type StagehandClientInitParams = z.input<typeof StagehandClientInitParamsSchema>;
 export type ResolvedStagehandClientInitParams = z.output<typeof StagehandClientInitParamsSchema>;
 export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;

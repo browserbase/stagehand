@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  BrowserbaseSessionError,
   createBrowserbaseApiClient,
   createBrowserbaseSessionClient,
   type BrowserbaseApiClient,
-} from "../src/browserbaseSession.js";
+} from "../../src/browser/browserbaseSession.js";
 
 describe("Browserbase session creation", () => {
   it("maps session creation and release to the official SDK surface", async () => {
@@ -12,12 +13,17 @@ describe("Browserbase session creation", () => {
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
     }));
     const update = vi.fn(async () => ({}));
+    const retrieve = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2" as const,
+    }));
     const createSdk = vi.fn(() => ({
       extensions: {
         create: vi.fn(async () => ({ id: "ext_stagehand" })),
         delete: vi.fn(async () => {}),
       },
-      sessions: { create, update },
+      sessions: { create, retrieve, update },
     }));
     const client = createBrowserbaseApiClient("bb_key", createSdk);
 
@@ -26,10 +32,88 @@ describe("Browserbase session creation", () => {
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
     });
     await client.releaseSession("session_123");
+    await expect(client.retrieveSession("session_123")).resolves.toStrictEqual({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2",
+    });
 
     expect(createSdk).toHaveBeenCalledWith("bb_key");
     expect(create).toHaveBeenCalledWith({ region: "us-west-2" });
     expect(update).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
+    expect(retrieve).toHaveBeenCalledWith("session_123");
+  });
+
+  it("validates session data returned by the Browserbase SDK", async () => {
+    const client = createBrowserbaseApiClient("bb_key", () => ({
+      extensions: {
+        create: vi.fn(async () => ({ id: "ext_stagehand" })),
+        delete: vi.fn(async () => {}),
+      },
+      sessions: {
+        create: vi.fn(async () => ({ id: "session_123", connectUrl: 42 })),
+        retrieve: vi.fn(async () => ({
+          id: "session_123",
+          connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+          region: "moon-1",
+        })),
+        update: vi.fn(async () => ({})),
+      },
+    }));
+
+    await expect(client.createSession({})).rejects.toThrow();
+    await expect(client.retrieveSession("session_123")).rejects.toThrow();
+  });
+
+  it("connects to an existing running session without taking release ownership", async () => {
+    const retrieveSession = vi.fn(async () => ({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "eu-central-1" as const,
+    }));
+    const releaseSession = vi.fn(async () => {});
+    const client = createBrowserbaseSessionClient("bb_key", {
+      browserbase: fakeBrowserbaseApiClient({ retrieveSession, releaseSession }),
+      provisionExtension: vi.fn(),
+    });
+
+    await expect(client.connectSession?.("session_123")).resolves.toStrictEqual({
+      sessionId: "session_123",
+      cdpUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "eu-central-1",
+    });
+    expect(retrieveSession).toHaveBeenCalledWith("session_123");
+    expect(releaseSession).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Browserbase session without a connection URL", async () => {
+    const client = createBrowserbaseSessionClient("bb_key", {
+      browserbase: fakeBrowserbaseApiClient({
+        retrieveSession: async () => ({ id: "session_123" }),
+      }),
+      provisionExtension: vi.fn(),
+    });
+
+    await expect(client.connectSession?.("session_123")).rejects.toThrow(
+      "not available for connection",
+    );
+  });
+
+  it("sanitizes Browserbase session retrieval failures", async () => {
+    const client = createBrowserbaseSessionClient("bb_key", {
+      browserbase: fakeBrowserbaseApiClient({
+        retrieveSession: async () => {
+          throw new Error("request failed for bb_secret at wss://private.example");
+        },
+      }),
+      provisionExtension: vi.fn(),
+    });
+
+    const error = await client.connectSession?.("session_123").catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(BrowserbaseSessionError);
+    expect((error as Error).message).toBe("Failed to retrieve the Browserbase session");
+    expect((error as Error).cause).toBeUndefined();
   });
 
   it("creates a session with the provisioned extension and maps its connection URL", async () => {
@@ -80,6 +164,36 @@ describe("Browserbase session creation", () => {
     expect(cleanupExtension).toHaveBeenCalledOnce();
   });
 
+  it.each([{ extensionId: "ext_caller" }, { browserSettings: { extensionId: "ext_caller" } }])(
+    "reuses a caller-owned extension without provisioning or deleting it",
+    async (params) => {
+      const createSession = vi.fn(async () => ({
+        id: "session_123",
+        connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      }));
+      const releaseSession = vi.fn(async () => {});
+      const provisionExtension = vi.fn();
+      const client = createBrowserbaseSessionClient("bb_key", {
+        browserbase: fakeBrowserbaseApiClient({ createSession, releaseSession }),
+        provisionExtension,
+      });
+
+      const session = await client.createSession(params);
+
+      expect(provisionExtension).not.toHaveBeenCalled();
+      expect(createSession).toHaveBeenCalledWith({
+        ...params,
+        userMetadata: {
+          stagehand: "true",
+          stagehand_sdk_language: "typescript",
+        },
+      });
+
+      await session.close?.();
+      expect(releaseSession).toHaveBeenCalledWith("session_123");
+    },
+  );
+
   it("deletes the uploaded extension when session creation fails", async () => {
     const createError = new Error("concurrency limit reached");
     const cleanupExtension = vi.fn(async () => {});
@@ -97,9 +211,9 @@ describe("Browserbase session creation", () => {
     });
 
     const error = await client.createSession({}).catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(BrowserbaseSessionError);
     expect((error as Error).message).toBe("Failed to create a Browserbase session");
-    expect((error as Error).cause).toBe(createError);
+    expect((error as Error).cause).toBeUndefined();
     expect(cleanupExtension).toHaveBeenCalledOnce();
   });
 
@@ -195,6 +309,12 @@ function fakeBrowserbaseApiClient(
       return {
         id: "session_123",
         connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      };
+    },
+    async retrieveSession(sessionId) {
+      return {
+        id: sessionId,
+        connectUrl: `wss://connect.browserbase.com/devtools/browser/${sessionId}`,
       };
     },
     async releaseSession() {},

@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
+import type Browserbase from "@browserbasehq/sdk";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
@@ -54,6 +55,9 @@ describe("browser API contracts", () => {
     expectTypeOf<ReturnType<BrowserbaseBrowser["launch"]>>().toEqualTypeOf<
       Promise<StagehandBrowser>
     >();
+    expectTypeOf<
+      Omit<BrowserbaseLaunchOptions, "apiKey">
+    >().toEqualTypeOf<Browserbase.SessionCreateParams>();
     expectTypeOf<Parameters<BrowserbaseBrowser["connect"]>>().toEqualTypeOf<
       [options: BrowserbaseConnectOptions]
     >();
@@ -61,6 +65,7 @@ describe("browser API contracts", () => {
       apiKey: string;
       sessionId: string;
       connectTimeoutMs?: number;
+      extensionId?: string;
     }>();
   });
 
@@ -75,8 +80,41 @@ describe("browser API contracts", () => {
       apiKey: "bb_key",
     });
     expect(
-      BrowserbaseConnectOptionsSchema.parse({ apiKey: "bb_key", sessionId: "session_123" }),
-    ).toStrictEqual({ apiKey: "bb_key", sessionId: "session_123" });
+      BrowserbaseLaunchOptionsSchema.parse({
+        apiKey: "bb_key",
+        projectId: "project_123",
+        proxySettings: { caCertificates: ["certificate_123"] },
+        extensionId: "user-extension",
+      }),
+    ).toStrictEqual({
+      apiKey: "bb_key",
+      projectId: "project_123",
+      proxySettings: { caCertificates: ["certificate_123"] },
+      extensionId: "user-extension",
+    });
+    expect(
+      BrowserbaseLaunchOptionsSchema.parse({
+        apiKey: "bb_key",
+        browserSettings: { extensionId: "user-extension" },
+      }),
+    ).toStrictEqual({
+      apiKey: "bb_key",
+      browserSettings: { extensionId: "user-extension" },
+    });
+    expect(() =>
+      BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", type: "browserbase" }),
+    ).toThrow();
+    expect(
+      BrowserbaseConnectOptionsSchema.parse({
+        apiKey: "bb_key",
+        sessionId: "session_123",
+        extensionId: "user-extension",
+      }),
+    ).toStrictEqual({
+      apiKey: "bb_key",
+      sessionId: "session_123",
+      extensionId: "user-extension",
+    });
     expect(() =>
       LocalBrowserConnectOptionsSchema.parse({
         cdpUrl: "ws://127.0.0.1:9222",
