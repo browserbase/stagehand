@@ -334,6 +334,37 @@ async def test_launch_strictly_validates_nested_viewport_and_proxy_values() -> N
         )
 
 
+async def test_launch_rejects_scalar_strings_for_argument_lists() -> None:
+    with pytest.raises(ValidationError):
+        await local_browser.launch(args="--headless")
+    with pytest.raises(ValidationError):
+        await local_browser.launch(ignore_default_args="--headless")
+
+
+async def test_launch_converts_argument_tuples_to_flag_lists(
+    monkeypatch: pytest.MonkeyPatch,
+    fake_cdp: type[FakeCDPClient],
+    tmp_path: Path,
+) -> None:
+    captured_flags: list[str] = []
+
+    async def launch(options: LocalBrowserLaunchOptions) -> FakeSource:
+        captured_flags.extend(
+            _local_browser_flags(options, port=9222, user_data_dir=tmp_path, is_ci=False)
+        )
+        return FakeSource(keep_alive=False)
+
+    monkeypatch.setattr(browser, "_launch_local_browser", launch)
+    handle = await local_browser.launch(
+        args=("--custom-one", "--custom-two"),
+        ignore_default_args=(_DEFAULT_CHROME_FLAGS[0],),
+    )
+
+    assert _DEFAULT_CHROME_FLAGS[0] not in captured_flags
+    assert captured_flags[-3:] == ["--custom-one", "--custom-two", "about:blank"]
+    await handle.close()
+
+
 async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_source(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
