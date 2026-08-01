@@ -105,8 +105,12 @@ func (client *browserbaseSessionClient) createSession(
 	session, err := client.api.createSession(ctx, request)
 	if err != nil {
 		return resolvedBrowserSource{}, errors.Join(
-			fmt.Errorf("create Browserbase session: %w", err),
-			client.deleteExtensionBestEffort(ctx, extensionID, ownsExtension),
+			errors.New("failed to create a Browserbase session"),
+			client.deleteExtensionBestEffort(
+				context.WithoutCancel(ctx),
+				extensionID,
+				ownsExtension,
+			),
 		)
 	}
 	if err := session.validate(); err != nil {
@@ -115,15 +119,25 @@ func (client *browserbaseSessionClient) createSession(
 			sessionID = strings.TrimSpace(*session.ID)
 		}
 		return resolvedBrowserSource{}, errors.Join(
-			fmt.Errorf("validate Browserbase session: %w", err),
-			client.cleanupInvalidSession(ctx, sessionID, extensionID, ownsExtension),
+			errors.New("failed to create a Browserbase session"),
+			client.cleanupInvalidSession(
+				context.WithoutCancel(ctx),
+				sessionID,
+				extensionID,
+				ownsExtension,
+			),
 		)
 	}
 
 	sessionID := strings.TrimSpace(*session.ID)
 	cdpURL := strings.TrimSpace(*session.ConnectURL)
 	if sessionID == "" || cdpURL == "" {
-		cleanupErr := client.cleanupInvalidSession(ctx, sessionID, extensionID, ownsExtension)
+		cleanupErr := client.cleanupInvalidSession(
+			context.WithoutCancel(ctx),
+			sessionID,
+			extensionID,
+			ownsExtension,
+		)
 		if sessionID == "" {
 			return resolvedBrowserSource{}, errors.Join(
 				errors.New("Browserbase session creation returned an empty session ID"),
@@ -168,15 +182,13 @@ func (client *browserbaseSessionClient) connectSession(
 	}
 	session, err := client.api.retrieveSession(ctx, normalizedSessionID)
 	if err != nil {
-		return browserbaseSessionConnection{}, fmt.Errorf(
-			"retrieve Browserbase session: %w",
-			err,
+		return browserbaseSessionConnection{}, errors.New(
+			"failed to retrieve the Browserbase session",
 		)
 	}
 	if err := session.validate(); err != nil {
-		return browserbaseSessionConnection{}, fmt.Errorf(
-			"validate Browserbase retrieved session: %w",
-			err,
+		return browserbaseSessionConnection{}, errors.New(
+			"failed to retrieve the Browserbase session",
 		)
 	}
 	cdpURL := ""
@@ -214,11 +226,19 @@ func (client *browserbaseSessionClient) cleanupInvalidSession(
 ) error {
 	var releaseErr error
 	if sessionID != "" {
-		_, releaseErr = client.api.releaseSession(ctx, sessionID)
+		if _, err := client.api.releaseSession(ctx, sessionID); err != nil {
+			releaseErr = errors.New(
+				"failed to release the Browserbase session after a session failure",
+			)
+		}
 	}
 	var deleteErr error
 	if ownsExtension {
-		deleteErr = client.api.deleteExtension(ctx, extensionID)
+		if err := client.api.deleteExtension(ctx, extensionID); err != nil {
+			deleteErr = errors.New(
+				"failed to delete the Browserbase extension after a session failure",
+			)
+		}
 	}
 	return errors.Join(releaseErr, deleteErr)
 }
@@ -232,7 +252,9 @@ func (client *browserbaseSessionClient) deleteExtensionBestEffort(
 		return nil
 	}
 	if err := client.api.deleteExtension(ctx, extensionID); err != nil {
-		return fmt.Errorf("delete Browserbase extension after failure: %w", err)
+		return errors.New(
+			"failed to delete the Browserbase extension after a session failure",
+		)
 	}
 	return nil
 }
