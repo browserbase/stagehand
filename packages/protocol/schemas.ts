@@ -1391,6 +1391,9 @@ export const StagehandInitParamsSchema = z
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserbaseBrowserSourceSchema.optional(),
+    agentIndicator: z.boolean().default(false).meta({
+      description: "Show a decorative viewport halo from Stagehand initialization until close",
+    }),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),

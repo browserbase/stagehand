@@ -413,6 +413,7 @@ describe("JSON-RPC wire casing", () => {
       clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
       logLevel: "info" as const,
       apiKey: "bb_key",
+      agentIndicator: true,
       browser: {
         type: "browserbase" as const,
         sessionId: "session_123",
@@ -436,6 +437,7 @@ describe("JSON-RPC wire casing", () => {
       client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
       log_level: "info",
       api_key: "bb_key",
+      agent_indicator: true,
       browser: {
         type: "browserbase",
         session_id: "session_123",

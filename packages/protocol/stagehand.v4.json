@@ -1011,6 +1011,11 @@
         "browser": {
           "$ref": "#/$defs/BrowserbaseBrowserSource"
         },
+        "agent_indicator": {
+          "default": false,
+          "description": "Show a decorative viewport halo from Stagehand initialization until close",
+          "type": "boolean"
+        },
         "model": {
           "anyOf": [
             {

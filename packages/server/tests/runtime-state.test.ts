@@ -41,6 +41,57 @@ function createBrowserSession(
 }
 
 describe("Stagehand runtime state", () => {
+  it("keeps the agent indicator active for the initialized session lifetime", async () => {
+    const setAgentIndicatorActive = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+      setAgentIndicatorActive,
+    });
+
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://browser.example",
+    });
+    await runtime.initialize({
+      ...runtimeIdentity,
+      agentIndicator: true,
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+
+    expect(setAgentIndicatorActive).toHaveBeenCalledTimes(1);
+    expect(setAgentIndicatorActive).toHaveBeenLastCalledWith(true);
+
+    await runtime.contextPages();
+    expect(setAgentIndicatorActive).toHaveBeenCalledTimes(1);
+
+    await runtime.close();
+    expect(setAgentIndicatorActive.mock.calls).toStrictEqual([[true], [false]]);
+  });
+
+  it("does not activate the agent indicator unless it is enabled", async () => {
+    const setAgentIndicatorActive = vi.fn(async () => {});
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+      setAgentIndicatorActive,
+    });
+
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://browser.example",
+    });
+    await runtime.initialize({
+      ...runtimeIdentity,
+      agentIndicator: false,
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+
+    expect(setAgentIndicatorActive).not.toHaveBeenCalled();
+    await runtime.close();
+    expect(setAgentIndicatorActive).not.toHaveBeenCalled();
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),
@@ -50,6 +101,7 @@ describe("Stagehand runtime state", () => {
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
+      agentIndicator: false,
       ...runtimeIdentity,
       model: { modelName: "openai/gpt-5" },
       telemetry: {
@@ -65,6 +117,7 @@ describe("Stagehand runtime state", () => {
       status: "initialized",
       initParams: {
         ...runtimeIdentity,
+        agentIndicator: false,
         model: { modelName: "openai/gpt-5" },
         telemetry: {
           traces: {
@@ -94,6 +147,7 @@ describe("Stagehand runtime state", () => {
     await expect(
       runtime.initialize({
         ...runtimeIdentity,
+        agentIndicator: false,
         telemetry: {
           traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
         },
@@ -140,6 +194,7 @@ describe("Stagehand runtime state", () => {
     });
     await runtime.initialize({
       ...runtimeIdentity,
+      agentIndicator: false,
       model: { modelName: "openai/gpt-5", apiKey: "secret" },
       telemetry: {
         traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },

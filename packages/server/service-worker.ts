@@ -14,6 +14,7 @@ import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
+import { createAgentIndicatorController } from "./agentIndicatorController.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehand_runtime?: RuntimeDescriptor;
@@ -26,6 +27,10 @@ export function startStagehandServiceWorker(
   runtime?: StagehandRuntime,
 ): RPCClient {
   const chromeRuntimeClient = new ChromeRuntimeClient(scope, STAGEHAND_SEND_TO_HOST_BINDING);
+  const agentIndicator =
+    typeof chrome === "undefined"
+      ? { setActive: async (_active: boolean) => {} }
+      : createAgentIndicatorController(chrome);
   let rpcClient: RPCClient | undefined;
   const activeRuntime =
     runtime ??
@@ -56,6 +61,7 @@ export function startStagehandServiceWorker(
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);
       },
+      setAgentIndicatorActive: (active) => agentIndicator.setActive(active),
     });
 
   rpcClient = new RPCClient(chromeRuntimeClient, new RPCRouter(activeRuntime));

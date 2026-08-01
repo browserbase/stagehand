@@ -17,6 +17,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
     stagehand = new Stagehand({
+      agentIndicator: true,
       browser: {
         type: "local",
         headless: true,
@@ -138,6 +139,15 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
 
     await page.goto(activeFixtureServer.url);
+    await expect(
+      page.evaluate<{ position: string; pointerEvents: string }>(`(() => {
+        const style = getComputedStyle(document.documentElement, "::after");
+        return { position: style.position, pointerEvents: style.pointerEvents };
+      })()`),
+    ).resolves.toStrictEqual({ position: "fixed", pointerEvents: "none" });
+    const domElementCount = await page.evaluate<number>(`document.querySelectorAll("*").length`);
+    await expect(page.locator("*").count()).resolves.toBe(domElementCount);
+    await expect(page.locator("xpath=//*").count()).resolves.toBe(domElementCount);
     await page.locator("#locator-input").fill("user@example.com");
     await page.locator("#locator-button").click();
 

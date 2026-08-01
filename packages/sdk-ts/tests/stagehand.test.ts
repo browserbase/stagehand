@@ -124,6 +124,7 @@ describe("Stagehand", () => {
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.browser.cdpUrl).toBe("http://127.0.0.1:9222");
     expect(resolveBrowserSource).toHaveBeenCalledWith({
+      agentIndicator: false,
       apiKey: "bb_key",
       browser: {
         type: "cdp",
@@ -150,6 +151,7 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          agentIndicator: false,
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
@@ -204,6 +206,7 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          agentIndicator: false,
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
@@ -349,6 +352,7 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          agentIndicator: false,
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",
@@ -391,6 +395,7 @@ describe("Stagehand", () => {
       {
         method: "stagehand.init",
         params: {
+          agentIndicator: false,
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: STAGEHAND_SDK_CLIENT_INFO,
           logLevel: "info",

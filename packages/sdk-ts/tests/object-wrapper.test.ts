@@ -80,6 +80,7 @@ function requestCall<Method extends RPCMethod>(
 }
 
 const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
+  agentIndicator: false,
   protocolVersion: STAGEHAND_PROTOCOL_VERSION,
   clientInfo: STAGEHAND_SDK_CLIENT_INFO,
   browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/test",

@@ -83,6 +83,7 @@ describe("client LLM generation", () => {
       cdpUrl: "ws://browser.example",
     });
     await runtime.initialize({
+      agentIndicator: false,
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       logLevel: "info",

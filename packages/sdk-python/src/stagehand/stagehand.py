@@ -109,6 +109,7 @@ class Stagehand:
         system_prompt: str | None = None,
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
+        agent_indicator: bool | None = None,
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
@@ -129,6 +130,7 @@ class Stagehand:
         system_prompt: str | None = None,
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
+        agent_indicator: bool | None = None,
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
@@ -156,6 +158,7 @@ class Stagehand:
         system_prompt: str | None = None,
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
+        agent_indicator: bool | None = None,
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> None: ...
@@ -206,6 +209,7 @@ class Stagehand:
         system_prompt: str | None = None,
         self_heal: bool | None = None,
         dom_settle_timeout_ms: int | None = None,
+        agent_indicator: bool | None = None,
         cache: Cache | None = None,
         logging: StagehandClientLoggingConfig | None = None,
     ) -> None:
@@ -344,6 +348,7 @@ class Stagehand:
                 ("system_prompt", system_prompt),
                 ("self_heal", self_heal),
                 ("dom_settle_timeout_ms", dom_settle_timeout_ms),
+                ("agent_indicator", agent_indicator),
                 ("cache", _cache_config(cache) if cache is not None else None),
                 ("logging", logging),
             )

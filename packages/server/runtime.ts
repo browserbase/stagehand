@@ -242,6 +242,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+  setAgentIndicatorActive?: (active: boolean) => Promise<void>;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -253,6 +254,7 @@ const discardLog: StagehandLogEmitter = () => {};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
+const discardAgentIndicator = async (): Promise<void> => {};
 
 export function createStagehandRuntime(
   adapters: StagehandRuntimeAdapters = {},
@@ -263,6 +265,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+      setAgentIndicatorActive: adapters.setAgentIndicatorActive ?? discardAgentIndicator,
     },
     tracing,
   );
@@ -327,6 +330,11 @@ export class StagehandRuntime {
         }),
         true,
       );
+      if (params.agentIndicator === true) {
+        await this.adapters.setAgentIndicatorActive(true).catch(() => {
+          // The indicator is decorative and must never interrupt initialization.
+        });
+      }
 
       return {
         initialized: true,
@@ -714,10 +722,18 @@ export class StagehandRuntime {
   }
 
   async close(): Promise<void> {
+    const state = this.state.getState();
+    const agentIndicatorEnabled =
+      state.status === "initialized" && state.initParams.agentIndicator === true;
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
     try {
+      if (agentIndicatorEnabled) {
+        await this.adapters.setAgentIndicatorActive(false).catch(() => {
+          // The indicator is decorative and must never interrupt cleanup.
+        });
+      }
       await session?.close();
     } finally {
       this.state.setState(StagehandRuntimeStateSchema.parse({ status: "closed" }), true);
