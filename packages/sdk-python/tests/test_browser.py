@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import ClassVar, Literal
 
 import pytest
+from pydantic import ValidationError
 
 from stagehand import browser
 from stagehand.browser import (
@@ -23,7 +24,8 @@ from stagehand.client_models import LocalBrowserLaunchOptions
 class FakeCDPClient:
     connect_arguments: ClassVar[list[dict[str, object]]] = []
     instances: ClassVar[list[FakeCDPClient]] = []
-    connect_error: ClassVar[Exception | None] = None
+    connect_error: ClassVar[BaseException | None] = None
+    close_error: ClassVar[Exception | None] = None
 
     def __init__(self) -> None:
         self.close_calls = 0
@@ -41,6 +43,8 @@ class FakeCDPClient:
 
     async def close(self) -> None:
         self.close_calls += 1
+        if self.close_error is not None:
+            raise self.close_error
 
     async def send_command(
         self,
@@ -74,6 +78,7 @@ def fake_cdp(monkeypatch: pytest.MonkeyPatch) -> type[FakeCDPClient]:
     FakeCDPClient.connect_arguments = []
     FakeCDPClient.instances = []
     FakeCDPClient.connect_error = None
+    FakeCDPClient.close_error = None
     monkeypatch.setattr(browser, "CDPClient", FakeCDPClient)
     return FakeCDPClient
 
@@ -96,7 +101,7 @@ async def _connected_handle(
     )
 
 
-async def test_handle_close_is_lazy_memoized_and_marks_closed_when_requested(
+async def test_handle_close_is_memoized_and_marks_closed_when_requested(
     fake_cdp: type[FakeCDPClient],
 ) -> None:
     source = FakeSource(keep_alive=False)
@@ -104,7 +109,11 @@ async def test_handle_close_is_lazy_memoized_and_marks_closed_when_requested(
     cdp = fake_cdp.instances[-1]
 
     assert handle.closed is False
-    await asyncio.gather(handle.close(), handle.close(), handle.close())
+    pending = handle.close()
+    assert handle.closed is True
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        _claim_browser(handle)
+    await asyncio.gather(pending, handle.close(), handle.close())
 
     assert handle.closed is True
     assert cdp.close_calls == 1
@@ -203,6 +212,58 @@ async def test_connect_and_cleanup_failure_raise_exception_group(
     ]
 
 
+async def test_cdp_cleanup_failure_does_not_skip_owned_source_cleanup(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    fake_cdp.close_error = OSError("cdp cleanup failed")
+    source = FakeSource(keep_alive=False)
+
+    async def fail_after_connect(_client: browser.CDPClient) -> None:
+        raise RuntimeError("configuration failed")
+
+    with pytest.raises(BaseExceptionGroup) as raised:
+        await _connect_browser(
+            provider="local",
+            origin="launched",
+            source=source,
+            extension_dir="/extension",
+            after_connect=fail_after_connect,
+            worker_init_metadata=_metadata(),
+        )
+
+    assert str(raised.value).startswith("Browser connection failed and browser cleanup also failed")
+    assert [str(error) for error in raised.value.exceptions] == [
+        "configuration failed",
+        "cdp cleanup failed",
+    ]
+    assert source.close_calls == 1
+
+
+async def test_connect_cancellation_closes_owned_source(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    fake_cdp.connect_error = asyncio.CancelledError()
+    source = FakeSource(keep_alive=False)
+
+    with pytest.raises(asyncio.CancelledError):
+        await _connected_handle(source)
+
+    assert source.close_calls == 1
+
+
+async def test_handle_close_closes_owned_source_when_cdp_close_fails(
+    fake_cdp: type[FakeCDPClient],
+) -> None:
+    source = FakeSource(keep_alive=False)
+    handle = await _connected_handle(source)
+    fake_cdp.close_error = OSError("cdp close failed")
+
+    with pytest.raises(OSError, match="cdp close failed"):
+        await handle.close()
+
+    assert source.close_calls == 1
+
+
 async def test_launch_configures_downloads_on_the_root_session(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
@@ -255,10 +316,19 @@ async def test_launch_validates_downloads_viewport_and_proxy_before_launch() -> 
         match="downloads_path is required when accept_downloads is true",
     ):
         await local_browser.launch(accept_downloads=True)
-    with pytest.raises(ValueError, match="viewport_width and viewport_height"):
+    with pytest.raises(TypeError, match="viewport_width and viewport_height"):
         await local_browser.launch(viewport_width=800)
     with pytest.raises(NotImplementedError, match="Authenticated local browser proxies"):
         await local_browser.launch(proxy_server="http://proxy", proxy_username="user")
+
+
+async def test_launch_strictly_validates_nested_viewport_and_proxy_values() -> None:
+    with pytest.raises(ValidationError):
+        await local_browser.launch(viewport_width=True, viewport_height=False)
+    with pytest.raises(ValidationError):
+        await local_browser.launch(
+            proxy_server=b"http://proxy",  # ty: ignore[invalid-argument-type]
+        )
 
 
 async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_source(

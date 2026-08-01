@@ -111,13 +111,13 @@ class StagehandBrowser:
     def closed(self) -> bool:
         return self._close_task is not None
 
-    async def close(self) -> None:
+    def close(self) -> Awaitable[None]:
         if self._close_task is None:
             self._close_task = asyncio.create_task(
                 self._run_close(),
                 name="stagehand-browser-close",
             )
-        await asyncio.shield(self._close_task)
+        return asyncio.shield(self._close_task)
 
     async def _run_close(self) -> None:
         await self._close_callback()
@@ -195,25 +195,33 @@ async def _connect_browser(
         )
         if after_connect is not None:
             await after_connect(cdp_client)
-    except Exception as error:
-        try:
-            if cdp_client is not None:
+    except BaseException as error:
+        cleanup_errors: list[Exception] = []
+        if cdp_client is not None:
+            try:
                 await cdp_client.close()
-            if owns_source:
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if owns_source:
+            try:
                 await source.close()
-        except Exception as cleanup_error:
-            raise ExceptionGroup(
+            except Exception as cleanup_error:
+                cleanup_errors.append(cleanup_error)
+        if cleanup_errors:
+            raise BaseExceptionGroup(
                 "Browser connection failed and browser cleanup also failed",
-                [error, cleanup_error],
+                [error, *cleanup_errors],
             ) from error
         raise
 
     connected_client = cdp_client
 
     async def close() -> None:
-        await connected_client.close()
-        if owns_source:
-            await source.close()
+        try:
+            await connected_client.close()
+        finally:
+            if owns_source:
+                await source.close()
 
     return StagehandBrowser(
         provider,
@@ -263,7 +271,7 @@ class LocalBrowser:
         keep_alive: bool | None = None,
     ) -> StagehandBrowser:
         if (viewport_width is None) != (viewport_height is None):
-            raise ValueError("viewport_width and viewport_height must be provided together")
+            raise TypeError("viewport_width and viewport_height must be provided together")
         if proxy_server is None and any(
             value is not None for value in (proxy_bypass, proxy_username, proxy_password)
         ):
@@ -295,11 +303,18 @@ class LocalBrowser:
                 (
                     "proxy",
                     (
-                        LocalProxyConfig(
-                            server=proxy_server,
-                            bypass=proxy_bypass,
-                            username=proxy_username,
-                            password=proxy_password,
+                        LocalProxyConfig.model_validate(
+                            {
+                                name: value
+                                for name, value in (
+                                    ("server", proxy_server),
+                                    ("bypass", proxy_bypass),
+                                    ("username", proxy_username),
+                                    ("password", proxy_password),
+                                )
+                                if value is not None
+                            },
+                            strict=True,
                         )
                         if proxy_server is not None
                         else None
@@ -309,7 +324,10 @@ class LocalBrowser:
                 (
                     "viewport",
                     (
-                        LocalViewport(width=viewport_width, height=viewport_height)
+                        LocalViewport.model_validate(
+                            {"width": viewport_width, "height": viewport_height},
+                            strict=True,
+                        )
                         if viewport_width is not None and viewport_height is not None
                         else None
                     ),
