@@ -227,6 +227,44 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 	}
 }
 
+func TestBrowserbaseSessionClientRejectsBlankCallerExtensionID(t *testing.T) {
+	tests := []struct {
+		name   string
+		params BrowserbaseClientBrowserSource
+	}{
+		{
+			name:   "top-level",
+			params: BrowserbaseClientBrowserSource{ExtensionID: testPointer(" ")},
+		},
+		{
+			name: "browser settings",
+			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+				ExtensionID: testPointer(" "),
+			}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			api := &fakeBrowserbaseAPI{}
+			client := newBrowserbaseTestSessionClient(t, api)
+			_, err := client.createSession(context.Background(), test.params)
+			if err == nil || !strings.Contains(err.Error(), "extensionId cannot be empty") {
+				t.Fatalf("createSession() error = %v, want extensionId cannot be empty", err)
+			}
+			if api.uploadExtensionCalls != 0 || api.createSessionCalls != 0 ||
+				api.deleteExtensionCalls != 0 || api.releaseSessionCalls != 0 {
+				t.Fatalf(
+					"calls = upload %d, create %d, delete %d, release %d; want zero",
+					api.uploadExtensionCalls,
+					api.createSessionCalls,
+					api.deleteExtensionCalls,
+					api.releaseSessionCalls,
+				)
+			}
+		})
+	}
+}
+
 func TestBrowserbaseSessionClientOwnsProvisionedExtension(t *testing.T) {
 	api := &fakeBrowserbaseAPI{}
 	client := newBrowserbaseTestSessionClient(t, api)

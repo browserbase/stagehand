@@ -196,12 +196,11 @@ func (client *browserbaseSessionClient) connectSession(
 }
 
 func browserbaseCallerExtensionID(params BrowserbaseClientBrowserSource) (*string, bool) {
-	if params.ExtensionID != nil && strings.TrimSpace(*params.ExtensionID) != "" {
+	if params.ExtensionID != nil {
 		return params.ExtensionID, true
 	}
 	if params.BrowserSettings != nil &&
-		params.BrowserSettings.ExtensionID != nil &&
-		strings.TrimSpace(*params.BrowserSettings.ExtensionID) != "" {
+		params.BrowserSettings.ExtensionID != nil {
 		return nil, true
 	}
 	return nil, false
