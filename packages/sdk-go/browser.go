@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 )
 
 // BrowserProvider identifies the service providing a browser.
@@ -36,7 +35,6 @@ type Browser struct {
 	closeRequested bool
 	closeResult    error
 	cdp            *cdpClient
-	commandTimeout time.Duration
 	workerAPIKey   *string
 	workerBrowser  *BrowserSessionMetadata
 	ownsSource     bool
@@ -129,10 +127,9 @@ func (browser *Browser) Close(ctx context.Context) error {
 }
 
 type claimedBrowser struct {
-	cdp            *cdpClient
-	commandTimeout time.Duration
-	workerAPIKey   *string
-	workerBrowser  *BrowserSessionMetadata
+	cdp           *cdpClient
+	workerAPIKey  *string
+	workerBrowser *BrowserSessionMetadata
 }
 
 func claimBrowser(browser *Browser) (claimedBrowser, error) {
@@ -149,10 +146,9 @@ func claimBrowser(browser *Browser) (claimedBrowser, error) {
 	}
 	browser.claimed = true
 	return claimedBrowser{
-		cdp:            browser.cdp,
-		commandTimeout: browser.commandTimeout,
-		workerAPIKey:   browser.workerAPIKey,
-		workerBrowser:  browser.workerBrowser,
+		cdp:           browser.cdp,
+		workerAPIKey:  browser.workerAPIKey,
+		workerBrowser: browser.workerBrowser,
 	}, nil
 }
 

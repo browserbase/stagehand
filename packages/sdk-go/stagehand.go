@@ -261,6 +261,9 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	if s.initialized {
 		return nil
 	}
+	if s.attachedBrowser != nil {
+		return errors.New("stagehand: a Stagehand created with Create cannot be reinitialized")
+	}
 	if s.initParams.Model != nil && s.initParams.Generate != nil {
 		return errors.New("stagehand: Model and Generate are mutually exclusive")
 	}

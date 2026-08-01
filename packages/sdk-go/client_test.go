@@ -496,3 +496,41 @@ func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
 		t.Fatalf("claim after successful Close error = %v", err)
 	}
 }
+
+func TestInitReentryByConstruction(t *testing.T) {
+	t.Run("Create after Close", func(t *testing.T) {
+		rpc := &recordingProtocolClient{responses: map[string]any{
+			"stagehand.init":  StagehandInitResult{Initialized: true},
+			"stagehand.close": StagehandCloseResult{Closed: true},
+		}}
+		client, err := createWithAdapters(context.Background(), CreateOptions{Browser: &Browser{}}, clientAdapters{
+			connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := client.Close(context.Background()); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		err = client.Init(context.Background())
+		if err == nil || err.Error() != "stagehand: a Stagehand created with Create cannot be reinitialized" {
+			t.Fatalf("Init() error = %v", err)
+		}
+	})
+
+	t.Run("New while initialized", func(t *testing.T) {
+		rpc := &recordingProtocolClient{responses: map[string]any{
+			"stagehand.init": StagehandInitResult{Initialized: true},
+		}}
+		client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+		if err := client.Init(context.Background()); err != nil {
+			t.Fatalf("first Init() error = %v", err)
+		}
+		if err := client.Init(context.Background()); err != nil {
+			t.Fatalf("second Init() error = %v", err)
+		}
+		if len(rpc.calls) != 1 || rpc.calls[0].method != "stagehand.init" {
+			t.Fatalf("protocol calls = %#v", rpc.calls)
+		}
+	})
+}

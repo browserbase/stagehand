@@ -278,6 +278,119 @@ func TestConnectBrowserFailureCleansOwnedResources(t *testing.T) {
 	}
 }
 
+func TestConnectBrowserFailureClosesSourceWithLiveContext(t *testing.T) {
+	type contextKey struct{}
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), contextKey{}, "value"))
+	cancel()
+	closeCalls := 0
+	closeCanceled := false
+	closeValue := ""
+	_, err := connectBrowser(ctx, connectBrowserOptions{
+		provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched,
+		source: browserConnectionSource{
+			cdpURL: "ws://browser.test",
+			close: func(ctx context.Context) error {
+				closeCalls++
+				closeCanceled = ctx.Err() != nil
+				closeValue, _ = ctx.Value(contextKey{}).(string)
+				return nil
+			},
+		},
+	}, browserFactoryDependencies{
+		connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+			return nil, errors.New("connect")
+		},
+	})
+	if err == nil {
+		t.Fatal("connectBrowser() error = nil")
+	}
+	if closeCalls != 1 || closeCanceled || closeValue != "value" {
+		t.Fatalf("source close = calls %d, canceled %t, value %q", closeCalls, closeCanceled, closeValue)
+	}
+}
+
+func TestConnectFactoriesValidateTimeout(t *testing.T) {
+	tests := []struct {
+		name            string
+		timeout         int
+		connect         func(context.Context, browserFactoryDependencies, int) (*Browser, error)
+		wantError       bool
+		wantMaterialize int
+		wantClient      int
+		wantConnect     int
+	}{
+		{
+			name: "local negative", timeout: -1, wantError: true,
+			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
+				return connectLocalBrowserWithDependencies(ctx, LocalBrowserConnectOptions{
+					CDPURL: "ws://browser.test", ConnectTimeoutMs: timeout,
+				}, dependencies)
+			},
+		},
+		{
+			name: "Browserbase negative", timeout: -1, wantError: true,
+			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
+				return connectBrowserbaseWithDependencies(ctx, BrowserbaseConnectOptions{
+					APIKey: "key", SessionID: "session", ConnectTimeoutMs: timeout,
+				}, dependencies)
+			},
+		},
+		{
+			name: "local zero", wantMaterialize: 1, wantConnect: 1,
+			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
+				return connectLocalBrowserWithDependencies(ctx, LocalBrowserConnectOptions{
+					CDPURL: "ws://browser.test", ConnectTimeoutMs: timeout,
+				}, dependencies)
+			},
+		},
+		{
+			name: "Browserbase zero", wantClient: 1, wantConnect: 1,
+			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
+				return connectBrowserbaseWithDependencies(ctx, BrowserbaseConnectOptions{
+					APIKey: "key", SessionID: "session", ConnectTimeoutMs: timeout,
+				}, dependencies)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			materializeCalls, clientCalls, connectCalls := 0, 0, 0
+			dependencies := browserFactoryDependencies{
+				materializeExtension: func() (string, func() error, error) {
+					materializeCalls++
+					return "/tmp/extension", func() error { return nil }, nil
+				},
+				createBrowserbaseClient: func(string) (browserbaseFactoryClient, error) {
+					clientCalls++
+					return &fakeBrowserbaseFactoryClient{connected: browserbaseSessionConnection{
+						cdpURL: "ws://browser.test", sessionID: "session",
+					}}, nil
+				},
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					connectCalls++
+					return newBrowserTestCDP(t), nil
+				},
+			}
+			browser, err := test.connect(context.Background(), dependencies, test.timeout)
+			if test.wantError {
+				if err == nil || err.Error() != "stagehand browser connect timeout cannot be negative" {
+					t.Fatalf("factory error = %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("factory error = %v", err)
+				}
+				if err := browser.Close(context.Background()); err != nil {
+					t.Fatalf("Close() error = %v", err)
+				}
+			}
+			if materializeCalls != test.wantMaterialize || clientCalls != test.wantClient || connectCalls != test.wantConnect {
+				t.Fatalf("dependency calls = materialize %d, client %d, connect %d", materializeCalls, clientCalls, connectCalls)
+			}
+		})
+	}
+}
+
 type fakeBrowserbaseFactoryClient struct {
 	created       resolvedBrowserSource
 	createOptions BrowserbaseClientBrowserSource
