@@ -280,11 +280,11 @@ func TestConnectBrowserFailureCleansOwnedResources(t *testing.T) {
 
 type fakeBrowserbaseFactoryClient struct {
 	created       resolvedBrowserSource
-	createOptions BrowserbaseClientBrowserSource
+	createOptions BrowserbaseLaunchOptions
 	connected     browserbaseSessionConnection
 }
 
-func (client *fakeBrowserbaseFactoryClient) createSession(_ context.Context, options BrowserbaseClientBrowserSource) (resolvedBrowserSource, error) {
+func (client *fakeBrowserbaseFactoryClient) createSession(_ context.Context, options BrowserbaseLaunchOptions) (resolvedBrowserSource, error) {
 	client.createOptions = options
 	return client.created, nil
 }

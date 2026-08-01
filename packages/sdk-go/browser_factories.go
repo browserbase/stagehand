@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
 )
 
 // LocalBrowserLaunchOptions configures a Chromium process launched by the SDK.
@@ -60,7 +62,7 @@ type BrowserbaseConnectOptions struct {
 }
 
 type browserbaseFactoryClient interface {
-	createSession(context.Context, BrowserbaseClientBrowserSource) (resolvedBrowserSource, error)
+	createSession(context.Context, BrowserbaseLaunchOptions) (resolvedBrowserSource, error)
 	connectSession(context.Context, string) (browserbaseSessionConnection, error)
 }
 
@@ -184,11 +186,7 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 	if err != nil {
 		return nil, err
 	}
-	source, err := client.createSession(ctx, BrowserbaseClientBrowserSource{
-		BrowserSettings: options.BrowserSettings, ExtensionID: options.ExtensionID,
-		KeepAlive: options.KeepAlive, Proxies: options.Proxies, Region: options.Region,
-		Timeout: options.Timeout, UserMetadata: options.UserMetadata,
-	})
+	source, err := client.createSession(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +245,28 @@ func browserbaseClientForFactory(apiKey string, dependencies browserFactoryDepen
 }
 
 func materializeBrowserExtension(dependencies browserFactoryDependencies) (string, func() error, error) {
-	return materializeStagehandExtension(browserSourceResolverDependencies{materializeExtension: dependencies.materializeExtension})
+	return materializeStagehandExtension(dependencies)
+}
+
+func materializeStagehandExtension(dependencies browserFactoryDependencies) (string, func() error, error) {
+	materialize := dependencies.materializeExtension
+	if materialize == nil {
+		materialize = extensionassets.Materialize
+	}
+	directory, cleanup, err := materialize()
+	if err != nil {
+		return "", nil, fmt.Errorf("materialize bundled Stagehand extension: %w", err)
+	}
+	if strings.TrimSpace(directory) == "" || cleanup == nil {
+		if cleanup != nil {
+			err = cleanup()
+		}
+		return "", nil, errors.Join(
+			errors.New("materialized Stagehand extension is incomplete"),
+			err,
+		)
+	}
+	return directory, cleanup, nil
 }
 
 func connectBrowser(ctx context.Context, options connectBrowserOptions, dependencies browserFactoryDependencies) (*Browser, error) {
@@ -291,7 +310,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
 		commandTimeout: commandTimeout, workerAPIKey: options.workerAPIKey,
-		workerBrowser: options.workerBrowser, ownsSource: ownsSource,
+		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, cleanup: options.source.cleanup,
 	}, nil
 }

@@ -49,7 +49,7 @@ func newBrowserbaseSessionClient(
 
 func (client *browserbaseSessionClient) createSession(
 	ctx context.Context,
-	params BrowserbaseClientBrowserSource,
+	params BrowserbaseLaunchOptions,
 ) (resolvedBrowserSource, error) {
 	if ctx == nil {
 		return resolvedBrowserSource{}, errors.New(
@@ -142,11 +142,9 @@ func (client *browserbaseSessionClient) createSession(
 		extensionID:   extensionID,
 		ownsExtension: ownsExtension,
 	}
-	keepAlive := params.KeepAlive != nil && *params.KeepAlive
 	return resolvedBrowserSource{
 		cdpURL:               cdpURL,
 		browserbaseSessionID: sessionID,
-		keepAlive:            keepAlive,
 		close:                resources.close,
 	}, nil
 }
@@ -195,7 +193,7 @@ func (client *browserbaseSessionClient) connectSession(
 	}, nil
 }
 
-func browserbaseCallerExtensionID(params BrowserbaseClientBrowserSource) (*string, bool) {
+func browserbaseCallerExtensionID(params BrowserbaseLaunchOptions) (*string, bool) {
 	if params.ExtensionID != nil {
 		return params.ExtensionID, true
 	}
