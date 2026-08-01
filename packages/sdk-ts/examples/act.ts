@@ -5,36 +5,29 @@ const { OPENAI_API_KEY } = process.env;
 if (!OPENAI_API_KEY) throw new Error();
 
 const browser = await localBrowser.launch({ headless: true });
-let stagehand: Stagehand | undefined;
+const stagehand = await Stagehand.create({
+  browser,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: OPENAI_API_KEY,
+  },
+});
 
-try {
-  stagehand = await Stagehand.create({
-    browser,
-    model: {
-      modelName: "openai/gpt-5.4-mini",
-      apiKey: OPENAI_API_KEY,
-    },
-  });
-
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    throw new Error("Stagehand initialized without an active page");
-  }
-  await page.goto("https://example.com");
-
-  const result = await stagehand.act(
-    "Click the link that provides more information about Example Domain",
-  );
-
-  console.log(JSON.stringify(result, null, 2));
-
-  if (!result.data.success) {
-    throw new Error(`act() failed: ${result.data.message}`);
-  }
-} finally {
-  try {
-    await stagehand?.close();
-  } finally {
-    await browser.close();
-  }
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
 }
+await page.goto("https://example.com");
+
+const result = await stagehand.act(
+  "Click the link that provides more information about Example Domain",
+);
+
+console.log(JSON.stringify(result, null, 2));
+
+if (!result.data.success) {
+  throw new Error(`act() failed: ${result.data.message}`);
+}
+
+await stagehand.close();
+await browser.close();

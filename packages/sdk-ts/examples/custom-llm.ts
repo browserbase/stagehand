@@ -18,51 +18,44 @@ const openai = new OpenAI({
 const generationNames: string[] = [];
 
 const browser = await localBrowser.launch({ headless: true });
-let stagehand: Stagehand | undefined;
+const stagehand = await Stagehand.create({
+  browser,
+  model: {
+    generate: generateWithOpenAI,
+  },
+});
 
-try {
-  stagehand = await Stagehand.create({
-    browser,
-    model: {
-      generate: generateWithOpenAI,
-    },
-  });
-
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    throw new Error("Stagehand initialized without an active page");
-  }
-  await page.goto("https://example.com");
-
-  const pageInfo = await stagehand.extract(
-    "Extract the page heading and description",
-    z.object({
-      heading: z.string(),
-      description: z.string(),
-    }),
-  );
-  const actions = await stagehand.observe(
-    "Find the link that provides more information about Example Domain",
-  );
-  const actionResult = await stagehand.act(
-    "Click the link that provides more information about Example Domain",
-  );
-
-  console.log(JSON.stringify({ pageInfo, actions, actionResult, generationNames }, null, 2));
-
-  if (actions.data.length === 0) {
-    throw new Error("observe() returned no matching actions");
-  }
-  if (!actionResult.data.success) {
-    throw new Error(`act() failed: ${actionResult.data.message}`);
-  }
-} finally {
-  try {
-    await stagehand?.close();
-  } finally {
-    await browser.close();
-  }
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
 }
+await page.goto("https://example.com");
+
+const pageInfo = await stagehand.extract(
+  "Extract the page heading and description",
+  z.object({
+    heading: z.string(),
+    description: z.string(),
+  }),
+);
+const actions = await stagehand.observe(
+  "Find the link that provides more information about Example Domain",
+);
+const actionResult = await stagehand.act(
+  "Click the link that provides more information about Example Domain",
+);
+
+console.log(JSON.stringify({ pageInfo, actions, actionResult, generationNames }, null, 2));
+
+if (actions.data.length === 0) {
+  throw new Error("observe() returned no matching actions");
+}
+if (!actionResult.data.success) {
+  throw new Error(`act() failed: ${actionResult.data.message}`);
+}
+
+await stagehand.close();
+await browser.close();
 
 async function generateWithOpenAI(params: LLMGenerateParams): Promise<LLMGenerateResult> {
   if (params.responseFormat?.type !== "json_schema") {

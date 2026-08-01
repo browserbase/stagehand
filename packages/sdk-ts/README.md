@@ -6,27 +6,20 @@ TypeScript object wrapper for the Stagehand v4 service-worker protocol.
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await localBrowser.launch({ headless: true });
-let stagehand: Stagehand | undefined;
+const stagehand = await Stagehand.create({ browser });
+const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
 
-try {
-  stagehand = await Stagehand.create({ browser });
-  const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+await page.goto("https://example.com");
+const currentUrl = await page.url();
 
-  await page.goto("https://example.com");
-  const currentUrl = await page.url();
+const actions = await stagehand.observe("Find the sign-in button");
+await stagehand.act("Click the sign-in button");
 
-  const actions = await stagehand.observe("Find the sign-in button");
-  await stagehand.act("Click the sign-in button");
+await page.locator("#email").fill("user@example.com");
+await page.locator("button[type=submit]").click();
 
-  await page.locator("#email").fill("user@example.com");
-  await page.locator("button[type=submit]").click();
-} finally {
-  try {
-    await stagehand?.close();
-  } finally {
-    await browser.close();
-  }
-}
+await stagehand.close();
+await browser.close();
 ```
 
 ## object model

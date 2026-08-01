@@ -9,38 +9,28 @@ if (!OPENAI_API_KEY) throw new Error();
 const logFile = createWriteStream("stagehand.jsonl", { flags: "a" });
 
 const browser = await localBrowser.launch({ headless: true });
-let stagehand: Stagehand | undefined;
-
-try {
-  stagehand = await Stagehand.create({
-    browser,
-    model: {
-      modelName: "openai/gpt-5.4-mini",
-      apiKey: OPENAI_API_KEY,
+const stagehand = await Stagehand.create({
+  browser,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: OPENAI_API_KEY,
+  },
+  logging: {
+    level: "info",
+    format: "pretty",
+    onLog(log) {
+      logFile.write(`${JSON.stringify(log)}\n`);
     },
-    logging: {
-      level: "info",
-      format: "pretty",
-      onLog(log) {
-        logFile.write(`${JSON.stringify(log)}\n`);
-      },
-    },
-  });
+  },
+});
 
-  const page = await stagehand.context.activePage();
-  if (!page) throw new Error();
+const page = await stagehand.context.activePage();
+if (!page) throw new Error();
 
-  await page.goto("https://example.com");
-  console.log(await stagehand.observe("Find the Learn more link"));
-} finally {
-  try {
-    try {
-      await stagehand?.close();
-    } finally {
-      await browser.close();
-    }
-  } finally {
-    logFile.end();
-    await finished(logFile);
-  }
-}
+await page.goto("https://example.com");
+console.log(await stagehand.observe("Find the Learn more link"));
+
+await stagehand.close();
+await browser.close();
+logFile.end();
+await finished(logFile);

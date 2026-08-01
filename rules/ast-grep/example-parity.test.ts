@@ -96,11 +96,13 @@ describe("All language examples remain in sync", () => {
         expect(stagehand, `${language} ${example.file} must construct Stagehand`).toBeDefined();
         if (language === "typescript") {
           expect(
-            root.find({ rule: { pattern: `${stagehand} = await Stagehand.create($$$ARGS)` } }),
+            root.find({
+              rule: { pattern: `const ${stagehand} = await Stagehand.create($$$ARGS)` },
+            }),
             `${language} ${example.file} must create Stagehand asynchronously`,
           ).not.toBeNull();
           expect(
-            root.find({ rule: { pattern: `await ${stagehand}?.close()` } }),
+            root.find({ rule: { pattern: `await ${stagehand}.close()` } }),
             `${language} ${example.file} must close Stagehand`,
           ).not.toBeNull();
         } else if (language === "go") {
@@ -150,7 +152,7 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
     rule: {
       pattern:
         language === "typescript"
-          ? "$STAGEHAND = await Stagehand.create($$$ARGS)"
+          ? "const $STAGEHAND = await Stagehand.create($$$ARGS)"
           : language === "python"
             ? "$STAGEHAND = Stagehand($$$ARGS)"
             : "$STAGEHAND := stagehand.New($$$ARGS)",
