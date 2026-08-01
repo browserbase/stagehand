@@ -70,6 +70,7 @@ class FakeProtocolClient extends RPCClient {
 }
 
 function createStagehandWithClientForTest(client: RPCClient): Stagehand {
+  // This lightweight wrapper intentionally has no browser handle; these tests must not use .browser.
   const stagehand = Object.create(Stagehand.prototype) as Stagehand;
   stagehand.rpcClient = client;
   stagehand.browserContext = new BrowserContext(client);

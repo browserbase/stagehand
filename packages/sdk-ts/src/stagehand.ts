@@ -47,13 +47,13 @@ export class Stagehand {
 
   private constructor(
     private readonly browserHandle: StagehandBrowser,
-    readonly initParams: ResolvedStagehandClientCreateConfig,
+    private readonly createConfig: ResolvedStagehandClientCreateConfig,
   ) {}
 
   static async create(input: StagehandCreateOptions): Promise<Stagehand> {
-    const { browser, ...initParams } = StagehandCreateOptionsSchema.parse(input);
+    const { browser, ...createConfig } = StagehandCreateOptionsSchema.parse(input);
     const claimedBrowser = claimStagehandBrowser(browser);
-    const stagehand = new Stagehand(browser, initParams);
+    const stagehand = new Stagehand(browser, createConfig);
     try {
       await stagehand.initialize(claimedBrowser);
       return stagehand;
@@ -65,7 +65,9 @@ export class Stagehand {
 
   get context(): BrowserContext {
     if (!this.browserContext) {
-      throw new Error("Stagehand is not initialized. Use await Stagehand.create() first.");
+      throw new Error(
+        "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
+      );
     }
     return this.browserContext;
   }
@@ -83,7 +85,7 @@ export class Stagehand {
   }
 
   private async initialize(browser: ClaimedStagehandBrowser): Promise<void> {
-    const createConfig = this.initParams;
+    const createConfig = this.createConfig;
     const rpcClient = new RPCClient(browser.cdpClient, browser.commandTimeoutMs);
     this.rpcClient = rpcClient;
 
@@ -199,7 +201,9 @@ export class Stagehand {
 
   private get connectedRpcClient(): RPCClient {
     if (!this.isInitialized || !this.rpcClient) {
-      throw new Error("Stagehand is not initialized. Use await Stagehand.create() first.");
+      throw new Error(
+        "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
+      );
     }
     return this.rpcClient;
   }
@@ -243,8 +247,8 @@ function handleStagehandNotification(
 
   try {
     const result = logging.onLog(log);
-    if (result instanceof Promise) {
-      void result.catch(reportOnLogError);
+    if (result && typeof result === "object" && "then" in result) {
+      void Promise.resolve(result).catch(reportOnLogError);
     }
   } catch (error) {
     reportOnLogError(error);

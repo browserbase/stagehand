@@ -8,6 +8,7 @@
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "../../protocol/schemas.js";
+import type { StagehandLog } from "../../protocol/types.js";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -18,7 +19,6 @@ import {
   ObserveOptionsSchema,
   StagehandInitParamsSchema,
   StagehandLogLevelSchema,
-  StagehandLogSchema,
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
@@ -135,10 +135,10 @@ export const StagehandClientLogFormatSchema = z
   .meta({ id: "StagehandClientLogFormat" });
 
 export const StagehandClientOnLogSchema = z
-  .function({
-    input: [StagehandLogSchema],
-    output: z.union([z.void(), z.promise(z.void())]),
-  })
+  .custom<(log: StagehandLog) => void | Promise<void>>(
+    (value) => typeof value === "function",
+    "onLog must be a function",
+  )
   .meta({ id: "StagehandClientOnLog" });
 
 export const StagehandClientLoggingConfigSchema = z
