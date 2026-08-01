@@ -30,9 +30,10 @@ asyncio.run(main())
 
 See [`examples`](examples) for action, extraction, observation, and custom LLM usage.
 
-For hosted browsers, use `browserbase.launch(api_key=...)` or
-`browserbase.connect(api_key=..., session_id=...)` instead of `local_browser`. With
-`keep_alive=True`, the caller is responsible for releasing the Browserbase session.
+For hosted browsers, import `browserbase` from `stagehand` and use
+`browserbase.launch(api_key=...)` or `browserbase.connect(api_key=..., session_id=...)` instead of
+`local_browser`. With `keep_alive=True`, the caller is responsible for releasing the Browserbase
+session.
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.

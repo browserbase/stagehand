@@ -426,6 +426,11 @@ class CDPClient:
         url_includes: str,
         timeout_ms: int,
     ) -> tuple[ServiceWorkerInfo, str]:
+        """Return a discovered worker and its flat CDP session, left attached for the caller.
+
+        Each candidate must be attached to evaluate readiness; unready or incompatible
+        candidates are detached before the next poll.
+        """
         started = time.monotonic()
         last_targets: list[object] = []
 
@@ -473,21 +478,20 @@ class CDPClient:
                         if isinstance(value, Mapping):
                             compatible, _ = _negotiate_runtime(value.get("marker"))
                             if compatible and value.get("hasReceiver") is True:
-                                keep_attached = True
-                                return (
-                                    ServiceWorkerInfo(
-                                        target_id=_required_string(
-                                            target_info, "targetId", "Target.getTargets"
-                                        ),
-                                        title=_required_string(
-                                            target_info, "title", "Target.getTargets"
-                                        ),
-                                        url=url,
-                                        extension_id=_extension_id_from_url(url),
+                                service_worker = ServiceWorkerInfo(
+                                    target_id=_required_string(
+                                        target_info, "targetId", "Target.getTargets"
                                     ),
-                                    session_id,
+                                    title=_required_string(
+                                        target_info, "title", "Target.getTargets"
+                                    ),
+                                    url=url,
+                                    extension_id=_extension_id_from_url(url),
                                 )
+                                keep_attached = True
+                                return service_worker, session_id
                 except Exception:
+                    # The worker may still be starting. Detach and retry until discovery times out.
                     pass
                 finally:
                     if session_id is not None and not keep_attached:
