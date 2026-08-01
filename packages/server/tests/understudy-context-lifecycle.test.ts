@@ -31,7 +31,10 @@ describe("BrowserContext connection lifecycle", () => {
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
-    await BrowserContext.create("ws://browser.example", contextOptions(onConnected, onDisconnected));
+    await BrowserContext.create(
+      "ws://browser.example",
+      contextOptions(onConnected, onDisconnected),
+    );
     transportClosed?.();
     transportClosed?.();
 
@@ -48,7 +51,9 @@ describe("BrowserContext connection lifecycle", () => {
       close: vi.fn(async () => transportClosed?.()),
     };
     vi.spyOn(CdpConnection, "connect").mockResolvedValue(connection as never);
-    vi.spyOn(BrowserContext.prototype, "bootstrap").mockRejectedValue(new Error("bootstrap failed"));
+    vi.spyOn(BrowserContext.prototype, "bootstrap").mockRejectedValue(
+      new Error("bootstrap failed"),
+    );
     const onConnected = vi.fn();
     const onDisconnected = vi.fn();
 
