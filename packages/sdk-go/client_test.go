@@ -425,6 +425,18 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {
+	browser := &Browser{}
+	_, err := Create(context.Background(), CreateOptions{Browser: browser})
+	if err == nil || err.Error() != "connect claimed browser: stagehand browser must be created by a stagehand browser factory" {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := claimBrowser(browser); err != nil {
+		t.Fatalf("claimBrowser() after Create error = %v", err)
+	}
+	releaseBrowserClaim(browser)
+}
+
 func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 	apiKey := "option-key"
 	browser := &Browser{}

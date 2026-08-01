@@ -76,18 +76,28 @@ func (browser *Browser) Closed() bool {
 }
 
 // Close tears down the browser-owned resources once and memoizes the result.
+// A nil context is treated as context.Background.
 func (browser *Browser) Close(ctx context.Context) error {
 	if browser == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	browser.mu.Lock()
 	if browser.closeRequested {
 		done := browser.mu.closeDone
-		browser.mu.Unlock()
 		if done == nil {
-			return browser.closeResult
+			result := browser.closeResult
+			browser.mu.Unlock()
+			return result
 		}
-		<-done
+		browser.mu.Unlock()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		browser.mu.Lock()
 		result := browser.closeResult
 		browser.mu.Unlock()

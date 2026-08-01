@@ -87,6 +87,9 @@ func defaultClientAdapters() clientAdapters {
 		resolveBrowserSource: resolveBrowserSource,
 		connectProtocol:      connectResolvedBrowser,
 		connectClaimedBrowser: func(claimed claimedBrowser) (protocolClient, error) {
+			if claimed.cdp == nil {
+				return nil, errors.New("stagehand browser must be created by a stagehand browser factory")
+			}
 			rpc, err := newRPCClient(claimed.cdp, false)
 			if err != nil {
 				return nil, err

@@ -97,21 +97,10 @@ func launchLocalBrowser(
 	}, nil
 }
 
-type chromeLaunchOptions interface {
-	LocalBrowserLaunchOptions | LocalBrowserSource
-}
-
-func launchChrome[Options chromeLaunchOptions](
+func launchChrome(
 	ctx context.Context,
-	input Options,
+	options LocalBrowserLaunchOptions,
 ) (*launchedChrome, error) {
-	var options LocalBrowserLaunchOptions
-	switch value := any(input).(type) {
-	case LocalBrowserLaunchOptions:
-		options = value
-	case LocalBrowserSource:
-		options = localBrowserLaunchOptions(value)
-	}
 	if ctx == nil {
 		return nil, errors.New("stagehand Chrome launch context is required")
 	}

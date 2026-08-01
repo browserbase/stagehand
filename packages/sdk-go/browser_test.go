@@ -2,6 +2,7 @@ package stagehand
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -84,6 +85,46 @@ func TestBrowserClaimAndCloseSemantics(t *testing.T) {
 		close(finish)
 		if err := <-closed; err != nil {
 			t.Fatalf("Close() error = %v", err)
+		}
+	})
+
+	t.Run("concurrent close honors caller context", func(t *testing.T) {
+		sourceErr := errors.New("source failed")
+		started := make(chan struct{})
+		finish := make(chan struct{})
+		browser := &Browser{
+			ownsSource: true,
+			closeSource: func(context.Context) error {
+				close(started)
+				<-finish
+				return sourceErr
+			},
+		}
+		firstDone := make(chan error, 1)
+		go func() { firstDone <- browser.Close(context.Background()) }()
+		<-started
+
+		canceled, cancel := context.WithCancel(context.Background())
+		cancel()
+		secondDone := make(chan error, 1)
+		go func() { secondDone <- browser.Close(canceled) }()
+		select {
+		case err := <-secondDone:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("second Close() error = %v, want context.Canceled", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("second Close() did not honor canceled context")
+		}
+
+		close(finish)
+		first := <-firstDone
+		if !errors.Is(first, sourceErr) {
+			t.Fatalf("first Close() error = %v, want source error", first)
+		}
+		third := browser.Close(context.Background())
+		if third != first {
+			t.Fatalf("third Close() error = %v, want memoized %v", third, first)
 		}
 	})
 }
@@ -238,11 +279,13 @@ func TestConnectBrowserFailureCleansOwnedResources(t *testing.T) {
 }
 
 type fakeBrowserbaseFactoryClient struct {
-	created   resolvedBrowserSource
-	connected browserbaseSessionConnection
+	created       resolvedBrowserSource
+	createOptions BrowserbaseClientBrowserSource
+	connected     browserbaseSessionConnection
 }
 
-func (client *fakeBrowserbaseFactoryClient) createSession(context.Context, BrowserbaseClientBrowserSource) (resolvedBrowserSource, error) {
+func (client *fakeBrowserbaseFactoryClient) createSession(_ context.Context, options BrowserbaseClientBrowserSource) (resolvedBrowserSource, error) {
+	client.createOptions = options
 	return client.created, nil
 }
 
@@ -251,7 +294,6 @@ func (client *fakeBrowserbaseFactoryClient) connectSession(context.Context, stri
 }
 
 func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
-	region := BrowserbaseRegion("us-west-2")
 	tests := []struct {
 		name            string
 		connect         bool
@@ -264,6 +306,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			region := BrowserbaseRegion("us-west-2")
+			extensionID := "caller-ext"
+			keepAlive := true
+			userMetadata := map[string]json.RawMessage{"team": json.RawMessage(`"qa"`)}
 			client := &fakeBrowserbaseFactoryClient{
 				created:   resolvedBrowserSource{cdpURL: "ws://browser.test", browserbaseSessionID: "created"},
 				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
@@ -281,18 +327,34 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			if test.connect {
 				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
 			} else {
-				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{APIKey: "key", Region: &region}, dependencies)
+				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
+					APIKey: "key", ExtensionID: &extensionID, KeepAlive: &keepAlive,
+					Region: &region, UserMetadata: userMetadata,
+				}, dependencies)
 			}
 			if err != nil {
 				t.Fatalf("factory error = %v", err)
 			}
 			defer browser.Close(context.Background())
+			if !test.connect {
+				created := client.createOptions
+				if created.ExtensionID == nil || *created.ExtensionID != extensionID ||
+					created.KeepAlive == nil || *created.KeepAlive != keepAlive ||
+					created.Region == nil || *created.Region != region ||
+					!reflect.DeepEqual(created.UserMetadata, userMetadata) {
+					t.Fatalf("session create options = %#v", created)
+				}
+				region = BrowserbaseRegion("eu-central-1")
+			}
 			claimed, err := claimBrowser(browser)
 			if err != nil {
 				t.Fatalf("claimBrowser() error = %v", err)
 			}
 			if claimed.workerAPIKey == nil || *claimed.workerAPIKey != "key" || claimed.workerBrowser == nil || claimed.workerBrowser.Region == nil {
 				t.Fatalf("worker metadata = %#v %#v", claimed.workerAPIKey, claimed.workerBrowser)
+			}
+			if !test.connect && *claimed.workerBrowser.Region != BrowserbaseRegion("us-west-2") {
+				t.Fatalf("worker region = %q, want copied us-west-2", *claimed.workerBrowser.Region)
 			}
 			if connected.preloadedExtension != test.wantPreloaded || connected.extensionID != test.wantExtensionID {
 				t.Fatalf("extension options = %#v", connected)

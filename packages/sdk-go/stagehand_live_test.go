@@ -49,7 +49,7 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	launched, err := launchChrome(ctx, LocalBrowserSource{
+	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
 		ExecutablePath:   chromePath,
 		Headless:         true,
 		ConnectTimeoutMs: 15_000,

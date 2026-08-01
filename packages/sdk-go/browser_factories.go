@@ -193,11 +193,16 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 		return nil, err
 	}
 	keepAlive := options.KeepAlive != nil && *options.KeepAlive
+	var workerRegion *BrowserbaseRegion
+	if options.Region != nil {
+		region := *options.Region
+		workerRegion = &region
+	}
 	return connectBrowser(ctx, connectBrowserOptions{
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched,
 		source:             browserConnectionSource{cdpURL: source.cdpURL, keepAlive: keepAlive, close: source.close},
 		preloadedExtension: true, workerAPIKey: &options.APIKey,
-		workerBrowser: &BrowserSessionMetadata{SessionID: source.browserbaseSessionID, Region: options.Region},
+		workerBrowser: &BrowserSessionMetadata{SessionID: source.browserbaseSessionID, Region: workerRegion},
 	}, dependencies)
 }
 
