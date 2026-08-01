@@ -320,28 +320,26 @@ class Stagehand:
         )
 
     async def close(self) -> None:
+        async def close_impl() -> None:
+            try:
+                if self._browser_context is not None and self._rpc_client is not None:
+                    try:
+                        await self._rpc_client.send(
+                            "stagehand.close",
+                            EmptyParams(),
+                            StagehandCloseResult,
+                        )
+                    except CDPConnectionClosedError:
+                        pass
+            finally:
+                await asyncio.shield(self._release_resources())
+
         if self._close_task is None:
             self._close_task = asyncio.create_task(
-                self.close(),
+                close_impl(),
                 name="stagehand-close",
             )
-            await asyncio.shield(self._close_task)
-            return
-        if asyncio.current_task() is not self._close_task:
-            await asyncio.shield(self._close_task)
-            return
-        try:
-            if self._browser_context is not None and self._rpc_client is not None:
-                try:
-                    await self._rpc_client.send(
-                        "stagehand.close",
-                        EmptyParams(),
-                        StagehandCloseResult,
-                    )
-                except CDPConnectionClosedError:
-                    pass
-        finally:
-            await asyncio.shield(self._release_resources())
+        await asyncio.shield(self._close_task)
 
     @property
     def _connected_rpc_client(self) -> RPCClient:

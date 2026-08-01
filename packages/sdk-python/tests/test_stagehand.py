@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel, RootModel, StrictInt
 
 from stagehand import (
     LLMGenerateInput,
@@ -57,6 +57,8 @@ from stagehand.rpc_client import RPCClient
 from ._support import RecordingRPCClient
 
 stagehand_module = importlib.import_module("stagehand.stagehand")
+ResultT = TypeVar("ResultT", bound=BaseModel)
+RootResultT = TypeVar("RootResultT")
 
 
 class PageInfo(BaseModel):
@@ -275,6 +277,62 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
 
 
 @pytest.mark.asyncio
+async def test_cancelled_create_releases_claim_and_keeps_browser_open_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    blocker = asyncio.Event()
+
+    class BlockingInitRPCClient(RecordingRPCClient):
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[RootModel[RootResultT]],
+        ) -> RootResultT: ...
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[ResultT],
+        ) -> ResultT: ...
+
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BaseModel],
+        ) -> object:
+            if method == "stagehand.init":
+                started.set()
+                await blocker.wait()
+            return await super().send(method, params, result_model)
+
+    blocking = BlockingInitRPCClient()
+    _install_rpc_client(monkeypatch, blocking)
+    browser, transport = _browser_handle()
+    create_task = asyncio.create_task(Stagehand.create(browser=browser))
+
+    await started.wait()
+    create_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await create_task
+
+    assert blocking.closed is True
+    assert blocking.close_transport_flags == [False]
+    assert browser.closed is False
+    assert transport.close_calls == 0
+
+    successful = _recording()
+    _install_rpc_client(monkeypatch, successful)
+    stagehand = await Stagehand.create(browser=browser)
+    assert stagehand.initialized is True
+
+
+@pytest.mark.asyncio
 async def test_failed_create_for_missing_cdp_url_can_retry_same_handle(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -313,6 +371,33 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
         _ = stagehand.context
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(
+    getattr(asyncio, "eager_task_factory", None) is None,
+    reason="asyncio.eager_task_factory requires Python 3.12+",
+)
+async def test_close_works_with_eager_task_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop = asyncio.get_running_loop()
+    original_task_factory = loop.get_task_factory()
+    loop.set_task_factory(getattr(asyncio, "eager_task_factory"))
+    try:
+        recording = _recording()
+        _install_rpc_client(monkeypatch, recording)
+        browser, _ = _browser_handle()
+        stagehand = await Stagehand.create(browser=browser)
+
+        await stagehand.close()
+        await stagehand.close()
+    finally:
+        loop.set_task_factory(original_task_factory)
+
+    assert [call[0] for call in recording.calls].count("stagehand.close") == 1
+    assert recording.close_transport_flags == [False]
+    assert stagehand.initialized is False
 
 
 @pytest.mark.asyncio
