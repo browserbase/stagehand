@@ -200,7 +200,7 @@ func connectRPCClient(
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := newRPCClient(cdp)
+	rpc, err := newRPCClient(cdp, true)
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
