@@ -280,7 +280,10 @@ class LocalBrowser:
         options = LocalBrowserLaunchOptions.model_validate({
             name: value
             for name, value in (
-                ("args", list(args) if args is not None else None),
+                (
+                    "args",
+                    list(args) if args is not None and not isinstance(args, str) else args,
+                ),
                 (
                     "executable_path",
                     str(executable_path) if executable_path is not None else None,
@@ -297,6 +300,7 @@ class LocalBrowser:
                         list(ignore_default_args)
                         if not isinstance(ignore_default_args, bool)
                         and ignore_default_args is not None
+                        and not isinstance(ignore_default_args, str)
                         else ignore_default_args
                     ),
                 ),
