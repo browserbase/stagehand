@@ -1,35 +1,28 @@
-import { Stagehand } from "../src/index.js";
+import { localBrowser, Stagehand } from "../src/index.js";
 
 const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: false,
-  },
-});
+const browser = await localBrowser.launch({ headless: false });
+const stagehand = await Stagehand.create({ browser });
 
-try {
-  await stagehand.init();
-
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    throw new Error("Stagehand initialized without an active page");
-  }
-  await page.goto(webMCPTestSite);
-
-  const tools = await page.tools({ timeout: 5_000 });
-  const calculateSum = tools.find((tool) => tool.name === "calculateSum");
-  if (!calculateSum) {
-    throw new Error("calculateSum was not registered by the page");
-  }
-
-  const invocation = await calculateSum.invoke({
-    input: { a: 19, b: 23 },
-  });
-  const result = await invocation.result();
-
-  console.log(result);
-} finally {
-  await stagehand.close();
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
 }
+await page.goto(webMCPTestSite);
+
+const tools = await page.tools({ timeout: 5_000 });
+const calculateSum = tools.find((tool) => tool.name === "calculateSum");
+if (!calculateSum) {
+  throw new Error("calculateSum was not registered by the page");
+}
+
+const invocation = await calculateSum.invoke({
+  input: { a: 19, b: 23 },
+});
+const result = await invocation.result();
+
+console.log(result);
+
+await stagehand.close();
+await browser.close();

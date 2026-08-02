@@ -156,7 +156,7 @@ export class CDPClient {
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
-      this.handleMessage(event.data).catch((error: unknown) => {
+      this.handleMessage((event as MessageEvent).data).catch((error: unknown) => {
         const normalized = asError(error);
         this.rejectPending(normalized);
         this.onerror?.(normalized);
@@ -170,37 +170,19 @@ export class CDPClient {
       this.rejectPending(reason);
       this.onclose?.(reason);
     });
+
+    this.socket.addEventListener("error", (event) => {
+      const error = asError((event as Event & { error?: unknown }).error ?? event);
+      this.rejectPending(error);
+      this.onerror?.(error);
+    });
   }
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
     const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
       timeout: options.cdpConnectTimeoutMs,
     });
-    const socket = new WebSocket(webSocketDebuggerUrl);
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error("Timed out opening CDP WebSocket"));
-      }, options.cdpConnectTimeoutMs);
-
-      socket.addEventListener(
-        "open",
-        () => {
-          clearTimeout(timeout);
-          resolve();
-        },
-        { once: true },
-      );
-
-      socket.addEventListener(
-        "error",
-        () => {
-          clearTimeout(timeout);
-          reject(new Error("Failed to open CDP WebSocket"));
-        },
-        { once: true },
-      );
-    });
+    const socket = await openCDPWebSocket(webSocketDebuggerUrl, options.cdpConnectTimeoutMs);
 
     const client = new CDPClient(socket, webSocketDebuggerUrl, options.commandTimeoutMs);
 
@@ -248,7 +230,7 @@ export class CDPClient {
         { name: STAGEHAND_SEND_TO_HOST_BINDING },
         attached.sessionId,
       );
-      await waitForRuntimeReady(client, attached.sessionId, {
+      await waitForRuntimeReceiver(client, attached.sessionId, {
         timeout: options.discoveryTimeoutMs,
         runtimeRequirement: options.runtimeRequirement,
         allowFallbackInstall: options.allowFallbackInstall,
@@ -383,19 +365,65 @@ export class CDPClient {
   }
 }
 
+type CDPWebSocketFactory = (url: string) => WebSocket;
+
+export async function openCDPWebSocket(
+  url: string,
+  timeoutMs: number,
+  createSocket: CDPWebSocketFactory = (socketUrl) => new WebSocket(socketUrl),
+): Promise<WebSocket> {
+  const socket = createSocket(url);
+
+  await new Promise<void>((resolve, reject) => {
+    const onOpen = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = () => {
+      cleanup();
+      reject(new Error("Failed to open CDP WebSocket"));
+    };
+    const timeout = setTimeout(() => {
+      cleanup();
+      socket.close();
+      reject(new Error("Timed out opening CDP WebSocket"));
+    }, timeoutMs);
+    const cleanup = () => {
+      clearTimeout(timeout);
+      socket.removeEventListener("open", onOpen);
+      socket.removeEventListener("error", onError);
+    };
+
+    socket.addEventListener("open", onOpen);
+    socket.addEventListener("error", onError);
+  });
+
+  return socket;
+}
+
 type CDPCommandSender = Pick<CDPClient, "sendCommand">;
 
-export async function waitForRuntimeReady(
+type RuntimeWaitOptions = {
+  timeout: number;
+  pollIntervalMs?: number;
+  delayFn?: (ms: number) => Promise<void>;
+  nowFn?: () => number;
+  runtimeRequirement?: RuntimeRequirement;
+  allowFallbackInstall?: boolean;
+};
+
+export async function waitForRuntimeReceiver(
   cdp: CDPCommandSender,
   sessionId: string,
-  options: {
-    timeout: number;
-    pollIntervalMs?: number;
-    delayFn?: (ms: number) => Promise<void>;
-    nowFn?: () => number;
-    runtimeRequirement?: RuntimeRequirement;
-    allowFallbackInstall?: boolean;
-  },
+  options: RuntimeWaitOptions,
+): Promise<void> {
+  await waitForRuntime(cdp, sessionId, options);
+}
+
+async function waitForRuntime(
+  cdp: CDPCommandSender,
+  sessionId: string,
+  options: RuntimeWaitOptions,
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
@@ -438,7 +466,7 @@ export async function waitForRuntimeReady(
   }
 
   throw new Error(
-    `Timed out waiting for the Stagehand extension runtime to become ready${
+    `Timed out waiting for the Stagehand extension runtime RPC receiver${
       lastError ? ` (${lastError})` : ""
     }`,
     { cause: lastReadiness },

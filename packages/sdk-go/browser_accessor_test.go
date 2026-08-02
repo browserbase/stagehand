@@ -22,8 +22,7 @@ func TestBrowserReturnsDetachedResolvedSourceSnapshot(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure": RuntimeConfigureResult{Configured: true},
-		"stagehand.init":    StagehandInitResult{Initialized: true},
+		"stagehand.init": StagehandInitResult{Initialized: true},
 	}}
 	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
 	client.adapters.resolveBrowserSource = func(

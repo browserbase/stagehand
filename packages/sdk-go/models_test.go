@@ -48,6 +48,7 @@ func TestGeneratedCatalogMatchesReachableProtocolDefinitions(t *testing.T) {
 	}
 	visit(properties["methods"])
 	visit(properties["notifications"])
+	visit(properties["legacy_client_models"])
 
 	catalog := reflect.TypeOf(generatedModelCatalog{})
 	generated := make(map[string]struct{}, catalog.NumField())
@@ -91,44 +92,35 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 			Headers:  TelemetryTracesHeaders{},
 		},
 	}
+	browserCDPURL := "ws://runtime.test"
 	for _, test := range []struct {
 		name  string
 		value any
 		want  string
 	}{
 		{
-			name:  "stagehand init omitted",
-			value: StagehandInitParams{},
-			want:  `{}`,
-		},
-		{
-			name:  "stagehand init explicit default",
-			value: StagehandInitParams{Telemetry: defaultTelemetry},
-			want:  `{"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}}`,
-		},
-		{
-			name: "runtime configure required identity",
-			value: RuntimeConfigureParams{
-				CDPURL:          "ws://runtime.test",
+			name: "stagehand init required identity",
+			value: StagehandInitParams{
+				BrowserCDPURL:   &browserCDPURL,
 				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
 				ProtocolVersion: 1,
 			},
 			want: `{
-				"cdp_url":"ws://runtime.test",
+				"browser_cdp_url":"ws://runtime.test",
 				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
 				"protocol_version":1
 			}`,
 		},
 		{
-			name: "runtime configure explicit default",
-			value: RuntimeConfigureParams{
-				CDPURL:          "ws://runtime.test",
+			name: "stagehand init explicit default",
+			value: StagehandInitParams{
+				BrowserCDPURL:   &browserCDPURL,
 				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
 				ProtocolVersion: 1,
 				Telemetry:       defaultTelemetry,
 			},
 			want: `{
-				"cdp_url":"ws://runtime.test",
+				"browser_cdp_url":"ws://runtime.test",
 				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
 				"protocol_version":1,
 				"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}

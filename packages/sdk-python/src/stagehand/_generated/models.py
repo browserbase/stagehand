@@ -149,6 +149,15 @@ class Browser(StrEnum):
     safari = "safari"
 
 
+class BrowserSessionMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    region: Optional[BrowserbaseRegion] = None
+
+
 class BrowserbaseBrowserSettings(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -167,22 +176,6 @@ class BrowserbaseBrowserSettings(WireModel):
     solve_captchas: Optional[StrictBool] = None
     verified: Optional[StrictBool] = None
     viewport: Optional[BrowserbaseViewport] = None
-
-
-class BrowserbaseBrowserSource(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    browser_settings: Optional[BrowserbaseBrowserSettings] = None
-    extension_id: Optional[StrictStr] = None
-    keep_alive: Optional[StrictBool] = None
-    proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
-    region: Optional[BrowserbaseRegion] = None
-    timeout: Optional[StrictFloat] = None
-    user_metadata: Optional[dict[StrictStr, Any]] = None
-    type: Literal["browserbase"]
-    session_id: Annotated[StrictStr, Field(min_length=1)]
 
 
 class BrowserbaseContext(WireModel):
@@ -243,6 +236,20 @@ class BrowserbaseRegion(StrEnum):
     us_east_1 = "us-east-1"
     eu_central_1 = "eu-central-1"
     ap_southeast_1 = "ap-southeast-1"
+
+
+class BrowserbaseSessionCreateParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    browser_settings: Optional[BrowserbaseBrowserSettings] = None
+    extension_id: Optional[StrictStr] = None
+    keep_alive: Optional[StrictBool] = None
+    proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
+    region: Optional[BrowserbaseRegion] = None
+    timeout: Optional[StrictFloat] = None
+    user_metadata: Optional[dict[StrictStr, Any]] = None
 
 
 class BrowserbaseViewport(WireModel):
@@ -1777,28 +1784,6 @@ class RgbaColor(WireModel):
     a: Optional[StrictFloat] = None
 
 
-class RuntimeConfigureParams(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Annotated[StrictInt, Field(gt=0, le=9007199254740991)]
-    client_info: ImplementationInfo
-    cdp_url: Annotated[StrictStr, Field(min_length=1)]
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
-    log_level: LogLevel = LogLevel.info
-
-
-class RuntimeConfigureResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: Literal[True]
-
-
 class SameSite(StrEnum):
     strict = "Strict"
     lax = "Lax"
@@ -1860,12 +1845,16 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    protocol_version: Literal[1]
+    client_info: ImplementationInfo
+    browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    browser: Optional[BrowserbaseBrowserSource] = None
+    browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }
+    log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
     dom_settle_timeout_ms: Annotated[

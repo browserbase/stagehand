@@ -12,6 +12,8 @@
     "build:esm": "tsx scripts/build-esm.ts",
     "build:cli": "tsx scripts/build-cli.ts",
     "test": "vitest run --root ../.. packages/evals/tests",
+    "test:unit": "pnpm run test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "eval": "tsx cli.ts",
     "evals:old": "tsx cli-legacy.ts",

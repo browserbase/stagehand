@@ -208,8 +208,6 @@ func (s *Stagehand) Init(ctx context.Context) error {
 	rpc, err := s.adapters.connectProtocol(
 		ctx,
 		browser,
-		s.initParams.Telemetry,
-		runtimeLogLevel(logging.level),
 	)
 	if err != nil {
 		return errors.Join(
@@ -236,7 +234,7 @@ func (s *Stagehand) Init(ctx context.Context) error {
 		s.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(generate))
 	}
 
-	initParams := s.workerInitParams(browser)
+	initParams := s.workerInitParams(browser, logging.level, rpc.browserWebSocketDebuggerURL())
 	var initResult StagehandInitResult
 	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
 		return s.initFailure(ctx, err)
@@ -273,11 +271,22 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 	return s.rpc, nil
 }
 
-func (s *Stagehand) workerInitParams(browser resolvedBrowserSource) StagehandInitParams {
+func (s *Stagehand) workerInitParams(
+	browser resolvedBrowserSource,
+	logLevel StagehandClientLogLevel,
+	browserCDPURL string,
+) StagehandInitParams {
 	params := StagehandInitParams{
-		APIKey:             s.initParams.APIKey,
-		Cache:              s.initParams.Cache,
+		APIKey:        s.initParams.APIKey,
+		BrowserCDPURL: &browserCDPURL,
+		Cache:         s.initParams.Cache,
+		ClientInfo: ImplementationInfo{
+			Name:    stagehandSDKClientName,
+			Version: stagehandSDKVersion,
+		},
 		DOMSettleTimeoutMs: s.initParams.DOMSettleTimeoutMs,
+		LogLevel:           StagehandInitParamsLogLevel(logLevel),
+		ProtocolVersion:    stagehandProtocolVersion,
 		SelfHeal:           s.initParams.SelfHeal,
 		SystemPrompt:       s.initParams.SystemPrompt,
 		Telemetry:          s.initParams.Telemetry,
@@ -299,16 +308,9 @@ func (s *Stagehand) workerInitParams(browser resolvedBrowserSource) StagehandIni
 		source = &BrowserbaseClientBrowserSource{}
 	}
 	if source != nil {
-		params.Browser = &BrowserbaseBrowserSource{
-			BrowserSettings: source.BrowserSettings,
-			ExtensionID:     source.ExtensionID,
-			KeepAlive:       source.KeepAlive,
-			Proxies:         source.Proxies,
-			Region:          source.Region,
-			SessionID:       browser.browserbaseSessionID,
-			Timeout:         source.Timeout,
-			Type:            "browserbase",
-			UserMetadata:    source.UserMetadata,
+		params.Browser = &BrowserSessionMetadata{
+			Region:    source.Region,
+			SessionID: browser.browserbaseSessionID,
 		}
 	}
 	return params
@@ -495,20 +497,9 @@ func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolCl
 			return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
 		},
 		connectProtocol: func(
-			ctx context.Context,
-			browser resolvedBrowserSource,
-			telemetry TelemetryConfig,
-			logLevel RuntimeConfigureParamsLogLevel,
+			_ context.Context,
+			_ resolvedBrowserSource,
 		) (protocolClient, error) {
-			if err := configureProtocol(
-				ctx,
-				rpc,
-				browser,
-				telemetry,
-				logLevel,
-			); err != nil {
-				return nil, err
-			}
 			return rpc, nil
 		},
 	}

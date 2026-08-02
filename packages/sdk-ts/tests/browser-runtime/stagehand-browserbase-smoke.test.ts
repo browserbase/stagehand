@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { Stagehand } from "../../src/index.js";
+import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.js";
 
 const browserbaseApiKey = process.env.BROWSERBASE_API_KEY;
 const shouldRun = process.env.BROWSERBASE_SMOKE === "1" || Boolean(browserbaseApiKey);
@@ -7,26 +7,28 @@ const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites
 
 describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
   let stagehand: Stagehand | undefined;
+  let browser: StagehandBrowser | undefined;
 
   beforeAll(async () => {
     if (!browserbaseApiKey) {
       throw new Error("BROWSERBASE_API_KEY is required for the Browserbase smoke test");
     }
 
-    stagehand = new Stagehand({
+    browser = await browserbase.launch({
       apiKey: browserbaseApiKey,
-      browser: {
-        type: "browserbase",
-        userMetadata: {
-          suite: "stagehand-browserbase-smoke",
-        },
+      userMetadata: {
+        suite: "stagehand-browserbase-smoke",
       },
     });
-    await stagehand.init();
+    stagehand = await Stagehand.create({ browser });
   }, 90_000);
 
   afterAll(async () => {
-    await stagehand?.close();
+    try {
+      await stagehand?.close();
+    } finally {
+      await browser?.close();
+    }
   }, 30_000);
 
   it("drives a Browserbase browser through the public TS object model", async () => {

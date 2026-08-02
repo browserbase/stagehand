@@ -4,6 +4,7 @@ import { StagehandMethods } from "../../schema-registry.js";
 import {
   LLMGenerateParamsSchema,
   LLMGenerateResultSchema,
+  STAGEHAND_PROTOCOL_VERSION,
   StagehandInitParamsSchema,
 } from "../../schemas.js";
 
@@ -39,6 +40,8 @@ describe("client-side LLM protocol", () => {
   it("selects a serializable client model during Stagehand initialization", () => {
     expect(
       StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         model: {
           source: "client",
         },

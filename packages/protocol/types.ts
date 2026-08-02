@@ -17,7 +17,7 @@ import type {
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
   BrowserbaseBrowserSettingsSchema,
-  BrowserbaseBrowserSourceSchema,
+  BrowserSessionMetadataSchema,
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
@@ -172,8 +172,6 @@ import type {
   PageWebMCPToolsParamsSchema,
   PageWebMCPToolsResultSchema,
   ProxyConfigSchema,
-  RuntimeConfigureParamsSchema,
-  RuntimeConfigureResultSchema,
   RuntimeDescriptorSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
@@ -291,7 +289,6 @@ export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 export type ImplementationInfo = z.infer<typeof ImplementationInfoSchema>;
 export type RuntimeDescriptor = z.infer<typeof RuntimeDescriptorSchema>;
-export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
 export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema>;
@@ -352,7 +349,6 @@ export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
 export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
-export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
 export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;
@@ -392,7 +388,7 @@ export type StagehandMethod = z.infer<typeof StagehandMethodSchema>;
 export type StagehandSendToHostBinding = z.infer<typeof StagehandSendToHostBindingSchema>;
 
 export type ApiKeyAuth = z.infer<typeof ApiKeyAuthSchema>;
-export type BrowserbaseBrowserSource = z.infer<typeof BrowserbaseBrowserSourceSchema>;
+export type BrowserSessionMetadata = z.infer<typeof BrowserSessionMetadataSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 export type Caching = z.infer<typeof CachingSchema>;

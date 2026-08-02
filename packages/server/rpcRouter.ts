@@ -10,12 +10,15 @@ import { W3CTraceContextPropagator } from "@opentelemetry/core";
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { wireSchema } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods } from "../protocol/schema-registry.js";
-import type { StagehandRpcRequest } from "../protocol/types.js";
+import type {
+  StagehandInitParams,
+  StagehandInitResult,
+  StagehandRpcRequest,
+} from "../protocol/types.js";
 import { z } from "zod/v4";
 import { createContextController } from "./controllers/contextController.js";
 import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
-import { createRuntimeController } from "./controllers/runtimeController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
 import type { StagehandLogger } from "./logger.js";
 import type { StagehandRuntime } from "./runtime.js";
@@ -26,16 +29,25 @@ export type HandlerContext = {
   logger: StagehandLogger;
 };
 
+export type RPCRouterOptions = {
+  initializeStagehand?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  closeStagehand?: () => Promise<void>;
+};
+
 export class RPCRouter {
-  readonly runtimeController;
   readonly stagehandController;
   readonly contextController;
   readonly pageController;
   readonly locatorController;
 
-  constructor(readonly runtime: StagehandRuntime) {
-    this.runtimeController = createRuntimeController(runtime);
-    this.stagehandController = createStagehandController(runtime);
+  constructor(
+    readonly runtime: StagehandRuntime,
+    options: RPCRouterOptions = {},
+  ) {
+    this.stagehandController = createStagehandController(runtime, {
+      ...(options.initializeStagehand ? { initialize: options.initializeStagehand } : {}),
+      ...(options.closeStagehand ? { close: options.closeStagehand } : {}),
+    });
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
@@ -81,11 +93,6 @@ export class RPCRouter {
 
   async route(request: StagehandRpcRequest, context: HandlerContext): Promise<unknown> {
     switch (request.method) {
-      case "runtime.configure":
-        return this.runtimeController.configure(
-          parseParams(StagehandMethods.runtimeConfigure, request.params),
-          context,
-        );
       case "stagehand.init":
         return this.stagehandController.init(
           parseParams(StagehandMethods.stagehandInit, request.params),
