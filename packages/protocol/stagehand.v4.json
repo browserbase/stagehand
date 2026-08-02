@@ -1098,16 +1098,6 @@
       "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
     },
     "ModelConfig": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/KnownModelConfig"
-        },
-        {
-          "$ref": "#/$defs/CustomModelConfig"
-        }
-      ]
-    },
-    "KnownModelConfig": {
       "type": "object",
       "properties": {
         "api_key": {
@@ -1173,41 +1163,6 @@
         }
       ],
       "description": "An explicitly supported model name with its provider prefix"
-    },
-    "CustomModelConfig": {
-      "type": "object",
-      "properties": {
-        "api_key": {
-          "description": "API key for the model provider",
-          "example": "sk-some-openai-api-key",
-          "type": "string",
-          "minLength": 1
-        },
-        "headers": {
-          "description": "Custom headers sent with every request to the model provider",
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "model_name": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Model name accepted by the custom OpenAI-compatible endpoint",
-          "example": "private/model-v2"
-        },
-        "base_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "Base URL for the custom OpenAI-compatible endpoint",
-          "example": "https://models.example.com/v1"
-        }
-      },
-      "required": ["model_name", "base_url"],
-      "additionalProperties": false
     },
     "ClientModelReference": {
       "type": "object",
