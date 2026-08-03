@@ -50,14 +50,16 @@ export default defineBenchV4Task(
         };
       }
 
-      // V4 GAP: extract has no { page } option (v3:
-      // v3.extract({ page: activePage })) — the target page is already the
-      // active page here, so extract operates on it. v3 also used schemaless
-      // extract; v4 requires a schema. Single-word key to
-      // stay clear of the snake_case wire-casing bug (#14).
+      // Target the page the URL assertion just verified. Without { page },
+      // extract resolves its own target through activePage() again, so a
+      // focus change between the check and the extract would silently move
+      // the assertion to another tab. v3 also used schemaless extract; v4
+      // requires a schema. Single-word key to stay clear of the snake_case
+      // wire-casing bug (#14).
       const { data: page2text } = await stagehand.extract(
         "extract the entire page text",
         z.object({ extraction: z.string() }),
+        { page: activePage },
       );
       const expectedPage2text = "You've made it to page 2";
 

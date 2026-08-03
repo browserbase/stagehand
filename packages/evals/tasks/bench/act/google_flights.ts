@@ -24,7 +24,8 @@ export default defineBenchV4Task(
         method: "click",
         arguments: [],
       };
-      await replayObservedAction(page, observeResult);
+      await stagehand.act(observeResult);
+
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
       const currentUrl = await page.url();
