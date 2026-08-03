@@ -42,13 +42,6 @@ export class CustomOpenAIClient extends LLMClient {
   }: CreateChatCompletionOptions): Promise<T> {
     const { image, requestId, ...optionsWithoutImageAndRequestId } = options;
 
-    // TODO: Implement vision support
-    if (image) {
-      console.warn(
-        "Image provided. Vision is not currently supported for openai",
-      );
-    }
-
     logger({
       category: "openai",
       message: "creating chat completion",
@@ -67,6 +60,28 @@ export class CustomOpenAIClient extends LLMClient {
         },
       },
     });
+
+    const messages = [...options.messages];
+
+    if (image) {
+      const imageParts: (
+        | ChatCompletionContentPartImage
+        | ChatCompletionContentPartText
+      )[] = [
+        {
+          type: "image_url",
+          image_url: {
+            url: `data:image/jpeg;base64,${image.buffer.toString("base64")}`,
+          },
+        },
+      ];
+
+      if (image.description) {
+        imageParts.push({ type: "text", text: image.description });
+      }
+
+      messages.push({ role: "user", content: imageParts });
+    }
 
     let responseFormat:
       | ChatCompletionCreateParamsNonStreaming["response_format"]
@@ -96,8 +111,8 @@ export class CustomOpenAIClient extends LLMClient {
       },
     });
 
-    const formattedMessages: ChatCompletionMessageParam[] =
-      options.messages.map((message) => {
+    const formattedMessages: ChatCompletionMessageParam[] = messages.map(
+      (message) => {
         if (Array.isArray(message.content)) {
           const contentParts = message.content.map((content) => {
             if ("image_url" in content) {
@@ -151,7 +166,8 @@ export class CustomOpenAIClient extends LLMClient {
           ...message,
           content: message.content,
         } as ChatCompletionMessageParam;
-      });
+      },
+    );
 
     if (options.response_model) {
       const schemaJson = JSON.stringify(
