@@ -56,6 +56,7 @@ export function defineBenchV4Task(
   return {
     __taskDefinition: true,
     meta,
+    sdk: "v4",
     // Fail fast with a clear message if a v3-context runner invokes a v4
     // task — the v4 init/dispatch path lands with the harness change.
     fn: (ctx) => {

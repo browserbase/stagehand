@@ -1,12 +1,14 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { EvalsError } from "../errors.js";
-import type { TaskResult } from "./types.js";
+import type { EvalSdk, TaskResult } from "./types.js";
 
 export interface LoadedTaskDefinition {
   __taskDefinition: true;
   meta: unknown;
   fn: (ctx: unknown) => Promise<unknown>;
+  /** SDK the task was defined for (set by defineBenchV4Task; absent = v3). */
+  sdk?: EvalSdk;
 }
 
 export type LegacyTaskFn = (ctx: unknown) => Promise<TaskResult>;

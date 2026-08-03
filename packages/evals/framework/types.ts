@@ -27,6 +27,9 @@ type V3Page = ReturnType<V3["context"]["pages"]>[number];
 
 export type Tier = "core" | "bench";
 
+/** Which Stagehand SDK a bench task needs. Declared by its define* wrapper. */
+export type EvalSdk = "v3" | "v4";
+
 export interface TaskMeta {
   /** Human-readable task name (e.g., "snapshot", "dropdown"). Inferred from filename if omitted. */
   name?: string;
@@ -135,6 +138,8 @@ export interface TaskDefinition {
   fn: (ctx: CoreTaskContext | BenchTaskContext | BenchV4TaskContext) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
+  /** SDK the task's context requires; set to "v4" by defineBenchV4Task. */
+  sdk?: EvalSdk;
 }
 
 export interface DiscoveredTask {

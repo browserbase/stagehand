@@ -347,13 +347,17 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   if (options.modelOverride) process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
-  const braintrustProjectName = hasCoreOnly
-    ? process.env.CI === "true"
-      ? "stagehand-core"
-      : "stagehand-core-dev"
-    : process.env.CI === "true"
-      ? "stagehand"
-      : "stagehand-dev";
+  // EVAL_BRAINTRUST_PROJECT routes a run to a specific project (e.g.
+  // stagehand-v4-deterministic); unset keeps the default core/bench routing.
+  const braintrustProjectName =
+    process.env.EVAL_BRAINTRUST_PROJECT ??
+    (hasCoreOnly
+      ? process.env.CI === "true"
+        ? "stagehand-core"
+        : "stagehand-core-dev"
+      : process.env.CI === "true"
+        ? "stagehand"
+        : "stagehand-dev");
 
   const scores = hasCoreOnly ? [passRate, errorMatch] : [exactMatch, errorMatch];
 

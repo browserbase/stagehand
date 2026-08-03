@@ -54,23 +54,33 @@ export async function executeBenchTask(
       });
     }
 
+    // Load the task module before starting the harness: which SDK to
+    // initialize is declared on the definition, and the client has to exist
+    // before the task function runs.
+    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
+    // The definition is authoritative: defineBenchV4Task stamps sdk: "v4".
+    const sdk = taskModule.definition?.sdk ?? "v3";
+
     const startedHarness = await harness.start({
       task,
       input,
       row,
       logger,
       verbose: options.verbose,
+      sdk,
     });
     cleanup = onceAsync(startedHarness.cleanup);
     unregisterCleanup = registerActiveRunCleanup(cleanup);
 
     harnessCtx = startedHarness.ctx;
-    const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
         v3: harnessCtx.v3,
         agent: harnessCtx.agent,
-        page: harnessCtx.page,
+        // v4 tasks receive the v4 client and its RPC-backed page in place of
+        // the V3 instance and the Playwright page.
+        stagehand: harnessCtx.stagehand,
+        page: harnessCtx.page ?? harnessCtx.v4Page,
         logger,
         input,
         modelName: input.modelName,
@@ -114,7 +124,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error: error instanceof Error ? JSON.parse(JSON.stringify(error, null, 2)) : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

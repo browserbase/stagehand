@@ -15,6 +15,7 @@ import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
+import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -24,7 +25,7 @@ import {
 import { runCodexAgent } from "./codexRunner.js";
 import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import type { DiscoveredTask, TaskResult } from "./types.js";
+import type { DiscoveredTask, EvalSdk, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
 
 type Page = ReturnType<V3["context"]["pages"]>[number];
@@ -35,6 +36,8 @@ export interface BenchHarnessStartInput {
   row: BenchMatrixRow;
   logger: EvalLogger;
   verbose?: boolean;
+  /** SDK to initialize, read off the task definition by the bench runner. */
+  sdk?: EvalSdk;
 }
 
 export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
@@ -48,6 +51,10 @@ export interface BenchHarnessContext {
   v3?: V3;
   agent?: AgentInstance;
   page?: Page;
+  /** Stagehand v4 client (set only when the task runs with sdk: "v4"). */
+  stagehand?: StagehandInitResult["stagehand"];
+  /** v4 page object (set only when the task runs with sdk: "v4"). */
+  v4Page?: StagehandInitResult["page"];
   debugUrl: string;
   sessionUrl: string;
 }
@@ -132,6 +139,7 @@ export const stagehandHarness: BenchHarness = {
     row,
     logger,
     verbose,
+    sdk,
   }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
     let v3Result: V3InitResult | undefined;
     const createAgent = isAgentTask(task);
@@ -143,6 +151,42 @@ export const stagehandHarness: BenchHarness = {
     const config = row.config;
     const agentMode = config.agentMode ?? input.agentMode;
     const isCUA = config.isCUA ?? input.isCUA;
+    const effectiveSdk: EvalSdk = sdk ?? "v3";
+
+    if (effectiveSdk === "v4") {
+      // The v4 SDK has no agent surface, and agent tasks are deliberately not
+      // ported. Fail loudly rather than silently fall back to v3 behavior.
+      if (createAgent || agentMode || isCUA) {
+        throw new EvalsError("The v4 SDK does not support agent tasks or agent modes.");
+      }
+      if (config.useApi) {
+        throw new EvalsError("--api is not supported with the v4 SDK.");
+      }
+      const { initStagehand } = await import("../initStagehand.js");
+      const v4Result = await initStagehand({
+        logger,
+        modelName: input.modelName,
+        environment: config.environment,
+      });
+      return {
+        ctx: {
+          harness: "stagehand",
+          row,
+          logger,
+          stagehand: v4Result.stagehand,
+          v4Page: v4Result.page,
+          debugUrl: "",
+          sessionUrl: v4Result.sessionUrl ?? "",
+        },
+        cleanup: async () => {
+          try {
+            await v4Result.stagehand.close();
+          } catch (closeError) {
+            console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
+          }
+        },
+      };
+    }
 
     if (config.useApi) {
       const provider = resolveProvider(input.modelName);
