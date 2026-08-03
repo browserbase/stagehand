@@ -1061,8 +1061,8 @@ type NavigationSecurityDetails struct {
 }
 
 type NavigationServerAddr struct {
-	// IpAddress corresponds to the JSON schema field "ip_address".
-	IpAddress string `json:"ip_address"`
+	// IPAddress corresponds to the JSON schema field "ip_address".
+	IPAddress string `json:"ip_address"`
 
 	// Port corresponds to the JSON schema field "port".
 	Port int `json:"port"`
