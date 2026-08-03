@@ -1,0 +1,35 @@
+packages/evals/framework/types.ts
+  s_9b9154ae9e8c8c::t_a2c4fc208104fb 30-32,141-142
+packages/evals/framework/taskLoader.ts
+  s_9b9154ae9e8c8c::t_a2c4fc208104fb 4,10-11
+packages/evals/framework/runner.ts
+  s_9b9154ae9e8c8c::t_6d0b499fb2479d 350-351
+  s_9b9154ae9e8c8c::t_b36c692f1b3c9b 352-360
+packages/evals/initStagehand.ts
+  s_9b9154ae9e8c8c::t_0ef7ff26c9b1a8 1-146
+packages/evals/framework/benchHarness.ts
+  s_9b9154ae9e8c8c::t_bf3177a66f5175 18,55,57,165-166,169,178
+  s_9b9154ae9e8c8c::t_e446d4a591edf1 39
+  s_9b9154ae9e8c8c::t_a2c4fc208104fb 28,40,54,56,142,154-164,167-168,170-177,179-189
+packages/evals/framework/benchRunner.ts
+  s_9b9154ae9e8c8c::t_e446d4a591edf1 61-62
+  s_9b9154ae9e8c8c::t_a2c4fc208104fb 57-60,63,70,80-83,127
+packages/evals/framework/defineTask.ts
+  s_9b9154ae9e8c8c::t_a2c4fc208104fb 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3aabfce69f62735b61ebab1908883637bbcbaa16",
+  "prompts": {},
+  "sessions": {
+    "s_9b9154ae9e8c8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c311c9ba-b73b-46c8-a606-0ed1839d8de7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
