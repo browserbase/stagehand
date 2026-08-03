@@ -133,9 +133,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 	if browser.browserbaseSessionID != "session_123" {
 		t.Fatalf("browserbaseSessionID = %q", browser.browserbaseSessionID)
 	}
-	if !browser.keepAlive {
-		t.Fatal("keepAlive = false, want true")
-	}
 	if err := browser.close(context.Background()); err != nil {
 		t.Fatalf("close() error = %v", err)
 	}
@@ -197,6 +194,143 @@ func TestBrowserbaseHTTPClientRetriesReplayableRequests(t *testing.T) {
 	}
 	if !reflect.DeepEqual(sleeps, []time.Duration{0}) {
 		t.Fatalf("sleeps = %#v, want [0]", sleeps)
+	}
+}
+
+func TestBrowserbaseHTTPClientRetrievesSessions(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		statusCode int
+		wantURL    string
+		wantRegion *BrowserbaseRegion
+		wantAPIErr bool
+		wantError  string
+	}{
+		{
+			name: "connection and region",
+			body: `{
+				"id":"session_123",
+				"connectUrl":"wss://connect.browserbase.com/devtools/browser/session_123",
+				"region":"us-west-2"
+			}`,
+			wantURL:    "wss://connect.browserbase.com/devtools/browser/session_123",
+			wantRegion: testPointer(BrowserbaseRegionUSWest2),
+		},
+		{
+			name: "optional fields omitted",
+			body: `{"id":"session_123"}`,
+		},
+		{
+			name:       "API error",
+			body:       `{"message":"session unavailable"}`,
+			statusCode: http.StatusNotFound,
+			wantAPIErr: true,
+		},
+		{
+			name:      "invalid region",
+			body:      `{"id":"session_123","region":"moon-1"}`,
+			wantError: "invalid region",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(
+				writer http.ResponseWriter,
+				request *http.Request,
+			) {
+				if request.Method != http.MethodGet || request.URL.Path != "/v1/sessions/session_123" {
+					t.Errorf("request = %s %s", request.Method, request.URL.Path)
+				}
+				if test.wantAPIErr {
+					writer.Header().Set("x-should-retry", "false")
+				}
+				if test.statusCode != 0 {
+					writer.WriteHeader(test.statusCode)
+				}
+				_, _ = writer.Write([]byte(test.body))
+			}))
+			defer server.Close()
+
+			client, err := newBrowserbaseHTTPClient("bb_test", browserbaseHTTPClientOptions{
+				baseURL:    server.URL,
+				httpClient: server.Client(),
+			})
+			if err != nil {
+				t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
+			}
+			response, err := client.retrieveSession(context.Background(), "session_123")
+			if test.wantAPIErr {
+				var apiErr *BrowserbaseAPIError
+				if !errors.As(err, &apiErr) || apiErr.StatusCode != test.statusCode {
+					t.Fatalf("retrieveSession() error = %v, want BrowserbaseAPIError", err)
+				}
+				return
+			}
+			if test.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("retrieveSession() error = %v, want containing %q", err, test.wantError)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("retrieveSession() error = %v", err)
+			}
+			if response.ID == nil || *response.ID != "session_123" {
+				t.Fatalf("response ID = %#v", response.ID)
+			}
+			gotURL := ""
+			if response.ConnectURL != nil {
+				gotURL = *response.ConnectURL
+			}
+			if gotURL != test.wantURL || !reflect.DeepEqual(response.Region, test.wantRegion) {
+				t.Fatalf("response = %#v", response)
+			}
+		})
+	}
+}
+
+func TestBrowserbaseRetrieveSessionResponseValidatesOptionalConnectURL(t *testing.T) {
+	tests := []struct {
+		name       string
+		connectURL *string
+		wantError  string
+	}{
+		{
+			name: "absent",
+		},
+		{
+			name:       "secure websocket",
+			connectURL: testPointer("wss://connect.browserbase.com/session_123"),
+		},
+		{
+			name:       "HTTP scheme",
+			connectURL: testPointer("http://connect.browserbase.com/session_123"),
+			wantError:  "connectUrl must use one of these schemes: ws, wss",
+		},
+		{
+			name:       "relative",
+			connectURL: testPointer("connect/session_123"),
+			wantError:  "connectUrl must be an absolute URL",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			response := browserbaseRetrieveSessionResponse{
+				ID:         testPointer("session_123"),
+				ConnectURL: test.connectURL,
+			}
+			err := response.validate()
+			if test.wantError == "" {
+				if err != nil {
+					t.Fatalf("validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("validate() error = %v, want containing %q", err, test.wantError)
+			}
+		})
 	}
 }
 
@@ -456,7 +590,7 @@ func TestNewBrowserbaseHTTPClientValidatesConfiguration(t *testing.T) {
 	}
 }
 
-func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
+func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 	keepAlive := true
 	advancedStealth := true
 	blockAds := false
@@ -473,9 +607,7 @@ func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
 	username := "proxy-user"
 	password := "proxy-password"
 	domainPattern := "*.example.com"
-	oldExtensionID := "ext_caller"
-	settingsExtensionID := "ext_settings"
-	return BrowserbaseClientBrowserSource{
+	return BrowserbaseLaunchOptions{
 		BrowserSettings: &BrowserbaseBrowserSettings{
 			AdvancedStealth: &advancedStealth,
 			BlockAds:        &blockAds,
@@ -483,7 +615,6 @@ func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
 				ID:      "context_123",
 				Persist: &persist,
 			},
-			ExtensionID:   &settingsExtensionID,
 			LogSession:    &logSession,
 			OS:            testPointer(BrowserbaseBrowserSettingsOSMac),
 			RecordSession: &recordSession,
@@ -501,8 +632,7 @@ func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
 				Screen: &BrowserbaseFingerprintScreen{MinWidth: &minWidth},
 			},
 		},
-		ExtensionID: &oldExtensionID,
-		KeepAlive:   &keepAlive,
+		KeepAlive: &keepAlive,
 		Proxies: testPointer(BrowserbaseProxyList(
 			BrowserbaseProxy(BrowserbaseProxyConfig{
 				DomainPattern: &domainPattern,
@@ -537,7 +667,6 @@ func browserbaseExpectedSessionRequest() map[string]any {
 				"id":      "context_123",
 				"persist": true,
 			},
-			"extensionId":   "ext_settings",
 			"logSession":    false,
 			"os":            "mac",
 			"recordSession": true,

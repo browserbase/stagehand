@@ -17,6 +17,7 @@ import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import type { EncodedId } from "../types/private/internal.js";
@@ -40,6 +41,7 @@ type ActContext = {
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
   ensureTimeRemaining: () => void;
+  gateway?: GatewayContext;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
@@ -53,6 +55,7 @@ export async function act({
   selfHeal = false,
   domSettleTimeoutMs,
   cache,
+  gateway,
 }: {
   params: StagehandActParams;
   page: Page;
@@ -63,6 +66,7 @@ export async function act({
   selfHeal?: boolean;
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
@@ -81,6 +85,7 @@ export async function act({
     selfHeal,
     domSettleTimeoutMs,
     ensureTimeRemaining,
+    gateway,
     recordUsage,
   };
 
@@ -271,7 +276,8 @@ async function getActionFromLLM({
   const response = await inference.act({
     instruction,
     domElements,
-    generate: (input) => llmService.generate(context.model, input, context.clientLLMGenerate),
+    generate: (input) =>
+      llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
     userProvidedInstructions: context.systemPrompt,
   });
   context.recordUsage(response);

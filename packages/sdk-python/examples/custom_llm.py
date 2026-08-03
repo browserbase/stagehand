@@ -19,6 +19,7 @@ from stagehand import (
     LLMTextContent,
     LLMUsage,
     Stagehand,
+    local_browser,
 )
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
@@ -35,51 +36,48 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",
-        headless=True,
-        model=generate_with_openai,
-    )
-
+    browser = await local_browser.launch(headless=True)
     try:
-        await stagehand.init()
+        stagehand = await Stagehand.create(browser=browser, model=generate_with_openai)
+        try:
+            page = await stagehand.context.active_page()
+            if page is None:
+                raise RuntimeError("Stagehand initialized without an active page")
+            await page.goto("https://example.com")
 
-        page = await stagehand.context.active_page()
-        if page is None:
-            raise RuntimeError("Stagehand initialized without an active page")
-        await page.goto("https://example.com")
-
-        page_info = await stagehand.extract(
-            instruction="Extract the page heading and description",
-            schema=PageInfo,
-        )
-        actions = await stagehand.observe(
-            instruction="Find the link that provides more information about Example Domain",
-        )
-        action_result = await stagehand.act(
-            "Click the link that provides more information about Example Domain"
-        )
-
-        print(
-            json.dumps(
-                {
-                    "page_info": page_info.model_dump(mode="json"),
-                    "actions": [
-                        action.model_dump(mode="json", by_alias=True) for action in actions.data
-                    ],
-                    "action_result": action_result.model_dump(mode="json", by_alias=True),
-                    "generation_names": generation_names,
-                },
-                indent=2,
+            page_info = await stagehand.extract(
+                instruction="Extract the page heading and description",
+                schema=PageInfo,
             )
-        )
+            actions = await stagehand.observe(
+                instruction="Find the link that provides more information about Example Domain",
+            )
+            action_result = await stagehand.act(
+                "Click the link that provides more information about Example Domain"
+            )
 
-        if not actions.data:
-            raise RuntimeError("observe() returned no matching actions")
-        if not action_result.data.success:
-            raise RuntimeError(f"act() failed: {action_result.data.message}")
+            print(
+                json.dumps(
+                    {
+                        "page_info": page_info.model_dump(mode="json"),
+                        "actions": [
+                            action.model_dump(mode="json", by_alias=True) for action in actions.data
+                        ],
+                        "action_result": action_result.model_dump(mode="json", by_alias=True),
+                        "generation_names": generation_names,
+                    },
+                    indent=2,
+                )
+            )
+
+            if not actions.data:
+                raise RuntimeError("observe() returned no matching actions")
+            if not action_result.data.success:
+                raise RuntimeError(f"act() failed: {action_result.data.message}")
+        finally:
+            await stagehand.close()
     finally:
-        await stagehand.close()
+        await browser.close()
 
 
 async def generate_with_openai(params: LLMGenerateInput) -> LLMGenerateOutput:

@@ -12,17 +12,17 @@ import (
 )
 
 type pageInfo struct {
-	Heading     string `json:"heading"`
-	Description string `json:"description"`
+	Heading string `json:"heading"`
+	Domain  string `json:"domain"`
 }
 
 var pageInfoSchema = json.RawMessage(`{
   "type": "object",
   "properties": {
     "heading": {"type": "string"},
-    "description": {"type": "string"}
+    "domain": {"type": "string"}
   },
-  "required": ["heading", "description"],
+  "required": ["heading", "domain"],
   "additionalProperties": false
 }`)
 
@@ -33,11 +33,14 @@ func main() {
 }
 
 func run(ctx context.Context) (err error) {
-	model, err := modelFromEnvironment()
-	if err != nil {
-		return err
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	if apiKey == "" {
+		return errors.New("BROWSERBASE_API_KEY is required")
 	}
-	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	model := stagehand.ModelConfig{ModelName: "openai/gpt-4.1"}
+	// No model API key: inference routes through the Browserbase Model Gateway,
+	// authenticated by the Browserbase API key and session.
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
 	if err != nil {
 		return err
 	}
@@ -66,7 +69,7 @@ func run(ctx context.Context) (err error) {
 
 	result, err := client.Extract(
 		ctx,
-		"Extract the page heading and description",
+		"Extract the page heading and the domain this page says it is for",
 		pageInfoSchema,
 		nil,
 	)
@@ -83,15 +86,4 @@ func run(ctx context.Context) (err error) {
 	}
 	fmt.Println(string(output))
 	return nil
-}
-
-func modelFromEnvironment() (stagehand.ModelConfig, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return stagehand.ModelConfig{}, errors.New("OPENAI_API_KEY is required")
-	}
-	return stagehand.ModelConfig{
-		ModelName: "openai/gpt-5.4-mini",
-		APIKey:    &apiKey,
-	}, nil
 }

@@ -4,25 +4,26 @@ import os
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand, browserbase
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
-if not OPENAI_API_KEY:
+BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
+if not BROWSERBASE_API_KEY:
     raise RuntimeError
 
 
 class PageInfo(BaseModel):
     heading: str
-    description: str
+    domain: str
 
 
 async def main() -> None:
-    browser = await local_browser.launch(headless=True)
+    # No model_api_key: inference routes through the Browserbase Model Gateway,
+    # authenticated by the Browserbase API key and session.
+    browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
     try:
         stagehand = await Stagehand.create(
             browser=browser,
-            model="openai/gpt-5.4-mini",
-            model_api_key=OPENAI_API_KEY,
+            model="openai/gpt-4.1",
         )
         try:
             page = await stagehand.context.active_page()
@@ -31,7 +32,7 @@ async def main() -> None:
             await page.goto("https://example.com")
 
             page_info = await stagehand.extract(
-                instruction="Extract the page heading and description",
+                instruction="Extract the page heading and the domain this page says it is for",
                 schema=PageInfo,
             )
 

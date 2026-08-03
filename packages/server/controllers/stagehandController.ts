@@ -11,6 +11,7 @@ import type { StagehandRuntime } from "../runtime.js";
 import * as actService from "../services/actService.js";
 import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
+import { buildGatewayContext } from "../llm/gatewayClient.js";
 import * as observeService from "../services/observeService.js";
 
 export type StagehandControllerOptions = {
@@ -59,6 +60,7 @@ export function createStagehandController(
       selfHeal: state.initParams.selfHeal,
       domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
       cache: cacheService.buildCacheContext(state.initParams),
+      gateway: buildGatewayContext(state.initParams),
     });
     runtime.metrics.record("act", result.metadata.usage);
     return result;
@@ -84,6 +86,7 @@ export function createStagehandController(
       logger,
       systemPrompt: state.initParams.systemPrompt,
       cache: cacheService.buildCacheContext(state.initParams),
+      gateway: buildGatewayContext(state.initParams),
     });
     runtime.metrics.record("observe", result.metadata.usage);
     return result;
@@ -109,6 +112,7 @@ export function createStagehandController(
       logger,
       systemPrompt: state.initParams.systemPrompt,
       cache: cacheService.buildCacheContext(state.initParams),
+      gateway: buildGatewayContext(state.initParams),
     });
     runtime.metrics.record("extract", result.metadata.usage);
     return result;

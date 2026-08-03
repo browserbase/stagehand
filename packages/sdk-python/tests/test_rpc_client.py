@@ -1,12 +1,11 @@
 import asyncio
-from typing import ClassVar, cast
+from typing import cast
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from stagehand import cdp_client
 from stagehand._generated import models
-from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
+from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
 
@@ -435,50 +434,43 @@ async def test_invalid_response_closes_client_and_rejects_pending_request() -> N
     await asyncio.wait_for(transport.closed.wait(), timeout=1)
 
 
-class FakeCDPClient(QueueTransport):
-    connect_arguments: ClassVar[dict[str, object]] = {}
-    instances: ClassVar[list["FakeCDPClient"]] = []
-    web_socket_debugger_url = "ws://resolved.example/devtools/browser/1"
-
-    @classmethod
-    async def connect(cls, **kwargs: object) -> "FakeCDPClient":
-        cls.connect_arguments = kwargs
-        client = cls()
-        cls.instances.append(client)
-        return client
-
-    async def send(self, message: JSON) -> None:
-        await super().send(message)
-
-
 @pytest.mark.asyncio
-async def test_connect_rpc_client_passes_cdp_options_without_sending_an_rpc(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(cdp_client, "CDPClient", FakeCDPClient)
-    client = await connect_rpc_client(
-        cdp_url="http://localhost:9222",
-        extension_id="stagehand-extension",
-        service_worker_url_includes="service-worker.js",
-        discovery_timeout_ms=1_001,
-        command_timeout_ms=1_002,
-        cdp_connect_timeout_ms=1_003,
-    )
+async def test_close_can_detach_without_closing_transport() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(client.send("test.request", models.EmptyParams(), RPCResult))
+    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
 
-    try:
-        assert FakeCDPClient.connect_arguments == {
-            "cdp_url": "http://localhost:9222",
-            "extension_dir": None,
-            "extension_id": "stagehand-extension",
-            "service_worker_url_includes": "service-worker.js",
-            "discovery_timeout_ms": 1_001,
-            "command_timeout_ms": 1_002,
-            "cdp_connect_timeout_ms": 1_003,
-        }
-        transport = FakeCDPClient.instances[-1]
-        assert transport.sent == []
-        assert client.browser_web_socket_debugger_url == (
-            "ws://resolved.example/devtools/browser/1"
-        )
-    finally:
-        await client.close()
+    async def handle(_params: models.EmptyParams) -> RPCResult:
+        return RPCResult(ok=True)
+
+    async def notify(_params: models.EmptyParams) -> None:
+        return None
+
+    client.on_request("test.handler", models.EmptyParams, RPCResult, handle)
+    client.on_notification("test.notification", models.EmptyParams, notify)
+    await transport.incoming.put({
+        "jsonrpc": "2.0",
+        "method": "test.buffered",
+        "params": {},
+    })
+
+    async def wait_for_buffered_notification() -> None:
+        while not client._pending_notifications:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(wait_for_buffered_notification(), timeout=1)
+    assert client._pending_notifications
+
+    reason = RuntimeError("detached")
+    await client.close(reason, close_transport=False)
+
+    assert transport.closed.is_set() is False
+    with pytest.raises(RuntimeError, match="detached"):
+        await call
+    assert client._pending == {}
+    assert client._request_handlers == {}
+    assert client._notification_listeners == {}
+    assert client._pending_notifications == []
+    with pytest.raises(RuntimeError, match="RPC client is closed"):
+        await client.send("test.request", models.EmptyParams(), RPCResult)

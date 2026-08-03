@@ -10,12 +10,12 @@ import type {
 } from "../../protocol/types.js";
 import {
   CacheClient,
-  apiUrlForRegion,
   type CacheGetResponse,
   type CacheLlmUsage,
   type CacheMethod,
   type CdpTree,
 } from "../clients/cacheClient.js";
+import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
 import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
