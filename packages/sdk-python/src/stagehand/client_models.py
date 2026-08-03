@@ -9,8 +9,6 @@ from ._generated import models as _models
 from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseRegion,
-    CustomModelConfig,
-    KnownModelConfig,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
@@ -207,7 +205,6 @@ def _model_config(
     model: str,
     *,
     api_key: str | None = None,
-    base_url: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> ModelConfig:
     connection: dict[str, object] = {
@@ -215,14 +212,4 @@ def _model_config(
         for name, value in (("api_key", api_key), ("headers", headers))
         if value is not None
     }
-    if base_url is None:
-        return ModelConfig(
-            root=KnownModelConfig.model_validate({"model_name": model, **connection})
-        )
-    return ModelConfig(
-        root=CustomModelConfig.model_validate({
-            "model_name": model,
-            "base_url": base_url,
-            **connection,
-        })
-    )
+    return ModelConfig.model_validate({"model_name": model, **connection})
