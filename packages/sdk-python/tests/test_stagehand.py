@@ -24,6 +24,7 @@ from stagehand._generated.models import (
     ActResultData,
     BrowserbaseRegion,
     BrowserSessionMetadata,
+    CacheMetadata,
     CacheStatus,
     ClientModelReference,
     LLMGenerateParams,
@@ -543,15 +544,17 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         "stagehand.metrics": metrics,
         "stagehand.act": ActResult.model_validate({
             "data": act_data,
-            "metadata": {"cache_status": "HIT", "usage": usage},
+            "metadata": {"cache": {"status": "HIT"}, "usage": usage},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache_status": "MISS", "usage": usage},
+            "metadata": {"cache": {"status": "MISS"}, "usage": usage},
         }),
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit, usage=usage),
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.hit), usage=usage
+            ),
         },
     })
     _install_rpc_client(monkeypatch, recording)
@@ -581,13 +584,13 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
 
     assert act_result.data == act_data
-    assert act_result.metadata.cache_status is CacheStatus.hit
+    assert act_result.metadata.cache.status is CacheStatus.hit
     assert act_result.metadata.usage == usage
     assert observed.data == [action]
-    assert observed.metadata.cache_status is CacheStatus.miss
+    assert observed.metadata.cache.status is CacheStatus.miss
     assert observed.metadata.usage == usage
     assert extracted.data == PageInfo(heading="Example Domain", count=1)
-    assert extracted.metadata.cache_status is CacheStatus.hit
+    assert extracted.metadata.cache.status is CacheStatus.hit
     assert extracted.metadata.usage == usage
     act_params = next(
         cast(StagehandActParams, params)

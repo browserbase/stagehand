@@ -330,6 +330,7 @@ describe("extract service", () => {
     expect(result).toStrictEqual({
       data: { count: 1 },
       metadata: {
+        cache: { status: "DISABLED" },
         usage: {
           inputTokens: 2,
           outputTokens: 2,
@@ -381,7 +382,7 @@ describe("extract service", () => {
     expect(result).toStrictEqual({
       data: { count: 1 },
       metadata: {
-        cacheStatus: "HIT",
+        cache: { status: "HIT" },
         usage: {
           inputTokens: 0,
           outputTokens: 0,

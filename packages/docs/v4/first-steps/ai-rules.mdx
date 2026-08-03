@@ -277,7 +277,7 @@ const result = await stagehand.extract("extract the page title", TitleSchema);
 
 console.log(result.data.title);
 console.log(result.metadata.actionId); // Action ID for tracing this call
-console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
 
 ## Observe
@@ -598,7 +598,7 @@ result = await stagehand.extract(
 
 print(result.data.title)
 print(result.metadata.action_id)  # Action ID for tracing this call
-print(result.metadata.cache_status)  # "HIT", "MISS", or None
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
 
 ## Observe
@@ -994,7 +994,7 @@ fmt.Println(string(result.Data))
 
 ### Inspecting Metadata
 
-Both `ActionID` and `CacheStatus` are pointers, so check for nil before dereferencing:
+`ActionID` is a pointer, so check for nil before dereferencing. `Cache` is always present:
 
 ```go
 var titleSchema = json.RawMessage(`{
@@ -1014,9 +1014,7 @@ if err != nil {
 if result.Metadata.ActionID != nil {
 	fmt.Println("action:", *result.Metadata.ActionID) // Action ID for tracing this call
 }
-if result.Metadata.CacheStatus != nil {
-	fmt.Println("cache:", *result.Metadata.CacheStatus) // stagehand.CacheStatusHIT or stagehand.CacheStatusMISS
-}
+fmt.Println("cache:", result.Metadata.Cache.Status) // HIT, MISS, or DISABLED
 ```
 
 ## Observe
