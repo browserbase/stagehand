@@ -6,9 +6,19 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
-import { PageLocatorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
+import {
+  decodedBase64ByteLength,
+  PageLocatorSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
+  it("calculates decoded base64 byte lengths including padding", () => {
+    expect(decodedBase64ByteLength("YQ==")).toBe(1);
+    expect(decodedBase64ByteLength("YWI=")).toBe(2);
+    expect(decodedBase64ByteLength("YWJj")).toBe(3);
+  });
+
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),

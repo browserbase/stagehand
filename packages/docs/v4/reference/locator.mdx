@@ -329,14 +329,14 @@ const values = await locator.selectOption("us");
 
 ## setInputFiles()
 
-Set one or more local files on the matched `<input type="file">`. Relative paths are resolved on the SDK caller's machine. Pass an empty array to clear the selection.
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. Relative paths are resolved on the SDK caller's machine. Pass an empty array to clear the selection.
 
 ```typescript
 await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
 ```
 
 <ParamField path="files" type="FileInput">
-  Local file path(s) or in-memory payload(s) to upload.
+  Local file path(s) or in-memory payload(s) to upload. Files are serialized in memory and limited to 50 MiB each.
 
   <ParamField path="files.name" type="string">
     The filename exposed to the page.
@@ -346,8 +346,8 @@ await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
     The file's MIME type.
   </ParamField>
 
-  <ParamField path="files.data" type="string">
-    The base64-encoded file data sent over the protocol after SDK normalization.
+  <ParamField path="files.buffer" type="ArrayBuffer | Uint8Array | string">
+    The in-memory file content to upload. The SDK base64-encodes it for transport.
   </ParamField>
 
   <ParamField path="files.lastModified" type="number" optional>
@@ -688,14 +688,14 @@ values = await locator.select_option("us")
 
 ## set_input_files()
 
-Set one or more local files on the matched `<input type="file">`. Relative paths are resolved on the SDK caller's machine. Pass an empty sequence to clear the selection.
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. Relative paths are resolved on the SDK caller's machine. Pass an empty sequence to clear the selection.
 
 ```python
 await page.locator('input[type="file"]').set_input_files("./resume.pdf")
 ```
 
 <ParamField path="files" type="str | Path | FilePayload | Sequence[str | Path | FilePayload]">
-  Local file path(s) or in-memory payload(s) to upload.
+  Local file path(s) or in-memory payload(s) to upload. Files are serialized in memory and limited to 50 MiB each.
 
   <ParamField path="files.name" type="str">
     The filename exposed to the page.
@@ -705,8 +705,8 @@ await page.locator('input[type="file"]').set_input_files("./resume.pdf")
     The file's MIME type.
   </ParamField>
 
-  <ParamField path="files.data" type="str">
-    The base64-encoded file data sent over the protocol after SDK normalization.
+  <ParamField path="files.buffer" type="bytes | bytearray | memoryview | str">
+    The in-memory file content to upload. The SDK base64-encodes it for transport.
   </ParamField>
 
   <ParamField path="files.last_modified" type="int" optional>

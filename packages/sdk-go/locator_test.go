@@ -105,6 +105,16 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := locator.SetInputFiles(context.Background(), FilePath(filePath)); err != nil {
 		t.Fatalf("SetInputFiles(path) error = %v", err)
 	}
+	lastModified := int64(42)
+	payload := FileData("bytes.bin", "application/octet-stream", []byte{0, 127, 255})
+	payload.LastModified = &lastModified
+	if err := locator.SetInputFiles(
+		context.Background(),
+		payload,
+		FileData("message.txt", "", []byte("hello")),
+	); err != nil {
+		t.Fatalf("SetInputFiles(payloads) error = %v", err)
+	}
 	if err := locator.SetInputFiles(context.Background()); err != nil {
 		t.Fatalf("SetInputFiles() error = %v", err)
 	}
@@ -118,8 +128,39 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 		params.Files[0].LastModified == nil {
 		t.Fatalf("SetInputFiles(path) params = %#v", params)
 	}
-	clearParams, ok := rpc.calls[1].params.(LocatorSetInputFilesParams)
+	payloadParams, ok := rpc.calls[1].params.(LocatorSetInputFilesParams)
+	if !ok || len(payloadParams.Files) != 2 ||
+		payloadParams.Files[0].Name != "bytes.bin" ||
+		payloadParams.Files[0].Data != "AH//" ||
+		payloadParams.Files[0].MIMEType == nil ||
+		*payloadParams.Files[0].MIMEType != "application/octet-stream" ||
+		payloadParams.Files[0].LastModified == nil ||
+		*payloadParams.Files[0].LastModified != 42 ||
+		payloadParams.Files[1].Name != "message.txt" ||
+		payloadParams.Files[1].Data != "aGVsbG8=" ||
+		payloadParams.Files[1].MIMEType != nil ||
+		payloadParams.Files[1].LastModified != nil {
+		t.Fatalf("SetInputFiles(payloads) params = %#v", rpc.calls[1].params)
+	}
+	clearParams, ok := rpc.calls[2].params.(LocatorSetInputFilesParams)
 	if !ok || len(clearParams.Files) != 0 {
-		t.Fatalf("SetInputFiles() params = %#v", rpc.calls[1].params)
+		t.Fatalf("SetInputFiles() params = %#v", rpc.calls[2].params)
+	}
+
+	oversizedPath := filepath.Join(t.TempDir(), "oversized.bin")
+	file, err := os.Create(oversizedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(maxInputFileBytes + 1); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := locator.SetInputFiles(context.Background(), FilePath(oversizedPath)); err == nil ||
+		err.Error() != "set input files: file is larger than the 50 MiB upload limit" {
+		t.Fatalf("SetInputFiles(oversized path) error = %v", err)
 	}
 }

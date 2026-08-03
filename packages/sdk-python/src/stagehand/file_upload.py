@@ -7,6 +7,8 @@ from pathlib import Path
 
 from ._generated.models import InputFilePayload
 
+_MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024
+
 
 @dataclass(frozen=True, slots=True)
 class FilePayload:
@@ -32,18 +34,25 @@ def _normalize_file(file: FileInput) -> InputFilePayload:
         if not path.is_file():
             raise ValueError(f"set_input_files(): expected a readable file at {path}")
         stat = path.stat()
+        if stat.st_size > _MAX_INPUT_FILE_BYTES:
+            raise ValueError("set_input_files(): file is larger than the 50 MiB upload limit")
         return InputFilePayload(
             name=path.name,
             data=base64.b64encode(path.read_bytes()).decode("ascii"),
-            last_modified=int(stat.st_mtime_ns / 1_000_000),
+            last_modified=stat.st_mtime_ns // 1_000_000,
         )
 
     if not file.name:
         raise ValueError("set_input_files(): file payload name cannot be empty")
     buffer = file.buffer.encode() if isinstance(file.buffer, str) else bytes(file.buffer)
-    return InputFilePayload(
-        name=file.name,
-        data=base64.b64encode(buffer).decode("ascii"),
-        mime_type=file.mime_type,
-        last_modified=file.last_modified,
-    )
+    if len(buffer) > _MAX_INPUT_FILE_BYTES:
+        raise ValueError("set_input_files(): file is larger than the 50 MiB upload limit")
+    values: dict[str, object] = {
+        "name": file.name,
+        "data": base64.b64encode(buffer).decode("ascii"),
+    }
+    if file.mime_type is not None:
+        values["mime_type"] = file.mime_type
+    if file.last_modified is not None:
+        values["last_modified"] = file.last_modified
+    return InputFilePayload.model_validate(values)

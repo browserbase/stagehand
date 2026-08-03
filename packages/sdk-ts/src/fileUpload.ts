@@ -2,6 +2,8 @@ import { readFile, stat } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import type { InputFilePayload } from "../../protocol/types.js";
 
+const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
+
 export type FilePayload = {
   name: string;
   mimeType?: string;
@@ -25,6 +27,9 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
     if (!fileStat.isFile()) {
       throw new TypeError(`setInputFiles(): expected a file at ${absolutePath}`);
     }
+    if (fileStat.size > MAX_INPUT_FILE_BYTES) {
+      throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+    }
     return {
       name: basename(absolutePath),
       data: (await readFile(absolutePath)).toString("base64"),
@@ -39,6 +44,9 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
       : file.buffer instanceof Uint8Array
         ? Buffer.from(file.buffer)
         : Buffer.from(file.buffer);
+  if (bytes.byteLength > MAX_INPUT_FILE_BYTES) {
+    throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+  }
   return {
     name: file.name,
     ...(file.mimeType ? { mimeType: file.mimeType } : {}),

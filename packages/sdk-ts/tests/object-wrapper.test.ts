@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -1174,18 +1174,28 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("reads local files and routes locator.setInputFiles", async () => {
+  it("normalizes files and payloads and routes locator.setInputFiles", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-test-"));
     const filePath = path.join(directory, "hello.txt");
-    await import("node:fs/promises").then(({ writeFile }) => writeFile(filePath, "hello"));
+    await writeFile(filePath, "hello");
     try {
       const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       const page = new Page(client, { pageId: "page-1" });
       const locator = page.locator("#upload");
 
       await locator.setInputFiles(filePath);
+      await locator.setInputFiles([
+        {
+          name: "bytes.bin",
+          mimeType: "application/octet-stream",
+          buffer: new Uint8Array([0, 127, 255]),
+          lastModified: 42,
+        },
+        { name: "message.txt", buffer: "hello" },
+      ]);
       await locator.setInputFiles([]);
 
       expect(client.calls[0]).toMatchObject({
@@ -1200,8 +1210,30 @@ describe("Stagehand TS object wrapper", () => {
         requestCall(StagehandMethods.locatorSetInputFiles, {
           pageId: "page-1",
           selector: "#upload",
+          files: [
+            {
+              name: "bytes.bin",
+              mimeType: "application/octet-stream",
+              data: "AH//",
+              lastModified: 42,
+            },
+            { name: "message.txt", data: "aGVsbG8=" },
+          ],
+        }),
+      );
+      expect(client.calls[2]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
           files: [],
         }),
+      );
+
+      const oversizedPath = path.join(directory, "oversized.bin");
+      await writeFile(oversizedPath, "");
+      await truncate(oversizedPath, 50 * 1024 * 1024 + 1);
+      await expect(locator.setInputFiles(oversizedPath)).rejects.toThrow(
+        "file is larger than the 50 MiB upload limit",
       );
     } finally {
       await rm(directory, { recursive: true, force: true });

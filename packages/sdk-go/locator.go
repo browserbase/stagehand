@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 )
 
+const maxInputFileBytes = 50 * 1024 * 1024
+
 // FileInput describes either a local file path or an in-memory file payload.
 // Use FilePath or FileData to construct one.
 type FileInput struct {
@@ -15,7 +17,7 @@ type FileInput struct {
 	Name         string
 	MIMEType     string
 	Buffer       []byte
-	LastModified *int
+	LastModified *int64
 }
 
 // FilePath creates an upload from a path on the SDK caller's filesystem.
@@ -237,11 +239,14 @@ func normalizeFileInput(file FileInput) (InputFilePayload, error) {
 		if !info.Mode().IsRegular() {
 			return InputFilePayload{}, fmt.Errorf("set input files: expected a file at %q", absolutePath)
 		}
+		if info.Size() > maxInputFileBytes {
+			return InputFilePayload{}, fmt.Errorf("set input files: file is larger than the 50 MiB upload limit")
+		}
 		data, err := os.ReadFile(absolutePath)
 		if err != nil {
 			return InputFilePayload{}, fmt.Errorf("set input files: read %q: %w", absolutePath, err)
 		}
-		lastModified := int(info.ModTime().UnixMilli())
+		lastModified := info.ModTime().UnixMilli()
 		return InputFilePayload{
 			Name: filepath.Base(absolutePath), Data: base64.StdEncoding.EncodeToString(data),
 			LastModified: &lastModified,
@@ -250,6 +255,9 @@ func normalizeFileInput(file FileInput) (InputFilePayload, error) {
 
 	if file.Name == "" {
 		return InputFilePayload{}, fmt.Errorf("set input files: payload name cannot be empty")
+	}
+	if len(file.Buffer) > maxInputFileBytes {
+		return InputFilePayload{}, fmt.Errorf("set input files: file is larger than the 50 MiB upload limit")
 	}
 	payload := InputFilePayload{
 		Name: file.Name, Data: base64.StdEncoding.EncodeToString(file.Buffer),

@@ -2415,8 +2415,35 @@ describe("Stagehand worker clients", () => {
       result: ["pro"],
     });
 
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 19,
+        method: "locator.set_input_files",
+        params: {
+          page_id: "page-a",
+          selector: "select.plan",
+          files: [{ name: "hello.txt", data: "aGVsbG8=", mime_type: "text/plain" }],
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 19,
+      result: { set: true },
+    });
+
     expect(locator.nthCalls).toStrictEqual([0]);
     expect(locator.selectOptionCalls).toStrictEqual(["pro"]);
+    expect(locator.setInputFilesCalls).toStrictEqual([
+      [
+        {
+          name: "hello.txt",
+          mimeType: "text/plain",
+          buffer: new Uint8Array([104, 101, 108, 108, 111]),
+          lastModified: undefined,
+        },
+      ],
+    ]);
   });
 
   it("returns page resolution errors for locator RPC commands", async () => {

@@ -516,7 +516,7 @@ type InputFilePayload struct {
 	Data string `json:"data"`
 
 	// LastModified corresponds to the JSON schema field "last_modified".
-	LastModified *int `json:"last_modified,omitempty,omitzero"`
+	LastModified *int64 `json:"last_modified,omitempty,omitzero"`
 
 	// MIMEType corresponds to the JSON schema field "mime_type".
 	MIMEType *string `json:"mime_type,omitempty,omitzero"`

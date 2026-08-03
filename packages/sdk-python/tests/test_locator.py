@@ -15,6 +15,7 @@ from stagehand._generated.models import (
     LocatorSetInputFilesParams,
     LocatorSetInputFilesResult,
 )
+from stagehand.file_upload import FilePayload
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
 
@@ -116,3 +117,51 @@ async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None
         selector="#upload",
         files=[],
     )
+
+
+@pytest.mark.asyncio
+async def test_set_input_files_normalizes_payloads_and_rejects_invalid_inputs(
+    tmp_path: Path,
+) -> None:
+    recording = RecordingRPCClient({
+        "locator.set_input_files": {"set": True},
+    })
+    locator = Locator(
+        cast(RPCClient, recording),
+        page_id="page-1",
+        selector="#upload",
+    )
+
+    await locator.set_input_files([
+        FilePayload(
+            name="bytes.bin",
+            buffer=bytes([0, 127, 255]),
+            mime_type="application/octet-stream",
+            last_modified=42,
+        ),
+        FilePayload(name="message.txt", buffer="hello"),
+    ])
+
+    params = recording.calls[0][1]
+    assert isinstance(params, LocatorSetInputFilesParams)
+    assert params.files[0].model_dump(exclude_unset=True) == {
+        "name": "bytes.bin",
+        "mime_type": "application/octet-stream",
+        "data": "AH//",
+        "last_modified": 42,
+    }
+    assert params.files[1].model_dump(exclude_unset=True) == {
+        "name": "message.txt",
+        "data": "aGVsbG8=",
+    }
+
+    with pytest.raises(ValueError, match="expected a readable file"):
+        await locator.set_input_files(tmp_path / "missing.txt")
+    with pytest.raises(ValueError, match="file payload name cannot be empty"):
+        await locator.set_input_files(FilePayload(name="", buffer=b"hello"))
+
+    oversized_path = tmp_path / "oversized.bin"
+    with oversized_path.open("wb") as file:
+        file.truncate(50 * 1024 * 1024 + 1)
+    with pytest.raises(ValueError, match="larger than the 50 MiB upload limit"):
+        await locator.set_input_files(oversized_path)

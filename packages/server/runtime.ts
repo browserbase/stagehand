@@ -721,14 +721,19 @@ export class StagehandRuntime {
     params: LocatorSetInputFilesParams,
   ): Promise<LocatorSetInputFilesResult> {
     await this.resolveLocator(params).setInputFiles(
-      params.files.map((file) => ({
-        name: file.name,
-        mimeType: file.mimeType,
-        buffer: new Uint8Array(
-          Array.from(globalThis.atob(file.data), (character) => character.charCodeAt(0)),
-        ),
-        lastModified: file.lastModified,
-      })),
+      params.files.map((file) => {
+        const binary = globalThis.atob(file.data);
+        const buffer = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+          buffer[index] = binary.charCodeAt(index);
+        }
+        return {
+          name: file.name,
+          mimeType: file.mimeType,
+          buffer,
+          lastModified: file.lastModified,
+        };
+      }),
     );
     return { set: true };
   }
