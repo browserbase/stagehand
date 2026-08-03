@@ -91,10 +91,18 @@ export class NavigationResponseTracker {
 
   /**
    * Some navigation APIs (reload/history traversal) do not provide a loader id
-   * up front. This flag instructs the tracker to accept the next qualifying
-   * document response even if no loader id has been announced yet.
+   * up front. Select a qualifying response that arrived before the command
+   * resolved, or accept the next one if no response has arrived yet.
    */
   public expectNavigationWithoutKnownLoader(): void {
+    if (this.responseResolved) return;
+
+    const pending = this.pendingResponsesByLoader.values().next().value;
+    if (pending) {
+      this.selectResponse(pending);
+      return;
+    }
+
     this.acceptNextWithoutLoader = true;
   }
 
