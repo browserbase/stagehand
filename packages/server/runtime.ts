@@ -108,6 +108,7 @@ import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import { Page } from "./understudy/page.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
+import { ResponseHandleTable } from "./responseHandleTable.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -264,6 +265,7 @@ export function createStagehandRuntime(
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
   readonly metrics = new StagehandMetricsAccumulator();
+  readonly responseHandles = new ResponseHandleTable();
   readonly state = createStore<StagehandRuntimeState>()(() =>
     StagehandRuntimeStateSchema.parse({ status: "created" }),
   );
@@ -283,6 +285,7 @@ export class StagehandRuntime {
     const previousSession = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
+    this.responseHandles.clear();
     await previousSession?.close();
 
     try {
@@ -626,6 +629,7 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await page.close();
     this.pagesById.delete(params.pageId);
+    this.responseHandles.deleteForPage(params.pageId);
     return { closed: true };
   }
 
@@ -706,6 +710,7 @@ export class StagehandRuntime {
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
+    this.responseHandles.clear();
     try {
       await session?.close();
     } finally {
@@ -754,7 +759,10 @@ export class StagehandRuntime {
     }
 
     for (const pageId of this.pagesById.keys()) {
-      if (!currentPageIds.has(pageId)) this.pagesById.delete(pageId);
+      if (!currentPageIds.has(pageId)) {
+        this.pagesById.delete(pageId);
+        this.responseHandles.deleteForPage(pageId);
+      }
     }
   }
 
