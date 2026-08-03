@@ -39,6 +39,10 @@ export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult
   data: z.output<Schema>;
 };
 
+const defaultExtractSchema = z.object({
+  extraction: z.string(),
+});
+
 export class Stagehand {
   browserContext: BrowserContext | undefined;
   isInitialized = false;
@@ -175,11 +179,21 @@ export class Stagehand {
     return response;
   }
 
+  async extract(
+    instruction: string,
+    schema?: undefined,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<typeof defaultExtractSchema>>;
   async extract<Schema extends z.ZodType>(
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<ExtractResult<Schema>> {
+  ): Promise<ExtractResult<Schema>>;
+  async extract(
+    instruction: string,
+    schema: z.ZodType = defaultExtractSchema,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<z.ZodType>> {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");

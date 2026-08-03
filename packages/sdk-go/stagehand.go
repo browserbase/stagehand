@@ -212,6 +212,9 @@ func (s *Stagehand) Extract(
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
 ) (ExtractResult, error) {
+	if len(schema) == 0 {
+		schema = defaultExtractSchema()
+	}
 	rpc, err := s.connectedProtocol()
 	if err != nil {
 		return ExtractResult{}, err
@@ -231,6 +234,10 @@ func (s *Stagehand) Extract(
 		return ExtractResult{}, err
 	}
 	return result, nil
+}
+
+func defaultExtractSchema() json.RawMessage {
+	return json.RawMessage(`{"type":"object","properties":{"extraction":{"type":"string"}},"required":["extraction"],"additionalProperties":false}`)
 }
 
 // TypedExtractResult contains caller-decoded extract data and its protocol metadata.

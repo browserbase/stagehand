@@ -684,6 +684,43 @@ async def test_stagehand_routes_metrics_and_ai_methods(
 
 
 @pytest.mark.asyncio
+async def test_stagehand_extract_uses_default_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({
+        "stagehand.extract": {
+            "data": {"extraction": "Example Domain"},
+            "metadata": StagehandResultMetadata(
+                usage=StagehandResultUsage(
+                    input_tokens=0,
+                    output_tokens=0,
+                    reasoning_tokens=0,
+                )
+            ),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+
+    extracted = await stagehand.extract(instruction="Extract the page text", page=page)
+
+    assert extracted.data.extraction == "Example Domain"
+    extract_params = next(
+        cast(StagehandExtractParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.extract"
+    )
+    assert extract_params.schema_ is not None
+    schema = extract_params.schema_.model_dump()
+    assert schema["type"] == "object"
+    assert schema["properties"] == {"extraction": {"type": "string"}}
+    assert schema["required"] == ["extraction"]
+    assert schema["additionalProperties"] is False
+
+
+@pytest.mark.asyncio
 async def test_stagehand_ai_methods_require_an_active_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

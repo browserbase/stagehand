@@ -331,3 +331,45 @@ func TestExtractAsPreservesMetadataOnDecodeError(t *testing.T) {
 		t.Fatalf("ExtractAs() metadata = %#v, want %#v", result.Metadata, metadata)
 	}
 }
+
+func TestExtractUsesDefaultSchema(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.extract": ExtractResult{Data: json.RawMessage(`{"extraction":"Example"}`)},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	result, err := client.Extract(
+		context.Background(),
+		"extract page text",
+		nil,
+		&StagehandClientExtractOptions{Page: page},
+	)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if string(result.Data) != `{"extraction":"Example"}` {
+		t.Fatalf("Extract() data = %s", result.Data)
+	}
+	params, ok := rpc.calls[0].params.(StagehandExtractParams)
+	if !ok {
+		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(params.Schema, &schema); err != nil {
+		t.Fatalf("unmarshal default extract schema: %v", err)
+	}
+	wantSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"extraction": map[string]any{"type": "string"},
+		},
+		"required":             []any{"extraction"},
+		"additionalProperties": false,
+	}
+	if !reflect.DeepEqual(schema, wantSchema) {
+		t.Fatalf("default extract schema = %#v, want %#v", schema, wantSchema)
+	}
+}

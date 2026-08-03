@@ -50,6 +50,7 @@ from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
+    DefaultExtract,
     ExtractResult,
 )
 from .client_types import (
@@ -89,6 +90,7 @@ __all__ = [
     "Cookie",
     "CookieParam",
     "DomainPolicy",
+    "DefaultExtract",
     "ExternalProxyConfig",
     "ExtractResult",
     "FileInput",

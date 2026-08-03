@@ -7,7 +7,7 @@ import json
 import sys
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
-from typing import TypeVar
+from typing import TypeVar, cast
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from ._generated.models import (
     ClientModelReference,
     EmptyParams,
     ExtractOptions,
+    FieldSchema0,
     ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -42,6 +43,8 @@ from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
+    _DEFAULT_EXTRACT_SCHEMA,
+    DefaultExtract,
     ExtractResult,
     _cache_config,
     _ExtractWireResult,
@@ -272,7 +275,7 @@ class Stagehand:
     async def extract(
         self,
         instruction: str,
-        schema: builtins.type[ResultModel],
+        schema: builtins.type[ResultModel] = cast(builtins.type[ResultModel], DefaultExtract),
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -302,7 +305,9 @@ class Stagehand:
         params = StagehandExtractParams(
             page_id=target_page.page_id,
             instruction=instruction,
-            schema_=schema.model_json_schema(),
+            schema_=FieldSchema0.model_validate(
+                _DEFAULT_EXTRACT_SCHEMA if schema is DefaultExtract else schema.model_json_schema()
+            ),
         )
         if options.model_fields_set:
             params.options = options
