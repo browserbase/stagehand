@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import cast
 
@@ -15,7 +16,7 @@ from stagehand._generated.models import (
     LocatorSetInputFilesParams,
     LocatorSetInputFilesResult,
 )
-from stagehand.file_upload import FilePayload
+from stagehand.file_upload import FileInput, FilePayload
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
 
@@ -93,6 +94,9 @@ def test_locator_first_and_nth_validate_the_generated_descriptor() -> None:
 async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None:
     file_path = tmp_path / "hello.txt"
     file_path.write_text("hello")
+    historical_path = tmp_path / "historical.txt"
+    historical_path.write_text("old")
+    os.utime(historical_path, ns=(0, -1_000_000))
     recording = RecordingRPCClient({
         "locator.set_input_files": {"set": True},
     })
@@ -104,6 +108,7 @@ async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None
 
     await locator.set_input_files(file_path)
     await locator.set_input_files([])
+    await locator.set_input_files(historical_path)
 
     method, params, result_model = recording.calls[0]
     assert method == "locator.set_input_files"
@@ -117,6 +122,12 @@ async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None
         selector="#upload",
         files=[],
     )
+    historical_params = recording.calls[2][1]
+    assert isinstance(historical_params, LocatorSetInputFilesParams)
+    assert historical_params.files[0].model_dump(exclude_unset=True) == {
+        "name": "historical.txt",
+        "data": "b2xk",
+    }
 
 
 @pytest.mark.asyncio
@@ -159,6 +170,8 @@ async def test_set_input_files_normalizes_payloads_and_rejects_invalid_inputs(
         await locator.set_input_files(tmp_path / "missing.txt")
     with pytest.raises(ValueError, match="file payload name cannot be empty"):
         await locator.set_input_files(FilePayload(name="", buffer=b"hello"))
+    with pytest.raises(ValueError, match="expected a path or FilePayload"):
+        await locator.set_input_files([cast(FileInput, object())])
 
     oversized_path = tmp_path / "oversized.bin"
     with oversized_path.open("wb") as file:

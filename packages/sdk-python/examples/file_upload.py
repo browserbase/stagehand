@@ -2,7 +2,7 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
 
 async def main() -> None:
@@ -10,29 +10,29 @@ async def main() -> None:
         file_path = Path(directory, "hello.txt")
         file_path.write_text("hello from Python")
 
-        stagehand = Stagehand(
-            browser="local",
-            headless=True,
-        )
+        browser = await local_browser.launch(headless=True)
         try:
-            await stagehand.init()
-            page = await stagehand.context.active_page()
-            if page is None:
-                raise RuntimeError("Stagehand initialized without an active page")
+            stagehand = await Stagehand.create(browser=browser)
+            try:
+                page = await stagehand.context.active_page()
+                if page is None:
+                    raise RuntimeError("Stagehand initialized without an active page")
 
-            await page.goto('data:text/html,<input id="upload" type="file">')
-            await page.locator("#upload").set_input_files(file_path)
+                await page.goto('data:text/html,<input id="upload" type="file">')
+                await page.locator("#upload").set_input_files(file_path)
 
-            uploaded = await page.evaluate("""(async () => {
-                const file = document.querySelector('#upload').files[0];
-                return file ? { name: file.name, text: await file.text() } : null;
-            })()""")
-            expected = {"name": "hello.txt", "text": "hello from Python"}
-            if uploaded != expected:
-                raise RuntimeError(f"Unexpected uploaded file: {uploaded!r}")
-            print(uploaded)
+                uploaded = await page.evaluate("""(async () => {
+                    const file = document.querySelector('#upload').files[0];
+                    return file ? { name: file.name, text: await file.text() } : null;
+                })()""")
+                expected = {"name": "hello.txt", "text": "hello from Python"}
+                if uploaded != expected:
+                    raise RuntimeError(f"Unexpected uploaded file: {uploaded!r}")
+                print(uploaded)
+            finally:
+                await stagehand.close()
         finally:
-            await stagehand.close()
+            await browser.close()
 
 
 if __name__ == "__main__":

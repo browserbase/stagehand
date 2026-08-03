@@ -29,10 +29,17 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		Browser: stagehand.LocalBrowserSource{Headless: true},
-	})
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchLocalBrowser(
+		ctx,
+		&stagehand.LocalBrowserLaunchOptions{Headless: true},
+	)
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()

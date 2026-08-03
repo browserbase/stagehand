@@ -547,9 +547,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
 
   nth(index: number): UnderstudyRuntimeLocator {
     this.nthCalls.push(index);
-    return new FakeUnderstudyRuntimeLocator(this.selector, this.visible, this.text, {
-      ...this.values,
-    });
+    return this;
   }
 }
 
@@ -2400,6 +2398,7 @@ describe("Stagehand worker clients", () => {
         params: {
           page_id: "page-a",
           selector: "select.plan",
+          nth: 1,
           files: [{ name: "hello.txt", data: "aGVsbG8=", mime_type: "text/plain" }],
         },
       }),
@@ -2409,7 +2408,24 @@ describe("Stagehand worker clients", () => {
       result: { set: true },
     });
 
-    expect(locator.nthCalls).toStrictEqual([0]);
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "locator.set_input_files",
+        params: {
+          page_id: "page-a",
+          selector: "select.plan",
+          files: [],
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 20,
+      result: { set: true },
+    });
+
+    expect(locator.nthCalls).toStrictEqual([0, 1]);
     expect(locator.selectOptionCalls).toStrictEqual(["pro"]);
     expect(locator.setInputFilesCalls).toStrictEqual([
       [
@@ -2420,6 +2436,7 @@ describe("Stagehand worker clients", () => {
           lastModified: undefined,
         },
       ],
+      [],
     ]);
   });
 

@@ -1,4 +1,4 @@
-import { readFile, stat } from "node:fs/promises";
+import { open } from "node:fs/promises";
 import { basename, resolve } from "node:path";
 import type { InputFilePayload } from "../../protocol/types.js";
 
@@ -15,37 +15,70 @@ export type FileInput = string | string[] | FilePayload | FilePayload[];
 
 export async function normalizeFileInput(files: FileInput): Promise<InputFilePayload[]> {
   const entries = Array.isArray(files) ? files : [files];
-  return await Promise.all(entries.map(normalizeFile));
+  const payloads: InputFilePayload[] = [];
+  for (const entry of entries) payloads.push(await normalizeFile(entry));
+  return payloads;
 }
 
 async function normalizeFile(file: string | FilePayload): Promise<InputFilePayload> {
   if (typeof file === "string") {
     const absolutePath = resolve(file);
-    const fileStat = await stat(absolutePath).catch((error: unknown) => {
-      throw new Error(`setInputFiles(): could not read file at ${absolutePath}`, { cause: error });
+    const handle = await open(absolutePath, "r").catch(() => {
+      throw new TypeError("setInputFiles(): could not read file");
     });
-    if (!fileStat.isFile()) {
-      throw new TypeError(`setInputFiles(): expected a file at ${absolutePath}`);
+    try {
+      const fileStat = await handle.stat().catch(() => {
+        throw new TypeError("setInputFiles(): could not read file");
+      });
+      if (!fileStat.isFile()) {
+        throw new TypeError("setInputFiles(): expected a file");
+      }
+      if (fileStat.size > MAX_INPUT_FILE_BYTES) {
+        throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+      }
+
+      const chunks: Buffer[] = [];
+      let bytesRead = 0;
+      try {
+        for await (const chunk of handle.createReadStream({
+          autoClose: false,
+          end: MAX_INPUT_FILE_BYTES,
+          start: 0,
+        })) {
+          const bytes = Buffer.from(chunk);
+          chunks.push(bytes);
+          bytesRead += bytes.byteLength;
+        }
+      } catch {
+        throw new TypeError("setInputFiles(): could not read file");
+      }
+      if (bytesRead > MAX_INPUT_FILE_BYTES) {
+        throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+      }
+
+      const lastModified = Math.trunc(fileStat.mtimeMs);
+      return {
+        name: basename(absolutePath),
+        data: Buffer.concat(chunks, bytesRead).toString("base64"),
+        ...(lastModified < 0 ? {} : { lastModified }),
+      };
+    } finally {
+      await handle.close().catch(() => {});
     }
-    if (fileStat.size > MAX_INPUT_FILE_BYTES) {
-      throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
-    }
-    return {
-      name: basename(absolutePath),
-      data: (await readFile(absolutePath)).toString("base64"),
-      lastModified: Math.trunc(fileStat.mtimeMs),
-    };
   }
 
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
-  const bytes =
-    typeof file.buffer === "string"
-      ? Buffer.from(file.buffer)
-      : file.buffer instanceof Uint8Array
-        ? Buffer.from(file.buffer)
-        : Buffer.from(file.buffer);
+  const normalizedBuffer =
+    file.buffer instanceof ArrayBuffer ? new Uint8Array(file.buffer) : file.buffer;
+  const bytes = Buffer.from(normalizedBuffer);
   if (bytes.byteLength > MAX_INPUT_FILE_BYTES) {
     throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+  }
+  if (
+    file.lastModified !== undefined &&
+    (!Number.isInteger(file.lastModified) || file.lastModified < 0)
+  ) {
+    throw new RangeError("setInputFiles(): lastModified must be a non-negative integer");
   }
   return {
     name: file.name,

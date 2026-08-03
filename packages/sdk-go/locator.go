@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -232,7 +233,12 @@ func normalizeFileInput(file FileInput) (InputFilePayload, error) {
 		if err != nil {
 			return InputFilePayload{}, fmt.Errorf("set input files: resolve %q: %w", file.Path, err)
 		}
-		info, err := os.Stat(absolutePath)
+		handle, err := os.Open(absolutePath)
+		if err != nil {
+			return InputFilePayload{}, fmt.Errorf("set input files: open %q: %w", absolutePath, err)
+		}
+		defer handle.Close()
+		info, err := handle.Stat()
 		if err != nil {
 			return InputFilePayload{}, fmt.Errorf("set input files: stat %q: %w", absolutePath, err)
 		}
@@ -242,15 +248,21 @@ func normalizeFileInput(file FileInput) (InputFilePayload, error) {
 		if info.Size() > maxInputFileBytes {
 			return InputFilePayload{}, fmt.Errorf("set input files: file is larger than the 50 MiB upload limit")
 		}
-		data, err := os.ReadFile(absolutePath)
+		data, err := io.ReadAll(io.LimitReader(handle, maxInputFileBytes+1))
 		if err != nil {
 			return InputFilePayload{}, fmt.Errorf("set input files: read %q: %w", absolutePath, err)
 		}
+		if len(data) > maxInputFileBytes {
+			return InputFilePayload{}, fmt.Errorf("set input files: file is larger than the 50 MiB upload limit")
+		}
 		lastModified := info.ModTime().UnixMilli()
-		return InputFilePayload{
+		payload := InputFilePayload{
 			Name: filepath.Base(absolutePath), Data: base64.StdEncoding.EncodeToString(data),
-			LastModified: &lastModified,
-		}, nil
+		}
+		if lastModified >= 0 {
+			payload.LastModified = &lastModified
+		}
+		return payload, nil
 	}
 
 	if file.Name == "" {
@@ -258,6 +270,9 @@ func normalizeFileInput(file FileInput) (InputFilePayload, error) {
 	}
 	if len(file.Buffer) > maxInputFileBytes {
 		return InputFilePayload{}, fmt.Errorf("set input files: file is larger than the 50 MiB upload limit")
+	}
+	if file.LastModified != nil && *file.LastModified < 0 {
+		return InputFilePayload{}, fmt.Errorf("set input files: last modified must be non-negative")
 	}
 	payload := InputFilePayload{
 		Name: file.Name, Data: base64.StdEncoding.EncodeToString(file.Buffer),

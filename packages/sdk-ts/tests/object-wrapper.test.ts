@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, truncate, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -1180,9 +1180,13 @@ describe("Stagehand TS object wrapper", () => {
   it("normalizes files and payloads and routes locator.setInputFiles", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-test-"));
     const filePath = path.join(directory, "hello.txt");
+    const historicalPath = path.join(directory, "historical.txt");
     await writeFile(filePath, "hello");
+    await writeFile(historicalPath, "old");
+    await utimes(historicalPath, new Date(0), new Date(-1_000));
     try {
       const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
       client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
@@ -1200,6 +1204,7 @@ describe("Stagehand TS object wrapper", () => {
         { name: "message.txt", buffer: "hello" },
       ]);
       await locator.setInputFiles([]);
+      await locator.setInputFiles(historicalPath);
 
       expect(client.calls[0]).toMatchObject({
         method: "locator.set_input_files",
@@ -1231,6 +1236,24 @@ describe("Stagehand TS object wrapper", () => {
           files: [],
         }),
       );
+      expect(client.calls[3]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "historical.txt", data: "b2xk" }],
+        }),
+      );
+
+      const missingPath = path.join(directory, "private", "missing.txt");
+      const missingError = await locator
+        .setInputFiles(missingPath)
+        .catch((error: unknown) => error);
+      expect(missingError).toBeInstanceOf(TypeError);
+      expect((missingError as Error).message).toBe("setInputFiles(): could not read file");
+      expect((missingError as Error).message).not.toContain(directory);
+      await expect(
+        locator.setInputFiles({ name: "historical.txt", buffer: "old", lastModified: -1 }),
+      ).rejects.toThrow("lastModified must be a non-negative integer");
 
       const oversizedPath = path.join(directory, "oversized.bin");
       await writeFile(oversizedPath, "");

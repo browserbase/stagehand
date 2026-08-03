@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestPageLocatorPropagatesDescriptorAndMapsResults(t *testing.T) {
@@ -118,6 +119,17 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := locator.SetInputFiles(context.Background()); err != nil {
 		t.Fatalf("SetInputFiles() error = %v", err)
 	}
+	historicalPath := filepath.Join(t.TempDir(), "historical.txt")
+	if err := os.WriteFile(historicalPath, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	preEpoch := time.Unix(-1, 0)
+	if err := os.Chtimes(historicalPath, preEpoch, preEpoch); err != nil {
+		t.Fatal(err)
+	}
+	if err := locator.SetInputFiles(context.Background(), FilePath(historicalPath)); err != nil {
+		t.Fatalf("SetInputFiles(historical path) error = %v", err)
+	}
 
 	params, ok := rpc.calls[0].params.(LocatorSetInputFilesParams)
 	if !ok || len(params.Files) != 1 {
@@ -146,6 +158,13 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if !ok || len(clearParams.Files) != 0 {
 		t.Fatalf("SetInputFiles() params = %#v", rpc.calls[2].params)
 	}
+	historicalParams, ok := rpc.calls[3].params.(LocatorSetInputFilesParams)
+	if !ok || len(historicalParams.Files) != 1 ||
+		historicalParams.Files[0].Name != "historical.txt" ||
+		historicalParams.Files[0].Data != "b2xk" ||
+		historicalParams.Files[0].LastModified != nil {
+		t.Fatalf("SetInputFiles(historical path) params = %#v", rpc.calls[3].params)
+	}
 
 	oversizedPath := filepath.Join(t.TempDir(), "oversized.bin")
 	file, err := os.Create(oversizedPath)
@@ -162,5 +181,12 @@ func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
 	if err := locator.SetInputFiles(context.Background(), FilePath(oversizedPath)); err == nil ||
 		err.Error() != "set input files: file is larger than the 50 MiB upload limit" {
 		t.Fatalf("SetInputFiles(oversized path) error = %v", err)
+	}
+	negativeLastModified := int64(-1)
+	invalidPayload := FileData("historical.txt", "text/plain", []byte("old"))
+	invalidPayload.LastModified = &negativeLastModified
+	if err := locator.SetInputFiles(context.Background(), invalidPayload); err == nil ||
+		err.Error() != "set input files: last modified must be non-negative" {
+		t.Fatalf("SetInputFiles(negative last modified) error = %v", err)
 	}
 }

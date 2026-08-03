@@ -8,6 +8,7 @@ import {
 } from "../../schema-registry.js";
 import {
   decodedBase64ByteLength,
+  InputFilePayloadSchema,
   PageLocatorSchema,
   STAGEHAND_PROTOCOL_VERSION,
 } from "../../schemas.js";
@@ -17,6 +18,15 @@ describe("Stagehand object-model protocol", () => {
     expect(decodedBase64ByteLength("YQ==")).toBe(1);
     expect(decodedBase64ByteLength("YWI=")).toBe(2);
     expect(decodedBase64ByteLength("YWJj")).toBe(3);
+  });
+
+  it("accepts exactly 50 MiB of file data and rejects one additional byte", () => {
+    const encodedLength = Math.ceil((50 * 1024 * 1024) / 3) * 4;
+    let data = `${"A".repeat(encodedLength - 1)}=`;
+    expect(InputFilePayloadSchema.safeParse({ name: "limit.bin", data }).success).toBe(true);
+
+    data = "A".repeat(encodedLength);
+    expect(InputFilePayloadSchema.safeParse({ name: "oversized.bin", data }).success).toBe(false);
   });
 
   it("derives every Stagehand method name from the RPC definitions", () => {

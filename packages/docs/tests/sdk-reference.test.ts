@@ -1113,9 +1113,11 @@ async function readPythonLocalTypeFields(): Promise<{
       if (!isDataclass || !className || !body) continue;
       const fields = namedChildren(body).flatMap((statement): PublicInputField[] => {
         const assignment =
-          statement.kind() === "assignment"
+          statement.kind() === "assignment" || statement.kind() === "annotated_assignment"
             ? statement
-            : namedChildren(statement).find((child) => child.kind() === "assignment");
+            : namedChildren(statement).find(
+                (child) => child.kind() === "assignment" || child.kind() === "annotated_assignment",
+              );
         const name = assignment?.field("left")?.text();
         const type = assignment?.field("type")?.text();
         if (!name || !type || name.startsWith("_")) return [];

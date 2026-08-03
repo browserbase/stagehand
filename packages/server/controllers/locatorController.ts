@@ -94,7 +94,7 @@ export function createLocatorController(runtime: StagehandRuntime) {
   }
 
   async function setInputFiles(params: LocatorSetInputFilesParams, { logger }: HandlerContext) {
-    logger.debug("locator.set_input_files", {});
+    logger.debug("locator.set_input_files", { fileCount: params.files.length });
     return runtime.locatorSetInputFiles(params);
   }
 
