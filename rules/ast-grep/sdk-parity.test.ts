@@ -93,8 +93,8 @@ const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
   PageLocator: new Set(["Descriptor"]),
 };
 
-// Browser lifecycle construction is intentionally language-specific while the v4 clients migrate
-// independently: TypeScript and Go use create(), while Python still exposes init(). RPC-backed
+// Browser lifecycle construction is language-specific only in surface syntax now that all three
+// v4 clients use create(); the legacy init() lifecycles are gone. RPC-backed
 // feature methods remain subject to strict cross-language parity below.
 const stagehandLifecycleMethods = new Set(["create", "init"]);
 const internalTypescriptMethods = new Set(["create_with_client_for_test"]);

@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import importlib
 from collections.abc import Awaitable, Callable
-from typing import TypeVar, cast
+from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel, RootModel, StrictInt
 
 from stagehand import (
     LLMGenerateInput,
@@ -20,6 +20,8 @@ from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
+    BrowserbaseRegion,
+    BrowserSessionMetadata,
     CacheStatus,
     ClientModelReference,
     LLMGenerateParams,
@@ -43,21 +45,21 @@ from stagehand._generated.models import (
     StagehandResultUsage,
     TelemetryConfig,
 )
-from stagehand.browser_source import ResolvedBrowserSource
-from stagehand.cdp_client import CDPConnectionClosedError
-from stagehand.client_models import (
-    CacheOptions,
-    CdpBrowserSource,
-    LocalBrowserSource,
-    StagehandClientInitParams,
-    StagehandClientLoggingConfig,
+from stagehand.browser import (
+    _BROWSER_TOKEN,
+    StagehandBrowser,
+    _ClaimedBrowser,
+    _WorkerInitMetadata,
 )
+from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
+from stagehand.client_models import CacheOptions, StagehandClientLoggingConfig
 from stagehand.rpc_client import RPCClient
 
 from ._support import RecordingRPCClient
 
 stagehand_module = importlib.import_module("stagehand.stagehand")
-BlockingResultT = TypeVar("BlockingResultT", bound=BaseModel)
+ResultT = TypeVar("ResultT", bound=BaseModel)
+RootResultT = TypeVar("RootResultT")
 
 
 class PageInfo(BaseModel):
@@ -65,411 +67,399 @@ class PageInfo(BaseModel):
     count: StrictInt
 
 
-def test_stagehand_constructor_builds_private_browser_and_model_models() -> None:
-    local = Stagehand(
-        browser="local",
-        headless=True,
-        viewport_width=1280,
-        viewport_height=800,
+class _Transport:
+    def __init__(self, web_socket_debugger_url: str | None = "ws://browser") -> None:
+        self.web_socket_debugger_url = web_socket_debugger_url
+        self.close_calls = 0
+
+    async def close(self) -> None:
+        self.close_calls += 1
+
+
+def _browser_handle(
+    *,
+    api_key: str | None = None,
+    browser_metadata: BrowserSessionMetadata | None = None,
+    web_socket_debugger_url: str | None = "ws://browser",
+) -> tuple[StagehandBrowser, _Transport]:
+    transport = _Transport(web_socket_debugger_url)
+    return (
+        StagehandBrowser(
+            "local",
+            "connected",
+            _ClaimedBrowser(
+                cdp_client=cast(CDPClient, transport),
+                worker_init_metadata=_WorkerInitMetadata(
+                    api_key=api_key,
+                    browser=browser_metadata,
+                ),
+            ),
+            transport.close,
+            _token=_BROWSER_TOKEN,
+        ),
+        transport,
+    )
+
+
+def _recording(
+    responses: dict[str, object] | None = None,
+) -> RecordingRPCClient:
+    defaults: dict[str, object] = {
+        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
+        "stagehand.close": StagehandCloseResult(closed=True),
+    }
+    defaults.update(responses or {})
+    return RecordingRPCClient(defaults)
+
+
+def _install_rpc_client(
+    monkeypatch: pytest.MonkeyPatch,
+    recording: RecordingRPCClient,
+) -> None:
+    def build_rpc_client(
+        _transport: object,
+        *,
+        request_timeout_ms: int,
+    ) -> RPCClient:
+        assert request_timeout_ms == 10_000
+        return cast(RPCClient, recording)
+
+    monkeypatch.setattr(stagehand_module, "RPCClient", build_rpc_client)
+
+
+def test_stagehand_constructor_is_private() -> None:
+    with pytest.raises(TypeError, match="Stagehand.create"):
+        Stagehand()
+
+
+@pytest.mark.asyncio
+async def test_create_requires_a_factory_browser_before_validating_config() -> None:
+    with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):
+        await Stagehand.create(
+            browser=object(),  # ty: ignore[invalid-argument-type]
+            model_api_key="unused",
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_builds_wire_params_and_worker_metadata_wins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    metadata = BrowserSessionMetadata(
+        session_id="session-1",
+        region=BrowserbaseRegion.us_west_2,
+    )
+    browser, _ = _browser_handle(
+        api_key="worker-key",
+        browser_metadata=metadata,
+    )
+
+    async def generate(_: LLMGenerateInput) -> LLMGenerateOutput:
+        return LLMStructuredGenerateResult.model_validate({
+            "role": "assistant",
+            "content": {"type": "text", "text": "{}"},
+            "output_format": "json_schema",
+            "structured_content": {},
+        })
+
+    stagehand = await Stagehand.create(
+        browser=browser,
+        api_key="caller-key",
+        model=generate,
+        logging=StagehandClientLoggingConfig(level="debug"),
+    )
+
+    assert stagehand.browser is browser
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.protocol_version == 1
+    assert params.client_info.name == "stagehand-sdk-python"
+    assert params.client_info.version
+    assert params.browser_cdp_url == "ws://browser"
+    assert params.log_level == "debug"
+    assert params.model == ClientModelReference(source="client")
+    assert params.api_key == "worker-key"
+    assert params.browser == metadata
+    assert "llm.generate" in recording.requests
+
+
+@pytest.mark.asyncio
+async def test_local_browser_omits_metadata_and_forwards_caller_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    telemetry = TelemetryConfig.model_validate({
+        "traces": {
+            "endpoint": "https://telemetry.example/v1/traces",
+            "headers": {"authorization": "secret"},
+        }
+    })
+
+    await Stagehand.create(
+        browser=browser,
+        api_key="caller-key",
         model="openai/gpt-5.4-mini",
         model_api_key="model-key",
-        cache=True,
-    )
-    cdp = Stagehand(
-        browser="cdp",
-        cdp_url="http://localhost:9222",
-        headers={"authorization": "secret"},
-    )
-    browserbase = Stagehand(api_key="browserbase-key")
-
-    assert isinstance(local.init_params.browser, LocalBrowserSource)
-    assert local.init_params.browser.headless is True
-    assert local.init_params.browser.viewport is not None
-    assert local.init_params.browser.viewport.width == 1280
-    assert isinstance(local.init_params.model, ModelConfig)
-    assert local.init_params.cache is not None
-    assert local.init_params.cache.root is True
-    assert local.init_params.model.model_name.model_dump() == "openai/gpt-5.4-mini"
-    assert local.init_params.model.api_key == "model-key"
-    assert isinstance(cdp.init_params.browser, CdpBrowserSource)
-    assert cdp.init_params.browser.headers == {"authorization": "secret"}
-    assert browserbase.init_params.browser.type == "browserbase"
-    with pytest.raises(RuntimeError, match="Call stagehand.init\\(\\) before using browser"):
-        _ = cdp.browser
-
-
-def test_stagehand_constructor_rejects_incomplete_flattened_options() -> None:
-    with pytest.raises(TypeError, match="viewport_width and viewport_height"):
-        Stagehand(browser="local", viewport_width=1280)
-    with pytest.raises(TypeError, match="proxy_server"):
-        Stagehand(browser="local", proxy_username="user")
-    with pytest.raises(TypeError, match="model connection options"):
-        Stagehand(browser="local", model_api_key="model-key")
-
-
-@pytest.mark.asyncio
-async def test_stagehand_prints_info_and_higher_logs_while_hiding_debug_by_default(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-    })
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    await stagehand.init()
-    _, listener = recording.notifications["stagehand.log"]
-    notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
-
-    for log in [
-        {"level": "debug", "message": "CDP call", "data": {"method": "Page.navigate"}},
-        {"level": "info", "message": "Page opened", "data": {"pageId": "page-1"}},
-        {"level": "warn", "message": "Selector fallback", "data": {}},
-        {"level": "error", "message": "Action failed", "data": {"retryable": False}},
-    ]:
-        await notification_listener(StagehandLog.model_validate(log))
-
-    assert cast(StagehandInitParams, recording.calls[0][1]).log_level == "info"
-    assert capsys.readouterr().err.splitlines() == [
-        '[stagehand] INFO Page opened {"pageId":"page-1"}',
-        "[stagehand] WARN Selector fallback",
-        '[stagehand] ERROR Action failed {"retryable":false}',
-    ]
-
-
-@pytest.mark.asyncio
-async def test_stagehand_forwards_client_initialization_options_and_resolved_cdp_url(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-    })
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(
-        browser="cdp",
-        cdp_url="test://browser",
-        telemetry=TelemetryConfig.model_validate({
-            "traces": {
-                "endpoint": "https://telemetry.example/v1/traces",
-                "headers": {"authorization": "secret"},
-            }
-        }),
+        telemetry=telemetry,
         system_prompt="Use the test policy",
         self_heal=True,
         dom_settle_timeout_ms=2_500,
         cache=CacheOptions(threshold=3),
     )
 
-    await stagehand.init()
-
-    init_params = cast(StagehandInitParams, recording.calls[0][1])
-    assert init_params.browser_cdp_url == recording.browser_web_socket_debugger_url
-    assert init_params.telemetry.traces.endpoint == "https://telemetry.example/v1/traces"
-    assert init_params.telemetry.traces.headers == {"authorization": "secret"}
-    assert init_params.system_prompt == "Use the test policy"
-    assert init_params.self_heal is True
-    assert init_params.dom_settle_timeout_ms == 2_500
-    assert init_params.cache is not None
-    cache = init_params.cache.root
-    assert not isinstance(cache, bool)
-    assert cache.threshold == 3
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    assert params.api_key == "caller-key"
+    assert "browser" not in params.model_fields_set
+    assert params.telemetry == telemetry
+    assert params.system_prompt == "Use the test policy"
+    assert params.self_heal is True
+    assert params.dom_settle_timeout_ms == 2_500
+    assert params.cache is not None
+    assert params.cache.model_dump() == {"threshold": 3}
 
 
 @pytest.mark.asyncio
-async def test_stagehand_rejects_missing_resolved_cdp_url_before_init(
+async def test_create_rejects_model_connection_options_for_missing_or_callback_models(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-    })
-    recording.browser_web_socket_debugger_url = None
+    async def generate(_: LLMGenerateInput) -> LLMGenerateOutput:
+        raise AssertionError
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-
-    with pytest.raises(RuntimeError, match="CDP WebSocket URL is unavailable"):
-        await stagehand.init()
-
-    assert recording.calls == []
+    browser, _ = _browser_handle()
+    with pytest.raises(TypeError, match="require a model name"):
+        await Stagehand.create(browser=browser, model_api_key="key")
+    with pytest.raises(TypeError, match="cannot be used with an LLM callback"):
+        await Stagehand.create(browser=browser, model=generate, model_api_key="key")
 
 
 @pytest.mark.asyncio
-async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_structured_event(
+async def test_create_claim_errors_for_closed_and_attached_handles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    closed, _ = _browser_handle()
+    await closed.close()
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        await Stagehand.create(browser=closed)
+
+    attached, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=attached)
+    with pytest.raises(RuntimeError, match="already attached"):
+        await Stagehand.create(browser=attached)
+    await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _recording({"stagehand.init": RuntimeError("init failed")})
+    _install_rpc_client(monkeypatch, failed)
+    browser, transport = _browser_handle()
+
+    with pytest.raises(RuntimeError, match="init failed"):
+        await Stagehand.create(browser=browser)
+
+    assert failed.closed is True
+    assert failed.close_transport_flags == [False]
+    assert failed.notifications == {}
+    assert failed.requests == {}
+    assert browser.closed is False
+    assert transport.close_calls == 0
+
+    successful = _recording()
+    _install_rpc_client(monkeypatch, successful)
+    stagehand = await Stagehand.create(browser=browser)
+    assert stagehand.initialized is True
+
+
+@pytest.mark.asyncio
+async def test_cancelled_create_releases_claim_and_keeps_browser_open_for_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = asyncio.Event()
+    blocker = asyncio.Event()
+
+    class BlockingInitRPCClient(RecordingRPCClient):
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[RootModel[RootResultT]],
+        ) -> RootResultT: ...
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[ResultT],
+        ) -> ResultT: ...
+
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BaseModel],
+        ) -> object:
+            if method == "stagehand.init":
+                started.set()
+                await blocker.wait()
+            return await super().send(method, params, result_model)
+
+    blocking = BlockingInitRPCClient()
+    _install_rpc_client(monkeypatch, blocking)
+    browser, transport = _browser_handle()
+    create_task = asyncio.create_task(Stagehand.create(browser=browser))
+
+    await started.wait()
+    create_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await create_task
+
+    assert blocking.closed is True
+    assert blocking.close_transport_flags == [False]
+    assert browser.closed is False
+    assert transport.close_calls == 0
+
+    successful = _recording()
+    _install_rpc_client(monkeypatch, successful)
+    stagehand = await Stagehand.create(browser=browser)
+    assert stagehand.initialized is True
+
+
+@pytest.mark.asyncio
+async def test_failed_create_for_missing_cdp_url_can_retry_same_handle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _recording()
+    _install_rpc_client(monkeypatch, failed)
+    browser, transport = _browser_handle(web_socket_debugger_url=None)
+
+    with pytest.raises(RuntimeError, match="The browser CDP WebSocket URL is unavailable"):
+        await Stagehand.create(browser=browser)
+
+    transport.web_socket_debugger_url = "ws://recovered"
+    successful = _recording()
+    _install_rpc_client(monkeypatch, successful)
+    stagehand = await Stagehand.create(browser=browser)
+    assert stagehand.initialized is True
+
+
+@pytest.mark.asyncio
+async def test_close_is_memoized_and_never_closes_browser_or_transport(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, transport = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    await asyncio.gather(stagehand.close(), stagehand.close(), stagehand.close())
+    await stagehand.close()
+
+    assert stagehand.initialized is False
+    assert [call[0] for call in recording.calls].count("stagehand.close") == 1
+    assert recording.close_transport_flags == [False]
+    assert browser.closed is False
+    assert transport.close_calls == 0
+    with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
+        _ = stagehand.context
+    with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
+        await stagehand.metrics()
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(
+    getattr(asyncio, "eager_task_factory", None) is None,
+    reason="asyncio.eager_task_factory requires Python 3.12+",
+)
+async def test_close_works_with_eager_task_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    loop = asyncio.get_running_loop()
+    original_task_factory = loop.get_task_factory()
+    loop.set_task_factory(getattr(asyncio, "eager_task_factory"))
+    try:
+        recording = _recording()
+        _install_rpc_client(monkeypatch, recording)
+        browser, _ = _browser_handle()
+        stagehand = await Stagehand.create(browser=browser)
+
+        await stagehand.close()
+        await stagehand.close()
+    finally:
+        loop.set_task_factory(original_task_factory)
+
+    assert [call[0] for call in recording.calls].count("stagehand.close") == 1
+    assert recording.close_transport_flags == [False]
+    assert stagehand.initialized is False
+
+
+@pytest.mark.asyncio
+async def test_close_swallows_cdp_connection_closed_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.close": CDPConnectionClosedError()})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+
+    await stagehand.close()
+
+    assert recording.closed is True
+    assert recording.close_transport_flags == [False]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_prints_logs_and_calls_structured_callback(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-    })
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
     received: list[StagehandLog] = []
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
 
     async def on_log(log: StagehandLog) -> None:
         received.append(log)
 
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(
-        browser="cdp",
-        cdp_url="test://browser",
-        logging=StagehandClientLoggingConfig(
-            level="debug",
-            format="json",
-            on_log=on_log,
-        ),
+    await Stagehand.create(
+        browser=browser,
+        logging=StagehandClientLoggingConfig(level="info", on_log=on_log),
     )
-    await stagehand.init()
     _, listener = recording.notifications["stagehand.log"]
     notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
-    log = StagehandLog.model_validate({
+    debug = StagehandLog.model_validate({
         "level": "debug",
-        "message": "CDP call",
-        "data": {"method": "Page.navigate"},
+        "message": "hidden",
+        "data": {},
+    })
+    info = StagehandLog.model_validate({
+        "level": "info",
+        "message": "Page opened",
+        "data": {"pageId": "page-1"},
     })
 
-    await notification_listener(log)
+    await notification_listener(debug)
+    await notification_listener(info)
 
-    assert capsys.readouterr().err == (
-        '{"level":"debug","message":"CDP call","data":{"method":"Page.navigate"}}\n'
-    )
-    assert received == [log]
+    assert capsys.readouterr().err == '[stagehand] INFO Page opened {"pageId":"page-1"}\n'
+    assert received == [info]
 
 
 @pytest.mark.asyncio
-async def test_stagehand_routes_public_metrics(
+async def test_callback_llm_handler_preserves_structured_and_image_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    metrics = StagehandMetrics.model_validate({
-        field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
-    })
-    recording = RecordingRPCClient({
-        "stagehand.metrics": metrics,
-    })
-    recording.responses["stagehand.init"] = StagehandInitResult(initialized=True, pages=[])
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    await stagehand.init()
-
-    assert stagehand.browser.cdp_url == "test://browser"
-    assert await stagehand.metrics() == metrics
-    assert [method for method, _, _ in recording.calls[1:]] == [
-        "stagehand.metrics",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    action = Action(selector="a", description="More information")
-    act_result = ActResultData(
-        success=True,
-        message="Clicked the link",
-        action_description="Clicked the more information link",
-        actions=[action],
-    )
-    zero_usage = StagehandResultUsage()
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "context.active_page": PageRef(page_id="active-page"),
-        "stagehand.act": ActResult.model_validate({
-            "data": act_result,
-            "metadata": {"cache_status": "HIT", "usage": zero_usage},
-        }),
-        "stagehand.observe": ObserveResult.model_validate({
-            "data": [action],
-            "metadata": {"cache_status": "MISS", "usage": zero_usage},
-        }),
-        # Keep this as raw wire JSON: extract() must preserve integer values
-        # until the caller's Pydantic schema validates them.
-        "stagehand.extract": {
-            "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(
-                cache_status=CacheStatus.hit,
-                usage=zero_usage,
-            ),
-        },
-    })
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
-    locator = ProtocolLocator(selector="main")
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    await stagehand.init()
-    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
-
-    action_result = await stagehand.act(
-        "Click the link",
-        page=page,
-        model=model,
-        timeout=30_000,
-        locator=locator,
-        cache=CacheOptions(threshold=1),
-    )
-    actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
-    replay_result = await stagehand.act(actions.data[0], page=page)
-    page_info = await stagehand.extract(
-        instruction="Extract the heading",
-        schema=PageInfo,
-        page=page,
-        model=model,
-        screenshot=True,
-        locator=locator,
-    )
-
-    assert action_result.data == act_result
-    assert action_result.metadata.cache_status == "HIT"
-    assert actions.data == [action]
-    assert actions.metadata.cache_status == "MISS"
-    assert replay_result.data == act_result
-    assert replay_result.metadata.cache_status == "HIT"
-    assert page_info.data == PageInfo(heading="Example Domain", count=1)
-    assert isinstance(page_info.data.count, int)
-    assert page_info.metadata.cache_status == "HIT"
-    assert [call[0] for call in recording.calls] == [
-        "stagehand.init",
-        "stagehand.act",
-        "context.active_page",
-        "stagehand.observe",
-        "stagehand.act",
-        "stagehand.extract",
-    ]
-    act_params = recording.calls[1][1]
-    assert isinstance(act_params, StagehandActParams)
-    assert act_params.page_id == "explicit-page"
-    assert act_params.options is not None
-    assert act_params.options.model == model
-    assert act_params.options.timeout == 30_000
-    assert act_params.options.locator == locator
-    assert act_params.options.cache is not None
-    assert act_params.options.cache.model_dump() == {"threshold": 1}
-    observe_params = recording.calls[3][1]
-    assert isinstance(observe_params, StagehandObserveParams)
-    assert observe_params.page_id == "active-page"
-    assert observe_params.instruction == "Find the link"
-    assert observe_params.options is not None
-    assert observe_params.options.model == model
-    assert observe_params.options.locator == locator
-    replay_params = recording.calls[4][1]
-    assert isinstance(replay_params, StagehandActParams)
-    assert replay_params.model_dump(by_alias=True)["instruction"] == action.model_dump(
-        by_alias=True
-    )
-    extract_params = recording.calls[5][1]
-    assert isinstance(extract_params, StagehandExtractParams)
-    assert extract_params.page_id == "explicit-page"
-    assert extract_params.options is not None
-    assert extract_params.options.model == model
-    assert extract_params.options.screenshot is True
-    assert extract_params.options.locator == locator
-    assert extract_params.schema_ is not None
-    schema = extract_params.schema_.model_dump()
-    assert isinstance(schema, dict)
-    properties = schema["properties"]
-    assert isinstance(properties, dict)
-    heading = properties["heading"]
-    assert isinstance(heading, dict)
-    assert heading["type"] == "string"
-
-
-@pytest.mark.asyncio
-async def test_stagehand_ai_methods_require_an_active_page(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "context.active_page": None,
-    })
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return ResolvedBrowserSource(cdp_url="test://browser", keep_alive=True)
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    await stagehand.init()
-
-    with pytest.raises(RuntimeError, match="no active page"):
-        await stagehand.act("Click the link")
-
-    assert [call[0] for call in recording.calls] == [
-        "stagehand.init",
-        "context.active_page",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_successful(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    browser_closes = 0
-
-    async def close_browser() -> None:
-        nonlocal browser_closes
-        browser_closes += 1
-
-    browser = ResolvedBrowserSource(
-        cdp_url="test://browser",
-        keep_alive=False,
-        _close_callback=close_browser,
-    )
-    recording = RecordingRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "stagehand.close": CDPConnectionClosedError(),
-    })
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return browser
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
     callback_params: list[LLMGenerateInput] = []
 
     async def generate(params: LLMGenerateInput) -> LLMGenerateOutput:
@@ -481,38 +471,19 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
             "structured_content": {"answer": True},
         })
 
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(
-        browser="cdp",
-        cdp_url="test://browser",
-        model=generate,
-    )
-
-    await asyncio.gather(stagehand.init(), stagehand.init())
-
-    assert stagehand.initialized is True
-    assert stagehand.context is not None
-    assert [call[0] for call in recording.calls] == ["stagehand.init"]
-    params_schema, result_schema, _ = recording.requests["llm.generate"]
-    assert params_schema is LLMGenerateParams
-    assert result_schema is LLMGenerateResult
+    await Stagehand.create(browser=browser, model=generate)
     handler = cast(
         Callable[[LLMGenerateParams], Awaitable[LLMGenerateResult]],
         recording.requests["llm.generate"][2],
     )
-    callback_result = await handler(
+    result = await handler(
         LLMGenerateParams.model_validate({
             "messages": [
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "Answer"},
-                        {
-                            "type": "image",
-                            "data": "iVBORw0KGgo=",
-                            "mime_type": "image/png",
-                        },
+                        {"type": "image", "data": "iVBORw0KGgo=", "mime_type": "image/png"},
                     ],
                 }
             ],
@@ -523,118 +494,109 @@ async def test_stagehand_serializes_lifecycle_and_treats_close_disconnect_as_suc
             },
         })
     )
-    assert len(callback_params) == 1
+
     assert isinstance(callback_params[0], LLMStructuredGenerateParams)
-    callback_content = callback_params[0].messages[0].content
-    assert isinstance(callback_content, list)
-    assert isinstance(callback_content[1].root, LLMImageContent)
-    assert callback_content[1].root.mime_type == "image/png"
-    assert isinstance(callback_result.root, LLMStructuredGenerateResult)
-    init_params = recording.calls[0][1]
-    assert isinstance(init_params, StagehandInitParams)
-    assert "browser" not in init_params.model_fields_set
-    assert init_params.model == ClientModelReference(source="client")
-
-    await asyncio.gather(stagehand.close(), stagehand.close())
-
-    assert stagehand.initialized is False
-    assert [method for method, _, _ in recording.calls].count("stagehand.close") == 1
-    assert recording.closed is True
-    assert browser_closes == 1
-    with pytest.raises(RuntimeError, match="not initialized"):
-        _ = stagehand.context
+    content = callback_params[0].messages[0].content
+    assert isinstance(content, list)
+    assert isinstance(content[1].root, LLMImageContent)
+    assert isinstance(result.root, LLMStructuredGenerateResult)
 
 
 @pytest.mark.asyncio
-async def test_stagehand_closes_the_browser_when_rpc_cleanup_fails(
+async def test_stagehand_routes_metrics_and_ai_methods(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    browser_closed = False
-
-    async def close_browser() -> None:
-        nonlocal browser_closed
-        browser_closed = True
-
-    class FailingCloseRPCClient(RecordingRPCClient):
-        async def close(self, reason: BaseException | None = None) -> None:
-            await super().close(reason)
-            raise RuntimeError("RPC close failed")
-
-    browser = ResolvedBrowserSource(
-        cdp_url="test://browser",
-        keep_alive=False,
-        _close_callback=close_browser,
+    action = Action(selector="a", description="More information")
+    act_data = ActResultData(
+        success=True,
+        message="Clicked the link",
+        action_description="Clicked the more information link",
+        actions=[action],
     )
-    recording = FailingCloseRPCClient({
-        "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
-        "stagehand.close": StagehandCloseResult(closed=True),
+    metrics = StagehandMetrics.model_validate({
+        field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
     })
+    usage = StagehandResultUsage(input_tokens=11, output_tokens=7, reasoning_tokens=3)
+    recording = _recording({
+        "context.active_page": PageRef(page_id="active-page"),
+        "stagehand.metrics": metrics,
+        "stagehand.act": ActResult.model_validate({
+            "data": act_data,
+            "metadata": {"cache_status": "HIT", "usage": usage},
+        }),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache_status": "MISS", "usage": usage},
+        }),
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit, usage=usage),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    locator = ProtocolLocator(selector="main")
 
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return browser
+    assert await stagehand.metrics() == metrics
+    act_result = await stagehand.act(
+        "Click the link",
+        page=page,
+        model=model,
+        timeout=30_000,
+        locator=locator,
+        cache=CacheOptions(threshold=1),
+    )
+    observed = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    extracted = await stagehand.extract(
+        instruction="Extract the heading",
+        schema=PageInfo,
+        page=page,
+        model=model,
+        screenshot=True,
+        locator=locator,
+    )
 
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    await stagehand.init()
-
-    with pytest.raises(RuntimeError, match="RPC close failed"):
-        await stagehand.close()
-
-    assert browser_closed is True
-    assert stagehand.initialized is False
+    assert act_result.data == act_data
+    assert act_result.metadata.cache_status is CacheStatus.hit
+    assert act_result.metadata.usage == usage
+    assert observed.data == [action]
+    assert observed.metadata.cache_status is CacheStatus.miss
+    assert observed.metadata.usage == usage
+    assert extracted.data == PageInfo(heading="Example Domain", count=1)
+    assert extracted.metadata.cache_status is CacheStatus.hit
+    assert extracted.metadata.usage == usage
+    act_params = next(
+        cast(StagehandActParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.act"
+    )
+    assert act_params.options is not None
+    assert act_params.options.cache is not None
+    observe_params = next(
+        cast(StagehandObserveParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.observe"
+    )
+    assert observe_params.page_id == "active-page"
+    extract_params = next(
+        cast(StagehandExtractParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.extract"
+    )
+    assert extract_params.page_id == "explicit-page"
 
 
 @pytest.mark.asyncio
-async def test_cancelled_initialization_still_releases_the_browser_and_rpc_client(
+async def test_stagehand_ai_methods_require_an_active_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    browser_closed = False
-    init_started = asyncio.Event()
-    never_complete = asyncio.Event()
+    recording = _recording({"context.active_page": None})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
 
-    async def close_browser() -> None:
-        nonlocal browser_closed
-        browser_closed = True
-
-    class BlockingRPCClient(RecordingRPCClient):
-        async def send(
-            self,
-            method: str,
-            params: BaseModel,
-            result_model: type[BlockingResultT],
-        ) -> BlockingResultT:
-            if method == "stagehand.init":
-                init_started.set()
-                await never_complete.wait()
-            raise AssertionError(f"Unexpected method: {method}")
-
-    browser = ResolvedBrowserSource(
-        cdp_url="test://browser",
-        keep_alive=False,
-        _close_callback=close_browser,
-    )
-    recording = BlockingRPCClient()
-
-    async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
-        return browser
-
-    async def connect(**_: object) -> RPCClient:
-        return cast(RPCClient, recording)
-
-    monkeypatch.setattr(stagehand_module, "resolve_browser_source", resolve)
-    monkeypatch.setattr(stagehand_module, "connect_rpc_client", connect)
-    stagehand = Stagehand(browser="cdp", cdp_url="test://browser")
-    task = asyncio.create_task(stagehand.init())
-    await init_started.wait()
-
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-
-    assert recording.closed is True
-    assert browser_closed is True
-    assert stagehand.initialized is False
+    with pytest.raises(RuntimeError, match="no active page"):
+        await stagehand.act("Click the link")

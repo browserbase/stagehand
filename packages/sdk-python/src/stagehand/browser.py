@@ -8,9 +8,9 @@ import socket
 import sys
 import tempfile
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import Literal, Protocol
 
 from ._generated.models import BrowserSessionMetadata
 from .cdp_client import CDPClient
@@ -20,9 +20,6 @@ from .client_models import (
     LocalProxyConfig,
     LocalViewport,
 )
-
-if TYPE_CHECKING:
-    from .browser_source import ResolvedBrowserSource
 
 _WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 
@@ -69,6 +66,21 @@ class _ClaimedBrowser:
     cdp_client: CDPClient
     worker_init_metadata: _WorkerInitMetadata
     command_timeout_ms: int = _COMMAND_TIMEOUT_MS
+
+
+@dataclass
+class ResolvedBrowserSource:
+    cdp_url: str
+    keep_alive: bool
+    _close_callback: Callable[[], Awaitable[None]] | None = field(default=None, repr=False)
+    _closed: bool = field(default=False, init=False, repr=False)
+
+    async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        if self._close_callback is not None:
+            await self._close_callback()
 
 
 class StagehandBrowser:
@@ -481,13 +493,9 @@ async def _launch_local_browser(options: _LocalBrowserOptions) -> ResolvedBrowse
             if temporary_profile and options.preserve_user_data_dir is not True:
                 await asyncio.to_thread(shutil.rmtree, user_data_dir, True)
 
-    from .browser_source import ResolvedBrowserSource
-
     return ResolvedBrowserSource(
         cdp_url=f"http://127.0.0.1:{port}",
         keep_alive=options.keep_alive or False,
-        resident_browser_connection=False,
-        connect_timeout_ms=options.connect_timeout_ms,
         _close_callback=close,
     )
 
