@@ -13,25 +13,24 @@ interface RawLog {
   request?: { rawBody?: string; params?: unknown };
 }
 
-/**
- * The CDP event params this reducer reads. Every field is optional: the payload is
- * untrusted JSON off the wire, and one shape covers events from several domains.
- */
-interface CdpParams {
-  type?: string;
+interface CdpLogParams {
   args?: Array<{ description?: string; value?: unknown }>;
-  exceptionDetails?: { text?: string; exception?: { description?: string } };
-  entry?: { level?: string; text?: string; url?: string };
-  response?: { status?: number; url?: string };
-  errorText?: string;
+  entry?: { level?: string; text?: unknown; url?: unknown };
+  errorText?: unknown;
+  exceptionDetails?: {
+    exception?: { description?: string };
+    text?: string;
+  };
+  response?: { status?: number; url?: unknown };
+  type?: string;
 }
 
-function paramsOf(e: RawLog): CdpParams {
+function paramsOf(e: RawLog): CdpLogParams {
   try {
-    return (
-      ((JSON.parse(e.request?.rawBody ?? "{}") as { params?: CdpParams })
-        .params as CdpParams) ?? {}
-    );
+    const parsed = JSON.parse(e.request?.rawBody ?? "{}") as {
+      params?: CdpLogParams;
+    };
+    return parsed.params ?? {};
   } catch {
     return {};
   }
@@ -72,14 +71,19 @@ export function reduceLogs(
   for (const e of raw) {
     const p = paramsOf(e);
     const m = e.method;
+    const responseStatus = p.response?.status;
     let rec: Record<string, unknown> | null = null;
 
     if (
       m === "Runtime.consoleAPICalled" &&
-      ["error", "warning", "assert"].includes(p.type ?? "")
+      typeof p.type === "string" &&
+      ["error", "warning", "assert"].includes(p.type)
     ) {
-      const text = (p.args ?? [])
-        .map((a) => a.description || a.value || "")
+      const text = (Array.isArray(p.args) ? p.args : [])
+        .map((a) =>
+          a && typeof a === "object" ? a.description || a.value || "" : "",
+        )
+        .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
         rec = {
@@ -101,23 +105,25 @@ export function reduceLogs(
       };
     } else if (
       m === "Log.entryAdded" &&
-      ["error", "warning"].includes(p.entry?.level ?? "")
+      typeof p.entry?.level === "string" &&
+      ["error", "warning"].includes(p.entry?.level)
     ) {
       rec = {
-        kind: `log.${p.entry?.level}`,
+        kind: `log.${p.entry.level}`,
         domain: "Log",
-        severity: p.entry?.level,
-        text: p.entry?.text,
-        url: p.entry?.url,
+        severity: p.entry.level,
+        text: p.entry.text,
+        url: p.entry.url,
       };
     } else if (
       m === "Network.responseReceived" &&
-      (p.response?.status ?? 0) >= 400
+      typeof responseStatus === "number" &&
+      responseStatus >= 400
     ) {
       rec = {
         kind: "network",
         domain: "Network",
-        status: p.response?.status,
+        status: responseStatus,
         url: p.response?.url,
         type: p.type,
       };
