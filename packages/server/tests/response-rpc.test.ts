@@ -131,6 +131,34 @@ describe("navigation response runtime", () => {
 });
 
 describe("response RPC methods", () => {
+  it("removes lifecycle listeners and settles pending work when disposed", async () => {
+    const session = new ResponseRPCSession();
+    const response = createResponse(session);
+    const finished = response.finished();
+    const body = expect(response.body()).rejects.toThrow("Response was disposed");
+
+    expect([...session.handlers.values()].map((handlers) => handlers.size)).toStrictEqual([
+      1, 1, 1,
+    ]);
+
+    response.dispose();
+
+    await expect(finished).resolves.toMatchObject({ message: "Response was disposed" });
+    await body;
+    expect(session.calls).not.toContainEqual({
+      method: "Network.getResponseBody",
+      params: { requestId: "cdp-request-1" },
+    });
+    expect([...session.handlers.values()].map((handlers) => handlers.size)).toStrictEqual([
+      0, 0, 0,
+    ]);
+
+    response.dispose();
+    expect([...session.handlers.values()].map((handlers) => handlers.size)).toStrictEqual([
+      0, 0, 0,
+    ]);
+  });
+
   it("routes lazy response operations through the opaque handle", async () => {
     const runtime = createStagehandRuntime();
     const response = createResponse();

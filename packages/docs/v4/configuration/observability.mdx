@@ -354,7 +354,7 @@ if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
 await stagehand.act("click button")
-await stagehand.extract(instruction="get data", schema=Data)
+await stagehand.extract("get data", Data)
 
 final_metrics = await stagehand.metrics()
 execution_time = (perf_counter() - start_time) * 1000
@@ -703,7 +703,7 @@ if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
 await stagehand.act("click the login button")
-data = (await stagehand.extract(instruction="extract user info", schema=User)).data
+data = (await stagehand.extract("extract user info", User)).data
 print(f"Extracted {data.name} <{data.email}>")
 
 final_metrics = await stagehand.metrics()

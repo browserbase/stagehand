@@ -261,9 +261,37 @@ class BrowserbaseViewport(WireModel):
     height: Optional[StrictFloat] = None
 
 
+class CacheMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    status: CacheStatus
+    """Whether server-side caching served this result, computed it, or was not consulted"""
+    count: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    """Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served"""
+    threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    """Hit-count threshold in effect for this key"""
+    miss_reason: Optional[StrictStr] = None
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    tokens_saved: Optional[CacheTokenSavings] = None
+    """LLM tokens avoided by serving this request from cache; hits only"""
+
+
 class CacheStatus(StrEnum):
     hit = "HIT"
     miss = "MISS"
+    disabled = "DISABLED"
+
+
+class CacheTokenSavings(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    total_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
 
 
 class Caching1(WireModel):
@@ -1241,7 +1269,7 @@ class NavigationResponseDescriptor(WireModel):
     )
     response_id: Annotated[StrictStr, Field(min_length=1)]
     url: StrictStr
-    status: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
+    status: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
     status_text: StrictStr
     headers: dict[StrictStr, StrictStr]
     from_service_worker: StrictBool
@@ -1265,7 +1293,7 @@ class NavigationServerAddr(WireModel):
         validate_by_name=True,
     )
     ip_address: StrictStr
-    port: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    port: Annotated[StrictInt, Field(ge=0, le=65535)]
 
 
 class ObserveOptions(WireModel):
@@ -2018,8 +2046,8 @@ class StagehandResultMetadata(WireModel):
     )
     action_id: Optional[StrictStr] = None
     """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    cache: CacheMetadata
+    """Cache observability for this result; status is DISABLED when no cache lookup ran"""
     usage: StagehandResultUsage
     """Aggregate LLM usage for this operation; zeroed when the operation did not run inference"""
 

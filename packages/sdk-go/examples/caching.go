@@ -56,12 +56,14 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		APIKey:  &apiKey,
-		Browser: stagehand.BrowserbaseClientBrowserSource{},
-		Model:   &model,
-	})
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()

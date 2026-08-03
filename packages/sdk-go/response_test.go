@@ -69,7 +69,7 @@ func TestResponseRetrievesHeadersAndConnectionMetadataLazily(t *testing.T) {
 			ValidTo:     2,
 		}},
 		"response.server_addr": ResponseServerAddrResult{Value: &NavigationServerAddr{
-			IpAddress: "203.0.113.10",
+			IPAddress: "203.0.113.10",
 			Port:      443,
 		}},
 	}}
@@ -109,7 +109,7 @@ func TestResponseRetrievesHeadersAndConnectionMetadataLazily(t *testing.T) {
 		t.Fatalf("SecurityDetails() = (%#v, %v)", securityDetails, err)
 	}
 	serverAddr, err := response.ServerAddr(ctx)
-	if err != nil || serverAddr == nil || serverAddr.IpAddress != "203.0.113.10" {
+	if err != nil || serverAddr == nil || serverAddr.IPAddress != "203.0.113.10" {
 		t.Fatalf("ServerAddr() = (%#v, %v)", serverAddr, err)
 	}
 

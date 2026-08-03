@@ -815,7 +815,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT", usage: zeroUsage },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -840,7 +840,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT", usage: zeroUsage },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandAct, {
@@ -864,7 +864,7 @@ describe("Stagehand TS object wrapper", () => {
     };
     client.queueResponse(StagehandMethods.stagehandObserve, {
       data: [observedAction],
-      metadata: { usage: zeroUsage },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     client.queueResponse(StagehandMethods.stagehandAct, {
       data: {
@@ -873,7 +873,7 @@ describe("Stagehand TS object wrapper", () => {
         actionDescription: "Submit button",
         actions: [observedAction],
       },
-      metadata: { usage: zeroUsage },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -911,7 +911,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS", usage: zeroUsage },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -937,7 +937,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS", usage: zeroUsage },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandObserve, {
@@ -962,13 +962,13 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
     client.queueResponse(StagehandMethods.stagehandObserve, {
       data: [],
-      metadata: { usage: zeroUsage },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
 
     await expect(stagehand.observe()).resolves.toStrictEqual({
       data: [],
-      metadata: { usage: zeroUsage },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextActivePage, {}),
@@ -991,7 +991,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT", usage: zeroUsage },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -1001,7 +1001,7 @@ describe("Stagehand TS object wrapper", () => {
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT", usage: zeroUsage },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandExtract, {
@@ -1017,7 +1017,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: 42 },
-      metadata: { usage: zeroUsage },
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });

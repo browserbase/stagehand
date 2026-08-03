@@ -202,8 +202,8 @@ async def main() -> None:
 
         # Extract structured data
         result = await stagehand.extract(
-            instruction="extract the description",
-            schema=Description,
+            "extract the description",
+            Description,
         )
 
         print(result.data.description)

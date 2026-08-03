@@ -11,6 +11,7 @@ type NavigationOptions = {
   emitResponse?: boolean;
   finalUrl?: string;
   finishAfterLifecycle?: boolean;
+  omitLoaderId?: boolean;
   sameDocument?: boolean;
   status?: number;
   synchronousResponse?: boolean;
@@ -40,7 +41,9 @@ class NavigationCDPSession implements CDPSessionLike {
       });
       return {
         frameId: MAIN_FRAME_ID,
-        ...(this.navigationOptions.sameDocument ? {} : { loaderId }),
+        ...(this.navigationOptions.sameDocument || this.navigationOptions.omitLoaderId
+          ? {}
+          : { loaderId }),
       } as Result;
     }
 
@@ -208,6 +211,22 @@ describe("Page navigation responses", () => {
     expect(response!.url()).toBe("https://example.test/final");
     expect(response!.status()).toBe(404);
     expect(response!.ok()).toBe(false);
+    await expect(response!.finished()).resolves.toBeNull();
+  });
+
+  it("captures a buffered goto response when Page.navigate omits its loader id", async () => {
+    const session = new NavigationCDPSession();
+    session.navigationOptions = {
+      finalUrl: "https://example.test/final-without-loader",
+      omitLoaderId: true,
+    };
+    const page = createPage(session);
+
+    const response = await page.goto("https://example.test/no-loader");
+
+    expect(response).not.toBeNull();
+    expect(response!.url()).toBe("https://example.test/final-without-loader");
+    expect(response!.status()).toBe(200);
     await expect(response!.finished()).resolves.toBeNull();
   });
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -24,11 +25,13 @@ type rpcTestResult struct {
 }
 
 type queueRPCTransport struct {
-	sent      chan json.RawMessage
-	incoming  chan rpcTransportReceive
-	closed    chan struct{}
-	closeOnce sync.Once
-	sendHook  func(json.RawMessage)
+	sent       chan json.RawMessage
+	incoming   chan rpcTransportReceive
+	closed     chan struct{}
+	closeOnce  sync.Once
+	closeCalls atomic.Int32
+	closeErr   error
+	sendHook   func(json.RawMessage)
 }
 
 func newQueueRPCTransport() *queueRPCTransport {
@@ -69,8 +72,9 @@ func (t *queueRPCTransport) Receive(ctx context.Context) (json.RawMessage, error
 }
 
 func (t *queueRPCTransport) Close() error {
+	t.closeCalls.Add(1)
 	t.closeOnce.Do(func() { close(t.closed) })
-	return nil
+	return t.closeErr
 }
 
 func (t *queueRPCTransport) receiveJSON(message string) {
@@ -171,10 +175,12 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 3,
-		"result": {"response": null}
+		"result": {"page": {}, "response": null}
 	}`)
 	if err := receiveCallError(t, missingDone); err == nil {
 		t.Fatal("call() accepted a result missing page_id")
+	} else if !strings.Contains(err.Error(), `page: missing required JSON field "page_id"`) {
+		t.Fatalf("call() error = %v, want missing nested page_id error", err)
 	}
 }
 
@@ -622,7 +628,7 @@ func TestRPCClientInvalidResponseClosesClientAndRejectsPendingCall(t *testing.T)
 	t.Parallel()
 
 	transport := newQueueRPCTransport()
-	client, err := newRPCClient(transport)
+	client, err := newRPCClient(transport, true)
 	if err != nil {
 		t.Fatalf("newRPCClient() error = %v", err)
 	}
@@ -649,6 +655,74 @@ func TestRPCClientInvalidResponseClosesClientAndRejectsPendingCall(t *testing.T)
 	}
 	if err := client.close(); err != nil {
 		t.Fatalf("close() error = %v", err)
+	}
+}
+
+func TestRPCClientTransportOwnership(t *testing.T) {
+	tests := []struct {
+		name           string
+		ownsTransport  bool
+		wantCloseCalls int32
+		wantCloseErr   bool
+	}{
+		{
+			name:           "borrowed transport",
+			ownsTransport:  false,
+			wantCloseCalls: 0,
+		},
+		{
+			name:           "owned transport",
+			ownsTransport:  true,
+			wantCloseCalls: 1,
+			wantCloseErr:   true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transportCloseErr := errors.New("transport close failed")
+			transport := newQueueRPCTransport()
+			transport.closeErr = transportCloseErr
+			client, err := newRPCClient(transport, test.ownsTransport)
+			if err != nil {
+				t.Fatalf("newRPCClient() error = %v", err)
+			}
+
+			callDone := make([]chan error, 2)
+			for index := range callDone {
+				callDone[index] = make(chan error, 1)
+				go func(done chan<- error) {
+					var result rpcTestResult
+					done <- client.call(
+						context.Background(),
+						"test.request",
+						EmptyParams{},
+						&result,
+					)
+				}(callDone[index])
+			}
+			for range callDone {
+				_ = receiveSentRPC(t, transport)
+			}
+
+			closeReason := errors.New("RPC scope ended")
+			client.shutdown(closeReason)
+			for _, done := range callDone {
+				if err := receiveCallError(t, done); !errors.Is(err, closeReason) {
+					t.Fatalf("pending call error = %v, want close reason", err)
+				}
+			}
+			closeErr := client.close()
+			if test.wantCloseErr {
+				if !errors.Is(closeErr, transportCloseErr) {
+					t.Fatalf("close() error = %v, want transport close error", closeErr)
+				}
+			} else if closeErr != nil {
+				t.Fatalf("close() error = %v, want nil", closeErr)
+			}
+			if got := transport.closeCalls.Load(); got != test.wantCloseCalls {
+				t.Fatalf("transport Close calls = %d, want %d", got, test.wantCloseCalls)
+			}
+		})
 	}
 }
 
@@ -725,7 +799,7 @@ func newTestRPCClient(
 	transport rpcTransport,
 ) *rpcClient {
 	t.Helper()
-	client, err := newRPCClient(transport)
+	client, err := newRPCClient(transport, true)
 	if err != nil {
 		t.Fatalf("newRPCClient() error = %v", err)
 	}

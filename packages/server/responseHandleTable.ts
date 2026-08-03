@@ -47,7 +47,7 @@ export class ResponseHandleTable {
     while (this.entries.size >= this.maxHandles) {
       const oldestResponseId = this.entries.keys().next().value as string | undefined;
       if (oldestResponseId === undefined) break;
-      this.entries.delete(oldestResponseId);
+      this.delete(oldestResponseId);
     }
     this.entries.set(responseId, { pageId, response });
     return responseId;
@@ -61,12 +61,19 @@ export class ResponseHandleTable {
 
   deleteForPage(pageId: string): void {
     for (const [responseId, entry] of this.entries) {
-      if (entry.pageId === pageId) this.entries.delete(responseId);
+      if (entry.pageId === pageId) this.delete(responseId);
     }
   }
 
   clear(): void {
-    this.entries.clear();
+    for (const responseId of this.entries.keys()) this.delete(responseId);
+  }
+
+  private delete(responseId: string): void {
+    const entry = this.entries.get(responseId);
+    if (!entry) return;
+    this.entries.delete(responseId);
+    entry.response.dispose(new ResponseHandleNotFoundError(responseId));
   }
 
   private nextHandle(): string {

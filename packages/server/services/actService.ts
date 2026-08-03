@@ -17,6 +17,7 @@ import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import type { EncodedId } from "../types/private/internal.js";
@@ -26,7 +27,7 @@ import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
-import { zeroStagehandResultUsage } from "./resultUsage.js";
+import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -40,6 +41,7 @@ type ActContext = {
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
   ensureTimeRemaining: () => void;
+  gateway?: GatewayContext;
   recordUsage: (response: ActInferenceResponse) => void;
 };
 
@@ -53,6 +55,7 @@ export async function act({
   selfHeal = false,
   domSettleTimeoutMs,
   cache,
+  gateway,
 }: {
   params: StagehandActParams;
   page: Page;
@@ -63,6 +66,7 @@ export async function act({
   selfHeal?: boolean;
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
@@ -81,6 +85,7 @@ export async function act({
     selfHeal,
     domSettleTimeoutMs,
     ensureTimeRemaining,
+    gateway,
     recordUsage,
   };
 
@@ -110,10 +115,19 @@ export async function act({
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
+      // Act can run several inferences (planning, self-heal), so report the
+      // aggregate — without it the server has no basis to compute the token
+      // savings a future hit avoided.
+      const { usage } = result.metadata;
       return {
         result,
         cacheValue:
           result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
+        llmUsage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          llmDurationMs: usage.inferenceTimeMs,
+        },
       };
     },
   });
@@ -262,7 +276,8 @@ async function getActionFromLLM({
   const response = await inference.act({
     instruction,
     domElements,
-    generate: (input) => llmService.generate(context.model, input, context.clientLLMGenerate),
+    generate: (input) =>
+      llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
     userProvidedInstructions: context.systemPrompt,
   });
   context.recordUsage(response);
@@ -514,7 +529,7 @@ function actResult(
   result: ActResultData,
   usage: StagehandResultUsage = zeroStagehandResultUsage(),
 ): ActResult {
-  return { data: result, metadata: { usage } };
+  return { data: result, metadata: { usage, cache: disabledCacheMetadata() } };
 }
 
 function describeAction(action: Action): string {

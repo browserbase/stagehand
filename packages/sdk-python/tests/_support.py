@@ -19,6 +19,7 @@ class RecordingRPCClient:
         self.requests: dict[str, tuple[object, object, object]] = {}
         self.notifications: dict[str, tuple[object, object]] = {}
         self.closed = False
+        self.close_transport_flags: list[bool] = []
 
     @overload
     async def send(
@@ -76,5 +77,11 @@ class RecordingRPCClient:
 
         return remove
 
-    async def close(self, reason: BaseException | None = None) -> None:
+    async def close(
+        self,
+        reason: BaseException | None = None,
+        *,
+        close_transport: bool = True,
+    ) -> None:
         self.closed = True
+        self.close_transport_flags.append(close_transport)
