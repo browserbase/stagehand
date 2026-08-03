@@ -21,7 +21,7 @@ type browserbaseSessionCreator interface {
 type browserSourceResolverDependencies struct {
 	browserbase             browserbaseSessionCreator
 	createBrowserbaseClient func(string) (browserbaseSessionCreator, error)
-	launchLocal             func(context.Context, LocalBrowserSource) (resolvedBrowserSource, error)
+	launchLocal             func(context.Context, LocalBrowserLaunchOptions) (resolvedBrowserSource, error)
 	materializeExtension    func() (string, func() error, error)
 }
 
@@ -126,6 +126,11 @@ func resolveLocalSource(
 	source LocalBrowserSource,
 	dependencies browserSourceResolverDependencies,
 ) (resolvedBrowserSource, error) {
+	if source.DownloadsPath != "" || source.AcceptDownloads != nil {
+		return resolvedBrowserSource{}, errors.New(
+			"stagehand local browser download options require post-connect CDP setup",
+		)
+	}
 	extensionDir, cleanup, err := materializeStagehandExtension(dependencies)
 	if err != nil {
 		return resolvedBrowserSource{}, err
@@ -135,7 +140,7 @@ func resolveLocalSource(
 	if launch == nil {
 		launch = launchLocalBrowser
 	}
-	resolved, err := launch(ctx, source)
+	resolved, err := launch(ctx, localBrowserLaunchOptions(source))
 	if err != nil {
 		return resolvedBrowserSource{}, errors.Join(err, cleanup())
 	}
@@ -145,6 +150,18 @@ func resolveLocalSource(
 		resolved.connectTimeout = time.Duration(source.ConnectTimeoutMs) * time.Millisecond
 	}
 	return resolved, nil
+}
+
+func localBrowserLaunchOptions(source LocalBrowserSource) LocalBrowserLaunchOptions {
+	return LocalBrowserLaunchOptions{
+		Args: source.Args, ExecutablePath: source.ExecutablePath, Port: source.Port,
+		UserDataDir: source.UserDataDir, PreserveUserDataDir: source.PreserveUserDataDir,
+		Headless: source.Headless, Devtools: source.Devtools, ChromiumSandbox: source.ChromiumSandbox,
+		IgnoreDefaultArgs: source.IgnoreDefaultArgs, Proxy: source.Proxy, Locale: source.Locale,
+		Viewport: source.Viewport, DeviceScaleFactor: source.DeviceScaleFactor, HasTouch: source.HasTouch,
+		IgnoreHTTPSErrors: source.IgnoreHTTPSErrors, ConnectTimeoutMs: source.ConnectTimeoutMs,
+		DownloadsPath: source.DownloadsPath, AcceptDownloads: source.AcceptDownloads, KeepAlive: source.KeepAlive,
+	}
 }
 
 func resolveCDPSource(

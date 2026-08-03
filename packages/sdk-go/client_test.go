@@ -3,6 +3,7 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -378,4 +379,158 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	if !rpc.closed {
 		t.Fatal("protocol client was not closed")
 	}
+}
+
+func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
+	region := BrowserbaseRegion("us-west-2")
+	handleAPIKey := "handle-key"
+	optionAPIKey := "option-key"
+	browser := &Browser{
+		workerAPIKey: &handleAPIKey,
+		workerBrowser: &BrowserSessionMetadata{
+			SessionID: "session-1",
+			Region:    &region,
+		},
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	client, err := createWithAdapters(context.Background(), CreateOptions{
+		Browser: browser,
+		APIKey:  &optionAPIKey,
+	}, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if client.attachedBrowser != browser || !client.Initialized() {
+		t.Fatalf("created client = %#v", client)
+	}
+	params, ok := rpc.calls[0].params.(StagehandInitParams)
+	if !ok {
+		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
+	}
+	if params.APIKey == nil || *params.APIKey != handleAPIKey {
+		t.Fatalf("APIKey = %#v", params.APIKey)
+	}
+	if params.Browser == nil || params.Browser.SessionID != "session-1" || params.Browser.Region == nil || *params.Browser.Region != region {
+		t.Fatalf("Browser = %#v", params.Browser)
+	}
+	if params.BrowserCDPURL == nil || *params.BrowserCDPURL != rpc.browserWebSocketDebuggerURL() {
+		t.Fatalf("BrowserCDPURL = %#v", params.BrowserCDPURL)
+	}
+	if params.ProtocolVersion != stagehandProtocolVersion || params.ClientInfo.Name != stagehandSDKClientName || params.ClientInfo.Version != stagehandSDKVersion {
+		t.Fatalf("protocol identity = %#v %#v", params.ProtocolVersion, params.ClientInfo)
+	}
+}
+
+func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {
+	browser := &Browser{}
+	_, err := Create(context.Background(), CreateOptions{Browser: browser})
+	if err == nil || err.Error() != "connect claimed browser: stagehand browser must be created by a stagehand browser factory" {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := claimBrowser(browser); err != nil {
+		t.Fatalf("claimBrowser() after Create error = %v", err)
+	}
+	releaseBrowserClaim(browser)
+}
+
+func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
+	apiKey := "option-key"
+	browser := &Browser{}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	_, err := createWithAdapters(context.Background(), CreateOptions{
+		Browser: browser,
+		APIKey:  &apiKey,
+	}, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	params := rpc.calls[0].params.(StagehandInitParams)
+	if params.Browser != nil || params.APIKey == nil || *params.APIKey != apiKey {
+		t.Fatalf("worker metadata = %#v %#v", params.Browser, params.APIKey)
+	}
+}
+
+func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
+	browser := &Browser{}
+	initErr := errors.New("init failed")
+	failedRPC := &recordingProtocolClient{callErrors: map[string]error{"stagehand.init": initErr}}
+	successRPC := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init":  StagehandInitResult{Initialized: true},
+		"stagehand.close": StagehandCloseResult{Closed: true},
+	}}
+	connections := 0
+	adapters := clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+			connections++
+			if connections == 1 {
+				return failedRPC, nil
+			}
+			return successRPC, nil
+		},
+	}
+	if _, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters); !errors.Is(err, initErr) {
+		t.Fatalf("first Create() error = %v", err)
+	}
+	if !failedRPC.closed {
+		t.Fatal("failed Create did not close its RPC client")
+	}
+	client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters)
+	if err != nil {
+		t.Fatalf("retry Create() error = %v", err)
+	}
+	if err := client.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if browser.Closed() {
+		t.Fatal("Stagehand.Close closed the Browser handle")
+	}
+	if _, err := claimBrowser(browser); err == nil || err.Error() != "this browser is already attached to a Stagehand instance" {
+		t.Fatalf("claim after successful Close error = %v", err)
+	}
+}
+
+func TestInitReentryByConstruction(t *testing.T) {
+	t.Run("Create after Close", func(t *testing.T) {
+		rpc := &recordingProtocolClient{responses: map[string]any{
+			"stagehand.init":  StagehandInitResult{Initialized: true},
+			"stagehand.close": StagehandCloseResult{Closed: true},
+		}}
+		client, err := createWithAdapters(context.Background(), CreateOptions{Browser: &Browser{}}, clientAdapters{
+			connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := client.Close(context.Background()); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		err = client.Init(context.Background())
+		if err == nil || err.Error() != "stagehand: a Stagehand created with Create cannot be reinitialized" {
+			t.Fatalf("Init() error = %v", err)
+		}
+	})
+
+	t.Run("New while initialized", func(t *testing.T) {
+		rpc := &recordingProtocolClient{responses: map[string]any{
+			"stagehand.init": StagehandInitResult{Initialized: true},
+		}}
+		client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+		if err := client.Init(context.Background()); err != nil {
+			t.Fatalf("first Init() error = %v", err)
+		}
+		if err := client.Init(context.Background()); err != nil {
+			t.Fatalf("second Init() error = %v", err)
+		}
+		if len(rpc.calls) != 1 || rpc.calls[0].method != "stagehand.init" {
+			t.Fatalf("protocol calls = %#v", rpc.calls)
+		}
+	})
 }

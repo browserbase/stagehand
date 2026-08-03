@@ -123,6 +123,20 @@ type StagehandClientInitParams struct {
 	Telemetry          TelemetryConfig
 }
 
+// CreateOptions configures Stagehand over a factory-created Browser handle.
+type CreateOptions struct {
+	Browser            *Browser
+	APIKey             *string
+	Cache              *Caching
+	DOMSettleTimeoutMs *int
+	Model              *ModelConfig
+	Generate           LLMGenerateFunc
+	Logging            *StagehandClientLoggingConfig
+	SelfHeal           *bool
+	SystemPrompt       *string
+	Telemetry          TelemetryConfig
+}
+
 // StagehandClientActOptions adds an optional SDK Page to the generated
 // protocol options. Page never crosses the JSON-RPC boundary.
 type StagehandClientActOptions struct {

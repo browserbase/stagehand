@@ -79,12 +79,24 @@ type clientAdapters struct {
 		context.Context,
 		resolvedBrowserSource,
 	) (protocolClient, error)
+	connectClaimedBrowser func(claimedBrowser) (protocolClient, error)
 }
 
 func defaultClientAdapters() clientAdapters {
 	return clientAdapters{
 		resolveBrowserSource: resolveBrowserSource,
 		connectProtocol:      connectResolvedBrowser,
+		connectClaimedBrowser: func(claimed claimedBrowser) (protocolClient, error) {
+			if claimed.cdp == nil {
+				return nil, errors.New("stagehand browser must be created by a stagehand browser factory")
+			}
+			rpc, err := newRPCClient(claimed.cdp, false)
+			if err != nil {
+				return nil, err
+			}
+			rpc.browserWebSocketURL = claimed.cdp.webSocketDebuggerURL
+			return rpc, nil
+		},
 	}
 }
 
