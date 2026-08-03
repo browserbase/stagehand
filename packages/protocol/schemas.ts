@@ -824,27 +824,12 @@ const ModelConnectionSchema = z
   })
   .meta({ id: "ModelConnection" });
 
-export const KnownModelConfigSchema = ModelConnectionSchema.extend({
+export const ModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
     description: "An explicitly supported model name with its provider prefix",
     example: "openai/gpt-5.4-mini",
   }),
-}).meta({ id: "KnownModelConfig" });
-
-export const CustomModelConfigSchema = ModelConnectionSchema.extend({
-  modelName: z.string().min(1).meta({
-    description: "Model name accepted by the custom OpenAI-compatible endpoint",
-    example: "private/model-v2",
-  }),
-  baseURL: z.url().meta({
-    description: "Base URL for the custom OpenAI-compatible endpoint",
-    example: "https://models.example.com/v1",
-  }),
-}).meta({ id: "CustomModelConfig" });
-
-export const ModelConfigSchema = z
-  .union([KnownModelConfigSchema, CustomModelConfigSchema])
-  .meta({ id: "ModelConfig" });
+}).meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */
 export const ClientModelReferenceSchema = z
@@ -962,11 +947,13 @@ export const BrowserbaseSessionCreateParamsSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
 
-/** Browserbase configuration available to both the SDK and the service worker. */
-export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
-  type: z.literal("browserbase"),
-  sessionId: z.string().min(1),
-}).meta({ id: "BrowserbaseBrowserSource" });
+/** Browser session metadata used by provider-independent worker services. */
+export const BrowserSessionMetadataSchema = z
+  .strictObject({
+    sessionId: z.string().min(1),
+    region: BrowserbaseRegionSchema.optional(),
+  })
+  .meta({ id: "BrowserSessionMetadata" });
 
 /** Browser launch options for local browsers. */
 export const LocalBrowserLaunchOptionsSchema = z
@@ -1034,19 +1021,19 @@ export const ActionSchema = z
 
 export const StagehandResultUsageSchema = z
   .strictObject({
-    inputTokens: z.number().int().nonnegative().meta({
+    inputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Input tokens consumed by all LLM calls made for this operation",
     }),
-    outputTokens: z.number().int().nonnegative().meta({
+    outputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Output tokens consumed by all LLM calls made for this operation",
     }),
-    reasoningTokens: z.number().int().nonnegative().meta({
+    reasoningTokens: z.number().int().nonnegative().default(0).meta({
       description: "Reasoning tokens consumed by all LLM calls made for this operation",
     }),
-    cachedInputTokens: z.number().int().nonnegative().meta({
+    cachedInputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Cached input tokens used by all LLM calls made for this operation",
     }),
-    inferenceTimeMs: z.number().int().nonnegative().meta({
+    inferenceTimeMs: z.number().int().nonnegative().default(0).meta({
       description: "Total time spent waiting for LLM inference during this operation",
     }),
   })
@@ -1063,9 +1050,9 @@ export const StagehandResultMetadataSchema = z
     cacheStatus: CacheStatusSchema.optional().meta({
       description: "Server-side cache status for this result",
     }),
-    usage: StagehandResultUsageSchema.optional().meta({
+    usage: StagehandResultUsageSchema.meta({
       description:
-        "Aggregate LLM usage for this operation; omitted when the operation did not run inference",
+        "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
     }),
   })
   .meta({ id: "StagehandResultMetadata" });
@@ -1417,7 +1404,7 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
-    browser: BrowserbaseBrowserSourceSchema.optional(),
+    browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),

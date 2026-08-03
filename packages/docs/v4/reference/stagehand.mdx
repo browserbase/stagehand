@@ -44,7 +44,7 @@ await stagehand.close();
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
-Each Stagehand instance starts at zero. Only operations that return `metadata.usage` count toward totals, so deterministic actions, cache hits, and calls that throw before returning a result leave the counters unchanged. Reading metrics does not reset them.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that throw before returning a result are not recorded. Reading metrics does not reset them.
 
 ```typescript
 const metrics = await stagehand.metrics();
@@ -194,10 +194,6 @@ const result = await stagehand.act("Click the sign in button");
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -268,8 +264,8 @@ const result = await stagehand.act("Click the sign in button");
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -342,10 +338,6 @@ const actions = await stagehand.observe("Find the sign in button");
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -403,8 +395,8 @@ const actions = await stagehand.observe("Find the sign in button");
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -482,10 +474,6 @@ console.log(product.data, product.metadata.cacheStatus);
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -527,8 +515,8 @@ console.log(product.data, product.metadata.cacheStatus);
     The action ID associated with the extraction.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -593,7 +581,7 @@ await stagehand.close()
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
-Each Stagehand instance starts at zero. Only operations that return `metadata.usage` count toward totals, so deterministic actions, cache hits, and calls that raise before returning a result leave the counters unchanged. Reading metrics does not reset them.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that raise before returning a result are not recorded. Reading metrics does not reset them.
 
 ```python
 metrics = await stagehand.metrics()
@@ -722,10 +710,6 @@ result = await stagehand.act("Click the sign in button")
   The model provider API key.
 </ParamField>
 
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
-</ParamField>
-
 <ParamField path="model.headers" type="dict[str, object]" optional>
   Additional model provider headers.
 </ParamField>
@@ -814,8 +798,8 @@ result = await stagehand.act("Click the sign in button")
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.
@@ -861,10 +845,6 @@ actions = await stagehand.observe(instruction="Find the sign in button")
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
-</ParamField>
-
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
 </ParamField>
 
 <ParamField path="model.headers" type="dict[str, object]" optional>
@@ -946,8 +926,8 @@ actions = await stagehand.observe(instruction="Find the sign in button")
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.
@@ -998,10 +978,6 @@ print(product.data, product.metadata.cache_status)
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
-</ParamField>
-
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
 </ParamField>
 
 <ParamField path="model.headers" type="dict[str, object]" optional>
@@ -1067,8 +1043,8 @@ print(product.data, product.metadata.cache_status)
     The action ID associated with the extraction.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.

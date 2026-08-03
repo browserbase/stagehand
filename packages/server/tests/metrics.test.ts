@@ -26,6 +26,14 @@ const OBSERVE_USAGE: StagehandResultUsage = {
   inferenceTimeMs: 300,
 };
 
+const ZERO_USAGE: StagehandResultUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
+
 describe("StagehandMetricsAccumulator", () => {
   it("starts at zero and accumulates each operation into its bucket and the totals", () => {
     const metrics = new StagehandMetricsAccumulator();
@@ -60,9 +68,9 @@ describe("StagehandMetricsAccumulator", () => {
     });
   });
 
-  it("ignores operations without usage and returns detached read-only snapshots", () => {
+  it("keeps zero usage from changing counters and returns detached read-only snapshots", () => {
     const metrics = new StagehandMetricsAccumulator();
-    metrics.record("act", undefined);
+    metrics.record("act", ZERO_USAGE);
 
     const firstSnapshot = metrics.snapshot();
     firstSnapshot.totalPromptTokens = 999;

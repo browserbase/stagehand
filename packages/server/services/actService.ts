@@ -26,6 +26,7 @@ import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
+import { zeroStagehandResultUsage } from "./resultUsage.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -67,12 +68,10 @@ export async function act({
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
-  let operationUsage: StagehandResultUsage | undefined;
+  let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
-    const nextUsage = usageFromInference(response);
-    operationUsage = operationUsage ? aggregateUsage(operationUsage, nextUsage) : nextUsage;
+    operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
   };
-  const resultWithUsage = (result: ActResultData): ActResult => actResult(result, operationUsage);
   const context: ActContext = {
     page,
     model,
@@ -87,12 +86,13 @@ export async function act({
 
   ensureTimeRemaining();
   if (typeof actInstruction !== "string") {
-    return resultWithUsage(
+    return actResult(
       await takeDeterministicAction({
         action: actInstruction,
         variables,
         context,
       }),
+      operationUsage,
     );
   }
 
@@ -139,12 +139,15 @@ export async function act({
       logger.info("No actionable element returned by the LLM", {
         category: "action",
       });
-      return resultWithUsage({
-        success: false,
-        message: "Failed to perform act: No action found",
-        actionDescription: instruction,
-        actions: [],
-      });
+      return actResult(
+        {
+          success: false,
+          message: "Failed to perform act: No action found",
+          actionDescription: instruction,
+          actions: [],
+        },
+        operationUsage,
+      );
     }
 
     ensureTimeRemaining();
@@ -155,7 +158,7 @@ export async function act({
     });
 
     if (!firstInference.response.twoStep) {
-      return resultWithUsage(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -186,7 +189,7 @@ export async function act({
     });
 
     if (!secondInference.action) {
-      return resultWithUsage(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -196,12 +199,15 @@ export async function act({
       context,
     });
 
-    return resultWithUsage({
-      success: firstResult.success && secondResult.success,
-      message: `${firstResult.message} → ${secondResult.message}`,
-      actionDescription: firstResult.actionDescription,
-      actions: [...firstResult.actions, ...secondResult.actions],
-    });
+    return actResult(
+      {
+        success: firstResult.success && secondResult.success,
+        message: `${firstResult.message} → ${secondResult.message}`,
+        actionDescription: firstResult.actionDescription,
+        actions: [...firstResult.actions, ...secondResult.actions],
+      },
+      operationUsage,
+    );
   }
 }
 
@@ -504,8 +510,11 @@ function aggregateUsage(
   };
 }
 
-function actResult(result: ActResultData, usage?: StagehandResultUsage): ActResult {
-  return { data: result, metadata: usage ? { usage } : {} };
+function actResult(
+  result: ActResultData,
+  usage: StagehandResultUsage = zeroStagehandResultUsage(),
+): ActResult {
+  return { data: result, metadata: { usage } };
 }
 
 function describeAction(action: Action): string {

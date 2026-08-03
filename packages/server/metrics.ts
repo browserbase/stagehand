@@ -28,9 +28,7 @@ const EMPTY_METRICS: StagehandMetrics = {
 export class StagehandMetricsAccumulator {
   private readonly values: StagehandMetrics = { ...EMPTY_METRICS };
 
-  record(method: StagehandMetricMethod, usage: StagehandResultUsage | undefined): void {
-    if (!usage) return;
-
+  record(method: StagehandMetricMethod, usage: StagehandResultUsage): void {
     switch (method) {
       case "act":
         this.values.actPromptTokens += usage.inputTokens;

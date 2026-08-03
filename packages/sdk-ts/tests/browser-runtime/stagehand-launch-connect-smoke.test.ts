@@ -7,7 +7,13 @@ import type {
   StagehandMetrics,
   StagehandResultUsage,
 } from "../../../protocol/types.js";
-import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
+import {
+  localBrowser,
+  Stagehand,
+  type BrowserContext,
+  type Page,
+  type StagehandBrowser,
+} from "../../src/index.js";
 
 type FixtureServer = {
   url: string;
@@ -27,17 +33,16 @@ type ExpectedOperationUsage = Omit<StagehandResultUsage, "inferenceTimeMs">;
 describe("Stagehand TS SDK launch/connect smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let stagehand: Stagehand | undefined;
+  let browser: StagehandBrowser | undefined;
   const extractionScreenshots: LLMImageContent[] = [];
   const rawOperationUsages: Record<string, unknown>[] = [];
   const rawMetricsSnapshots: Record<string, unknown>[] = [];
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
-    stagehand = new Stagehand({
-      browser: {
-        type: "local",
-        headless: true,
-      },
+    browser = await localBrowser.launch({ headless: true });
+    stagehand = await Stagehand.create({
+      browser,
       model: {
         generate: async (params): Promise<LLMGenerateResult> => {
           if (params.responseFormat?.type !== "json_schema") {
@@ -144,8 +149,6 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         level: "off",
       },
     });
-    await stagehand.init();
-
     const rpcClient = stagehand.rpcClient;
     if (!rpcClient) throw new Error("Stagehand initialized without an RPC client");
     const transport = rpcClient.cdp;
@@ -161,8 +164,15 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   }, 45_000);
 
   afterAll(async () => {
-    await stagehand?.close();
-    await fixtureServer?.close();
+    try {
+      await stagehand?.close();
+    } finally {
+      try {
+        await browser?.close();
+      } finally {
+        await fixtureServer?.close();
+      }
+    }
   });
 
   it("drives a real browser through the public TS object model", async () => {
@@ -592,6 +602,38 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });
 
+  it("returns zero usage when a deterministic action avoids inference", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page =
+      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+    await page.goto(activeFixtureServer.url);
+    rawOperationUsages.length = 0;
+
+    const result = await activeStagehand.act(
+      {
+        selector: "xpath=//*[@id='locator-button']",
+        description: "Submit button",
+        method: "click",
+        arguments: [],
+      },
+      { page },
+    );
+
+    expect(result.data.success).toBe(true);
+    expectUsageCrossedRpc(
+      result.metadata.usage,
+      {
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cachedInputTokens: 0,
+      },
+      rawOperationUsages,
+    );
+    await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
+  });
+
   it("returns a read-only session metrics snapshot without double-counting operation usage", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
@@ -606,7 +648,13 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     if (!action) throw new Error("Expected the smoke LLM to observe the Submit button");
 
     const deterministicAct = await activeStagehand.act(action, { page });
-    expect(deterministicAct.metadata.usage).toBeUndefined();
+    expect(deterministicAct.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
 
     const acted = await activeStagehand.act("Click the Submit button", { page });
     const extracted = await activeStagehand.extract(
@@ -616,13 +664,10 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     );
     const after = await activeStagehand.metrics();
 
-    const actUsage = requireUsage(acted.metadata.usage);
-    const extractUsage = requireUsage(extracted.metadata.usage);
-    const observeUsage = requireUsage(observed.metadata.usage);
     expectMetricsDelta(after, before, {
-      act: actUsage,
-      extract: extractUsage,
-      observe: observeUsage,
+      act: acted.metadata.usage,
+      extract: extracted.metadata.usage,
+      observe: observed.metadata.usage,
     });
 
     await expect(activeStagehand.metrics()).resolves.toStrictEqual(after);
@@ -664,7 +709,7 @@ function metricsFromRawRpcMessage(message: unknown): Record<string, unknown> | u
 }
 
 function expectUsageCrossedRpc(
-  apiUsage: StagehandResultUsage | undefined,
+  apiUsage: StagehandResultUsage,
   expected: ExpectedOperationUsage,
   rawUsages: Record<string, unknown>[],
 ): void {
@@ -672,7 +717,6 @@ function expectUsageCrossedRpc(
     ...expected,
     inferenceTimeMs: expect.any(Number),
   });
-  if (!apiUsage) throw new Error("Expected operation usage in the public SDK result");
   expect(apiUsage.inferenceTimeMs).toBeGreaterThanOrEqual(0);
 
   expect(rawUsages).toHaveLength(1);
@@ -699,11 +743,6 @@ function expectUsageCrossedRpc(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requireUsage(usage: StagehandResultUsage | undefined): StagehandResultUsage {
-  if (!usage) throw new Error("Expected operation usage");
-  return usage;
 }
 
 function expectMetricsDelta(
