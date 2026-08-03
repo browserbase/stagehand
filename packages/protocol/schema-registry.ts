@@ -63,9 +63,7 @@ import {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
-  PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
-  PageDragAndDropResultSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -262,22 +260,22 @@ export const StagehandMethods = {
   pageClick: {
     name: "page.click",
     params: PageClickParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageHover: {
     name: "page.hover",
     params: PageHoverParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageScroll: {
     name: "page.scroll",
     params: PageScrollParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageDragAndDrop: {
     name: "page.drag_and_drop",
     params: PageDragAndDropParamsSchema,
-    result: PageDragAndDropResultSchema,
+    result: PageVoidResultSchema,
   },
   pageType: { name: "page.type", params: PageTypeParamsSchema, result: PageVoidResultSchema },
   pageKeyPress: {

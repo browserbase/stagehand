@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   LoadStateSchema,
-  PageCoordinateResultSchema,
   PageNavigationOptionsSchema,
   PageScreenshotClipSchema,
   PageSnapshotOptionsSchema,
@@ -26,9 +25,6 @@ describe("shared page protocol schemas", () => {
 
   it("keeps command result schemas strict", () => {
     expect(PageVoidResultSchema.parse({ ok: true })).toStrictEqual({ ok: true });
-    expect(PageCoordinateResultSchema.parse({ xpath: "/html/body/button" })).toStrictEqual({
-      xpath: "/html/body/button",
-    });
     expect(() => PageVoidResultSchema.parse({ ok: true, extra: true })).toThrow();
   });
 

@@ -5,6 +5,7 @@ import type {
   ClientModelReference,
   ModelConfig,
   StagehandActParams,
+  StagehandResultUsage,
   Variables,
 } from "../../protocol/types.js";
 import { TimeoutError } from "../errors.js";
@@ -16,6 +17,7 @@ import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import { resolveVariableValue } from "../handlers/handlerUtils/variables.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { buildActPrompt, buildStepTwoPrompt } from "../prompt.js";
 import type { EncodedId } from "../types/private/internal.js";
@@ -25,6 +27,7 @@ import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
+import { zeroStagehandResultUsage } from "./resultUsage.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -38,6 +41,8 @@ type ActContext = {
   selfHeal: boolean;
   domSettleTimeoutMs?: number;
   ensureTimeRemaining: () => void;
+  gateway?: GatewayContext;
+  recordUsage: (response: ActInferenceResponse) => void;
 };
 
 export async function act({
@@ -50,6 +55,7 @@ export async function act({
   selfHeal = false,
   domSettleTimeoutMs,
   cache,
+  gateway,
 }: {
   params: StagehandActParams;
   page: Page;
@@ -60,11 +66,16 @@ export async function act({
   selfHeal?: boolean;
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ActResult> {
   const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
+  let operationUsage = zeroStagehandResultUsage();
+  const recordUsage = (response: ActInferenceResponse): void => {
+    operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
+  };
   const context: ActContext = {
     page,
     model,
@@ -74,6 +85,8 @@ export async function act({
     selfHeal,
     domSettleTimeoutMs,
     ensureTimeRemaining,
+    gateway,
+    recordUsage,
   };
 
   ensureTimeRemaining();
@@ -84,6 +97,7 @@ export async function act({
         variables,
         context,
       }),
+      operationUsage,
     );
   }
 
@@ -130,12 +144,15 @@ export async function act({
       logger.info("No actionable element returned by the LLM", {
         category: "action",
       });
-      return actResult({
-        success: false,
-        message: "Failed to perform act: No action found",
-        actionDescription: instruction,
-        actions: [],
-      });
+      return actResult(
+        {
+          success: false,
+          message: "Failed to perform act: No action found",
+          actionDescription: instruction,
+          actions: [],
+        },
+        operationUsage,
+      );
     }
 
     ensureTimeRemaining();
@@ -146,7 +163,7 @@ export async function act({
     });
 
     if (!firstInference.response.twoStep) {
-      return actResult(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -177,7 +194,7 @@ export async function act({
     });
 
     if (!secondInference.action) {
-      return actResult(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -187,12 +204,15 @@ export async function act({
       context,
     });
 
-    return actResult({
-      success: firstResult.success && secondResult.success,
-      message: `${firstResult.message} → ${secondResult.message}`,
-      actionDescription: firstResult.actionDescription,
-      actions: [...firstResult.actions, ...secondResult.actions],
-    });
+    return actResult(
+      {
+        success: firstResult.success && secondResult.success,
+        message: `${firstResult.message} → ${secondResult.message}`,
+        actionDescription: firstResult.actionDescription,
+        actions: [...firstResult.actions, ...secondResult.actions],
+      },
+      operationUsage,
+    );
   }
 }
 
@@ -247,9 +267,11 @@ async function getActionFromLLM({
   const response = await inference.act({
     instruction,
     domElements,
-    generate: (input) => llmService.generate(context.model, input, context.clientLLMGenerate),
+    generate: (input) =>
+      llmService.generate(context.model, input, context.clientLLMGenerate, context.gateway),
     userProvidedInstructions: context.systemPrompt,
   });
+  context.recordUsage(response);
 
   context.logger.info("Act inference completed", {
     category: "action",
@@ -471,8 +493,34 @@ function successfulActionResult(
   };
 }
 
-function actResult(result: ActResultData): ActResult {
-  return { data: result, metadata: {} };
+function usageFromInference(response: ActInferenceResponse): StagehandResultUsage {
+  return {
+    inputTokens: response.prompt_tokens,
+    outputTokens: response.completion_tokens,
+    reasoningTokens: response.reasoning_tokens,
+    cachedInputTokens: response.cached_input_tokens,
+    inferenceTimeMs: response.inference_time_ms,
+  };
+}
+
+function aggregateUsage(
+  current: StagehandResultUsage,
+  next: StagehandResultUsage,
+): StagehandResultUsage {
+  return {
+    inputTokens: current.inputTokens + next.inputTokens,
+    outputTokens: current.outputTokens + next.outputTokens,
+    reasoningTokens: current.reasoningTokens + next.reasoningTokens,
+    cachedInputTokens: current.cachedInputTokens + next.cachedInputTokens,
+    inferenceTimeMs: current.inferenceTimeMs + next.inferenceTimeMs,
+  };
+}
+
+function actResult(
+  result: ActResultData,
+  usage: StagehandResultUsage = zeroStagehandResultUsage(),
+): ActResult {
+  return { data: result, metadata: { usage } };
 }
 
 function describeAction(action: Action): string {

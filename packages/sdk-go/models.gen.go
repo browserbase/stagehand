@@ -1091,9 +1091,6 @@ type PageClickOptions struct {
 
 	// ClickCount corresponds to the JSON schema field "click_count".
 	ClickCount *int `json:"click_count,omitempty,omitzero"`
-
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
 }
 
 type PageClickParams struct {
@@ -1115,20 +1112,12 @@ type PageCloseResult struct {
 	Closed bool `json:"closed"`
 }
 
-type PageCoordinateResult struct {
-	// XPath corresponds to the JSON schema field "xpath".
-	XPath string `json:"xpath"`
-}
-
 type PageDragAndDropOptions struct {
 	// Button corresponds to the JSON schema field "button".
 	Button *MouseButton `json:"button,omitempty,omitzero"`
 
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
-
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
 
 	// Steps corresponds to the JSON schema field "steps".
 	Steps *int `json:"steps,omitempty,omitzero"`
@@ -1152,14 +1141,6 @@ type PageDragAndDropParams struct {
 
 	// ToY corresponds to the JSON schema field "to_y".
 	ToY float64 `json:"to_y"`
-}
-
-type PageDragAndDropResult struct {
-	// FromXPath corresponds to the JSON schema field "from_xpath".
-	FromXPath string `json:"from_xpath"`
-
-	// ToXPath corresponds to the JSON schema field "to_xpath".
-	ToXPath string `json:"to_xpath"`
 }
 
 type PageEvaluateParams struct {
@@ -1202,15 +1183,7 @@ type PageGotoParams struct {
 	URL string `json:"url"`
 }
 
-type PageHoverOptions struct {
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
-}
-
 type PageHoverParams struct {
-	// Options corresponds to the JSON schema field "options".
-	Options *PageHoverOptions `json:"options,omitempty,omitzero"`
-
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -1373,20 +1346,12 @@ type PageScreenshotResultType string
 const PageScreenshotResultTypeJPEG PageScreenshotResultType = "jpeg"
 const PageScreenshotResultTypePNG PageScreenshotResultType = "png"
 
-type PageScrollOptions struct {
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
-}
-
 type PageScrollParams struct {
 	// DeltaX corresponds to the JSON schema field "delta_x".
 	DeltaX float64 `json:"delta_x"`
 
 	// DeltaY corresponds to the JSON schema field "delta_y".
 	DeltaY float64 `json:"delta_y"`
-
-	// Options corresponds to the JSON schema field "options".
-	Options *PageScrollOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1799,6 +1764,28 @@ type StagehandResultMetadata struct {
 
 	// Server-side cache status for this result
 	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+
+	// Aggregate LLM usage for this operation; zeroed when the operation did not run
+	// inference
+	Usage StagehandResultUsage `json:"usage"`
+}
+
+// Aggregate LLM usage for one Stagehand operation
+type StagehandResultUsage struct {
+	// Cached input tokens used by all LLM calls made for this operation
+	CachedInputTokens int `json:"cached_input_tokens,omitempty,omitzero"`
+
+	// Total time spent waiting for LLM inference during this operation
+	InferenceTimeMs int `json:"inference_time_ms,omitempty,omitzero"`
+
+	// Input tokens consumed by all LLM calls made for this operation
+	InputTokens int `json:"input_tokens,omitempty,omitzero"`
+
+	// Output tokens consumed by all LLM calls made for this operation
+	OutputTokens int `json:"output_tokens,omitempty,omitzero"`
+
+	// Reasoning tokens consumed by all LLM calls made for this operation
+	ReasoningTokens int `json:"reasoning_tokens,omitempty,omitzero"`
 }
 
 type TelemetryConfig struct {
@@ -2310,10 +2297,6 @@ type generatedModelCatalog struct {
 	// PageCloseResult corresponds to the JSON schema field "PageCloseResult".
 	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty,omitzero"`
 
-	// PageCoordinateResult corresponds to the JSON schema field
-	// "PageCoordinateResult".
-	PageCoordinateResult *PageCoordinateResult `json:"PageCoordinateResult,omitempty,omitzero"`
-
 	// PageDragAndDropOptions corresponds to the JSON schema field
 	// "PageDragAndDropOptions".
 	PageDragAndDropOptions *PageDragAndDropOptions `json:"PageDragAndDropOptions,omitempty,omitzero"`
@@ -2321,10 +2304,6 @@ type generatedModelCatalog struct {
 	// PageDragAndDropParams corresponds to the JSON schema field
 	// "PageDragAndDropParams".
 	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty,omitzero"`
-
-	// PageDragAndDropResult corresponds to the JSON schema field
-	// "PageDragAndDropResult".
-	PageDragAndDropResult *PageDragAndDropResult `json:"PageDragAndDropResult,omitempty,omitzero"`
 
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
 	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
@@ -2340,9 +2319,6 @@ type generatedModelCatalog struct {
 
 	// PageGotoParams corresponds to the JSON schema field "PageGotoParams".
 	PageGotoParams *PageGotoParams `json:"PageGotoParams,omitempty,omitzero"`
-
-	// PageHoverOptions corresponds to the JSON schema field "PageHoverOptions".
-	PageHoverOptions *PageHoverOptions `json:"PageHoverOptions,omitempty,omitzero"`
 
 	// PageHoverParams corresponds to the JSON schema field "PageHoverParams".
 	PageHoverParams *PageHoverParams `json:"PageHoverParams,omitempty,omitzero"`
@@ -2383,9 +2359,6 @@ type generatedModelCatalog struct {
 	// PageScreenshotResult corresponds to the JSON schema field
 	// "PageScreenshotResult".
 	PageScreenshotResult *PageScreenshotResult `json:"PageScreenshotResult,omitempty,omitzero"`
-
-	// PageScrollOptions corresponds to the JSON schema field "PageScrollOptions".
-	PageScrollOptions *PageScrollOptions `json:"PageScrollOptions,omitempty,omitzero"`
 
 	// PageScrollParams corresponds to the JSON schema field "PageScrollParams".
 	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty,omitzero"`
@@ -2508,6 +2481,10 @@ type generatedModelCatalog struct {
 	// StagehandResultMetadata corresponds to the JSON schema field
 	// "StagehandResultMetadata".
 	StagehandResultMetadata *StagehandResultMetadata `json:"StagehandResultMetadata,omitempty,omitzero"`
+
+	// StagehandResultUsage corresponds to the JSON schema field
+	// "StagehandResultUsage".
+	StagehandResultUsage *StagehandResultUsage `json:"StagehandResultUsage,omitempty,omitzero"`
 
 	// TelemetryConfig corresponds to the JSON schema field "TelemetryConfig".
 	TelemetryConfig *TelemetryConfig `json:"TelemetryConfig,omitempty,omitzero"`

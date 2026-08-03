@@ -64,8 +64,7 @@ expectTypeOf<z.input<typeof StagehandMethods.pageReload.params>>().toEqualTypeOf
 }>();
 expectTypeOf(StagehandMethods.pageDragAndDrop.name).toEqualTypeOf<"page.drag_and_drop">();
 expectTypeOf<z.output<typeof StagehandMethods.pageDragAndDrop.result>>().toEqualTypeOf<{
-  fromXpath: string;
-  toXpath: string;
+  ok: true;
 }>();
 expectTypeOf(StagehandMethods.pageScreenshot.name).toEqualTypeOf<"page.screenshot">();
 expectTypeOf<z.output<typeof StagehandMethods.pageScreenshot.result>>().toEqualTypeOf<{
