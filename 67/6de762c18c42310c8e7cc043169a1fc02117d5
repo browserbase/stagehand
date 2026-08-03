@@ -1,0 +1,31 @@
+packages/evals/tasks/bench/observe/observe_iframes1.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,39
+packages/evals/framework/observeSelectors.ts
+  s_9b9154ae9e8c8c::t_1d7421d0fa3789 1-56
+packages/evals/tasks/bench/observe/observe_yc_startup.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,40
+packages/evals/tasks/bench/observe/observe_github.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,46
+packages/evals/tasks/bench/observe/observe_iframes2.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,50
+packages/evals/tasks/bench/observe/observe_file_uploads.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,29-30
+packages/evals/tasks/bench/observe/observe_vantechjournal.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 2,33-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "676de762c18c42310c8e7cc043169a1fc02117d5",
+  "prompts": {},
+  "sessions": {
+    "s_9b9154ae9e8c8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c311c9ba-b73b-46c8-a606-0ed1839d8de7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
