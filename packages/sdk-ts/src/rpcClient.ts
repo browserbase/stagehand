@@ -63,7 +63,7 @@ const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
-    signal: z.custom<AbortSignal>((value) => value instanceof AbortSignal).optional(),
+    signal: z.custom<AbortSignal>((value) => value instanceof AbortSignal),
   })
   .strict();
 
@@ -123,6 +123,9 @@ export class RPCClient {
     options: RPCSendOptions = {},
   ): Promise<z.output<Method["result"]>> {
     if (this.closed) throw new Error("RPC client is closed");
+    if (method.name === StagehandMethods.stagehandInit.name && !options.signal) {
+      throw new Error("stagehand.init requires an initialization lifecycle signal");
+    }
 
     const parentContext = context.active();
     const span = TRACER.startSpan(
@@ -187,6 +190,13 @@ export class RPCClient {
     } finally {
       span.end();
     }
+  }
+
+  async sendStagehandInit(
+    params: z.input<typeof StagehandMethods.stagehandInit.params>,
+    signal: AbortSignal,
+  ): Promise<z.output<typeof StagehandMethods.stagehandInit.result>> {
+    return await this.send(StagehandMethods.stagehandInit, params, { signal });
   }
 
   onRequest<Method extends RPCMethod>(
@@ -433,7 +443,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
     ...(options.serviceWorkerUrlIncludes
       ? { serviceWorkerUrlIncludes: options.serviceWorkerUrlIncludes }
       : {}),
-    ...(options.signal ? { signal: options.signal } : {}),
+    signal: options.signal,
   });
   return new RPCClient(cdpClient);
 }

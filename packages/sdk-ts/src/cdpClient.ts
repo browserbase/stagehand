@@ -36,7 +36,7 @@ export type CDPClientOptions = {
   serviceWorkerUrlIncludes?: string;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
-  signal?: AbortSignal;
+  signal: AbortSignal;
 };
 
 type RuntimeEvaluateResult = {
@@ -70,7 +70,7 @@ type ResolveBrowserWebSocketUrlOptions = {
   pollIntervalMs?: number;
   fetchFn?: (url: string, init?: { signal?: AbortSignal }) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
-  signal?: AbortSignal;
+  signal: AbortSignal;
 };
 
 export class StagehandRuntimeIncompatibleError extends Error {
@@ -389,7 +389,7 @@ type CDPWebSocketFactory = (url: string) => WebSocket;
 
 export async function openCDPWebSocket(
   url: string,
-  signal?: AbortSignal,
+  signal: AbortSignal,
   createSocket: CDPWebSocketFactory = (socketUrl) => new WebSocket(socketUrl),
 ): Promise<WebSocket> {
   throwIfAborted(signal);
@@ -441,7 +441,7 @@ export async function waitForRuntimeReady(
     delayFn?: (ms: number) => Promise<void>;
     runtimeRequirement?: RuntimeRequirement;
     allowFallbackInstall?: boolean;
-    signal?: AbortSignal;
+    signal: AbortSignal;
   },
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
@@ -475,7 +475,7 @@ export async function waitForPreloadedStagehandServiceWorker(
     delayFn?: (ms: number) => Promise<void>;
     runtimeRequirement?: RuntimeRequirement;
     allowFallbackInstall?: boolean;
-    signal?: AbortSignal;
+    signal: AbortSignal;
   },
 ): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
@@ -548,7 +548,7 @@ export async function waitForPreloadedStagehandServiceWorker(
 async function evaluateRuntimeReadiness(
   cdp: CDPCommandSender,
   sessionId: string,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<RuntimeEvaluateResult> {
   return await cdp.sendCommand<RuntimeEvaluateResult>(
     "Runtime.evaluate",
@@ -582,7 +582,7 @@ export async function waitForServiceWorker(
     activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
-    signal?: AbortSignal;
+    signal: AbortSignal;
   },
 ): Promise<TargetInfo> {
   const startedAt = Date.now();
@@ -649,7 +649,7 @@ export async function waitForServiceWorker(
 export async function loadUnpackedExtension(
   cdp: CDPCommandSender,
   extensionDir: string,
-  signal?: AbortSignal,
+  signal: AbortSignal,
 ): Promise<string> {
   let loaded: { id?: string };
 
@@ -682,7 +682,7 @@ export async function loadUnpackedExtension(
 
 export async function resolveBrowserWebSocketUrl(
   cdpUrl: string,
-  options: ResolveBrowserWebSocketUrlOptions = {},
+  options: ResolveBrowserWebSocketUrlOptions,
 ): Promise<string> {
   throwIfAborted(options.signal);
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;

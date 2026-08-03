@@ -112,7 +112,7 @@ class RPCClient:
 
     @property
     def browser_web_socket_debugger_url(self) -> str | None:
-        value = getattr(self._transport, "web_socket_debugger_url", None)
+        value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
         return value if isinstance(value, str) else None
 
     @overload
@@ -263,7 +263,12 @@ class RPCClient:
 
         return remove
 
-    async def close(self, reason: BaseException | None = None) -> None:
+    async def close(
+        self,
+        reason: BaseException | None = None,
+        *,
+        close_transport: bool = True,
+    ) -> None:
         if self._closed:
             return
 
@@ -290,7 +295,8 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        await self._transport.close()
+        if close_transport:
+            await self._transport.close()
 
     async def _read(self) -> None:
         try:
@@ -364,7 +370,8 @@ class RPCClient:
             return
 
         if isinstance(response, _JSONRPCErrorResponse):
-            future.set_exception(RPCError(response.error))
+            error = RPCError(response.error)
+            future.set_exception(error)
             return
 
         try:
@@ -481,24 +488,6 @@ class RPCClient:
         self._inbound_tasks.discard(task)
         if not task.cancelled() and (error := task.exception()) is not None:
             asyncio.create_task(self.close(error))
-
-
-async def connect_rpc_client(
-    *,
-    cdp_url: str,
-    extension_dir: str | None = None,
-    extension_id: str | None = None,
-    service_worker_url_includes: str | None = None,
-) -> RPCClient:
-    from .cdp_client import CDPClient
-
-    cdp = await CDPClient.connect(
-        cdp_url=cdp_url,
-        extension_dir=extension_dir,
-        extension_id=extension_id,
-        service_worker_url_includes=service_worker_url_includes,
-    )
-    return RPCClient(cdp)
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:

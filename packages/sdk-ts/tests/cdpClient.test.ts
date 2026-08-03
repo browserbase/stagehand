@@ -26,11 +26,12 @@ class FakeWebSocket extends EventTarget {
 
 describe("CDP WebSocket transport", () => {
   it("opens the built-in WebSocket transport", async () => {
+    const signal = new AbortController().signal;
     const socket = new FakeWebSocket();
     const createSocket = vi.fn(() => socket as never);
     const connecting = openCDPWebSocket(
       "wss://browser.example/devtools/browser/session",
-      undefined,
+      signal,
       createSocket,
     );
 
@@ -55,13 +56,16 @@ describe("CDP WebSocket transport", () => {
   it("fails runtime readiness immediately when CDP disconnects", async () => {
     const disconnect = new CDPConnectionClosedError();
     const delayFn = vi.fn(async () => {});
+    const signal = new AbortController().signal;
     const cdp = {
       sendCommand: vi.fn(async () => {
         throw disconnect;
       }),
     };
 
-    await expect(waitForRuntimeReady(cdp, "worker-session", { delayFn })).rejects.toBe(disconnect);
+    await expect(waitForRuntimeReady(cdp, "worker-session", { delayFn, signal })).rejects.toBe(
+      disconnect,
+    );
     expect(delayFn).not.toHaveBeenCalled();
   });
 
@@ -72,6 +76,8 @@ describe("CDP WebSocket transport", () => {
       async (
         method: string,
         _params?: Record<string, unknown>,
+        _sessionId?: string,
+        _signal?: AbortSignal,
       ): Promise<Record<string, unknown>> => {
         if (method === "Target.getTargets") return { targetInfos: [] };
         if (method === "Target.createTarget") return { targetId: "wake-target" };
@@ -82,8 +88,10 @@ describe("CDP WebSocket transport", () => {
       async sendCommand<Result = Record<string, unknown>>(
         method: string,
         params?: Record<string, unknown>,
+        sessionId?: string,
+        signal?: AbortSignal,
       ): Promise<Result> {
-        return (await sendCommand(method, params)) as Result;
+        return (await sendCommand(method, params, sessionId, signal)) as Result;
       },
     };
 
@@ -95,8 +103,18 @@ describe("CDP WebSocket transport", () => {
     });
 
     await expect(waiting).rejects.toBe(reason);
-    expect(sendCommand).toHaveBeenCalledWith("Target.closeTarget", {
-      targetId: "wake-target",
-    });
+    expect(sendCommand).toHaveBeenCalledWith("Target.getTargets", {}, undefined, controller.signal);
+    expect(sendCommand).toHaveBeenCalledWith(
+      "Target.createTarget",
+      { url: "chrome-extension://stagehand-extension/wake-service-worker.html" },
+      undefined,
+      controller.signal,
+    );
+    expect(sendCommand).toHaveBeenCalledWith(
+      "Target.closeTarget",
+      { targetId: "wake-target" },
+      undefined,
+      undefined,
+    );
   });
 });

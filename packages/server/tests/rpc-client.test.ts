@@ -27,19 +27,7 @@ describe("worker RPCClient", () => {
 
   it("registers a reverse request before Chrome can return its response", async () => {
     let runtimeClient: ChromeRuntimeClient | undefined;
-    const runtime = createStagehandRuntime(
-      {
-        browserSessionFactory: async () => {
-          throw new Error("Stagehand browser session factory is not configured");
-        },
-      },
-      {
-        tracer: trace.getTracer("worker-rpc-client-test"),
-        configure: () => {},
-        forceFlush: async () => {},
-        shutdown: async () => {},
-      },
-    );
+    const runtime = createRuntime();
     const scope = {
       sendToHost(payload: string): void {
         const request = JSONRPCRequestSchema.parse(JSON.parse(payload));

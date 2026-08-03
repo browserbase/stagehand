@@ -38,11 +38,9 @@ import type {
   PageClickParams,
   PageDragAndDropParams,
   PageEvaluateParams,
-  PageHoverParams,
   PageKeyPressParams,
   PageNavigationOptions,
   PageReloadParams,
-  PageScrollParams,
   PageSnapshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
@@ -196,13 +194,12 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly goBackCalls: Array<PageNavigationOptions | undefined> = [];
   readonly goForwardCalls: Array<PageNavigationOptions | undefined> = [];
   readonly clickCalls: Array<{ x: number; y: number; options?: PageClickParams["options"] }> = [];
-  readonly hoverCalls: Array<{ x: number; y: number; options?: PageHoverParams["options"] }> = [];
+  readonly hoverCalls: Array<{ x: number; y: number }> = [];
   readonly scrollCalls: Array<{
     x: number;
     y: number;
     deltaX: number;
     deltaY: number;
-    options?: PageScrollParams["options"];
   }> = [];
   readonly dragAndDropCalls: Array<{
     fromX: number;
@@ -250,10 +247,6 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   currentUrl: string;
   backUrl?: string;
   forwardUrl?: string;
-  clickXpath = "/html/body/button";
-  hoverXpath = "/html/body/a";
-  scrollXpath = "/html/body/main";
-  dragXpaths: [string, string] = ["/html/body/div[1]", "/html/body/div[2]"];
   evaluationResult: unknown = null;
   waitForSelectorResult = true;
   screenshotBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -309,25 +302,16 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     if (this.forwardUrl) this.currentUrl = this.forwardUrl;
   }
 
-  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<string> {
+  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<void> {
     this.clickCalls.push({ x, y, options });
-    return this.clickXpath;
   }
 
-  async hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string> {
-    this.hoverCalls.push({ x, y, options });
-    return this.hoverXpath;
+  async hover(x: number, y: number): Promise<void> {
+    this.hoverCalls.push({ x, y });
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: PageScrollParams["options"],
-  ): Promise<string> {
-    this.scrollCalls.push({ x, y, deltaX, deltaY, options });
-    return this.scrollXpath;
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+    this.scrollCalls.push({ x, y, deltaX, deltaY });
   }
 
   async dragAndDrop(
@@ -336,9 +320,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     toX: number,
     toY: number,
     options?: PageDragAndDropParams["options"],
-  ): Promise<[string, string]> {
+  ): Promise<void> {
     this.dragAndDropCalls.push({ fromX, fromY, toX, toY, options });
-    return this.dragXpaths;
   }
 
   async type(text: string, options?: PageTypeParams["options"]): Promise<void> {
@@ -1473,7 +1456,7 @@ describe("Stagehand worker clients", () => {
     expect(page.goForwardCalls).toStrictEqual([{ timeout: 2_500 }]);
   });
 
-  it("routes page coordinate interactions and adapts their results", async () => {
+  it("routes page coordinate interactions", async () => {
     const page = new FakeUnderstudyRuntimePage("page-a", "https://example.test/current");
     const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
 
@@ -1486,13 +1469,13 @@ describe("Stagehand worker clients", () => {
           page_id: "page-a",
           x: 10,
           y: 20,
-          options: { button: "right", click_count: 2, return_xpath: true },
+          options: { button: "right", click_count: 2 },
         },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 16,
-      result: { xpath: "/html/body/button" },
+      result: { ok: true },
     });
 
     await expect(
@@ -1500,12 +1483,12 @@ describe("Stagehand worker clients", () => {
         jsonrpc: "2.0",
         id: 17,
         method: "page.hover",
-        params: { page_id: "page-a", x: 30, y: 40, options: { return_xpath: true } },
+        params: { page_id: "page-a", x: 30, y: 40 },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 17,
-      result: { xpath: "/html/body/a" },
+      result: { ok: true },
     });
 
     await expect(
@@ -1519,13 +1502,12 @@ describe("Stagehand worker clients", () => {
           y: 60,
           delta_x: -25,
           delta_y: 400,
-          options: { return_xpath: true },
         },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 18,
-      result: { xpath: "/html/body/main" },
+      result: { ok: true },
     });
 
     await expect(
@@ -1539,32 +1521,27 @@ describe("Stagehand worker clients", () => {
           from_y: 2,
           to_x: 3,
           to_y: 4,
-          options: { button: "left", steps: 5, delay: 10, return_xpath: true },
+          options: { button: "left", steps: 5, delay: 10 },
         },
       }),
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 19,
-      result: {
-        from_xpath: "/html/body/div[1]",
-        to_xpath: "/html/body/div[2]",
-      },
+      result: { ok: true },
     });
 
     expect(page.clickCalls).toStrictEqual([
-      { x: 10, y: 20, options: { button: "right", clickCount: 2, returnXpath: true } },
+      { x: 10, y: 20, options: { button: "right", clickCount: 2 } },
     ]);
-    expect(page.hoverCalls).toStrictEqual([{ x: 30, y: 40, options: { returnXpath: true } }]);
-    expect(page.scrollCalls).toStrictEqual([
-      { x: 50, y: 60, deltaX: -25, deltaY: 400, options: { returnXpath: true } },
-    ]);
+    expect(page.hoverCalls).toStrictEqual([{ x: 30, y: 40 }]);
+    expect(page.scrollCalls).toStrictEqual([{ x: 50, y: 60, deltaX: -25, deltaY: 400 }]);
     expect(page.dragAndDropCalls).toStrictEqual([
       {
         fromX: 1,
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+        options: { button: "left", steps: 5, delay: 10 },
       },
     ]);
   });

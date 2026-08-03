@@ -429,7 +429,7 @@
               "$ref": "#/$defs/PageClickParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -442,7 +442,7 @@
               "$ref": "#/$defs/PageHoverParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -455,7 +455,7 @@
               "$ref": "#/$defs/PageScrollParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -468,7 +468,7 @@
               "$ref": "#/$defs/PageDragAndDropParams"
             },
             "result": {
-              "$ref": "#/$defs/PageDragAndDropResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -1473,21 +1473,76 @@
           "description": "Action ID for tracking",
           "type": "string"
         },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "cache": {
+          "description": "Cache observability for this result; status is DISABLED when no cache lookup ran",
+          "$ref": "#/$defs/CacheMetadata"
         },
         "usage": {
           "description": "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
           "$ref": "#/$defs/StagehandResultUsage"
         }
       },
-      "required": ["usage"],
+      "required": ["cache", "usage"],
       "additionalProperties": false
     },
     "CacheStatus": {
       "type": "string",
-      "enum": ["HIT", "MISS"]
+      "enum": ["HIT", "MISS", "DISABLED"]
+    },
+    "CacheTokenSavings": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "output_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "total_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "CacheMetadata": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Whether server-side caching served this result, computed it, or was not consulted",
+          "$ref": "#/$defs/CacheStatus"
+        },
+        "count": {
+          "description": "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "threshold": {
+          "description": "Hit-count threshold in effect for this key",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "miss_reason": {
+          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"read_failed\" (the cache request itself failed) and \"replay_failed\" (a cached value was found but could not be applied)",
+          "type": "string"
+        },
+        "tokens_saved": {
+          "description": "LLM tokens avoided by serving this request from cache; hits only",
+          "$ref": "#/$defs/CacheTokenSavings"
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
     },
     "StagehandResultUsage": {
       "type": "object",
@@ -2989,9 +3044,6 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
-        },
-        "return_xpath": {
-          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -3000,14 +3052,15 @@
       "type": "string",
       "enum": ["left", "right", "middle"]
     },
-    "PageCoordinateResult": {
+    "PageVoidResult": {
       "type": "object",
       "properties": {
-        "xpath": {
-          "type": "string"
+        "ok": {
+          "type": "boolean",
+          "const": true
         }
       },
-      "required": ["xpath"],
+      "required": ["ok"],
       "additionalProperties": false
     },
     "PageHoverParams": {
@@ -3021,21 +3074,9 @@
         },
         "y": {
           "type": "number"
-        },
-        "options": {
-          "$ref": "#/$defs/PageHoverOptions"
         }
       },
       "required": ["page_id", "x", "y"],
-      "additionalProperties": false
-    },
-    "PageHoverOptions": {
-      "type": "object",
-      "properties": {
-        "return_xpath": {
-          "type": "boolean"
-        }
-      },
       "additionalProperties": false
     },
     "PageScrollParams": {
@@ -3055,21 +3096,9 @@
         },
         "delta_y": {
           "type": "number"
-        },
-        "options": {
-          "$ref": "#/$defs/PageScrollOptions"
         }
       },
       "required": ["page_id", "x", "y", "delta_x", "delta_y"],
-      "additionalProperties": false
-    },
-    "PageScrollOptions": {
-      "type": "object",
-      "properties": {
-        "return_xpath": {
-          "type": "boolean"
-        }
-      },
       "additionalProperties": false
     },
     "PageDragAndDropParams": {
@@ -3111,24 +3140,8 @@
         "delay": {
           "type": "number",
           "minimum": 0
-        },
-        "return_xpath": {
-          "type": "boolean"
         }
       },
-      "additionalProperties": false
-    },
-    "PageDragAndDropResult": {
-      "type": "object",
-      "properties": {
-        "from_xpath": {
-          "type": "string"
-        },
-        "to_xpath": {
-          "type": "string"
-        }
-      },
-      "required": ["from_xpath", "to_xpath"],
       "additionalProperties": false
     },
     "PageTypeParams": {
@@ -3158,17 +3171,6 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": false
-    },
-    "PageVoidResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["ok"],
       "additionalProperties": false
     },
     "PageKeyPressParams": {

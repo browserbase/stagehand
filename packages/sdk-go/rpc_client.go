@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -26,6 +27,7 @@ const (
 	maxJSONRPCRequestID     uint64 = 9_007_199_254_740_991
 	maxPendingNotifications        = 100
 	rpcResponseGrace               = 10 * time.Second
+	maxRPCResponseTimeout          = time.Duration(math.MaxInt64)
 )
 
 var (
@@ -54,6 +56,7 @@ type rpcTransport interface {
 
 type rpcClient struct {
 	transport           rpcTransport
+	ownsTransport       bool
 	browserWebSocketURL string
 
 	ctx        context.Context
@@ -137,7 +140,7 @@ type rpcWireErrorObject struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-func newRPCClient(transport rpcTransport) (*rpcClient, error) {
+func newRPCClient(transport rpcTransport, ownsTransport bool) (*rpcClient, error) {
 	if transport == nil {
 		return nil, errors.New("stagehand RPC transport is required")
 	}
@@ -145,6 +148,7 @@ func newRPCClient(transport rpcTransport) (*rpcClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &rpcClient{
 		transport:            transport,
+		ownsTransport:        ownsTransport,
 		ctx:                  ctx,
 		cancel:               cancel,
 		readerDone:           make(chan struct{}),
@@ -263,8 +267,13 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	if durationMilliseconds < 0 {
 		durationMilliseconds = 0
 	}
-	return rpcResponseGrace +
-		time.Duration(durationMilliseconds*float64(time.Millisecond)), true
+	maxOperationDuration := maxRPCResponseTimeout - rpcResponseGrace
+	operationNanoseconds := durationMilliseconds * float64(time.Millisecond)
+	if math.IsInf(operationNanoseconds, 1) ||
+		operationNanoseconds >= float64(maxOperationDuration) {
+		return maxRPCResponseTimeout, true
+	}
+	return rpcResponseGrace + time.Duration(operationNanoseconds), true
 }
 
 func jsonNumberAtPath(encoded json.RawMessage, path ...string) float64 {
@@ -290,6 +299,9 @@ func jsonNumberAtPath(encoded json.RawMessage, path ...string) float64 {
 	}
 	value, err := number.Float64()
 	if err != nil {
+		if math.IsInf(value, 1) {
+			return value
+		}
 		return 0
 	}
 	return value
@@ -693,10 +705,12 @@ func (c *rpcClient) shutdown(reason error) {
 	for _, request := range pending {
 		request.response <- rpcCallResponse{err: reason}
 	}
-	closeErr := c.transport.Close()
-	c.mu.Lock()
-	c.transportCloseError = closeErr
-	c.mu.Unlock()
+	if c.ownsTransport {
+		closeErr := c.transport.Close()
+		c.mu.Lock()
+		c.transportCloseError = closeErr
+		c.mu.Unlock()
+	}
 }
 
 func newRequestHandler[Params any, Result any](

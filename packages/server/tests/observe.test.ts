@@ -168,6 +168,7 @@ describe("observe service", () => {
         },
       ],
       metadata: {
+        cache: { status: "DISABLED" },
         usage: {
           inputTokens: 11,
           outputTokens: 4,
@@ -227,7 +228,7 @@ describe("observe service", () => {
     });
 
     expect(result.metadata).toStrictEqual({
-      cacheStatus: "HIT",
+      cache: { status: "HIT" },
       usage: {
         inputTokens: 0,
         outputTokens: 0,

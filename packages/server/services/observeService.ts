@@ -9,6 +9,7 @@ import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
@@ -16,7 +17,7 @@ import type { EncodedId } from "../types/private/internal.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
-import { zeroStagehandResultUsage } from "./resultUsage.js";
+import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
 const DEFAULT_OBSERVE_INSTRUCTION =
   "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
@@ -29,6 +30,7 @@ export async function observe({
   logger,
   systemPrompt = "",
   cache,
+  gateway,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -37,6 +39,7 @@ export async function observe({
   logger: StagehandLogger;
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -64,7 +67,10 @@ export async function observe({
       if (actions.length === 0) {
         throw new Error("Cached observe value contained no usable actions");
       }
-      return { data: actions, metadata: { usage: zeroStagehandResultUsage() } };
+      return {
+        data: actions,
+        metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+      };
     },
     execute: () => runObservation(),
   });
@@ -84,7 +90,7 @@ export async function observe({
     const observation = await inference.observe({
       instruction: effectiveInstruction,
       domElements: combinedTree,
-      generate: (input) => llmService.generate(model, input, clientLLMGenerate),
+      generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
       userProvidedInstructions: systemPrompt,
       supportedActions: Object.values(SupportedUnderstudyAction),
       variables: options?.variables,
@@ -158,6 +164,7 @@ export async function observe({
             cachedInputTokens: observation.cached_input_tokens,
             inferenceTimeMs: observation.inference_time_ms,
           },
+          cache: disabledCacheMetadata(),
         },
       },
       cacheValue: actions.length > 0 ? actions : undefined,

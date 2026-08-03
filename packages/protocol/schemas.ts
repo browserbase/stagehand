@@ -645,7 +645,7 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
-export const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
+export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -1041,13 +1041,51 @@ export const StagehandResultUsageSchema = z
     description: "Aggregate LLM usage for one Stagehand operation",
   });
 
+/** LLM tokens avoided by serving a request from the cache. */
+export const CacheTokenSavingsSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().default(0),
+    outputTokens: z.number().int().nonnegative().default(0),
+    totalTokens: z.number().int().nonnegative().default(0),
+  })
+  .meta({ id: "CacheTokenSavings" });
+
+/**
+ * Cache observability for one act/observe/extract call. Always present, like
+ * `usage`: DISABLED says no lookup ran, and otherwise it is self-explaining —
+ * a miss carries why it missed, a hit carries how established the entry is.
+ */
+export const CacheMetadataSchema = z
+  .strictObject({
+    status: CacheStatusSchema.meta({
+      description:
+        "Whether server-side caching served this result, computed it, or was not consulted",
+    }),
+    count: z.number().int().nonnegative().optional().meta({
+      description:
+        "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+    }),
+    threshold: z.number().int().positive().optional().meta({
+      description: "Hit-count threshold in effect for this key",
+    }),
+    missReason: z.string().optional().meta({
+      description:
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+    }),
+    tokensSaved: CacheTokenSavingsSchema.optional().meta({
+      description: "LLM tokens avoided by serving this request from cache; hits only",
+    }),
+  })
+  .meta({ id: "CacheMetadata" });
+
 export const StagehandResultMetadataSchema = z
   .strictObject({
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
+    cache: CacheMetadataSchema.meta({
+      description:
+        "Cache observability for this result; status is DISABLED when no cache lookup ran",
     }),
     usage: StagehandResultUsageSchema.meta({
       description:
@@ -1244,12 +1282,6 @@ export const ContextCloseResultSchema = z
     closed: z.literal(true),
   })
   .meta({ id: "ContextCloseResult" });
-
-export const PageCoordinateResultSchema = z
-  .strictObject({
-    xpath: z.string(),
-  })
-  .meta({ id: "PageCoordinateResult" });
 
 export const PageScreenshotClipSchema = z
   .strictObject({
@@ -1588,7 +1620,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
     .strictObject({
       button: MouseButtonSchema.optional(),
       clickCount: z.number().int().positive().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageClickOptions" })
     .optional(),
@@ -1597,12 +1628,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
 export const PageHoverParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
   y: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageHoverOptions" })
-    .optional(),
 }).meta({ id: "PageHoverParams" });
 
 export const PageScrollParamsSchema = PageIdParamsSchema.extend({
@@ -1610,12 +1635,6 @@ export const PageScrollParamsSchema = PageIdParamsSchema.extend({
   y: z.number(),
   deltaX: z.number(),
   deltaY: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageScrollOptions" })
-    .optional(),
 }).meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
@@ -1628,7 +1647,6 @@ export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
       button: MouseButtonSchema.optional(),
       steps: z.number().int().positive().optional(),
       delay: z.number().nonnegative().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageDragAndDropOptions" })
     .optional(),
@@ -1836,13 +1854,6 @@ export const PageCloseResultSchema = z
     closed: z.literal(true),
   })
   .meta({ id: "PageCloseResult" });
-
-export const PageDragAndDropResultSchema = z
-  .strictObject({
-    fromXpath: z.string(),
-    toXpath: z.string(),
-  })
-  .meta({ id: "PageDragAndDropResult" });
 
 export const PageEvaluateResultSchema = z
   .strictObject({

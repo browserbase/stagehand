@@ -250,10 +250,45 @@ type BrowserbaseViewport struct {
 	Width *float64 `json:"width,omitempty,omitzero"`
 }
 
+type CacheMetadata struct {
+	// Times this cache key has been seen, including this request; compare with
+	// threshold to see how close the key is to being served
+	Count *int `json:"count,omitempty,omitzero"`
+
+	// Why the cache did not serve this request; misses only. Reported by the server:
+	// "not_found", "threshold", "empty_array", "timeout", "error", "bypass",
+	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed"
+	// (the cache request itself failed) and "replay_failed" (a cached value was found
+	// but could not be applied)
+	MissReason *string `json:"miss_reason,omitempty,omitzero"`
+
+	// Whether server-side caching served this result, computed it, or was not
+	// consulted
+	Status CacheStatus `json:"status"`
+
+	// Hit-count threshold in effect for this key
+	Threshold *int `json:"threshold,omitempty,omitzero"`
+
+	// LLM tokens avoided by serving this request from cache; hits only
+	TokensSaved *CacheTokenSavings `json:"tokens_saved,omitempty,omitzero"`
+}
+
 type CacheStatus string
 
+const CacheStatusDISABLED CacheStatus = "DISABLED"
 const CacheStatusHIT CacheStatus = "HIT"
 const CacheStatusMISS CacheStatus = "MISS"
+
+type CacheTokenSavings struct {
+	// InputTokens corresponds to the JSON schema field "input_tokens".
+	InputTokens int `json:"input_tokens,omitempty,omitzero"`
+
+	// OutputTokens corresponds to the JSON schema field "output_tokens".
+	OutputTokens int `json:"output_tokens,omitempty,omitzero"`
+
+	// TotalTokens corresponds to the JSON schema field "total_tokens".
+	TotalTokens int `json:"total_tokens,omitempty,omitzero"`
+}
 
 type CerebrasModelName string
 
@@ -1058,9 +1093,6 @@ type PageClickOptions struct {
 
 	// ClickCount corresponds to the JSON schema field "click_count".
 	ClickCount *int `json:"click_count,omitempty,omitzero"`
-
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
 }
 
 type PageClickParams struct {
@@ -1082,20 +1114,12 @@ type PageCloseResult struct {
 	Closed bool `json:"closed"`
 }
 
-type PageCoordinateResult struct {
-	// XPath corresponds to the JSON schema field "xpath".
-	XPath string `json:"xpath"`
-}
-
 type PageDragAndDropOptions struct {
 	// Button corresponds to the JSON schema field "button".
 	Button *MouseButton `json:"button,omitempty,omitzero"`
 
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
-
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
 
 	// Steps corresponds to the JSON schema field "steps".
 	Steps *int `json:"steps,omitempty,omitzero"`
@@ -1119,14 +1143,6 @@ type PageDragAndDropParams struct {
 
 	// ToY corresponds to the JSON schema field "to_y".
 	ToY float64 `json:"to_y"`
-}
-
-type PageDragAndDropResult struct {
-	// FromXPath corresponds to the JSON schema field "from_xpath".
-	FromXPath string `json:"from_xpath"`
-
-	// ToXPath corresponds to the JSON schema field "to_xpath".
-	ToXPath string `json:"to_xpath"`
 }
 
 type PageEvaluateParams struct {
@@ -1169,15 +1185,7 @@ type PageGotoParams struct {
 	URL string `json:"url"`
 }
 
-type PageHoverOptions struct {
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
-}
-
 type PageHoverParams struct {
-	// Options corresponds to the JSON schema field "options".
-	Options *PageHoverOptions `json:"options,omitempty,omitzero"`
-
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
 
@@ -1340,20 +1348,12 @@ type PageScreenshotResultType string
 const PageScreenshotResultTypeJPEG PageScreenshotResultType = "jpeg"
 const PageScreenshotResultTypePNG PageScreenshotResultType = "png"
 
-type PageScrollOptions struct {
-	// ReturnXPath corresponds to the JSON schema field "return_xpath".
-	ReturnXPath *bool `json:"return_xpath,omitempty,omitzero"`
-}
-
 type PageScrollParams struct {
 	// DeltaX corresponds to the JSON schema field "delta_x".
 	DeltaX float64 `json:"delta_x"`
 
 	// DeltaY corresponds to the JSON schema field "delta_y".
 	DeltaY float64 `json:"delta_y"`
-
-	// Options corresponds to the JSON schema field "options".
-	Options *PageScrollOptions `json:"options,omitempty,omitzero"`
 
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -1764,8 +1764,9 @@ type StagehandResultMetadata struct {
 	// Action ID for tracking
 	ActionID *string `json:"action_id,omitempty,omitzero"`
 
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	// Cache observability for this result; status is DISABLED when no cache lookup
+	// ran
+	Cache CacheMetadata `json:"cache"`
 
 	// Aggregate LLM usage for this operation; zeroed when the operation did not run
 	// inference
@@ -1944,8 +1945,14 @@ type generatedModelCatalog struct {
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
 
+	// CacheMetadata corresponds to the JSON schema field "CacheMetadata".
+	CacheMetadata *CacheMetadata `json:"CacheMetadata,omitempty,omitzero"`
+
 	// CacheStatus corresponds to the JSON schema field "CacheStatus".
 	CacheStatus *CacheStatus `json:"CacheStatus,omitempty,omitzero"`
+
+	// CacheTokenSavings corresponds to the JSON schema field "CacheTokenSavings".
+	CacheTokenSavings *CacheTokenSavings `json:"CacheTokenSavings,omitempty,omitzero"`
 
 	// Caching corresponds to the JSON schema field "Caching".
 	Caching *Caching `json:"Caching,omitempty,omitzero"`
@@ -2288,10 +2295,6 @@ type generatedModelCatalog struct {
 	// PageCloseResult corresponds to the JSON schema field "PageCloseResult".
 	PageCloseResult *PageCloseResult `json:"PageCloseResult,omitempty,omitzero"`
 
-	// PageCoordinateResult corresponds to the JSON schema field
-	// "PageCoordinateResult".
-	PageCoordinateResult *PageCoordinateResult `json:"PageCoordinateResult,omitempty,omitzero"`
-
 	// PageDragAndDropOptions corresponds to the JSON schema field
 	// "PageDragAndDropOptions".
 	PageDragAndDropOptions *PageDragAndDropOptions `json:"PageDragAndDropOptions,omitempty,omitzero"`
@@ -2299,10 +2302,6 @@ type generatedModelCatalog struct {
 	// PageDragAndDropParams corresponds to the JSON schema field
 	// "PageDragAndDropParams".
 	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty,omitzero"`
-
-	// PageDragAndDropResult corresponds to the JSON schema field
-	// "PageDragAndDropResult".
-	PageDragAndDropResult *PageDragAndDropResult `json:"PageDragAndDropResult,omitempty,omitzero"`
 
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
 	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
@@ -2318,9 +2317,6 @@ type generatedModelCatalog struct {
 
 	// PageGotoParams corresponds to the JSON schema field "PageGotoParams".
 	PageGotoParams *PageGotoParams `json:"PageGotoParams,omitempty,omitzero"`
-
-	// PageHoverOptions corresponds to the JSON schema field "PageHoverOptions".
-	PageHoverOptions *PageHoverOptions `json:"PageHoverOptions,omitempty,omitzero"`
 
 	// PageHoverParams corresponds to the JSON schema field "PageHoverParams".
 	PageHoverParams *PageHoverParams `json:"PageHoverParams,omitempty,omitzero"`
@@ -2361,9 +2357,6 @@ type generatedModelCatalog struct {
 	// PageScreenshotResult corresponds to the JSON schema field
 	// "PageScreenshotResult".
 	PageScreenshotResult *PageScreenshotResult `json:"PageScreenshotResult,omitempty,omitzero"`
-
-	// PageScrollOptions corresponds to the JSON schema field "PageScrollOptions".
-	PageScrollOptions *PageScrollOptions `json:"PageScrollOptions,omitempty,omitzero"`
 
 	// PageScrollParams corresponds to the JSON schema field "PageScrollParams".
 	PageScrollParams *PageScrollParams `json:"PageScrollParams,omitempty,omitzero"`

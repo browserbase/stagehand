@@ -261,9 +261,37 @@ class BrowserbaseViewport(WireModel):
     height: Optional[StrictFloat] = None
 
 
+class CacheMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    status: CacheStatus
+    """Whether server-side caching served this result, computed it, or was not consulted"""
+    count: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    """Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served"""
+    threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    """Hit-count threshold in effect for this key"""
+    miss_reason: Optional[StrictStr] = None
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    tokens_saved: Optional[CacheTokenSavings] = None
+    """LLM tokens avoided by serving this request from cache; hits only"""
+
+
 class CacheStatus(StrEnum):
     hit = "HIT"
     miss = "MISS"
+    disabled = "DISABLED"
+
+
+class CacheTokenSavings(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    total_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
 
 
 class Caching1(WireModel):
@@ -1319,7 +1347,6 @@ class PageClickOptions(WireModel):
     )
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageClickParams(WireModel):
@@ -1341,14 +1368,6 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
-class PageCoordinateResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    xpath: StrictStr
-
-
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1357,7 +1376,6 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1371,15 +1389,6 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
-
-
-class PageDragAndDropResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    from_xpath: StrictStr
-    to_xpath: StrictStr
 
 
 class PageEvaluateParams(WireModel):
@@ -1427,14 +1436,6 @@ class PageGotoParams(WireModel):
     options: Optional[PageNavigationOptions] = None
 
 
-class PageHoverOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageHoverParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1443,7 +1444,6 @@ class PageHoverParams(WireModel):
     page_id: StrictStr
     x: StrictFloat
     y: StrictFloat
-    options: Optional[PageHoverOptions] = None
 
 
 class PageIdParams(WireModel):
@@ -1572,14 +1572,6 @@ class PageScreenshotResult(WireModel):
     type: Type
 
 
-class PageScrollOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageScrollParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1590,7 +1582,6 @@ class PageScrollParams(WireModel):
     y: StrictFloat
     delta_x: StrictFloat
     delta_y: StrictFloat
-    options: Optional[PageScrollOptions] = None
 
 
 class PageSetExtraHTTPHeadersParams(WireModel):
@@ -1938,8 +1929,8 @@ class StagehandResultMetadata(WireModel):
     )
     action_id: Optional[StrictStr] = None
     """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    cache: CacheMetadata
+    """Cache observability for this result; status is DISABLED when no cache lookup ran"""
     usage: StagehandResultUsage
     """Aggregate LLM usage for this operation; zeroed when the operation did not run inference"""
 

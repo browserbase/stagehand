@@ -98,29 +98,44 @@ class CDPClient:
         cdp_url: str,
         extension_dir: str | None = None,
         extension_id: str | None = None,
+        preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
     ) -> CDPClient:
-        if bool(extension_dir) == bool(extension_id):
-            raise ValueError("Exactly one of extension_dir or extension_id is required")
+        """Connect without an independent lifecycle deadline.
+
+        The production browser factories own the complete 60-second initialization
+        lifecycle. Direct internal callers must provide cancellation themselves.
+        CDP command acknowledgements inherit that same caller-owned cancellation.
+        """
+        if sum((bool(extension_dir), bool(extension_id), preloaded_extension)) != 1:
+            raise ValueError(
+                "Exactly one of extension_dir, extension_id, or preloaded_extension is required"
+            )
 
         web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
         socket = await _connect_web_socket(web_socket_debugger_url)
         client = cls(socket, web_socket_debugger_url)
 
         try:
-            resolved_extension_id = extension_id
-            if extension_dir is not None:
-                resolved_extension_id = await client._load_unpacked_extension(extension_dir)
+            if preloaded_extension:
+                worker, session_id = await client._wait_for_preloaded_service_worker(
+                    service_worker_url_includes or "service-worker.js",
+                )
+                resolved_extension_id = _extension_id_from_url(worker.url)
+            else:
+                resolved_extension_id = extension_id
+                if extension_dir is not None:
+                    resolved_extension_id = await client._load_unpacked_extension(extension_dir)
 
-            worker = await client._wait_for_service_worker(
-                resolved_extension_id,
-                service_worker_url_includes or "service-worker.js",
-            )
-            attached = await client.send_command(
-                "Target.attachToTarget",
-                {"targetId": worker.target_id, "flatten": True},
-            )
-            session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+                worker = await client._wait_for_service_worker(
+                    resolved_extension_id,
+                    service_worker_url_includes or "service-worker.js",
+                )
+                attached = await client.send_command(
+                    "Target.attachToTarget",
+                    {"targetId": worker.target_id, "flatten": True},
+                )
+                session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
             client._session_id = session_id
             client._service_worker = ServiceWorkerInfo(
                 target_id=worker.target_id,
@@ -136,10 +151,10 @@ class CDPClient:
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
             )
-            await client._wait_for_runtime_ready(session_id)
+            await client._wait_for_runtime_receiver(session_id)
             return client
         except BaseException:
-            await client.close()
+            await asyncio.shield(client.close())
             raise
 
     @property
@@ -372,30 +387,109 @@ class CDPClient:
                 await asyncio.sleep(0.1)
         finally:
             if activation_target_id is not None:
-                # Do not block cancellation on a cleanup response from an unhealthy transport.
                 self._schedule_best_effort_command(
                     "Target.closeTarget", {"targetId": activation_target_id}
                 )
 
-    async def _wait_for_runtime_ready(self, session_id: str) -> None:
+    async def _wait_for_preloaded_service_worker(
+        self,
+        url_includes: str,
+    ) -> tuple[ServiceWorkerInfo, str]:
+        """Return a discovered worker and its flat CDP session, left attached for the caller.
+
+        Each candidate must be attached to evaluate readiness; unready or incompatible
+        candidates are detached before the next poll.
+        """
         while True:
-            evaluated = await self.send_command(
-                "Runtime.evaluate",
-                {
-                    "expression": _RUNTIME_READINESS_EXPRESSION,
-                    "returnByValue": True,
-                },
-                session_id=session_id,
-            )
-            exception = evaluated.get("exceptionDetails")
-            if not isinstance(exception, Mapping):
-                result = evaluated.get("result")
-                value = result.get("value") if isinstance(result, Mapping) else None
-                if isinstance(value, Mapping):
-                    has_receiver = value.get("hasReceiver") is True
-                    compatible, _ = _negotiate_runtime(value.get("marker"))
-                    if compatible and has_receiver:
-                        return
+            response = await self.send_command("Target.getTargets")
+            targets = response.get("targetInfos")
+            target_infos = cast(list[object], targets) if isinstance(targets, list) else []
+            for target in target_infos:
+                if not isinstance(target, dict):
+                    continue
+                target_info = cast(dict[str, object], target)
+                url = target_info.get("url")
+                if not (
+                    target_info.get("type") == "service_worker"
+                    and isinstance(url, str)
+                    and url.startswith("chrome-extension://")
+                    and url_includes in url
+                ):
+                    continue
+
+                session_id: str | None = None
+                keep_attached = False
+                try:
+                    attached = await self.send_command(
+                        "Target.attachToTarget",
+                        {
+                            "targetId": _required_string(
+                                target_info, "targetId", "Target.getTargets"
+                            ),
+                            "flatten": True,
+                        },
+                    )
+                    session_id = _required_string(attached, "sessionId", "Target.attachToTarget")
+                    evaluated = await self.send_command(
+                        "Runtime.evaluate",
+                        {
+                            "expression": _RUNTIME_READINESS_EXPRESSION,
+                            "returnByValue": True,
+                        },
+                        session_id=session_id,
+                    )
+                    if not isinstance(evaluated.get("exceptionDetails"), Mapping):
+                        result = evaluated.get("result")
+                        value = result.get("value") if isinstance(result, Mapping) else None
+                        if isinstance(value, Mapping):
+                            compatible, _ = _negotiate_runtime(value.get("marker"))
+                            if compatible and value.get("hasReceiver") is True:
+                                service_worker = ServiceWorkerInfo(
+                                    target_id=_required_string(
+                                        target_info, "targetId", "Target.getTargets"
+                                    ),
+                                    title=_required_string(
+                                        target_info, "title", "Target.getTargets"
+                                    ),
+                                    url=url,
+                                    extension_id=_extension_id_from_url(url),
+                                )
+                                keep_attached = True
+                                return service_worker, session_id
+                except Exception:
+                    # The worker may still be starting. Detach and retry until cancellation.
+                    pass
+                finally:
+                    if session_id is not None and not keep_attached:
+                        with suppress(Exception):
+                            await self.send_command(
+                                "Target.detachFromTarget",
+                                {"sessionId": session_id},
+                            )
+            await asyncio.sleep(0.1)
+
+    async def _wait_for_runtime_receiver(self, session_id: str) -> None:
+        while True:
+            try:
+                evaluated = await self.send_command(
+                    "Runtime.evaluate",
+                    {
+                        "expression": _RUNTIME_READINESS_EXPRESSION,
+                        "returnByValue": True,
+                    },
+                    session_id=session_id,
+                )
+                exception = evaluated.get("exceptionDetails")
+                if not isinstance(exception, Mapping):
+                    result = evaluated.get("result")
+                    value = result.get("value") if isinstance(result, Mapping) else None
+                    if isinstance(value, Mapping):
+                        has_receiver = value.get("hasReceiver") is True
+                        compatible, _ = _negotiate_runtime(value.get("marker"))
+                        if compatible and has_receiver:
+                            return
+            except Exception:
+                pass
             await asyncio.sleep(0.1)
 
     def _schedule_best_effort_command(self, method: str, params: Mapping[str, object]) -> None:
@@ -450,3 +544,11 @@ def _required_string(value: Mapping[str, object], key: str, method: str) -> str:
     if not isinstance(result, str) or not result:
         raise RuntimeError(f"{method} did not return {key}")
     return result
+
+
+def _extension_id_from_url(url: str) -> str | None:
+    prefix = "chrome-extension://"
+    if not url.startswith(prefix):
+        return None
+    extension_id, separator, _ = url.removeprefix(prefix).partition("/")
+    return extension_id if separator and extension_id else None

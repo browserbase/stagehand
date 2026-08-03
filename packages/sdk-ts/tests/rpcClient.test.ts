@@ -384,6 +384,24 @@ describe("RPCClient", () => {
     }
   });
 
+  it("rejects initialization RPCs that have no lifecycle signal", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+
+    try {
+      await expect(
+        client.send(StagehandMethods.stagehandInit, {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "test-client", version: "1.0.0" },
+          browserCdpUrl: "ws://cdp.test",
+        }),
+      ).rejects.toThrow("stagehand.init requires an initialization lifecycle signal");
+      expect(cdp.sent).toHaveLength(0);
+    } finally {
+      client.close();
+    }
+  });
+
   it("lets initialization RPCs inherit the outer lifecycle deadline", async () => {
     vi.useFakeTimers();
     const cdp = new ManualCDPTransport();
@@ -391,14 +409,13 @@ describe("RPCClient", () => {
     const controller = new AbortController();
 
     try {
-      const request = client.send(
-        StagehandMethods.stagehandInit,
+      const request = client.sendStagehandInit(
         {
           protocolVersion: STAGEHAND_PROTOCOL_VERSION,
           clientInfo: { name: "test-client", version: "1.0.0" },
           browserCdpUrl: "ws://cdp.test",
         },
-        { signal: controller.signal },
+        controller.signal,
       );
       const rejection = expect(request).rejects.toThrow("initialization deadline expired");
       await vi.advanceTimersByTimeAsync(60_000);

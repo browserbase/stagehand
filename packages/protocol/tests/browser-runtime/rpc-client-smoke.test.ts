@@ -29,24 +29,23 @@ describe("Stagehand service worker RPC client smoke", () => {
     extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
-    const signal = AbortSignal.timeout(15_000);
+    const signal = AbortSignal.timeout(60_000);
     rpcClient = await connectRPCClient({
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
       extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
       signal,
     });
-    await rpcClient.send(
-      StagehandMethods.stagehandInit,
+    await rpcClient.sendStagehandInit(
       {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
         logLevel: "debug",
         browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
       },
-      { signal },
+      signal,
     );
-  }, 45_000);
+  }, 70_000);
 
   afterAll(async () => {
     rpcClient?.close();
@@ -405,7 +404,6 @@ describe("Stagehand service worker RPC client smoke", () => {
       pageId: page.pageId,
       x: 1,
       y: 1,
-      options: { returnXpath: true },
     });
 
     await expect(

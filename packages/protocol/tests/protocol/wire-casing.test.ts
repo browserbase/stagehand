@@ -226,7 +226,7 @@ describe("JSON-RPC wire casing", () => {
       fromY: 20,
       toX: 30,
       toY: 40,
-      options: { returnXpath: true },
+      options: { steps: 5 },
     };
     const wireValue = {
       page_id: "page_1",
@@ -234,7 +234,7 @@ describe("JSON-RPC wire casing", () => {
       from_y: 20,
       to_x: 30,
       to_y: 40,
-      options: { return_xpath: true },
+      options: { steps: 5 },
     };
 
     expect(encodeWireValue(apiValue)).toStrictEqual(wireValue);
@@ -492,7 +492,7 @@ describe("JSON-RPC wire casing", () => {
       data: { userName: "Sam" },
       metadata: {
         actionId: "action_1",
-        cacheStatus: "HIT" as const,
+        cache: { status: "HIT" as const },
         usage: zeroApiUsage,
       },
     };
@@ -500,7 +500,7 @@ describe("JSON-RPC wire casing", () => {
       data: { userName: "Sam" },
       metadata: {
         action_id: "action_1",
-        cache_status: "HIT",
+        cache: { status: "HIT" },
         usage: zeroWireUsage,
       },
     };
@@ -547,7 +547,7 @@ describe("JSON-RPC wire casing", () => {
         actionDescription: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cacheStatus: "MISS" as const, usage: zeroApiUsage },
+      metadata: { cache: { status: "MISS" as const }, usage: zeroApiUsage },
     };
     const actWireValue = {
       data: {
@@ -556,7 +556,7 @@ describe("JSON-RPC wire casing", () => {
         action_description: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cache_status: "MISS", usage: zeroWireUsage },
+      metadata: { cache: { status: "MISS" }, usage: zeroWireUsage },
     };
 
     expect(encodeWireValue(actApiValue, act.resultWire)).toStrictEqual(actWireValue);
@@ -572,7 +572,7 @@ describe("JSON-RPC wire casing", () => {
           arguments: ["withValue"],
         },
       ],
-      metadata: { actionId: "action_1", usage: zeroApiUsage },
+      metadata: { actionId: "action_1", cache: { status: "DISABLED" }, usage: zeroApiUsage },
     };
     const observeWireValue = {
       data: [
@@ -583,7 +583,7 @@ describe("JSON-RPC wire casing", () => {
           arguments: ["withValue"],
         },
       ],
-      metadata: { action_id: "action_1", usage: zeroWireUsage },
+      metadata: { action_id: "action_1", cache: { status: "DISABLED" }, usage: zeroWireUsage },
     };
 
     expect(encodeWireValue(observeApiValue, observe.resultWire)).toStrictEqual(observeWireValue);
@@ -594,11 +594,11 @@ describe("JSON-RPC wire casing", () => {
     const extract = StagehandMethods.stagehandExtract;
     const extractWireValue = {
       data: { callerChosenKey: 1 },
-      metadata: { usage: zeroWireUsage },
+      metadata: { cache: { status: "DISABLED" }, usage: zeroWireUsage },
     };
     expect(wireSchema(extract.result, extract.resultWire).parse(extractWireValue)).toStrictEqual({
       data: extractWireValue.data,
-      metadata: { usage: zeroApiUsage },
+      metadata: { cache: { status: "DISABLED" }, usage: zeroApiUsage },
     });
   });
 
@@ -638,7 +638,10 @@ describe("JSON-RPC wire casing", () => {
     ] as const;
 
     for (const { definition, data } of cases) {
-      const apiValue = { data, metadata: { usage: apiUsage } };
+      const apiValue = {
+        data,
+        metadata: { cache: { status: "DISABLED" as const }, usage: apiUsage },
+      };
       const wireValue = encodeWireValue(apiValue, definition.resultWire);
 
       expect(wireValue).toMatchObject({ metadata: { usage: wireUsage } });

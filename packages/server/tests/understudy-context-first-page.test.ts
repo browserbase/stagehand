@@ -16,6 +16,10 @@ function createPage(targetId: string): Page {
 function createContext() {
   const connectionState = {
     connected: true,
+    on: vi.fn(),
+    enableAutoAttach: vi.fn(async () => {}),
+    getTargets: vi.fn(async (): Promise<unknown[]> => []),
+    attachToTarget: vi.fn(async () => ({})),
     send: vi.fn(async (method: string) =>
       method === "Target.createTarget" ? { targetId: "created-target" } : {},
     ),
@@ -106,6 +110,25 @@ describe("BrowserContext first top-level page", () => {
     await expect(waiting).resolves.toBeUndefined();
   });
 
+  it("registers initial targets before auto-attach can report a terminal failure", async () => {
+    const { connectionState, context } = createContext();
+    connectionState.getTargets.mockResolvedValue([
+      {
+        targetId: "page-target",
+        type: "page",
+        url: "about:blank",
+        attached: true,
+      },
+    ]);
+    connectionState.enableAutoAttach.mockImplementation(async () => {
+      expect(context.pendingInitialTopLevelTargets.has("page-target")).toBe(true);
+      context.cleanupByTarget("page-target");
+    });
+
+    await expect(context.bootstrap()).resolves.toBeUndefined();
+    expect(context.pageCreationFailures.has("page-target")).toBe(false);
+  });
+
   it("treats failed initial page registration as terminal", async () => {
     const { context } = createContext();
     const waiting = context.waitForInitialTopLevelTargets(["page-target"]);
@@ -155,6 +178,17 @@ describe("BrowserContext first top-level page", () => {
     await vi.advanceTimersByTimeAsync(25);
 
     await rejection;
+  });
+
+  it("preserves the original page failure when target cleanup follows", () => {
+    const { context } = createContext();
+    const originalFailure = new Error("Page.create failed");
+    context.pendingNewPageTargets.add("created-target");
+    context.pageCreationFailures.set("created-target", originalFailure);
+
+    context.cleanupByTarget("created-target");
+
+    expect(context.pageCreationFailures.get("created-target")).toBe(originalFailure);
   });
 
   it("stops waiting for target registration when the CDP lifecycle closes", async () => {

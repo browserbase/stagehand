@@ -13,7 +13,10 @@ type CdpCall = {
   method: string;
   params?: Record<string, unknown>;
   sessionId?: string;
+  signal?: AbortSignal;
 };
+
+const lifecycleSignal = new AbortController().signal;
 
 type TargetInfo = {
   targetId: string;
@@ -37,8 +40,9 @@ class FakeCdp {
     method: string,
     params?: Record<string, unknown>,
     sessionId?: string,
+    signal?: AbortSignal,
   ): Promise<Result> {
-    this.calls.push({ method, params, sessionId });
+    this.calls.push({ method, params, sessionId, signal });
     const handler = this.handlers.get(method);
 
     if (!handler) {
@@ -52,7 +56,9 @@ class FakeCdp {
 describe("resolveBrowserWebSocketUrl", () => {
   it("returns direct websocket URLs without fetching /json/version", async () => {
     await expect(
-      resolveBrowserWebSocketUrl("ws://127.0.0.1:9222/devtools/browser/1"),
+      resolveBrowserWebSocketUrl("ws://127.0.0.1:9222/devtools/browser/1", {
+        signal: lifecycleSignal,
+      }),
     ).resolves.toBe("ws://127.0.0.1:9222/devtools/browser/1");
   });
 
@@ -61,6 +67,7 @@ describe("resolveBrowserWebSocketUrl", () => {
 
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
+        signal: lifecycleSignal,
         pollIntervalMs: 1,
         delayFn: async () => {},
         fetchFn: async (url) => {
@@ -114,14 +121,15 @@ describe("loadUnpackedExtension", () => {
   it("returns the id from Extensions.loadUnpacked", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({ id: "stagehandext" }));
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).resolves.toBe(
-      "stagehandext",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).resolves.toBe("stagehandext");
     expect(cdp.calls).toStrictEqual([
       {
         method: "Extensions.loadUnpacked",
         params: { path: "/tmp/stagehand-extension" },
         sessionId: undefined,
+        signal: lifecycleSignal,
       },
     ]);
   });
@@ -137,17 +145,17 @@ describe("loadUnpackedExtension", () => {
       });
     });
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "Launch with --load-extension",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).rejects.toThrow("Launch with --load-extension");
   });
 
   it("rejects loadUnpacked responses without an extension id", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({}));
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "did not return an extension id",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).rejects.toThrow("did not return an extension id");
   });
 });
 
@@ -165,6 +173,7 @@ describe("waitForServiceWorker", () => {
       waitForServiceWorker(cdp, {
         extensionId: "stagehandext",
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
   });
@@ -181,6 +190,7 @@ describe("waitForServiceWorker", () => {
     await expect(
       waitForServiceWorker(cdp, {
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
   });
@@ -198,6 +208,7 @@ describe("waitForServiceWorker", () => {
         activationDelayMs: 0,
         extensionId: "stagehandext",
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
 
@@ -243,6 +254,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: stagehandWorker,
@@ -253,6 +265,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "wrong-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
     expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
   });
@@ -274,6 +287,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: currentWorker,
@@ -284,6 +298,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 
@@ -315,6 +330,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: controller.signal,
     });
   });
 
@@ -329,6 +345,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         allowFallbackInstall: false,
+        signal: lifecycleSignal,
       }),
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
 
@@ -336,6 +353,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 
@@ -357,6 +375,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       waitForPreloadedStagehandServiceWorker(cdp, {
         allowFallbackInstall: false,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: currentWorker,
@@ -367,6 +386,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 });
@@ -382,6 +402,7 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
@@ -393,6 +414,7 @@ describe("waitForRuntimeReady", () => {
           returnByValue: true,
         }),
         sessionId: "worker-session",
+        signal: lifecycleSignal,
       },
     ]);
 
@@ -420,6 +442,7 @@ describe("waitForRuntimeReady", () => {
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 5,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
@@ -471,6 +494,7 @@ describe("waitForRuntimeReady", () => {
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
@@ -524,6 +548,7 @@ describe("waitForRuntimeReady", () => {
       waitForRuntimeReady(cdp, "worker-session", {
         allowFallbackInstall: false,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });

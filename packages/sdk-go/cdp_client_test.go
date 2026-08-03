@@ -24,11 +24,12 @@ type fakeCDPRead struct {
 }
 
 type fakeCDPWebSocket struct {
-	writes    chan []byte
-	reads     chan fakeCDPRead
-	closed    chan struct{}
-	closeOnce sync.Once
-	writeHook func([]byte)
+	writes      chan []byte
+	reads       chan fakeCDPRead
+	closed      chan struct{}
+	closeOnce   sync.Once
+	writeHook   func([]byte)
+	contextHook func(context.Context, []byte)
 }
 
 type gatedCDPWebSocket struct {
@@ -87,6 +88,9 @@ func (s *fakeCDPWebSocket) Write(
 	copied := append([]byte(nil), message...)
 	select {
 	case s.writes <- copied:
+		if s.contextHook != nil {
+			s.contextHook(ctx, copied)
+		}
 		if s.writeHook != nil {
 			s.writeHook(copied)
 		}
@@ -171,8 +175,22 @@ func TestWaitForServiceWorkerClosesWakeTargetAfterCancellation(t *testing.T) {
 	socket := newFakeCDPWebSocket()
 	wakeCreated := make(chan struct{})
 	wakeClosed := make(chan struct{})
+	cleanupDeadline := make(chan time.Duration, 1)
 	var createdOnce sync.Once
 	var closedOnce sync.Once
+	targetPolls := 0
+	socket.contextHook = func(ctx context.Context, message []byte) {
+		var command cdpCommandEnvelope
+		if json.Unmarshal(message, &command) != nil || command.Method != "Target.closeTarget" {
+			return
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Error("wake-page cleanup context has no safety deadline")
+			return
+		}
+		cleanupDeadline <- time.Until(deadline)
+	}
 	socket.writeHook = func(message []byte) {
 		var command cdpCommandEnvelope
 		if err := json.Unmarshal(message, &command); err != nil {
@@ -183,9 +201,12 @@ func TestWaitForServiceWorkerClosesWakeTargetAfterCancellation(t *testing.T) {
 		switch command.Method {
 		case "Target.getTargets":
 			result = `{"targetInfos":[]}`
+			targetPolls++
+			if targetPolls > 1 {
+				createdOnce.Do(func() { close(wakeCreated) })
+			}
 		case "Target.createTarget":
 			result = `{"targetId":"wake-target"}`
-			createdOnce.Do(func() { close(wakeCreated) })
 		case "Target.closeTarget":
 			result = `{}`
 			closedOnce.Do(func() { close(wakeClosed) })
@@ -226,6 +247,14 @@ func TestWaitForServiceWorkerClosesWakeTargetAfterCancellation(t *testing.T) {
 	case <-wakeClosed:
 	case <-time.After(time.Second):
 		t.Fatal("wake target was not closed after cancellation")
+	}
+	select {
+	case remaining := <-cleanupDeadline:
+		if remaining <= 0 || remaining > wakePageCleanupTimeout {
+			t.Fatalf("wake-page cleanup deadline = %s", remaining)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("wake-page cleanup did not use a safety deadline")
 	}
 }
 
@@ -726,9 +755,11 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 	if cdpURL == "" {
 		t.Skip("set STAGEHAND_GO_CDP_URL to run against a real browser")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	webSocketURL, err := resolveBrowserWebSocketURL(
-		context.Background(),
+		ctx,
 		cdpURL,
 		nil,
 		http.DefaultClient,
@@ -737,7 +768,7 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 		t.Fatalf("resolve browser WebSocket URL: %v", err)
 	}
 	socket, err := dialCDPWebSocket(
-		context.Background(),
+		ctx,
 		webSocketURL,
 		nil,
 		http.DefaultClient,
@@ -752,7 +783,7 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 		ProtocolVersion string `json:"protocolVersion"`
 	}
 	if err := client.sendCommand(
-		context.Background(),
+		ctx,
 		"Browser.getVersion",
 		map[string]any{},
 		"",
@@ -771,6 +802,8 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	if cdpURL == "" || os.Getenv("STAGEHAND_GO_TEST_EXTENSION") == "" {
 		t.Skip("set STAGEHAND_GO_CDP_URL and STAGEHAND_GO_TEST_EXTENSION for extension integration")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	options := cdpClientOptions{
 		cdpURL:       cdpURL,
@@ -778,7 +811,7 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 		extensionID:  os.Getenv("STAGEHAND_GO_EXTENSION_ID"),
 	}
 	rpc, err := connectRPCClient(
-		context.Background(),
+		ctx,
 		options,
 	)
 	if err != nil {
@@ -801,7 +834,7 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 		t.Fatalf("service worker = %#v", service)
 	}
 	var pages ContextPagesResult
-	if err := rpc.call(context.Background(), "context.pages", EmptyParams{}, &pages); err != nil {
+	if err := rpc.call(ctx, "context.pages", EmptyParams{}, &pages); err != nil {
 		t.Fatalf("Stagehand context.pages over CDP: %v", err)
 	}
 	if len(pages) == 0 || pages[0].PageID == "" {

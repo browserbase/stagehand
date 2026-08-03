@@ -24,6 +24,7 @@ const (
 	defaultCDPPollInterval    = 100 * time.Millisecond
 	defaultCDPResolveInterval = 250 * time.Millisecond
 	defaultCDPActivationDelay = time.Second
+	wakePageCleanupTimeout    = 5 * time.Second
 )
 
 var (
@@ -191,7 +192,7 @@ func connectRPCClient(
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := newRPCClient(cdp)
+	rpc, err := newRPCClient(cdp, true)
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
@@ -789,12 +790,9 @@ func (c *cdpClient) waitForServiceWorker(
 		if activationTargetID == "" {
 			return
 		}
-		// Cleanup must not inherit an already-canceled init context or delay its error.
-		go c.bestEffortCommand(
-			context.WithoutCancel(ctx),
-			"Target.closeTarget",
-			map[string]any{"targetId": activationTargetID},
-		)
+		// Cleanup must not inherit an already-canceled init context, delay its
+		// error, or wait forever for a CDP acknowledgement.
+		go c.closeWakeTarget(ctx, activationTargetID)
 	}()
 
 	for {
@@ -988,6 +986,20 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 func (c *cdpClient) bestEffortCommand(ctx context.Context, method string, params any) {
 	var ignored map[string]any
 	_ = c.sendCommand(ctx, method, params, "", &ignored)
+}
+
+func (c *cdpClient) closeWakeTarget(parent context.Context, targetID string) {
+	base := context.Background()
+	if parent != nil {
+		base = context.WithoutCancel(parent)
+	}
+	cleanupCtx, cancel := context.WithTimeout(base, wakePageCleanupTimeout)
+	defer cancel()
+	c.bestEffortCommand(
+		cleanupCtx,
+		"Target.closeTarget",
+		map[string]any{"targetId": targetID},
+	)
 }
 
 func resolveBrowserWebSocketURL(

@@ -598,14 +598,32 @@ export class BrowserContext {
       void this.closePopupIfBlockedByDomainPolicy(evt.targetInfo, "targetInfoChanged");
     });
 
-    // Only enable auto-attach after listeners are ready so replayed targets are captured.
-    await this.conn.enableAutoAttach();
-
+    // Register the targets that bootstrap must account for before enabling
+    // auto-attach. Chrome can replay, detach, or destroy an existing target as
+    // part of Target.setAutoAttach; those terminal events must remain visible to
+    // the waiter below instead of being discarded before the target is pending.
     const targets = await this.conn.getTargets();
     const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
     for (const targetId of topLevelTargetIds) this.pendingInitialTopLevelTargets.add(targetId);
+
+    // Only enable auto-attach after listeners and initial target state are ready
+    // so replayed targets are captured without racing bootstrap bookkeeping.
+    await this.conn.enableAutoAttach();
+
+    const targetsAfterAutoAttach = new Map(
+      (await this.conn.getTargets()).map((target) => [target.targetId, target]),
+    );
     for (const t of targets) {
-      if (t.attached) continue; // auto-attach already handled this target
+      const currentTarget = targetsAfterAutoAttach.get(t.targetId);
+      if (!currentTarget) {
+        this.recordPageCreationFailure(
+          t.targetId,
+          new Error(`Initial target disappeared before attachment (${t.targetId})`),
+          "Initial target disappeared before attachment",
+        );
+        continue;
+      }
+      if (currentTarget.attached) continue; // auto-attach already handled this target
       try {
         await this.conn.attachToTarget(t.targetId);
       } catch (error) {
@@ -1084,6 +1102,10 @@ export class BrowserContext {
     ) {
       return;
     }
+    // Preserve the first failure, which is normally the most specific one.
+    // Target cleanup may run after Page.create or attach has already recorded
+    // the underlying error and must not replace it with a generic close message.
+    if (this.pageCreationFailures.has(targetId)) return;
     this.pageCreationFailures.set(
       targetId,
       cause instanceof Error ? cause : new Error(`${fallbackMessage}: ${String(cause)}`),

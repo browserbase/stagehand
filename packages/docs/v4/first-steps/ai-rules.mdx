@@ -277,7 +277,7 @@ const result = await stagehand.extract("extract the page title", TitleSchema);
 
 console.log(result.data.title);
 console.log(result.metadata.actionId); // Action ID for tracing this call
-console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
 
 ## Observe
@@ -399,7 +399,8 @@ The main class can be imported as `Stagehand` from `stagehand`.
 
 There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
 
-All Stagehand methods are async. `observe` and `extract` take keyword-only arguments.
+All Stagehand methods are async. `act`, `observe`, and `extract` take `instruction` (and, for
+`extract`, `schema`) positionally; every other argument is keyword-only.
 
 ## Initialize
 
@@ -471,7 +472,7 @@ await stagehand.act(
 `act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
 
 ```python
-result = await stagehand.observe(instruction="Click the sign in button")
+result = await stagehand.observe("Click the sign in button")
 action = result.data[0] if result.data else None
 
 if action is not None and action.method == "click":
@@ -482,7 +483,7 @@ To target a specific page:
 
 ```python
 result = await stagehand.observe(
-    instruction="select blue as the favorite color",
+    "select blue as the favorite color",
     page=page2,
 )
 await stagehand.act(result.data[0], page=page2)
@@ -510,8 +511,8 @@ class Listings(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract all apartment listings with prices and addresses",
-    schema=Listings,
+    "extract all apartment listings with prices and addresses",
+    Listings,
 )
 
 print(result.data.listings)
@@ -527,8 +528,8 @@ class ButtonText(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the sign in button text",
-    schema=ButtonText,
+    "extract the sign in button text",
+    ButtonText,
 )
 
 print(result.data.button_text)  # "Sign in"
@@ -544,8 +545,8 @@ class Reason(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the reason why script injection fails",
-    schema=Reason,
+    "extract the reason why script injection fails",
+    Reason,
     selector="#main-content",
     ignore_selectors=["nav", ".cookie-banner"],
 )
@@ -564,8 +565,8 @@ class Links(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract all navigation links",
-    schema=Links,
+    "extract all navigation links",
+    Links,
 )
 ```
 
@@ -577,8 +578,8 @@ class Placeholder(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the placeholder text on the name field",
-    schema=Placeholder,
+    "extract the placeholder text on the name field",
+    Placeholder,
     page=page2,
 )
 ```
@@ -591,13 +592,13 @@ class Title(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the page title",
-    schema=Title,
+    "extract the page title",
+    Title,
 )
 
 print(result.data.title)
 print(result.metadata.action_id)  # Action ID for tracing this call
-print(result.metadata.cache_status)  # "HIT", "MISS", or None
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
 
 ## Observe
@@ -605,7 +606,7 @@ print(result.metadata.cache_status)  # "HIT", "MISS", or None
 Plan actions before executing them. Candidate actions are returned on `data`:
 
 ```python
-result = await stagehand.observe(instruction="Click the sign in button")
+result = await stagehand.observe("Click the sign in button")
 action = result.data[0] if result.data else None
 
 if action is not None:
@@ -616,7 +617,7 @@ Observing on a specific page:
 
 ```python
 result = await stagehand.observe(
-    instruction="find the next page button",
+    "find the next page button",
     page=page2,
 )
 await stagehand.act(result.data[0], page=page2)
@@ -646,7 +647,7 @@ await page2.goto("https://example2.com")
 # Act/extract/observe operate on the current active page by default
 # Pass page= to target a specific page
 await stagehand.act("click button", page=page1)
-await stagehand.extract(instruction="get title", schema=Title, page=page2)
+await stagehand.extract("get title", Title, page=page2)
 ```
 
 ### Caching
@@ -993,7 +994,7 @@ fmt.Println(string(result.Data))
 
 ### Inspecting Metadata
 
-Both `ActionID` and `CacheStatus` are pointers, so check for nil before dereferencing:
+`ActionID` is a pointer, so check for nil before dereferencing. `Cache` is always present:
 
 ```go
 var titleSchema = json.RawMessage(`{
@@ -1013,9 +1014,7 @@ if err != nil {
 if result.Metadata.ActionID != nil {
 	fmt.Println("action:", *result.Metadata.ActionID) // Action ID for tracing this call
 }
-if result.Metadata.CacheStatus != nil {
-	fmt.Println("cache:", *result.Metadata.CacheStatus) // stagehand.CacheStatusHIT or stagehand.CacheStatusMISS
-}
+fmt.Println("cache:", result.Metadata.Cache.Status) // HIT, MISS, or DISABLED
 ```
 
 ## Observe

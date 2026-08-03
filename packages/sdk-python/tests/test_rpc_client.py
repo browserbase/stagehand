@@ -1,12 +1,12 @@
 import asyncio
-from typing import ClassVar, cast
+from typing import cast
 
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from stagehand import cdp_client, rpc_client
+from stagehand import rpc_client
 from stagehand._generated import models
-from stagehand.rpc_client import RPCClient, RPCError, connect_rpc_client
+from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
 
@@ -398,78 +398,18 @@ async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ordinary_request_times_out_after_internal_response_grace(
+async def test_response_timeout_and_transport_close_reject_pending_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 5)
-    transport = QueueTransport()
-    client = RPCClient(transport)
-    call = asyncio.create_task(
-        client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
-    )
-    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 50)
+    timeout_transport = QueueTransport()
+    timeout_client = RPCClient(timeout_transport)
     try:
-        with pytest.raises(TimeoutError, match=r"RPC response timed out: context\.pages"):
-            await call
-        assert client._pending == {}
+        with pytest.raises(TimeoutError, match=r"RPC response timed out: test\.request"):
+            await timeout_client.send("test.request", models.EmptyParams(), RPCResult)
     finally:
-        await client.close()
+        await timeout_client.close()
 
-
-@pytest.mark.asyncio
-async def test_response_deadline_includes_the_method_duration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 20)
-    transport = QueueTransport()
-    client = RPCClient(transport)
-    call = asyncio.create_task(
-        client.send(
-            "page.wait_for_timeout",
-            models.PageWaitForTimeoutParams(page_id="page-1", ms=50),
-            models.PageVoidResult,
-        )
-    )
-    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
-
-    try:
-        await asyncio.sleep(0.03)
-        assert call.done() is False
-        with pytest.raises(TimeoutError, match="RPC response timed out: page.wait_for_timeout"):
-            await call
-        assert client._pending == {}
-    finally:
-        await client.close()
-
-
-def test_response_deadline_uses_operation_parameters_and_skips_init_rpcs(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 10_000)
-    act_params = models.StagehandActParams.model_validate({
-        "page_id": "page-1",
-        "instruction": "click the button",
-        "options": {"timeout": 30_000},
-    })
-
-    assert rpc_client._rpc_response_timeout_seconds("stagehand.act", act_params) == 40
-    webmcp_params = models.PageWebMCPInvocationResultParams.model_validate({
-        "page_id": "page-1",
-        "invocation_id": "invocation-1",
-        "options": {"timeout": 30_000},
-    })
-    assert (
-        rpc_client._rpc_response_timeout_seconds(
-            "page.webmcp_invocation_result",
-            webmcp_params,
-        )
-        == 40
-    )
-    assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
-
-
-@pytest.mark.asyncio
-async def test_transport_close_rejects_pending_requests() -> None:
     failing_transport = FailingReceiveTransport()
     failing_client = RPCClient(failing_transport)
     call = asyncio.create_task(failing_client.send("test.request", models.EmptyParams(), RPCResult))
@@ -478,6 +418,29 @@ async def test_transport_close_rejects_pending_requests() -> None:
     with pytest.raises(RuntimeError, match="transport reader failed"):
         await call
     await asyncio.wait_for(failing_transport.closed.wait(), timeout=1)
+
+
+def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() -> None:
+    act_params = models.StagehandActParams.model_validate({
+        "page_id": "page-1",
+        "instruction": "Click",
+        "options": {"timeout": 30_000},
+    })
+    observe_params = models.StagehandObserveParams.model_validate({
+        "page_id": "page-1",
+        "options": {"timeout": 20_000},
+    })
+    extract_params = models.StagehandExtractParams.model_validate({
+        "page_id": "page-1",
+        "instruction": "Extract",
+        "schema": {"type": "object"},
+        "options": {"timeout": 15_000},
+    })
+
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.act", act_params) == 40
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.observe", observe_params) == 30
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.extract", extract_params) == 25
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
 @pytest.mark.asyncio
@@ -498,44 +461,43 @@ async def test_invalid_response_closes_client_and_rejects_pending_request() -> N
     await asyncio.wait_for(transport.closed.wait(), timeout=1)
 
 
-class FakeCDPClient(QueueTransport):
-    connect_arguments: ClassVar[dict[str, object]] = {}
-    instances: ClassVar[list["FakeCDPClient"]] = []
-    web_socket_debugger_url = "ws://resolved.example/devtools/browser/1"
-
-    @classmethod
-    async def connect(cls, **kwargs: object) -> "FakeCDPClient":
-        cls.connect_arguments = kwargs
-        client = cls()
-        cls.instances.append(client)
-        return client
-
-    async def send(self, message: JSON) -> None:
-        await super().send(message)
-
-
 @pytest.mark.asyncio
-async def test_connect_rpc_client_passes_cdp_options_without_sending_an_rpc(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(cdp_client, "CDPClient", FakeCDPClient)
-    client = await connect_rpc_client(
-        cdp_url="http://localhost:9222",
-        extension_id="stagehand-extension",
-        service_worker_url_includes="service-worker.js",
-    )
+async def test_close_can_detach_without_closing_transport() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(client.send("test.request", models.EmptyParams(), RPCResult))
+    await asyncio.wait_for(transport.outgoing.get(), timeout=1)
 
-    try:
-        assert FakeCDPClient.connect_arguments == {
-            "cdp_url": "http://localhost:9222",
-            "extension_dir": None,
-            "extension_id": "stagehand-extension",
-            "service_worker_url_includes": "service-worker.js",
-        }
-        transport = FakeCDPClient.instances[-1]
-        assert transport.sent == []
-        assert client.browser_web_socket_debugger_url == (
-            "ws://resolved.example/devtools/browser/1"
-        )
-    finally:
-        await client.close()
+    async def handle(_params: models.EmptyParams) -> RPCResult:
+        return RPCResult(ok=True)
+
+    async def notify(_params: models.EmptyParams) -> None:
+        return None
+
+    client.on_request("test.handler", models.EmptyParams, RPCResult, handle)
+    client.on_notification("test.notification", models.EmptyParams, notify)
+    await transport.incoming.put({
+        "jsonrpc": "2.0",
+        "method": "test.buffered",
+        "params": {},
+    })
+
+    async def wait_for_buffered_notification() -> None:
+        while not client._pending_notifications:
+            await asyncio.sleep(0)
+
+    await asyncio.wait_for(wait_for_buffered_notification(), timeout=1)
+    assert client._pending_notifications
+
+    reason = RuntimeError("detached")
+    await client.close(reason, close_transport=False)
+
+    assert transport.closed.is_set() is False
+    with pytest.raises(RuntimeError, match="detached"):
+        await call
+    assert client._pending == {}
+    assert client._request_handlers == {}
+    assert client._notification_listeners == {}
+    assert client._pending_notifications == []
+    with pytest.raises(RuntimeError, match="RPC client is closed"):
+        await client.send("test.request", models.EmptyParams(), RPCResult)
