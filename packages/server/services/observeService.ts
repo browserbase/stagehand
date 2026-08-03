@@ -9,6 +9,7 @@ import { TimeoutError } from "../errors.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Page } from "../understudy/page.js";
 import { SupportedUnderstudyAction } from "../types/private/handlers.js";
@@ -29,6 +30,7 @@ export async function observe({
   logger,
   systemPrompt = "",
   cache,
+  gateway,
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
@@ -37,6 +39,7 @@ export async function observe({
   logger: StagehandLogger;
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ObserveResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -84,7 +87,7 @@ export async function observe({
     const observation = await inference.observe({
       instruction: effectiveInstruction,
       domElements: combinedTree,
-      generate: (input) => llmService.generate(model, input, clientLLMGenerate),
+      generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
       userProvidedInstructions: systemPrompt,
       supportedActions: Object.values(SupportedUnderstudyAction),
       variables: options?.variables,
