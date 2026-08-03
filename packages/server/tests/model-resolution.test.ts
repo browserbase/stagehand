@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   AnthropicModelIdSchema,
   CerebrasModelIdSchema,
-  CustomModelConfigSchema,
   GoogleModelIdSchema,
   GroqModelIdSchema,
   ModelConfigSchema,
@@ -78,55 +77,17 @@ describe("model configuration", () => {
     });
   });
 
-  describe("custom models", () => {
-    it("accepts any non-empty model name for a custom OpenAI-compatible endpoint", () => {
-      expect(
-        CustomModelConfigSchema.parse({
-          modelName: "private/model-v2",
-          baseURL: "https://models.example.com/v1",
-          apiKey: "custom-secret",
-          headers: { "x-tenant-id": "tenant-123" },
-        }),
-      ).toEqual({
+  it("rejects declarative custom models", () => {
+    expect(
+      ModelConfigSchema.safeParse({
         modelName: "private/model-v2",
         baseURL: "https://models.example.com/v1",
-        apiKey: "custom-secret",
-        headers: { "x-tenant-id": "tenant-123" },
-      });
-    });
-
-    it("requires a base URL for a custom model name", () => {
-      expect(
-        ModelConfigSchema.safeParse({
-          modelName: "private/model-v2",
-          apiKey: "custom-secret",
-        }).success,
-      ).toBe(false);
-    });
-
-    it("rejects an empty custom model name", () => {
-      expect(
-        CustomModelConfigSchema.safeParse({
-          modelName: "",
-          baseURL: "https://models.example.com/v1",
-        }).success,
-      ).toBe(false);
-    });
-
-    it("rejects an invalid custom base URL", () => {
-      expect(
-        CustomModelConfigSchema.safeParse({
-          modelName: "private/model-v2",
-          baseURL: "not-a-url",
-        }).success,
-      ).toBe(false);
-    });
+      }).success,
+    ).toBe(false);
   });
 
   describe("direct inference", () => {
     it.todo("uses direct inference when provider authentication is provided");
-    it.todo("uses direct inference when a custom base URL is provided");
-    it.todo("forwards custom headers to the custom base URL");
     it.todo("prefers direct inference when using a Browserbase browser with provider auth");
   });
 

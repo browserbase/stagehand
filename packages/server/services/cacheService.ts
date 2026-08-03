@@ -191,7 +191,7 @@ function missMetadata(response: CacheGetResponse | null, reason?: string): Cache
  * or whenever any cache step fails, including `onHit` itself — falls back to
  * `execute` and then persists the outcome's `cacheValue`.
  */
-export async function withCache<Result extends { metadata: { cache?: CacheMetadata } }>({
+export async function withCache<Result extends { metadata: { cache: CacheMetadata } }>({
   method,
   page,
   data,

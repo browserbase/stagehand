@@ -267,7 +267,7 @@ class CacheMetadata(WireModel):
         validate_by_name=True,
     )
     status: CacheStatus
-    """Whether server-side caching served or computed this result"""
+    """Whether server-side caching served this result, computed it, or was not consulted"""
     count: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
     """Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served"""
     threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
@@ -281,6 +281,7 @@ class CacheMetadata(WireModel):
 class CacheStatus(StrEnum):
     hit = "HIT"
     miss = "MISS"
+    disabled = "DISABLED"
 
 
 class CacheTokenSavings(WireModel):
@@ -288,9 +289,9 @@ class CacheTokenSavings(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
-    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
-    total_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    total_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
 
 
 class Caching1(WireModel):
@@ -493,36 +494,6 @@ class CookieRegex(WireModel):
 
 class CookieFilter(RootModel[Union[StrictStr, CookieRegex]]):
     root: Union[StrictStr, CookieRegex]
-
-
-class CustomModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[StrictStr, Field(examples=["private/model-v2"], min_length=1)]
-    """
-    Model name accepted by the custom OpenAI-compatible endpoint
-
-    Example: 'private/model-v2'
-    """
-    base_url: Annotated[WireUrl, Field(examples=["https://models.example.com/v1"])]
-    """
-    Base URL for the custom OpenAI-compatible endpoint
-
-    Example: 'https://models.example.com/v1'
-    """
 
 
 class DescribedVariableValue(WireModel):
@@ -745,25 +716,6 @@ class JSONRPCRequestId(RootModel[StrictInt]):
 
 class JSONRPCErrorResponseId(RootModel[Optional[JSONRPCRequestId]]):
     root: Optional[JSONRPCRequestId]
-
-
-class KnownModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
-    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class LLMAnnotations(WireModel):
@@ -1268,8 +1220,23 @@ class Mode(StrEnum):
     none = "none"
 
 
-class ModelConfig(RootModel[Union[KnownModelConfig, CustomModelConfig]]):
-    root: Union[KnownModelConfig, CustomModelConfig]
+class ModelConfig(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    api_key: Annotated[
+        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
+    ] = None
+    """
+    API key for the model provider
+
+    Example: 'sk-some-openai-api-key'
+    """
+    headers: Optional[dict[StrictStr, StrictStr]] = None
+    """Custom headers sent with every request to the model provider"""
+    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
+    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class MouseButton(StrEnum):
@@ -1380,7 +1347,6 @@ class PageClickOptions(WireModel):
     )
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageClickParams(WireModel):
@@ -1402,14 +1368,6 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
-class PageCoordinateResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    xpath: StrictStr
-
-
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1418,7 +1376,6 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1432,15 +1389,6 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
-
-
-class PageDragAndDropResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    from_xpath: StrictStr
-    to_xpath: StrictStr
 
 
 class PageEvaluateParams(WireModel):
@@ -1488,14 +1436,6 @@ class PageGotoParams(WireModel):
     options: Optional[PageNavigationOptions] = None
 
 
-class PageHoverOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageHoverParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1504,7 +1444,6 @@ class PageHoverParams(WireModel):
     page_id: StrictStr
     x: StrictFloat
     y: StrictFloat
-    options: Optional[PageHoverOptions] = None
 
 
 class PageIdParams(WireModel):
@@ -1633,14 +1572,6 @@ class PageScreenshotResult(WireModel):
     type: Type
 
 
-class PageScrollOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageScrollParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1651,7 +1582,6 @@ class PageScrollParams(WireModel):
     y: StrictFloat
     delta_x: StrictFloat
     delta_y: StrictFloat
-    options: Optional[PageScrollOptions] = None
 
 
 class PageSetExtraHTTPHeadersParams(WireModel):
@@ -1999,8 +1929,29 @@ class StagehandResultMetadata(WireModel):
     )
     action_id: Optional[StrictStr] = None
     """Action ID for tracking"""
-    cache: Optional[CacheMetadata] = None
-    """Cache observability details for this result; absent when no cache lookup ran"""
+    cache: CacheMetadata
+    """Cache observability for this result; status is DISABLED when no cache lookup ran"""
+    usage: StagehandResultUsage
+    """Aggregate LLM usage for this operation; zeroed when the operation did not run inference"""
+
+
+class StagehandResultUsage(WireModel):
+    """Aggregate LLM usage for one Stagehand operation"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Input tokens consumed by all LLM calls made for this operation"""
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Output tokens consumed by all LLM calls made for this operation"""
+    reasoning_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Reasoning tokens consumed by all LLM calls made for this operation"""
+    cached_input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Cached input tokens used by all LLM calls made for this operation"""
+    inference_time_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Total time spent waiting for LLM inference during this operation"""
 
 
 class State(StrEnum):

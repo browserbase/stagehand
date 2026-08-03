@@ -429,7 +429,7 @@
               "$ref": "#/$defs/PageClickParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -442,7 +442,7 @@
               "$ref": "#/$defs/PageHoverParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -455,7 +455,7 @@
               "$ref": "#/$defs/PageScrollParams"
             },
             "result": {
-              "$ref": "#/$defs/PageCoordinateResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -468,7 +468,7 @@
               "$ref": "#/$defs/PageDragAndDropParams"
             },
             "result": {
-              "$ref": "#/$defs/PageDragAndDropResult"
+              "$ref": "#/$defs/PageVoidResult"
             }
           },
           "required": ["params", "result"],
@@ -1098,16 +1098,6 @@
       "enum": ["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
     },
     "ModelConfig": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/KnownModelConfig"
-        },
-        {
-          "$ref": "#/$defs/CustomModelConfig"
-        }
-      ]
-    },
-    "KnownModelConfig": {
       "type": "object",
       "properties": {
         "api_key": {
@@ -1173,41 +1163,6 @@
         }
       ],
       "description": "An explicitly supported model name with its provider prefix"
-    },
-    "CustomModelConfig": {
-      "type": "object",
-      "properties": {
-        "api_key": {
-          "description": "API key for the model provider",
-          "example": "sk-some-openai-api-key",
-          "type": "string",
-          "minLength": 1
-        },
-        "headers": {
-          "description": "Custom headers sent with every request to the model provider",
-          "type": "object",
-          "propertyNames": {
-            "type": "string"
-          },
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "model_name": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Model name accepted by the custom OpenAI-compatible endpoint",
-          "example": "private/model-v2"
-        },
-        "base_url": {
-          "type": "string",
-          "format": "uri",
-          "description": "Base URL for the custom OpenAI-compatible endpoint",
-          "example": "https://models.example.com/v1"
-        }
-      },
-      "required": ["model_name", "base_url"],
-      "additionalProperties": false
     },
     "ClientModelReference": {
       "type": "object",
@@ -1519,8 +1474,41 @@
           "type": "string"
         },
         "cache": {
-          "description": "Cache observability details for this result; absent when no cache lookup ran",
+          "description": "Cache observability for this result; status is DISABLED when no cache lookup ran",
           "$ref": "#/$defs/CacheMetadata"
+        },
+        "usage": {
+          "description": "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
+          "$ref": "#/$defs/StagehandResultUsage"
+        }
+      },
+      "required": ["cache", "usage"],
+      "additionalProperties": false
+    },
+    "CacheStatus": {
+      "type": "string",
+      "enum": ["HIT", "MISS", "DISABLED"]
+    },
+    "CacheTokenSavings": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "output_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "total_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
         }
       },
       "additionalProperties": false
@@ -1529,7 +1517,7 @@
       "type": "object",
       "properties": {
         "status": {
-          "description": "Whether server-side caching served or computed this result",
+          "description": "Whether server-side caching served this result, computed it, or was not consulted",
           "$ref": "#/$defs/CacheStatus"
         },
         "count": {
@@ -1556,31 +1544,47 @@
       "required": ["status"],
       "additionalProperties": false
     },
-    "CacheStatus": {
-      "type": "string",
-      "enum": ["HIT", "MISS"]
-    },
-    "CacheTokenSavings": {
+    "StagehandResultUsage": {
       "type": "object",
       "properties": {
         "input_tokens": {
+          "default": 0,
+          "description": "Input tokens consumed by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
         },
         "output_tokens": {
+          "default": 0,
+          "description": "Output tokens consumed by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
         },
-        "total_tokens": {
+        "reasoning_tokens": {
+          "default": 0,
+          "description": "Reasoning tokens consumed by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cached_input_tokens": {
+          "default": 0,
+          "description": "Cached input tokens used by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "inference_time_ms": {
+          "default": 0,
+          "description": "Total time spent waiting for LLM inference during this operation",
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
         }
       },
-      "required": ["input_tokens", "output_tokens", "total_tokens"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Aggregate LLM usage for one Stagehand operation"
     },
     "StagehandObserveParams": {
       "type": "object",
@@ -3040,9 +3044,6 @@
           "type": "integer",
           "exclusiveMinimum": 0,
           "maximum": 9007199254740991
-        },
-        "return_xpath": {
-          "type": "boolean"
         }
       },
       "additionalProperties": false
@@ -3051,14 +3052,15 @@
       "type": "string",
       "enum": ["left", "right", "middle"]
     },
-    "PageCoordinateResult": {
+    "PageVoidResult": {
       "type": "object",
       "properties": {
-        "xpath": {
-          "type": "string"
+        "ok": {
+          "type": "boolean",
+          "const": true
         }
       },
-      "required": ["xpath"],
+      "required": ["ok"],
       "additionalProperties": false
     },
     "PageHoverParams": {
@@ -3072,21 +3074,9 @@
         },
         "y": {
           "type": "number"
-        },
-        "options": {
-          "$ref": "#/$defs/PageHoverOptions"
         }
       },
       "required": ["page_id", "x", "y"],
-      "additionalProperties": false
-    },
-    "PageHoverOptions": {
-      "type": "object",
-      "properties": {
-        "return_xpath": {
-          "type": "boolean"
-        }
-      },
       "additionalProperties": false
     },
     "PageScrollParams": {
@@ -3106,21 +3096,9 @@
         },
         "delta_y": {
           "type": "number"
-        },
-        "options": {
-          "$ref": "#/$defs/PageScrollOptions"
         }
       },
       "required": ["page_id", "x", "y", "delta_x", "delta_y"],
-      "additionalProperties": false
-    },
-    "PageScrollOptions": {
-      "type": "object",
-      "properties": {
-        "return_xpath": {
-          "type": "boolean"
-        }
-      },
       "additionalProperties": false
     },
     "PageDragAndDropParams": {
@@ -3162,24 +3140,8 @@
         "delay": {
           "type": "number",
           "minimum": 0
-        },
-        "return_xpath": {
-          "type": "boolean"
         }
       },
-      "additionalProperties": false
-    },
-    "PageDragAndDropResult": {
-      "type": "object",
-      "properties": {
-        "from_xpath": {
-          "type": "string"
-        },
-        "to_xpath": {
-          "type": "string"
-        }
-      },
-      "required": ["from_xpath", "to_xpath"],
       "additionalProperties": false
     },
     "PageTypeParams": {
@@ -3209,17 +3171,6 @@
           "type": "boolean"
         }
       },
-      "additionalProperties": false
-    },
-    "PageVoidResult": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "required": ["ok"],
       "additionalProperties": false
     },
     "PageKeyPressParams": {

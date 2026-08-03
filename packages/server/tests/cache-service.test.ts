@@ -115,22 +115,22 @@ describe("cache service", () => {
     expect(execute).toHaveBeenCalled();
   });
 
-  it("leaves metadata untouched when no cache lookup runs", async () => {
+  it("reports DISABLED when no cache lookup runs", async () => {
     const result = await cacheService.withCache({
       ...baseArgs(),
       caching: false,
       context: cacheContext(vi.fn(), vi.fn()),
-      onHit: (value) => ({ data: value, metadata: {} }),
+      onHit: (value) => ({ data: value, metadata: { cache: { status: "DISABLED" } } }),
       execute: executesTo({ answer: 42 }),
     });
 
-    expect(result.metadata).toStrictEqual({});
+    expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 });
 
 interface TestResult {
   data: unknown;
-  metadata: { cache?: CacheMetadata };
+  metadata: { cache: CacheMetadata };
 }
 
 function baseArgs() {
@@ -144,7 +144,10 @@ function baseArgs() {
 }
 
 function executesTo(data: unknown) {
-  return vi.fn(async () => ({ result: { data, metadata: {} } as TestResult, cacheValue: data }));
+  return vi.fn(async () => ({
+    result: { data, metadata: { cache: { status: "DISABLED" } } } as TestResult,
+    cacheValue: data,
+  }));
 }
 
 async function runWithCache({
@@ -159,7 +162,7 @@ async function runWithCache({
   return await cacheService.withCache({
     ...baseArgs(),
     context: cacheContext(get, set),
-    onHit: (value): TestResult => ({ data: value, metadata: {} }),
+    onHit: (value): TestResult => ({ data: value, metadata: { cache: { status: "DISABLED" } } }),
     execute,
   });
 }

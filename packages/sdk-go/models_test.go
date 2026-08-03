@@ -172,22 +172,12 @@ func TestObjectUnionsRoundTrip(t *testing.T) {
 			},
 		},
 		{
-			name:  "known model",
-			value: KnownModel(KnownModelConfig{ModelName: ModelName("openai/gpt-5.6")}),
+			name:  "model",
+			value: ModelConfig{ModelName: ModelName("openai/gpt-5.6")},
 			new:   func() any { return new(ModelConfig) },
 			check: func(t *testing.T, value any) {
-				if _, ok := value.(*ModelConfig).AsKnown(); !ok {
-					t.Fatal("decoded the wrong model config variant")
-				}
-			},
-		},
-		{
-			name:  "custom model",
-			value: CustomModel(CustomModelConfig{BaseURL: "https://models.test/v1", ModelName: "custom"}),
-			new:   func() any { return new(ModelConfig) },
-			check: func(t *testing.T, value any) {
-				if _, ok := value.(*ModelConfig).AsCustom(); !ok {
-					t.Fatal("decoded the wrong model config variant")
+				if value.(*ModelConfig).ModelName != ModelName("openai/gpt-5.6") {
+					t.Fatal("decoded the wrong model configuration")
 				}
 			},
 		},
@@ -260,16 +250,6 @@ func TestClosedObjectUnionVariantsRejectUnknownFields(t *testing.T) {
 			name:  "action",
 			input: `{"selector":"button","description":"Submit","unexpected":true}`,
 			new:   func() any { return new(ActInstructionValue) },
-		},
-		{
-			name:  "known model",
-			input: `{"model_name":"openai/gpt-5.6","unexpected":true}`,
-			new:   func() any { return new(ModelConfig) },
-		},
-		{
-			name:  "custom model",
-			input: `{"model_name":"private/model","base_url":"https://models.test/v1","unexpected":true}`,
-			new:   func() any { return new(ModelConfig) },
 		},
 		{
 			name:  "client init model",
@@ -569,7 +549,6 @@ func TestUnsetUnionFailsToMarshal(t *testing.T) {
 
 	for _, value := range []any{
 		Caching{},
-		ModelConfig{},
 		ProxyConfig{},
 		VariableValue{},
 		LLMGenerateParams{},

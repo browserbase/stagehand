@@ -155,8 +155,52 @@ describe("act service", () => {
           },
         ],
       },
-      metadata: {},
+      metadata: {
+        cache: { status: "DISABLED" },
+        usage: {
+          inputTokens: 11,
+          outputTokens: 4,
+          reasoningTokens: 2,
+          cachedInputTokens: 3,
+          inferenceTimeMs: expect.any(Number),
+        },
+      },
     });
+  });
+
+  it("zeroes usage when a supplied Action succeeds without inference", async () => {
+    const frame = {};
+    const page = actPage(
+      frame,
+      vi.fn(async () => snapshot("0-12", "/html/body/button")),
+    );
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => actGeneration(null));
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(result.data.success).toBe(true);
+    expect(result.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
   it("self-heals a supplied Action after deterministic replay fails", async () => {
@@ -218,9 +262,15 @@ describe("act service", () => {
       success: true,
       actions: [{ selector: "xpath=/html/body/button[2]" }],
     });
+    expect(result.metadata.usage).toMatchObject({
+      inputTokens: 11,
+      outputTokens: 4,
+      reasoningTokens: 2,
+      cachedInputTokens: 3,
+    });
   });
 
-  it("preserves two-step action behavior", async () => {
+  it("aggregates usage across a two-step action", async () => {
     const frame = {};
     const captureSnapshot = vi
       .fn()
@@ -249,18 +299,35 @@ describe("act service", () => {
         }),
       );
 
-    const result = await actService.act({
-      params: { pageId: "page-1", instruction: "Choose Switzerland from the country dropdown" },
-      page,
-      model: { source: "client" },
-      clientLLMGenerate,
-      logger: testLogger(),
-    });
+    const now = vi
+      .spyOn(Date, "now")
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(7)
+      .mockReturnValueOnce(10)
+      .mockReturnValueOnce(23);
+    try {
+      const result = await actService.act({
+        params: { pageId: "page-1", instruction: "Choose Switzerland from the country dropdown" },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+      });
 
-    expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
-    expect(performAction).toHaveBeenCalledTimes(2);
-    expect(result.data.success).toBe(true);
-    expect(result.data.actions).toHaveLength(2);
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
+      expect(performAction).toHaveBeenCalledTimes(2);
+      expect(result.data.success).toBe(true);
+      expect(result.data.actions).toHaveLength(2);
+      expect(result.metadata.usage).toStrictEqual({
+        inputTokens: 22,
+        outputTokens: 8,
+        reasoningTokens: 4,
+        cachedInputTokens: 6,
+        inferenceTimeMs: 20,
+      });
+    } finally {
+      now.mockRestore();
+    }
   });
 
   it("retries with a fresh selector when self-healing is enabled", async () => {
@@ -313,6 +380,12 @@ describe("act service", () => {
       success: true,
       actions: [{ selector: "xpath=/html/body/button[2]" }],
     });
+    expect(result.metadata.usage).toMatchObject({
+      inputTokens: 22,
+      outputTokens: 8,
+      reasoningTokens: 4,
+      cachedInputTokens: 6,
+    });
   });
 
   it("returns a failed result when the model finds no action", async () => {
@@ -333,6 +406,12 @@ describe("act service", () => {
     expect(result.data).toMatchObject({
       success: false,
       message: "Failed to perform act: No action found",
+    });
+    expect(result.metadata.usage).toMatchObject({
+      inputTokens: 11,
+      outputTokens: 4,
+      reasoningTokens: 2,
+      cachedInputTokens: 3,
     });
   });
 
@@ -373,7 +452,8 @@ describe("act service", () => {
       cache,
     });
 
-    expect(miss.metadata.cache?.status).toBe("MISS");
+    expect(miss.metadata.cache.status).toBe("MISS");
+    expect(miss.metadata.usage).toBeDefined();
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: miss.data.actions }));
 
     get.mockResolvedValueOnce({ hit: true, value: miss.data.actions, cacheKey: "key" });
@@ -388,7 +468,14 @@ describe("act service", () => {
       cache,
     });
 
-    expect(hit.metadata.cache?.status).toBe("HIT");
+    expect(hit.metadata.cache.status).toBe("HIT");
+    expect(hit.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
     expect(hit.data.actions).toStrictEqual(miss.data.actions);
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });

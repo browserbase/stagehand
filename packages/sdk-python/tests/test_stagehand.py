@@ -23,7 +23,6 @@ from stagehand._generated.models import (
     CacheMetadata,
     CacheStatus,
     ClientModelReference,
-    KnownModelConfig,
     LLMGenerateParams,
     LLMGenerateResult,
     LLMRole,
@@ -42,6 +41,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandResultMetadata,
+    StagehandResultUsage,
     TelemetryConfig,
 )
 from stagehand.browser_source import ResolvedBrowserSource
@@ -88,11 +88,10 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
     assert local.init_params.browser.viewport is not None
     assert local.init_params.browser.viewport.width == 1280
     assert isinstance(local.init_params.model, ModelConfig)
-    assert isinstance(local.init_params.model.root, KnownModelConfig)
     assert local.init_params.cache is not None
     assert local.init_params.cache.root is True
-    assert local.init_params.model.root.model_name.model_dump() == "openai/gpt-5.4-mini"
-    assert local.init_params.model.root.api_key == "model-key"
+    assert local.init_params.model.model_name.model_dump() == "openai/gpt-5.4-mini"
+    assert local.init_params.model.api_key == "model-key"
     assert isinstance(cdp.init_params.browser, CdpBrowserSource)
     assert cdp.init_params.browser.headers == {"authorization": "secret"}
     assert browserbase.init_params.browser.type == "browserbase"
@@ -306,22 +305,26 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         action_description="Clicked the more information link",
         actions=[action],
     )
+    zero_usage = StagehandResultUsage()
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
         "stagehand.act": ActResult.model_validate({
             "data": act_result,
-            "metadata": {"cache": {"status": "HIT"}},
+            "metadata": {"cache": {"status": "HIT"}, "usage": zero_usage},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache": {"status": "MISS"}},
+            "metadata": {"cache": {"status": "MISS"}, "usage": zero_usage},
         }),
         # Keep this as raw wire JSON: extract() must preserve integer values
         # until the caller's Pydantic schema validates them.
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache=CacheMetadata(status=CacheStatus.hit)),
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.hit),
+                usage=zero_usage,
+            ),
         },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})

@@ -73,56 +73,45 @@ func (p *Page) GoForward(ctx context.Context, options *PageNavigationOptions) er
 	return nil
 }
 
-// Click clicks browser coordinates and returns the matching XPath.
+// Click clicks browser coordinates.
 func (p *Page) Click(
 	ctx context.Context,
 	x float64,
 	y float64,
 	options *PageClickOptions,
-) (string, error) {
+) error {
 	params := PageClickParams{PageID: p.PageID(), X: x, Y: y, Options: options}
-	var result PageCoordinateResult
-	if err := p.rpc.call(ctx, "page.click", params, &result); err != nil {
-		return "", err
-	}
-	return result.XPath, nil
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.click", params, &result)
 }
 
-// Hover hovers browser coordinates and returns the matching XPath.
+// Hover hovers browser coordinates.
 func (p *Page) Hover(
 	ctx context.Context,
 	x float64,
 	y float64,
-	options *PageHoverOptions,
-) (string, error) {
-	params := PageHoverParams{PageID: p.PageID(), X: x, Y: y, Options: options}
-	var result PageCoordinateResult
-	if err := p.rpc.call(ctx, "page.hover", params, &result); err != nil {
-		return "", err
-	}
-	return result.XPath, nil
+) error {
+	params := PageHoverParams{PageID: p.PageID(), X: x, Y: y}
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.hover", params, &result)
 }
 
-// Scroll scrolls at browser coordinates and returns the matching XPath.
+// Scroll scrolls at browser coordinates.
 func (p *Page) Scroll(
 	ctx context.Context,
 	x float64,
 	y float64,
 	deltaX float64,
 	deltaY float64,
-	options *PageScrollOptions,
-) (string, error) {
+) error {
 	params := PageScrollParams{
-		PageID: p.PageID(), X: x, Y: y, DeltaX: deltaX, DeltaY: deltaY, Options: options,
+		PageID: p.PageID(), X: x, Y: y, DeltaX: deltaX, DeltaY: deltaY,
 	}
-	var result PageCoordinateResult
-	if err := p.rpc.call(ctx, "page.scroll", params, &result); err != nil {
-		return "", err
-	}
-	return result.XPath, nil
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.scroll", params, &result)
 }
 
-// DragAndDrop drags between browser coordinates and returns both XPaths.
+// DragAndDrop drags between browser coordinates.
 func (p *Page) DragAndDrop(
 	ctx context.Context,
 	fromX float64,
@@ -130,15 +119,12 @@ func (p *Page) DragAndDrop(
 	toX float64,
 	toY float64,
 	options *PageDragAndDropOptions,
-) ([2]string, error) {
+) error {
 	params := PageDragAndDropParams{
 		PageID: p.PageID(), FromX: fromX, FromY: fromY, ToX: toX, ToY: toY, Options: options,
 	}
-	var result PageDragAndDropResult
-	if err := p.rpc.call(ctx, "page.drag_and_drop", params, &result); err != nil {
-		return [2]string{}, err
-	}
-	return [2]string{result.FromXPath, result.ToXPath}, nil
+	var result PageVoidResult
+	return p.rpc.call(ctx, "page.drag_and_drop", params, &result)
 }
 
 // Type enters text at the current focus.
