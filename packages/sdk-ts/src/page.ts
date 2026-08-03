@@ -24,6 +24,7 @@ import {
   normalizeInitScriptSource,
 } from "./pageScripts.js";
 import type { RPCClient } from "./rpcClient.js";
+import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
 import type { WebMCPToolsOptions } from "./clientSchemas.js";
 
@@ -50,41 +51,41 @@ export class Page {
     return this.currentRef;
   }
 
-  async goto(url: string, options?: PageNavigationOptions): Promise<this> {
+  async goto(url: string, options?: PageNavigationOptions): Promise<Response | null> {
     const result = await this.rpcClient.send(StagehandMethods.pageGoto, {
       pageId: this.pageId,
       url,
       ...(options ? { options } : {}),
     });
     this.currentRef = result.page;
-    return this;
+    return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
-  async reload(options?: PageReloadParams["options"]): Promise<this> {
+  async reload(options?: PageReloadParams["options"]): Promise<Response | null> {
     const result = await this.rpcClient.send(StagehandMethods.pageReload, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
     this.currentRef = result.page;
-    return this;
+    return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
-  async goBack(options?: PageNavigationOptions): Promise<this> {
+  async goBack(options?: PageNavigationOptions): Promise<Response | null> {
     const result = await this.rpcClient.send(StagehandMethods.pageGoBack, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
     this.currentRef = result.page;
-    return this;
+    return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
-  async goForward(options?: PageNavigationOptions): Promise<this> {
+  async goForward(options?: PageNavigationOptions): Promise<Response | null> {
     const result = await this.rpcClient.send(StagehandMethods.pageGoForward, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
     this.currentRef = result.page;
-    return this;
+    return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
   async click(x: number, y: number, options?: PageClickParams["options"]): Promise<void> {

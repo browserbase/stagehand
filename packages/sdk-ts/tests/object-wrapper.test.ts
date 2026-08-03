@@ -10,6 +10,7 @@ import {
   BrowserContext,
   Locator,
   Page,
+  Response,
   Stagehand,
   WebMCPInvocation,
   WebMCPTool,
@@ -354,16 +355,24 @@ describe("Stagehand TS object wrapper", () => {
         url: "https://example.com/next",
         title: "Next",
       },
-      response: null,
+      response: {
+        responseId: "response-1",
+        url: "https://example.com/next",
+        status: 200,
+        statusText: "OK",
+        headers: { "content-type": "text/html" },
+        fromServiceWorker: false,
+      },
     });
     const page = new Page(client, { pageId: "page-1", url: "about:blank" });
 
-    const returnedPage = await page.goto("https://example.com/next", {
+    const response = await page.goto("https://example.com/next", {
       waitUntil: "load",
       timeout: 5000,
     });
 
-    expect(returnedPage).toBe(page);
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.url()).toBe("https://example.com/next");
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageGoto, {
         pageId: "page-1",
@@ -399,13 +408,13 @@ describe("Stagehand TS object wrapper", () => {
 
     await expect(
       page.reload({ waitUntil: "load", timeout: 5_000, ignoreCache: true }),
-    ).resolves.toBe(page);
+    ).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/reloaded");
 
-    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBe(page);
+    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/back");
 
-    await expect(page.goForward()).resolves.toBe(page);
+    await expect(page.goForward()).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/forward");
 
     expect(client.calls).toStrictEqual([
