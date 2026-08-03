@@ -707,21 +707,27 @@ async def test_stagehand_extract_uses_default_schema(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
 
-    extracted = await stagehand.extract(instruction="Extract the page text", page=page)
+    try:
+        extracted = await stagehand.extract(instruction="Extract the page text", page=page)
 
-    assert_type(extracted, ExtractResult[DefaultExtract])
-    assert extracted.data.extraction == "Example Domain"
-    extract_params = next(
-        cast(StagehandExtractParams, params)
-        for method, params, _ in recording.calls
-        if method == "stagehand.extract"
-    )
-    assert extract_params.schema_ is not None
-    schema = extract_params.schema_.model_dump()
-    assert schema["type"] == "object"
-    assert schema["properties"] == {"extraction": {"type": "string"}}
-    assert schema["required"] == ["extraction"]
-    assert schema["additionalProperties"] is False
+        assert_type(extracted, ExtractResult[DefaultExtract])
+        assert extracted.data.extraction == "Example Domain"
+        extract_params = next(
+            cast(StagehandExtractParams, params)
+            for method, params, _ in recording.calls
+            if method == "stagehand.extract"
+        )
+        assert extract_params.schema_ is not None
+        schema = extract_params.schema_.model_dump()
+        assert schema["type"] == "object"
+        assert schema["properties"] == {"extraction": {"type": "string"}}
+        assert schema["required"] == ["extraction"]
+        assert schema["additionalProperties"] is False
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio

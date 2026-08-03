@@ -505,7 +505,8 @@ console.log(product.data, product.metadata.cache.status);
 </ParamField>
 
 <ParamField path="schema" type="Schema" optional>
-  The schema used to validate extracted data. Defaults to an object with a string `extraction` field.
+  The schema used to validate extracted data. Defaults to an object with a string `extraction` field
+  when omitted; when selecting a custom schema generic, provide the matching runtime schema.
 </ParamField>
 
 <ParamField path="options" type="StagehandClientExtractOptions" optional>

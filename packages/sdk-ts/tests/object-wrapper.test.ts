@@ -1038,6 +1038,31 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("accepts extract options as the second argument with the default schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      stagehand.extract("Extract the page text", { page, selector: "main" }),
+    ).resolves.toStrictEqual({
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+        schema: z.json().parse(z.toJSONSchema(z.object({ extraction: z.string() }))),
+        options: { selector: "main" },
+      }),
+    ]);
+  });
+
   it("requires a runtime schema when selecting a custom extract type", () => {
     const stagehand = createStagehandWithClientForTest(new FakeProtocolClient());
     const customSchema = z.object({ heading: z.string() });

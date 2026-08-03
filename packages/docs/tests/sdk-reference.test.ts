@@ -686,8 +686,14 @@ describe("SDK reference surface", () => {
         const result = reference.method.responseFields.find(({ key }) => key === "result");
         if (!result) continue;
         const actual = normalizePublicType(result.type, language, false, pythonAliases);
+        // extract's implementation accepts either a schema or options so it can support both
+        // public overloads; the documented return type reflects the schema-bearing overload.
+        const returnType =
+          language === "TypeScript" && method.operationName === "stagehand.extract"
+            ? "Promise<ExtractResult<Schema>>"
+            : method.returnType;
         const expected = publicTypeCandidates(
-          method.returnType,
+          returnType,
           language,
           false,
           protocol,

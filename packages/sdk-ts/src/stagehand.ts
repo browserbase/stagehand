@@ -43,6 +43,14 @@ const defaultExtractSchema = z.object({
   extraction: z.string(),
 });
 
+const isZodSchema = (value: unknown): value is z.ZodType =>
+  typeof value === "object" &&
+  value !== null &&
+  "parse" in value &&
+  typeof value.parse === "function" &&
+  "safeParse" in value &&
+  typeof value.safeParse === "function";
+
 export class Stagehand {
   browserContext: BrowserContext | undefined;
   isInitialized = false;
@@ -181,7 +189,6 @@ export class Stagehand {
 
   async extract(
     instruction: string,
-    schema?: undefined,
     options?: StagehandClientExtractOptions,
   ): Promise<ExtractResult<typeof defaultExtractSchema>>;
   async extract<Schema extends z.ZodType>(
@@ -189,21 +196,25 @@ export class Stagehand {
     schema: Schema,
     options?: StagehandClientExtractOptions,
   ): Promise<ExtractResult<Schema>>;
-  async extract<Schema extends z.ZodType>(
+  async extract<Schema extends z.ZodType | StagehandClientExtractOptions>(
     instruction: string,
     schema?: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<ExtractResult<Schema>> {
-    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
+  ): Promise<ExtractResult<z.ZodType>> {
+    const hasCustomSchema = isZodSchema(schema);
+    const resolvedSchema = hasCustomSchema ? schema : defaultExtractSchema;
+    const resolvedOptions = hasCustomSchema ? options : schema;
+    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(
+      resolvedOptions ?? {},
+    );
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
-    const resolvedSchema = (schema ?? defaultExtractSchema) as unknown as Schema;
     const jsonSchema = z.json().parse(z.toJSONSchema(resolvedSchema));
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
       instruction,
       schema: jsonSchema,
-      ...(options === undefined ? {} : { options: protocolOptions }),
+      ...(resolvedOptions === undefined ? {} : { options: protocolOptions }),
     });
 
     return {
