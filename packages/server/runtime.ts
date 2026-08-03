@@ -90,8 +90,6 @@ import type {
   PageWebMCPInvokeToolParams,
   PageWebMCPToolsParams,
   PageWebMCPToolsResult,
-  RuntimeConfigureParams,
-  RuntimeConfigureResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
@@ -220,6 +218,7 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
+  prepareForInitialization?(): Promise<void>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
@@ -277,6 +276,7 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private initializationInProgress = false;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -285,8 +285,7 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
-    this.logger.setLevel(params.logLevel);
+  async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
@@ -300,28 +299,43 @@ export class StagehandRuntime {
       this.browserSession = undefined;
       throw error;
     }
-
-    return { configured: true };
   }
 
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
     }
+    if (this.initializationInProgress) {
+      throw new Error("Stagehand initialization is already in progress");
+    }
+    this.initializationInProgress = true;
 
-    const pages = await this.contextPages();
-    this.state.setState(
-      StagehandRuntimeStateSchema.parse({
-        status: "initialized",
-        initParams: params,
-      }),
-      true,
-    );
+    try {
+      this.logger.setLevel(params.logLevel);
+      if (!this.browserSession) {
+        if (!params.browserCdpUrl) {
+          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+        }
+        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+      }
+      await this.browserSession?.prepareForInitialization?.();
+      const pages = await this.contextPages();
+      this.tracing.configure(params.telemetry);
+      this.state.setState(
+        StagehandRuntimeStateSchema.parse({
+          status: "initialized",
+          initParams: params,
+        }),
+        true,
+      );
 
-    return {
-      initialized: true,
-      pages,
-    };
+      return {
+        initialized: true,
+        pages,
+      };
+    } finally {
+      this.initializationInProgress = false;
+    }
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {

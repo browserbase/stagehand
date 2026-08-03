@@ -6,6 +6,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+eval-summary.json
 
 node_modules
 dist
@@ -44,3 +45,4 @@ vendor-repos/
 # Local planning notes
 requirements.md
 to dos.md
+.turbo

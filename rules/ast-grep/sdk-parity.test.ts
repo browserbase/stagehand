@@ -93,31 +93,28 @@ const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
   PageLocator: new Set(["Descriptor"]),
 };
 
+// Browser lifecycle construction is intentionally language-specific while the v4 clients migrate
+// independently: TypeScript uses create(), while Python and Go still expose init(). RPC-backed
+// feature methods remain subject to strict cross-language parity below.
+const stagehandLifecycleMethods = new Set(["create", "init"]);
+const internalTypescriptMethods = new Set(["create_with_client_for_test"]);
+
 describe("All language SDK operations remain in sync", () => {
-  it("sends protocol version and client identity when every SDK configures the runtime", async () => {
+  it("sends protocol version and client identity in stagehand.init", async () => {
     const configurations = [
       {
         language: "typescript",
-        file: new URL("rpcClient.ts", typescriptSource),
-        pattern: "await $CLIENT.send(StagehandMethods.runtimeConfigure, { $$$FIELDS })",
+        file: new URL("stagehand.ts", typescriptSource),
+        pattern: "StagehandInitParamsSchema.parse({ $$$FIELDS })",
         fields: [
           "protocolVersion:STAGEHAND_PROTOCOL_VERSION",
           "clientInfo:STAGEHAND_SDK_CLIENT_INFO",
         ],
       },
       {
-        language: "python",
-        file: new URL("rpc_client.py", pythonSource),
-        pattern: "models.RuntimeConfigureParams($$$FIELDS)",
-        fields: [
-          "protocol_version=STAGEHAND_PROTOCOL_VERSION",
-          "client_info=_STAGEHAND_SDK_CLIENT_INFO",
-        ],
-      },
-      {
         language: "go",
-        file: new URL("client.go", goSource),
-        pattern: "RuntimeConfigureParams{$$$FIELDS}",
+        file: new URL("stagehand.go", goSource),
+        pattern: "StagehandInitParams{$$$FIELDS}",
         fields: ["ProtocolVersion:stagehandProtocolVersion", "ClientInfo:ImplementationInfo{"],
       },
     ] as const;
@@ -128,7 +125,7 @@ describe("All language SDK operations remain in sync", () => {
 
       expect(
         construction,
-        `${configuration.language} must construct runtime.configure params centrally`,
+        `${configuration.language} must construct stagehand.init params centrally`,
       ).not.toBeNull();
       const fields = construction
         ?.getMultipleMatches("FIELDS")
@@ -137,9 +134,23 @@ describe("All language SDK operations remain in sync", () => {
       for (const requiredField of configuration.fields) {
         expect(
           fields?.some((field) => field.includes(requiredField)),
-          `${configuration.language} runtime.configure must send ${requiredField}`,
+          `${configuration.language} stagehand.init must send ${requiredField}`,
         ).toBe(true);
       }
+    }
+
+    const pythonRoot = parse(
+      "python",
+      await readFile(new URL("stagehand.py", pythonSource), "utf8"),
+    ).root();
+    for (const pattern of [
+      'values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION',
+      'values["client_info"] = ImplementationInfo($$$ARGS)',
+    ]) {
+      expect(
+        pythonRoot.find({ rule: { pattern } }),
+        `python stagehand.init must set ${pattern}`,
+      ).not.toBeNull();
     }
   });
 
@@ -517,6 +528,8 @@ async function publicOperations(
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
       if (!publicMethod) return [];
+      const normalizedMethod = snakeCase(publicMethod.text());
+      if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {
         const methodNode = protocolMethodNode(call, language);
@@ -525,7 +538,7 @@ async function publicOperations(
         const wireMethod = wireMethodForCall(methodNode, language, registry);
 
         return {
-          publicMethod: snakeCase(publicMethod.text()),
+          publicMethod: normalizedMethod,
           wireMethod,
         };
       });
@@ -554,10 +567,23 @@ async function publicCallableMethods(
         .filter((method) => isPublicCallable(method, language))
         .flatMap((method) => {
           const name = methodName(method.node, language);
-          return name ? [snakeCase(name.text())] : [];
+          if (!name) return [];
+          const normalizedMethod = snakeCase(name.text());
+          return participatesInSurfaceParity(className, language, normalizedMethod)
+            ? [normalizedMethod]
+            : [];
         }),
     ),
   ].sort();
+}
+
+function participatesInSurfaceParity(
+  className: string,
+  language: SdkLanguage,
+  method: string,
+): boolean {
+  if (className === "Stagehand" && stagehandLifecycleMethods.has(method)) return false;
+  return language !== "typescript" || !internalTypescriptMethods.has(method);
 }
 
 async function publicAccessors(

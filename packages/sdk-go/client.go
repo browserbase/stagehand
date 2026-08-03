@@ -27,6 +27,7 @@ type protocolClient interface {
 	call(ctx context.Context, method string, params any, result any) error
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()
+	browserWebSocketDebuggerURL() string
 	close() error
 }
 
@@ -77,8 +78,6 @@ type clientAdapters struct {
 	connectProtocol      func(
 		context.Context,
 		resolvedBrowserSource,
-		TelemetryConfig,
-		RuntimeConfigureParamsLogLevel,
 	) (protocolClient, error)
 }
 
@@ -87,29 +86,6 @@ func defaultClientAdapters() clientAdapters {
 		resolveBrowserSource: resolveBrowserSource,
 		connectProtocol:      connectResolvedBrowser,
 	}
-}
-
-// configureProtocol is transport setup, matching the TypeScript and Python
-// RPC clients rather than the public Stagehand.Init method.
-func configureProtocol(
-	ctx context.Context,
-	rpc protocolClient,
-	browser resolvedBrowserSource,
-	telemetry TelemetryConfig,
-	logLevel RuntimeConfigureParamsLogLevel,
-) error {
-	params := RuntimeConfigureParams{
-		ProtocolVersion: stagehandProtocolVersion,
-		ClientInfo: ImplementationInfo{
-			Name:    stagehandSDKClientName,
-			Version: stagehandSDKVersion,
-		},
-		CDPURL:    browser.cdpURL,
-		LogLevel:  logLevel,
-		Telemetry: telemetry,
-	}
-	var result RuntimeConfigureResult
-	return rpc.call(ctx, "runtime.configure", params, &result)
 }
 
 type resolvedStagehandClientLoggingConfig struct {
@@ -164,10 +140,4 @@ func validClientLogLevel(level StagehandClientLogLevel) bool {
 	default:
 		return false
 	}
-}
-
-func runtimeLogLevel(
-	level StagehandClientLogLevel,
-) RuntimeConfigureParamsLogLevel {
-	return RuntimeConfigureParamsLogLevel(level)
 }

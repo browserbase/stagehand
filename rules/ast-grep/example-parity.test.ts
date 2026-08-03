@@ -94,7 +94,18 @@ describe("All language examples remain in sync", () => {
           ).toBe(true);
         }
         expect(stagehand, `${language} ${example.file} must construct Stagehand`).toBeDefined();
-        if (language === "go") {
+        if (language === "typescript") {
+          expect(
+            root.find({
+              rule: { pattern: `const ${stagehand} = await Stagehand.create($$$ARGS)` },
+            }),
+            `${language} ${example.file} must create Stagehand asynchronously`,
+          ).not.toBeNull();
+          expect(
+            root.find({ rule: { pattern: `await ${stagehand}.close()` } }),
+            `${language} ${example.file} must close Stagehand`,
+          ).not.toBeNull();
+        } else if (language === "go") {
           expect(
             goCalls(root).some(({ object, method }) => object === stagehand && method === "Init"),
             `${language} ${example.file} must initialize Stagehand`,
@@ -141,7 +152,7 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
     rule: {
       pattern:
         language === "typescript"
-          ? "const $STAGEHAND = new Stagehand($$$ARGS)"
+          ? "const $STAGEHAND = await Stagehand.create($$$ARGS)"
           : language === "python"
             ? "$STAGEHAND = Stagehand($$$ARGS)"
             : "$STAGEHAND := stagehand.New($$$ARGS)",
@@ -178,7 +189,9 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
       const method = call.getMatch("METHOD")?.text();
       if (!object || !method) return [];
 
-      if (object === stagehand) return [`stagehand.${snakeCase(method)}`];
+      if (object === stagehand && method !== "init" && method !== "close") {
+        return [`stagehand.${snakeCase(method)}`];
+      }
       if (object === `${stagehand}.context`) return [`context.${snakeCase(method)}`];
       if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
       return [];
@@ -203,7 +216,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
 
   return goCalls(root)
     .flatMap(({ object, method }) => {
-      if (object === stagehand && method !== "Context") {
+      if (object === stagehand && method !== "Context" && method !== "Init" && method !== "Close") {
         return [`stagehand.${snakeCase(method)}`];
       }
       if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];

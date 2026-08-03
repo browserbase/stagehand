@@ -3,6 +3,7 @@ import type {
   StagehandActParams,
   StagehandExtractParams,
   StagehandInitParams,
+  StagehandInitResult,
   StagehandObserveParams,
 } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
@@ -13,15 +14,27 @@ import * as extractService from "../services/extractService.js";
 import { buildGatewayContext } from "../llm/gatewayClient.js";
 import * as observeService from "../services/observeService.js";
 
-export function createStagehandController(runtime: StagehandRuntime) {
+export type StagehandControllerOptions = {
+  initialize?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  close?: () => Promise<void>;
+};
+
+export function createStagehandController(
+  runtime: StagehandRuntime,
+  options: StagehandControllerOptions = {},
+) {
+  const initialize = options.initialize ?? ((params) => runtime.initialize(params));
+  const closeRuntime = options.close ?? (() => runtime.close());
+
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
+    logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});
-    return await runtime.initialize(params);
+    return await initialize(params);
   }
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
     logger.info("stagehand.close", {});
-    await runtime.close();
+    await closeRuntime();
     return { closed: true as const };
   }
 

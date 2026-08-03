@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { z } from "zod/v4";
 import { StagehandMethods, StagehandNotifications } from "../schema-registry.ts";
+import { BrowserbaseSessionCreateParamsSchema } from "../schemas.ts";
 import {
   JSONRPCErrorResponseSchema,
   JSONRPCNotificationSchema,
@@ -45,6 +46,11 @@ const StagehandProtocolDocumentSchema = z
         ]),
       ),
     ),
+    legacyClientModels: z
+      .strictObject({
+        browserbaseSessionCreateParams: BrowserbaseSessionCreateParamsSchema,
+      })
+      .optional(),
     jsonrpc: z.strictObject({
       request: z
         .union([requestEnvelopeSchemas[0]!, ...requestEnvelopeSchemas.slice(1)])
