@@ -264,8 +264,8 @@ func TestExtractAsPreservesTypedDataAndMetadata(t *testing.T) {
 	}
 
 	metadata := StagehandResultMetadata{
-		ActionID:    testPointer("action-extract"),
-		CacheStatus: testPointer(CacheStatusHIT),
+		ActionID: testPointer("action-extract"),
+		Cache:    CacheMetadata{Status: CacheStatusHIT},
 	}
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.extract": ExtractResult{
@@ -288,6 +288,44 @@ func TestExtractAsPreservesTypedDataAndMetadata(t *testing.T) {
 	}
 	if result.Data.Heading != "Example" {
 		t.Fatalf("ExtractAs() data = %#v", result.Data)
+	}
+	if !reflect.DeepEqual(result.Metadata, metadata) {
+		t.Fatalf("ExtractAs() metadata = %#v, want %#v", result.Metadata, metadata)
+	}
+}
+
+func TestExtractAsPreservesMetadataOnDecodeError(t *testing.T) {
+	t.Parallel()
+
+	type pageInfo struct {
+		Heading string `json:"heading"`
+	}
+
+	metadata := StagehandResultMetadata{
+		ActionID: testPointer("action-extract"),
+		Cache:    CacheMetadata{Status: CacheStatusHIT},
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.extract": ExtractResult{
+			Data:     json.RawMessage(`{"heading":42}`),
+			Metadata: metadata,
+		},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	result, err := ExtractAs[pageInfo](
+		context.Background(),
+		client,
+		"extract heading",
+		json.RawMessage(`{"type":"object"}`),
+		&StagehandClientExtractOptions{Page: page},
+	)
+	if err == nil {
+		t.Fatal("ExtractAs() error = nil, want typed decode error")
+	}
+	if result.Data.Heading != "" {
+		t.Fatalf("ExtractAs() data = %#v, want zero value", result.Data)
 	}
 	if !reflect.DeepEqual(result.Metadata, metadata) {
 		t.Fatalf("ExtractAs() metadata = %#v, want %#v", result.Metadata, metadata)

@@ -229,11 +229,11 @@ func ExtractAs[T any](
 	if err != nil {
 		return typedResult, err
 	}
+	typedResult.Metadata = result.Metadata
 	if err := json.Unmarshal(result.Data, &value); err != nil {
 		return typedResult, fmt.Errorf("decode stagehand.extract result: %w", err)
 	}
 	typedResult.Data = value
-	typedResult.Metadata = result.Metadata
 	return typedResult, nil
 }
 
