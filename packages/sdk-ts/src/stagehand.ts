@@ -181,13 +181,14 @@ export class Stagehand {
 
   async extract<Schema extends z.ZodType = typeof defaultExtractSchema>(
     instruction: string,
-    schema: Schema = defaultExtractSchema as Schema,
+    schema?: Schema,
     options?: StagehandClientExtractOptions,
   ): Promise<ExtractResult<Schema>> {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
-    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
+    const resolvedSchema = (schema ?? defaultExtractSchema) as unknown as Schema;
+    const jsonSchema = z.json().parse(z.toJSONSchema(resolvedSchema));
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
       instruction,
@@ -197,7 +198,7 @@ export class Stagehand {
 
     return {
       ...response,
-      data: schema.parse(response.data),
+      data: resolvedSchema.parse(response.data),
     };
   }
 

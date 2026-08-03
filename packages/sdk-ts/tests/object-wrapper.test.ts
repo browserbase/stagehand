@@ -1012,17 +1012,18 @@ describe("Stagehand TS object wrapper", () => {
 
   it("uses the default extraction schema when stagehand.extract omits a schema", async () => {
     const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { extraction: "Example Domain" },
       metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    const page = new Page(client, { pageId: "page-1" });
 
-    const result = await stagehand.extract("Extract the page text", undefined, { page });
+    const result = await stagehand.extract("Extract the page text");
 
     expect(result.data.extraction).toBe("Example Domain");
     expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page text",
@@ -1033,7 +1034,6 @@ describe("Stagehand TS object wrapper", () => {
             }),
           ),
         ),
-        options: {},
       }),
     ]);
   });
