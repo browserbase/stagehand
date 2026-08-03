@@ -1,0 +1,26 @@
+packages/evals/tasks/bench/act/google_flights.ts
+  s_9b9154ae9e8c8c::t_e3f4cc15226eee 27-28
+packages/evals/framework/types.ts
+  s_9b9154ae9e8c8c::t_91915d55d77a5e 10
+  s_9b9154ae9e8c8c::t_d406023dbabda6 22-26
+  s_9b9154ae9e8c8c::t_c5e23a6fa484ad 74
+  s_9b9154ae9e8c8c::t_3ee5b2e743f037 171,173-176,179-180,182
+packages/evals/tasks/bench/act/multi_tab.ts
+  s_9b9154ae9e8c8c::t_e3f4cc15226eee 53-58,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1886dfdd4bc49adf3e1b944410148f41c7fc916b",
+  "prompts": {},
+  "sessions": {
+    "s_9b9154ae9e8c8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c311c9ba-b73b-46c8-a606-0ed1839d8de7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
