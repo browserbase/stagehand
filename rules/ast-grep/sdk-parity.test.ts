@@ -156,7 +156,20 @@ describe("All language SDK operations remain in sync", () => {
 
   it("references every registered protocol operation in each client", async () => {
     const registry = await stagehandMethodNames();
-    const registeredOperations = [...registry.values()].sort();
+    // The response RPCs are registered server-side in this PR so navigation
+    // results can expose opaque handles. The stacked SDK PR adds the public
+    // Response wrappers in all three languages and removes this exclusion.
+    const deferredSdkOperations = new Set([
+      "response.all_headers",
+      "response.body",
+      "response.finished",
+      "response.headers_array",
+      "response.security_details",
+      "response.server_addr",
+    ]);
+    const registeredOperations = [...registry.values()]
+      .filter((operation) => !deferredSdkOperations.has(operation))
+      .sort();
 
     expect(
       await clientProtocolOperations("typescript", typescriptSource, registry),
