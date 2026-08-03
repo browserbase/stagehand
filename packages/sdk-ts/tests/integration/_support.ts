@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
-import { Stagehand } from "../../src/index.js";
+import { localBrowser, Stagehand } from "../../src/index.js";
 
 export type FixtureResponse = {
   status?: number;
@@ -23,11 +23,9 @@ const CLOSE_TIMEOUT_MS = 5_000;
 const closePromises = new WeakMap<Stagehand, Promise<void>>();
 
 export async function createStagehand(): Promise<Stagehand> {
-  const stagehand = new Stagehand({
-    browser: {
-      type: "local",
-      headless: true,
-    },
+  const browser = await localBrowser.launch({ headless: true });
+  return Stagehand.create({
+    browser,
     model: {
       generate: async (): Promise<LLMGenerateResult> => ({
         role: "assistant",
@@ -39,9 +37,6 @@ export async function createStagehand(): Promise<Stagehand> {
       level: "off",
     },
   });
-
-  await stagehand.init();
-  return stagehand;
 }
 
 export function closeStagehand(stagehand?: Stagehand | null): Promise<void> {
@@ -50,7 +45,10 @@ export function closeStagehand(stagehand?: Stagehand | null): Promise<void> {
   const pending = closePromises.get(stagehand);
   if (pending) return pending;
 
-  const close = settleWithTimeout(stagehand.close(), CLOSE_TIMEOUT_MS);
+  const close = settleWithTimeout(
+    stagehand.close().finally(() => stagehand.browser.close()),
+    CLOSE_TIMEOUT_MS,
+  );
   closePromises.set(stagehand, close);
   return close;
 }

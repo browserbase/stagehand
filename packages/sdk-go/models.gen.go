@@ -13,7 +13,8 @@ type ActOptions struct {
 	// Serializable element locator for the action target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// Timeout in ms for the action
@@ -62,6 +63,14 @@ type Action struct {
 }
 
 type AnthropicModelName string
+
+type BrowserSessionMetadata struct {
+	// Region corresponds to the JSON schema field "region".
+	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+}
 
 type BrowserbaseBrowserSettings struct {
 	// AdvancedStealth corresponds to the JSON schema field "advanced_stealth".
@@ -113,35 +122,6 @@ const BrowserbaseBrowserSettingsOSMac BrowserbaseBrowserSettingsOS = "mac"
 const BrowserbaseBrowserSettingsOSMobile BrowserbaseBrowserSettingsOS = "mobile"
 const BrowserbaseBrowserSettingsOSTablet BrowserbaseBrowserSettingsOS = "tablet"
 const BrowserbaseBrowserSettingsOSWindows BrowserbaseBrowserSettingsOS = "windows"
-
-type BrowserbaseBrowserSource struct {
-	// BrowserSettings corresponds to the JSON schema field "browser_settings".
-	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
-
-	// ExtensionID corresponds to the JSON schema field "extension_id".
-	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
-
-	// KeepAlive corresponds to the JSON schema field "keep_alive".
-	KeepAlive *bool `json:"keep_alive,omitempty,omitzero"`
-
-	// Proxies corresponds to the JSON schema field "proxies".
-	Proxies *BrowserbaseProxies `json:"proxies,omitempty,omitzero"`
-
-	// Region corresponds to the JSON schema field "region".
-	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
-
-	// SessionID corresponds to the JSON schema field "session_id".
-	SessionID string `json:"session_id"`
-
-	// Timeout corresponds to the JSON schema field "timeout".
-	Timeout *float64 `json:"timeout,omitempty,omitzero"`
-
-	// Type corresponds to the JSON schema field "type".
-	Type string `json:"type"`
-
-	// UserMetadata corresponds to the JSON schema field "user_metadata".
-	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
-}
 
 type BrowserbaseContext struct {
 	// ID corresponds to the JSON schema field "id".
@@ -238,6 +218,29 @@ const BrowserbaseRegionAPSoutheast1 BrowserbaseRegion = "ap-southeast-1"
 const BrowserbaseRegionEUCentral1 BrowserbaseRegion = "eu-central-1"
 const BrowserbaseRegionUSEast1 BrowserbaseRegion = "us-east-1"
 const BrowserbaseRegionUSWest2 BrowserbaseRegion = "us-west-2"
+
+type BrowserbaseSessionCreateParams struct {
+	// BrowserSettings corresponds to the JSON schema field "browser_settings".
+	BrowserSettings *BrowserbaseBrowserSettings `json:"browser_settings,omitempty,omitzero"`
+
+	// ExtensionID corresponds to the JSON schema field "extension_id".
+	ExtensionID *string `json:"extension_id,omitempty,omitzero"`
+
+	// KeepAlive corresponds to the JSON schema field "keep_alive".
+	KeepAlive *bool `json:"keep_alive,omitempty,omitzero"`
+
+	// Proxies corresponds to the JSON schema field "proxies".
+	Proxies *BrowserbaseProxies `json:"proxies,omitempty,omitzero"`
+
+	// Region corresponds to the JSON schema field "region".
+	Region *BrowserbaseRegion `json:"region,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout *float64 `json:"timeout,omitempty,omitzero"`
+
+	// UserMetadata corresponds to the JSON schema field "user_metadata".
+	UserMetadata map[string]json.RawMessage `json:"user_metadata,omitempty,omitzero"`
+}
 
 type BrowserbaseViewport struct {
 	// Height corresponds to the JSON schema field "height".
@@ -430,23 +433,6 @@ const CookieSameSiteLax CookieSameSite = "Lax"
 const CookieSameSiteNone CookieSameSite = "None"
 const CookieSameSiteStrict CookieSameSite = "Strict"
 
-type CustomModelConfig struct {
-	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
-
-	// Base URL for the custom OpenAI-compatible endpoint
-	BaseURL string `json:"base_url"`
-
-	// Custom headers sent with every request to the model provider
-	Headers CustomModelConfigHeaders `json:"headers,omitempty,omitzero"`
-
-	// Model name accepted by the custom OpenAI-compatible endpoint
-	ModelName string `json:"model_name"`
-}
-
-// Custom headers sent with every request to the model provider
-type CustomModelConfigHeaders map[string]string
-
 type DescribedVariableValue struct {
 	// Description corresponds to the JSON schema field "description".
 	Description *string `json:"description,omitempty,omitzero"`
@@ -490,7 +476,8 @@ type ExtractOptions struct {
 	// Serializable element locator for the extraction target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
@@ -523,20 +510,6 @@ type ImplementationInfo struct {
 	// Version corresponds to the JSON schema field "version".
 	Version string `json:"version"`
 }
-
-type KnownModelConfig struct {
-	// API key for the model provider
-	APIKey *string `json:"api_key,omitempty,omitzero"`
-
-	// Custom headers sent with every request to the model provider
-	Headers KnownModelConfigHeaders `json:"headers,omitempty,omitzero"`
-
-	// ModelName corresponds to the JSON schema field "model_name".
-	ModelName ModelName `json:"model_name"`
-}
-
-// Custom headers sent with every request to the model provider
-type KnownModelConfigHeaders map[string]string
 
 type LLMAnnotations struct {
 	// Audience corresponds to the JSON schema field "audience".
@@ -1015,6 +988,20 @@ type LocatorTypeResult struct {
 	Typed bool `json:"typed"`
 }
 
+type ModelConfig struct {
+	// API key for the model provider
+	APIKey *string `json:"api_key,omitempty,omitzero"`
+
+	// Custom headers sent with every request to the model provider
+	Headers ModelConfigHeaders `json:"headers,omitempty,omitzero"`
+
+	// ModelName corresponds to the JSON schema field "model_name".
+	ModelName ModelName `json:"model_name"`
+}
+
+// Custom headers sent with every request to the model provider
+type ModelConfigHeaders map[string]string
+
 type MouseButton string
 
 const MouseButtonLeft MouseButton = "left"
@@ -1031,7 +1018,8 @@ type ObserveOptions struct {
 	// Serializable element locator for the observation target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
-	// Model corresponds to the JSON schema field "model".
+	// Complete model configuration for this call; when omitted, the initialized
+	// Stagehand model is used
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// CSS selector to scope observation to a specific element
@@ -1612,7 +1600,7 @@ type StagehandInitParams struct {
 	APIKey *string `json:"api_key,omitempty,omitzero"`
 
 	// Browser corresponds to the JSON schema field "browser".
-	Browser *BrowserbaseBrowserSource `json:"browser,omitempty,omitzero"`
+	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
 
 	// BrowserCDPURL corresponds to the JSON schema field "browser_cdp_url".
 	BrowserCDPURL *string `json:"browser_cdp_url,omitempty,omitzero"`
@@ -1919,13 +1907,13 @@ type generatedModelCatalog struct {
 	// AnthropicModelName corresponds to the JSON schema field "AnthropicModelName".
 	AnthropicModelName *AnthropicModelName `json:"AnthropicModelName,omitempty,omitzero"`
 
+	// BrowserSessionMetadata corresponds to the JSON schema field
+	// "BrowserSessionMetadata".
+	BrowserSessionMetadata *BrowserSessionMetadata `json:"BrowserSessionMetadata,omitempty,omitzero"`
+
 	// BrowserbaseBrowserSettings corresponds to the JSON schema field
 	// "BrowserbaseBrowserSettings".
 	BrowserbaseBrowserSettings *BrowserbaseBrowserSettings `json:"BrowserbaseBrowserSettings,omitempty,omitzero"`
-
-	// BrowserbaseBrowserSource corresponds to the JSON schema field
-	// "BrowserbaseBrowserSource".
-	BrowserbaseBrowserSource *BrowserbaseBrowserSource `json:"BrowserbaseBrowserSource,omitempty,omitzero"`
 
 	// BrowserbaseContext corresponds to the JSON schema field "BrowserbaseContext".
 	BrowserbaseContext *BrowserbaseContext `json:"BrowserbaseContext,omitempty,omitzero"`
@@ -1948,6 +1936,10 @@ type generatedModelCatalog struct {
 
 	// BrowserbaseRegion corresponds to the JSON schema field "BrowserbaseRegion".
 	BrowserbaseRegion *BrowserbaseRegion `json:"BrowserbaseRegion,omitempty,omitzero"`
+
+	// BrowserbaseSessionCreateParams corresponds to the JSON schema field
+	// "BrowserbaseSessionCreateParams".
+	BrowserbaseSessionCreateParams *BrowserbaseSessionCreateParams `json:"BrowserbaseSessionCreateParams,omitempty,omitzero"`
 
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
@@ -2049,9 +2041,6 @@ type generatedModelCatalog struct {
 	// CookieRegex corresponds to the JSON schema field "CookieRegex".
 	CookieRegex *CookieRegex `json:"CookieRegex,omitempty,omitzero"`
 
-	// CustomModelConfig corresponds to the JSON schema field "CustomModelConfig".
-	CustomModelConfig *CustomModelConfig `json:"CustomModelConfig,omitempty,omitzero"`
-
 	// DescribedVariableValue corresponds to the JSON schema field
 	// "DescribedVariableValue".
 	DescribedVariableValue *DescribedVariableValue `json:"DescribedVariableValue,omitempty,omitzero"`
@@ -2079,9 +2068,6 @@ type generatedModelCatalog struct {
 
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
-
-	// KnownModelConfig corresponds to the JSON schema field "KnownModelConfig".
-	KnownModelConfig *KnownModelConfig `json:"KnownModelConfig,omitempty,omitzero"`
 
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
 	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`

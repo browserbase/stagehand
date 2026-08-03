@@ -1,38 +1,33 @@
 import "dotenv/config";
-import { Stagehand } from "../src/index.js";
+import { localBrowser, Stagehand } from "../src/index.js";
 
 const { OPENAI_API_KEY } = process.env;
 if (!OPENAI_API_KEY) throw new Error();
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: true,
-  },
+const browser = await localBrowser.launch({ headless: true });
+const stagehand = await Stagehand.create({
+  browser,
   model: {
     modelName: "openai/gpt-5.4-mini",
     apiKey: OPENAI_API_KEY,
   },
 });
 
-try {
-  await stagehand.init();
-
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    throw new Error("Stagehand initialized without an active page");
-  }
-  await page.goto("https://example.com");
-
-  const result = await stagehand.act(
-    "Click the link that provides more information about Example Domain",
-  );
-
-  console.log(JSON.stringify(result, null, 2));
-
-  if (!result.data.success) {
-    throw new Error(`act() failed: ${result.data.message}`);
-  }
-} finally {
-  await stagehand.close();
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
 }
+await page.goto("https://example.com");
+
+const result = await stagehand.act(
+  "Click the link that provides more information about Example Domain",
+);
+
+console.log(JSON.stringify(result, null, 2));
+
+if (!result.data.success) {
+  throw new Error(`act() failed: ${result.data.message}`);
+}
+
+await stagehand.close();
+await browser.close();

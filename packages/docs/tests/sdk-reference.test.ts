@@ -130,6 +130,7 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 
 const SDK_OBJECTS = [
   {
@@ -918,7 +919,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
     }),
   );
 
-  return deduplicateMethods(methods.flat(), "TypeScript");
+  return deduplicateMethods(methods.flat(), "TypeScript").filter(participatesInReferenceParity);
 }
 
 async function readRegistryMethodNames(): Promise<Map<string, string>> {
@@ -1021,7 +1022,7 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
     }),
   );
 
-  return deduplicateMethods(methods.flat(), "Python");
+  return deduplicateMethods(methods.flat(), "Python").filter(participatesInReferenceParity);
 }
 
 function findClass(
@@ -1390,6 +1391,13 @@ function methodKey({ classSlug, methodSlug }: SdkMethod): string {
   return `${classSlug}/${methodSlug}`;
 }
 
+function participatesInReferenceParity({
+  classSlug,
+  methodSlug,
+}: Pick<SdkMethod, "classSlug" | "methodSlug">): boolean {
+  return classSlug !== "stagehand" || !STAGEHAND_LIFECYCLE_METHODS.has(methodSlug);
+}
+
 type DocumentedMethodLocation = {
   classSlug: string;
   filePath: string;
@@ -1401,11 +1409,18 @@ function documentedMethods(pages: ReferencePage[], language: Language): Document
     page.views
       .filter(({ title }) => title === language)
       .flatMap(({ methods }) =>
-        methods.map((method) => ({
-          classSlug: page.classSlug,
-          filePath: page.filePath,
-          method,
-        })),
+        methods
+          .filter((method) =>
+            participatesInReferenceParity({
+              classSlug: page.classSlug,
+              methodSlug: method.methodSlug,
+            }),
+          )
+          .map((method) => ({
+            classSlug: page.classSlug,
+            filePath: page.filePath,
+            method,
+          })),
       ),
   );
 }

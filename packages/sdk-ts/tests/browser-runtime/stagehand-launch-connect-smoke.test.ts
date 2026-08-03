@@ -6,7 +6,13 @@ import type {
   LLMImageContent,
   StagehandResultUsage,
 } from "../../../protocol/types.js";
-import { Stagehand, type BrowserContext, type Page } from "../../src/index.js";
+import {
+  localBrowser,
+  Stagehand,
+  type BrowserContext,
+  type Page,
+  type StagehandBrowser,
+} from "../../src/index.js";
 
 type FixtureServer = {
   url: string;
@@ -26,16 +32,15 @@ type ExpectedOperationUsage = Omit<StagehandResultUsage, "inferenceTimeMs">;
 describe("Stagehand TS SDK launch/connect smoke", () => {
   let fixtureServer: FixtureServer | undefined;
   let stagehand: Stagehand | undefined;
+  let browser: StagehandBrowser | undefined;
   const extractionScreenshots: LLMImageContent[] = [];
   const rawOperationUsages: Record<string, unknown>[] = [];
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
-    stagehand = new Stagehand({
-      browser: {
-        type: "local",
-        headless: true,
-      },
+    browser = await localBrowser.launch({ headless: true });
+    stagehand = await Stagehand.create({
+      browser,
       model: {
         generate: async (params): Promise<LLMGenerateResult> => {
           if (params.responseFormat?.type !== "json_schema") {
@@ -142,8 +147,6 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         level: "off",
       },
     });
-    await stagehand.init();
-
     const rpcClient = stagehand.rpcClient;
     if (!rpcClient) throw new Error("Stagehand initialized without an RPC client");
     const transport = rpcClient.cdp;
@@ -157,8 +160,15 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   }, 45_000);
 
   afterAll(async () => {
-    await stagehand?.close();
-    await fixtureServer?.close();
+    try {
+      await stagehand?.close();
+    } finally {
+      try {
+        await browser?.close();
+      } finally {
+        await fixtureServer?.close();
+      }
+    }
   });
 
   it("drives a real browser through the public TS object model", async () => {
