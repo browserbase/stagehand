@@ -85,6 +85,13 @@ function requestCall<Method extends RPCMethod>(
   return { method: method.name, params };
 }
 
+const zeroUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
 describe("Stagehand TS object wrapper", () => {
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
@@ -806,7 +813,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -831,7 +838,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandAct, {
@@ -855,7 +862,7 @@ describe("Stagehand TS object wrapper", () => {
     };
     client.queueResponse(StagehandMethods.stagehandObserve, {
       data: [observedAction],
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     client.queueResponse(StagehandMethods.stagehandAct, {
       data: {
@@ -864,7 +871,7 @@ describe("Stagehand TS object wrapper", () => {
         actionDescription: "Submit button",
         actions: [observedAction],
       },
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -902,7 +909,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cacheStatus: "MISS", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -928,7 +935,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cacheStatus: "MISS", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandObserve, {
@@ -951,10 +958,16 @@ describe("Stagehand TS object wrapper", () => {
   it("uses the active page when stagehand.observe has no explicit page or instruction", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
-    client.queueResponse(StagehandMethods.stagehandObserve, { data: [], metadata: {} });
+    client.queueResponse(StagehandMethods.stagehandObserve, {
+      data: [],
+      metadata: { usage: zeroUsage },
+    });
     const stagehand = createStagehandWithClientForTest(client);
 
-    await expect(stagehand.observe()).resolves.toStrictEqual({ data: [], metadata: {} });
+    await expect(stagehand.observe()).resolves.toStrictEqual({
+      data: [],
+      metadata: { usage: zeroUsage },
+    });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.stagehandObserve, { pageId: "page-1" }),
@@ -976,7 +989,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -986,7 +999,7 @@ describe("Stagehand TS object wrapper", () => {
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandExtract, {
@@ -1002,7 +1015,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: 42 },
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });

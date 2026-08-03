@@ -1476,13 +1476,60 @@
         "cache_status": {
           "description": "Server-side cache status for this result",
           "$ref": "#/$defs/CacheStatus"
+        },
+        "usage": {
+          "description": "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
+          "$ref": "#/$defs/StagehandResultUsage"
         }
       },
+      "required": ["usage"],
       "additionalProperties": false
     },
     "CacheStatus": {
       "type": "string",
       "enum": ["HIT", "MISS"]
+    },
+    "StagehandResultUsage": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "description": "Input tokens consumed by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "output_tokens": {
+          "default": 0,
+          "description": "Output tokens consumed by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "reasoning_tokens": {
+          "default": 0,
+          "description": "Reasoning tokens consumed by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "cached_input_tokens": {
+          "default": 0,
+          "description": "Cached input tokens used by all LLM calls made for this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "inference_time_ms": {
+          "default": 0,
+          "description": "Total time spent waiting for LLM inference during this operation",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false,
+      "description": "Aggregate LLM usage for one Stagehand operation"
     },
     "StagehandObserveParams": {
       "type": "object",
