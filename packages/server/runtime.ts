@@ -65,6 +65,7 @@ import type {
   PageIdParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PageNavigationResult,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -456,28 +457,28 @@ export class StagehandRuntime {
     return { ok: true };
   }
 
-  async pageGoto(params: PageGotoParams): Promise<PageRef> {
+  async pageGoto(params: PageGotoParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
     await page.goto(params.url, params.options);
-    return pageRefFromUnderstudyPage(page);
+    return { page: pageRefFromUnderstudyPage(page), response: null };
   }
 
-  async pageReload(params: PageReloadParams): Promise<PageRef> {
+  async pageReload(params: PageReloadParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
     await page.reload(params.options);
-    return pageRefFromUnderstudyPage(page);
+    return { page: pageRefFromUnderstudyPage(page), response: null };
   }
 
-  async pageGoBack(params: PageGoBackParams): Promise<PageRef> {
+  async pageGoBack(params: PageGoBackParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
     await page.goBack(params.options);
-    return pageRefFromUnderstudyPage(page);
+    return { page: pageRefFromUnderstudyPage(page), response: null };
   }
 
-  async pageGoForward(params: PageGoForwardParams): Promise<PageRef> {
+  async pageGoForward(params: PageGoForwardParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
     await page.goForward(params.options);
-    return pageRefFromUnderstudyPage(page);
+    return { page: pageRefFromUnderstudyPage(page), response: null };
   }
 
   async pageClick(params: PageClickParams): Promise<PageVoidResult> {

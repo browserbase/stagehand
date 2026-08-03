@@ -349,9 +349,12 @@ describe("Stagehand TS object wrapper", () => {
   it("routes page.goto and updates the page ref", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageGoto, {
-      pageId: "page-1",
-      url: "https://example.com/next",
-      title: "Next",
+      page: {
+        pageId: "page-1",
+        url: "https://example.com/next",
+        title: "Next",
+      },
+      response: null,
     });
     const page = new Page(client, { pageId: "page-1", url: "about:blank" });
 
@@ -381,16 +384,16 @@ describe("Stagehand TS object wrapper", () => {
   it("routes page navigation methods and updates the page ref", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageReload, {
-      pageId: "page-1",
-      url: "https://example.com/reloaded",
+      page: { pageId: "page-1", url: "https://example.com/reloaded" },
+      response: null,
     });
     client.queueResponse(StagehandMethods.pageGoBack, {
-      pageId: "page-1",
-      url: "https://example.com/back",
+      page: { pageId: "page-1", url: "https://example.com/back" },
+      response: null,
     });
     client.queueResponse(StagehandMethods.pageGoForward, {
-      pageId: "page-1",
-      url: "https://example.com/forward",
+      page: { pageId: "page-1", url: "https://example.com/forward" },
+      response: null,
     });
     const page = new Page(client, { pageId: "page-1", url: "https://example.com/current" });
 

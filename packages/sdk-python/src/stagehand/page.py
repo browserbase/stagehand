@@ -29,6 +29,7 @@ from ._generated.models import (
     PageKeyPressOptions,
     PageKeyPressParams,
     PageNavigationOptions,
+    PageNavigationResult,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -97,7 +98,8 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.goto", params, PageRef)
+        result = await self._rpc_client.send("page.goto", params, PageNavigationResult)
+        self._ref = result.page
         return self
 
     async def reload(
@@ -119,7 +121,8 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.reload", params, PageRef)
+        result = await self._rpc_client.send("page.reload", params, PageNavigationResult)
+        self._ref = result.page
         return self
 
     async def go_back(
@@ -136,7 +139,8 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.go_back", params, PageRef)
+        result = await self._rpc_client.send("page.go_back", params, PageNavigationResult)
+        self._ref = result.page
         return self
 
     async def go_forward(
@@ -153,7 +157,8 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.go_forward", params, PageRef)
+        result = await self._rpc_client.send("page.go_forward", params, PageNavigationResult)
+        self._ref = result.page
         return self
 
     async def click(

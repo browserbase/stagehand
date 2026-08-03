@@ -51,35 +51,39 @@ export class Page {
   }
 
   async goto(url: string, options?: PageNavigationOptions): Promise<this> {
-    this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoto, {
+    const result = await this.rpcClient.send(StagehandMethods.pageGoto, {
       pageId: this.pageId,
       url,
       ...(options ? { options } : {}),
     });
+    this.currentRef = result.page;
     return this;
   }
 
   async reload(options?: PageReloadParams["options"]): Promise<this> {
-    this.currentRef = await this.rpcClient.send(StagehandMethods.pageReload, {
+    const result = await this.rpcClient.send(StagehandMethods.pageReload, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
+    this.currentRef = result.page;
     return this;
   }
 
   async goBack(options?: PageNavigationOptions): Promise<this> {
-    this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoBack, {
+    const result = await this.rpcClient.send(StagehandMethods.pageGoBack, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
+    this.currentRef = result.page;
     return this;
   }
 
   async goForward(options?: PageNavigationOptions): Promise<this> {
-    this.currentRef = await this.rpcClient.send(StagehandMethods.pageGoForward, {
+    const result = await this.rpcClient.send(StagehandMethods.pageGoForward, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
+    this.currentRef = result.page;
     return this;
   }
 

@@ -1277,6 +1277,97 @@ export const PageRefSchema = z
   })
   .meta({ id: "PageRef" });
 
+export const NavigationHeaderSchema = z
+  .strictObject({
+    name: z.string(),
+    value: z.string(),
+  })
+  .meta({ id: "NavigationHeader" });
+
+export const NavigationSecurityDetailsSchema = z
+  .strictObject({
+    issuer: z.string(),
+    protocol: z.string(),
+    subjectName: z.string(),
+    validFrom: z.number(),
+    validTo: z.number(),
+  })
+  .meta({ id: "NavigationSecurityDetails" });
+
+export const NavigationServerAddrSchema = z
+  .strictObject({
+    ipAddress: z.string(),
+    port: z.number().int().nonnegative(),
+  })
+  .meta({ id: "NavigationServerAddr" });
+
+export const NavigationFinishedErrorSchema = z
+  .strictObject({
+    message: z.string(),
+  })
+  .meta({ id: "NavigationFinishedError" });
+
+export const NavigationResponseDescriptorSchema = z
+  .strictObject({
+    responseId: z.string().min(1),
+    url: z.string(),
+    status: z.number().int(),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()),
+    fromServiceWorker: z.boolean(),
+  })
+  .meta({ id: "NavigationResponseDescriptor" });
+
+export const PageNavigationResultSchema = z
+  .strictObject({
+    page: PageRefSchema,
+    response: NavigationResponseDescriptorSchema.nullable(),
+  })
+  .meta({ id: "PageNavigationResult" });
+
+export const ResponseIdParamsSchema = z
+  .strictObject({
+    responseId: z.string().min(1),
+  })
+  .meta({ id: "ResponseIdParams" });
+
+export const ResponseBodyResultSchema = z
+  .strictObject({
+    body: z.string(),
+    base64Encoded: z.literal(true),
+  })
+  .meta({ id: "ResponseBodyResult" });
+
+export const ResponseAllHeadersResultSchema = z
+  .strictObject({
+    headers: z.record(z.string(), z.string()),
+  })
+  .meta({ id: "ResponseAllHeadersResult" });
+
+export const ResponseHeadersArrayResultSchema = z
+  .strictObject({
+    headers: z.array(NavigationHeaderSchema),
+  })
+  .meta({ id: "ResponseHeadersArrayResult" });
+
+export const ResponseSecurityDetailsResultSchema = z
+  .strictObject({
+    value: NavigationSecurityDetailsSchema.nullable(),
+  })
+  .meta({ id: "ResponseSecurityDetailsResult" });
+
+export const ResponseServerAddrResultSchema = z
+  .strictObject({
+    value: NavigationServerAddrSchema.nullable(),
+  })
+  .meta({ id: "ResponseServerAddrResult" });
+
+export const ResponseFinishedResultSchema = z
+  .strictObject({
+    error: NavigationFinishedErrorSchema.nullable(),
+  })
+  .meta({ id: "ResponseFinishedResult" });
+
 export const WebMCPAnnotationSchema = z
   .strictObject({
     readOnly: z.boolean().optional(),

@@ -98,7 +98,7 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 
 	title := "After navigation"
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.goto": PageRef{PageID: "page-2", Title: &title},
+		"page.goto": PageNavigationResult{Page: PageRef{PageID: "page-2", Title: &title}},
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
 			Type: PageScreenshotResultTypePNG,
