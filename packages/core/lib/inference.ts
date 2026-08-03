@@ -19,9 +19,26 @@ import type {
 import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
 import type { Variables } from "./v3/types/public/agent.js";
 import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
+import {
+  compressTree,
+  scoreAndFilterTree,
+} from "./v3/compress.js";
 
 // Re-export for backward compatibility
 export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
+
+function maybeCompressDomElements(
+  domElements: string,
+  instruction: string,
+  enableContextCompression?: boolean,
+): string {
+  if (!enableContextCompression) {
+    return domElements;
+  }
+  let compressed = scoreAndFilterTree(domElements, instruction);
+  compressed = compressTree(compressed);
+  return compressed;
+}
 
 function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
   return withTimeout(
@@ -40,6 +57,7 @@ export async function extract<T extends StagehandZodObject>({
   userProvidedInstructions,
   logInferenceToFile = false,
   screenshot,
+  enableContextCompression = false,
 }: {
   instruction: string;
   domElements: string;
@@ -49,7 +67,14 @@ export async function extract<T extends StagehandZodObject>({
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
   screenshot?: Buffer;
+  enableContextCompression?: boolean;
 }) {
+  domElements = maybeCompressDomElements(
+    domElements,
+    instruction,
+    enableContextCompression,
+  );
+
   const metadataSchema = z.object({
     progress: z
       .string()
@@ -264,6 +289,7 @@ export async function observe({
   logInferenceToFile = false,
   supportedActions,
   variables,
+  enableContextCompression = false,
 }: {
   instruction: string;
   domElements: string;
@@ -273,7 +299,14 @@ export async function observe({
   logInferenceToFile?: boolean;
   supportedActions?: string[];
   variables?: Variables;
+  enableContextCompression?: boolean;
 }) {
+  domElements = maybeCompressDomElements(
+    domElements,
+    instruction,
+    enableContextCompression,
+  );
+
   const observeSchema = z.object({
     elements: z
       .array(
@@ -414,6 +447,7 @@ export async function act({
   userProvidedInstructions,
   logger,
   logInferenceToFile = false,
+  enableContextCompression = false,
 }: {
   instruction: string;
   domElements: string;
@@ -421,7 +455,14 @@ export async function act({
   userProvidedInstructions?: string;
   logger: (message: LogLine) => void;
   logInferenceToFile?: boolean;
+  enableContextCompression?: boolean;
 }) {
+  domElements = maybeCompressDomElements(
+    domElements,
+    instruction,
+    enableContextCompression,
+  );
+
   const actSchema = z.object({
     action: z
       .object({

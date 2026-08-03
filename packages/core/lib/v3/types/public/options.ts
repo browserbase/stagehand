@@ -68,4 +68,11 @@ export interface V3Options {
    * Can be overridden per-method in act(), extract(), and observe() options.
    */
   serverCache?: boolean;
+  /**
+   * When true, compresses the hybrid accessibility tree sent to the LLM for
+   * act(), observe(), and extract() before inference: instruction-aware filtering
+   * (scoreAndFilterTree) followed by structural cleanup (compressTree). XPath/URL
+   * maps are unchanged; only prompt context is reduced. Defaults to false.
+   */
+  enableContextCompression?: boolean;
 }
