@@ -212,7 +212,7 @@ func (s *Stagehand) Extract(
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
 ) (ExtractResult, error) {
-	if len(schema) == 0 {
+	if schema == nil {
 		schema = defaultExtractSchema()
 	}
 	rpc, err := s.connectedProtocol()

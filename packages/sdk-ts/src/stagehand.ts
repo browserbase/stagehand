@@ -179,7 +179,17 @@ export class Stagehand {
     return response;
   }
 
-  async extract<Schema extends z.ZodType = typeof defaultExtractSchema>(
+  async extract(
+    instruction: string,
+    schema?: undefined,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<typeof defaultExtractSchema>>;
+  async extract<Schema extends z.ZodType>(
+    instruction: string,
+    schema: Schema,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<Schema>>;
+  async extract<Schema extends z.ZodType>(
     instruction: string,
     schema?: Schema,
     options?: StagehandClientExtractOptions,

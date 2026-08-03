@@ -1038,6 +1038,17 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("requires a runtime schema when selecting a custom extract type", () => {
+    const stagehand = createStagehandWithClientForTest(new FakeProtocolClient());
+    const customSchema = z.object({ heading: z.string() });
+    const typecheck = (): void => {
+      // @ts-expect-error A custom schema generic requires the matching runtime schema.
+      void stagehand.extract<typeof customSchema>("Extract the heading", undefined);
+    };
+
+    expect(typecheck).toBeTypeOf("function");
+  });
+
   it("validates stagehand.extract data with the caller's original Zod schema", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {

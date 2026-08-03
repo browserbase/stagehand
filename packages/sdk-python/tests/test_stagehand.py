@@ -5,12 +5,14 @@ import importlib
 import inspect
 import json
 from collections.abc import Awaitable, Callable
-from typing import TypeVar, cast, overload
+from typing import TypeVar, assert_type, cast, overload
 
 import pytest
 from pydantic import BaseModel, RootModel, StrictInt
 
 from stagehand import (
+    DefaultExtract,
+    ExtractResult,
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
@@ -706,6 +708,7 @@ async def test_stagehand_extract_uses_default_schema(
 
     extracted = await stagehand.extract(instruction="Extract the page text", page=page)
 
+    assert_type(extracted, ExtractResult[DefaultExtract])
     assert extracted.data.extraction == "Example Domain"
     extract_params = next(
         cast(StagehandExtractParams, params)

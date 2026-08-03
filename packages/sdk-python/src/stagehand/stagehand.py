@@ -7,7 +7,7 @@ import json
 import sys
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
-from typing import TypeVar, cast
+from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
 
@@ -271,6 +271,38 @@ class Stagehand:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
         return result
+
+    @overload
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[DefaultExtract] = DefaultExtract,
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[DefaultExtract]: ...
+
+    @overload
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[ResultModel],
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[ResultModel]: ...
 
     async def extract(
         self,

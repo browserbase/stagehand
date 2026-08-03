@@ -353,6 +353,9 @@ func TestExtractUsesDefaultSchema(t *testing.T) {
 	if string(result.Data) != `{"extraction":"Example"}` {
 		t.Fatalf("Extract() data = %s", result.Data)
 	}
+	if len(rpc.calls) != 1 {
+		t.Fatalf("Extract() RPC calls = %#v", rpc.calls)
+	}
 	params, ok := rpc.calls[0].params.(StagehandExtractParams)
 	if !ok {
 		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
@@ -371,5 +374,34 @@ func TestExtractUsesDefaultSchema(t *testing.T) {
 	}
 	if !reflect.DeepEqual(schema, wantSchema) {
 		t.Fatalf("default extract schema = %#v, want %#v", schema, wantSchema)
+	}
+}
+
+func TestExtractPreservesExplicitEmptySchema(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.extract": ExtractResult{Data: json.RawMessage(`{}`)},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	if _, err := client.Extract(
+		context.Background(),
+		"extract page text",
+		json.RawMessage{},
+		&StagehandClientExtractOptions{Page: page},
+	); err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(rpc.calls) != 1 {
+		t.Fatalf("Extract() RPC calls = %#v", rpc.calls)
+	}
+	params, ok := rpc.calls[0].params.(StagehandExtractParams)
+	if !ok {
+		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
+	}
+	if len(params.Schema) != 0 {
+		t.Fatalf("Extract() schema = %s, want explicit empty schema", params.Schema)
 	}
 }
