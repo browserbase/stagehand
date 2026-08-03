@@ -3,14 +3,29 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 	"reflect"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
-	"time"
 )
+
+func newStagehandWithClient(options CreateOptions, rpc protocolClient, writers ...io.Writer) (*Stagehand, error) {
+	browser := options.Browser
+	if browser == nil {
+		browser = &Browser{}
+		options.Browser = browser
+	}
+	writer := io.Writer(os.Stderr)
+	if len(writers) > 0 {
+		writer = writers[0]
+	}
+	return createWithAdapters(context.Background(), options, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+	}, writer)
+}
 
 type recordedCall struct {
 	method string
@@ -67,16 +82,6 @@ func (c *recordingProtocolClient) close() error {
 	return nil
 }
 
-func TestDefaultInitRequiresBrowserbaseAPIKey(t *testing.T) {
-	t.Parallel()
-
-	client := New(StagehandClientInitParams{})
-	err := client.Init(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "Browserbase API key is required") {
-		t.Fatalf("Init() error = %v, want Browserbase API key error", err)
-	}
-}
-
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 
@@ -89,11 +94,10 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 		}},
 		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
 	ctx := context.Background()
-
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 	browserContext, err := client.Context()
 	if err != nil {
@@ -175,7 +179,7 @@ func TestClientLLMHandlerUsesGeneratedUnions(t *testing.T) {
 		"stagehand.init": StagehandInitResult{Initialized: true},
 	}}
 	called := false
-	client := newStagehandWithClient(StagehandClientInitParams{
+	client, err := newStagehandWithClient(CreateOptions{
 		Generate: func(_ context.Context, params LLMGenerateParams) (LLMGenerateResult, error) {
 			called = true
 			if _, ok := params.AsStructured(); !ok {
@@ -190,10 +194,9 @@ func TestClientLLMHandlerUsesGeneratedUnions(t *testing.T) {
 		},
 	}, rpc)
 	ctx := context.Background()
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
-
 	params := StructuredGenerateParams(LLMStructuredGenerateParams{
 		Messages: []LLMMessage{},
 		ResponseFormat: LLMJSONSchemaResponseFormat{
@@ -214,43 +217,24 @@ func TestClientLLMHandlerUsesGeneratedUnions(t *testing.T) {
 	if _, ok := result.(LLMGenerateResult); !ok {
 		t.Fatalf("handler result type = %T, want LLMGenerateResult", result)
 	}
+	if err := client.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if _, ok := rpc.handlers["llm.generate"]; ok {
+		t.Fatal("Close() did not remove the client LLM handler")
+	}
 }
 
-func TestClientSerializesConcurrentInitAndClose(t *testing.T) {
+func TestClientSerializesConcurrentClose(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":  StagehandInitResult{Initialized: true},
 		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
-	var resolves atomic.Int32
-	client.adapters.resolveBrowserSource = func(
-		context.Context,
-		StagehandClientInitParams,
-	) (resolvedBrowserSource, error) {
-		resolves.Add(1)
-		return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
-	}
-
-	var initGroup sync.WaitGroup
-	initErrors := make(chan error, 8)
-	for range 8 {
-		initGroup.Add(1)
-		go func() {
-			defer initGroup.Done()
-			initErrors <- client.Init(context.Background())
-		}()
-	}
-	initGroup.Wait()
-	close(initErrors)
-	for err := range initErrors {
-		if err != nil {
-			t.Fatalf("concurrent Init() error = %v", err)
-		}
-	}
-	if resolves.Load() != 1 {
-		t.Fatalf("browser resolutions = %d, want 1", resolves.Load())
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 
 	var closeGroup sync.WaitGroup
@@ -287,6 +271,52 @@ func TestClientSerializesConcurrentInitAndClose(t *testing.T) {
 	}
 }
 
+func TestClientCloseMemoizesFirstFailure(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{
+		responses: map[string]any{
+			"stagehand.init": StagehandInitResult{Initialized: true},
+		},
+		callErrors: map[string]error{
+			"stagehand.close": errors.New("stagehand close failed"),
+		},
+	}
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	firstErr := client.Close(context.Background())
+	if firstErr == nil {
+		t.Fatal("first Close() error = nil")
+	}
+	secondResult := make(chan error, 1)
+	go func() {
+		secondResult <- client.Close(context.Background())
+	}()
+	secondErr := <-secondResult
+	if secondErr == nil {
+		t.Fatal("second Close() error = nil")
+	}
+	if secondErr.Error() != firstErr.Error() {
+		t.Fatalf("second Close() error = %q, want %q", secondErr, firstErr)
+	}
+
+	closeCalls := 0
+	for _, call := range rpc.calls {
+		if call.method == "stagehand.close" {
+			closeCalls++
+		}
+	}
+	if closeCalls != 1 {
+		t.Fatalf("stagehand.close calls = %d, want 1", closeCalls)
+	}
+	if client.Initialized() {
+		t.Fatal("client remained initialized after Close")
+	}
+}
+
 func TestActAcceptsObservedAction(t *testing.T) {
 	t.Parallel()
 
@@ -297,14 +327,14 @@ func TestActAcceptsObservedAction(t *testing.T) {
 			Success: true, Message: "clicked", ActionDescription: "Submit button", Actions: []Action{},
 		}},
 	}}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
 	action := Action{
 		Selector:    "xpath=/html/body/button",
 		Description: "Submit button",
 	}
 
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := client.Act(context.Background(), action, nil); err != nil {
 		t.Fatalf("Act() error = %v", err)
@@ -319,44 +349,6 @@ func TestActAcceptsObservedAction(t *testing.T) {
 	}
 }
 
-func TestClientCloseWaitsForInFlightInit(t *testing.T) {
-	t.Parallel()
-
-	rpc := &recordingProtocolClient{responses: map[string]any{
-		"stagehand.init":  StagehandInitResult{Initialized: true},
-		"stagehand.close": StagehandCloseResult{Closed: true},
-	}}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
-	resolveStarted := make(chan struct{})
-	continueResolve := make(chan struct{})
-	client.adapters.resolveBrowserSource = func(
-		context.Context,
-		StagehandClientInitParams,
-	) (resolvedBrowserSource, error) {
-		close(resolveStarted)
-		<-continueResolve
-		return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
-	}
-
-	initDone := make(chan error, 1)
-	go func() { initDone <- client.Init(context.Background()) }()
-	<-resolveStarted
-	closeDone := make(chan error, 1)
-	go func() { closeDone <- client.Close(context.Background()) }()
-	select {
-	case err := <-closeDone:
-		t.Fatalf("Close() returned before Init() completed: %v", err)
-	case <-time.After(25 * time.Millisecond):
-	}
-	close(continueResolve)
-	if err := <-initDone; err != nil {
-		t.Fatalf("Init() error = %v", err)
-	}
-	if err := <-closeDone; err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
-}
-
 func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 	t.Parallel()
 
@@ -368,14 +360,130 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 			"stagehand.close": fmt.Errorf("close RPC: %w", ErrCDPConnectionClosed),
 		},
 	}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	client, err := newStagehandWithClient(CreateOptions{}, rpc)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 	if err := client.Close(context.Background()); err != nil {
 		t.Fatalf("Close() error = %v, want nil", err)
 	}
 	if !rpc.closed {
 		t.Fatal("protocol client was not closed")
+	}
+}
+
+func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
+	region := BrowserbaseRegion("us-west-2")
+	handleAPIKey := "handle-key"
+	optionAPIKey := "option-key"
+	browser := &Browser{
+		workerAPIKey: &handleAPIKey,
+		workerBrowser: &BrowserSessionMetadata{
+			SessionID: "session-1",
+			Region:    &region,
+		},
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	client, err := createWithAdapters(context.Background(), CreateOptions{
+		Browser: browser,
+		APIKey:  &optionAPIKey,
+	}, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if client.Browser() != browser || !client.Initialized() {
+		t.Fatalf("created client = %#v", client)
+	}
+	params, ok := rpc.calls[0].params.(StagehandInitParams)
+	if !ok {
+		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
+	}
+	if params.APIKey == nil || *params.APIKey != handleAPIKey {
+		t.Fatalf("APIKey = %#v", params.APIKey)
+	}
+	if params.Browser == nil || params.Browser.SessionID != "session-1" || params.Browser.Region == nil || *params.Browser.Region != region {
+		t.Fatalf("Browser = %#v", params.Browser)
+	}
+	if params.BrowserCDPURL == nil || *params.BrowserCDPURL != rpc.browserWebSocketDebuggerURL() {
+		t.Fatalf("BrowserCDPURL = %#v", params.BrowserCDPURL)
+	}
+	if params.ProtocolVersion != stagehandProtocolVersion || params.ClientInfo.Name != stagehandSDKClientName || params.ClientInfo.Version != stagehandSDKVersion {
+		t.Fatalf("protocol identity = %#v %#v", params.ProtocolVersion, params.ClientInfo)
+	}
+}
+
+func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {
+	browser := &Browser{}
+	_, err := Create(context.Background(), CreateOptions{Browser: browser})
+	if err == nil || err.Error() != "connect claimed browser: stagehand browser must be created by a stagehand browser factory" {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := claimBrowser(browser); err != nil {
+		t.Fatalf("claimBrowser() after Create error = %v", err)
+	}
+	releaseBrowserClaim(browser)
+}
+
+func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
+	apiKey := "option-key"
+	browser := &Browser{}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init": StagehandInitResult{Initialized: true},
+	}}
+	_, err := createWithAdapters(context.Background(), CreateOptions{
+		Browser: browser,
+		APIKey:  &apiKey,
+	}, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) { return rpc, nil },
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	params := rpc.calls[0].params.(StagehandInitParams)
+	if params.Browser != nil || params.APIKey == nil || *params.APIKey != apiKey {
+		t.Fatalf("worker metadata = %#v %#v", params.Browser, params.APIKey)
+	}
+}
+
+func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
+	browser := &Browser{}
+	initErr := errors.New("init failed")
+	failedRPC := &recordingProtocolClient{callErrors: map[string]error{"stagehand.init": initErr}}
+	successRPC := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init":  StagehandInitResult{Initialized: true},
+		"stagehand.close": StagehandCloseResult{Closed: true},
+	}}
+	connections := 0
+	adapters := clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+			connections++
+			if connections == 1 {
+				return failedRPC, nil
+			}
+			return successRPC, nil
+		},
+	}
+	if _, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters); !errors.Is(err, initErr) {
+		t.Fatalf("first Create() error = %v", err)
+	}
+	if !failedRPC.closed {
+		t.Fatal("failed Create did not close its RPC client")
+	}
+	client, err := createWithAdapters(context.Background(), CreateOptions{Browser: browser}, adapters)
+	if err != nil {
+		t.Fatalf("retry Create() error = %v", err)
+	}
+	if err := client.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if browser.Closed() {
+		t.Fatal("Stagehand.Close closed the Browser handle")
+	}
+	if _, err := claimBrowser(browser); err == nil || err.Error() != "this browser is already attached to a Stagehand instance" {
+		t.Fatalf("claim after successful Close error = %v", err)
 	}
 }

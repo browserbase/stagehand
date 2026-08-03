@@ -107,17 +107,13 @@ describe("All language examples remain in sync", () => {
           ).not.toBeNull();
         } else if (language === "go") {
           expect(
-            goCalls(root).some(({ object, method }) => object === stagehand && method === "Init"),
-            `${language} ${example.file} must initialize Stagehand`,
-          ).toBe(true);
-          expect(
             goCalls(root).some(({ object, method }) => object === stagehand && method === "Close"),
             `${language} ${example.file} must close Stagehand`,
           ).toBe(true);
         } else {
           expect(
-            root.find({ rule: { pattern: `await ${stagehand}.init()` } }),
-            `${language} ${example.file} must initialize Stagehand`,
+            root.find({ rule: { pattern: `${stagehand} = await Stagehand.create($$$ARGS)` } }),
+            `${language} ${example.file} must create Stagehand asynchronously`,
           ).not.toBeNull();
           expect(
             root.find({ rule: { pattern: `await ${stagehand}.close()` } }),
@@ -154,8 +150,8 @@ function stagehandVariable(root: SgNode, language: ExampleLanguage): string | un
         language === "typescript"
           ? "const $STAGEHAND = await Stagehand.create($$$ARGS)"
           : language === "python"
-            ? "$STAGEHAND = Stagehand($$$ARGS)"
-            : "$STAGEHAND := stagehand.New($$$ARGS)",
+            ? "$STAGEHAND = await Stagehand.create($$$ARGS)"
+            : "$STAGEHAND, $ERR := stagehand.Create($$$ARGS)",
     },
   });
 
@@ -216,7 +212,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
 
   return goCalls(root)
     .flatMap(({ object, method }) => {
-      if (object === stagehand && method !== "Context" && method !== "Init" && method !== "Close") {
+      if (object === stagehand && method !== "Context" && method !== "Close") {
         return [`stagehand.${snakeCase(method)}`];
       }
       if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];

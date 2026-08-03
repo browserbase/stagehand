@@ -110,6 +110,7 @@ import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
+import { buildGatewayContext } from "./llm/gatewayClient.js";
 import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
@@ -350,7 +351,9 @@ export class StagehandRuntime {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    return await llmService.generate(model, input, this.adapters.clientLLMGenerate);
+    const gateway =
+      state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+    return await llmService.generate(model, input, this.adapters.clientLLMGenerate, gateway);
   }
 
   async contextPages(): Promise<ContextPagesResult> {

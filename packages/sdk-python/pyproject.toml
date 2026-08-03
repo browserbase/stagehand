@@ -4,7 +4,7 @@ version = "4.0.0"
 description = "Browserbase's SDK for building browser agents"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["pydantic>=2.12,<3", "websockets>=16.1.1"]
+dependencies = ["browserbase>=1.15,<2", "pydantic>=2.12,<3", "websockets>=16.1.1"]
 license = "MIT"
 authors = [{ name = "Browserbase" }]
 keywords = ["ai", "browser", "automation", "web-scraping", "testing"]

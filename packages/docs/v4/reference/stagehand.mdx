@@ -829,7 +829,7 @@ result = await stagehand.act("Click the sign in button")
 Find candidate actions on the page from an optional instruction.
 
 ```python
-actions = await stagehand.observe(instruction="Find the sign in button")
+actions = await stagehand.observe("Find the sign in button")
 ```
 
 <ParamField path="instruction" type="str | None" optional>
@@ -957,7 +957,7 @@ actions = await stagehand.observe(instruction="Find the sign in button")
 Extract structured data from the page.
 
 ```python
-product = await stagehand.extract(instruction="Extract the product", schema=Product)
+product = await stagehand.extract("Extract the product", Product)
 print(product.data, product.metadata.cache_status)
 ```
 

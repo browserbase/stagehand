@@ -13,7 +13,7 @@ await stagehand.observe("find the login button");
 
 <View title="Python" icon="python">
 ```python
-await stagehand.observe(instruction="find the login button")
+await stagehand.observe("find the login button")
 ```
 </View>
 
@@ -66,7 +66,7 @@ page = await stagehand.context.active_page()
 if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
-result = await stagehand.observe(instruction="find the learn more button")
+result = await stagehand.observe("find the learn more button")
 ```
 </View>
 
@@ -173,10 +173,10 @@ await stagehand.observe("find the delete account button in settings");
 ```python
 # Clear and specific
 await stagehand.observe(
-    instruction="find the primary call-to-action button in the hero section"
+    "find the primary call-to-action button in the hero section"
 )
-await stagehand.observe(instruction="find all input fields in the checkout form")
-await stagehand.observe(instruction="find the delete account button in settings")
+await stagehand.observe("find all input fields in the checkout form")
+await stagehand.observe("find the delete account button in settings")
 ```
 </View>
 
@@ -217,10 +217,10 @@ await stagehand.observe("what is the page title?");
 <View title="Python" icon="python">
 ```python
 # Too vague
-await stagehand.observe(instruction="find buttons")
+await stagehand.observe("find buttons")
 
 # Use extract() for data instead
-await stagehand.observe(instruction="what is the page title?")
+await stagehand.observe("what is the page title?")
 ```
 </View>
 
@@ -266,7 +266,7 @@ from stagehand import ModelConfig
 
 # Custom model configuration
 result = await stagehand.observe(
-    instruction="find navigation links",
+    "find navigation links",
     model=ModelConfig.model_validate({
         "model_name": "openai/gpt-5.4-mini",
         "api_key": os.environ["OPENAI_API_KEY"],
@@ -320,7 +320,7 @@ const { data: actions } = await stagehand.observe("find the main call-to-action 
 <View title="Python" icon="python">
 ```python
 result = await stagehand.observe(
-    instruction="find the main call-to-action buttons",
+    "find the main call-to-action buttons",
     ignore_selectors=[
         "//aside[contains(@class, 'promo-rail')]",
         "//div[@id='floating-chat-launcher']",
@@ -380,7 +380,7 @@ if (emailField && passwordField) {
 <View title="Python" icon="python">
 ```python
 observed = await stagehand.observe(
-    instruction="find the login form fields",
+    "find the login form fields",
     variables={
         "username": {"value": "user@example.com", "description": "The login email"},
         "password": {
@@ -503,7 +503,7 @@ stagehand = Stagehand(
 )
 
 # Or disable it for a single call
-result = await stagehand.observe(instruction="find the login button", cache=False)
+result = await stagehand.observe("find the login button", cache=False)
 ```
 </View>
 
@@ -575,7 +575,7 @@ await products_page.goto("https://www.example.com/products")
 
 # Use observe with that specific page
 result = await stagehand.observe(
-    instruction="find all product cards",
+    "find all product cards",
     page=products_page,
 )
 ```
@@ -647,7 +647,7 @@ for (const field of formFields) {
 
 <View title="Python" icon="python">
 ```python
-observed = await stagehand.observe(instruction="find all form input fields")
+observed = await stagehand.observe("find all form input fields")
 
 for field in observed.data:
     # No LLM call: Stagehand replays the observed action
@@ -717,11 +717,11 @@ class Pricing(BaseModel):
     tiers: list[PricingTier]
 
 
-observed = await stagehand.observe(instruction="find the pricing table")
+observed = await stagehand.observe("find the pricing table")
 
 pricing = (await stagehand.extract(
-    instruction="extract all pricing tiers",
-    schema=Pricing,
+    "extract all pricing tiers",
+    Pricing,
     selector=observed.data[0].selector,
 )).data
 
@@ -813,7 +813,7 @@ if (deleteButton?.method === "click") {
 
 <View title="Python" icon="python">
 ```python
-observed = await stagehand.observe(instruction="find the delete account button")
+observed = await stagehand.observe("find the delete account button")
 delete_button = observed.data[0] if observed.data else None
 
 if delete_button is not None and delete_button.method == "click":
@@ -874,7 +874,7 @@ async def cached_observe(instruction: str) -> list[Action]:
     if instruction in action_cache:
         return action_cache[instruction]
 
-    observed = await stagehand.observe(instruction=instruction)
+    observed = await stagehand.observe(instruction)
     action_cache[instruction] = observed.data
     return observed.data
 ```
@@ -942,12 +942,12 @@ if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.wait_for_load_state("domcontentloaded")
 
-observed = await stagehand.observe(instruction="find the submit button")
+observed = await stagehand.observe("find the submit button")
 
 if not observed.data:
     print("No elements found, trying alternative instruction")
     alt = await stagehand.observe(
-        instruction="find the button at the bottom of the form"
+        "find the button at the bottom of the form"
     )
 ```
 </View>
@@ -1006,11 +1006,11 @@ await stagehand.observe("find the red 'Delete' button in the user settings panel
 ```python
 # More specific instructions improve accuracy
 # Instead of:
-await stagehand.observe(instruction="find the button")
+await stagehand.observe("find the button")
 
 # Use context:
 await stagehand.observe(
-    instruction="find the red 'Delete' button in the user settings panel"
+    "find the red 'Delete' button in the user settings panel"
 )
 ```
 </View>
@@ -1058,7 +1058,7 @@ if (action && validMethods.includes(action.method || "")) {
 
 <View title="Python" icon="python">
 ```python
-observed = await stagehand.observe(instruction="find the submit button")
+observed = await stagehand.observe("find the submit button")
 action = observed.data[0] if observed.data else None
 
 # Validate method before acting

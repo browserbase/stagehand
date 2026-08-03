@@ -42,6 +42,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
@@ -63,8 +64,8 @@ from .webmcp import (
 )
 
 __all__ = [
-    "ActResultData",
     "ActResult",
+    "ActResultData",
     "Action",
     "Animations",
     "BrowserClipboard",
@@ -72,8 +73,8 @@ __all__ = [
     "BrowserbaseBrowserSettings",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
-    "CacheStatus",
     "CacheOptions",
+    "CacheStatus",
     "Caret",
     "Cookie",
     "CookieParam",
@@ -103,6 +104,7 @@ __all__ = [
     "Scale",
     "ScreenshotType",
     "Stagehand",
+    "StagehandBrowser",
     "StagehandClientLoggingConfig",
     "StagehandMetrics",
     "StagehandResultMetadata",
@@ -114,4 +116,6 @@ __all__ = [
     "WebMCPInvocationStatus",
     "WebMCPTool",
     "WebMCPToolResponse",
+    "browserbase",
+    "local_browser",
 ]

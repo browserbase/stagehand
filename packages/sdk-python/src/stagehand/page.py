@@ -327,6 +327,7 @@ class Page:
     async def wait_for_load_state(
         self,
         state: LoadState | Literal["load", "domcontentloaded", "networkidle"],
+        *,
         timeout: int | None = None,
     ) -> None:
         params = PageWaitForLoadStateParams.model_validate({
