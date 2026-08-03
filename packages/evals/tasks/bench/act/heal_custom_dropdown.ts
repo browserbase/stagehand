@@ -19,12 +19,25 @@ export default defineBenchV4Task(
       // stagehand#2427): same intentionally invalid selector as the v3
       // twin — healing must re-locate "The 'Select a country' dropdown"
       // and click it to expand.
-      await stagehand.act({
+      const { data: healed } = await stagehand.act({
         description: "The 'Select a country' dropdown",
         selector: "/html/not-a-dropdown",
         arguments: [],
         method: "click",
       });
+
+      // Report a failed heal directly rather than letting it surface as an
+      // absent dropdown option. Healing requires selfHeal: true at init; the
+      // server defaults it off and it cannot be set per-call.
+      if (!healed.success) {
+        return {
+          _success: false,
+          message: `self-heal did not expand the dropdown: ${healed.message}`,
+          debugUrl,
+          sessionUrl,
+          logs: logger.getLogs(),
+        };
+      }
 
       // If the dropdown expanded, its options are now rendered in the DOM.
       // (v3 checked the schemaless-extract page text; v4 extract requires a
