@@ -1,4 +1,5 @@
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchV4Task(
   { name: "observe_file_uploads" },
@@ -25,38 +26,8 @@ export default defineBenchV4Task(
       // so the same element-identity check is
       // re-expressed in-page: resolve the observed selector and the expected
       // selector and compare element references.
-      const foundMatch = await page.evaluate(
-        ({
-          observedSelector,
-          expectedSelector,
-        }: {
-          observedSelector: string;
-          expectedSelector: string;
-        }) => {
-          const resolve = (selector: string): Element | null => {
-            const raw = selector.startsWith("xpath=") ? selector.slice("xpath=".length) : selector;
-            if (raw.startsWith("/") || raw.startsWith("(")) {
-              const result = document.evaluate(
-                raw,
-                document,
-                null,
-                XPathResult.FIRST_ORDERED_NODE_TYPE,
-                null,
-              );
-              return result.singleNodeValue as Element | null;
-            }
-            return document.querySelector(raw);
-          };
-
-          const expected = resolve(expectedSelector);
-          const observed = resolve(observedSelector);
-          return expected !== null && expected === observed;
-        },
-        {
-          observedSelector: observations[0].selector,
-          expectedSelector: expectedLocator,
-        },
-      );
+      const foundMatch =
+        (await matchingSelector(page, observations[0].selector, [expectedLocator])) !== null;
 
       return {
         _success: foundMatch,
