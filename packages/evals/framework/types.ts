@@ -7,7 +7,7 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-import type { AvailableModel, LogLine } from "stagehand-v3";
+import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
 import type { Page, Stagehand } from "@browserbasehq/stagehand";
 import type {
   CorePageHandle,
@@ -19,8 +19,11 @@ import type {
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
 
-/** Page type inferred from V3.context.pages()[0] */
-type Page = ReturnType<V3["context"]["pages"]>[number];
+/**
+ * Page type inferred from V3.context.pages()[0]. Named V3Page because the v4
+ * `Page` import above must keep its exported name (stagehand/no-renamed-imports).
+ */
+type V3Page = ReturnType<V3["context"]["pages"]>[number];
 
 export type Tier = "core" | "bench";
 
@@ -36,13 +39,6 @@ export interface TaskMeta {
 export interface BenchTaskMeta extends TaskMeta {
   /** Override the default model list for this specific task. */
   models?: string[];
-  /**
-   * Custom system prompt passed to the Stagehand instance at init time
-   * (v3 `V3Options.systemPrompt` / v4 `StagehandInitParams.systemPrompt`).
-   * Used by tasks that test instruction-following (e.g. combination/instructions).
-   * Additional instructions applied when initializing Stagehand for this task. 
-   */
-  systemPrompt?: string;
 }
 
 /** Context provided to core (tier 1) tasks. */
@@ -75,7 +71,7 @@ export interface BenchTaskContext {
   /** Agent instance (created when the task lives under agent/). */
   agent?: AgentInstance;
   /** Playwright page (convenience — same as v3.context.pages()[0]). */
-  page: Page;
+  page: V3Page;
   /** Eval logger. */
   logger: EvalLogger;
   /** Full eval input (name, modelName, agent mode, params). */
@@ -172,29 +168,20 @@ export interface TaskRegistry {
 }
 
 /**
- * Context type for bench tasks ported to the V4Stagehand v4 SDK.
+ * Context type for bench tasks ported to the Stagehand v4 SDK.
  *
- * Deliberately mirrors BenchTaskContext (types.ts) so per-task diffs between
- * the v3 and v4 suites stay 1:1, with the v3 surface swapped for the v4 one:
- * `v3` → `stagehand`, Playwright `page` → v4 `V4Page`. Keeping `page` typed as
- * the v4 V4Page makes any Playwright API usage in a ported task a type error.
+ * Mirrors BenchTaskContext so per-task diffs between the v3 and v4 suites stay
+ * 1:1, with the v3 surface swapped for the v4 one: `v3` → `stagehand`,
+ * Playwright page → v4 `Page`. Typing `page` as the v4 `Page` makes any
+ * Playwright API usage in a ported task a type error.
  */
-
 export interface BenchV4TaskContext {
-  /** V4Stagehand v4 client instance. */
-  stagehand: V4Stagehand;
+  /** Stagehand v4 client instance. */
+  stagehand: Stagehand;
   /** v4 page object (RPC-backed — url()/title() are async). */
-  page: V4Page;
+  page: Page;
   /** Eval logger. Note: the v4 SDK itself logs to the console, not here. */
   logger: EvalLogger;
-  /** Full eval input (name, modelName, params). */
-  input: {
-    name: string;
-    modelName: AvailableModel;
-    params?: Record<string, unknown>;
-  };
-  /** Model used for this run. */
-  modelName: AvailableModel;
   /** Debug URL (unavailable from the v4 SDK — always empty for now). */
   debugUrl: string;
   /** Session URL (Browserbase; constructed from the session ID). */
