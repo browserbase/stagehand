@@ -47,12 +47,7 @@ export const integrationTestGroups = {
   ],
   "local/locators-write": ["locator-fill", "locator-input-methods", "locator-select-option"],
   "local/page-navigation": ["page-addInitScript", "page-extra-http-headers", "page-goto-response"],
-  "local/page-interactions": [
-    "click-count",
-    "page-drag-and-drop",
-    "page-hover",
-    "page-scroll",
-  ],
+  "local/page-interactions": ["click-count", "page-drag-and-drop", "page-hover", "page-scroll"],
   "local/snapshots-ai": ["observe-element-id-format"],
   "local/waits-timeouts": ["wait-for-selector", "wait-for-timeout"],
 } as const;
