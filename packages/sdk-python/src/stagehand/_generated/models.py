@@ -1241,7 +1241,7 @@ class NavigationResponseDescriptor(WireModel):
     )
     response_id: Annotated[StrictStr, Field(min_length=1)]
     url: StrictStr
-    status: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
+    status: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
     status_text: StrictStr
     headers: dict[StrictStr, StrictStr]
     from_service_worker: StrictBool
@@ -1265,7 +1265,7 @@ class NavigationServerAddr(WireModel):
         validate_by_name=True,
     )
     ip_address: StrictStr
-    port: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    port: Annotated[StrictInt, Field(ge=0, le=65535)]
 
 
 class ObserveOptions(WireModel):

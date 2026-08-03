@@ -1297,7 +1297,7 @@ export const NavigationSecurityDetailsSchema = z
 export const NavigationServerAddrSchema = z
   .strictObject({
     ipAddress: z.string(),
-    port: z.number().int().nonnegative(),
+    port: z.number().int().min(0).max(65_535),
   })
   .meta({ id: "NavigationServerAddr" });
 
@@ -1311,7 +1311,7 @@ export const NavigationResponseDescriptorSchema = z
   .strictObject({
     responseId: z.string().min(1),
     url: z.string(),
-    status: z.number().int(),
+    status: z.number().int().nonnegative(),
     statusText: z.string(),
     headers: z.record(z.string(), z.string()),
     fromServiceWorker: z.boolean(),
