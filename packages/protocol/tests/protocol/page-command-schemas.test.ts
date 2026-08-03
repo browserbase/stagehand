@@ -3,7 +3,6 @@ import {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageDragAndDropParamsSchema,
-  PageDragAndDropResultSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -49,19 +48,19 @@ describe("page command schemas", () => {
     ).toThrow();
   });
 
-  it("defines coordinate interaction params and results", () => {
+  it("defines coordinate interaction params", () => {
     expect(
       PageClickParamsSchema.parse({
         pageId,
         x: 10,
         y: 20,
-        options: { button: "right", clickCount: 2, returnXpath: true },
+        options: { button: "right", clickCount: 2 },
       }),
     ).toStrictEqual({
       pageId,
       x: 10,
       y: 20,
-      options: { button: "right", clickCount: 2, returnXpath: true },
+      options: { button: "right", clickCount: 2 },
     });
     expect(PageHoverParamsSchema.parse({ pageId, x: -1, y: 0 })).toStrictEqual({
       pageId,
@@ -75,7 +74,6 @@ describe("page command schemas", () => {
         y: 200,
         deltaX: -10,
         deltaY: 400,
-        options: { returnXpath: true },
       }),
     ).toStrictEqual({
       pageId,
@@ -83,7 +81,6 @@ describe("page command schemas", () => {
       y: 200,
       deltaX: -10,
       deltaY: 400,
-      options: { returnXpath: true },
     });
     expect(
       PageDragAndDropParamsSchema.parse({
@@ -102,11 +99,32 @@ describe("page command schemas", () => {
       toY: 4,
       options: { steps: 5, delay: 10 },
     });
-    expect(
-      PageDragAndDropResultSchema.parse({ fromXpath: "/html/body/a", toXpath: "/html/body/b" }),
-    ).toStrictEqual({ fromXpath: "/html/body/a", toXpath: "/html/body/b" });
     expect(() =>
       PageClickParamsSchema.parse({ pageId, x: 1, y: 2, options: { clickCount: 0 } }),
+    ).toThrow();
+    expect(() =>
+      PageClickParamsSchema.parse({ pageId, x: 1, y: 2, options: { returnXpath: true } }),
+    ).toThrow();
+    expect(() => PageHoverParamsSchema.parse({ pageId, x: 1, y: 2, options: {} })).toThrow();
+    expect(() =>
+      PageScrollParamsSchema.parse({
+        pageId,
+        x: 1,
+        y: 2,
+        deltaX: 3,
+        deltaY: 4,
+        options: {},
+      }),
+    ).toThrow();
+    expect(() =>
+      PageDragAndDropParamsSchema.parse({
+        pageId,
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { returnXpath: true },
+      }),
     ).toThrow();
   });
 

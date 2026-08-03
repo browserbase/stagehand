@@ -5,7 +5,7 @@ import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
-import { captureHybridSnapshot, resolveXpathForLocation } from "./a11y/snapshot/index.js";
+import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import {
@@ -1391,35 +1391,10 @@ export class Page {
     options?: {
       button?: "left" | "right" | "middle";
       clickCount?: number;
-      returnXpath?: boolean;
     },
-  ): Promise<string> {
+  ): Promise<void> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
-
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      // Resolve the deepest node at the given coordinates and compute absolute XPath efficiently
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) {
-          this.logger.debug("Click resolved hit", {
-            category: "page",
-            frameId: String(hit.frameId),
-            backendNodeId: String(hit.backendNodeId),
-            x,
-            y,
-          });
-          xpathResult = hit.absoluteXPath;
-          this.logger.debug("Click resolved XPath", {
-            category: "page",
-            xpath: String(xpathResult ?? ""),
-          });
-        }
-      } catch {
-        // best-effort; fall through if any step fails
-      }
-    }
 
     // Synthesize a simple mouse move + press + release sequence.
     await this.updateCursor(x, y);
@@ -1456,8 +1431,6 @@ export class Page {
       );
     }
     await Promise.all(dispatches);
-
-    return xpathResult ?? "";
   }
 
   /**
@@ -1465,30 +1438,7 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  async hover(x: number, y: number, options?: { returnXpath?: boolean }): Promise<string> {
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) {
-          this.logger.debug("Hover resolved hit", {
-            category: "page",
-            frameId: String(hit.frameId),
-            backendNodeId: String(hit.backendNodeId),
-            x,
-            y,
-          });
-          xpathResult = hit.absoluteXPath;
-        }
-      } catch {
-        this.logger.debug("Failed to resolve XPath for hover", {
-          category: "page",
-          x,
-          y,
-        });
-      }
-    }
-
+  async hover(x: number, y: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -1496,26 +1446,8 @@ export class Page {
       y,
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return xpathResult ?? "";
   }
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: { returnXpath?: boolean },
-  ): Promise<string> {
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) xpathResult = hit.absoluteXPath;
-      } catch {
-        // best-effort
-      }
-    }
-
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -1533,8 +1465,6 @@ export class Page {
       deltaX,
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return xpathResult ?? "";
   }
 
   /**
@@ -1550,9 +1480,8 @@ export class Page {
       button?: "left" | "right" | "middle";
       steps?: number;
       delay?: number;
-      returnXpath?: boolean;
     },
-  ): Promise<[string, string]> {
+  ): Promise<void> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1571,23 +1500,6 @@ export class Page {
           return 1;
       }
     };
-
-    let fromXpath: string | undefined;
-    let toXpath: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const start = await resolveXpathForLocation(this, fromX, fromY);
-        if (start) fromXpath = start.absoluteXPath;
-      } catch {
-        //
-      }
-      try {
-        const end = await resolveXpathForLocation(this, toX, toY);
-        if (end) toXpath = end.absoluteXPath;
-      } catch {
-        //
-      }
-    }
 
     // Move to start
     await this.updateCursor(fromX, fromY);
@@ -1634,8 +1546,6 @@ export class Page {
       buttons: buttonMask(button),
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**

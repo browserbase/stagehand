@@ -418,45 +418,36 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes page coordinate interactions and unwraps xpath results", async () => {
+  it("routes page coordinate interactions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageClick, { xpath: "/html/body/button" });
-    client.queueResponse(StagehandMethods.pageHover, { xpath: "/html/body/a" });
-    client.queueResponse(StagehandMethods.pageScroll, { xpath: "/html/body/main" });
-    client.queueResponse(StagehandMethods.pageDragAndDrop, {
-      fromXpath: "/html/body/div[1]",
-      toXpath: "/html/body/div[2]",
-    });
+    client.queueResponse(StagehandMethods.pageClick, { ok: true });
+    client.queueResponse(StagehandMethods.pageHover, { ok: true });
+    client.queueResponse(StagehandMethods.pageScroll, { ok: true });
+    client.queueResponse(StagehandMethods.pageDragAndDrop, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
 
-    await expect(
-      page.click(10, 20, { button: "right", clickCount: 2, returnXpath: true }),
-    ).resolves.toBe("/html/body/button");
-    await expect(page.hover(30, 40, { returnXpath: true })).resolves.toBe("/html/body/a");
-    await expect(page.scroll(50, 60, -25, 400, { returnXpath: true })).resolves.toBe(
-      "/html/body/main",
-    );
+    await expect(page.click(10, 20, { button: "right", clickCount: 2 })).resolves.toBeUndefined();
+    await expect(page.hover(30, 40)).resolves.toBeUndefined();
+    await expect(page.scroll(50, 60, -25, 400)).resolves.toBeUndefined();
     await expect(
       page.dragAndDrop(1, 2, 3, 4, {
         button: "left",
         steps: 5,
         delay: 10,
-        returnXpath: true,
       }),
-    ).resolves.toStrictEqual(["/html/body/div[1]", "/html/body/div[2]"]);
+    ).resolves.toBeUndefined();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageClick, {
         pageId: "page-1",
         x: 10,
         y: 20,
-        options: { button: "right", clickCount: 2, returnXpath: true },
+        options: { button: "right", clickCount: 2 },
       }),
       requestCall(StagehandMethods.pageHover, {
         pageId: "page-1",
         x: 30,
         y: 40,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageScroll, {
         pageId: "page-1",
@@ -464,7 +455,6 @@ describe("Stagehand TS object wrapper", () => {
         y: 60,
         deltaX: -25,
         deltaY: 400,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageDragAndDrop, {
         pageId: "page-1",
@@ -472,7 +462,7 @@ describe("Stagehand TS object wrapper", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+        options: { button: "left", steps: 5, delay: 10 },
       }),
     ]);
   });
