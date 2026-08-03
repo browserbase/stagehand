@@ -125,7 +125,7 @@ describe("Page.screenshot options", () => {
   it("masks elements inside the dialog top layer", async () => {
     const page = await firstPage(stagehand);
     await page.goto(
-      `data:text/html,${encodeURIComponent(`<style>#dialog { transform: translate(35px, 25px); }</style><dialog id="dialog"><input id="secret" value="top-layer"></dialog><script>dialog.showModal()</script>`)}`,
+      `data:text/html,${encodeURIComponent(`<style>#dialog { transform: translate(35px, 25px) scale(1.2) rotate(4deg); transform-origin: top left; }</style><dialog id="dialog"><input id="secret" value="top-layer"></dialog><script>dialog.showModal()</script>`)}`,
     );
 
     const secret = page.locator("#secret");
