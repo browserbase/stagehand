@@ -2573,4 +2573,3 @@ servers:
   - url: https://api.stagehand.browserbase.com
 security:
   - BrowserbaseApiKey: []
-    BrowserbaseProjectId: []
