@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -18,6 +19,16 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	if err != nil {
 		t.Skipf("Chrome is not installed: %v", err)
 	}
+	fixtureBody := []byte(
+		`<!doctype html><html><head><title>Stagehand Go Response</title></head>` +
+			`<body>navigation response</body></html>`,
+	)
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		writer.Header().Set("X-Stagehand-Fixture", "go-navigation-response")
+		_, _ = writer.Write(fixtureBody)
+	}))
+	defer fixture.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -35,10 +46,72 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	}
 	extensionDir := client.browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
+	assertNavigationResponse(t, ctx, client, fixture.URL, fixtureBody)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with local browser error = %v", err)
 	}
 	assertExtensionDirectoryRemoved(t, extensionDir)
+}
+
+func assertNavigationResponse(
+	t *testing.T,
+	ctx context.Context,
+	client *Stagehand,
+	fixtureURL string,
+	fixtureBody []byte,
+) {
+	t.Helper()
+	browserContext, err := client.Context()
+	if err != nil {
+		t.Fatalf("Stagehand.Context() error = %v", err)
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
+	}
+	if page == nil {
+		t.Fatal("BrowserContext.ActivePage() = nil")
+	}
+
+	response, err := page.Goto(ctx, fixtureURL, nil)
+	if err != nil {
+		t.Fatalf("Page.Goto() error = %v", err)
+	}
+	if response == nil {
+		t.Fatal("Page.Goto() response = nil")
+	}
+	if response.Status() != http.StatusOK || response.StatusText() != "OK" || !response.OK() {
+		t.Fatalf(
+			"navigation response status = (%d, %q, ok=%t)",
+			response.Status(),
+			response.StatusText(),
+			response.OK(),
+		)
+	}
+	if strings.TrimSuffix(response.URL(), "/") != fixtureURL {
+		t.Fatalf("navigation response URL = %q, want %q", response.URL(), fixtureURL)
+	}
+	if response.Headers()["x-stagehand-fixture"] != "go-navigation-response" {
+		t.Fatalf("navigation response headers = %#v", response.Headers())
+	}
+	header, present, err := response.HeaderValue(ctx, "X-Stagehand-Fixture")
+	if err != nil || !present || header != "go-navigation-response" {
+		t.Fatalf("Response.HeaderValue() = (%q, %t, %v)", header, present, err)
+	}
+	body, err := response.Body(ctx)
+	if err != nil || !bytes.Equal(body, fixtureBody) {
+		t.Fatalf("Response.Body() = (%q, %v)", body, err)
+	}
+	text, err := response.Text(ctx)
+	if err != nil || text != string(fixtureBody) {
+		t.Fatalf("Response.Text() = (%q, %v)", text, err)
+	}
+	if err := response.Finished(ctx); err != nil {
+		t.Fatalf("Response.Finished() error = %v", err)
+	}
+	if ref := page.Ref(); ref.URL == nil || *ref.URL != response.URL() {
+		t.Fatalf("Page.Ref() = %#v, response URL = %q", ref, response.URL())
+	}
 }
 
 func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
