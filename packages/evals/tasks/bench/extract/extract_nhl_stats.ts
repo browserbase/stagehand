@@ -1,19 +1,6 @@
 import { z } from "zod";
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
-
-/**
- * Inlined behavior-identical copy of `normalizeString` from stagehand
- * packages/evals/utils.ts — v4 eval tasks may only import "zod" and
- * "../../../framework/*.js". Pure computation, no behavior change.
- */
-function normalizeString(str: string): string {
-  return str
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[;/#!$%^&*:{}=\-_`~()]/g, "")
-    .replace(/\s*,\s*/g, ", ")
-    .trim();
-}
+import { normalizeString } from "../../../framework/stringScoring.js";
 
 export default defineBenchV4Task(
   { name: "extract_nhl_stats" },
