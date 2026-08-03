@@ -1,0 +1,19 @@
+packages/evals/framework/runner.ts
+  s_9b9154ae9e8c8c::t_3b838acd93ffa1 350-362
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "826872800858c66083b343124084b617314a2067",
+  "prompts": {},
+  "sessions": {
+    "s_9b9154ae9e8c8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c311c9ba-b73b-46c8-a606-0ed1839d8de7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
