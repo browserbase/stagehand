@@ -252,15 +252,24 @@ describe("Stagehand service worker RPC client smoke", () => {
     const pages = await activeRpcClient.send(StagehandMethods.contextPages, {});
     const page = pages[0] ?? (await activeRpcClient.send(StagehandMethods.contextNewPage, {}));
 
-    await expect(
-      activeRpcClient.send(StagehandMethods.pageGoto, {
-        pageId: page.pageId,
-        url: activeFixtureServer.url,
-      }),
-    ).resolves.toStrictEqual({
+    const navigation = await activeRpcClient.send(StagehandMethods.pageGoto, {
       pageId: page.pageId,
       url: activeFixtureServer.url,
     });
+    expect(navigation.page).toStrictEqual({
+      pageId: page.pageId,
+      url: activeFixtureServer.url,
+    });
+    expect(navigation.response).toMatchObject({
+      url: activeFixtureServer.url,
+      status: 200,
+      statusText: "OK",
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+      },
+      fromServiceWorker: false,
+    });
+    expect(navigation.response?.responseId).toEqual(expect.any(String));
 
     await expect(
       activeRpcClient.send(StagehandMethods.pageUrl, { pageId: page.pageId }),
