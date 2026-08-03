@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type {
   LLMGenerateResult,
   LLMImageContent,
+  StagehandMetrics,
   StagehandResultUsage,
 } from "../../../protocol/types.js";
 import {
@@ -35,6 +36,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   let browser: StagehandBrowser | undefined;
   const extractionScreenshots: LLMImageContent[] = [];
   const rawOperationUsages: Record<string, unknown>[] = [];
+  const rawMetricsSnapshots: Record<string, unknown>[] = [];
 
   beforeAll(async () => {
     fixtureServer = await startFixtureServer();
@@ -155,6 +157,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     transport.onmessage = async (message) => {
       const usage = operationUsageFromRawRpcMessage(message);
       if (usage) rawOperationUsages.push(usage);
+      const metrics = metricsFromRawRpcMessage(message);
+      if (metrics) rawMetricsSnapshots.push(metrics);
       await receive(message);
     };
   }, 45_000);
@@ -627,6 +631,46 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     );
     await expect(page.locator("#locator-output").textContent()).resolves.toBe("clicked:");
   });
+
+  it("returns a read-only session metrics snapshot without double-counting operation usage", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const activeFixtureServer = requireFixtureServer(fixtureServer);
+    const page =
+      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+    await page.goto(activeFixtureServer.url);
+    rawMetricsSnapshots.length = 0;
+
+    const before = await activeStagehand.metrics();
+    const observed = await activeStagehand.observe("Find the Submit button", { page });
+    const action = observed.data[0];
+    if (!action) throw new Error("Expected the smoke LLM to observe the Submit button");
+
+    const deterministicAct = await activeStagehand.act(action, { page });
+    expect(deterministicAct.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
+
+    const acted = await activeStagehand.act("Click the Submit button", { page });
+    const extracted = await activeStagehand.extract(
+      "Extract the page heading",
+      z.object({ heading: z.string() }),
+      { page },
+    );
+    const after = await activeStagehand.metrics();
+
+    expectMetricsDelta(after, before, {
+      act: acted.metadata.usage,
+      extract: extracted.metadata.usage,
+      observe: observed.metadata.usage,
+    });
+
+    await expect(activeStagehand.metrics()).resolves.toStrictEqual(after);
+    expect(rawMetricsSnapshots.at(-1)).toStrictEqual(metricsToWire(after));
+  });
 });
 
 function operationUsageFromRawRpcMessage(message: unknown): Record<string, unknown> | undefined {
@@ -646,6 +690,20 @@ function operationUsageFromRawRpcMessage(message: unknown): Record<string, unkno
   if (!isRecord(metadata)) return undefined;
   const usage = metadata.usage;
   return isRecord(usage) ? usage : undefined;
+}
+
+function metricsFromRawRpcMessage(message: unknown): Record<string, unknown> | undefined {
+  if (typeof message !== "string") return undefined;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(message);
+  } catch {
+    return undefined;
+  }
+
+  if (!isRecord(parsed) || !isRecord(parsed.result)) return undefined;
+  return "total_prompt_tokens" in parsed.result ? parsed.result : undefined;
 }
 
 function expectUsageCrossedRpc(
@@ -683,6 +741,70 @@ function expectUsageCrossedRpc(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function expectMetricsDelta(
+  after: StagehandMetrics,
+  before: StagehandMetrics,
+  usage: Record<"act" | "extract" | "observe", StagehandResultUsage>,
+): void {
+  expect(after.actPromptTokens - before.actPromptTokens).toBe(usage.act.inputTokens);
+  expect(after.actCompletionTokens - before.actCompletionTokens).toBe(usage.act.outputTokens);
+  expect(after.actReasoningTokens - before.actReasoningTokens).toBe(usage.act.reasoningTokens);
+  expect(after.actCachedInputTokens - before.actCachedInputTokens).toBe(
+    usage.act.cachedInputTokens,
+  );
+  expect(after.actInferenceTimeMs - before.actInferenceTimeMs).toBe(usage.act.inferenceTimeMs);
+  expect(after.extractPromptTokens - before.extractPromptTokens).toBe(usage.extract.inputTokens);
+  expect(after.extractCompletionTokens - before.extractCompletionTokens).toBe(
+    usage.extract.outputTokens,
+  );
+  expect(after.extractReasoningTokens - before.extractReasoningTokens).toBe(
+    usage.extract.reasoningTokens,
+  );
+  expect(after.extractCachedInputTokens - before.extractCachedInputTokens).toBe(
+    usage.extract.cachedInputTokens,
+  );
+  expect(after.extractInferenceTimeMs - before.extractInferenceTimeMs).toBe(
+    usage.extract.inferenceTimeMs,
+  );
+  expect(after.observePromptTokens - before.observePromptTokens).toBe(usage.observe.inputTokens);
+  expect(after.observeCompletionTokens - before.observeCompletionTokens).toBe(
+    usage.observe.outputTokens,
+  );
+  expect(after.observeReasoningTokens - before.observeReasoningTokens).toBe(
+    usage.observe.reasoningTokens,
+  );
+  expect(after.observeCachedInputTokens - before.observeCachedInputTokens).toBe(
+    usage.observe.cachedInputTokens,
+  );
+  expect(after.observeInferenceTimeMs - before.observeInferenceTimeMs).toBe(
+    usage.observe.inferenceTimeMs,
+  );
+  expect(after.totalPromptTokens - before.totalPromptTokens).toBe(
+    usage.act.inputTokens + usage.extract.inputTokens + usage.observe.inputTokens,
+  );
+  expect(after.totalCompletionTokens - before.totalCompletionTokens).toBe(
+    usage.act.outputTokens + usage.extract.outputTokens + usage.observe.outputTokens,
+  );
+  expect(after.totalReasoningTokens - before.totalReasoningTokens).toBe(
+    usage.act.reasoningTokens + usage.extract.reasoningTokens + usage.observe.reasoningTokens,
+  );
+  expect(after.totalCachedInputTokens - before.totalCachedInputTokens).toBe(
+    usage.act.cachedInputTokens + usage.extract.cachedInputTokens + usage.observe.cachedInputTokens,
+  );
+  expect(after.totalInferenceTimeMs - before.totalInferenceTimeMs).toBe(
+    usage.act.inferenceTimeMs + usage.extract.inferenceTimeMs + usage.observe.inferenceTimeMs,
+  );
+}
+
+function metricsToWire(metrics: StagehandMetrics): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(metrics).map(([key, value]) => [
+      key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`),
+      value,
+    ]),
+  );
 }
 
 function requireStagehand(value: Stagehand | undefined): Stagehand {
