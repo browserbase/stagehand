@@ -42,6 +42,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandResultMetadata,
+    StagehandResultUsage,
     TelemetryConfig,
 )
 from stagehand.browser import (
@@ -231,7 +232,7 @@ async def test_create_rejects_model_connection_options_for_missing_or_callback_m
     with pytest.raises(TypeError, match="require a model name"):
         await Stagehand.create(browser=browser, model_api_key="key")
     with pytest.raises(TypeError, match="cannot be used with an LLM callback"):
-        await Stagehand.create(browser=browser, model=generate, model_base_url="https://llm")
+        await Stagehand.create(browser=browser, model=generate, model_api_key="key")
 
 
 @pytest.mark.asyncio
@@ -515,20 +516,21 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     metrics = StagehandMetrics.model_validate({
         field: float(index) for index, field in enumerate(StagehandMetrics.model_fields, start=1)
     })
+    usage = StagehandResultUsage(input_tokens=11, output_tokens=7, reasoning_tokens=3)
     recording = _recording({
         "context.active_page": PageRef(page_id="active-page"),
         "stagehand.metrics": metrics,
         "stagehand.act": ActResult.model_validate({
             "data": act_data,
-            "metadata": {"cache_status": "HIT"},
+            "metadata": {"cache_status": "HIT", "usage": usage},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache_status": "MISS"},
+            "metadata": {"cache_status": "MISS", "usage": usage},
         }),
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit, usage=usage),
         },
     })
     _install_rpc_client(monkeypatch, recording)
@@ -558,8 +560,14 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
 
     assert act_result.data == act_data
+    assert act_result.metadata.cache_status is CacheStatus.hit
+    assert act_result.metadata.usage == usage
     assert observed.data == [action]
+    assert observed.metadata.cache_status is CacheStatus.miss
+    assert observed.metadata.usage == usage
     assert extracted.data == PageInfo(heading="Example Domain", count=1)
+    assert extracted.metadata.cache_status is CacheStatus.hit
+    assert extracted.metadata.usage == usage
     act_params = next(
         cast(StagehandActParams, params)
         for method, params, _ in recording.calls

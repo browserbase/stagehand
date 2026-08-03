@@ -17,16 +17,13 @@ from ._generated.models import (
     PageClickOptions,
     PageClickParams,
     PageCloseResult,
-    PageCoordinateResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
-    PageDragAndDropResult,
     PageEvaluateParams,
     PageEvaluateResult,
     PageGoBackParams,
     PageGoForwardParams,
     PageGotoParams,
-    PageHoverOptions,
     PageHoverParams,
     PageIdParams,
     PageKeyPressOptions,
@@ -39,7 +36,6 @@ from ._generated.models import (
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
-    PageScrollOptions,
     PageScrollParams,
     PageSetExtraHTTPHeadersParams,
     PageSetViewportSizeOptions,
@@ -167,35 +163,27 @@ class Page:
         *,
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         click_count: int | None = None,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageClickParams(page_id=self.page_id, x=x, y=y)
         options = PageClickOptions.model_validate({
             name: value
             for name, value in (
                 ("button", button),
                 ("click_count", click_count),
-                ("return_xpath", return_xpath),
             )
             if value is not None
         })
         if options.model_fields_set:
             params.options = options
-        result = await self._rpc_client.send("page.click", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.click", params, PageVoidResult)
 
     async def hover(
         self,
         x: float,
         y: float,
-        *,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageHoverParams(page_id=self.page_id, x=x, y=y)
-        if return_xpath is not None:
-            params.options = PageHoverOptions(return_xpath=return_xpath)
-        result = await self._rpc_client.send("page.hover", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.hover", params, PageVoidResult)
 
     async def scroll(
         self,
@@ -203,9 +191,7 @@ class Page:
         y: float,
         delta_x: float,
         delta_y: float,
-        *,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageScrollParams(
             page_id=self.page_id,
             x=x,
@@ -213,10 +199,7 @@ class Page:
             delta_x=delta_x,
             delta_y=delta_y,
         )
-        if return_xpath is not None:
-            params.options = PageScrollOptions(return_xpath=return_xpath)
-        result = await self._rpc_client.send("page.scroll", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.scroll", params, PageVoidResult)
 
     async def drag_and_drop(
         self,
@@ -228,8 +211,7 @@ class Page:
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         steps: int | None = None,
         delay: float | None = None,
-        return_xpath: bool | None = None,
-    ) -> tuple[str, str]:
+    ) -> None:
         params = PageDragAndDropParams(
             page_id=self.page_id,
             from_x=from_x,
@@ -243,18 +225,16 @@ class Page:
                 ("button", button),
                 ("steps", steps),
                 ("delay", delay),
-                ("return_xpath", return_xpath),
             )
             if value is not None
         })
         if options.model_fields_set:
             params.options = options
-        result = await self._rpc_client.send(
+        await self._rpc_client.send(
             "page.drag_and_drop",
             params,
-            PageDragAndDropResult,
+            PageVoidResult,
         )
-        return result.from_xpath, result.to_xpath
 
     async def type(
         self,
