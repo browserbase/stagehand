@@ -21,22 +21,28 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	client := New(StagehandClientInitParams{
-		Browser: LocalBrowserSource{
-			ExecutablePath:   chromePath,
-			Headless:         true,
-			ConnectTimeoutMs: 15_000,
-		},
+	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
+		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
 	})
-	closeStagehandAfterTest(t, client)
-
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with local browser error = %v", err)
+	if err != nil {
+		t.Fatalf("LaunchLocalBrowser() error = %v", err)
 	}
-	extensionDir := client.browser.extensionDir
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with local browser error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with local browser error = %v", err)
+	}
+	if browser.Closed() {
+		t.Fatal("Stagehand.Close() closed the Browser handle")
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with local browser error = %v", err)
 	}
 	assertExtensionDirectoryRemoved(t, extensionDir)
 }
@@ -49,7 +55,7 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	launched, err := launchChrome(ctx, LocalBrowserSource{
+	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
 		ExecutablePath:   chromePath,
 		Headless:         true,
 		ConnectTimeoutMs: 15_000,
@@ -65,17 +71,23 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 		}
 	})
 
-	client := New(StagehandClientInitParams{
-		Browser: CDPBrowserSource{CDPURL: launched.cdpURL},
-	})
-	closeStagehandAfterTest(t, client)
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with existing CDP error = %v", err)
+	browser, err := ConnectLocalBrowser(ctx, LocalBrowserConnectOptions{CDPURL: launched.cdpURL})
+	if err != nil {
+		t.Fatalf("ConnectLocalBrowser() error = %v", err)
 	}
-	extensionDir := client.browser.extensionDir
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with existing CDP error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with existing CDP error = %v", err)
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with existing CDP error = %v", err)
 	}
 
 	request, err := http.NewRequestWithContext(
@@ -98,14 +110,7 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 			response.StatusCode,
 		)
 	}
-	if _, err := os.Stat(extensionDir); err != nil {
-		t.Fatalf("kept-alive extension directory is unavailable: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := os.RemoveAll(extensionDir); err != nil {
-			t.Errorf("remove kept-alive extension directory: %v", err)
-		}
-	})
+	assertExtensionDirectoryRemoved(t, extensionDir)
 }
 
 func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
@@ -160,18 +165,18 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	client := New(StagehandClientInitParams{
-		Browser: LocalBrowserSource{
-			ExecutablePath:   chromePath,
-			Headless:         true,
-			ConnectTimeoutMs: 15_000,
-		},
-		Generate: generate,
+	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
+		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
 	})
-	closeStagehandAfterTest(t, client)
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with screenshot LLM error = %v", err)
+	if err != nil {
+		t.Fatalf("LaunchLocalBrowser() error = %v", err)
 	}
+	client, err := Create(ctx, CreateOptions{Browser: browser, Generate: generate})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with screenshot LLM error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
 	browserContext, err := client.Context()
 	if err != nil {
 		t.Fatalf("Stagehand.Context() error = %v", err)
@@ -248,25 +253,28 @@ func TestStagehandBrowserbaseIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	client := New(StagehandClientInitParams{
-		APIKey: &apiKey,
-		Browser: BrowserbaseClientBrowserSource{
-			KeepAlive: testPointer(false),
-			Timeout:   testPointer(300.0),
-			UserMetadata: map[string]json.RawMessage{
-				"suite": json.RawMessage(`"stagehand-go-public-smoke"`),
-			},
+	browser, err := LaunchBrowserbase(ctx, BrowserbaseLaunchOptions{
+		APIKey: apiKey, KeepAlive: testPointer(false), Timeout: testPointer(300.0),
+		UserMetadata: map[string]json.RawMessage{
+			"suite": json.RawMessage(`"stagehand-go-public-smoke"`),
 		},
 	})
-	closeStagehandAfterTest(t, client)
-
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with Browserbase error = %v", err)
+	if err != nil {
+		t.Fatalf("LaunchBrowserbase() error = %v", err)
 	}
-	sessionID := client.browser.browserbaseSessionID
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with Browserbase error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	sessionID := browser.workerBrowser.SessionID
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with Browserbase error = %v", err)
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with Browserbase error = %v", err)
 	}
 	t.Logf("created and released Browserbase session %s", sessionID)
 }
@@ -278,7 +286,7 @@ func assertLiveStagehand(
 ) {
 	t.Helper()
 	if !client.Initialized() {
-		t.Fatal("Stagehand.Initialized() = false after Init")
+		t.Fatal("Stagehand.Initialized() = false after Create")
 	}
 	browserContext, err := client.Context()
 	if err != nil {
@@ -293,7 +301,7 @@ func assertLiveStagehand(
 	}
 }
 
-func closeStagehandAfterTest(t *testing.T, client *Stagehand) {
+func closeStagehandAfterTest(t *testing.T, client *Stagehand, browser *Browser) {
 	t.Helper()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -302,6 +310,9 @@ func closeStagehandAfterTest(t *testing.T, client *Stagehand) {
 			!errors.Is(err, ErrCDPClientClosed) &&
 			!errors.Is(err, ErrCDPConnectionClosed) {
 			t.Errorf("clean up Stagehand client: %v", err)
+		}
+		if err := browser.Close(ctx); err != nil && !errors.Is(err, ErrCDPClientClosed) {
+			t.Errorf("clean up Browser handle: %v", err)
 		}
 	})
 }

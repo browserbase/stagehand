@@ -14,24 +14,84 @@ import (
 // Stagehand is the root SDK client.
 type Stagehand struct {
 	mu                        sync.RWMutex
-	initParams                StagehandClientInitParams
-	adapters                  clientAdapters
 	rpc                       protocolClient
-	browser                   *resolvedBrowserSource
+	browser                   *Browser
 	context                   *BrowserContext
-	logWriter                 io.Writer
 	initialized               bool
+	closed                    bool
+	closeResult               error
 	removeLLMHandler          func()
 	removeNotificationHandler func()
 }
 
-// New creates a Stagehand client. Init performs browser and transport setup.
-func New(initParams StagehandClientInitParams) *Stagehand {
-	return &Stagehand{
-		initParams: initParams,
-		adapters:   defaultClientAdapters(),
-		logWriter:  os.Stderr,
+// Create attaches Stagehand to a factory-created Browser handle.
+func Create(ctx context.Context, options CreateOptions) (*Stagehand, error) {
+	return createWithAdapters(ctx, options, defaultClientAdapters(), os.Stderr)
+}
+
+func createWithAdapters(ctx context.Context, options CreateOptions, adapters clientAdapters, writers ...io.Writer) (*Stagehand, error) {
+	if options.Browser == nil {
+		return nil, errors.New("stagehand: browser is required")
 	}
+	if options.Model != nil && options.Generate != nil {
+		return nil, errors.New("stagehand: Model and Generate are mutually exclusive")
+	}
+	logWriter := io.Writer(os.Stderr)
+	if len(writers) > 0 {
+		logWriter = writers[0]
+	}
+	logging, err := resolveLoggingConfig(options.Logging, logWriter)
+	if err != nil {
+		return nil, err
+	}
+	claimed, err := claimBrowser(options.Browser)
+	if err != nil {
+		return nil, err
+	}
+	rpc, err := adapters.connectClaimedBrowser(claimed)
+	if err != nil {
+		releaseBrowserClaim(options.Browser)
+		return nil, fmt.Errorf("connect claimed browser: %w", err)
+	}
+	client := &Stagehand{rpc: rpc, browser: options.Browser}
+	notificationContext, cancelNotificationHandler := context.WithCancel(context.Background())
+	removeNotificationHandler := rpc.onNotification("stagehand.log", func(log StagehandLog) {
+		if notificationContext.Err() == nil {
+			handleStagehandLog(log, logging)
+		}
+	})
+	client.removeNotificationHandler = func() {
+		cancelNotificationHandler()
+		removeNotificationHandler()
+	}
+	if options.Generate != nil {
+		client.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(options.Generate))
+	}
+
+	apiKey := options.APIKey
+	if claimed.workerAPIKey != nil {
+		apiKey = claimed.workerAPIKey
+	}
+	initParams := workerInitParams(workerInitOptions{
+		apiKey: apiKey, browser: claimed.workerBrowser, cache: options.Cache,
+		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
+		generate: options.Generate, logLevel: logging.level,
+		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
+		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),
+	})
+	var initResult StagehandInitResult
+	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
+		if client.removeLLMHandler != nil {
+			client.removeLLMHandler()
+		}
+		client.removeNotificationHandler()
+		closeErr := rpc.close()
+		releaseBrowserClaim(options.Browser)
+		return nil, errors.Join(err, closeErr)
+	}
+	client.context = &BrowserContext{rpc: rpc}
+	client.initialized = true
+	return client, nil
 }
 
 // Context returns the initialized browser context.
@@ -44,17 +104,14 @@ func (s *Stagehand) Context() (*BrowserContext, error) {
 	return s.context, nil
 }
 
-// Browser returns a detached snapshot of the resolved browser connection.
-func (s *Stagehand) Browser() (ResolvedBrowserSource, error) {
+// Browser returns the factory-created browser handle attached to Stagehand.
+func (s *Stagehand) Browser() *Browser {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.browser == nil {
-		return ResolvedBrowserSource{}, ErrNotInitialized
-	}
-	return s.browser.snapshot(), nil
+	return s.browser
 }
 
-// Initialized reports whether Init completed successfully.
+// Initialized reports whether Create completed successfully and the client remains open.
 func (s *Stagehand) Initialized() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -182,73 +239,13 @@ func ExtractAs[T any](
 	return value, nil
 }
 
-// Init resolves the browser, connects the protocol transport, and initializes
-// the worker. Browser resolution is intentionally stubbed in this first client PR.
-func (s *Stagehand) Init(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.initialized {
-		return nil
-	}
-	if s.initParams.Model != nil && s.initParams.Generate != nil {
-		return errors.New("stagehand: Model and Generate are mutually exclusive")
-	}
-	logging, err := resolveLoggingConfig(s.initParams.Logging, s.logWriter)
-	if err != nil {
-		return err
-	}
-
-	browser, err := s.adapters.resolveBrowserSource(ctx, s.initParams)
-	if err != nil {
-		return fmt.Errorf("resolve browser source: %w", err)
-	}
-	s.browser = &browser
-
-	rpc, err := s.adapters.connectProtocol(
-		ctx,
-		browser,
-	)
-	if err != nil {
-		return errors.Join(
-			fmt.Errorf("connect protocol: %w", err),
-			s.releaseBrowser(ctx, false),
-		)
-	}
-	s.rpc = rpc
-	notificationContext, cancelNotificationHandler := context.WithCancel(context.Background())
-	removeNotificationHandler := rpc.onNotification(
-		"stagehand.log",
-		func(log StagehandLog) {
-			if notificationContext.Err() != nil {
-				return
-			}
-			handleStagehandLog(log, logging)
-		},
-	)
-	s.removeNotificationHandler = func() {
-		cancelNotificationHandler()
-		removeNotificationHandler()
-	}
-	if generate := s.initParams.Generate; generate != nil {
-		s.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(generate))
-	}
-
-	initParams := s.workerInitParams(browser, logging.level, rpc.browserWebSocketDebuggerURL())
-	var initResult StagehandInitResult
-	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
-		return s.initFailure(ctx, err)
-	}
-
-	s.context = &BrowserContext{rpc: rpc}
-	s.initialized = true
-	return nil
-}
-
-// Close releases the remote Stagehand context and all local resources.
+// Close releases the remote Stagehand context without touching the Browser handle.
 func (s *Stagehand) Close(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return s.closeResult
+	}
 
 	var closeErr error
 	if s.context != nil && s.rpc != nil {
@@ -258,8 +255,24 @@ func (s *Stagehand) Close(ctx context.Context) error {
 			closeErr = nil
 		}
 	}
-	cleanupErr := s.release(ctx, true)
-	return errors.Join(closeErr, cleanupErr)
+	if s.removeLLMHandler != nil {
+		s.removeLLMHandler()
+		s.removeLLMHandler = nil
+	}
+	if s.removeNotificationHandler != nil {
+		s.removeNotificationHandler()
+		s.removeNotificationHandler = nil
+	}
+	var rpcErr error
+	if s.rpc != nil {
+		rpcErr = s.rpc.close()
+		s.rpc = nil
+	}
+	s.context = nil
+	s.initialized = false
+	s.closed = true
+	s.closeResult = errors.Join(closeErr, rpcErr)
+	return s.closeResult
 }
 
 func (s *Stagehand) connectedProtocol() (protocolClient, error) {
@@ -271,47 +284,43 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 	return s.rpc, nil
 }
 
-func (s *Stagehand) workerInitParams(
-	browser resolvedBrowserSource,
-	logLevel StagehandClientLogLevel,
-	browserCDPURL string,
-) StagehandInitParams {
+type workerInitOptions struct {
+	apiKey             *string
+	browser            *BrowserSessionMetadata
+	cache              *Caching
+	domSettleTimeoutMs *int
+	model              *ModelConfig
+	generate           LLMGenerateFunc
+	logLevel           StagehandClientLogLevel
+	selfHeal           *bool
+	systemPrompt       *string
+	telemetry          TelemetryConfig
+	browserCDPURL      string
+}
+
+func workerInitParams(options workerInitOptions) StagehandInitParams {
 	params := StagehandInitParams{
-		APIKey:        s.initParams.APIKey,
-		BrowserCDPURL: &browserCDPURL,
-		Cache:         s.initParams.Cache,
+		APIKey:        options.apiKey,
+		Browser:       options.browser,
+		BrowserCDPURL: &options.browserCDPURL,
+		Cache:         options.cache,
 		ClientInfo: ImplementationInfo{
 			Name:    stagehandSDKClientName,
 			Version: stagehandSDKVersion,
 		},
-		DOMSettleTimeoutMs: s.initParams.DOMSettleTimeoutMs,
-		LogLevel:           StagehandInitParamsLogLevel(logLevel),
+		DOMSettleTimeoutMs: options.domSettleTimeoutMs,
+		LogLevel:           StagehandInitParamsLogLevel(options.logLevel),
 		ProtocolVersion:    stagehandProtocolVersion,
-		SelfHeal:           s.initParams.SelfHeal,
-		SystemPrompt:       s.initParams.SystemPrompt,
-		Telemetry:          s.initParams.Telemetry,
+		SelfHeal:           options.selfHeal,
+		SystemPrompt:       options.systemPrompt,
+		Telemetry:          options.telemetry,
 	}
-	if s.initParams.Generate != nil {
+	if options.generate != nil {
 		model := ClientModel()
 		params.Model = &model
-	} else if s.initParams.Model != nil {
-		model := ServerModel(*s.initParams.Model)
+	} else if options.model != nil {
+		model := ServerModel(*options.model)
 		params.Model = &model
-	}
-	var source *BrowserbaseClientBrowserSource
-	switch browser := s.initParams.Browser.(type) {
-	case BrowserbaseClientBrowserSource:
-		source = &browser
-	case *BrowserbaseClientBrowserSource:
-		source = browser
-	case nil:
-		source = &BrowserbaseClientBrowserSource{}
-	}
-	if source != nil {
-		params.Browser = &BrowserSessionMetadata{
-			Region:    source.Region,
-			SessionID: browser.browserbaseSessionID,
-		}
 	}
 	return params
 }
@@ -353,55 +362,6 @@ func pageFromExtractOptions(options *StagehandClientExtractOptions) *Page {
 		return nil
 	}
 	return options.Page
-}
-
-func (s *Stagehand) initFailure(ctx context.Context, cause error) error {
-	cleanupErr := s.release(ctx, false)
-	if cleanupErr != nil {
-		return errors.Join(cause, cleanupErr)
-	}
-	return cause
-}
-
-func (s *Stagehand) release(ctx context.Context, preserveKeepAlive bool) error {
-	if s.removeLLMHandler != nil {
-		s.removeLLMHandler()
-		s.removeLLMHandler = nil
-	}
-	if s.removeNotificationHandler != nil {
-		s.removeNotificationHandler()
-		s.removeNotificationHandler = nil
-	}
-	var rpcErr error
-	if s.rpc != nil {
-		rpcErr = s.rpc.close()
-		s.rpc = nil
-	}
-	browserErr := s.releaseBrowser(ctx, preserveKeepAlive)
-	s.context = nil
-	s.initialized = false
-	return errors.Join(rpcErr, browserErr)
-}
-
-func (s *Stagehand) releaseBrowser(ctx context.Context, preserveKeepAlive bool) error {
-	if s.browser == nil {
-		return nil
-	}
-	browser := s.browser
-	s.browser = nil
-
-	if preserveKeepAlive && browser.keepAlive {
-		return nil
-	}
-	var browserErr error
-	if browser.close != nil {
-		browserErr = browser.close(ctx)
-	}
-	var cleanupErr error
-	if browser.cleanup != nil {
-		cleanupErr = browser.cleanup()
-	}
-	return errors.Join(browserErr, cleanupErr)
 }
 
 func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLoggingConfig) {
@@ -488,20 +448,4 @@ func renderStagehandLog(
 		log.Message,
 		suffix,
 	), nil
-}
-
-func newStagehandWithClient(initParams StagehandClientInitParams, rpc protocolClient) *Stagehand {
-	client := New(initParams)
-	client.adapters = clientAdapters{
-		resolveBrowserSource: func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error) {
-			return resolvedBrowserSource{cdpURL: "test://stagehand", keepAlive: true}, nil
-		},
-		connectProtocol: func(
-			_ context.Context,
-			_ resolvedBrowserSource,
-		) (protocolClient, error) {
-			return rpc, nil
-		},
-	}
-	return client
 }

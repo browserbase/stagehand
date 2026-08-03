@@ -6,13 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"time"
 )
 
 var (
 	// ErrNotInitialized is returned when an operation needs an initialized client.
-	ErrNotInitialized = errors.New("stagehand is not initialized; call Init first")
+	ErrNotInitialized = errors.New("stagehand is unavailable; create a new instance with stagehand.Create")
 )
 
 type requestHandler struct {
@@ -33,58 +31,27 @@ type protocolClient interface {
 
 type resolvedBrowserSource struct {
 	cdpURL               string
-	cdpHeaders           http.Header
 	browserbaseSessionID string
-	extensionDir         string
-	preloadedExtension   bool
-	connectTimeout       time.Duration
-	keepAlive            bool
 	close                func(context.Context) error
-	cleanup              func() error
-}
-
-// ResolvedBrowserSource is a detached snapshot of the browser connection
-// selected during Init. It intentionally excludes SDK-owned lifecycle and
-// temporary-extension state.
-type ResolvedBrowserSource struct {
-	CDPURL               string
-	CDPHeaders           map[string]string
-	BrowserbaseSessionID string
-	PreloadedExtension   bool
-	ConnectTimeout       time.Duration
-	KeepAlive            bool
-}
-
-func (browser resolvedBrowserSource) snapshot() ResolvedBrowserSource {
-	var headers map[string]string
-	if len(browser.cdpHeaders) > 0 {
-		headers = make(map[string]string, len(browser.cdpHeaders))
-		for name := range browser.cdpHeaders {
-			headers[name] = browser.cdpHeaders.Get(name)
-		}
-	}
-	return ResolvedBrowserSource{
-		CDPURL:               browser.cdpURL,
-		CDPHeaders:           headers,
-		BrowserbaseSessionID: browser.browserbaseSessionID,
-		PreloadedExtension:   browser.preloadedExtension,
-		ConnectTimeout:       browser.connectTimeout,
-		KeepAlive:            browser.keepAlive,
-	}
 }
 
 type clientAdapters struct {
-	resolveBrowserSource func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error)
-	connectProtocol      func(
-		context.Context,
-		resolvedBrowserSource,
-	) (protocolClient, error)
+	connectClaimedBrowser func(claimedBrowser) (protocolClient, error)
 }
 
 func defaultClientAdapters() clientAdapters {
 	return clientAdapters{
-		resolveBrowserSource: resolveBrowserSource,
-		connectProtocol:      connectResolvedBrowser,
+		connectClaimedBrowser: func(claimed claimedBrowser) (protocolClient, error) {
+			if claimed.cdp == nil {
+				return nil, errors.New("stagehand browser must be created by a stagehand browser factory")
+			}
+			rpc, err := newRPCClient(claimed.cdp, false)
+			if err != nil {
+				return nil, err
+			}
+			rpc.browserWebSocketURL = claimed.cdp.webSocketDebuggerURL
+			return rpc, nil
+		},
 	}
 }
 
