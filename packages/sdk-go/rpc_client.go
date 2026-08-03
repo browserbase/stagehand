@@ -52,6 +52,7 @@ type rpcTransport interface {
 
 type rpcClient struct {
 	transport           rpcTransport
+	ownsTransport       bool
 	browserWebSocketURL string
 
 	ctx        context.Context
@@ -135,7 +136,7 @@ type rpcWireErrorObject struct {
 	Data    json.RawMessage `json:"data,omitempty"`
 }
 
-func newRPCClient(transport rpcTransport) (*rpcClient, error) {
+func newRPCClient(transport rpcTransport, ownsTransport bool) (*rpcClient, error) {
 	if transport == nil {
 		return nil, errors.New("stagehand RPC transport is required")
 	}
@@ -143,6 +144,7 @@ func newRPCClient(transport rpcTransport) (*rpcClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &rpcClient{
 		transport:            transport,
+		ownsTransport:        ownsTransport,
 		ctx:                  ctx,
 		cancel:               cancel,
 		readerDone:           make(chan struct{}),
@@ -613,10 +615,12 @@ func (c *rpcClient) shutdown(reason error) {
 	for _, request := range pending {
 		request.response <- rpcCallResponse{err: reason}
 	}
-	closeErr := c.transport.Close()
-	c.mu.Lock()
-	c.transportCloseError = closeErr
-	c.mu.Unlock()
+	if c.ownsTransport {
+		closeErr := c.transport.Close()
+		c.mu.Lock()
+		c.transportCloseError = closeErr
+		c.mu.Unlock()
+	}
 }
 
 func newRequestHandler[Params any, Result any](

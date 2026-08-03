@@ -74,6 +74,7 @@ type browserbaseAPI interface {
 		context.Context,
 		browserbaseCreateSessionRequest,
 	) (browserbaseCreateSessionResponse, error)
+	retrieveSession(context.Context, string) (browserbaseRetrieveSessionResponse, error)
 	releaseSession(context.Context, string) (browserbaseSessionResponse, error)
 }
 
@@ -172,6 +173,17 @@ func (client *browserbaseHTTPClient) releaseSession(
 			SessionID: sessionID,
 			Status:    browserbaseSessionReleaseStatus,
 		},
+	)
+}
+
+func (client *browserbaseHTTPClient) retrieveSession(
+	ctx context.Context,
+	sessionID string,
+) (browserbaseRetrieveSessionResponse, error) {
+	return sendBrowserbaseRequest[browserbaseRetrieveSessionResponse](
+		ctx,
+		client,
+		browserbaseRetrieveSessionRequest{SessionID: sessionID},
 	)
 }
 
@@ -450,6 +462,22 @@ func (request browserbaseDeleteExtensionRequest) encode() (browserbaseEncodedReq
 type browserbaseReleaseSessionRequest struct {
 	SessionID string `json:"-"`
 	Status    string `json:"status"`
+}
+
+type browserbaseRetrieveSessionRequest struct {
+	SessionID string
+}
+
+func (request browserbaseRetrieveSessionRequest) encode() (browserbaseEncodedRequest, error) {
+	encoded := browserbaseEncodedRequest{
+		method:     http.MethodGet,
+		path:       "/v1/sessions/" + url.PathEscape(request.SessionID),
+		replaySafe: true,
+	}
+	if strings.TrimSpace(request.SessionID) == "" {
+		return encoded, errors.New("session ID is required")
+	}
+	return encoded, nil
 }
 
 const browserbaseSessionReleaseStatus = "REQUEST_RELEASE"
@@ -783,6 +811,30 @@ type browserbaseSessionResponse struct {
 	browserbaseSessionResponseFields
 }
 
+type browserbaseRetrieveSessionResponse struct {
+	ID         *string            `json:"id"`
+	ConnectURL *string            `json:"connectUrl,omitempty"`
+	Region     *BrowserbaseRegion `json:"region,omitempty"`
+}
+
+func (response browserbaseRetrieveSessionResponse) validate() error {
+	if response.ID == nil {
+		return errors.New("required field id is missing")
+	}
+	if strings.TrimSpace(*response.ID) == "" {
+		return errors.New("id cannot be empty")
+	}
+	if response.ConnectURL != nil {
+		if err := validateBrowserbaseURL("connectUrl", *response.ConnectURL, "ws", "wss"); err != nil {
+			return err
+		}
+	}
+	if response.Region != nil && !isBrowserbaseRegion(*response.Region) {
+		return fmt.Errorf("invalid region %q", *response.Region)
+	}
+	return nil
+}
+
 func (response browserbaseSessionResponse) validate() error {
 	return response.browserbaseSessionResponseFields.validate()
 }
@@ -900,11 +952,11 @@ func validateBrowserbaseURL(name string, value string, schemes ...string) error 
 }
 
 func newBrowserbaseCreateSessionRequest(
-	params BrowserbaseClientBrowserSource,
-	extensionID string,
+	params BrowserbaseLaunchOptions,
+	extensionID *string,
 ) (browserbaseCreateSessionRequest, error) {
 	request := browserbaseCreateSessionRequest{
-		ExtensionID:  &extensionID,
+		ExtensionID:  extensionID,
 		KeepAlive:    params.KeepAlive,
 		Region:       params.Region,
 		UserMetadata: cloneRawMessageMap(params.UserMetadata),
