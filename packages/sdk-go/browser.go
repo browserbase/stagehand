@@ -37,6 +37,7 @@ type Browser struct {
 	cdp            *cdpClient
 	workerAPIKey   *string
 	workerBrowser  *BrowserSessionMetadata
+	extensionDir   string
 	ownsSource     bool
 	closeSource    func(context.Context) error
 	cleanup        func() error

@@ -65,12 +65,10 @@ func TestGoLoggingDefaultsToInfoPrettyAndRemovesListener(t *testing.T) {
 	t.Parallel()
 
 	rpc := &loggingProtocolClient{}
-	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
 	var output bytes.Buffer
-	client.logWriter = &output
-
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	client, err := newStagehandWithClient(CreateOptions{}, rpc, &output)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 	initParams, ok := rpc.calls[0].params.(StagehandInitParams)
 	if !ok {
@@ -106,18 +104,16 @@ func TestGoLoggingRejectsQueuedNotificationsAfterRelease(t *testing.T) {
 
 	var firstSessionLogs []StagehandLog
 	rpc := &loggingProtocolClient{}
-	client := newStagehandWithClient(StagehandClientInitParams{
+	var firstSessionOutput bytes.Buffer
+	client, err := newStagehandWithClient(CreateOptions{
 		Logging: &StagehandClientLoggingConfig{
 			OnLog: func(log StagehandLog) {
 				firstSessionLogs = append(firstSessionLogs, log)
 			},
 		},
-	}, rpc)
-	var firstSessionOutput bytes.Buffer
-	client.logWriter = &firstSessionOutput
-
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("first Init() error = %v", err)
+	}, rpc, &firstSessionOutput)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
 	queuedHandler := rpc.notificationHandler
 	if queuedHandler == nil {
@@ -127,18 +123,6 @@ func TestGoLoggingRejectsQueuedNotificationsAfterRelease(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	var secondSessionLogs []StagehandLog
-	client.initParams.Logging = &StagehandClientLoggingConfig{
-		OnLog: func(log StagehandLog) {
-			secondSessionLogs = append(secondSessionLogs, log)
-		},
-	}
-	var secondSessionOutput bytes.Buffer
-	client.logWriter = &secondSessionOutput
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("second Init() error = %v", err)
-	}
-
 	log := testStagehandLogs()[1]
 	queuedHandler(log)
 	if firstSessionOutput.Len() != 0 || len(firstSessionLogs) != 0 {
@@ -146,29 +130,6 @@ func TestGoLoggingRejectsQueuedNotificationsAfterRelease(t *testing.T) {
 			"released session handled queued log: output = %q, callback logs = %#v",
 			firstSessionOutput.String(),
 			firstSessionLogs,
-		)
-	}
-	if secondSessionOutput.Len() != 0 || len(secondSessionLogs) != 0 {
-		t.Fatalf(
-			"queued log leaked into new session: output = %q, callback logs = %#v",
-			secondSessionOutput.String(),
-			secondSessionLogs,
-		)
-	}
-
-	rpc.emit(log)
-	if !strings.Contains(secondSessionOutput.String(), log.Message) {
-		t.Fatalf(
-			"active session output = %q, want message %q",
-			secondSessionOutput.String(),
-			log.Message,
-		)
-	}
-	if !reflect.DeepEqual(secondSessionLogs, []StagehandLog{log}) {
-		t.Fatalf(
-			"active session callback logs = %#v, want %#v",
-			secondSessionLogs,
-			[]StagehandLog{log},
 		)
 	}
 }
@@ -204,14 +165,14 @@ func TestGoLoggingHonorsEveryThreshold(t *testing.T) {
 			t.Parallel()
 
 			rpc := &loggingProtocolClient{}
-			client := newStagehandWithClient(StagehandClientInitParams{
-				Logging: &StagehandClientLoggingConfig{Level: test.level},
-			}, rpc)
 			var output bytes.Buffer
-			client.logWriter = &output
-			if err := client.Init(context.Background()); err != nil {
-				t.Fatalf("Init() error = %v", err)
+			client, err := newStagehandWithClient(CreateOptions{
+				Logging: &StagehandClientLoggingConfig{Level: test.level},
+			}, rpc, &output)
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
 			}
+			defer client.Close(context.Background())
 			for _, log := range testStagehandLogs() {
 				rpc.emit(log)
 			}
@@ -237,7 +198,8 @@ func TestGoLoggingWritesJSONAndCallsCallback(t *testing.T) {
 
 	var received []StagehandLog
 	rpc := &loggingProtocolClient{}
-	client := newStagehandWithClient(StagehandClientInitParams{
+	var output bytes.Buffer
+	client, err := newStagehandWithClient(CreateOptions{
 		Logging: &StagehandClientLoggingConfig{
 			Level:  StagehandClientLogLevelDebug,
 			Format: StagehandClientLogFormatJSON,
@@ -245,12 +207,11 @@ func TestGoLoggingWritesJSONAndCallsCallback(t *testing.T) {
 				received = append(received, log)
 			},
 		},
-	}, rpc)
-	var output bytes.Buffer
-	client.logWriter = &output
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	}, rpc, &output)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
+	defer client.Close(context.Background())
 	log := testStagehandLogs()[0]
 	rpc.emit(log)
 
@@ -267,16 +228,16 @@ func TestGoLoggingRecoversCallbackPanic(t *testing.T) {
 	t.Parallel()
 
 	rpc := &loggingProtocolClient{}
-	client := newStagehandWithClient(StagehandClientInitParams{
+	var output bytes.Buffer
+	client, err := newStagehandWithClient(CreateOptions{
 		Logging: &StagehandClientLoggingConfig{
 			OnLog: func(StagehandLog) { panic("callback exploded") },
 		},
-	}, rpc)
-	var output bytes.Buffer
-	client.logWriter = &output
-	if err := client.Init(context.Background()); err != nil {
-		t.Fatalf("Init() error = %v", err)
+	}, rpc, &output)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
 	}
+	defer client.Close(context.Background())
 	rpc.emit(testStagehandLogs()[1])
 	if !strings.Contains(
 		output.String(),
@@ -294,13 +255,12 @@ func TestGoLoggingRejectsInvalidConfiguration(t *testing.T) {
 		{Format: "xml"},
 	}
 	for _, logging := range tests {
-		client := newStagehandWithClient(
-			StagehandClientInitParams{Logging: &logging},
+		_, err := newStagehandWithClient(
+			CreateOptions{Logging: &logging},
 			&loggingProtocolClient{},
 		)
-		err := client.Init(context.Background())
 		if err == nil || !strings.Contains(err.Error(), "invalid logging") {
-			t.Fatalf("Init() error = %v, want invalid logging error", err)
+			t.Fatalf("Create() error = %v, want invalid logging error", err)
 		}
 	}
 }

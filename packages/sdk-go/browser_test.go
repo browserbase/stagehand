@@ -167,6 +167,47 @@ func TestConnectBrowserOwnsSourceMatrix(t *testing.T) {
 	}
 }
 
+func TestLaunchLocalBrowserKeepAliveOwnership(t *testing.T) {
+	tests := []struct {
+		name      string
+		keepAlive bool
+		wantClose int
+	}{
+		{name: "owns launched chrome", wantClose: 1},
+		{name: "keep alive retains chrome", keepAlive: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			launchCloses, cleanupCalls := 0, 0
+			browser, err := launchLocalBrowserWithDependencies(context.Background(), &LocalBrowserLaunchOptions{
+				KeepAlive: test.keepAlive,
+			}, browserFactoryDependencies{
+				launchLocal: func(context.Context, LocalBrowserLaunchOptions) (resolvedBrowserSource, error) {
+					return resolvedBrowserSource{
+						cdpURL: "ws://browser.test",
+						close:  func(context.Context) error { launchCloses++; return nil },
+					}, nil
+				},
+				materializeExtension: func() (string, func() error, error) {
+					return "/tmp/extension", func() error { cleanupCalls++; return nil }, nil
+				},
+				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
+					return newBrowserTestCDP(t), nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("LaunchLocalBrowser() error = %v", err)
+			}
+			if err := browser.Close(context.Background()); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+			if launchCloses != test.wantClose || cleanupCalls != 1 {
+				t.Fatalf("launch closes = %d, cleanup calls = %d; want %d, 1", launchCloses, cleanupCalls, test.wantClose)
+			}
+		})
+	}
+}
+
 type recordingBrowserCommandSender struct {
 	method string
 	params any
@@ -393,11 +434,11 @@ func TestConnectFactoriesValidateTimeout(t *testing.T) {
 
 type fakeBrowserbaseFactoryClient struct {
 	created       resolvedBrowserSource
-	createOptions BrowserbaseClientBrowserSource
+	createOptions BrowserbaseLaunchOptions
 	connected     browserbaseSessionConnection
 }
 
-func (client *fakeBrowserbaseFactoryClient) createSession(_ context.Context, options BrowserbaseClientBrowserSource) (resolvedBrowserSource, error) {
+func (client *fakeBrowserbaseFactoryClient) createSession(_ context.Context, options BrowserbaseLaunchOptions) (resolvedBrowserSource, error) {
 	client.createOptions = options
 	return client.created, nil
 }

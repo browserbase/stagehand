@@ -90,7 +90,7 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 	createErr := errors.New("session creation failed")
 	tests := []struct {
 		name           string
-		params         BrowserbaseClientBrowserSource
+		params         BrowserbaseLaunchOptions
 		path           string
 		wantTopID      *string
 		wantSettingsID *string
@@ -98,7 +98,7 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 	}{
 		{
 			name: "top-level success",
-			params: BrowserbaseClientBrowserSource{
+			params: BrowserbaseLaunchOptions{
 				ExtensionID: testPointer("ext_top"),
 				BrowserSettings: &BrowserbaseBrowserSettings{
 					ExtensionID: testPointer("ext_settings"),
@@ -110,27 +110,27 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 		},
 		{
 			name:      "top-level create failure",
-			params:    BrowserbaseClientBrowserSource{ExtensionID: testPointer("ext_top")},
+			params:    BrowserbaseLaunchOptions{ExtensionID: testPointer("ext_top")},
 			path:      "create failure",
 			wantTopID: testPointer("ext_top"),
 		},
 		{
 			name:        "top-level invalid session",
-			params:      BrowserbaseClientBrowserSource{ExtensionID: testPointer("ext_top")},
+			params:      BrowserbaseLaunchOptions{ExtensionID: testPointer("ext_top")},
 			path:        "invalid session",
 			wantTopID:   testPointer("ext_top"),
 			wantRelease: 1,
 		},
 		{
 			name:        "top-level close",
-			params:      BrowserbaseClientBrowserSource{ExtensionID: testPointer("ext_top")},
+			params:      BrowserbaseLaunchOptions{ExtensionID: testPointer("ext_top")},
 			path:        "close",
 			wantTopID:   testPointer("ext_top"),
 			wantRelease: 1,
 		},
 		{
 			name: "browser settings success",
-			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+			params: BrowserbaseLaunchOptions{BrowserSettings: &BrowserbaseBrowserSettings{
 				ExtensionID: testPointer("ext_settings"),
 			}},
 			path:           "success",
@@ -138,7 +138,7 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 		},
 		{
 			name: "browser settings create failure",
-			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+			params: BrowserbaseLaunchOptions{BrowserSettings: &BrowserbaseBrowserSettings{
 				ExtensionID: testPointer("ext_settings"),
 			}},
 			path:           "create failure",
@@ -146,7 +146,7 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 		},
 		{
 			name: "browser settings invalid session",
-			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+			params: BrowserbaseLaunchOptions{BrowserSettings: &BrowserbaseBrowserSettings{
 				ExtensionID: testPointer("ext_settings"),
 			}},
 			path:           "invalid session",
@@ -155,7 +155,7 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 		},
 		{
 			name: "browser settings close",
-			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+			params: BrowserbaseLaunchOptions{BrowserSettings: &BrowserbaseBrowserSettings{
 				ExtensionID: testPointer("ext_settings"),
 			}},
 			path:           "close",
@@ -230,15 +230,15 @@ func TestBrowserbaseSessionClientCallerExtensionsAreBorrowed(t *testing.T) {
 func TestBrowserbaseSessionClientRejectsBlankCallerExtensionID(t *testing.T) {
 	tests := []struct {
 		name   string
-		params BrowserbaseClientBrowserSource
+		params BrowserbaseLaunchOptions
 	}{
 		{
 			name:   "top-level",
-			params: BrowserbaseClientBrowserSource{ExtensionID: testPointer(" ")},
+			params: BrowserbaseLaunchOptions{ExtensionID: testPointer(" ")},
 		},
 		{
 			name: "browser settings",
-			params: BrowserbaseClientBrowserSource{BrowserSettings: &BrowserbaseBrowserSettings{
+			params: BrowserbaseLaunchOptions{BrowserSettings: &BrowserbaseBrowserSettings{
 				ExtensionID: testPointer(" "),
 			}},
 		},
@@ -270,7 +270,7 @@ func TestBrowserbaseSessionClientOwnsProvisionedExtension(t *testing.T) {
 	client := newBrowserbaseTestSessionClient(t, api)
 	browser, err := client.createSession(
 		context.Background(),
-		BrowserbaseClientBrowserSource{},
+		BrowserbaseLaunchOptions{},
 	)
 	if err != nil {
 		t.Fatalf("createSession() error = %v", err)
@@ -399,7 +399,7 @@ func TestBrowserbaseSessionClientSanitizesCreateFailureAndCleansExtension(t *tes
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{})
+	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
 	var apiErr *BrowserbaseAPIError
 	if err == nil || err.Error() != "failed to create a Browserbase session" ||
 		errors.As(err, &apiErr) ||
@@ -439,7 +439,7 @@ func TestBrowserbaseSessionClientCleansInvalidSession(t *testing.T) {
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{})
+	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
 	if err == nil || err.Error() != "failed to create a Browserbase session" {
 		t.Fatalf("createSession() error = %v", err)
 	}
@@ -504,7 +504,7 @@ func TestBrowserbaseSessionClientCleanupIgnoresCreateContextCancellation(t *test
 			}
 			client := newBrowserbaseTestSessionClient(t, api)
 
-			_, err := client.createSession(ctx, BrowserbaseClientBrowserSource{})
+			_, err := client.createSession(ctx, BrowserbaseLaunchOptions{})
 			if err == nil {
 				t.Fatal("createSession() error = nil")
 			}
@@ -544,7 +544,7 @@ func TestBrowserbaseSessionCloseRetriesOnlyFailedSteps(t *testing.T) {
 		client := newBrowserbaseTestSessionClient(t, api)
 		browser, err := client.createSession(
 			context.Background(),
-			BrowserbaseClientBrowserSource{},
+			BrowserbaseLaunchOptions{},
 		)
 		if err != nil {
 			t.Fatalf("createSession() error = %v", err)
@@ -588,7 +588,7 @@ func TestBrowserbaseSessionCloseRetriesOnlyFailedSteps(t *testing.T) {
 		client := newBrowserbaseTestSessionClient(t, api)
 		browser, err := client.createSession(
 			context.Background(),
-			BrowserbaseClientBrowserSource{},
+			BrowserbaseLaunchOptions{},
 		)
 		if err != nil {
 			t.Fatalf("createSession() error = %v", err)
@@ -622,7 +622,7 @@ func TestBrowserbaseSessionClientRejectsInvalidUploadResponse(t *testing.T) {
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{})
+	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{})
 	if err == nil || !strings.Contains(err.Error(), "empty extension ID") {
 		t.Fatalf("createSession() error = %v, want empty extension ID", err)
 	}
@@ -641,7 +641,7 @@ func TestBrowserbaseSessionClientValidatesBeforeUploadingExtension(t *testing.T)
 	}
 	client := newBrowserbaseTestSessionClient(t, api)
 
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{
+	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{
 		Timeout: testPointer(60.5),
 	})
 	if err == nil || !strings.Contains(err.Error(), "whole number") {
@@ -670,7 +670,7 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 		"stagehand":              json.RawMessage(`"false"`),
 		"stagehand_sdk_language": json.RawMessage(`"python"`),
 	}
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{
+	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{
 		UserMetadata: callerUserMetadata,
 	})
 	if err != nil {

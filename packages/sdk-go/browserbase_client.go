@@ -952,7 +952,7 @@ func validateBrowserbaseURL(name string, value string, schemes ...string) error 
 }
 
 func newBrowserbaseCreateSessionRequest(
-	params BrowserbaseClientBrowserSource,
+	params BrowserbaseLaunchOptions,
 	extensionID *string,
 ) (browserbaseCreateSessionRequest, error) {
 	request := browserbaseCreateSessionRequest{

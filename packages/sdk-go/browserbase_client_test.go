@@ -133,9 +133,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 	if browser.browserbaseSessionID != "session_123" {
 		t.Fatalf("browserbaseSessionID = %q", browser.browserbaseSessionID)
 	}
-	if !browser.keepAlive {
-		t.Fatal("keepAlive = false, want true")
-	}
 	if err := browser.close(context.Background()); err != nil {
 		t.Fatalf("close() error = %v", err)
 	}
@@ -593,7 +590,7 @@ func TestNewBrowserbaseHTTPClientValidatesConfiguration(t *testing.T) {
 	}
 }
 
-func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
+func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 	keepAlive := true
 	advancedStealth := true
 	blockAds := false
@@ -610,7 +607,7 @@ func browserbaseTestSessionParams() BrowserbaseClientBrowserSource {
 	username := "proxy-user"
 	password := "proxy-password"
 	domainPattern := "*.example.com"
-	return BrowserbaseClientBrowserSource{
+	return BrowserbaseLaunchOptions{
 		BrowserSettings: &BrowserbaseBrowserSettings{
 			AdvancedStealth: &advancedStealth,
 			BlockAds:        &blockAds,

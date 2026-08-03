@@ -91,9 +91,8 @@ func launchLocalBrowser(
 		return resolvedBrowserSource{}, err
 	}
 	return resolvedBrowserSource{
-		cdpURL:    launched.cdpURL,
-		keepAlive: options.KeepAlive,
-		close:     launched.close,
+		cdpURL: launched.cdpURL,
+		close:  launched.close,
 	}, nil
 }
 
