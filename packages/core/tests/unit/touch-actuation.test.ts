@@ -2,11 +2,33 @@ import { describe, expect, it } from "vitest";
 import { V3 } from "../../lib/v3/v3.js";
 import type { V3Options } from "../../lib/v3/types/public/options.js";
 
-// `usesTouch` is resolved from configuration alone, so it needs no browser and no
-// page state — constructing V3 is enough. That property is the point of the design:
-// the answer is known before the first action and cannot drift mid-run.
+// `usesTouch` is resolved once, before the first action, and cannot drift mid-run.
+// For sessions Stagehand configures itself the answer comes from config alone —
+// constructing V3 is enough to test it. For sessions whose creation config this
+// process never saw (resume by id, cdpUrl attach), init probes the browser's UA
+// via Browser.getVersion; those tests inject a fake connection.
 const v3 = (opts: Partial<V3Options>) =>
   new V3({ env: "LOCAL", disablePino: true, ...opts } as V3Options);
+
+// Run the init-time UA probe against a canned Browser.getVersion response.
+const probe = async (instance: V3, userAgent: string | Error) => {
+  (instance as unknown as { ctx: unknown }).ctx = {
+    conn: {
+      send: async () => {
+        if (userAgent instanceof Error) throw userAgent;
+        return { userAgent };
+      },
+    },
+  };
+  await (
+    instance as unknown as { probeTouchFromBrowser: () => Promise<void> }
+  ).probeTouchFromBrowser();
+};
+
+const MOBILE_UA =
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Mobile Safari/537.36";
+const DESKTOP_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36";
 
 describe("touch actuation resolution", () => {
   describe("derived from a Browserbase session's os", () => {
@@ -102,9 +124,10 @@ describe("touch actuation resolution", () => {
       expect(instance.usesTouch).toBe(false);
     });
 
-    it("is the way to opt in when resuming a session by id", () => {
-      // Resuming by id means browserSettings are not present locally, so the
-      // derived signal cannot see that the session is mobile.
+    it("still overrides on a session resumed by id", () => {
+      // Resuming by id means browserSettings are not present locally; before
+      // init's UA probe runs, the derived signal cannot see the session is
+      // mobile. The explicit flag needs no probe at all.
       const resumed = v3({
         env: "BROWSERBASE",
         apiKey: "bb-key",
@@ -138,5 +161,68 @@ describe("touch actuation resolution", () => {
       instance.usesTouch,
       instance.usesTouch,
     ]).toEqual([true, true, true]);
+  });
+
+  describe("probed from the browser's UA when config can't know", () => {
+    const resumed = () =>
+      v3({
+        env: "BROWSERBASE",
+        apiKey: "bb-key",
+        projectId: "bb-project",
+        browserbaseSessionID: "existing-session",
+      });
+
+    it("recognizes a resumed mobile session", async () => {
+      const instance = resumed();
+      await probe(instance, MOBILE_UA);
+      expect(instance.usesTouch).toBe(true);
+    });
+
+    it("keeps mouse for a resumed desktop session", async () => {
+      const instance = resumed();
+      await probe(instance, DESKTOP_UA);
+      expect(instance.usesTouch).toBe(false);
+    });
+
+    it.each([
+      ["iPhone", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"],
+      ["iPad", "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X)"],
+    ])("recognizes an %s UA", async (_label, ua) => {
+      const instance = resumed();
+      await probe(instance, ua);
+      expect(instance.usesTouch).toBe(true);
+    });
+
+    it("explicit useTouch beats the probe in both directions", async () => {
+      const forcedMouse = v3({
+        env: "BROWSERBASE",
+        apiKey: "bb-key",
+        projectId: "bb-project",
+        browserbaseSessionID: "existing-session",
+        useTouch: false,
+      });
+      await probe(forcedMouse, MOBILE_UA);
+      expect(forcedMouse.usesTouch).toBe(false);
+
+      const forcedTouch = v3({
+        env: "BROWSERBASE",
+        apiKey: "bb-key",
+        projectId: "bb-project",
+        browserbaseSessionID: "existing-session",
+        useTouch: true,
+      });
+      await probe(forcedTouch, DESKTOP_UA);
+      expect(forcedTouch.usesTouch).toBe(true);
+    });
+
+    it("falls back to config resolution when the probe fails", async () => {
+      const instance = resumed();
+      await probe(instance, new Error("target closed"));
+      expect(instance.usesTouch).toBe(false);
+
+      const local = v3({ localBrowserLaunchOptions: { hasTouch: true } });
+      await probe(local, new Error("target closed"));
+      expect(local.usesTouch).toBe(true);
+    });
   });
 });

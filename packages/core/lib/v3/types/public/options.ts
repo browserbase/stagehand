@@ -51,9 +51,10 @@ export interface V3Options {
    *
    * When omitted this is derived from the session: a Browserbase session with
    * `browserSettings.os` of `"mobile"` or `"tablet"`, or a local session launched
-   * with `localBrowserLaunchOptions.hasTouch`. Set it explicitly to override that,
-   * which is also the way to opt in when resuming a session via
-   * `browserbaseSessionID` (where the original `browserSettings` are not known here).
+   * with `localBrowserLaunchOptions.hasTouch`. For sessions whose creation config
+   * is unknown here — resumed via `browserbaseSessionID` or attached via `cdpUrl` —
+   * init probes the browser's user agent instead. Set explicitly to override
+   * either resolution.
    */
   useTouch?: boolean;
 

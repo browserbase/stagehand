@@ -243,11 +243,11 @@ interface V3Options {
 
   This affects coordinate-based actuation used by the `agent()` methods, and enables `page.tap()` / `locator.tap()` to be recorded and replayed as taps. Right-click, middle-click, multi-click, hover, and drag remain mouse-based.
 
-  When omitted, this is derived from the session: a Browserbase session with `browserSettings.os` of `"mobile"` or `"tablet"`, or a local session launched with `localBrowserLaunchOptions.hasTouch`.
+  When omitted, this is derived from the session: a Browserbase session with `browserSettings.os` of `"mobile"` or `"tablet"`, or a local session launched with `localBrowserLaunchOptions.hasTouch`. For sessions whose creation config the SDK never saw — resumed via `browserbaseSessionID` or attached via `localBrowserLaunchOptions.cdpUrl` — `init()` probes the browser's user agent instead, so mobile sessions are recognized automatically there too.
 
-  <Note>Set this explicitly to opt in when resuming a session via `browserbaseSessionID`, since the original `browserSettings` are not known to the SDK in that case.</Note>
+  <Note>Set this explicitly to override either resolution — for example a session with a custom user agent that misreports its platform.</Note>
 
-  **Default:** derived from the session (see above)
+  **Default:** derived from the session config, or probed from the browser's user agent when that config is unknown (see above)
 </ParamField>
 
 #### Logging Options
