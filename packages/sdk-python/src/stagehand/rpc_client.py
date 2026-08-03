@@ -263,7 +263,12 @@ class RPCClient:
 
         return remove
 
-    async def close(self, reason: BaseException | None = None) -> None:
+    async def close(
+        self,
+        reason: BaseException | None = None,
+        *,
+        close_transport: bool = True,
+    ) -> None:
         if self._closed:
             return
 
@@ -290,7 +295,8 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        await self._transport.close()
+        if close_transport:
+            await self._transport.close()
 
     async def _read(self) -> None:
         try:

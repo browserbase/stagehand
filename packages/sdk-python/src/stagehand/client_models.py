@@ -111,6 +111,38 @@ class LocalBrowserSource(WireModel):
     keep_alive: bool | None = None
 
 
+class LocalBrowserLaunchOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    args: list[str] | None = None
+    executable_path: str | None = None
+    port: Annotated[int | None, Field(ge=1, le=65_535)] = None
+    user_data_dir: str | None = None
+    preserve_user_data_dir: bool | None = None
+    headless: bool | None = None
+    devtools: bool | None = None
+    chromium_sandbox: bool | None = None
+    ignore_default_args: bool | list[str] | None = None
+    proxy: LocalProxyConfig | None = None
+    locale: str | None = None
+    viewport: LocalViewport | None = None
+    device_scale_factor: float | None = None
+    has_touch: bool | None = None
+    ignore_https_errors: bool | None = None
+    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
+    downloads_path: str | None = None
+    accept_downloads: bool | None = None
+    keep_alive: bool | None = None
+
+
+class LocalBrowserConnectOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    cdp_url: Annotated[str, Field(min_length=1)]
+    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
+    extension_id: Annotated[str | None, Field(min_length=1)] = None
+
+
 class CdpBrowserSource(WireModel):
     model_config = ConfigDict(extra="forbid")
 
