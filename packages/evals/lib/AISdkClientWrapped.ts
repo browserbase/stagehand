@@ -182,6 +182,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           messages: formattedMessages,
           schema: options.response_model.schema,
           temperature,
+          allowSystemInMessages: true,
           providerOptions: resolvedReasoningEffort
             ? {
                 openai: {
@@ -291,6 +292,7 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
                 : "auto"
             : undefined,
         temperature,
+        allowSystemInMessages: true,
       });
 
     // Transform AI SDK response to match LLMResponse format expected by operator handler.
