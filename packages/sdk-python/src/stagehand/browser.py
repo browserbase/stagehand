@@ -161,6 +161,22 @@ def _release_browser(browser: StagehandBrowser) -> None:
     browser._claimed = False
 
 
+def _browser_session_metadata(
+    session_id: str,
+    region: BrowserbaseRegion | None,
+) -> BrowserSessionMetadata:
+    # Leave region unset (not None) so the wire payload omits it entirely; the
+    # worker schema rejects "region": null.
+    return BrowserSessionMetadata.model_validate({
+        name: value
+        for name, value in (
+            ("session_id", session_id),
+            ("region", region),
+        )
+        if value is not None
+    })
+
+
 class _BrowserConnectionSource(Protocol):
     cdp_url: str
     keep_alive: bool
@@ -484,10 +500,7 @@ class BrowserbaseBrowser:
             preloaded_extension=True,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=api_key,
-                browser=BrowserSessionMetadata(
-                    session_id=session.session_id,
-                    region=options.region,
-                ),
+                browser=_browser_session_metadata(session.session_id, options.region),
             ),
         )
 
@@ -521,10 +534,7 @@ class BrowserbaseBrowser:
             connect_timeout_ms=options.connect_timeout_ms,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
-                browser=BrowserSessionMetadata(
-                    session_id=connection.session_id,
-                    region=connection.region,
-                ),
+                browser=_browser_session_metadata(connection.session_id, connection.region),
             ),
         )
 
