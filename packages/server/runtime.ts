@@ -89,6 +89,13 @@ import type {
   PageWebMCPInvokeToolParams,
   PageWebMCPToolsParams,
   PageWebMCPToolsResult,
+  ResponseAllHeadersResult,
+  ResponseBodyResult,
+  ResponseFinishedResult,
+  ResponseHeadersArrayResult,
+  ResponseIdParams,
+  ResponseSecurityDetailsResult,
+  ResponseServerAddrResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
@@ -108,6 +115,7 @@ import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runti
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import { Page } from "./understudy/page.js";
+import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
 
@@ -459,26 +467,64 @@ export class StagehandRuntime {
 
   async pageGoto(params: PageGotoParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goto(params.url, params.options);
-    return { page: pageRefFromUnderstudyPage(page), response: null };
+    const response = await page.goto(params.url, params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
   async pageReload(params: PageReloadParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.reload(params.options);
-    return { page: pageRefFromUnderstudyPage(page), response: null };
+    const response = await page.reload(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
   async pageGoBack(params: PageGoBackParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goBack(params.options);
-    return { page: pageRefFromUnderstudyPage(page), response: null };
+    const response = await page.goBack(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
   async pageGoForward(params: PageGoForwardParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goForward(params.options);
-    return { page: pageRefFromUnderstudyPage(page), response: null };
+    const response = await page.goForward(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
+  }
+
+  async responseBody(params: ResponseIdParams): Promise<ResponseBodyResult> {
+    const body = await this.responseHandles.resolve(params.responseId).body();
+    return { body: bytesToBase64(body), base64Encoded: true };
+  }
+
+  async responseAllHeaders(params: ResponseIdParams): Promise<ResponseAllHeadersResult> {
+    return { headers: await this.responseHandles.resolve(params.responseId).allHeaders() };
+  }
+
+  async responseHeadersArray(params: ResponseIdParams): Promise<ResponseHeadersArrayResult> {
+    return { headers: await this.responseHandles.resolve(params.responseId).headersArray() };
+  }
+
+  async responseSecurityDetails(params: ResponseIdParams): Promise<ResponseSecurityDetailsResult> {
+    const details = await this.responseHandles.resolve(params.responseId).securityDetails();
+    return {
+      value:
+        details === null
+          ? null
+          : {
+              issuer: details.issuer,
+              protocol: details.protocol,
+              subjectName: details.subjectName,
+              validFrom: details.validFrom,
+              validTo: details.validTo,
+            },
+    };
+  }
+
+  async responseServerAddr(params: ResponseIdParams): Promise<ResponseServerAddrResult> {
+    return { value: await this.responseHandles.resolve(params.responseId).serverAddr() };
+  }
+
+  async responseFinished(params: ResponseIdParams): Promise<ResponseFinishedResult> {
+    const error = await this.responseHandles.resolve(params.responseId).finished();
+    return { error: error === null ? null : { message: error.message } };
   }
 
   async pageClick(params: PageClickParams): Promise<PageVoidResult> {
@@ -771,6 +817,28 @@ export class StagehandRuntime {
     const pageId = page.targetId();
     this.pagesById.set(pageId, page);
     return pageId;
+  }
+
+  private pageNavigationResult(
+    pageId: string,
+    page: UnderstudyRuntimePage,
+    response: unknown,
+  ): PageNavigationResult {
+    const pageRef = pageRefFromUnderstudyPage(page);
+    if (!(response instanceof Response)) return { page: pageRef, response: null };
+
+    const responseId = this.responseHandles.register(pageId, response);
+    return {
+      page: pageRef,
+      response: {
+        responseId,
+        url: response.url(),
+        status: response.status(),
+        statusText: response.statusText(),
+        headers: response.headers(),
+        fromServiceWorker: response.fromServiceWorker(),
+      },
+    };
   }
 
   requireBrowserSession(): StagehandBrowserSession {
