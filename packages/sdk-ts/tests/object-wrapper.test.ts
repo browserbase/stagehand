@@ -85,6 +85,13 @@ function requestCall<Method extends RPCMethod>(
   return { method: method.name, params };
 }
 
+const zeroUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
 describe("Stagehand TS object wrapper", () => {
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
@@ -411,45 +418,36 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes page coordinate interactions and unwraps xpath results", async () => {
+  it("routes page coordinate interactions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageClick, { xpath: "/html/body/button" });
-    client.queueResponse(StagehandMethods.pageHover, { xpath: "/html/body/a" });
-    client.queueResponse(StagehandMethods.pageScroll, { xpath: "/html/body/main" });
-    client.queueResponse(StagehandMethods.pageDragAndDrop, {
-      fromXpath: "/html/body/div[1]",
-      toXpath: "/html/body/div[2]",
-    });
+    client.queueResponse(StagehandMethods.pageClick, { ok: true });
+    client.queueResponse(StagehandMethods.pageHover, { ok: true });
+    client.queueResponse(StagehandMethods.pageScroll, { ok: true });
+    client.queueResponse(StagehandMethods.pageDragAndDrop, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
 
-    await expect(
-      page.click(10, 20, { button: "right", clickCount: 2, returnXpath: true }),
-    ).resolves.toBe("/html/body/button");
-    await expect(page.hover(30, 40, { returnXpath: true })).resolves.toBe("/html/body/a");
-    await expect(page.scroll(50, 60, -25, 400, { returnXpath: true })).resolves.toBe(
-      "/html/body/main",
-    );
+    await expect(page.click(10, 20, { button: "right", clickCount: 2 })).resolves.toBeUndefined();
+    await expect(page.hover(30, 40)).resolves.toBeUndefined();
+    await expect(page.scroll(50, 60, -25, 400)).resolves.toBeUndefined();
     await expect(
       page.dragAndDrop(1, 2, 3, 4, {
         button: "left",
         steps: 5,
         delay: 10,
-        returnXpath: true,
       }),
-    ).resolves.toStrictEqual(["/html/body/div[1]", "/html/body/div[2]"]);
+    ).resolves.toBeUndefined();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageClick, {
         pageId: "page-1",
         x: 10,
         y: 20,
-        options: { button: "right", clickCount: 2, returnXpath: true },
+        options: { button: "right", clickCount: 2 },
       }),
       requestCall(StagehandMethods.pageHover, {
         pageId: "page-1",
         x: 30,
         y: 40,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageScroll, {
         pageId: "page-1",
@@ -457,7 +455,6 @@ describe("Stagehand TS object wrapper", () => {
         y: 60,
         deltaX: -25,
         deltaY: 400,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageDragAndDrop, {
         pageId: "page-1",
@@ -465,7 +462,7 @@ describe("Stagehand TS object wrapper", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+        options: { button: "left", steps: 5, delay: 10 },
       }),
     ]);
   });
@@ -806,7 +803,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -831,7 +828,7 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandAct, {
@@ -855,7 +852,7 @@ describe("Stagehand TS object wrapper", () => {
     };
     client.queueResponse(StagehandMethods.stagehandObserve, {
       data: [observedAction],
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     client.queueResponse(StagehandMethods.stagehandAct, {
       data: {
@@ -864,7 +861,7 @@ describe("Stagehand TS object wrapper", () => {
         actionDescription: "Submit button",
         actions: [observedAction],
       },
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -902,7 +899,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cacheStatus: "MISS", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -928,7 +925,7 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cacheStatus: "MISS", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandObserve, {
@@ -951,10 +948,16 @@ describe("Stagehand TS object wrapper", () => {
   it("uses the active page when stagehand.observe has no explicit page or instruction", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
-    client.queueResponse(StagehandMethods.stagehandObserve, { data: [], metadata: {} });
+    client.queueResponse(StagehandMethods.stagehandObserve, {
+      data: [],
+      metadata: { usage: zeroUsage },
+    });
     const stagehand = createStagehandWithClientForTest(client);
 
-    await expect(stagehand.observe()).resolves.toStrictEqual({ data: [], metadata: {} });
+    await expect(stagehand.observe()).resolves.toStrictEqual({
+      data: [],
+      metadata: { usage: zeroUsage },
+    });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.stagehandObserve, { pageId: "page-1" }),
@@ -976,7 +979,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
@@ -986,7 +989,7 @@ describe("Stagehand TS object wrapper", () => {
       stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cacheStatus: "HIT", usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.stagehandExtract, {
@@ -1002,7 +1005,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: 42 },
-      metadata: {},
+      metadata: { usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });

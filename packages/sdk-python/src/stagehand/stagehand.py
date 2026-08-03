@@ -103,7 +103,6 @@ class Stagehand:
         keep_alive: bool | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -123,7 +122,6 @@ class Stagehand:
         api_key: str | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -150,7 +148,6 @@ class Stagehand:
         user_metadata: Mapping[str, object] | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -200,7 +197,6 @@ class Stagehand:
         headers: Mapping[str, str] | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -318,7 +314,7 @@ class Stagehand:
         else:
             raise ValueError(f"Unsupported browser source: {browser}")
 
-        model_connection_options = (model_api_key, model_base_url, model_headers)
+        model_connection_options = (model_api_key, model_headers)
         if model is None and any(value is not None for value in model_connection_options):
             raise TypeError("model connection options require a model name")
         if callable(model) and any(value is not None for value in model_connection_options):
@@ -329,7 +325,6 @@ class Stagehand:
             resolved_model = _model_config(
                 model,
                 api_key=model_api_key,
-                base_url=model_base_url,
                 headers=dict(model_headers) if model_headers is not None else None,
             )
         elif model is not None:
