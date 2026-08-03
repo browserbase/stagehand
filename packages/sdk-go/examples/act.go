@@ -73,8 +73,8 @@ func modelFromEnvironment() (stagehand.ModelConfig, error) {
 	if apiKey == "" {
 		return stagehand.ModelConfig{}, errors.New("OPENAI_API_KEY is required")
 	}
-	return stagehand.KnownModel(stagehand.KnownModelConfig{
+	return stagehand.ModelConfig{
 		ModelName: "openai/gpt-5.4-mini",
 		APIKey:    &apiKey,
-	}), nil
+	}, nil
 }

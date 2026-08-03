@@ -1,6 +1,7 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { CacheClient } from "../clients/cacheClient.js";
 import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as observeService from "../services/observeService.js";
@@ -166,7 +167,15 @@ describe("observe service", () => {
           arguments: ["xpath=/html/body/main/ul/li[2]"],
         },
       ],
-      metadata: {},
+      metadata: {
+        usage: {
+          inputTokens: 11,
+          outputTokens: 4,
+          reasoningTokens: 2,
+          cachedInputTokens: 3,
+          inferenceTimeMs: expect.any(Number),
+        },
+      },
     });
     expect(logs).toEqual(
       expect.arrayContaining([
@@ -176,6 +185,60 @@ describe("observe service", () => {
         }),
       ]),
     );
+  });
+
+  it("zeroes usage when a cached result avoids inference", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const page = {
+      captureSnapshot: vi.fn(),
+      url: () => "https://example.com",
+      frames: () => [frame],
+      mainFrame: () => frame,
+    };
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => observationResult());
+    const get = vi.fn().mockResolvedValue({
+      hit: true,
+      cacheKey: "key",
+      value: [
+        {
+          selector: "xpath=/html/body/button",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        },
+      ],
+    });
+    const set = vi.fn();
+
+    const result = await observeService.observe({
+      params: { pageId: "page-1" },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: new StagehandLogger({ tracer: trace.getTracer("observe-cache-test") }, () => {}),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: true,
+      },
+    });
+
+    expect(result.metadata).toStrictEqual({
+      cacheStatus: "HIT",
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cachedInputTokens: 0,
+        inferenceTimeMs: 0,
+      },
+    });
+    expect(page.captureSnapshot).not.toHaveBeenCalled();
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
   });
 
   it("enforces the configured timeout at service checkpoints", async () => {

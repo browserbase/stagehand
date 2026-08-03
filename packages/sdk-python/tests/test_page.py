@@ -7,10 +7,14 @@ from pydantic import BaseModel
 
 from stagehand import WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
+    PageClickParams,
+    PageDragAndDropParams,
     PageEvaluateResult,
     PageGotoParams,
+    PageHoverParams,
     PageIdParams,
     PageRef,
+    PageScrollParams,
     PageUrlResult,
     PageVoidResult,
     PageWebMCPCancelInvocationParams,
@@ -74,6 +78,79 @@ async def test_page_url_returns_a_scalar_string() -> None:
     assert await page.url() == "https://example.com/path"
     assert recording.calls == [
         ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_page_coordinate_interactions_return_none() -> None:
+    void_result = PageVoidResult(ok=True)
+    recording = RecordingRPCClient({
+        "page.click": void_result,
+        "page.hover": void_result,
+        "page.scroll": void_result,
+        "page.drag_and_drop": void_result,
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    assert await page.click(10, 20, button="right", click_count=2) is None
+    assert await page.hover(30, 40) is None
+    assert await page.scroll(50, 60, -25, 400) is None
+    assert (
+        await page.drag_and_drop(
+            1,
+            2,
+            3,
+            4,
+            button="left",
+            steps=5,
+            delay=10,
+        )
+        is None
+    )
+
+    assert recording.calls == [
+        (
+            "page.click",
+            PageClickParams.model_validate({
+                "page_id": "page-1",
+                "x": 10,
+                "y": 20,
+                "options": {"button": "right", "click_count": 2},
+            }),
+            PageVoidResult,
+        ),
+        (
+            "page.hover",
+            PageHoverParams(page_id="page-1", x=30, y=40),
+            PageVoidResult,
+        ),
+        (
+            "page.scroll",
+            PageScrollParams(
+                page_id="page-1",
+                x=50,
+                y=60,
+                delta_x=-25,
+                delta_y=400,
+            ),
+            PageVoidResult,
+        ),
+        (
+            "page.drag_and_drop",
+            PageDragAndDropParams.model_validate({
+                "page_id": "page-1",
+                "from_x": 1,
+                "from_y": 2,
+                "to_x": 3,
+                "to_y": 4,
+                "options": {
+                    "button": "left",
+                    "steps": 5,
+                    "delay": 10,
+                },
+            }),
+            PageVoidResult,
+        ),
     ]
 
 
