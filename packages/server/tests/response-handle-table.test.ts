@@ -3,8 +3,11 @@ import { ResponseHandleNotFoundError, ResponseHandleTable } from "../responseHan
 import { createStagehandRuntime, type UnderstudyRuntimePage } from "../runtime.js";
 import type { Response } from "../understudy/response.js";
 
-function response(name: string): Response {
-  return { name } as unknown as Response;
+type StubResponse = Response & { disposeMock: ReturnType<typeof vi.fn> };
+
+function response(name: string): StubResponse {
+  const disposeMock = vi.fn();
+  return { name, dispose: disposeMock, disposeMock } as unknown as StubResponse;
 }
 
 function sequentialHandles(): () => string {
@@ -41,17 +44,24 @@ describe("ResponseHandleTable", () => {
     expect(table.resolve(secondId)).toBe(second);
     expect(table.resolve(thirdId)).toBe(third);
     expect(table.size).toBe(2);
+    expect(first.disposeMock).toHaveBeenCalledOnce();
+    expect(second.disposeMock).not.toHaveBeenCalled();
+    expect(third.disposeMock).not.toHaveBeenCalled();
   });
 
   it("removes only handles owned by the selected page", () => {
     const table = new ResponseHandleTable({ createHandle: sequentialHandles() });
-    const firstId = table.register("page-1", response("first"));
-    const secondId = table.register("page-2", response("second"));
+    const first = response("first");
+    const second = response("second");
+    const firstId = table.register("page-1", first);
+    const secondId = table.register("page-2", second);
 
     table.deleteForPage("page-1");
 
     expect(() => table.resolve(firstId)).toThrow(ResponseHandleNotFoundError);
     expect(table.resolve(secondId)).toBeDefined();
+    expect(first.disposeMock).toHaveBeenCalledOnce();
+    expect(second.disposeMock).not.toHaveBeenCalled();
   });
 
   it("isolates handles between tables", () => {
@@ -68,6 +78,8 @@ describe("ResponseHandleTable", () => {
     firstTable.clear();
     expect(() => firstTable.resolve("shared-id")).toThrow(ResponseHandleNotFoundError);
     expect(secondTable.resolve("shared-id")).toBe(second);
+    expect(first.disposeMock).toHaveBeenCalledOnce();
+    expect(second.disposeMock).not.toHaveBeenCalled();
   });
 
   it("rejects invalid capacity and repeated handle collisions", () => {

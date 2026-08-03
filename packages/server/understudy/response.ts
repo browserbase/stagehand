@@ -418,6 +418,15 @@ export class Response {
     }
   }
 
+  /**
+   * Releases the session listeners retained by this response. Unfinished
+   * responses are settled with an error so callers already waiting on
+   * `finished()` or a lazy body read cannot hang after their handle is removed.
+   */
+  public dispose(error = new Error("Response was disposed")): void {
+    this.markFinished(error);
+  }
+
   private installLifecycleListeners(): void {
     this.session.on("Network.responseReceivedExtraInfo", this.onResponseReceivedExtraInfo);
     this.session.on("Network.loadingFinished", this.onLoadingFinished);
