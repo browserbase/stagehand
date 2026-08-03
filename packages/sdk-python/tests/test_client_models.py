@@ -37,10 +37,12 @@ def test_client_configuration_rejects_unknown_sdk_options() -> None:
         })
 
 
-def test_client_configuration_rejects_removed_connect_timeout() -> None:
-    with pytest.raises(ValidationError, match="extra_forbidden"):
+@pytest.mark.parametrize("timeout", [True, 9_007_199_254_740_992])
+def test_client_configuration_rejects_invalid_dom_settle_timeouts(timeout: object) -> None:
+    with pytest.raises(ValidationError):
         StagehandClientInitParams.model_validate({
-            "browser": {"type": "local", "connect_timeout_ms": 10_000}
+            "browser": {"type": "local"},
+            "dom_settle_timeout_ms": timeout,
         })
 
 

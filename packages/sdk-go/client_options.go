@@ -83,8 +83,29 @@ type LLMGenerateFunc func(context.Context, LLMGenerateParams) (LLMGenerateResult
 
 // StagehandClientLoggingConfig controls client-side handling of runtime log notifications.
 type StagehandClientLoggingConfig struct {
-	OnLog func(StagehandLog)
+	Level  StagehandClientLogLevel
+	Format StagehandClientLogFormat
+	OnLog  func(StagehandLog)
 }
+
+// StagehandClientLogLevel controls which runtime log notifications the SDK emits.
+type StagehandClientLogLevel string
+
+const (
+	StagehandClientLogLevelOff   StagehandClientLogLevel = "off"
+	StagehandClientLogLevelError StagehandClientLogLevel = "error"
+	StagehandClientLogLevelWarn  StagehandClientLogLevel = "warn"
+	StagehandClientLogLevelInfo  StagehandClientLogLevel = "info"
+	StagehandClientLogLevelDebug StagehandClientLogLevel = "debug"
+)
+
+// StagehandClientLogFormat controls terminal rendering of runtime logs.
+type StagehandClientLogFormat string
+
+const (
+	StagehandClientLogFormatPretty StagehandClientLogFormat = "pretty"
+	StagehandClientLogFormatJSON   StagehandClientLogFormat = "json"
+)
 
 // StagehandClientInitParams extends the generated worker init shape with the
 // two client-only unions: browser setup and an optional local LLM callback.

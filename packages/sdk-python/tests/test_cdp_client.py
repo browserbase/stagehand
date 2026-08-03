@@ -2,7 +2,7 @@ import asyncio
 import json
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import cast
+from typing import Self, cast
 
 import pytest
 
@@ -21,6 +21,7 @@ def _ready_marker() -> dict[str, object]:
         "marker": {
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
             "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "state": "ready",
         },
         "hasReceiver": True,
     }
@@ -267,6 +268,76 @@ async def test_service_worker_discovery_can_succeed_after_more_than_ten_seconds(
 
     assert worker.target_id == "worker-target"
     assert target_polls == 2
+
+
+@pytest.mark.asyncio
+async def test_service_worker_discovery_closes_the_wake_target_after_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    socket = FakeWebSocket(lambda _: None)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    wake_created = asyncio.Event()
+    wake_closed = asyncio.Event()
+    calls: list[tuple[str, object]] = []
+
+    async def send_command(method: str, params: object = None, **_: object) -> dict[str, object]:
+        calls.append((method, params))
+        if method == "Target.getTargets":
+            return {"targetInfos": []}
+        if method == "Target.createTarget":
+            wake_created.set()
+            return {"targetId": "wake-target"}
+        if method == "Target.closeTarget":
+            wake_closed.set()
+        return {}
+
+    monkeypatch.setattr(client, "send_command", send_command)
+    elapsed_seconds = iter((0.0, 2.0))
+    monkeypatch.setattr(
+        cdp_client,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(elapsed_seconds, 2.0)),
+    )
+
+    try:
+        waiting = asyncio.create_task(
+            client._wait_for_service_worker("stagehand-extension", "service-worker.js")
+        )
+        await wake_created.wait()
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+        await asyncio.wait_for(wake_closed.wait(), timeout=1)
+    finally:
+        await client.close()
+
+    assert ("Target.closeTarget", {"targetId": "wake-target"}) in calls
+
+
+def test_json_version_probe_uses_a_short_socket_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_timeout: object = None
+
+    class Response:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def open_url(_: str, *, timeout: object = None) -> Response:
+        nonlocal observed_timeout
+        observed_timeout = timeout
+        return Response()
+
+    monkeypatch.setattr(cdp_client, "urlopen", open_url)
+    monkeypatch.setattr(cdp_client.json, "load", lambda _: {"webSocketDebuggerUrl": "ws://cdp"})
+
+    assert cdp_client._read_json("http://127.0.0.1:9222/json/version") == {
+        "webSocketDebuggerUrl": "ws://cdp"
+    }
+    assert observed_timeout == 2
 
 
 @pytest.mark.asyncio

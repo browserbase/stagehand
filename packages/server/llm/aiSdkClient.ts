@@ -18,11 +18,7 @@ import {
   ModelProviderSchema,
   OpenAIModelIdSchema,
 } from "../../protocol/schemas.js";
-import type {
-  KnownModelConfig,
-  LLMGenerateParams,
-  LLMGenerateResult,
-} from "../../protocol/types.js";
+import type { LLMGenerateParams, LLMGenerateResult, ModelConfig } from "../../protocol/types.js";
 
 const AiSdkMessagesSchema = z.array(LLMMessageSchema).transform((messages): ModelMessage[] => {
   const toolNames = new Map<string, string>();
@@ -128,7 +124,7 @@ const AiSdkGenerationSchema = z
   .strip();
 
 /** Creates a direct AI SDK model from a validated Stagehand model configuration. */
-export function createAiSdkLanguageModel(config: KnownModelConfig): LanguageModel {
+export function createAiSdkLanguageModel(config: ModelConfig): LanguageModel {
   const separator = config.modelName.indexOf("/");
   const provider = ModelProviderSchema.parse(config.modelName.slice(0, separator));
   const modelId = config.modelName.slice(separator + 1);

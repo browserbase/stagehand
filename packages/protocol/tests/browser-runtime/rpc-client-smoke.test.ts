@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { connectRPCClient, type RPCClient } from "../../../sdk-ts/src/rpcClient.js";
 import { StagehandMethods } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
 const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
@@ -28,12 +29,23 @@ describe("Stagehand service worker RPC client smoke", () => {
     extensionDir = await createFullGraphSmokeExtension();
     fixtureServer = await startFixtureServer();
     chrome = await launchChrome(fixtureServer.url);
+    const signal = AbortSignal.timeout(15_000);
     rpcClient = await connectRPCClient({
       cdpUrl: `http://127.0.0.1:${chrome.port}`,
       extensionDir,
       serviceWorkerUrlIncludes: "service-worker.js",
-      logLevel: "debug",
+      signal,
     });
+    await rpcClient.send(
+      StagehandMethods.stagehandInit,
+      {
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        logLevel: "debug",
+        browserCdpUrl: rpcClient.browserWebSocketDebuggerUrl ?? `http://127.0.0.1:${chrome.port}`,
+      },
+      { signal },
+    );
   }, 45_000);
 
   afterAll(async () => {
@@ -59,8 +71,8 @@ describe("Stagehand service worker RPC client smoke", () => {
       jsonrpc: "2.0",
       method: "stagehand.log",
       params: {
-        level: "debug",
-        message: "runtime.configure",
+        level: "info",
+        message: "stagehand.init",
         data: {},
       },
     });

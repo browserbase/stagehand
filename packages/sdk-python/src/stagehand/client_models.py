@@ -9,17 +9,15 @@ from ._generated import models as _models
 from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseRegion,
-    CustomModelConfig,
-    KnownModelConfig,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     ModelConfig,
     ProxyConfig,
-    StagehandInitParams,
     StagehandLog,
     StagehandResultMetadata,
+    TelemetryConfig,
 )
 from ._validation import WireModel
 
@@ -145,9 +143,19 @@ class StagehandClientLoggingConfig(WireModel):
     on_log: StagehandOnLog | None = None
 
 
-class StagehandClientInitParams(StagehandInitParams):
+class StagehandClientInitParams(WireModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api_key: Annotated[str | None, Field(min_length=1)] = None
     browser: BrowserSource = BrowserbaseBrowserSource(type="browserbase")
     model: ModelConfig | ClientLLM | None = None
+    telemetry: TelemetryConfig | None = None
+    system_prompt: str | None = None
+    self_heal: bool | None = None
+    dom_settle_timeout_ms: Annotated[
+        int | None, Field(gt=0, le=9_007_199_254_740_991, strict=True)
+    ] = None
+    cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
     @model_validator(mode="after")
@@ -164,7 +172,6 @@ def _model_config(
     model: str,
     *,
     api_key: str | None = None,
-    base_url: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> ModelConfig:
     connection: dict[str, object] = {
@@ -172,14 +179,4 @@ def _model_config(
         for name, value in (("api_key", api_key), ("headers", headers))
         if value is not None
     }
-    if base_url is None:
-        return ModelConfig(
-            root=KnownModelConfig.model_validate({"model_name": model, **connection})
-        )
-    return ModelConfig(
-        root=CustomModelConfig.model_validate({
-            "model_name": model,
-            "base_url": base_url,
-            **connection,
-        })
-    )
+    return ModelConfig.model_validate({"model_name": model, **connection})

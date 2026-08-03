@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -161,6 +162,70 @@ func TestResolveBrowserWebSocketURLPollsVersionEndpointWithHeaders(t *testing.T)
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("version endpoint calls = %d, want 2", calls.Load())
+	}
+}
+
+func TestWaitForServiceWorkerClosesWakeTargetAfterCancellation(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	wakeCreated := make(chan struct{})
+	wakeClosed := make(chan struct{})
+	var createdOnce sync.Once
+	var closedOnce sync.Once
+	socket.writeHook = func(message []byte) {
+		var command cdpCommandEnvelope
+		if err := json.Unmarshal(message, &command); err != nil {
+			t.Errorf("decode CDP command: %v", err)
+			return
+		}
+		var result string
+		switch command.Method {
+		case "Target.getTargets":
+			result = `{"targetInfos":[]}`
+		case "Target.createTarget":
+			result = `{"targetId":"wake-target"}`
+			createdOnce.Do(func() { close(wakeCreated) })
+		case "Target.closeTarget":
+			result = `{}`
+			closedOnce.Do(func() { close(wakeClosed) })
+		default:
+			result = `{}`
+		}
+		socket.receiveJSON(fmt.Sprintf(`{"id":%d,"result":%s}`, command.ID, result))
+	}
+	client, err := newCDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+	if err != nil {
+		t.Fatalf("newCDPClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, waitErr := client.waitForServiceWorker(
+			ctx,
+			"stagehand-extension",
+			"service-worker.js",
+			0,
+			time.Millisecond,
+		)
+		done <- waitErr
+	}()
+
+	select {
+	case <-wakeCreated:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatal("wake target was not created")
+	}
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForServiceWorker() error = %v, want context.Canceled", err)
+	}
+	select {
+	case <-wakeClosed:
+	case <-time.After(time.Second):
+		t.Fatal("wake target was not closed after cancellation")
 	}
 }
 
@@ -715,10 +780,6 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	rpc, err := connectRPCClient(
 		context.Background(),
 		options,
-		TelemetryConfig{Traces: TelemetryTraces{
-			Endpoint: "https://example.com/v1/traces",
-			Headers:  TelemetryTracesHeaders{},
-		}},
 	)
 	if err != nil {
 		t.Fatalf("connectRPCClient() error = %v", err)

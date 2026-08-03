@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -24,6 +26,7 @@ type protocolClient interface {
 	call(ctx context.Context, method string, params any, result any) error
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()
+	browserWebSocketDebuggerURL() string
 	close() error
 }
 
@@ -38,12 +41,39 @@ type resolvedBrowserSource struct {
 	cleanup              func() error
 }
 
+// ResolvedBrowserSource is a detached snapshot of the browser connection
+// selected during Init. It intentionally excludes SDK-owned lifecycle and
+// temporary-extension state.
+type ResolvedBrowserSource struct {
+	CDPURL               string
+	CDPHeaders           map[string]string
+	BrowserbaseSessionID string
+	PreloadedExtension   bool
+	KeepAlive            bool
+}
+
+func (browser resolvedBrowserSource) snapshot() ResolvedBrowserSource {
+	var headers map[string]string
+	if len(browser.cdpHeaders) > 0 {
+		headers = make(map[string]string, len(browser.cdpHeaders))
+		for name := range browser.cdpHeaders {
+			headers[name] = browser.cdpHeaders.Get(name)
+		}
+	}
+	return ResolvedBrowserSource{
+		CDPURL:               browser.cdpURL,
+		CDPHeaders:           headers,
+		BrowserbaseSessionID: browser.browserbaseSessionID,
+		PreloadedExtension:   browser.preloadedExtension,
+		KeepAlive:            browser.keepAlive,
+	}
+}
+
 type clientAdapters struct {
 	resolveBrowserSource func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error)
 	connectProtocol      func(
 		context.Context,
 		resolvedBrowserSource,
-		TelemetryConfig,
 	) (protocolClient, error)
 }
 
@@ -54,23 +84,56 @@ func defaultClientAdapters() clientAdapters {
 	}
 }
 
-// configureProtocol is transport setup, matching the TypeScript and Python
-// RPC clients rather than the public Stagehand.Init method.
-func configureProtocol(
-	ctx context.Context,
-	rpc protocolClient,
-	browser resolvedBrowserSource,
-	telemetry TelemetryConfig,
-) error {
-	params := RuntimeConfigureParams{
-		ProtocolVersion: stagehandProtocolVersion,
-		ClientInfo: ImplementationInfo{
-			Name:    stagehandSDKClientName,
-			Version: stagehandSDKVersion,
-		},
-		CDPURL:    browser.cdpURL,
-		Telemetry: telemetry,
+type resolvedStagehandClientLoggingConfig struct {
+	level  StagehandClientLogLevel
+	format StagehandClientLogFormat
+	onLog  func(StagehandLog)
+	writer io.Writer
+}
+
+func resolveLoggingConfig(
+	config *StagehandClientLoggingConfig,
+	writer io.Writer,
+) (resolvedStagehandClientLoggingConfig, error) {
+	resolved := resolvedStagehandClientLoggingConfig{
+		level:  StagehandClientLogLevelInfo,
+		format: StagehandClientLogFormatPretty,
+		writer: writer,
 	}
-	var result RuntimeConfigureResult
-	return rpc.call(ctx, "runtime.configure", params, &result)
+	if config != nil {
+		if config.Level != "" {
+			resolved.level = config.Level
+		}
+		if config.Format != "" {
+			resolved.format = config.Format
+		}
+		resolved.onLog = config.OnLog
+	}
+	if !validClientLogLevel(resolved.level) {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging level %q",
+			resolved.level,
+		)
+	}
+	if resolved.format != StagehandClientLogFormatPretty &&
+		resolved.format != StagehandClientLogFormatJSON {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging format %q",
+			resolved.format,
+		)
+	}
+	return resolved, nil
+}
+
+func validClientLogLevel(level StagehandClientLogLevel) bool {
+	switch level {
+	case StagehandClientLogLevelOff,
+		StagehandClientLogLevelError,
+		StagehandClientLogLevelWarn,
+		StagehandClientLogLevelInfo,
+		StagehandClientLogLevelDebug:
+		return true
+	default:
+		return false
+	}
 }

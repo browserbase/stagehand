@@ -5,7 +5,6 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
-from importlib.metadata import version
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
 from pydantic import (
@@ -18,16 +17,9 @@ from pydantic import (
     ValidationError,
 )
 
-from ._generated import models
-from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
-
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
 _RPC_RESPONSE_GRACE_MS = 10_000
-_STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
-    name="stagehand-sdk-python",
-    version=version("stagehand"),
-)
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -117,6 +109,11 @@ class RPCClient:
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
+
+    @property
+    def browser_web_socket_debugger_url(self) -> str | None:
+        value = getattr(self._transport, "web_socket_debugger_url", None)
+        return value if isinstance(value, str) else None
 
     @overload
     async def send(
@@ -492,8 +489,6 @@ async def connect_rpc_client(
     extension_dir: str | None = None,
     extension_id: str | None = None,
     service_worker_url_includes: str | None = None,
-    telemetry: models.TelemetryConfig | None = None,
-    log_level: str = "info",
 ) -> RPCClient:
     from .cdp_client import CDPClient
 
@@ -503,25 +498,11 @@ async def connect_rpc_client(
         extension_id=extension_id,
         service_worker_url_includes=service_worker_url_includes,
     )
-    client = RPCClient(cdp)
-    configure = models.RuntimeConfigureParams(
-        protocol_version=STAGEHAND_PROTOCOL_VERSION,
-        client_info=_STAGEHAND_SDK_CLIENT_INFO,
-        cdp_url=cdp.web_socket_debugger_url,
-        **({"telemetry": telemetry} if telemetry is not None else {}),
-        log_level=models.LogLevel(log_level),
-    )
-
-    try:
-        await client.send("runtime.configure", configure, models.RuntimeConfigureResult)
-    except BaseException:
-        await client.close()
-        raise
-    return client
+    return RPCClient(cdp)
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
-    if method in {"runtime.configure", "stagehand.init"}:
+    if method == "stagehand.init":
         return None
 
     operation_timeout_ms: float | int | None = None

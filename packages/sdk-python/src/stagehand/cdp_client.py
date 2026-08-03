@@ -88,6 +88,7 @@ class CDPClient:
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
     @classmethod
@@ -327,75 +328,88 @@ class CDPClient:
         started = time.monotonic()
         activation_target_id: str | None = None
 
-        while True:
-            response = await self.send_command("Target.getTargets")
-            targets = response.get("targetInfos")
-            target_infos = cast(list[object], targets) if isinstance(targets, list) else []
-            for target in target_infos:
-                if not isinstance(target, dict):
-                    continue
-                target_info = cast(dict[str, object], target)
-                url = target_info.get("url")
-                if (
-                    target_info.get("type") == "service_worker"
-                    and isinstance(url, str)
-                    and url.startswith("chrome-extension://")
-                    and (
-                        extension_id is None
-                        or url.startswith(f"chrome-extension://{extension_id}/")
-                    )
-                    and url_includes in url
-                ):
-                    if activation_target_id is not None:
-                        with suppress(Exception):
-                            await self.send_command(
-                                "Target.closeTarget",
-                                {"targetId": activation_target_id},
-                            )
-                    return ServiceWorkerInfo(
-                        target_id=_required_string(target_info, "targetId", "Target.getTargets"),
-                        title=_required_string(target_info, "title", "Target.getTargets"),
-                        url=url,
-                        extension_id=extension_id,
-                    )
+        try:
+            while True:
+                response = await self.send_command("Target.getTargets")
+                targets = response.get("targetInfos")
+                target_infos = cast(list[object], targets) if isinstance(targets, list) else []
+                for target in target_infos:
+                    if not isinstance(target, dict):
+                        continue
+                    target_info = cast(dict[str, object], target)
+                    url = target_info.get("url")
+                    if (
+                        target_info.get("type") == "service_worker"
+                        and isinstance(url, str)
+                        and url.startswith("chrome-extension://")
+                        and (
+                            extension_id is None
+                            or url.startswith(f"chrome-extension://{extension_id}/")
+                        )
+                        and url_includes in url
+                    ):
+                        return ServiceWorkerInfo(
+                            target_id=_required_string(
+                                target_info, "targetId", "Target.getTargets"
+                            ),
+                            title=_required_string(target_info, "title", "Target.getTargets"),
+                            url=url,
+                            extension_id=extension_id,
+                        )
 
-            if (
-                extension_id is not None
-                and activation_target_id is None
-                and (time.monotonic() - started) >= 1
-            ):
-                with suppress(Exception):
-                    activation = await self.send_command(
-                        "Target.createTarget",
-                        {"url": f"chrome-extension://{extension_id}/wake-service-worker.html"},
-                    )
-                    target_id = activation.get("targetId")
-                    activation_target_id = target_id if isinstance(target_id, str) else None
-            await asyncio.sleep(0.1)
+                if (
+                    extension_id is not None
+                    and activation_target_id is None
+                    and (time.monotonic() - started) >= 1
+                ):
+                    with suppress(Exception):
+                        activation = await self.send_command(
+                            "Target.createTarget",
+                            {"url": f"chrome-extension://{extension_id}/wake-service-worker.html"},
+                        )
+                        target_id = activation.get("targetId")
+                        activation_target_id = target_id if isinstance(target_id, str) else None
+                await asyncio.sleep(0.1)
+        finally:
+            if activation_target_id is not None:
+                # Do not block cancellation on a cleanup response from an unhealthy transport.
+                self._schedule_best_effort_command(
+                    "Target.closeTarget", {"targetId": activation_target_id}
+                )
 
     async def _wait_for_runtime_ready(self, session_id: str) -> None:
         while True:
-            try:
-                evaluated = await self.send_command(
-                    "Runtime.evaluate",
-                    {
-                        "expression": _RUNTIME_READINESS_EXPRESSION,
-                        "returnByValue": True,
-                    },
-                    session_id=session_id,
-                )
-                exception = evaluated.get("exceptionDetails")
-                if not isinstance(exception, Mapping):
-                    result = evaluated.get("result")
-                    value = result.get("value") if isinstance(result, Mapping) else None
-                    if isinstance(value, Mapping):
-                        has_receiver = value.get("hasReceiver") is True
-                        compatible, _ = _negotiate_runtime(value.get("marker"))
-                        if compatible and has_receiver:
-                            return
-            except Exception:
-                pass
+            evaluated = await self.send_command(
+                "Runtime.evaluate",
+                {
+                    "expression": _RUNTIME_READINESS_EXPRESSION,
+                    "returnByValue": True,
+                },
+                session_id=session_id,
+            )
+            exception = evaluated.get("exceptionDetails")
+            if not isinstance(exception, Mapping):
+                result = evaluated.get("result")
+                value = result.get("value") if isinstance(result, Mapping) else None
+                if isinstance(value, Mapping):
+                    has_receiver = value.get("hasReceiver") is True
+                    compatible, _ = _negotiate_runtime(value.get("marker"))
+                    if compatible and has_receiver:
+                        return
             await asyncio.sleep(0.1)
+
+    def _schedule_best_effort_command(self, method: str, params: Mapping[str, object]) -> None:
+        if self._closed:
+            return
+        task = asyncio.create_task(self.send_command(method, params))
+        self._background_tasks.add(task)
+
+        def finish(completed: asyncio.Task[dict[str, object]]) -> None:
+            self._background_tasks.discard(completed)
+            if not completed.cancelled():
+                completed.exception()
+
+        task.add_done_callback(finish)
 
 
 async def _connect_web_socket(url: str) -> _WebSocket:
@@ -424,7 +438,7 @@ async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
 
 
 def _read_json(url: str) -> dict[str, object]:
-    with urlopen(url) as response:  # noqa: S310 -- The user selects the CDP URL.
+    with urlopen(url, timeout=2) as response:  # noqa: S310 -- The user selects the CDP URL.
         value: Any = json.load(response)
     if not isinstance(value, dict):
         raise RuntimeError("CDP version endpoint returned invalid JSON")

@@ -53,7 +53,8 @@ type rpcTransport interface {
 }
 
 type rpcClient struct {
-	transport rpcTransport
+	transport           rpcTransport
+	browserWebSocketURL string
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -74,6 +75,10 @@ type rpcClient struct {
 }
 
 var _ protocolClient = (*rpcClient)(nil)
+
+func (client *rpcClient) browserWebSocketDebuggerURL() string {
+	return client.browserWebSocketURL
+}
 
 type pendingRPCRequest struct {
 	method   string
@@ -228,7 +233,7 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 }
 
 func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
-	if method == "runtime.configure" || method == "stagehand.init" {
+	if method == "stagehand.init" {
 		return 0, false
 	}
 

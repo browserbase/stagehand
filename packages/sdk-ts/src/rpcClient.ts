@@ -33,16 +33,9 @@ import {
   StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
-import {
-  DEFAULT_TELEMETRY_CONFIG,
-  RuntimeConfigureParamsSchema,
-  STAGEHAND_PROTOCOL_VERSION,
-  TelemetryConfigSchema,
-} from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { CDPClient, type ServiceWorkerInfo } from "./cdpClient.js";
-import { STAGEHAND_SDK_CLIENT_INFO } from "./sdkIdentity.js";
 import { abortReason } from "./abort.js";
 
 type PendingRequest = {
@@ -70,8 +63,6 @@ const RPCClientOptionsBaseSchema = z
   .object({
     cdpUrl: z.string().min(1),
     serviceWorkerUrlIncludes: z.string().min(1).optional(),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
-    logLevel: RuntimeConfigureParamsSchema.shape.logLevel,
     signal: z.custom<AbortSignal>((value) => value instanceof AbortSignal).optional(),
   })
   .strict();
@@ -98,6 +89,7 @@ export type RPCClientOptions = z.input<typeof RPCClientOptionsSchema>;
 
 export type CDPTransport = {
   readonly serviceWorker: ServiceWorkerInfo;
+  readonly webSocketDebuggerUrl?: string;
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
@@ -107,6 +99,7 @@ export type CDPTransport = {
 
 export class RPCClient {
   readonly serviceWorker: ServiceWorkerInfo;
+  readonly browserWebSocketDebuggerUrl?: string;
   nextRequestId = 1;
   pending = new Map<number, PendingRequest>();
   requestHandlers = new Map<string, RegisteredRequestHandler>();
@@ -118,6 +111,7 @@ export class RPCClient {
   constructor(cdp: CDPTransport) {
     this.cdp = cdp;
     this.serviceWorker = cdp.serviceWorker;
+    this.browserWebSocketDebuggerUrl = cdp.webSocketDebuggerUrl;
     this.cdp.onmessage = (message) => this.receive(message);
     this.cdp.onclose = (reason) => this.close(reason);
     this.cdp.onerror = (error) => this.close(error);
@@ -225,7 +219,10 @@ export class RPCClient {
     return () => this.notificationListeners.delete(listener);
   }
 
-  close(reason: Error = new Error("RPC client closed")): void {
+  close(
+    reason: Error = new Error("RPC client closed"),
+    { closeTransport = true }: { closeTransport?: boolean } = {},
+  ): void {
     if (this.closed) return;
     this.closed = true;
     this.requestHandlers.clear();
@@ -235,7 +232,9 @@ export class RPCClient {
     this.cdp.onmessage = undefined;
     this.cdp.onclose = undefined;
     this.cdp.onerror = undefined;
-    this.cdp.close();
+    if (closeTransport) {
+      this.cdp.close();
+    }
   }
 
   waitForResponse(id: number, method: RPCMethod, signal?: AbortSignal): Promise<unknown> {
@@ -436,25 +435,7 @@ export async function connectRPCClient(input: RPCClientOptions): Promise<RPCClie
       : {}),
     ...(options.signal ? { signal: options.signal } : {}),
   });
-  const client = new RPCClient(cdpClient);
-
-  try {
-    await client.send(
-      StagehandMethods.runtimeConfigure,
-      {
-        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-        clientInfo: STAGEHAND_SDK_CLIENT_INFO,
-        cdpUrl: cdpClient.webSocketDebuggerUrl,
-        telemetry: options.telemetry,
-        logLevel: options.logLevel,
-      },
-      { signal: options.signal },
-    );
-    return client;
-  } catch (error) {
-    client.close();
-    throw error;
-  }
+  return new RPCClient(cdpClient);
 }
 
 export function getTraceContextFields(requestContext: Context): {
@@ -484,11 +465,7 @@ function asError(error: unknown): Error {
 }
 
 function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
-  if (
-    method === StagehandMethods.runtimeConfigure.name ||
-    method === StagehandMethods.stagehandInit.name
-  )
-    return undefined;
+  if (method === StagehandMethods.stagehandInit.name) return undefined;
 
   let operationTimeoutMs: number | undefined;
   switch (method) {

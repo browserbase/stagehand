@@ -58,6 +58,10 @@ func (*recordingProtocolClient) onNotification(string, func(StagehandLog)) func(
 	return func() {}
 }
 
+func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {
+	return "ws://127.0.0.1:9222/devtools/browser/test"
+}
+
 func (c *recordingProtocolClient) close() error {
 	c.closed = true
 	return nil
@@ -126,7 +130,6 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure":   RuntimeConfigureResult{Configured: true},
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
 		"page.goto":           PageRef{PageID: "page-1"},
@@ -163,7 +166,6 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	}
 
 	wantMethods := []string{
-		"runtime.configure",
 		"stagehand.init",
 		"context.active_page",
 		"page.goto",
@@ -180,7 +182,6 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	}
 
 	wantParamTypes := []any{
-		RuntimeConfigureParams{},
 		StagehandInitParams{},
 		EmptyParams{},
 		PageGotoParams{},
@@ -198,18 +199,18 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 			)
 		}
 	}
-	configure, ok := rpc.calls[0].params.(RuntimeConfigureParams)
+	initParams, ok := rpc.calls[0].params.(StagehandInitParams)
 	if !ok {
-		t.Fatalf("runtime.configure params = %T", rpc.calls[0].params)
+		t.Fatalf("stagehand.init params = %T", rpc.calls[0].params)
 	}
-	if configure.ProtocolVersion != stagehandProtocolVersion {
-		t.Fatalf("protocol version = %#v", configure.ProtocolVersion)
+	if initParams.ProtocolVersion != stagehandProtocolVersion {
+		t.Fatalf("protocol version = %#v", initParams.ProtocolVersion)
 	}
-	if configure.ClientInfo != (ImplementationInfo{
+	if initParams.ClientInfo != (ImplementationInfo{
 		Name:    stagehandSDKClientName,
 		Version: stagehandSDKVersion,
 	}) {
-		t.Fatalf("client info = %#v", configure.ClientInfo)
+		t.Fatalf("client info = %#v", initParams.ClientInfo)
 	}
 	if !rpc.closed {
 		t.Error("protocol client was not closed")
@@ -220,8 +221,7 @@ func TestClientLLMHandlerUsesGeneratedUnions(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure": RuntimeConfigureResult{Configured: true},
-		"stagehand.init":    StagehandInitResult{Initialized: true},
+		"stagehand.init": StagehandInitResult{Initialized: true},
 	}}
 	called := false
 	client := newStagehandWithClient(StagehandClientInitParams{
@@ -269,9 +269,8 @@ func TestClientSerializesConcurrentInitAndClose(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure": RuntimeConfigureResult{Configured: true},
-		"stagehand.init":    StagehandInitResult{Initialized: true},
-		"stagehand.close":   StagehandCloseResult{Closed: true},
+		"stagehand.init":  StagehandInitResult{Initialized: true},
+		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
 	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
 	var resolves atomic.Int32
@@ -341,7 +340,6 @@ func TestActAcceptsObservedAction(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure":   RuntimeConfigureResult{Configured: true},
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
 		"stagehand.act": ActResult{Data: ActResultData{
@@ -360,13 +358,13 @@ func TestActAcceptsObservedAction(t *testing.T) {
 	if _, err := client.Act(context.Background(), action, nil); err != nil {
 		t.Fatalf("Act() error = %v", err)
 	}
-	params, ok := rpc.calls[3].params.(StagehandActParams)
+	params, ok := rpc.calls[2].params.(StagehandActParams)
 	if !ok {
-		t.Fatalf("stagehand.act params = %T", rpc.calls[3].params)
+		t.Fatalf("stagehand.act params = %T", rpc.calls[2].params)
 	}
-	got, ok := params.Input.AsAction()
+	got, ok := params.Instruction.AsAction()
 	if !ok || !reflect.DeepEqual(got, action) {
-		t.Fatalf("Act() input = %#v, want %#v", got, action)
+		t.Fatalf("Act() instruction = %#v, want %#v", got, action)
 	}
 }
 
@@ -374,9 +372,8 @@ func TestClientCloseWaitsForInFlightInit(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"runtime.configure": RuntimeConfigureResult{Configured: true},
-		"stagehand.init":    StagehandInitResult{Initialized: true},
-		"stagehand.close":   StagehandCloseResult{Closed: true},
+		"stagehand.init":  StagehandInitResult{Initialized: true},
+		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
 	client := newStagehandWithClient(StagehandClientInitParams{}, rpc)
 	resolveStarted := make(chan struct{})
@@ -414,8 +411,7 @@ func TestClientCloseIgnoresDisconnectedTransport(t *testing.T) {
 
 	rpc := &recordingProtocolClient{
 		responses: map[string]any{
-			"runtime.configure": RuntimeConfigureResult{Configured: true},
-			"stagehand.init":    StagehandInitResult{Initialized: true},
+			"stagehand.init": StagehandInitResult{Initialized: true},
 		},
 		callErrors: map[string]error{
 			"stagehand.close": fmt.Errorf("close RPC: %w", ErrCDPConnectionClosed),

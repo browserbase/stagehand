@@ -250,9 +250,9 @@ The `add-go` model PR adopts the narrow hybrid, without modifying the canonical 
 - Ordinary objects, maps, aliases, and string enums are emitted by pinned `go-jsonschema` `v0.23.1` in model-only mode. The checked-in result has no SDK runtime dependency. `LoadState` is the one handwritten enum because its concatenated wire values otherwise produce non-idiomatic exported constant names.
 - The projection converts only the schema's `T | null` pairs to Go pointers. It routes real unions through the generator's custom-type extension and fails generation if any unhandled `anyOf` or `oneOf` remains. This prevents a future schema change from silently becoming `interface{}`.
 - Handwritten wrappers cover the irreducible Go cases: model, proxy, variable, cookie, LLM, boolean-or-list, string-or-list, and string-or-number unions. Constructors set known discriminators, JSON decoding rejects unknown discriminators, and zero-value unions fail to marshal.
-- `json.RawMessage` is used for intentionally arbitrary JSON. LLM callback results preserve allowed unknown properties in an explicit `AdditionalProperties` map.
+- `json.RawMessage` is used for intentionally arbitrary JSON. LLM callback results are closed protocol objects and reject unknown provider-specific properties.
 - The generator lives in a nested module to keep its dependencies out of the SDK runtime. Both modules target Go 1.26, and the generated SDK does not import Omissis.
-- Tests compare the generated catalog with the complete reachable protocol definition graph, forbid `interface{}` fallbacks, and round-trip representative union and open-object values. CI also checks generator staleness, formatting, vet, tests, and build.
+- Tests compare the generated catalog with the complete reachable protocol definition graph, forbid `interface{}` fallbacks, and round-trip representative union and closed-object values. CI also checks generator staleness, formatting, vet, tests, and build.
 
 This is deliberately schema projection, not output patching: Omissis output is accepted as generated or generation fails. The only custom logic is the part Go cannot express as native tagged unions.
 

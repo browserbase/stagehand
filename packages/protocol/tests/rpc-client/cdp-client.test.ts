@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
   loadUnpackedExtension,
-  CDPClient,
   resolveBrowserWebSocketUrl,
   StagehandRuntimeIncompatibleError,
   waitForPreloadedStagehandServiceWorker,
@@ -38,7 +37,6 @@ class FakeCdp {
     method: string,
     params?: Record<string, unknown>,
     sessionId?: string,
-    _signal?: AbortSignal,
   ): Promise<Result> {
     this.calls.push({ method, params, sessionId });
     const handler = this.handlers.get(method);
@@ -49,17 +47,6 @@ class FakeCdp {
 
     return (await handler()) as Result;
   }
-}
-
-class OpenFakeWebSocket extends EventTarget {
-  readonly readyState = WebSocket.OPEN;
-  readonly sent: string[] = [];
-
-  send(payload: string): void {
-    this.sent.push(payload);
-  }
-
-  close(): void {}
 }
 
 describe("resolveBrowserWebSocketUrl", () => {
@@ -101,13 +88,17 @@ describe("resolveBrowserWebSocketUrl", () => {
     ]);
   });
 
-  it("stops URL discovery when initialization is cancelled", async () => {
-    const cancellation = cancelOnDelay();
+  it("stops /json/version polling when initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
 
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
         fetchFn: async () => ({
           ok: false,
           status: 503,
@@ -115,22 +106,7 @@ describe("resolveBrowserWebSocketUrl", () => {
           json: async () => ({}),
         }),
       }),
-    ).rejects.toThrow("test initialization cancelled");
-  });
-});
-
-describe("CDPClient command acknowledgements", () => {
-  it("inherits cancellation from the enclosing operation", async () => {
-    const socket = new OpenFakeWebSocket();
-    const client = new CDPClient(socket as unknown as WebSocket, "ws://cdp.test");
-    const controller = new AbortController();
-    const command = client.sendCommand("Runtime.enable", {}, undefined, controller.signal);
-    const rejection = expect(command).rejects.toThrow("operation deadline expired");
-
-    expect(client.pending).toHaveLength(1);
-    controller.abort(new Error("operation deadline expired"));
-    await rejection;
-    expect(client.pending).toHaveLength(0);
+    ).rejects.toBe(reason);
   });
 });
 
@@ -311,8 +287,9 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     });
   });
 
-  it("keeps probing a stale runtime until initialization is cancelled", async () => {
-    const cancellation = cancelOnDelay();
+  it("keeps looking past a stale runtime until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
@@ -325,12 +302,14 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const error = await rejectedError(
       waitForPreloadedStagehandServiceWorker(cdp, {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
       }),
     );
 
-    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
-    expect(error.message).toBe("test initialization cancelled");
+    expect(error).toBe(reason);
 
     expect(cdp.calls).toContainEqual({
       method: "Target.detachFromTarget",
@@ -350,7 +329,6 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         allowFallbackInstall: false,
-        delayFn: async () => {},
       }),
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
 
@@ -424,8 +402,7 @@ describe("waitForRuntimeReady", () => {
     expect(expression).not.toContain("stagehand.v4");
   });
 
-  it("allows healthy bootstrap readiness to take longer than 10 seconds", async () => {
-    let elapsedMs = 0;
+  it("retries until the Stagehand runtime is ready", async () => {
     const readiness = [
       {
         marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
@@ -441,19 +418,17 @@ describe("waitForRuntimeReady", () => {
 
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
-        pollIntervalMs: 11_000,
-        delayFn: async (ms) => {
-          elapsedMs += ms;
-        },
+        pollIntervalMs: 5,
+        delayFn: async () => {},
       }),
     ).resolves.toBeUndefined();
 
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
-    expect(elapsedMs).toBe(11_000);
   });
 
-  it("stops readiness polling when initialization is cancelled", async () => {
-    const cancellation = cancelOnDelay();
+  it("keeps polling a non-Stagehand runtime until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
@@ -469,9 +444,12 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
       }),
-    ).rejects.toThrow("test initialization cancelled");
+    ).rejects.toBe(reason);
   });
 
   it("keeps retrying when readiness evaluation throws", async () => {
@@ -499,24 +477,27 @@ describe("waitForRuntimeReady", () => {
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
   });
 
-  it("does not surface a Zod error while polling a malformed readiness envelope", async () => {
-    const cancellation = cancelOnDelay();
+  it("keeps polling a malformed readiness envelope until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({}));
 
     const error = await rejectedError(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
       }),
     );
 
-    expect(error.message).toContain("test initialization cancelled");
-    expect(error.message).not.toContain("invalid_type");
-    expect(error.message).not.toContain("ZodError");
+    expect(error).toBe(reason);
   });
 
-  it("keeps polling an out-of-range runtime by default until cancellation", async () => {
-    const cancellation = cancelOnDelay();
+  it("keeps polling an out-of-range runtime by default until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: { value: runtimeReadiness(3) },
     }));
@@ -524,12 +505,14 @@ describe("waitForRuntimeReady", () => {
     const error = await rejectedError(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
       }),
     );
 
-    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
-    expect(error.message).toContain("test initialization cancelled");
+    expect(error).toBe(reason);
   });
 
   it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {
@@ -546,7 +529,8 @@ describe("waitForRuntimeReady", () => {
   });
 
   it("does not accept markers with unknown descriptor fields", async () => {
-    const cancellation = cancelOnDelay();
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
@@ -559,9 +543,12 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        ...cancellation,
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
+        },
       }),
-    ).rejects.toThrow("test initialization cancelled");
+    ).rejects.toBe(reason);
   });
 });
 
@@ -604,17 +591,4 @@ async function rejectedError(promise: Promise<unknown>): Promise<Error> {
   }
 
   throw new Error("Expected promise to reject");
-}
-
-function cancelOnDelay(): {
-  signal: AbortSignal;
-  delayFn: () => Promise<void>;
-} {
-  const controller = new AbortController();
-  return {
-    signal: controller.signal,
-    delayFn: async () => {
-      controller.abort(new Error("test initialization cancelled"));
-    },
-  };
 }

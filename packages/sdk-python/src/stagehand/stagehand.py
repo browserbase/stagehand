@@ -6,6 +6,7 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
+from importlib.metadata import version
 from pathlib import Path
 from types import TracebackType
 from typing import Literal, Self, TypeVar, overload
@@ -23,6 +24,7 @@ from ._generated.models import (
     EmptyParams,
     ExternalProxyConfig,
     ExtractOptions,
+    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ModelConfig,
@@ -43,6 +45,7 @@ from ._generated.models import (
 from ._generated.models import (
     Locator as ProtocolLocator,
 )
+from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
@@ -100,7 +103,6 @@ class Stagehand:
         keep_alive: bool | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -120,7 +122,6 @@ class Stagehand:
         api_key: str | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -147,7 +148,6 @@ class Stagehand:
         user_metadata: Mapping[str, object] | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -196,7 +196,6 @@ class Stagehand:
         headers: Mapping[str, str] | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
-        model_base_url: str | None = None,
         model_headers: Mapping[str, str] | None = None,
         telemetry: TelemetryConfig | None = None,
         system_prompt: str | None = None,
@@ -313,7 +312,7 @@ class Stagehand:
         else:
             raise ValueError(f"Unsupported browser source: {browser}")
 
-        model_connection_options = (model_api_key, model_base_url, model_headers)
+        model_connection_options = (model_api_key, model_headers)
         if model is None and any(value is not None for value in model_connection_options):
             raise TypeError("model connection options require a model name")
         if callable(model) and any(value is not None for value in model_connection_options):
@@ -324,7 +323,6 @@ class Stagehand:
             resolved_model = _model_config(
                 model,
                 api_key=model_api_key,
-                base_url=model_base_url,
                 headers=dict(model_headers) if model_headers is not None else None,
             )
         elif model is not None:
@@ -357,6 +355,7 @@ class Stagehand:
         self._browser: ResolvedBrowserSource | None = None
         self._initialized = False
         self._lifecycle_lock = asyncio.Lock()
+        self._background_cleanup_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def context(self) -> BrowserContext:
@@ -405,8 +404,6 @@ class Stagehand:
                     cdp_url=browser.cdp_url,
                     extension_dir=str(extension_dir),
                     service_worker_url_includes="service-worker.js",
-                    telemetry=self.init_params.telemetry,
-                    log_level=self.init_params.logging.level,
                 )
                 self._rpc_client = rpc_client
                 self._remove_notification_listener = rpc_client.on_notification(
@@ -427,12 +424,20 @@ class Stagehand:
                         generate,
                     )
 
+                browser_cdp_url = rpc_client.browser_web_socket_debugger_url
+                if not browser.resident_browser_connection and browser_cdp_url is None:
+                    raise RuntimeError("The browser CDP WebSocket URL is unavailable")
                 await rpc_client.send(
                     "stagehand.init",
-                    self._worker_init_params(),
+                    self._worker_init_params(
+                        None if browser.resident_browser_connection else browser_cdp_url
+                    ),
                     StagehandInitResult,
                 )
                 self._browser_context = BrowserContext(rpc_client)
+            except asyncio.CancelledError:
+                self._schedule_resource_cleanup()
+                raise
             except BaseException:
                 await asyncio.shield(self._release_resources())
                 raise
@@ -441,7 +446,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str | Action,
+        instruction: str | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -464,7 +469,10 @@ class Stagehand:
         target_page = page or await self.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
-        params = StagehandActParams.model_validate({"page_id": target_page.page_id, "input": input})
+        params = StagehandActParams.model_validate({
+            "page_id": target_page.page_id,
+            "instruction": instruction,
+        })
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send("stagehand.act", params, ActResult)
@@ -585,7 +593,7 @@ class Stagehand:
             )
         return self._rpc_client
 
-    def _worker_init_params(self) -> StagehandInitParams:
+    def _worker_init_params(self, browser_cdp_url: str | None) -> StagehandInitParams:
         values = self.init_params.model_dump(
             exclude={"browser", "logging", "model"},
             exclude_unset=True,
@@ -594,6 +602,14 @@ class Stagehand:
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model
+        values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
+        values["client_info"] = ImplementationInfo(
+            name="stagehand-sdk-python",
+            version=version("stagehand"),
+        )
+        values["log_level"] = self.init_params.logging.level
+        if browser_cdp_url is not None:
+            values["browser_cdp_url"] = browser_cdp_url
         return StagehandInitParams.model_validate(values)
 
     async def _handle_stagehand_notification(self, notification: StagehandLog) -> None:
@@ -631,6 +647,17 @@ class Stagehand:
         finally:
             if browser is not None and not browser.keep_alive:
                 await browser.close()
+
+    def _schedule_resource_cleanup(self) -> None:
+        task = asyncio.create_task(self._release_resources())
+        self._background_cleanup_tasks.add(task)
+
+        def finish(completed: asyncio.Task[None]) -> None:
+            self._background_cleanup_tasks.discard(completed)
+            if not completed.cancelled():
+                completed.exception()
+
+        task.add_done_callback(finish)
 
 
 _LOG_LEVEL_PRIORITY = {

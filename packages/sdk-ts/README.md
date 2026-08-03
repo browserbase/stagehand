@@ -3,11 +3,10 @@
 TypeScript object wrapper for the Stagehand v4 service-worker protocol.
 
 ```ts
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({ client });
-await stagehand.init();
-
+const browser = await localBrowser.launch({ headless: true });
+const stagehand = await Stagehand.create({ browser });
 const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
 
 await page.goto("https://example.com");
@@ -20,11 +19,14 @@ await page.locator("#email").fill("user@example.com");
 await page.locator("button[type=submit]").click();
 
 await stagehand.close();
+await browser.close();
 ```
 
 ## object model
 
-- `Stagehand` owns a protocol client and exposes `context`
+- `localBrowser` and `browserbase` launch or connect an extension-ready browser
+- `Stagehand.create()` attaches to a browser and exposes `context`
+- `Stagehand.close()` closes the Stagehand runtime; `browser.close()` owns browser cleanup
 - `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by default and accept an SDK `Page` in their options
 - `BrowserContext.pages()` returns `Page` objects from `context.pages`
 - `BrowserContext.newPage()` wraps the `context.new_page` result

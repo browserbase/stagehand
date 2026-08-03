@@ -96,6 +96,26 @@ describe("BrowserContext first top-level page", () => {
     await expect(waiting).resolves.toBeUndefined();
   });
 
+  it("treats a destroyed initial target as terminal so fallback creation can continue", async () => {
+    const { context } = createContext();
+    const waiting = context.waitForInitialTopLevelTargets(["page-target"]);
+    context.cleanupByTarget("page-target");
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expect(waiting).resolves.toBeUndefined();
+  });
+
+  it("treats failed initial page registration as terminal", async () => {
+    const { context } = createContext();
+    const waiting = context.waitForInitialTopLevelTargets(["page-target"]);
+    context.pageCreationFailures.set("page-target", new Error("page registration failed"));
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expect(waiting).resolves.toBeUndefined();
+  });
+
   it("waits beyond ten seconds for a newly created page to register", async () => {
     const { context } = createContext();
     const waiting = context.newPage();
@@ -109,6 +129,32 @@ describe("BrowserContext first top-level page", () => {
     await expect(waiting).resolves.toMatchObject({
       targetId: expect.any(Function),
     });
+  });
+
+  it("rejects newPage when its created target is destroyed", async () => {
+    const { context } = createContext();
+    const waiting = context.newPage();
+    const rejection = expect(waiting).rejects.toThrow(
+      "Target closed before page registration (created-target)",
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    context.cleanupByTarget("created-target");
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    await rejection;
+  });
+
+  it("rejects newPage when page registration fails", async () => {
+    const { context } = createContext();
+    const waiting = context.newPage();
+    const rejection = expect(waiting).rejects.toThrow("page registration failed");
+    await vi.advanceTimersByTimeAsync(0);
+    context.pageCreationFailures.set("created-target", new Error("page registration failed"));
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    await rejection;
   });
 
   it("stops waiting for target registration when the CDP lifecycle closes", async () => {

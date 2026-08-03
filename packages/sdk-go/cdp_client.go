@@ -185,7 +185,6 @@ func connectCDPClient(ctx context.Context, options cdpClientOptions) (*cdpClient
 func connectRPCClient(
 	ctx context.Context,
 	options cdpClientOptions,
-	telemetry TelemetryConfig,
 ) (*rpcClient, error) {
 	options = normalizeCDPClientOptions(options)
 	cdp, err := connectCDPClient(ctx, options)
@@ -196,14 +195,7 @@ func connectRPCClient(
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
-	if err := configureProtocol(
-		ctx,
-		rpc,
-		resolvedBrowserSource{cdpURL: cdp.webSocketDebuggerURL},
-		telemetry,
-	); err != nil {
-		return nil, errors.Join(err, rpc.close())
-	}
+	rpc.browserWebSocketURL = cdp.webSocketDebuggerURL
 	return rpc, nil
 }
 
@@ -793,16 +785,20 @@ func (c *cdpClient) waitForServiceWorker(
 		lastTargets        []cdpTargetInfo
 		activationTargetID string
 	)
+	defer func() {
+		if activationTargetID == "" {
+			return
+		}
+		// Cleanup must not inherit an already-canceled init context or delay its error.
+		go c.bestEffortCommand(
+			context.WithoutCancel(ctx),
+			"Target.closeTarget",
+			map[string]any{"targetId": activationTargetID},
+		)
+	}()
 
 	for {
 		if err := ctx.Err(); err != nil {
-			if activationTargetID != "" {
-				c.bestEffortCommand(
-					ctx,
-					"Target.closeTarget",
-					map[string]any{"targetId": activationTargetID},
-				)
-			}
 			return cdpTargetInfo{}, fmt.Errorf(
 				"discover Stagehand service worker target: %w; observed targets: %s",
 				err,
@@ -816,11 +812,6 @@ func (c *cdpClient) waitForServiceWorker(
 		lastTargets = targets
 		for _, target := range targets {
 			if isStagehandServiceWorker(target, extensionID, urlIncludes) {
-				if activationTargetID != "" {
-					c.bestEffortCommand(ctx, "Target.closeTarget", map[string]any{
-						"targetId": activationTargetID,
-					})
-				}
 				return target, nil
 			}
 		}

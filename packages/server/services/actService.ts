@@ -61,7 +61,7 @@ export async function act({
   domSettleTimeoutMs?: number;
   cache?: cacheService.CacheContext;
 }): Promise<ActResult> {
-  const { input, options } = params;
+  const { instruction: actInstruction, options } = params;
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
@@ -77,17 +77,17 @@ export async function act({
   };
 
   ensureTimeRemaining();
-  if (typeof input !== "string") {
+  if (typeof actInstruction !== "string") {
     return actResult(
       await takeDeterministicAction({
-        action: input,
+        action: actInstruction,
         variables,
         context,
       }),
     );
   }
 
-  const instruction = input;
+  const instruction = actInstruction;
   await waitForDomNetworkQuiet(page.mainFrame(), logger, domSettleTimeoutMs);
   ensureTimeRemaining();
 
@@ -203,7 +203,7 @@ export async function act({
  */
 async function replayCachedActions(
   value: unknown,
-  input: string,
+  instruction: string,
   variables: Variables | undefined,
   context: ActContext,
 ): Promise<ActResult> {
@@ -228,7 +228,7 @@ async function replayCachedActions(
   return actResult({
     success: true,
     message: results.map((result) => result.message).join(" → "),
-    actionDescription: input,
+    actionDescription: instruction,
     actions: results.flatMap((result) => result.actions),
   });
 }

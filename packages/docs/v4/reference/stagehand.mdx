@@ -141,22 +141,22 @@ Perform an action described in natural language.
 const result = await stagehand.act("Click the sign in button");
 ```
 
-<ParamField path="input" type="Action | string">
+<ParamField path="instruction" type="Action | string">
   A natural-language action to perform, or an action returned by `observe()`.
 
-  <ParamField path="input.selector" type="string">
+  <ParamField path="instruction.selector" type="string">
     The CSS selector or XPath for the action target.
   </ParamField>
 
-  <ParamField path="input.description" type="string">
+  <ParamField path="instruction.description" type="string">
     A human-readable description of the action.
   </ParamField>
 
-  <ParamField path="input.method" type="string" optional>
+  <ParamField path="instruction.method" type="string" optional>
     The action method to execute.
   </ParamField>
 
-  <ParamField path="input.arguments" type="string[]" optional>
+  <ParamField path="instruction.arguments" type="string[]" optional>
     Arguments to pass to the action method.
   </ParamField>
 </ParamField>
@@ -191,10 +191,6 @@ const result = await stagehand.act("Click the sign in button");
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
-    </ParamField>
-
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
     </ParamField>
 
     <ParamField path="options.model.headers" type="object" optional>
@@ -317,10 +313,6 @@ const actions = await stagehand.observe("Find the sign in button");
       The model provider API key.
     </ParamField>
 
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
-    </ParamField>
-
     <ParamField path="options.model.headers" type="object" optional>
       Additional model provider headers.
     </ParamField>
@@ -431,10 +423,6 @@ console.log(product.data, product.metadata.cacheStatus);
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
-    </ParamField>
-
-    <ParamField path="options.model.baseURL" type="string">
-      The model provider base URL.
     </ParamField>
 
     <ParamField path="options.model.headers" type="object" optional>
@@ -617,22 +605,22 @@ Perform an action described in natural language.
 result = await stagehand.act("Click the sign in button")
 ```
 
-<ParamField path="input" type="Action | str">
+<ParamField path="instruction" type="Action | str">
   A natural-language action to perform, or an action returned by `observe()`.
 
-  <ParamField path="input.selector" type="str">
+  <ParamField path="instruction.selector" type="str">
     The CSS selector or XPath for the action target.
   </ParamField>
 
-  <ParamField path="input.description" type="str">
+  <ParamField path="instruction.description" type="str">
     A human-readable description of the action.
   </ParamField>
 
-  <ParamField path="input.method" type="str" optional>
+  <ParamField path="instruction.method" type="str" optional>
     The action method to execute.
   </ParamField>
 
-  <ParamField path="input.arguments" type="list[str]" optional>
+  <ParamField path="instruction.arguments" type="list[str]" optional>
     Arguments to pass to the action method.
   </ParamField>
 </ParamField>
@@ -646,10 +634,6 @@ result = await stagehand.act("Click the sign in button")
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
-</ParamField>
-
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
 </ParamField>
 
 <ParamField path="model.headers" type="dict[str, object]" optional>
@@ -765,10 +749,6 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   The model provider API key.
 </ParamField>
 
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
-</ParamField>
-
 <ParamField path="model.headers" type="dict[str, object]" optional>
   Additional model provider headers.
 </ParamField>
@@ -876,10 +856,6 @@ print(product.data, product.metadata.cache_status)
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
-</ParamField>
-
-<ParamField path="model.base_url" type="str">
-  The model provider base URL.
 </ParamField>
 
 <ParamField path="model.headers" type="dict[str, object]" optional>
