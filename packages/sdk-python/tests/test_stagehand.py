@@ -41,6 +41,7 @@ from stagehand._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandResultMetadata,
+    StagehandResultUsage,
     TelemetryConfig,
 )
 from stagehand.browser_source import ResolvedBrowserSource
@@ -305,22 +306,26 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         action_description="Clicked the more information link",
         actions=[action],
     )
+    zero_usage = StagehandResultUsage()
     recording = RecordingRPCClient({
         "stagehand.init": StagehandInitResult(initialized=True, pages=[]),
         "context.active_page": PageRef(page_id="active-page"),
         "stagehand.act": ActResult.model_validate({
             "data": act_result,
-            "metadata": {"cache_status": "HIT"},
+            "metadata": {"cache_status": "HIT", "usage": zero_usage},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache_status": "MISS"},
+            "metadata": {"cache_status": "MISS", "usage": zero_usage},
         }),
         # Keep this as raw wire JSON: extract() must preserve integer values
         # until the caller's Pydantic schema validates them.
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
+            "metadata": StagehandResultMetadata(
+                cache_status=CacheStatus.hit,
+                usage=zero_usage,
+            ),
         },
     })
     model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})

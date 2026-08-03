@@ -1779,27 +1779,27 @@ type StagehandResultMetadata struct {
 	// Server-side cache status for this result
 	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
 
-	// Aggregate LLM usage for this operation; omitted when the operation did not run
+	// Aggregate LLM usage for this operation; zeroed when the operation did not run
 	// inference
-	Usage *StagehandResultUsage `json:"usage,omitempty,omitzero"`
+	Usage StagehandResultUsage `json:"usage"`
 }
 
 // Aggregate LLM usage for one Stagehand operation
 type StagehandResultUsage struct {
 	// Cached input tokens used by all LLM calls made for this operation
-	CachedInputTokens int `json:"cached_input_tokens"`
+	CachedInputTokens int `json:"cached_input_tokens,omitempty,omitzero"`
 
 	// Total time spent waiting for LLM inference during this operation
-	InferenceTimeMs int `json:"inference_time_ms"`
+	InferenceTimeMs int `json:"inference_time_ms,omitempty,omitzero"`
 
 	// Input tokens consumed by all LLM calls made for this operation
-	InputTokens int `json:"input_tokens"`
+	InputTokens int `json:"input_tokens,omitempty,omitzero"`
 
 	// Output tokens consumed by all LLM calls made for this operation
-	OutputTokens int `json:"output_tokens"`
+	OutputTokens int `json:"output_tokens,omitempty,omitzero"`
 
 	// Reasoning tokens consumed by all LLM calls made for this operation
-	ReasoningTokens int `json:"reasoning_tokens"`
+	ReasoningTokens int `json:"reasoning_tokens,omitempty,omitzero"`
 }
 
 type TelemetryConfig struct {

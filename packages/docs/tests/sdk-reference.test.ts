@@ -86,6 +86,7 @@ type JsonSchema = {
   additionalProperties?: boolean | JsonSchema;
   allOf?: JsonSchema[];
   anyOf?: JsonSchema[];
+  default?: unknown;
   enum?: unknown[];
   items?: JsonSchema;
   oneOf?: JsonSchema[];
@@ -1727,7 +1728,7 @@ function projectedResultFields(
     returnSchemas(method, protocol).flatMap((schema) =>
       schemaFields(schema, protocol).map((field) => ({
         key: `result.${field.path.map((segment) => publicFieldName(segment, language)).join(".")}`,
-        optional: !field.required,
+        optional: !field.required && field.schema.default === undefined,
         schema: field.schema,
       })),
     ),

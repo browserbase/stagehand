@@ -1034,19 +1034,19 @@ export const ActionSchema = z
 
 export const StagehandResultUsageSchema = z
   .strictObject({
-    inputTokens: z.number().int().nonnegative().meta({
+    inputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Input tokens consumed by all LLM calls made for this operation",
     }),
-    outputTokens: z.number().int().nonnegative().meta({
+    outputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Output tokens consumed by all LLM calls made for this operation",
     }),
-    reasoningTokens: z.number().int().nonnegative().meta({
+    reasoningTokens: z.number().int().nonnegative().default(0).meta({
       description: "Reasoning tokens consumed by all LLM calls made for this operation",
     }),
-    cachedInputTokens: z.number().int().nonnegative().meta({
+    cachedInputTokens: z.number().int().nonnegative().default(0).meta({
       description: "Cached input tokens used by all LLM calls made for this operation",
     }),
-    inferenceTimeMs: z.number().int().nonnegative().meta({
+    inferenceTimeMs: z.number().int().nonnegative().default(0).meta({
       description: "Total time spent waiting for LLM inference during this operation",
     }),
   })
@@ -1063,9 +1063,9 @@ export const StagehandResultMetadataSchema = z
     cacheStatus: CacheStatusSchema.optional().meta({
       description: "Server-side cache status for this result",
     }),
-    usage: StagehandResultUsageSchema.optional().meta({
+    usage: StagehandResultUsageSchema.meta({
       description:
-        "Aggregate LLM usage for this operation; omitted when the operation did not run inference",
+        "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
     }),
   })
   .meta({ id: "StagehandResultMetadata" });

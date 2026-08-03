@@ -1744,10 +1744,11 @@
           "$ref": "#/$defs/CacheStatus"
         },
         "usage": {
-          "description": "Aggregate LLM usage for this operation; omitted when the operation did not run inference",
+          "description": "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
           "$ref": "#/$defs/StagehandResultUsage"
         }
       },
+      "required": ["usage"],
       "additionalProperties": false
     },
     "CacheStatus": {
@@ -1758,43 +1759,41 @@
       "type": "object",
       "properties": {
         "input_tokens": {
+          "default": 0,
+          "description": "Input tokens consumed by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Input tokens consumed by all LLM calls made for this operation"
+          "maximum": 9007199254740991
         },
         "output_tokens": {
+          "default": 0,
+          "description": "Output tokens consumed by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Output tokens consumed by all LLM calls made for this operation"
+          "maximum": 9007199254740991
         },
         "reasoning_tokens": {
+          "default": 0,
+          "description": "Reasoning tokens consumed by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Reasoning tokens consumed by all LLM calls made for this operation"
+          "maximum": 9007199254740991
         },
         "cached_input_tokens": {
+          "default": 0,
+          "description": "Cached input tokens used by all LLM calls made for this operation",
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Cached input tokens used by all LLM calls made for this operation"
+          "maximum": 9007199254740991
         },
         "inference_time_ms": {
+          "default": 0,
+          "description": "Total time spent waiting for LLM inference during this operation",
           "type": "integer",
           "minimum": 0,
-          "maximum": 9007199254740991,
-          "description": "Total time spent waiting for LLM inference during this operation"
+          "maximum": 9007199254740991
         }
       },
-      "required": [
-        "input_tokens",
-        "output_tokens",
-        "reasoning_tokens",
-        "cached_input_tokens",
-        "inference_time_ms"
-      ],
       "additionalProperties": false,
       "description": "Aggregate LLM usage for one Stagehand operation"
     },

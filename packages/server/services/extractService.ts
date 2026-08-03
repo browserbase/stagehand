@@ -17,6 +17,7 @@ import { injectUrls, transformSchema } from "../utils.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
+import { zeroStagehandResultUsage } from "./resultUsage.js";
 
 /** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
 export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
@@ -76,7 +77,10 @@ export async function extract({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => ({ data: z.json().parse(value), metadata: {} }),
+    onHit: (value) => ({
+      data: z.json().parse(value),
+      metadata: { usage: zeroStagehandResultUsage() },
+    }),
     execute: () => runExtraction(),
   });
 

@@ -267,8 +267,8 @@ const result = await stagehand.act("Click the sign in button");
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -402,8 +402,8 @@ const actions = await stagehand.observe("Find the sign in button");
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -526,8 +526,8 @@ console.log(product.data, product.metadata.cacheStatus);
     The action ID associated with the extraction.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.inputTokens" type="number">
       Input tokens consumed by all LLM calls.
@@ -812,8 +812,8 @@ result = await stagehand.act("Click the sign in button")
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.
@@ -944,8 +944,8 @@ actions = await stagehand.observe(instruction="Find the sign in button")
     The action ID associated with the operation.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.
@@ -1065,8 +1065,8 @@ print(product.data, product.metadata.cache_status)
     The action ID associated with the extraction.
   </ResponseField>
 
-  <ResponseField name="result.metadata.usage" type="StagehandResultUsage" optional>
-    Aggregate LLM usage for the operation.
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
 
     <ResponseField name="result.metadata.usage.input_tokens" type="int">
       Input tokens consumed by all LLM calls.

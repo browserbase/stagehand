@@ -167,7 +167,7 @@ describe("act service", () => {
     });
   });
 
-  it("omits usage when a supplied Action succeeds without inference", async () => {
+  it("zeroes usage when a supplied Action succeeds without inference", async () => {
     const frame = {};
     const page = actPage(
       frame,
@@ -192,7 +192,13 @@ describe("act service", () => {
     });
 
     expect(result.data.success).toBe(true);
-    expect(result.metadata.usage).toBeUndefined();
+    expect(result.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
@@ -462,7 +468,13 @@ describe("act service", () => {
     });
 
     expect(hit.metadata.cacheStatus).toBe("HIT");
-    expect(hit.metadata.usage).toBeUndefined();
+    expect(hit.metadata.usage).toStrictEqual({
+      inputTokens: 0,
+      outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
+      inferenceTimeMs: 0,
+    });
     expect(hit.data.actions).toStrictEqual(miss.data.actions);
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });

@@ -26,6 +26,7 @@ import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
+import { zeroStagehandResultUsage } from "./resultUsage.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
@@ -67,10 +68,9 @@ export async function act({
   const variables = options?.variables;
   const timeout = options?.timeout;
   const ensureTimeRemaining = createTimeoutGuard(timeout, (ms) => new TimeoutError("act()", ms));
-  let operationUsage: StagehandResultUsage | undefined;
+  let operationUsage = zeroStagehandResultUsage();
   const recordUsage = (response: ActInferenceResponse): void => {
-    const nextUsage = usageFromInference(response);
-    operationUsage = operationUsage ? aggregateUsage(operationUsage, nextUsage) : nextUsage;
+    operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
   };
   const resultWithUsage = (result: ActResultData): ActResult => actResult(result, operationUsage);
   const context: ActContext = {
@@ -504,8 +504,11 @@ function aggregateUsage(
   };
 }
 
-function actResult(result: ActResultData, usage?: StagehandResultUsage): ActResult {
-  return { data: result, metadata: usage ? { usage } : {} };
+function actResult(
+  result: ActResultData,
+  usage: StagehandResultUsage = zeroStagehandResultUsage(),
+): ActResult {
+  return { data: result, metadata: { usage } };
 }
 
 function describeAction(action: Action): string {

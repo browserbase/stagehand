@@ -14,8 +14,17 @@ const usage = {
   inferenceTimeMs: 275,
 };
 
+const zeroUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
+
 describe("Stagehand result usage", () => {
-  it("validates one complete nonnegative aggregate without totalTokens", () => {
+  it("defaults omitted counters to zero and validates explicit aggregates", () => {
+    expect(StagehandResultUsageSchema.parse({})).toStrictEqual(zeroUsage);
     expect(StagehandResultUsageSchema.parse(usage)).toStrictEqual(usage);
     expect(
       StagehandResultUsageSchema.safeParse({
@@ -29,14 +38,10 @@ describe("Stagehand result usage", () => {
         reasoningTokens: -1,
       }).success,
     ).toBe(false);
-    expect(
-      StagehandResultUsageSchema.safeParse({
-        inputTokens: usage.inputTokens,
-        outputTokens: usage.outputTokens,
-        reasoningTokens: usage.reasoningTokens,
-        cachedInputTokens: usage.cachedInputTokens,
-      }).success,
-    ).toBe(false);
+    expect(StagehandResultUsageSchema.parse({ inputTokens: 1 })).toStrictEqual({
+      ...zeroUsage,
+      inputTokens: 1,
+    });
   });
 
   it("makes the aggregate available to act, observe, and extract results", () => {
@@ -65,9 +70,9 @@ describe("Stagehand result usage", () => {
     ).toStrictEqual(usage);
   });
 
-  it("allows operations that did not run inference to omit usage", () => {
+  it("requires a zeroed usage aggregate for operations without inference", () => {
     expect(
-      ActResultSchema.parse({
+      ActResultSchema.safeParse({
         data: {
           success: true,
           message: "Clicked submit",
@@ -75,11 +80,16 @@ describe("Stagehand result usage", () => {
           actions: [],
         },
         metadata: {},
-      }).metadata.usage,
-    ).toBeUndefined();
-    expect(ObserveResultSchema.parse({ data: [], metadata: {} }).metadata.usage).toBeUndefined();
+      }).success,
+    ).toBe(false);
     expect(
-      ExtractResultSchema.parse({ data: { heading: "Cached" }, metadata: {} }).metadata.usage,
-    ).toBeUndefined();
+      ObserveResultSchema.parse({ data: [], metadata: { usage: {} } }).metadata.usage,
+    ).toStrictEqual(zeroUsage);
+    expect(
+      ExtractResultSchema.parse({
+        data: { heading: "Cached" },
+        metadata: { usage: zeroUsage },
+      }).metadata.usage,
+    ).toStrictEqual(zeroUsage);
   });
 });

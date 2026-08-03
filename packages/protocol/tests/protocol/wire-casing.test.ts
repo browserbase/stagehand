@@ -8,6 +8,20 @@ import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const snakeCaseMethodSegment = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
+const zeroApiUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
+const zeroWireUsage = {
+  input_tokens: 0,
+  output_tokens: 0,
+  reasoning_tokens: 0,
+  cached_input_tokens: 0,
+  inference_time_ms: 0,
+};
 
 describe("JSON-RPC wire casing", () => {
   it("uses snake_case method and notification names", () => {
@@ -480,11 +494,19 @@ describe("JSON-RPC wire casing", () => {
     const definition = StagehandMethods.stagehandExtract;
     const apiValue = {
       data: { userName: "Sam" },
-      metadata: { actionId: "action_1", cacheStatus: "HIT" as const },
+      metadata: {
+        actionId: "action_1",
+        cacheStatus: "HIT" as const,
+        usage: zeroApiUsage,
+      },
     };
     const wireValue = {
       data: { userName: "Sam" },
-      metadata: { action_id: "action_1", cache_status: "HIT" },
+      metadata: {
+        action_id: "action_1",
+        cache_status: "HIT",
+        usage: zeroWireUsage,
+      },
     };
 
     expect(encodeWireValue(apiValue, definition.resultWire)).toStrictEqual(wireValue);
@@ -529,7 +551,7 @@ describe("JSON-RPC wire casing", () => {
         actionDescription: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cacheStatus: "MISS" as const },
+      metadata: { cacheStatus: "MISS" as const, usage: zeroApiUsage },
     };
     const actWireValue = {
       data: {
@@ -538,7 +560,7 @@ describe("JSON-RPC wire casing", () => {
         action_description: "Clicked submit",
         actions: [{ selector: "#submit", description: "Submit" }],
       },
-      metadata: { cache_status: "MISS" },
+      metadata: { cache_status: "MISS", usage: zeroWireUsage },
     };
 
     expect(encodeWireValue(actApiValue, act.resultWire)).toStrictEqual(actWireValue);
@@ -554,7 +576,7 @@ describe("JSON-RPC wire casing", () => {
           arguments: ["withValue"],
         },
       ],
-      metadata: { actionId: "action_1" },
+      metadata: { actionId: "action_1", usage: zeroApiUsage },
     };
     const observeWireValue = {
       data: [
@@ -565,7 +587,7 @@ describe("JSON-RPC wire casing", () => {
           arguments: ["withValue"],
         },
       ],
-      metadata: { action_id: "action_1" },
+      metadata: { action_id: "action_1", usage: zeroWireUsage },
     };
 
     expect(encodeWireValue(observeApiValue, observe.resultWire)).toStrictEqual(observeWireValue);
@@ -574,10 +596,14 @@ describe("JSON-RPC wire casing", () => {
     );
 
     const extract = StagehandMethods.stagehandExtract;
-    const extractWireValue = { data: { callerChosenKey: 1 }, metadata: {} };
-    expect(wireSchema(extract.result, extract.resultWire).parse(extractWireValue)).toStrictEqual(
-      extractWireValue,
-    );
+    const extractWireValue = {
+      data: { callerChosenKey: 1 },
+      metadata: { usage: zeroWireUsage },
+    };
+    expect(wireSchema(extract.result, extract.resultWire).parse(extractWireValue)).toStrictEqual({
+      data: extractWireValue.data,
+      metadata: { usage: zeroApiUsage },
+    });
   });
 
   it("round-trips result usage with snake_case wire fields", () => {
