@@ -60,11 +60,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   // close() alone waits on live sockets, so a request still in flight would
-  // outlive the suite as a leaked handle. Drop the connections, then await
-  // the close so teardown is deterministic.
+  // outlive the suite as a leaked handle. Stop accepting first, then drop the
+  // connections so close() can settle — the order the SDK's integration
+  // closeServer helper uses; reversing it lets a connection accepted after the
+  // snapshot keep close() waiting.
   await new Promise<void>((resolve, reject) => {
-    server.closeAllConnections();
     server.close((error) => (error ? reject(error) : resolve()));
+    server.closeAllConnections();
   });
 });
 
