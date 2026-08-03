@@ -3,10 +3,95 @@ package stagehand
 import (
 	"bytes"
 	"context"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
 )
+
+func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
+	t.Parallel()
+
+	clickCount := 2
+	button := MouseButtonRight
+	steps := 5
+	delay := 10.0
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.click":         PageVoidResult{Ok: true},
+		"page.hover":         PageVoidResult{Ok: true},
+		"page.scroll":        PageVoidResult{Ok: true},
+		"page.drag_and_drop": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	ctx := context.Background()
+
+	if err := page.Click(ctx, 10, 20, &PageClickOptions{
+		Button:     &button,
+		ClickCount: &clickCount,
+	}); err != nil {
+		t.Fatalf("Click() error = %v", err)
+	}
+	if err := page.Hover(ctx, 30, 40); err != nil {
+		t.Fatalf("Hover() error = %v", err)
+	}
+	if err := page.Scroll(ctx, 50, 60, -25, 400); err != nil {
+		t.Fatalf("Scroll() error = %v", err)
+	}
+	if err := page.DragAndDrop(ctx, 1, 2, 3, 4, &PageDragAndDropOptions{
+		Button: &button,
+		Steps:  &steps,
+		Delay:  &delay,
+	}); err != nil {
+		t.Fatalf("DragAndDrop() error = %v", err)
+	}
+
+	want := []recordedCall{
+		{
+			method: "page.click",
+			params: PageClickParams{
+				PageID: "page-1",
+				X:      10,
+				Y:      20,
+				Options: &PageClickOptions{
+					Button:     &button,
+					ClickCount: &clickCount,
+				},
+			},
+		},
+		{
+			method: "page.hover",
+			params: PageHoverParams{PageID: "page-1", X: 30, Y: 40},
+		},
+		{
+			method: "page.scroll",
+			params: PageScrollParams{
+				PageID: "page-1",
+				X:      50,
+				Y:      60,
+				DeltaX: -25,
+				DeltaY: 400,
+			},
+		},
+		{
+			method: "page.drag_and_drop",
+			params: PageDragAndDropParams{
+				PageID: "page-1",
+				FromX:  1,
+				FromY:  2,
+				ToX:    3,
+				ToY:    4,
+				Options: &PageDragAndDropOptions{
+					Button: &button,
+					Steps:  &steps,
+					Delay:  &delay,
+				},
+			},
+		},
+	}
+	if !reflect.DeepEqual(rpc.calls, want) {
+		t.Fatalf("RPC calls = %#v, want %#v", rpc.calls, want)
+	}
+}
 
 func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 	t.Parallel()

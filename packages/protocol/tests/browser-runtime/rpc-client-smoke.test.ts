@@ -401,7 +401,6 @@ describe("Stagehand service worker RPC client smoke", () => {
       pageId: page.pageId,
       x: 1,
       y: 1,
-      options: { returnXpath: true },
     });
 
     await expect(

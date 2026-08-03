@@ -54,10 +54,8 @@ import type {
   LocatorTypeResult,
   PageClickParams,
   PageCloseResult,
-  PageCoordinateResult,
   PageAddInitScriptParams,
   PageDragAndDropParams,
-  PageDragAndDropResult,
   PageEvaluateParams,
   PageEvaluateResult,
   PageGoBackParams,
@@ -118,22 +116,16 @@ export type UnderstudyRuntimePage = {
   reload(options?: PageReloadParams["options"]): Promise<unknown>;
   goBack(options?: PageNavigationOptions): Promise<unknown>;
   goForward(options?: PageNavigationOptions): Promise<unknown>;
-  click(x: number, y: number, options?: PageClickParams["options"]): Promise<string>;
-  hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string>;
-  scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: PageScrollParams["options"],
-  ): Promise<string>;
+  click(x: number, y: number, options?: PageClickParams["options"]): Promise<void>;
+  hover(x: number, y: number): Promise<void>;
+  scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
   dragAndDrop(
     fromX: number,
     fromY: number,
     toX: number,
     toY: number,
     options?: PageDragAndDropParams["options"],
-  ): Promise<[string, string]>;
+  ): Promise<void>;
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
@@ -485,33 +477,28 @@ export class StagehandRuntime {
     return pageRefFromUnderstudyPage(page);
   }
 
-  async pageClick(params: PageClickParams): Promise<PageCoordinateResult> {
+  async pageClick(params: PageClickParams): Promise<PageVoidResult> {
     const { pageId, x, y, options } = params;
-    return { xpath: await this.resolvePage(pageId).click(x, y, options) };
+    await this.resolvePage(pageId).click(x, y, options);
+    return { ok: true };
   }
 
-  async pageHover(params: PageHoverParams): Promise<PageCoordinateResult> {
-    const { pageId, x, y, options } = params;
-    return { xpath: await this.resolvePage(pageId).hover(x, y, options) };
+  async pageHover(params: PageHoverParams): Promise<PageVoidResult> {
+    const { pageId, x, y } = params;
+    await this.resolvePage(pageId).hover(x, y);
+    return { ok: true };
   }
 
-  async pageScroll(params: PageScrollParams): Promise<PageCoordinateResult> {
-    const { pageId, x, y, deltaX, deltaY, options } = params;
-    return {
-      xpath: await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY, options),
-    };
+  async pageScroll(params: PageScrollParams): Promise<PageVoidResult> {
+    const { pageId, x, y, deltaX, deltaY } = params;
+    await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY);
+    return { ok: true };
   }
 
-  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageDragAndDropResult> {
+  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageVoidResult> {
     const { pageId, fromX, fromY, toX, toY, options } = params;
-    const [fromXpath, toXpath] = await this.resolvePage(pageId).dragAndDrop(
-      fromX,
-      fromY,
-      toX,
-      toY,
-      options,
-    );
-    return { fromXpath, toXpath };
+    await this.resolvePage(pageId).dragAndDrop(fromX, fromY, toX, toY, options);
+    return { ok: true };
   }
 
   async pageType(params: PageTypeParams): Promise<PageVoidResult> {
