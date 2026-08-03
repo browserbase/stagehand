@@ -693,11 +693,12 @@ async def test_stagehand_extract_uses_default_schema(
         "stagehand.extract": {
             "data": {"extraction": "Example Domain"},
             "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.disabled),
                 usage=StagehandResultUsage(
                     input_tokens=0,
                     output_tokens=0,
                     reasoning_tokens=0,
-                )
+                ),
             ),
         },
     })

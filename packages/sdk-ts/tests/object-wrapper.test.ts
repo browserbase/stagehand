@@ -1015,7 +1015,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { extraction: "Example Domain" },
-      metadata: { cacheStatus: "HIT", usage: zeroUsage },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
 
