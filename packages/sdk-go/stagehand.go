@@ -132,7 +132,7 @@ func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 // Act performs an AI-guided action on the selected or active page.
 func (s *Stagehand) Act(
 	ctx context.Context,
-	instruction any,
+	instruction ActInstructionValue,
 	options *StagehandClientActOptions,
 ) (ActResult, error) {
 	rpc, err := s.connectedProtocol()
@@ -143,19 +143,7 @@ func (s *Stagehand) Act(
 	if err != nil {
 		return ActResult{}, err
 	}
-	var actInstruction ActInstructionValue
-	switch value := instruction.(type) {
-	case string:
-		actInstruction = ActInstruction(value)
-	case Action:
-		actInstruction = ObservedAction(value)
-	default:
-		return ActResult{}, fmt.Errorf(
-			"act instruction must be a string or stagehand.Action, got %T",
-			instruction,
-		)
-	}
-	params := StagehandActParams{PageID: page.PageID(), Instruction: actInstruction}
+	params := StagehandActParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
 		params.Options = &options.ActOptions
 	}
@@ -220,23 +208,33 @@ func (s *Stagehand) Extract(
 	return result, nil
 }
 
-// ExtractAs decodes an Extract result into a caller-selected Go type.
+// TypedExtractResult contains caller-decoded extract data and its protocol metadata.
+type TypedExtractResult[T any] struct {
+	Data     T                       `json:"data"`
+	Metadata StagehandResultMetadata `json:"metadata"`
+}
+
+// ExtractAs decodes an Extract result into a caller-selected Go type while
+// preserving the full result envelope.
 func ExtractAs[T any](
 	ctx context.Context,
 	client *Stagehand,
 	instruction string,
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
-) (T, error) {
+) (TypedExtractResult[T], error) {
+	var typedResult TypedExtractResult[T]
 	var value T
 	result, err := client.Extract(ctx, instruction, schema, options)
 	if err != nil {
-		return value, err
+		return typedResult, err
 	}
+	typedResult.Metadata = result.Metadata
 	if err := json.Unmarshal(result.Data, &value); err != nil {
-		return value, fmt.Errorf("decode stagehand.extract result: %w", err)
+		return typedResult, fmt.Errorf("decode stagehand.extract result: %w", err)
 	}
-	return value, nil
+	typedResult.Data = value
+	return typedResult, nil
 }
 
 // Close releases the remote Stagehand context without touching the Browser handle.

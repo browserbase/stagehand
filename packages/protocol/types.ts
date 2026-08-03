@@ -26,7 +26,9 @@ import type {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  CacheMetadataSchema,
   CacheStatusSchema,
+  CacheTokenSavingsSchema,
   CachingSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
@@ -351,6 +353,8 @@ export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParams
 export type InputFilePayload = z.infer<typeof InputFilePayloadSchema>;
 export type LocatorSetInputFilesParams = z.infer<typeof LocatorSetInputFilesParamsSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
+export type CacheTokenSavings = z.infer<typeof CacheTokenSavingsSchema>;
+export type CacheMetadata = z.infer<typeof CacheMetadataSchema>;
 export type StagehandResultUsage = z.infer<typeof StagehandResultUsageSchema>;
 export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;

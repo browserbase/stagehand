@@ -312,6 +312,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     expect(result).toStrictEqual({
       data: { heading: "Stagehand SDK Smoke" },
       metadata: {
+        cache: { status: "DISABLED" },
         usage: {
           inputTokens: 22,
           outputTokens: 8,
@@ -578,6 +579,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         ],
       },
       metadata: {
+        cache: { status: "DISABLED" },
         usage: {
           inputTokens: 11,
           outputTokens: 4,

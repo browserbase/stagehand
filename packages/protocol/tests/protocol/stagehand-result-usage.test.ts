@@ -22,6 +22,8 @@ const zeroUsage = {
   inferenceTimeMs: 0,
 };
 
+const disabledCache = { status: "DISABLED" as const };
+
 describe("Stagehand result usage", () => {
   it("defaults omitted counters to zero and validates explicit aggregates", () => {
     expect(StagehandResultUsageSchema.parse({})).toStrictEqual(zeroUsage);
@@ -53,19 +55,19 @@ describe("Stagehand result usage", () => {
           actionDescription: "Click submit",
           actions: [],
         },
-        metadata: { usage },
+        metadata: { usage, cache: disabledCache },
       }).metadata.usage,
     ).toStrictEqual(usage);
     expect(
       ObserveResultSchema.parse({
         data: [],
-        metadata: { usage },
+        metadata: { usage, cache: disabledCache },
       }).metadata.usage,
     ).toStrictEqual(usage);
     expect(
       ExtractResultSchema.parse({
         data: { heading: "Example" },
-        metadata: { usage },
+        metadata: { usage, cache: disabledCache },
       }).metadata.usage,
     ).toStrictEqual(usage);
   });
@@ -83,12 +85,13 @@ describe("Stagehand result usage", () => {
       }).success,
     ).toBe(false);
     expect(
-      ObserveResultSchema.parse({ data: [], metadata: { usage: {} } }).metadata.usage,
+      ObserveResultSchema.parse({ data: [], metadata: { usage: {}, cache: disabledCache } })
+        .metadata.usage,
     ).toStrictEqual(zeroUsage);
     expect(
       ExtractResultSchema.parse({
         data: { heading: "Cached" },
-        metadata: { usage: zeroUsage },
+        metadata: { usage: zeroUsage, cache: disabledCache },
       }).metadata.usage,
     ).toStrictEqual(zeroUsage);
   });
