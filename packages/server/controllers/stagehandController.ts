@@ -13,6 +13,7 @@ import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 import { buildGatewayContext } from "../llm/gatewayClient.js";
 import * as observeService from "../services/observeService.js";
+import { withTimeout } from "../timeoutConfig.js";
 
 export type StagehandControllerOptions = {
   initialize?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
@@ -50,18 +51,22 @@ export function createStagehandController(
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    const result = await actService.act({
-      params,
-      page: runtime.resolveUnderstudyPage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      selfHeal: state.initParams.selfHeal,
-      domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
-    });
+    const result = await withTimeout(
+      actService.act({
+        params,
+        page: runtime.resolveUnderstudyPage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        selfHeal: state.initParams.selfHeal,
+        domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway: buildGatewayContext(state.initParams),
+      }),
+      params.options?.timeout,
+      "act()",
+    );
     runtime.metrics.record("act", result.metadata.usage);
     return result;
   }
@@ -78,16 +83,20 @@ export function createStagehandController(
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    const result = await observeService.observe({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
-    });
+    const result = await withTimeout(
+      observeService.observe({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway: buildGatewayContext(state.initParams),
+      }),
+      params.options?.timeout,
+      "observe()",
+    );
     runtime.metrics.record("observe", result.metadata.usage);
     return result;
   }
@@ -104,16 +113,20 @@ export function createStagehandController(
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
-    const result = await extractService.extract({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
-    });
+    const result = await withTimeout(
+      extractService.extract({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway: buildGatewayContext(state.initParams),
+      }),
+      params.options?.timeout,
+      "extract()",
+    );
     runtime.metrics.record("extract", result.metadata.usage);
     return result;
   }

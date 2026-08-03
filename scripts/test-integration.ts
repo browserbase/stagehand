@@ -49,7 +49,7 @@ export const integrationTestGroups = {
   "local/page-navigation": ["page-addInitScript", "page-extra-http-headers", "page-goto-response"],
   "local/page-interactions": ["click-count", "page-drag-and-drop", "page-hover", "page-scroll"],
   "local/snapshots-ai": ["observe-element-id-format"],
-  "local/waits-timeouts": ["wait-for-selector", "wait-for-timeout"],
+  "local/waits-timeouts": ["timeouts", "wait-for-selector", "wait-for-timeout"],
 } as const;
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

@@ -1,5 +1,10 @@
 import { TimeoutError } from "./errors.js";
 
+/**
+ * Enforce a caller-facing deadline. The supplied promise has no cancellation contract, so timing
+ * out does not abort underlying service or model work; callers that need cancellation must pass an
+ * abort signal through that operation's own API.
+ */
 export async function withTimeout<T>(
   promise: Promise<T>,
   timeout: number | null | undefined,
