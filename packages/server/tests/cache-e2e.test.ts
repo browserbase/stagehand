@@ -58,8 +58,14 @@ beforeAll(async () => {
   };
 });
 
-afterAll(() => {
-  server.close();
+afterAll(async () => {
+  // close() alone waits on live sockets, so a request still in flight would
+  // outlive the suite as a leaked handle. Drop the connections, then await
+  // the close so teardown is deterministic.
+  await new Promise<void>((resolve, reject) => {
+    server.closeAllConnections();
+    server.close((error) => (error ? reject(error) : resolve()));
+  });
 });
 
 beforeEach(() => {
