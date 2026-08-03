@@ -48,7 +48,7 @@ class ActOptions(WireModel):
     Example: 30000
     """
     locator: Optional[Locator] = None
-    """Locator that scopes the action to a specific element"""
+    """Serializable element locator for the action target"""
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""
 

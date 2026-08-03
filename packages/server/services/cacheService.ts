@@ -81,7 +81,6 @@ export function buildActCacheData(params: StagehandActParams): Record<string, un
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
-          selector: params.options.locator?.selector,
         }
       : undefined,
   };

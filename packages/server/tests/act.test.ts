@@ -115,7 +115,6 @@ describe("act service", () => {
         pageId: "page-1",
         input: "Fill in the email field",
         options: {
-          locator: { selector: "main form", nth: 1 },
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -129,10 +128,6 @@ describe("act service", () => {
       clientLLMGenerate,
       logger,
       domSettleTimeoutMs: 2_000,
-    });
-
-    expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "main form", nth: 1 },
     });
 
     expect(waitForQuiet).toHaveBeenCalledWith(frame, logger, 2_000);

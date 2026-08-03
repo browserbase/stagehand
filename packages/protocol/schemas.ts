@@ -1053,7 +1053,7 @@ export const ActOptionsSchema = z
       example: 30000,
     }),
     locator: LocatorSchema.optional().meta({
-      description: "Locator that scopes the action to a specific element",
+      description: "Serializable element locator for the action target",
     }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",

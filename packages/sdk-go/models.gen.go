@@ -10,7 +10,7 @@ type ActOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
 
-	// Locator that scopes the action to a specific element
+	// Serializable element locator for the action target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Model corresponds to the JSON schema field "model".

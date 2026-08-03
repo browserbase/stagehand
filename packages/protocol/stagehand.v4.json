@@ -1695,7 +1695,7 @@
           "type": "number"
         },
         "locator": {
-          "description": "Locator that scopes the action to a specific element",
+          "description": "Serializable element locator for the action target",
           "$ref": "#/$defs/Locator"
         },
         "cache": {

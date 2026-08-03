@@ -95,7 +95,6 @@ export async function act({
     method: "act",
     page,
     data: cacheService.buildActCacheData(params),
-    locator: options?.locator,
     caching: options?.cache,
     context: cache,
     logger,
@@ -111,9 +110,7 @@ export async function act({
   });
 
   async function runActPipeline(): Promise<ActResult> {
-    const { combinedTree, combinedXpathMap } = await page.captureSnapshot({
-      focusLocator: options?.locator,
-    });
+    const { combinedTree, combinedXpathMap } = await page.captureSnapshot({});
 
     const actPrompt = buildActPrompt(
       instruction,
@@ -153,9 +150,9 @@ export async function act({
     }
 
     ensureTimeRemaining();
-    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot({
-      focusLocator: options?.locator,
-    });
+    const { combinedTree: nextTree, combinedXpathMap: nextXpathMap } = await page.captureSnapshot(
+      {},
+    );
     const changedTree = diffCombinedTrees(combinedTree, nextTree);
     const secondInstruction = buildStepTwoPrompt(
       instruction,
