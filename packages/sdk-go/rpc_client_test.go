@@ -175,10 +175,12 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 3,
-		"result": {"response": null}
+		"result": {"page": {}, "response": null}
 	}`)
 	if err := receiveCallError(t, missingDone); err == nil {
 		t.Fatal("call() accepted a result missing page_id")
+	} else if !strings.Contains(err.Error(), `page: missing required JSON field "page_id"`) {
+		t.Fatalf("call() error = %v, want missing nested page_id error", err)
 	}
 }
 
