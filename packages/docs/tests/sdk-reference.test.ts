@@ -131,6 +131,8 @@ const PROTOCOL_REGISTRY = fileURLToPath(
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
+// Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
+const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
 
 const SDK_OBJECTS = [
   {
@@ -1236,6 +1238,10 @@ async function readReferencePages(): Promise<ReferencePage[]> {
   return Promise.all(
     (await listFiles(REFERENCE_ROOT))
       .filter((filePath) => extname(filePath) === ".mdx")
+      .filter((filePath) => {
+        const classSlug = relative(REFERENCE_ROOT, filePath).replace(/\.mdx$/u, "");
+        return !SUPPLEMENTAL_REFERENCE_PAGES.has(classSlug);
+      })
       .map(async (filePath): Promise<ReferencePage> => {
         const pathParts = relative(REFERENCE_ROOT, filePath).split(sep);
         if (pathParts.length !== 1) {

@@ -15,7 +15,9 @@ async def main() -> None:
         page = await stagehand.context.active_page()
         if page is None:
             raise RuntimeError("Stagehand initialized without an active page")
-        await page.goto("https://example.com")
+        response = await page.goto("https://example.com")
+        if response is not None:
+            print(response.status, await response.text())
         await stagehand.observe(instruction="Find the more information link")
         print(await page.title())
     finally:
@@ -29,6 +31,10 @@ See [`examples`](examples) for action, extraction, observation, and custom LLM u
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.
+
+`Page.goto()`, `reload()`, `go_back()`, and `go_forward()` return the main-document `Response`,
+or `None` when navigation does not produce one. Response bodies and complete headers are retrieved
+lazily while the Stagehand session remains open.
 
 ## Contributing
 

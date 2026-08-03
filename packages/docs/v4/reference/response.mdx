@@ -1,0 +1,226 @@
+---
+title: "response"
+description: "Inspect the main-document network response returned by page navigation."
+icon: "globe"
+---
+
+The page navigation methods for goto, reload, back, and forward return the final main-document response when navigation performs a network request. Redirects return the final response in the chain.
+
+The nullable result is not an error. Navigations to URLs such as `data:` and `about:`, same-document navigations, and history operations with no matching entry can complete without a network response.
+
+<Note>
+  Response bodies and complete metadata are retrieved lazily. Use the response while its Stagehand session is open. Response handles become invalid when the session closes and older handles may be collected after enough newer responses are created.
+</Note>
+
+<View title="TypeScript" icon="js">
+
+## Navigation
+
+```typescript
+const response = await page.goto("https://example.com");
+
+if (response) {
+  console.log(response.status(), response.url());
+  console.log(await response.text());
+}
+```
+
+The navigation signatures are:
+
+```typescript
+page.goto(url, options?): Promise<Response | null>
+page.reload(options?): Promise<Response | null>
+page.goBack(options?): Promise<Response | null>
+page.goForward(options?): Promise<Response | null>
+```
+
+Navigation now returns `Response | null`, rather than returning the `Page`. The page's internal reference and `page.url()` are still updated before the method resolves. If you do not need the response, continue to ignore the return value:
+
+```typescript
+await page.goto("https://example.com");
+```
+
+## Immediate metadata
+
+These methods read metadata included with the navigation result and do not make another RPC call:
+
+```typescript
+response.url(): string
+response.status(): number
+response.statusText(): string
+response.ok(): boolean
+response.headers(): Record<string, string>
+response.fromServiceWorker(): boolean
+```
+
+`ok()` is `true` for status codes from 200 through 299. `headers()` returns normalized headers with lowercase names and returns a new object on every call.
+
+## Headers and connection metadata
+
+```typescript
+response.allHeaders(): Promise<Record<string, string>>
+response.headerValue(name): Promise<string | null>
+response.headerValues(name): Promise<string[]>
+response.headersArray(): Promise<ResponseHeader[]>
+response.securityDetails(): Promise<ResponseSecurityDetails | null>
+response.serverAddr(): Promise<ResponseServerAddr | null>
+```
+
+Header lookup is case-insensitive. `headerValue()` joins duplicate values with `, `, while `headerValues()` keeps them separate. `headersArray()` preserves order, casing, and duplicates. `allHeaders()` includes extra-info headers, such as `set-cookie`, when Chrome provides them.
+
+## Body and completion
+
+```typescript
+response.body(): Promise<Uint8Array>
+response.text(): Promise<string>
+response.json<T = unknown>(): Promise<T>
+response.finished(): Promise<null | Error>
+```
+
+Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `json()` preserves JSON parse errors. `finished()` resolves to `null` after success or an `Error` describing the loading failure.
+
+</View>
+
+<View title="Python" icon="python">
+
+## Navigation
+
+```python
+response = await page.goto("https://example.com")
+
+if response is not None:
+    print(response.status, response.url)
+    print(await response.text())
+```
+
+The navigation return types are:
+
+```python
+await page.goto(url, ...) -> Response | None
+await page.reload(...) -> Response | None
+await page.go_back(...) -> Response | None
+await page.go_forward(...) -> Response | None
+```
+
+Navigation now returns `Response | None`, rather than returning the `Page`. The page's internal reference and `await page.url()` are still updated before the method returns. If you do not need the response, continue to ignore the return value:
+
+```python
+await page.goto("https://example.com")
+```
+
+## Immediate metadata
+
+These properties read metadata included with the navigation result and do not make another RPC call:
+
+```python
+response.url: str
+response.status: int
+response.status_text: str
+response.ok: bool
+response.headers: dict[str, str]
+response.from_service_worker: bool
+```
+
+`ok` is `True` for status codes from 200 through 299. `headers` contains normalized lowercase names and returns a new dictionary on every access.
+
+## Headers and connection metadata
+
+```python
+await response.all_headers() -> dict[str, str]
+await response.header_value(name) -> str | None
+await response.header_values(name) -> list[str]
+await response.headers_array() -> list[dict[str, str]]
+await response.security_details() -> NavigationSecurityDetails | None
+await response.server_addr() -> NavigationServerAddr | None
+```
+
+Header lookup is case-insensitive. `header_value()` joins duplicate values with `, `, while `header_values()` keeps them separate. `headers_array()` preserves order, casing, and duplicates. `all_headers()` includes extra-info headers, such as `set-cookie`, when Chrome provides them.
+
+## Body and completion
+
+```python
+await response.body() -> bytes
+await response.text() -> str
+await response.json() -> JsonValue
+await response.finished() -> Exception | None
+```
+
+Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. UTF-8 decoding and JSON parsing preserve their native errors. `finished()` returns `None` after success or an exception describing the loading failure.
+
+</View>
+
+<View title="Go" icon="golang">
+
+## Navigation
+
+```go
+response, err := page.Goto(ctx, "https://example.com", nil)
+if err != nil {
+    return err
+}
+if response != nil {
+    text, err := response.Text(ctx)
+    if err != nil {
+        return err
+    }
+    fmt.Println(response.Status(), response.URL(), text)
+}
+```
+
+The navigation signatures are:
+
+```go
+func (p *Page) Goto(ctx context.Context, url string, options *PageNavigationOptions) (*Response, error)
+func (p *Page) Reload(ctx context.Context, options *PageReloadOptions) (*Response, error)
+func (p *Page) GoBack(ctx context.Context, options *PageNavigationOptions) (*Response, error)
+func (p *Page) GoForward(ctx context.Context, options *PageNavigationOptions) (*Response, error)
+```
+
+Navigation now returns `(*Response, error)`, rather than only `error`. The page reference is updated before a successful method returns. A successful navigation without a network response returns `(nil, nil)`. Ignore the response with `_` when you only need navigation:
+
+```go
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+    return err
+}
+```
+
+## Immediate metadata
+
+These methods read metadata included with the navigation result and do not make another RPC call:
+
+```go
+func (r *Response) URL() string
+func (r *Response) Status() int
+func (r *Response) StatusText() string
+func (r *Response) OK() bool
+func (r *Response) Headers() map[string]string
+func (r *Response) FromServiceWorker() bool
+```
+
+`OK()` is `true` for status codes from 200 through 299. `Headers()` returns normalized headers with lowercase names and returns a new map on every call.
+
+## Headers and connection metadata
+
+```go
+func (r *Response) AllHeaders(ctx context.Context) (map[string]string, error)
+func (r *Response) HeaderValue(ctx context.Context, name string) (value string, present bool, err error)
+func (r *Response) HeaderValues(ctx context.Context, name string) ([]string, error)
+func (r *Response) HeadersArray(ctx context.Context) ([]NavigationHeader, error)
+func (r *Response) SecurityDetails(ctx context.Context) (*NavigationSecurityDetails, error)
+func (r *Response) ServerAddr(ctx context.Context) (*NavigationServerAddr, error)
+```
+
+Header lookup is case-insensitive. `HeaderValue()` distinguishes a missing header from a present empty value with `present`, and joins duplicate values with `, `. `HeaderValues()` keeps duplicates separate. `HeadersArray()` preserves order, casing, and duplicates. `AllHeaders()` includes extra-info headers, such as `set-cookie`, when Chrome provides them.
+
+## Body and completion
+
+```go
+func (r *Response) Body(ctx context.Context) ([]byte, error)
+func (r *Response) Text(ctx context.Context) (string, error)
+func (r *Response) JSON(ctx context.Context, destination any) error
+func (r *Response) Finished(ctx context.Context) error
+```
+
+Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `JSON()` decodes into the supplied destination. `Finished()` returns the loading failure or an RPC error, and returns `nil` after success.
+
+</View>
