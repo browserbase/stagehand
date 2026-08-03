@@ -72,7 +72,6 @@ export async function act({
   const recordUsage = (response: ActInferenceResponse): void => {
     operationUsage = aggregateUsage(operationUsage, usageFromInference(response));
   };
-  const resultWithUsage = (result: ActResultData): ActResult => actResult(result, operationUsage);
   const context: ActContext = {
     page,
     model,
@@ -87,12 +86,13 @@ export async function act({
 
   ensureTimeRemaining();
   if (typeof actInstruction !== "string") {
-    return resultWithUsage(
+    return actResult(
       await takeDeterministicAction({
         action: actInstruction,
         variables,
         context,
       }),
+      operationUsage,
     );
   }
 
@@ -139,12 +139,15 @@ export async function act({
       logger.info("No actionable element returned by the LLM", {
         category: "action",
       });
-      return resultWithUsage({
-        success: false,
-        message: "Failed to perform act: No action found",
-        actionDescription: instruction,
-        actions: [],
-      });
+      return actResult(
+        {
+          success: false,
+          message: "Failed to perform act: No action found",
+          actionDescription: instruction,
+          actions: [],
+        },
+        operationUsage,
+      );
     }
 
     ensureTimeRemaining();
@@ -155,7 +158,7 @@ export async function act({
     });
 
     if (!firstInference.response.twoStep) {
-      return resultWithUsage(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -186,7 +189,7 @@ export async function act({
     });
 
     if (!secondInference.action) {
-      return resultWithUsage(firstResult);
+      return actResult(firstResult, operationUsage);
     }
 
     ensureTimeRemaining();
@@ -196,12 +199,15 @@ export async function act({
       context,
     });
 
-    return resultWithUsage({
-      success: firstResult.success && secondResult.success,
-      message: `${firstResult.message} → ${secondResult.message}`,
-      actionDescription: firstResult.actionDescription,
-      actions: [...firstResult.actions, ...secondResult.actions],
-    });
+    return actResult(
+      {
+        success: firstResult.success && secondResult.success,
+        message: `${firstResult.message} → ${secondResult.message}`,
+        actionDescription: firstResult.actionDescription,
+        actions: [...firstResult.actions, ...secondResult.actions],
+      },
+      operationUsage,
+    );
   }
 }
 
