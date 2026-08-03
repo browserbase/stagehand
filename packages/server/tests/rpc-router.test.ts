@@ -7,9 +7,12 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
+
+const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
 
 describe("Stagehand RPC router", () => {
   it("creates one server span for every valid JSON-RPC request", async () => {
@@ -24,7 +27,7 @@ describe("Stagehand RPC router", () => {
 
     await expect(
       router.handle(request({ id: 10, method: "stagehand.metrics", params: {} })),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     expect(spans.getFinishedSpans()).toContainEqual(
@@ -61,7 +64,7 @@ describe("Stagehand RPC router", () => {
           tracestate: "vendor=value",
         }),
       ),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const span = spans
@@ -133,7 +136,7 @@ describe("Stagehand RPC router", () => {
 
     await expect(
       router.handle(request({ id: 14, method: "stagehand.metrics", params: {} })),
-    ).rejects.toThrow("Method not implemented");
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const requestSpan = spans

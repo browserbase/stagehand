@@ -44,6 +44,7 @@ await stagehand.close();
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that throw before returning a result are not recorded. Reading metrics does not reset them.
 
 ```typescript
 const metrics = await stagehand.metrics();
@@ -262,6 +263,30 @@ const result = await stagehand.act("Click the sign in button");
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -369,6 +394,30 @@ const actions = await stagehand.observe("Find the sign in button");
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -465,6 +514,30 @@ console.log(product.data, product.metadata.cacheStatus);
   <ResponseField name="result.metadata.actionId" type="string" optional>
     The action ID associated with the extraction.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
   </ResponseField>
 </ResponseField>
 
@@ -508,6 +581,7 @@ await stagehand.close()
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that raise before returning a result are not recorded. Reading metrics does not reset them.
 
 ```python
 metrics = await stagehand.metrics()
@@ -723,6 +797,30 @@ result = await stagehand.act("Click the sign in button")
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -827,6 +925,30 @@ actions = await stagehand.observe(instruction="Find the sign in button")
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the operation.
   </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
 </ResponseField>
 </ResponseField>
 
@@ -919,6 +1041,30 @@ print(product.data, product.metadata.cache_status)
 
   <ResponseField name="result.metadata.action_id" type="str" optional>
     The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
   </ResponseField>
   </ResponseField>
 </ResponseField>

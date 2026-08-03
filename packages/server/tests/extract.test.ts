@@ -2,6 +2,7 @@ import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
+import type { CacheClient } from "../clients/cacheClient.js";
 import { extract } from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
@@ -283,7 +284,13 @@ describe("extract service", () => {
           content: { type: "text", text: "structured extraction" },
           outputFormat: "json_schema",
           structuredContent: { count: 1 },
-          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          usage: {
+            inputTokens: 1,
+            outputTokens: 1,
+            totalTokens: 2,
+            reasoningTokens: 2,
+            cachedInputTokens: 3,
+          },
         };
       }
       return {
@@ -291,7 +298,13 @@ describe("extract service", () => {
         content: { type: "text", text: "metadata" },
         outputFormat: "json_schema",
         structuredContent: { progress: "Extracted the count", completed: true },
-        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        usage: {
+          inputTokens: 1,
+          outputTokens: 1,
+          totalTokens: 2,
+          reasoningTokens: 5,
+          cachedInputTokens: 7,
+        },
       };
     });
 
@@ -314,7 +327,73 @@ describe("extract service", () => {
       logger: new StagehandLogger({ tracer: trace.getTracer("extract-service-test") }, () => {}),
     });
 
-    expect(result).toStrictEqual({ data: { count: 1 }, metadata: {} });
+    expect(result).toStrictEqual({
+      data: { count: 1 },
+      metadata: {
+        usage: {
+          inputTokens: 2,
+          outputTokens: 2,
+          reasoningTokens: 7,
+          cachedInputTokens: 10,
+          inferenceTimeMs: expect.any(Number),
+        },
+      },
+    });
+  });
+
+  it("zeroes usage when a cached result avoids inference", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const page = {
+      captureSnapshot: vi.fn(),
+      screenshot: vi.fn(),
+      url: () => "https://example.com",
+      frames: () => [frame],
+      mainFrame: () => frame,
+    };
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => structuredResult({}));
+    const get = vi.fn().mockResolvedValue({
+      hit: true,
+      cacheKey: "key",
+      value: { count: 1 },
+    });
+    const set = vi.fn();
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the count",
+        schema: z.json().parse(z.toJSONSchema(z.object({ count: z.number() }))),
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: true,
+      },
+    });
+
+    expect(result).toStrictEqual({
+      data: { count: 1 },
+      metadata: {
+        cacheStatus: "HIT",
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0,
+          inferenceTimeMs: 0,
+        },
+      },
+    });
+    expect(page.captureSnapshot).not.toHaveBeenCalled();
+    expect(clientLLMGenerate).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
   });
 });
 

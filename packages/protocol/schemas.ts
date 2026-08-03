@@ -1019,6 +1019,29 @@ export const ActionSchema = z
 // Act
 // =============================================================================
 
+export const StagehandResultUsageSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Input tokens consumed by all LLM calls made for this operation",
+    }),
+    outputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Output tokens consumed by all LLM calls made for this operation",
+    }),
+    reasoningTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Reasoning tokens consumed by all LLM calls made for this operation",
+    }),
+    cachedInputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Cached input tokens used by all LLM calls made for this operation",
+    }),
+    inferenceTimeMs: z.number().int().nonnegative().default(0).meta({
+      description: "Total time spent waiting for LLM inference during this operation",
+    }),
+  })
+  .meta({
+    id: "StagehandResultUsage",
+    description: "Aggregate LLM usage for one Stagehand operation",
+  });
+
 export const StagehandResultMetadataSchema = z
   .strictObject({
     actionId: z.string().optional().meta({
@@ -1026,6 +1049,10 @@ export const StagehandResultMetadataSchema = z
     }),
     cacheStatus: CacheStatusSchema.optional().meta({
       description: "Server-side cache status for this result",
+    }),
+    usage: StagehandResultUsageSchema.meta({
+      description:
+        "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
     }),
   })
   .meta({ id: "StagehandResultMetadata" });
@@ -1218,12 +1245,6 @@ export const ContextCloseResultSchema = z
     closed: z.literal(true),
   })
   .meta({ id: "ContextCloseResult" });
-
-export const PageCoordinateResultSchema = z
-  .strictObject({
-    xpath: z.string(),
-  })
-  .meta({ id: "PageCoordinateResult" });
 
 export const PageScreenshotClipSchema = z
   .strictObject({
@@ -1562,7 +1583,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
     .strictObject({
       button: MouseButtonSchema.optional(),
       clickCount: z.number().int().positive().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageClickOptions" })
     .optional(),
@@ -1571,12 +1591,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
 export const PageHoverParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
   y: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageHoverOptions" })
-    .optional(),
 }).meta({ id: "PageHoverParams" });
 
 export const PageScrollParamsSchema = PageIdParamsSchema.extend({
@@ -1584,12 +1598,6 @@ export const PageScrollParamsSchema = PageIdParamsSchema.extend({
   y: z.number(),
   deltaX: z.number(),
   deltaY: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageScrollOptions" })
-    .optional(),
 }).meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
@@ -1602,7 +1610,6 @@ export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
       button: MouseButtonSchema.optional(),
       steps: z.number().int().positive().optional(),
       delay: z.number().nonnegative().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageDragAndDropOptions" })
     .optional(),
@@ -1810,13 +1817,6 @@ export const PageCloseResultSchema = z
     closed: z.literal(true),
   })
   .meta({ id: "PageCloseResult" });
-
-export const PageDragAndDropResultSchema = z
-  .strictObject({
-    fromXpath: z.string(),
-    toXpath: z.string(),
-  })
-  .meta({ id: "PageDragAndDropResult" });
 
 export const PageEvaluateResultSchema = z
   .strictObject({

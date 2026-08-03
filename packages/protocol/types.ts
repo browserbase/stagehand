@@ -134,9 +134,7 @@ import type {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
-  PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
-  PageDragAndDropResultSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -185,6 +183,7 @@ import type {
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
   StagehandResultMetadataSchema,
+  StagehandResultUsageSchema,
   SnapshotResultSchema,
   TelemetryConfigSchema,
   ThinkingEffortSchema,
@@ -271,7 +270,6 @@ export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
-export type PageCoordinateResult = z.infer<typeof PageCoordinateResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
@@ -348,6 +346,7 @@ export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventPa
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
+export type StagehandResultUsage = z.infer<typeof StagehandResultUsageSchema>;
 export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
@@ -359,7 +358,6 @@ export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicy
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
-export type PageDragAndDropResult = z.infer<typeof PageDragAndDropResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;

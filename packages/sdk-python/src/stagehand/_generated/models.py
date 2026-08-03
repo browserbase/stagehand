@@ -1319,7 +1319,6 @@ class PageClickOptions(WireModel):
     )
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageClickParams(WireModel):
@@ -1341,14 +1340,6 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
-class PageCoordinateResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    xpath: StrictStr
-
-
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1357,7 +1348,6 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1371,15 +1361,6 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
-
-
-class PageDragAndDropResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    from_xpath: StrictStr
-    to_xpath: StrictStr
 
 
 class PageEvaluateParams(WireModel):
@@ -1427,14 +1408,6 @@ class PageGotoParams(WireModel):
     options: Optional[PageNavigationOptions] = None
 
 
-class PageHoverOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageHoverParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1443,7 +1416,6 @@ class PageHoverParams(WireModel):
     page_id: StrictStr
     x: StrictFloat
     y: StrictFloat
-    options: Optional[PageHoverOptions] = None
 
 
 class PageIdParams(WireModel):
@@ -1572,14 +1544,6 @@ class PageScreenshotResult(WireModel):
     type: Type
 
 
-class PageScrollOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageScrollParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1590,7 +1554,6 @@ class PageScrollParams(WireModel):
     y: StrictFloat
     delta_x: StrictFloat
     delta_y: StrictFloat
-    options: Optional[PageScrollOptions] = None
 
 
 class PageSetExtraHTTPHeadersParams(WireModel):
@@ -1940,6 +1903,27 @@ class StagehandResultMetadata(WireModel):
     """Action ID for tracking"""
     cache_status: Optional[CacheStatus] = None
     """Server-side cache status for this result"""
+    usage: StagehandResultUsage
+    """Aggregate LLM usage for this operation; zeroed when the operation did not run inference"""
+
+
+class StagehandResultUsage(WireModel):
+    """Aggregate LLM usage for one Stagehand operation"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Input tokens consumed by all LLM calls made for this operation"""
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Output tokens consumed by all LLM calls made for this operation"""
+    reasoning_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Reasoning tokens consumed by all LLM calls made for this operation"""
+    cached_input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Cached input tokens used by all LLM calls made for this operation"""
+    inference_time_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Total time spent waiting for LLM inference during this operation"""
 
 
 class State(StrEnum):
