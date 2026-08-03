@@ -186,7 +186,7 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 			t.Fatalf("BrowserContext.NewPage() error = %v", err)
 		}
 	}
-	if err := page.Goto(ctx, fixture.URL, nil); err != nil {
+	if _, err := page.Goto(ctx, fixture.URL, nil); err != nil {
 		t.Fatalf("Page.Goto() error = %v", err)
 	}
 

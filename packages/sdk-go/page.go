@@ -29,48 +29,62 @@ func (p *Page) Ref() PageRef {
 	return p.ref
 }
 
-// Goto navigates the page and refreshes its protocol reference.
-func (p *Page) Goto(ctx context.Context, url string, options *PageNavigationOptions) error {
+// Goto navigates the page, refreshes its protocol reference, and returns its network response.
+func (p *Page) Goto(
+	ctx context.Context,
+	url string,
+	options *PageNavigationOptions,
+) (*Response, error) {
 	params := PageGotoParams{PageID: p.PageID(), URL: url, Options: options}
 	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.goto", params, &result); err != nil {
-		return err
+		return nil, err
 	}
 	p.setRef(result.Page)
-	return nil
+	return responseFromNavigationResult(p.rpc, result), nil
 }
 
-// Reload reloads the page and refreshes its protocol reference.
-func (p *Page) Reload(ctx context.Context, options *PageReloadOptions) error {
+// Reload reloads the page, refreshes its protocol reference, and returns its network response.
+func (p *Page) Reload(ctx context.Context, options *PageReloadOptions) (*Response, error) {
 	params := PageReloadParams{PageID: p.PageID(), Options: options}
 	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.reload", params, &result); err != nil {
-		return err
+		return nil, err
 	}
 	p.setRef(result.Page)
-	return nil
+	return responseFromNavigationResult(p.rpc, result), nil
 }
 
-// GoBack navigates backward and refreshes the page reference.
-func (p *Page) GoBack(ctx context.Context, options *PageNavigationOptions) error {
+// GoBack navigates backward, refreshes the page reference, and returns its network response.
+func (p *Page) GoBack(ctx context.Context, options *PageNavigationOptions) (*Response, error) {
 	params := PageGoBackParams{PageID: p.PageID(), Options: options}
 	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.go_back", params, &result); err != nil {
-		return err
+		return nil, err
 	}
 	p.setRef(result.Page)
-	return nil
+	return responseFromNavigationResult(p.rpc, result), nil
 }
 
-// GoForward navigates forward and refreshes the page reference.
-func (p *Page) GoForward(ctx context.Context, options *PageNavigationOptions) error {
+// GoForward navigates forward, refreshes the page reference, and returns its network response.
+func (p *Page) GoForward(
+	ctx context.Context,
+	options *PageNavigationOptions,
+) (*Response, error) {
 	params := PageGoForwardParams{PageID: p.PageID(), Options: options}
 	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.go_forward", params, &result); err != nil {
-		return err
+		return nil, err
 	}
 	p.setRef(result.Page)
-	return nil
+	return responseFromNavigationResult(p.rpc, result), nil
+}
+
+func responseFromNavigationResult(rpc protocolClient, result PageNavigationResult) *Response {
+	if result.Response == nil {
+		return nil
+	}
+	return newResponse(rpc, *result.Response)
 }
 
 // Click clicks browser coordinates.

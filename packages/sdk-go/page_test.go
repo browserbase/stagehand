@@ -98,15 +98,29 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 
 	title := "After navigation"
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.goto": PageNavigationResult{Page: PageRef{PageID: "page-2", Title: &title}},
+		"page.goto": PageNavigationResult{
+			Page: PageRef{PageID: "page-2", Title: &title},
+			Response: &NavigationResponseDescriptor{
+				ResponseID:        "response-1",
+				URL:               "https://example.com",
+				Status:            200,
+				StatusText:        "OK",
+				Headers:           map[string]string{"content-type": "text/html"},
+				FromServiceWorker: false,
+			},
+		},
 		"page.screenshot": PageScreenshotResult{
 			Data: "cG5nLWJ5dGVz",
 			Type: PageScreenshotResultTypePNG,
 		},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
-	if err := page.Goto(context.Background(), "https://example.com", nil); err != nil {
+	response, err := page.Goto(context.Background(), "https://example.com", nil)
+	if err != nil {
 		t.Fatalf("Goto() error = %v", err)
+	}
+	if response == nil || response.URL() != "https://example.com" {
+		t.Fatalf("Goto() response = %#v", response)
 	}
 	if ref := page.Ref(); ref.PageID != "page-2" || ref.Title == nil || *ref.Title != title {
 		t.Fatalf("Ref() = %#v", ref)
@@ -124,6 +138,31 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 	}
 	if params, ok := rpc.calls[1].params.(PageScreenshotParams); !ok || params.PageID != "page-2" {
 		t.Fatalf("Screenshot() params = %#v", rpc.calls[1].params)
+	}
+}
+
+func TestPageNavigationMethodsReturnNilWithoutNetworkResponse(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.reload":     PageNavigationResult{Page: PageRef{PageID: "page-2"}},
+		"page.go_back":    PageNavigationResult{Page: PageRef{PageID: "page-3"}},
+		"page.go_forward": PageNavigationResult{Page: PageRef{PageID: "page-4"}},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	ctx := context.Background()
+
+	response, err := page.Reload(ctx, nil)
+	if err != nil || response != nil || page.PageID() != "page-2" {
+		t.Fatalf("Reload() = (%#v, %v), page ID = %q", response, err, page.PageID())
+	}
+	response, err = page.GoBack(ctx, nil)
+	if err != nil || response != nil || page.PageID() != "page-3" {
+		t.Fatalf("GoBack() = (%#v, %v), page ID = %q", response, err, page.PageID())
+	}
+	response, err = page.GoForward(ctx, nil)
+	if err != nil || response != nil || page.PageID() != "page-4" {
+		t.Fatalf("GoForward() = (%#v, %v), page ID = %q", response, err, page.PageID())
 	}
 }
 
