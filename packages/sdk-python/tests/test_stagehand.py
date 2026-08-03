@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import json
 from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast, overload
@@ -572,10 +573,10 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         locator=locator,
         cache=CacheOptions(threshold=1),
     )
-    observed = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    observed = await stagehand.observe("Find the link", model=model, locator=locator)
     extracted = await stagehand.extract(
-        instruction="Extract the heading",
-        schema=PageInfo,
+        "Extract the heading",
+        PageInfo,
         page=page,
         model=model,
         screenshot=True,
@@ -623,3 +624,25 @@ async def test_stagehand_ai_methods_require_an_active_page(
 
     with pytest.raises(RuntimeError, match="no active page"):
         await stagehand.act("Click the link")
+
+
+@pytest.mark.parametrize(
+    ("method", "positional"),
+    [
+        ("act", ["instruction"]),
+        ("observe", ["instruction"]),
+        ("extract", ["instruction", "schema"]),
+    ],
+)
+def test_semantic_arguments_stay_positional(method: str, positional: list[str]) -> None:
+    """TS and Go take these positionally; Python must match, with options keyword-only."""
+    parameters = list(inspect.signature(getattr(Stagehand, method)).parameters.values())
+    assert [
+        parameter.name
+        for parameter in parameters[1:]
+        if parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    ] == positional
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY
+        for parameter in parameters[1 + len(positional) :]
+    )

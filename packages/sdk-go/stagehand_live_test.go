@@ -186,7 +186,7 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
 	}
 	if page == nil {
-		page, err = browserContext.NewPage(ctx, ContextNewPageParams{})
+		page, err = browserContext.NewPage(ctx, nil)
 		if err != nil {
 			t.Fatalf("BrowserContext.NewPage() error = %v", err)
 		}

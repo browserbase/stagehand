@@ -21,8 +21,8 @@ class Repository(BaseModel):
 
 
 await stagehand.extract(
-    instruction="extract the name of the repository",
-    schema=Repository,
+    "extract the name of the repository",
+    Repository,
 )
 ```
 </View>
@@ -93,8 +93,8 @@ class Product(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract product details",
-    schema=Product,
+    "extract product details",
+    Product,
 )
 ```
 </View>
@@ -188,8 +188,8 @@ class Apartments(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract all apartment listings",
-    schema=Apartments,
+    "extract all apartment listings",
+    Apartments,
 )
 ```
 </View>
@@ -298,8 +298,8 @@ class Price(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the price",
-    schema=Price,
+    "extract the price",
+    Price,
 )
 ```
 </View>
@@ -371,8 +371,8 @@ class ContactLink(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the contact page link",
-    schema=ContactLink,
+    "extract the contact page link",
+    ContactLink,
 )
 ```
 </View>
@@ -429,8 +429,8 @@ const result = await stagehand.extract(
 from stagehand import ModelConfig
 
 result = await stagehand.extract(
-    instruction="extract the repository name",
-    schema=Repository,
+    "extract the repository name",
+    Repository,
     model=ModelConfig.model_validate({
         "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],
@@ -499,7 +499,7 @@ const result = await stagehand.extract(
 );
 
 // Cache status travels on the result metadata
-console.log(result.metadata.cache?.status); // "HIT", "MISS", or undefined
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -516,13 +516,13 @@ stagehand = Stagehand(
 
 # Or disable it for a single call
 result = await stagehand.extract(
-    instruction="extract the repository name",
-    schema=Repository,
+    "extract the repository name",
+    Repository,
     cache=False,
 )
 
 # Cache status travels on the result metadata
-print(result.metadata.cache.status if result.metadata.cache else None)  # "HIT", "MISS", or None
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -554,9 +554,7 @@ if err != nil {
 }
 
 // Cache status travels on the result metadata
-if result.Metadata.Cache != nil {
-	fmt.Println(result.Metadata.Cache.Status) // "HIT" or "MISS"
-}
+fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -589,8 +587,8 @@ class TableRow(BaseModel):
 
 
 table_data = (await stagehand.extract(
-    instruction="Extract the values of the third row",
-    schema=TableRow,
+    "Extract the values of the third row",
+    TableRow,
     # xPath or CSS selector
     selector="xpath=/html/body/div/table/",
 )).data
@@ -650,8 +648,8 @@ class Article(BaseModel):
 
 
 article = (await stagehand.extract(
-    instruction="extract the article title and body",
-    schema=Article,
+    "extract the article title and body",
+    Article,
     ignore_selectors=[".ad", ".newsletter-modal", "nav.related-posts"],
 )).data
 ```
@@ -717,8 +715,8 @@ class SaleBadge(BaseModel):
 
 
 sale_badge = (await stagehand.extract(
-    instruction="extract the text shown in the visible sale badge",
-    schema=SaleBadge,
+    "extract the text shown in the visible sale badge",
+    SaleBadge,
     screenshot=True,
 )).data
 ```
@@ -796,11 +794,11 @@ class Apartments(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction=(
+    (
         "Extract ALL the apartment listings and their details, "
         "including address, price, and square feet."
     ),
-    schema=Apartments,
+    Apartments,
 )
 ```
 </View>
@@ -879,8 +877,8 @@ class ContactLink(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract the link to the 'contact us' page",
-    schema=ContactLink,
+    "extract the link to the 'contact us' page",
+    ContactLink,
 )
 
 print("the link to the contact us page is: ", result.data.contact_link)
@@ -973,8 +971,8 @@ class Products(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract all product names and prices",
-    schema=Products,
+    "extract all product names and prices",
+    Products,
 )
 ```
 </View>
@@ -1120,7 +1118,7 @@ const { data } = await stagehand.extract(
 <View title="Python" icon="python">
 ```python
 # First observe to understand the page structure
-observed = await stagehand.observe(instruction="find all product listings")
+observed = await stagehand.observe("find all product listings")
 print("Found elements:", [element.description for element in observed.data])
 
 
@@ -1135,8 +1133,8 @@ class Products(BaseModel):
 
 
 result = await stagehand.extract(
-    instruction="extract name and price from each product listing shown on the page",
-    schema=Products,
+    "extract name and price from each product listing shown on the page",
+    Products,
 )
 ```
 </View>
@@ -1247,8 +1245,8 @@ for page_num in page_numbers:
     await stagehand.act(f"navigate to page {page_num}")
 
     result = await stagehand.extract(
-        instruction="extract product data from the current page only",
-        schema=Products,
+        "extract product data from the current page only",
+        Products,
         timeout=60000,  # 60 second timeout
     )
 
