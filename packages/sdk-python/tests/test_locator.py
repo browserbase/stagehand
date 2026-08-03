@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -11,6 +12,8 @@ from stagehand._generated.models import (
     LocatorDescriptor,
     LocatorInputValueResult,
     LocatorIsCheckedResult,
+    LocatorSetInputFilesParams,
+    LocatorSetInputFilesResult,
 )
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
@@ -83,3 +86,33 @@ def test_locator_first_and_nth_validate_the_generated_descriptor() -> None:
 
     with pytest.raises(ValueError):
         locator.nth(-1)
+
+
+@pytest.mark.asyncio
+async def test_set_input_files_reads_paths_and_can_clear(tmp_path: Path) -> None:
+    file_path = tmp_path / "hello.txt"
+    file_path.write_text("hello")
+    recording = RecordingRPCClient({
+        "locator.set_input_files": {"set": True},
+    })
+    locator = Locator(
+        cast(RPCClient, recording),
+        page_id="page-1",
+        selector="#upload",
+    )
+
+    await locator.set_input_files(file_path)
+    await locator.set_input_files([])
+
+    method, params, result_model = recording.calls[0]
+    assert method == "locator.set_input_files"
+    assert isinstance(params, LocatorSetInputFilesParams)
+    assert params.files[0].name == "hello.txt"
+    assert params.files[0].data == "aGVsbG8="
+    assert params.files[0].last_modified is not None
+    assert result_model is LocatorSetInputFilesResult
+    assert recording.calls[1][1] == LocatorSetInputFilesParams(
+        page_id="page-1",
+        selector="#upload",
+        files=[],
+    )

@@ -50,6 +50,8 @@ import {
   LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
   LocatorSelectOptionResultSchema,
+  LocatorSetInputFilesParamsSchema,
+  LocatorSetInputFilesResultSchema,
   LocatorSendClickEventParamsSchema,
   LocatorSendClickEventResultSchema,
   LocatorTextContentResultSchema,
@@ -434,6 +436,11 @@ export const StagehandMethods = {
     name: "locator.select_option",
     params: LocatorSelectOptionParamsSchema,
     result: LocatorSelectOptionResultSchema,
+  },
+  locatorSetInputFiles: {
+    name: "locator.set_input_files",
+    params: LocatorSetInputFilesParamsSchema,
+    result: LocatorSetInputFilesResultSchema,
   },
 } as const satisfies Record<string, RPCMethod>;
 

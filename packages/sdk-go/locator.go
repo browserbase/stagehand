@@ -2,8 +2,31 @@ package stagehand
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
+	"path/filepath"
 )
+
+// FileInput describes either a local file path or an in-memory file payload.
+// Use FilePath or FileData to construct one.
+type FileInput struct {
+	Path         string
+	Name         string
+	MIMEType     string
+	Buffer       []byte
+	LastModified *int
+}
+
+// FilePath creates an upload from a path on the SDK caller's filesystem.
+func FilePath(path string) FileInput {
+	return FileInput{Path: path}
+}
+
+// FileData creates an in-memory upload payload.
+func FileData(name string, mimeType string, buffer []byte) FileInput {
+	return FileInput{Name: name, MIMEType: mimeType, Buffer: append([]byte(nil), buffer...)}
+}
 
 // PageLocator is the client wrapper named Locator in the TypeScript and Python
 // SDKs. The Go protocol already exports a different generated Locator value.
@@ -176,6 +199,66 @@ func (l *PageLocator) SelectOption(ctx context.Context, values StringList) ([]st
 		return nil, err
 	}
 	return []string(result), nil
+}
+
+// SetInputFiles sets files on the matching <input type="file"> element. Calling
+// it without files clears the current selection.
+func (l *PageLocator) SetInputFiles(ctx context.Context, files ...FileInput) error {
+	payloads := make([]InputFilePayload, 0, len(files))
+	for _, file := range files {
+		payload, err := normalizeFileInput(file)
+		if err != nil {
+			return err
+		}
+		payloads = append(payloads, payload)
+	}
+
+	params := LocatorSetInputFilesParams{
+		PageID: l.descriptor.PageID, Selector: l.descriptor.Selector, Nth: l.descriptor.Nth,
+		Files: payloads,
+	}
+	var result LocatorSetInputFilesResult
+	return l.rpc.call(ctx, "locator.set_input_files", params, &result)
+}
+
+func normalizeFileInput(file FileInput) (InputFilePayload, error) {
+	if file.Path != "" {
+		if file.Name != "" || file.MIMEType != "" || file.Buffer != nil || file.LastModified != nil {
+			return InputFilePayload{}, fmt.Errorf("set input files: path and payload fields cannot be combined")
+		}
+		absolutePath, err := filepath.Abs(file.Path)
+		if err != nil {
+			return InputFilePayload{}, fmt.Errorf("set input files: resolve %q: %w", file.Path, err)
+		}
+		info, err := os.Stat(absolutePath)
+		if err != nil {
+			return InputFilePayload{}, fmt.Errorf("set input files: stat %q: %w", absolutePath, err)
+		}
+		if !info.Mode().IsRegular() {
+			return InputFilePayload{}, fmt.Errorf("set input files: expected a file at %q", absolutePath)
+		}
+		data, err := os.ReadFile(absolutePath)
+		if err != nil {
+			return InputFilePayload{}, fmt.Errorf("set input files: read %q: %w", absolutePath, err)
+		}
+		lastModified := int(info.ModTime().UnixMilli())
+		return InputFilePayload{
+			Name: filepath.Base(absolutePath), Data: base64.StdEncoding.EncodeToString(data),
+			LastModified: &lastModified,
+		}, nil
+	}
+
+	if file.Name == "" {
+		return InputFilePayload{}, fmt.Errorf("set input files: payload name cannot be empty")
+	}
+	payload := InputFilePayload{
+		Name: file.Name, Data: base64.StdEncoding.EncodeToString(file.Buffer),
+		LastModified: file.LastModified,
+	}
+	if file.MIMEType != "" {
+		payload.MIMEType = &file.MIMEType
+	}
+	return payload, nil
 }
 
 // First returns a locator restricted to the first match.

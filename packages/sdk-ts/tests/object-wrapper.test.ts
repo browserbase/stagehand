@@ -1174,6 +1174,40 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("reads local files and routes locator.setInputFiles", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-test-"));
+    const filePath = path.join(directory, "hello.txt");
+    await import("node:fs/promises").then(({ writeFile }) => writeFile(filePath, "hello"));
+    try {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const locator = page.locator("#upload");
+
+      await locator.setInputFiles(filePath);
+      await locator.setInputFiles([]);
+
+      expect(client.calls[0]).toMatchObject({
+        method: "locator.set_input_files",
+        params: {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "hello.txt", data: "aGVsbG8=" }],
+        },
+      });
+      expect(client.calls[1]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [],
+        }),
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.locatorClick, { clicked: true });

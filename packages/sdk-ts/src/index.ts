@@ -11,6 +11,7 @@ export {
   type ClipboardPasteOptions,
 } from "./browserClipboard.js";
 export { Locator } from "./locator.js";
+export type { FileInput, FilePayload } from "./fileUpload.js";
 export { Page, type ScreenshotOptions } from "./page.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";

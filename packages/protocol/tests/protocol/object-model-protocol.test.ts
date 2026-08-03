@@ -476,6 +476,39 @@ describe("Stagehand object-model protocol", () => {
       values: ["a", "b"],
     });
     expect(StagehandMethods.locatorSelectOption.result.parse(["a"])).toStrictEqual(["a"]);
+
+    expect(
+      StagehandMethods.locatorSetInputFiles.params.parse({
+        ...locatorDescriptor(),
+        files: [
+          {
+            name: "hello.txt",
+            mimeType: "text/plain",
+            data: "aGVsbG8=",
+            lastModified: 1_700_000_000_000,
+          },
+        ],
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      files: [
+        {
+          name: "hello.txt",
+          mimeType: "text/plain",
+          data: "aGVsbG8=",
+          lastModified: 1_700_000_000_000,
+        },
+      ],
+    });
+    expect(StagehandMethods.locatorSetInputFiles.result.parse({ set: true })).toStrictEqual({
+      set: true,
+    });
+    expect(() =>
+      StagehandMethods.locatorSetInputFiles.params.parse({
+        ...locatorDescriptor(),
+        files: [{ name: "hello.txt", data: "not base64" }],
+      }),
+    ).toThrow();
   });
 
   it("exports a JSON-RPC request schema for generated clients", () => {

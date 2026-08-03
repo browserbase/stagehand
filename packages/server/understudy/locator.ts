@@ -96,10 +96,7 @@ export class Locator {
       const normalized = await normalizeInputFiles(files);
 
       if (!normalized.length) {
-        await session.send<never>("DOM.setFileInputFiles", {
-          objectId,
-          files: [],
-        });
+        await this.assignFilesViaPayloadInjection(objectId, []);
         return;
       }
 

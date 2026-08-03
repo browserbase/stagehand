@@ -52,6 +52,7 @@ from .client_models import (
     LLMGenerateOutput,
     StagehandClientLoggingConfig,
 )
+from .file_upload import FileInput, FilePayload
 from .locator import Locator
 from .page import Page
 from .stagehand import Stagehand
@@ -80,6 +81,8 @@ __all__ = [
     "DomainPolicy",
     "ExternalProxyConfig",
     "ExtractResult",
+    "FileInput",
+    "FilePayload",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",

@@ -475,6 +475,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
   readonly sendClickEventCalls: Array<LocatorSendClickEventParams["options"]> = [];
   readonly typeCalls: Array<{ text: string; options?: LocatorTypeParams["options"] }> = [];
   readonly selectOptionCalls: Array<LocatorSelectOptionParams["values"]> = [];
+  readonly setInputFilesCalls: Array<Parameters<UnderstudyRuntimeLocator["setInputFiles"]>[0]> = [];
   readonly nthCalls: number[] = [];
 
   constructor(
@@ -553,6 +554,12 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
   async selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]> {
     this.selectOptionCalls.push(values);
     return this.values.selectedValues ?? (Array.isArray(values) ? values : [values]);
+  }
+
+  async setInputFiles(
+    files: Parameters<UnderstudyRuntimeLocator["setInputFiles"]>[0],
+  ): Promise<void> {
+    this.setInputFilesCalls.push(files);
   }
 
   nth(index: number): UnderstudyRuntimeLocator {
@@ -2204,6 +2211,12 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
     ).resolves.toStrictEqual(["b"]);
+    await expect(
+      runtime.locatorSetInputFiles({
+        ...descriptor,
+        files: [{ name: "hello.txt", data: "aGVsbG8=", mimeType: "text/plain" }],
+      }),
+    ).resolves.toStrictEqual({ set: true });
 
     expect(locator.scrollToCalls).toStrictEqual([50]);
     expect(locator.highlightCalls).toStrictEqual([
@@ -2212,6 +2225,15 @@ describe("Stagehand worker clients", () => {
     expect(locator.sendClickEventCalls).toStrictEqual([{ detail: 2 }]);
     expect(locator.typeCalls).toStrictEqual([{ text: "hello", options: { delay: 1 } }]);
     expect(locator.selectOptionCalls).toStrictEqual([["a", "b"]]);
+    expect(locator.setInputFilesCalls).toHaveLength(1);
+    expect(locator.setInputFilesCalls[0]).toStrictEqual([
+      {
+        name: "hello.txt",
+        mimeType: "text/plain",
+        buffer: new Uint8Array([104, 101, 108, 108, 111]),
+        lastModified: undefined,
+      },
+    ]);
   });
 
   it("returns a clear error when locator page id cannot be resolved", async () => {

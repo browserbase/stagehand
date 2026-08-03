@@ -2,6 +2,8 @@ package stagehand
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -84,5 +86,40 @@ func TestPageLocatorFirstAndNthReturnIndependentDescriptors(t *testing.T) {
 	}
 	if invalid != nil {
 		t.Fatalf("Nth(-1) locator = %#v, want nil", invalid)
+	}
+}
+
+func TestPageLocatorSetInputFilesReadsPathsAndCanClear(t *testing.T) {
+	t.Parallel()
+
+	filePath := filepath.Join(t.TempDir(), "hello.txt")
+	if err := os.WriteFile(filePath, []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rpc := &recordingProtocolClient{}
+	locator := (&Page{
+		rpc: rpc,
+		ref: PageRef{PageID: "page-1"},
+	}).Locator("#upload")
+
+	if err := locator.SetInputFiles(context.Background(), FilePath(filePath)); err != nil {
+		t.Fatalf("SetInputFiles(path) error = %v", err)
+	}
+	if err := locator.SetInputFiles(context.Background()); err != nil {
+		t.Fatalf("SetInputFiles() error = %v", err)
+	}
+
+	params, ok := rpc.calls[0].params.(LocatorSetInputFilesParams)
+	if !ok || len(params.Files) != 1 {
+		t.Fatalf("SetInputFiles(path) params = %#v", rpc.calls[0].params)
+	}
+	if params.PageID != "page-1" || params.Selector != "#upload" ||
+		params.Files[0].Name != "hello.txt" || params.Files[0].Data != "aGVsbG8=" ||
+		params.Files[0].LastModified == nil {
+		t.Fatalf("SetInputFiles(path) params = %#v", params)
+	}
+	clearParams, ok := rpc.calls[1].params.(LocatorSetInputFilesParams)
+	if !ok || len(clearParams.Files) != 0 {
+		t.Fatalf("SetInputFiles() params = %#v", rpc.calls[1].params)
 	}
 }

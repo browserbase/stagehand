@@ -86,6 +86,21 @@ expectTypeOf<z.input<typeof StagehandMethods.locatorSelectOption.params>>().toEq
 expectTypeOf<z.output<typeof StagehandMethods.locatorSelectOption.result>>().toEqualTypeOf<
   string[]
 >();
+expectTypeOf(StagehandMethods.locatorSetInputFiles.name).toEqualTypeOf<"locator.set_input_files">();
+expectTypeOf<z.input<typeof StagehandMethods.locatorSetInputFiles.params>>().toEqualTypeOf<{
+  pageId: string;
+  selector: string;
+  nth?: number;
+  files: Array<{
+    name: string;
+    mimeType?: string;
+    data: string;
+    lastModified?: number;
+  }>;
+}>();
+expectTypeOf<z.output<typeof StagehandMethods.locatorSetInputFiles.result>>().toEqualTypeOf<{
+  set: true;
+}>();
 expectTypeOf<StagehandRequest["method"]>().toEqualTypeOf<z.output<typeof StagehandMethodSchema>>();
 expectTypeOf<z.output<typeof StagehandMethodSchema>>().toEqualTypeOf<RegisteredStagehandMethod>();
 expectTypeOf(StagehandNotifications.log.name).toEqualTypeOf<"stagehand.log">();

@@ -47,6 +47,8 @@ import type {
   LocatorScrollToResult,
   LocatorSelectOptionParams,
   LocatorSelectOptionResult,
+  LocatorSetInputFilesParams,
+  LocatorSetInputFilesResult,
   LocatorSendClickEventParams,
   LocatorSendClickEventResult,
   LocatorTextContentResult,
@@ -108,6 +110,7 @@ import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
+import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
 import { Page } from "./understudy/page.js";
 
 export type UnderstudyRuntimePage = {
@@ -212,6 +215,7 @@ export type UnderstudyRuntimeLocator = {
   sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
   type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
   selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
+  setInputFiles(files: SetInputFilesArgument): Promise<void>;
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
@@ -711,6 +715,22 @@ export class StagehandRuntime {
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
     return await this.resolveLocator(params).selectOption(params.values);
+  }
+
+  async locatorSetInputFiles(
+    params: LocatorSetInputFilesParams,
+  ): Promise<LocatorSetInputFilesResult> {
+    await this.resolveLocator(params).setInputFiles(
+      params.files.map((file) => ({
+        name: file.name,
+        mimeType: file.mimeType,
+        buffer: new Uint8Array(
+          Array.from(globalThis.atob(file.data), (character) => character.charCodeAt(0)),
+        ),
+        lastModified: file.lastModified,
+      })),
+    );
+    return { set: true };
   }
 
   async close(): Promise<void> {
