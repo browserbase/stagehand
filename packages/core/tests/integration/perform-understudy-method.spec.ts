@@ -141,4 +141,74 @@ test.describe("tests performUnderstudyMethod", () => {
     const isVisible = await page.locator("#success-msg").isVisible();
     expect(isVisible).toBe(true);
   });
+
+  // The activation assertion above cannot tell touch from mouse: Chromium
+  // synthesizes a click for both, so a regression to the mouse path would still
+  // pass it. These two assert the touch events themselves.
+  const TOUCH_PROBE = `
+    window.__events = [];
+    const target = document.querySelector("button");
+    for (const type of ["touchstart", "touchend", "pointerdown", "mousedown"]) {
+      target.addEventListener(type, (e) => {
+        window.__events.push(
+          type + (e.pointerType ? ":" + e.pointerType : "") +
+          (e.isTrusted ? "" : ":untrusted"),
+        );
+      });
+    }
+  `;
+
+  test("locator.tap delivers trusted touch events, not mouse", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
+    );
+    await page.evaluate(TOUCH_PROBE);
+
+    await performUnderstudyMethod(
+      page,
+      page.mainFrame(),
+      "tap",
+      "/html/body/button",
+      [],
+      30000,
+    );
+
+    const events = await page.evaluate<string[]>(() => window.__events);
+    // pointerdown must carry pointerType "touch" — a mouse click reports "mouse".
+    expect(events).toContain("pointerdown:touch");
+    expect(events).toContain("touchstart");
+    expect(events).toContain("touchend");
+    expect(events).not.toContain("pointerdown:mouse");
+    // Ordering: the touch sequence starts before any compatibility mouse event.
+    expect(events.indexOf("touchstart")).toBeLessThan(
+      events.indexOf("touchend"),
+    );
+  });
+
+  test("page.tap delivers trusted touch events at coordinates", async () => {
+    const page = v3.context.pages()[0];
+    await page.goto(
+      "https://browserbase.github.io/stagehand-eval-sites/sites/no-js-click/",
+    );
+    await page.evaluate(TOUCH_PROBE);
+
+    const center = await page.evaluate<{ x: number; y: number }>(() => {
+      const r = document.querySelector("button")!.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    await page.tap(center.x, center.y);
+
+    const events = await page.evaluate<string[]>(() => window.__events);
+    expect(events).toContain("pointerdown:touch");
+    expect(events).toContain("touchstart");
+    expect(events).toContain("touchend");
+    expect(events).not.toContain("pointerdown:mouse");
+  });
 });
+
+declare global {
+  interface Window {
+    __events: string[];
+  }
+}
