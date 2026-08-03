@@ -3,8 +3,8 @@ import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText, Output } from "ai";
-import type { LanguageModel, ModelMessage } from "ai";
+import { generateText, jsonSchema, Output } from "ai";
+import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { z } from "zod/v4";
 import {
   AnthropicModelIdSchema,
@@ -124,7 +124,10 @@ const AiSdkGenerationSchema = z
   .strip();
 
 /** Creates a direct AI SDK model from a validated Stagehand model configuration. */
-export function createAiSdkLanguageModel(config: ModelConfig): LanguageModel {
+export function createAiSdkLanguageModel(
+  config: ModelConfig,
+  params?: Pick<LLMGenerateParams, "stopSequences">,
+): LanguageModel {
   const separator = config.modelName.indexOf("/");
   const provider = ModelProviderSchema.parse(config.modelName.slice(0, separator));
   const modelId = config.modelName.slice(separator + 1);
@@ -134,8 +137,13 @@ export function createAiSdkLanguageModel(config: ModelConfig): LanguageModel {
   };
 
   switch (provider) {
-    case "openai":
-      return createOpenAI(connection).responses(OpenAIModelIdSchema.parse(modelId));
+    case "openai": {
+      const openai = createOpenAI(connection);
+      const openAiModelId = OpenAIModelIdSchema.parse(modelId);
+      return params?.stopSequences?.length
+        ? openai.chat(openAiModelId)
+        : openai.responses(openAiModelId);
+    }
     case "anthropic":
       return createAnthropic(connection)(AnthropicModelIdSchema.parse(modelId));
     case "google":
@@ -153,13 +161,30 @@ export async function generateWithAiSdk(
   input: LLMGenerateParams,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
-  // TODO: Forward params.tools and params.toolChoice when tool-driven inference is implemented.
+  const configuredTools = "tools" in params ? params.tools : undefined;
+  const configuredToolChoice = "toolChoice" in params ? params.toolChoice : undefined;
+  if (configuredToolChoice && !configuredTools?.length) {
+    throw new TypeError("toolChoice requires at least one tool");
+  }
+  const tools: ToolSet | undefined = configuredTools?.length
+    ? Object.fromEntries(
+        configuredTools.map((tool) => [
+          tool.name,
+          {
+            description: tool.description,
+            inputSchema: jsonSchema(tool.inputSchema),
+          },
+        ]),
+      )
+    : undefined;
   const response = await generateText({
     model,
     instructions: params.systemPrompt,
     messages: AiSdkMessagesSchema.parse(params.messages),
     temperature: params.temperature,
     stopSequences: params.stopSequences,
+    tools,
+    toolChoice: tools ? (configuredToolChoice?.mode ?? "auto") : undefined,
     ...(params.responseFormat?.type === "json_schema"
       ? {
           output: Output.object({
@@ -172,6 +197,17 @@ export async function generateWithAiSdk(
         }
       : {}),
   });
+
+  // The AI SDK result's `output` getter throws NoOutputGeneratedError unless
+  // the generation finished with "stop" (e.g. tool-call turns), so only read
+  // it when structured output was requested.
+  const generation = {
+    text: response.text,
+    finishReason: response.finishReason,
+    toolCalls: response.toolCalls,
+    usage: response.usage,
+    ...(params.responseFormat?.type === "json_schema" ? { output: response.output } : {}),
+  };
 
   const result = AiSdkGenerationSchema.transform((value) => {
     const content = [
@@ -210,7 +246,7 @@ export async function generateWithAiSdk(
           ...result,
           outputFormat: "text" as const,
         };
-  }).parse(response);
+  }).parse(generation);
 
   const candidate: unknown = result;
   const validatedResult: unknown = createLLMGenerateResultSchema(params).parse(candidate);
