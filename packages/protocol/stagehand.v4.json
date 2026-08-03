@@ -1473,21 +1473,76 @@
           "description": "Action ID for tracking",
           "type": "string"
         },
-        "cache_status": {
-          "description": "Server-side cache status for this result",
-          "$ref": "#/$defs/CacheStatus"
+        "cache": {
+          "description": "Cache observability for this result; status is DISABLED when no cache lookup ran",
+          "$ref": "#/$defs/CacheMetadata"
         },
         "usage": {
           "description": "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
           "$ref": "#/$defs/StagehandResultUsage"
         }
       },
-      "required": ["usage"],
+      "required": ["cache", "usage"],
       "additionalProperties": false
     },
     "CacheStatus": {
       "type": "string",
-      "enum": ["HIT", "MISS"]
+      "enum": ["HIT", "MISS", "DISABLED"]
+    },
+    "CacheTokenSavings": {
+      "type": "object",
+      "properties": {
+        "input_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "output_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "total_tokens": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "additionalProperties": false
+    },
+    "CacheMetadata": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "Whether server-side caching served this result, computed it, or was not consulted",
+          "$ref": "#/$defs/CacheStatus"
+        },
+        "count": {
+          "description": "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "threshold": {
+          "description": "Hit-count threshold in effect for this key",
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "miss_reason": {
+          "description": "Why the cache did not serve this request; misses only. Reported by the server: \"not_found\", \"threshold\", \"empty_array\", \"timeout\", \"error\", \"bypass\", \"screenshot\", \"not_enabled\", \"no_cache_key\". Reported locally: \"read_failed\" (the cache request itself failed) and \"replay_failed\" (a cached value was found but could not be applied)",
+          "type": "string"
+        },
+        "tokens_saved": {
+          "description": "LLM tokens avoided by serving this request from cache; hits only",
+          "$ref": "#/$defs/CacheTokenSavings"
+        }
+      },
+      "required": ["status"],
+      "additionalProperties": false
     },
     "StagehandResultUsage": {
       "type": "object",

@@ -499,7 +499,7 @@ const result = await stagehand.extract(
 );
 
 // Cache status travels on the result metadata
-console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -522,7 +522,7 @@ result = await stagehand.extract(
 )
 
 # Cache status travels on the result metadata
-print(result.metadata.cache_status)  # "HIT", "MISS", or None
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -554,9 +554,7 @@ if err != nil {
 }
 
 // Cache status travels on the result metadata
-if result.Metadata.CacheStatus != nil {
-	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
-}
+fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 

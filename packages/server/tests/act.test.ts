@@ -156,6 +156,7 @@ describe("act service", () => {
         ],
       },
       metadata: {
+        cache: { status: "DISABLED" },
         usage: {
           inputTokens: 11,
           outputTokens: 4,
@@ -451,7 +452,7 @@ describe("act service", () => {
       cache,
     });
 
-    expect(miss.metadata.cacheStatus).toBe("MISS");
+    expect(miss.metadata.cache.status).toBe("MISS");
     expect(miss.metadata.usage).toBeDefined();
     expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: miss.data.actions }));
 
@@ -467,7 +468,7 @@ describe("act service", () => {
       cache,
     });
 
-    expect(hit.metadata.cacheStatus).toBe("HIT");
+    expect(hit.metadata.cache.status).toBe("HIT");
     expect(hit.metadata.usage).toStrictEqual({
       inputTokens: 0,
       outputTokens: 0,

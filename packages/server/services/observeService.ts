@@ -17,7 +17,7 @@ import type { EncodedId } from "../types/private/internal.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
-import { zeroStagehandResultUsage } from "./resultUsage.js";
+import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
 const DEFAULT_OBSERVE_INSTRUCTION =
   "Find elements that can be used for any future actions in the page. These may be navigation links, related pages, section/subsection links, buttons, or other interactive elements. Be comprehensive: if there are multiple elements that may be relevant for future actions, return all of them.";
@@ -67,7 +67,10 @@ export async function observe({
       if (actions.length === 0) {
         throw new Error("Cached observe value contained no usable actions");
       }
-      return { data: actions, metadata: { usage: zeroStagehandResultUsage() } };
+      return {
+        data: actions,
+        metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+      };
     },
     execute: () => runObservation(),
   });
@@ -161,6 +164,7 @@ export async function observe({
             cachedInputTokens: observation.cached_input_tokens,
             inferenceTimeMs: observation.inference_time_ms,
           },
+          cache: disabledCacheMetadata(),
         },
       },
       cacheValue: actions.length > 0 ? actions : undefined,
