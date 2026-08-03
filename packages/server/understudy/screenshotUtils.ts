@@ -1,5 +1,6 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import type { DeepLocatorDelegate } from "./deepLocator.js";
 import type { Frame } from "./frame.js";
 import type { Locator } from "./locator.js";
 import type { Page } from "./page.js";
@@ -185,7 +186,7 @@ textarea,
 }
 
 export async function applyMaskOverlays(
-  locators: Locator[],
+  locators: Array<Locator | DeepLocatorDelegate>,
   color: string,
 ): Promise<ScreenshotCleanup> {
   type MaskRectSpec = ScreenshotClip & { rootToken?: string | null };
@@ -195,7 +196,10 @@ export async function applyMaskOverlays(
 
   for (const locator of locators) {
     try {
-      const info = await resolveMaskRects(locator, token);
+      const info = await resolveMaskRects(
+        "real" in locator ? await locator.real() : locator,
+        token,
+      );
       if (!info) continue;
       const entry = rectsByFrame.get(info.frame) ?? {
         rects: [],
@@ -271,6 +275,10 @@ export async function applyMaskOverlays(
         .catch(() => {}),
     ),
   );
+
+  // Wait outside the page's main world, where application code cannot replace the timer and
+  // prevent masked screenshots from completing. This also gives Chromium a paint opportunity.
+  await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
   return async () => {
     await Promise.all(

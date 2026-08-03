@@ -41,8 +41,13 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
 
   const root = findTopLayerRoot(this);
   if (root) {
+    // Measure the target and root in the same layout state. Adding the temporary attribute can
+    // synchronously change geometry through page CSS.
     const rootRect = root.getBoundingClientRect();
-    if (!rootRect) return null;
+    const rootClientLeft = root.clientLeft || 0;
+    const rootClientTop = root.clientTop || 0;
+    const rootScrollLeft = root.scrollLeft || 0;
+    const rootScrollTop = root.scrollTop || 0;
     let rootToken: string | null = null;
     if (maskToken) {
       try {
@@ -58,8 +63,10 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
       }
     }
     return {
-      x: rect.left - rootRect.left - (root.clientLeft || 0) + (root.scrollLeft || 0),
-      y: rect.top - rootRect.top - (root.clientTop || 0) + (root.scrollTop || 0),
+      // Top-layer overlays are positioned relative to their root. Root-relative coordinates
+      // remain correct even when a dialog/popover establishes a fixed-position containing block.
+      x: rect.left - rootRect.left - rootClientLeft + rootScrollLeft,
+      y: rect.top - rootRect.top - rootClientTop + rootScrollTop,
       width: rect.width,
       height: rect.height,
       rootToken,

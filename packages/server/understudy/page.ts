@@ -35,7 +35,6 @@ import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response, isSerializableResponse } from "./response.js";
 import type { StagehandAPIClient } from "../api.js";
-import type { Locator } from "./locator.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
@@ -1095,9 +1094,7 @@ export class Page {
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
     const captureScale = await computeScreenshotScale(this, scaleMode);
-    const maskLocators = (opts.mask ?? []).filter((locator): locator is Locator =>
-      Boolean(locator),
-    );
+    const maskLocators = opts.mask ?? [];
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 
