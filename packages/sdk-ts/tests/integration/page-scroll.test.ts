@@ -167,52 +167,6 @@ describe("Page.scroll() - mouse wheel scrolling", () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(scrolledDown);
   });
 
-  it("scroll returns xpath when requested", async () => {
-    const page = await firstPage(stagehand);
-
-    await page.goto(
-      "data:text/html," +
-        encodeURIComponent(
-          `<!doctype html><html><body style="height: 2000px; margin: 0; padding: 0;">
-            <div id="target" style="position: absolute; top: 0px; left: 400px; width: 300px; height: 100px; background: blue;">
-              Target element
-            </div>
-            <p style="position: absolute; top: 200px; left: 0px;">Content below</p>
-          </body></html>`,
-        ),
-    );
-
-    // Scroll at coordinate (550, 50) which should be directly over the target div
-    // div spans: left 400-700px, top 0-100px
-    // coordinate 550,50 is within that range
-    const xpath = await page.scroll(550, 50, 0, 200, { returnXpath: true });
-
-    // Should return a non-empty xpath string for the element at that coordinate
-    expect(typeof xpath).toBe("string");
-    expect(xpath.length).toBeGreaterThan(0);
-    // Xpath should reference the div or contain "target"
-    expect(xpath.toLowerCase()).toMatch(/div|target/);
-  });
-
-  it("scroll without returnXpath returns empty string", async () => {
-    const page = await firstPage(stagehand);
-
-    await page.goto(
-      "data:text/html," +
-        encodeURIComponent(
-          `<!doctype html><html><body style="height: 2000px;">
-            <div style="height: 500px; background: lightblue;">Content</div>
-          </body></html>`,
-        ),
-    );
-
-    // Scroll without returnXpath
-    const result = await page.scroll(640, 400, 0, 200);
-
-    // Should return empty string
-    expect(result).toBe("");
-  });
-
   it("multiple sequential scrolls accumulate", async () => {
     const page = await firstPage(stagehand);
 

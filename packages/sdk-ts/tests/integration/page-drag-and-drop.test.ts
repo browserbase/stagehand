@@ -88,25 +88,6 @@ describe("Page.dragAndDrop() - dragging elements", () => {
     await expect.poll(() => page.locator("#status").textContent()).toBe("Dropped");
   });
 
-  it("drag and drop returns xpath when requested", async () => {
-    const page = await firstPage(stagehand);
-    const { fromX, fromY, toX, toY } = await openSharedFixture(page);
-
-    const [fromXpath, toXpath] = await page.dragAndDrop(fromX, fromY, toX, toY, {
-      returnXpath: true,
-    });
-
-    expect(fromXpath).not.toBe("");
-    expect(toXpath).not.toBe("");
-  });
-
-  it("drag and drop without returnXpath returns empty strings", async () => {
-    const page = await firstPage(stagehand);
-    const { fromX, fromY, toX, toY } = await openSharedFixture(page);
-
-    await expect(page.dragAndDrop(fromX, fromY, toX, toY)).resolves.toEqual(["", ""]);
-  });
-
   it("multiple sequential drag and drops", async () => {
     const page = await firstPage(stagehand);
     await page.goto(

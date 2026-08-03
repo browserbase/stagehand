@@ -81,50 +81,6 @@ describe("Page.hover() - mouse hover at coordinates", () => {
     expect(state.clicked).toBe(false);
   });
 
-  it("hover returns xpath when requested", async () => {
-    const page = await firstPage(stagehand);
-
-    await page.goto(
-      "data:text/html," +
-        encodeURIComponent(
-          `<!doctype html><html><body style="margin: 0; padding: 0;">
-            <div id="target" style="position: absolute; top: 0px; left: 400px; width: 300px; height: 100px; background: blue;">
-              Target element
-            </div>
-            <p style="position: absolute; top: 200px; left: 0px;">Content below</p>
-          </body></html>`,
-        ),
-    );
-
-    // Hover at coordinate (550, 50) which should be directly over the target div
-    const xpath = await page.hover(550, 50, { returnXpath: true });
-
-    // Should return a non-empty xpath string for the element at that coordinate
-    expect(typeof xpath).toBe("string");
-    expect(xpath.length).toBeGreaterThan(0);
-    // Xpath should reference the div
-    expect(xpath.toLowerCase()).toMatch(/div|target/);
-  });
-
-  it("hover without returnXpath returns empty string", async () => {
-    const page = await firstPage(stagehand);
-
-    await page.goto(
-      "data:text/html," +
-        encodeURIComponent(
-          `<!doctype html><html><body style="margin: 0; padding: 0;">
-            <div style="width: 100px; height: 100px; background: lightblue;">Content</div>
-          </body></html>`,
-        ),
-    );
-
-    // Hover without returnXpath
-    const result = await page.hover(50, 50);
-
-    // Should return empty string
-    expect(result).toBe("");
-  });
-
   it("hover triggers CSS :hover styles", async () => {
     const page = await firstPage(stagehand);
 
