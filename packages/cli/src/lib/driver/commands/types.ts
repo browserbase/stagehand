@@ -4,6 +4,7 @@ import { z } from "zod";
 export const DRIVER_COMMAND_NAMES = [
   "back",
   "click",
+  "cookies.sync",
   "cursor",
   "eval",
   "fill",

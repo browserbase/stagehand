@@ -41,6 +41,18 @@ browse screenshot --path page.png
 browse stop
 ```
 
+To copy authenticated cookies from a local Chrome browser into a remote
+Browserbase session, enable Chrome remote debugging and run:
+
+```bash
+browse cookies sync --domain github.com --session github
+browse open https://github.com --session github
+```
+
+Use `--persist` to create a reusable Browserbase context, or `--context <id|name>`
+to refresh an existing one. Cookie sync requires explicit `--domain` flags;
+copying every local cookie requires the deliberate `--all` flag.
+
 ## How it works
 
 `browse` runs a lightweight per-session daemon. The first command starts it, and subsequent commands reuse the same browser — so cookies, tabs, and snapshot refs persist between invocations. Run multiple isolated browsers at once with `--session <name>` (or the `BROWSE_SESSION` env var), and shut a session down with `browse stop`.

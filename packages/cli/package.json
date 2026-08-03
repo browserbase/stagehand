@@ -54,6 +54,9 @@
       "cloud:sessions:uploads": {
         "description": "Upload files to Browserbase sessions."
       },
+      "cookies": {
+        "description": "Manage browser cookies and authentication state."
+      },
       "functions": {
         "description": "Develop, publish, and invoke Browserbase Functions."
       },

@@ -98,6 +98,23 @@ describe("CLI surface", () => {
     expect(result.stdout).toContain("cloud sessions");
   });
 
+  it("documents safe cookie sync scoping", async () => {
+    const result = await runCli(["cookies", "sync", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--domain");
+    expect(result.stdout).toContain("--all");
+    expect(result.stdout).toContain("--persist");
+    expect(result.stdout).toContain("--source-cdp");
+  });
+
+  it("requires an explicit cookie sync scope before starting a browser", async () => {
+    const result = await runCli(["cookies", "sync"]);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain(
+      "Pass at least one --domain, or explicitly pass --all.",
+    );
+  });
+
   it.each(cloudCommandsWithExamples)(
     "prints descriptive help for %j",
     async (...command) => {

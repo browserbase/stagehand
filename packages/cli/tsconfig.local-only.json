@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "exclude": [
     "src/commands/cloud",
+    "src/commands/cookies",
     "src/commands/functions",
     "src/commands/skills",
     "src/commands/templates",

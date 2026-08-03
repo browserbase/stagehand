@@ -203,7 +203,10 @@ export function targetsCompatible(
     // like headless, forcing an explicit stop-and-reopen.
     return (
       Boolean(left.verified) === Boolean(right.verified) &&
-      Boolean(left.proxies) === Boolean(right.proxies)
+      Boolean(left.proxies) === Boolean(right.proxies) &&
+      left.contextId === right.contextId &&
+      (left.persist ?? Boolean(left.contextId)) ===
+        (right.persist ?? Boolean(right.contextId))
     );
   }
   return true;
