@@ -2,12 +2,22 @@ name: CI
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize]
   push:
     branches:
       - main
+  # The main-branch approval handoff mirrors an approved external head SHA to an internal branch
+  # and dispatches this workflow there. Direct fork heads never execute repository code below.
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Internal mirrored pull request number
+        required: true
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,24 +27,69 @@ jobs:
   determine-changes:
     name: Determine changes
     runs-on: ubuntu-latest
+    # External contributions are promoted at the maintainer-approved head SHA to an internal PR
+    # before CI may check out or execute them. Never trust a persistent label on a mutable fork.
+    if: >-
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     outputs:
-      server: ${{ steps.filter.outputs.server }}
+      integration: ${{ steps.filter.outputs.integration }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
     steps:
+      - name: Validate approved mirror dispatch
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
+        env:
+          PULL_REQUEST_NUMBER: ${{ inputs.pull_request_number }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pullNumber = Number(process.env.PULL_REQUEST_NUMBER);
+            if (!Number.isSafeInteger(pullNumber) || pullNumber < 1) {
+              throw new Error('workflow_dispatch requires a valid pull_request_number');
+            }
+
+            const { data: pull } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+            const repository = `${context.repo.owner}/${context.repo.repo}`;
+            const expectedRef = `refs/heads/${pull.head.ref}`;
+            if (
+              pull.state !== 'open' ||
+              pull.head.repo?.full_name !== repository ||
+              context.ref !== expectedRef ||
+              context.sha !== pull.head.sha
+            ) {
+              throw new Error(
+                `Dispatch ref ${context.ref}@${context.sha} does not match open internal PR #${pullNumber}`,
+              );
+            }
+
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
       - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3.0.3
         id: filter
         with:
           filters: |
-            server:
+            integration:
+              - 'packages/sdk-ts/**'
               - 'packages/server/**'
               - 'packages/protocol/**'
+              - 'scripts/test-integration.ts'
+              - 'scripts/test-integration.test.ts'
+              - 'scripts/test-utils.ts'
+              - 'vitest.integration.config.ts'
+              - 'package.json'
               - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
               - 'turbo.json'
-              - '.github/**'
+              - 'tsconfig.json'
+              - '.github/actions/**'
+              - '.github/workflows/ci.yml'
             sdk-ts:
               - 'packages/sdk-ts/**'
               - 'packages/server/**'
@@ -296,14 +351,13 @@ jobs:
 
   extension-drift:
     name: Extension drift (Go embed vs server build)
-    # Same fork gate as go-windows: installs dependencies and builds the server, so it should
-    # not burn hosted-runner time on an unreviewed fork PR. safe-to-test lets a maintainer opt
-    # a specific external PR in.
+    # Same fork gate as go-windows: only an internal branch (including an approved mirror) may
+    # install dependencies and build the server.
     if: >-
       needs.determine-changes.outputs.sdk-go == 'true' &&
       (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name == github.repository ||
-       contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
+       github.event_name == 'workflow_dispatch' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [build, determine-changes]
@@ -366,7 +420,7 @@ jobs:
     name: Discover integration tests
     runs-on: ubuntu-latest
     needs: [determine-changes]
-    if: needs.determine-changes.outputs.server == 'true'
+    if: needs.determine-changes.outputs.integration == 'true'
     outputs:
       integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
       has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}
@@ -381,7 +435,7 @@ jobs:
       - name: Discover integration tests
         id: set-matrix
         run: |
-          integration_json=$(pnpm run test:integration -- --list)
+          integration_json=$(pnpm --silent run test:integration -- --list-groups)
           echo "integration-tests=$integration_json" >> "$GITHUB_OUTPUT"
 
           if [ "$integration_json" = "[]" ]; then
@@ -412,7 +466,12 @@ jobs:
 
       - uses: ./.github/actions/setup-chrome-verified
 
-      - run: pnpm run test:integration -- "${{ matrix.test.path }}"
+      - name: Run integration group
+        env:
+          INTEGRATION_PATHS: ${{ toJson(matrix.test.paths) }}
+        run: |
+          mapfile -t integration_paths < <(jq -r '.[]' <<< "$INTEGRATION_PATHS")
+          pnpm run test:integration -- "${integration_paths[@]}"
 
       - uses: ./.github/actions/upload-ctrf-report
         if: always()
@@ -429,6 +488,7 @@ jobs:
     needs: [determine-changes]
     if: >-
       github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-latest
     timeout-minutes: 10
