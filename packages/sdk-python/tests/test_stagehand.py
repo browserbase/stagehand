@@ -551,7 +551,9 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         }),
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache=CacheMetadata(status=CacheStatus.hit), usage=usage),
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.hit), usage=usage
+            ),
         },
     })
     _install_rpc_client(monkeypatch, recording)
