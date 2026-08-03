@@ -110,7 +110,7 @@ fmt.Println(len(observed.Data), "candidate actions")
 - **First-class TypeScript and Python SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
 - **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/v4/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/v4/reference/page).
 - **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
-- **Models are flexible:** Use a hosted provider by name, a custom OpenAI-compatible endpoint, or your own client-side LLM callback.
+- **Models are flexible:** Use a supported provider by name or supply your own client-side LLM callback.
 - **Metrics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand).
 
 ## Built for modern development
