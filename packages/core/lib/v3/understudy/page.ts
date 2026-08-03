@@ -1903,7 +1903,11 @@ export class Page {
    * instead of mouse input, so mobile layouts that gate their handlers on
    * touch/pointer events (`pointerType: "touch"`) — where a synthesized mouse click
    * never registers — respond correctly. Coordinates are relative to the viewport
-   * origin (top-left). Does not scroll. Requires a touch-capable (e.g. mobile) session.
+   * origin (top-left). Does not scroll.
+   *
+   * Does not require touch emulation: CDP delivers a trusted touch sequence even on
+   * a session reporting `maxTouchPoints: 0`. Whether the agent *chooses* this over
+   * {@link click} is decided by `V3.usesTouch`.
    */
   @FlowLogger.wrapWithLogging({ eventType: "PageTap" })
   async tap(

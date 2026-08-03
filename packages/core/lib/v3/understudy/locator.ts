@@ -454,8 +454,10 @@ export class Locator {
    * instead of mouse input, so mobile layouts that gate handlers on touch/pointer
    * (`pointerType: "touch"`) events — where a mouse click never registers — respond
    * correctly. This is the deterministic (selector-based) counterpart used when a
-   * recorded CUA `tap` step is replayed. Requires a touch-capable (e.g. mobile)
-   * session.
+   * recorded CUA `tap` step is replayed.
+   *
+   * Does not require touch emulation: CDP delivers a trusted touch sequence even on
+   * a session reporting `maxTouchPoints: 0`.
    */
   async tap(): Promise<void> {
     const session = this.frame.session;
