@@ -1,0 +1,33 @@
+packages/evals/tasks/bench/extract/extract_hamilton_weather.ts
+  s_9b9154ae9e8c8c::t_d1e65c79bfaec5 3
+packages/evals/tasks/bench/extract/extract_public_notices.ts
+  s_9b9154ae9e8c8c::t_d1e65c79bfaec5 3
+packages/evals/tasks/bench/extract/extract_baptist_health.ts
+  s_9b9154ae9e8c8c::t_d1e65c79bfaec5 3
+packages/evals/tasks/bench/extract/extract_memorial_healthcare.ts
+  s_9b9154ae9e8c8c::t_d1e65c79bfaec5 3
+packages/evals/tasks/bench/extract/extract_nhl_stats.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 3
+packages/evals/framework/stringScoring.ts
+  s_9b9154ae9e8c8c::t_387a3b989ee050 1-10
+packages/evals/tasks/bench/extract/extract_professional_info.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 3
+packages/evals/tasks/bench/extract/extract_resistor_info.ts
+  s_9b9154ae9e8c8c::t_178e204ed9b812 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "322ce315f3fa68f97d54a177e4383063aa2dd9b1",
+  "prompts": {},
+  "sessions": {
+    "s_9b9154ae9e8c8c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c311c9ba-b73b-46c8-a606-0ed1839d8de7",
+        "model": "claude-opus-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
