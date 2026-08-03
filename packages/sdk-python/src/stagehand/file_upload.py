@@ -32,9 +32,17 @@ def normalize_file_input(
 
 def _normalize_file(file: FileInput) -> InputFilePayload:
     if isinstance(file, (str, Path)):
+        file_descriptor: int | None = None
         try:
             path = Path(file).expanduser().resolve()
-            with path.open("rb") as handle:
+            path_stat = path.stat()
+            if not stat.S_ISREG(path_stat.st_mode):
+                raise ValueError("set_input_files(): expected a readable file")
+
+            open_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
+            file_descriptor = os.open(path, open_flags)
+            with os.fdopen(file_descriptor, "rb") as handle:
+                file_descriptor = None
                 file_stat = os.fstat(handle.fileno())
                 if not stat.S_ISREG(file_stat.st_mode):
                     raise ValueError("set_input_files(): expected a readable file")
@@ -45,6 +53,12 @@ def _normalize_file(file: FileInput) -> InputFilePayload:
                 data = handle.read(_MAX_INPUT_FILE_BYTES + 1)
         except OSError as exc:
             raise ValueError("set_input_files(): expected a readable file") from exc
+        finally:
+            if file_descriptor is not None:
+                try:
+                    os.close(file_descriptor)
+                except OSError:
+                    pass
         if len(data) > _MAX_INPUT_FILE_BYTES:
             raise ValueError("set_input_files(): file is larger than the 50 MiB upload limit")
         values: dict[str, object] = {

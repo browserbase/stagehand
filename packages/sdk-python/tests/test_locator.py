@@ -16,7 +16,7 @@ from stagehand._generated.models import (
     LocatorSetInputFilesParams,
     LocatorSetInputFilesResult,
 )
-from stagehand.file_upload import FileInput, FilePayload
+from stagehand.file_upload import FileInput, FilePayload, normalize_file_input
 from stagehand.locator import Locator
 from stagehand.rpc_client import RPCClient
 
@@ -178,3 +178,12 @@ async def test_set_input_files_normalizes_payloads_and_rejects_invalid_inputs(
         file.truncate(50 * 1024 * 1024 + 1)
     with pytest.raises(ValueError, match="larger than the 50 MiB upload limit"):
         await locator.set_input_files(oversized_path)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="named pipes are not supported")
+def test_set_input_files_rejects_named_pipes_without_blocking(tmp_path: Path) -> None:
+    pipe_path = tmp_path / "upload.pipe"
+    os.mkfifo(pipe_path)
+
+    with pytest.raises(ValueError, match="expected a readable file"):
+        normalize_file_input(pipe_path)

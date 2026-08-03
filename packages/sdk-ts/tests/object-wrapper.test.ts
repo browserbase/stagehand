@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
@@ -1261,6 +1261,17 @@ describe("Stagehand TS object wrapper", () => {
       await expect(locator.setInputFiles(oversizedPath)).rejects.toThrow(
         "file is larger than the 50 MiB upload limit",
       );
+
+      const oversizedMemoryPayload = new Uint8Array(50 * 1024 * 1024 + 1);
+      const bufferFrom = vi.spyOn(Buffer, "from");
+      try {
+        await expect(
+          locator.setInputFiles({ name: "oversized.bin", buffer: oversizedMemoryPayload }),
+        ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+        expect(bufferFrom).not.toHaveBeenCalled();
+      } finally {
+        bufferFrom.mockRestore();
+      }
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
