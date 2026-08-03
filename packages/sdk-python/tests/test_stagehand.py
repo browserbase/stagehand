@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import json
 from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast, overload
 
@@ -48,6 +49,7 @@ from stagehand._generated.models import (
 from stagehand.browser import (
     _BROWSER_TOKEN,
     StagehandBrowser,
+    _browser_session_metadata,
     _ClaimedBrowser,
     _WorkerInitMetadata,
 )
@@ -182,6 +184,24 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert params.api_key == "worker-key"
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
+
+
+@pytest.mark.asyncio
+async def test_create_omits_unset_browser_region_from_the_wire(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle(
+        api_key="worker-key",
+        browser_metadata=_browser_session_metadata("session-1", None),
+    )
+
+    await Stagehand.create(browser=browser)
+
+    params = cast(StagehandInitParams, recording.calls[0][1])
+    wire = json.loads(params.model_dump_json(by_alias=True, exclude_unset=True, warnings="none"))
+    assert wire["browser"] == {"session_id": "session-1"}
 
 
 @pytest.mark.asyncio
