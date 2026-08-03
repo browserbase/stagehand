@@ -120,6 +120,24 @@ export class Response {
 
   finishedDeferred = createDeferred<null | Error>();
   finishedSettled = false;
+  private bodyPromise: Promise<Uint8Array> | null = null;
+
+  private readonly onResponseReceivedExtraInfo = (
+    event: Protocol.Network.ResponseReceivedExtraInfoEvent,
+  ): void => {
+    if (event?.requestId !== this.requestId) return;
+    this.applyExtraInfo(event);
+  };
+
+  private readonly onLoadingFinished = (event: Protocol.Network.LoadingFinishedEvent): void => {
+    if (event?.requestId !== this.requestId) return;
+    this.markFinished(null);
+  };
+
+  private readonly onLoadingFailed = (event: Protocol.Network.LoadingFailedEvent): void => {
+    if (event?.requestId !== this.requestId) return;
+    this.markFinished(new Error(event.errorText || "Navigation request failed"));
+  };
 
   extraInfoHeaders: Protocol.Network.Headers | null = null;
   extraInfoHeadersText: string | undefined;
@@ -164,6 +182,8 @@ export class Response {
       this.headerValuesMap.set(lower, values);
       this.headersObject[lower] = values.join(", ");
     }
+
+    this.installLifecycleListeners();
   }
 
   /** URL associated with the navigation request. */
@@ -289,7 +309,15 @@ export class Response {
    * intentionally lazy because not every caller needs the payload, and CDP only
    * allows retrieving it once the response completes.
    */
-  async body(): Promise<Uint8Array> {
+  body(): Promise<Uint8Array> {
+    this.bodyPromise ??= this.loadBody();
+    return this.bodyPromise;
+  }
+
+  private async loadBody(): Promise<Uint8Array> {
+    const finishedError = await this.finished();
+    if (finishedError) throw finishedError;
+
     const result = await this.session.send<Protocol.Network.GetResponseBodyResponse>(
       "Network.getResponseBody",
       {
@@ -325,9 +353,8 @@ export class Response {
   }
 
   /**
-   * Internal helper invoked by the navigation tracker when CDP reports extra
-   * header information. This keeps the cached header views in sync with the
-   * richer metadata.
+   * Internal helper invoked when CDP reports extra header information. This
+   * keeps the cached header views in sync with the richer metadata.
    */
   public applyExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
     this.extraInfoHeaders = event.headers;
@@ -383,10 +410,23 @@ export class Response {
   public markFinished(error: Error | null): void {
     if (this.finishedSettled) return;
     this.finishedSettled = true;
+    this.removeLifecycleListeners();
     if (error) {
       this.finishedDeferred.resolve(error);
     } else {
       this.finishedDeferred.resolve(null);
     }
+  }
+
+  private installLifecycleListeners(): void {
+    this.session.on("Network.responseReceivedExtraInfo", this.onResponseReceivedExtraInfo);
+    this.session.on("Network.loadingFinished", this.onLoadingFinished);
+    this.session.on("Network.loadingFailed", this.onLoadingFailed);
+  }
+
+  private removeLifecycleListeners(): void {
+    this.session.off("Network.responseReceivedExtraInfo", this.onResponseReceivedExtraInfo);
+    this.session.off("Network.loadingFinished", this.onLoadingFinished);
+    this.session.off("Network.loadingFailed", this.onLoadingFailed);
   }
 }

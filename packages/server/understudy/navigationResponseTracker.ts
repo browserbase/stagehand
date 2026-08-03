@@ -7,9 +7,9 @@
  * related APIs. The tracker listens for `Network.responseReceived` events that
  * correspond to the targeted document navigation, handles loader-id churn that
  * arises from redirects or preloading, and enriches the resulting
- * `Response` with extra header information. It also observes
- * `Network.loadingFinished` / `Network.loadingFailed` to fulfil the
- * `response.finished()` contract exposed to consumers.
+ * `Response` with extra header information. Once selected, the live `Response`
+ * takes ownership of its extra-info and
+ * completion listeners so it can outlive this navigation-scoped tracker.
  */
 
 import type { Protocol } from "devtools-protocol";
@@ -124,12 +124,6 @@ export class NavigationResponseTracker {
     this.addListener("Network.responseReceivedExtraInfo", (event) => {
       this.onResponseReceivedExtraInfo(event as Protocol.Network.ResponseReceivedExtraInfoEvent);
     });
-    this.addListener("Network.loadingFinished", (event) => {
-      this.onLoadingFinished(event as Protocol.Network.LoadingFinishedEvent);
-    });
-    this.addListener("Network.loadingFailed", (event) => {
-      this.onLoadingFailed(event as Protocol.Network.LoadingFailedEvent);
-    });
   }
 
   /** Attach a CDP listener and track it for later disposal. */
@@ -172,29 +166,8 @@ export class NavigationResponseTracker {
   /** Merge auxiliary header information once Chrome exposes it. */
   onResponseReceivedExtraInfo(event: Protocol.Network.ResponseReceivedExtraInfoEvent): void {
     if (!event || !event.requestId) return;
-    if (this.selectedRequestId && event.requestId === this.selectedRequestId) {
-      this.selectedResponse?.applyExtraInfo(event);
-      return;
-    }
+    if (this.selectedRequestId && event.requestId === this.selectedRequestId) return;
     this.pendingExtraInfo.set(event.requestId, event);
-  }
-
-  /** Resolve the response's finished promise when the request completes. */
-  onLoadingFinished(event: Protocol.Network.LoadingFinishedEvent): void {
-    if (!event || !event.requestId) return;
-    if (event.requestId !== this.selectedRequestId) return;
-    this.selectedResponse?.markFinished(null);
-  }
-
-  /** Resolve the response's finished promise with an error on failure. */
-  onLoadingFailed(event: Protocol.Network.LoadingFailedEvent): void {
-    // Ignore malformed events or ones without a request id
-    if (!event || !event.requestId) return;
-    // Only the tracked document request should toggle the response state
-    if (event.requestId !== this.selectedRequestId) return;
-    // Surface Chrome's failure text through response.finished()
-    const errorText = event.errorText || "Navigation request failed";
-    this.selectedResponse?.markFinished(new Error(errorText));
   }
 
   /**

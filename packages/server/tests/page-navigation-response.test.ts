@@ -10,6 +10,7 @@ const MAIN_FRAME_ID = "frame-1";
 type NavigationOptions = {
   emitResponse?: boolean;
   finalUrl?: string;
+  finishAfterLifecycle?: boolean;
   sameDocument?: boolean;
   status?: number;
   synchronousResponse?: boolean;
@@ -140,19 +141,22 @@ class NavigationCDPSession implements CDPSessionLike {
         type: "Navigation",
       });
       if (!options.synchronousResponse) emitResponse();
-      if (options.emitResponse !== false) {
+      const emitFinished = () => {
+        if (options.emitResponse === false) return;
         this.emit<Protocol.Network.LoadingFinishedEvent>("Network.loadingFinished", {
           requestId,
           timestamp: sequence,
           encodedDataLength: 0,
         });
-      }
+      };
+      if (!options.finishAfterLifecycle) emitFinished();
       this.emit<Protocol.Page.LifecycleEventEvent>("Page.lifecycleEvent", {
         frameId: MAIN_FRAME_ID,
         loaderId,
         name: "DOMContentLoaded",
         timestamp: sequence,
       });
+      if (options.finishAfterLifecycle) setTimeout(emitFinished, 0);
     }, 0);
 
     return loaderId;
@@ -221,6 +225,17 @@ describe("Page navigation responses", () => {
         params: { ignoreCache: false },
       },
     ]);
+  });
+
+  it("keeps the response alive when loading finishes after navigation returns", async () => {
+    const session = new NavigationCDPSession();
+    session.navigationOptions = { finishAfterLifecycle: true };
+    const page = createPage(session);
+
+    const response = await page.goto("https://example.test/slow-body");
+
+    expect(response).not.toBeNull();
+    await expect(response!.finished()).resolves.toBeNull();
   });
 
   it("captures back and forward responses with the default options", async () => {
