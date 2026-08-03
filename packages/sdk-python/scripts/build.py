@@ -19,6 +19,11 @@ def validate_extension_archive(archive: bytes, source: str) -> None:
         with zipfile.ZipFile(BytesIO(archive)) as extension:
             if "manifest.json" not in extension.namelist():
                 raise SystemExit(f"{source} extension ZIP does not contain manifest.json")
+            damaged_entry = extension.testzip()
+            if damaged_entry is not None:
+                raise SystemExit(
+                    f"{source} extension ZIP contains a damaged entry: {damaged_entry}"
+                )
     except zipfile.BadZipFile as error:
         raise SystemExit(f"{source} contains an invalid extension ZIP") from error
 

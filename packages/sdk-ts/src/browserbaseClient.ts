@@ -1,6 +1,7 @@
 import { up } from "up-fetch";
 import { z } from "zod/v4";
-import type { BrowserbaseSessionCreateParams } from "../../protocol/types.js";
+import type { BrowserbaseRegion, BrowserbaseSessionCreateParams } from "../../protocol/types.js";
+import { BrowserbaseRegionSchema } from "../../protocol/schemas.js";
 import {
   stagehandExtensionFileName,
   type BrowserbaseExtensionClient,
@@ -18,10 +19,19 @@ const BrowserbaseSessionResponseSchema = z.looseObject({
   connectUrl: z.url({ protocol: /^wss?$/ }),
 });
 
+const BrowserbaseSessionRetrieveResponseSchema = z.looseObject({
+  id: z.string(),
+  connectUrl: z.url({ protocol: /^wss?$/ }).optional(),
+  region: BrowserbaseRegionSchema.optional(),
+});
+
 export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
   createSession(
     params: BrowserbaseSessionCreateParams,
   ): Promise<{ id: string; connectUrl: string }>;
+  retrieveSession(
+    sessionId: string,
+  ): Promise<{ id: string; connectUrl?: string; region?: BrowserbaseRegion }>;
   releaseSession(sessionId: string): Promise<void>;
 };
 
@@ -69,6 +79,16 @@ export function createBrowserbaseApiClient(
         schema: BrowserbaseSessionResponseSchema,
       });
       return { id: session.id, connectUrl: session.connectUrl };
+    },
+    async retrieveSession(sessionId) {
+      const session = await fetchBrowserbase(`/v1/sessions/${encodeURIComponent(sessionId)}`, {
+        schema: BrowserbaseSessionRetrieveResponseSchema,
+      });
+      return {
+        id: session.id,
+        ...(session.connectUrl === undefined ? {} : { connectUrl: session.connectUrl }),
+        ...(session.region === undefined ? {} : { region: session.region }),
+      };
     },
     async releaseSession(sessionId) {
       await fetchBrowserbase(`/v1/sessions/${encodeURIComponent(sessionId)}`, {

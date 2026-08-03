@@ -1,20 +1,27 @@
-import type { BrowserbaseSessionCreateParams } from "../../protocol/types.js";
+import type { BrowserbaseSessionCreateParams } from "../../../protocol/types.js";
 import {
   provisionBrowserbaseExtension,
   type BrowserbaseExtensionClient,
   type ProvisionedBrowserbaseExtension,
-} from "./browserbaseExtension.js";
+} from "../browserbaseExtension.js";
 import {
   createBrowserbaseApiClient,
   type BrowserbaseApiClient,
   type BrowserbaseApiClientOptions,
-} from "./browserbaseClient.js";
-import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
+} from "../browserbaseClient.js";
+import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
+import {
+  BrowserbaseSessionConnectionSchema,
+  type BrowserbaseSessionConnection,
+} from "../clientSchemas.js";
+
+type OwnedBrowserbaseSession = BrowserbaseSessionConnection & {
+  close?: () => Promise<void> | void;
+};
 
 export type BrowserbaseSessionClient = {
-  createSession(
-    params: BrowserbaseSessionCreateParams,
-  ): Promise<{ sessionId: string; cdpUrl: string; close?: () => Promise<void> | void }>;
+  createSession(params: BrowserbaseSessionCreateParams): Promise<OwnedBrowserbaseSession>;
+  connectSession?(sessionId: string): Promise<BrowserbaseSessionConnection>;
 };
 
 export type BrowserbaseSessionClientFactory = (apiKey: string) => BrowserbaseSessionClient;
@@ -27,6 +34,13 @@ type BrowserbaseSessionClientDependencies = {
   ) => Promise<ProvisionedBrowserbaseExtension>;
 };
 
+export class BrowserbaseSessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BrowserbaseSessionError";
+  }
+}
+
 export function createBrowserbaseSessionClient(
   apiKey: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
@@ -37,21 +51,23 @@ export function createBrowserbaseSessionClient(
 
   return {
     async createSession(params) {
-      const extension = await provisionExtension(browserbase);
-      let session: { id: string; connectUrl: string };
+      const callerExtensionId = params.extensionId ?? params.browserSettings?.extensionId;
+      const extension =
+        callerExtensionId === undefined ? await provisionExtension(browserbase) : undefined;
+      let session: Awaited<ReturnType<BrowserbaseApiClient["createSession"]>>;
 
       try {
         session = await browserbase.createSession({
           ...params,
-          extensionId: extension.extensionId,
+          ...(extension === undefined ? {} : { extensionId: extension.extensionId }),
           userMetadata: {
             ...params.userMetadata,
             ...STAGEHAND_SESSION_METADATA,
           },
         });
-      } catch (error) {
-        await extension.cleanup().catch(() => undefined);
-        throw new Error("Failed to create a Browserbase session", { cause: error });
+      } catch {
+        await extension?.cleanup().catch(() => undefined);
+        throw new BrowserbaseSessionError("Failed to create a Browserbase session");
       }
 
       const sessionId = session.id.trim();
@@ -66,10 +82,10 @@ export function createBrowserbaseSessionClient(
       }
 
       let sessionReleased = false;
-      let extensionCleaned = false;
+      let extensionCleaned = extension === undefined;
+      const connection = BrowserbaseSessionConnectionSchema.parse({ sessionId, cdpUrl });
       return {
-        sessionId,
-        cdpUrl,
+        ...connection,
         async close() {
           let releaseError: unknown;
           if (!sessionReleased) {
@@ -82,7 +98,7 @@ export function createBrowserbaseSessionClient(
           }
 
           let extensionCleanupError: unknown;
-          if (!extensionCleaned) {
+          if (!extensionCleaned && extension) {
             try {
               await extension.cleanup();
               extensionCleaned = true;
@@ -96,16 +112,38 @@ export function createBrowserbaseSessionClient(
         },
       };
     },
+    async connectSession(sessionId) {
+      const normalizedSessionId = sessionId.trim();
+      if (normalizedSessionId.length === 0) {
+        throw new BrowserbaseSessionError("A Browserbase session ID is required");
+      }
+
+      let session: Awaited<ReturnType<BrowserbaseApiClient["retrieveSession"]>>;
+      try {
+        session = await browserbase.retrieveSession(normalizedSessionId);
+      } catch {
+        throw new BrowserbaseSessionError("Failed to retrieve the Browserbase session");
+      }
+      const cdpUrl = session.connectUrl?.trim();
+      if (!cdpUrl) {
+        throw new BrowserbaseSessionError("Browserbase session is not available for connection");
+      }
+      return BrowserbaseSessionConnectionSchema.parse({
+        sessionId: session.id.trim() || normalizedSessionId,
+        cdpUrl,
+        ...(session.region === undefined ? {} : { region: session.region }),
+      });
+    },
   };
 }
 
 async function cleanupInvalidSession(
   browserbase: BrowserbaseApiClient,
   sessionId: string,
-  extension: ProvisionedBrowserbaseExtension,
+  extension: ProvisionedBrowserbaseExtension | undefined,
 ): Promise<void> {
   if (sessionId.length > 0) {
     await browserbase.releaseSession(sessionId).catch(() => undefined);
   }
-  await extension.cleanup().catch(() => undefined);
+  await extension?.cleanup().catch(() => undefined);
 }

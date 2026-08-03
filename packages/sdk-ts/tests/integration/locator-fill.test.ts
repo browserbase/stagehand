@@ -117,7 +117,9 @@ async function poisonLocatorWorld(stagehand: Stagehand, selector: string): Promi
   if (!sdkPage) throw new Error("Stagehand did not expose its initial page");
 
   await sdkPage.locator(selector).count();
-  const browser = await chromium.connectOverCDP(stagehand.browser.cdpUrl);
+  const cdpUrl = stagehand.rpcClient?.browserWebSocketDebuggerUrl;
+  if (!cdpUrl) throw new Error("Stagehand did not expose its browser CDP URL");
+  const browser = await chromium.connectOverCDP(cdpUrl);
   try {
     const playwrightPage = browser
       .contexts()[0]

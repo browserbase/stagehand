@@ -129,6 +129,7 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 
 const SDK_OBJECTS = [
   {
@@ -780,29 +781,76 @@ describe("Mintlify customization boundary", () => {
     );
   });
 
-  it("uses every View title only once per page", async () => {
+  it("gives every View group the same complete language set", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
-    const duplicateTitles = (
+    const problems = (
       await Promise.all(
         contentPages.map(async (filePath) => {
           const tree = createProcessor({ format: "mdx" }).parse(
             await readFile(filePath, "utf8"),
           ) as MdxNode;
-          const titles = findElements(tree, "View")
-            .map((view) => stringAttribute(view, "title"))
-            .filter((title): title is string => title !== undefined);
-          const duplicates = titles.filter((title, index) => titles.indexOf(title) !== index);
+          const views = findElements(tree, "View").map((view) => ({
+            title: stringAttribute(view, "title"),
+            icon: stringAttribute(view, "icon"),
+          }));
           const pagePath = relative(DOCS_ROOT, filePath).split(sep).join("/");
-          return [...new Set(duplicates)].map((title) => `${pagePath}: ${title}`);
+          const found: string[] = [];
+
+          const titled = views.filter(
+            (view): view is { title: string; icon: string | undefined } => view.title !== undefined,
+          );
+          if (titled.length !== views.length) {
+            found.push(`${pagePath}: a View is missing a title`);
+          }
+          if (titled.length === 0) return found;
+
+          // Every language present on the page must appear the same number of times
+          const counts = new Map<string, number>();
+          for (const { title } of titled) {
+            counts.set(title, (counts.get(title) ?? 0) + 1);
+          }
+          const tallies = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+          const expected = Math.max(...counts.values());
+          const short = tallies.filter(([, count]) => count !== expected);
+          if (short.length > 0) {
+            found.push(
+              `${pagePath}: uneven View groups (${tallies
+                .map(([title, count]) => `${title} x${count}`)
+                .join(", ")})`,
+            );
+          }
+
+          // One icon per title, so the selector labels stay stable.
+          const icons = new Map<string, Set<string>>();
+          for (const { title, icon } of titled) {
+            if (icon === undefined) continue;
+            if (!icons.has(title)) icons.set(title, new Set());
+            icons.get(title)?.add(icon);
+          }
+          for (const [title, set] of icons) {
+            if (set.size > 1) {
+              found.push(`${pagePath}: ${title} uses more than one icon (${[...set].join(", ")})`);
+            }
+          }
+
+          // Two adjacent Views sharing a title means a malformed group.
+          for (let index = 1; index < titled.length; index += 1) {
+            if (titled[index].title === titled[index - 1].title) {
+              found.push(`${pagePath}: two adjacent Views both titled ${titled[index].title}`);
+              break;
+            }
+          }
+
+          return found;
         }),
       )
     ).flat();
 
     expect(
-      duplicateTitles,
-      "Mintlify accepts only one View with a given title on each page",
+      problems,
+      "Every View group must offer the same languages, so switching never hides a snippet",
     ).toEqual([]);
   });
 
@@ -870,7 +918,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
     }),
   );
 
-  return deduplicateMethods(methods.flat(), "TypeScript");
+  return deduplicateMethods(methods.flat(), "TypeScript").filter(participatesInReferenceParity);
 }
 
 async function readRegistryMethodNames(): Promise<Map<string, string>> {
@@ -973,7 +1021,7 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
     }),
   );
 
-  return deduplicateMethods(methods.flat(), "Python");
+  return deduplicateMethods(methods.flat(), "Python").filter(participatesInReferenceParity);
 }
 
 function findClass(
@@ -1342,6 +1390,13 @@ function methodKey({ classSlug, methodSlug }: SdkMethod): string {
   return `${classSlug}/${methodSlug}`;
 }
 
+function participatesInReferenceParity({
+  classSlug,
+  methodSlug,
+}: Pick<SdkMethod, "classSlug" | "methodSlug">): boolean {
+  return classSlug !== "stagehand" || !STAGEHAND_LIFECYCLE_METHODS.has(methodSlug);
+}
+
 type DocumentedMethodLocation = {
   classSlug: string;
   filePath: string;
@@ -1353,11 +1408,18 @@ function documentedMethods(pages: ReferencePage[], language: Language): Document
     page.views
       .filter(({ title }) => title === language)
       .flatMap(({ methods }) =>
-        methods.map((method) => ({
-          classSlug: page.classSlug,
-          filePath: page.filePath,
-          method,
-        })),
+        methods
+          .filter((method) =>
+            participatesInReferenceParity({
+              classSlug: page.classSlug,
+              methodSlug: method.methodSlug,
+            }),
+          )
+          .map((method) => ({
+            classSlug: page.classSlug,
+            filePath: page.filePath,
+            method,
+          })),
       ),
   );
 }

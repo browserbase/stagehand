@@ -308,16 +308,9 @@ func (s *Stagehand) workerInitParams(
 		source = &BrowserbaseClientBrowserSource{}
 	}
 	if source != nil {
-		params.Browser = &BrowserbaseBrowserSource{
-			BrowserSettings: source.BrowserSettings,
-			ExtensionID:     source.ExtensionID,
-			KeepAlive:       source.KeepAlive,
-			Proxies:         source.Proxies,
-			Region:          source.Region,
-			SessionID:       browser.browserbaseSessionID,
-			Timeout:         source.Timeout,
-			Type:            "browserbase",
-			UserMetadata:    source.UserMetadata,
+		params.Browser = &BrowserSessionMetadata{
+			Region:    source.Region,
+			SessionID: browser.browserbaseSessionID,
 		}
 	}
 	return params

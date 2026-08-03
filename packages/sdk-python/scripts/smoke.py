@@ -4,7 +4,7 @@ import asyncio
 import os
 from pathlib import Path
 from urllib.parse import quote
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 import stagehand
 from stagehand import Stagehand
@@ -19,9 +19,22 @@ async def main() -> None:
         raise RuntimeError(
             "Installed Stagehand distribution is missing its Browserbase extension archive"
         )
-    with ZipFile(extension_archive) as archive:
-        if "manifest.json" not in archive.namelist():
-            raise RuntimeError("Installed Stagehand Browserbase extension archive is invalid")
+    try:
+        with ZipFile(extension_archive) as archive:
+            if "manifest.json" not in archive.namelist():
+                raise RuntimeError(
+                    "Installed Stagehand Browserbase extension archive is missing manifest.json"
+                )
+            damaged_entry = archive.testzip()
+            if damaged_entry is not None:
+                raise RuntimeError(
+                    "Installed Stagehand Browserbase extension archive contains a damaged "
+                    f"entry: {damaged_entry}"
+                )
+    except BadZipFile as error:
+        raise RuntimeError(
+            "Installed Stagehand Browserbase extension archive is invalid"
+        ) from error
 
     async with Stagehand(
         browser="local",

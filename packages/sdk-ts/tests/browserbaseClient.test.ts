@@ -23,6 +23,14 @@ describe("Browserbase API client", () => {
           ignored: "field",
         });
       }
+      if (request.method === "GET" && pathname === "/v1/sessions/session_123") {
+        return jsonResponse({
+          id: "session_123",
+          connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+          region: "us-west-2",
+          ignored: "field",
+        });
+      }
       if (request.method === "POST" && pathname === "/v1/sessions/session_123") {
         return jsonResponse({ id: "session_123", status: "COMPLETED" });
       }
@@ -41,10 +49,15 @@ describe("Browserbase API client", () => {
       id: "session_123",
       connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
     });
+    await expect(client.retrieveSession("session_123")).resolves.toStrictEqual({
+      id: "session_123",
+      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      region: "us-west-2",
+    });
     await client.releaseSession("session_123");
     await client.deleteExtension("ext_stagehand");
 
-    expect(fetchBrowserbase).toHaveBeenCalledTimes(4);
+    expect(fetchBrowserbase).toHaveBeenCalledTimes(5);
     for (const request of requests) {
       expect(request.headers.get("X-BB-API-Key")).toBe("bb_key");
     }
@@ -57,10 +70,12 @@ describe("Browserbase API client", () => {
     await expect(requests[1]!.clone().json()).resolves.toStrictEqual({
       region: "us-west-2",
     });
-    await expect(requests[2]!.clone().json()).resolves.toStrictEqual({
+    expect(requests[2]!.method).toBe("GET");
+    expect(requests[2]!.headers.get("Content-Type")).toBeNull();
+    await expect(requests[3]!.clone().json()).resolves.toStrictEqual({
       status: "REQUEST_RELEASE",
     });
-    expect(requests[3]!.headers.get("Content-Type")).toBeNull();
+    expect(requests[4]!.headers.get("Content-Type")).toBeNull();
   });
 
   it("rejects invalid Browserbase responses through the Zod schema", async () => {
@@ -95,6 +110,22 @@ describe("Browserbase API client", () => {
     await expect(client.createSession({})).resolves.toStrictEqual({
       id: "session_123",
       connectUrl,
+    });
+  });
+
+  it("validates retrieved Browserbase session data", async () => {
+    const client = createBrowserbaseApiClient("bb_key", {
+      baseUrl: "https://api.browserbase.test",
+      fetch: async () =>
+        jsonResponse({
+          id: "session_123",
+          connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+          region: "moon-1",
+        }),
+    });
+
+    await expect(client.retrieveSession("session_123")).rejects.toMatchObject({
+      kind: "validation",
     });
   });
 
