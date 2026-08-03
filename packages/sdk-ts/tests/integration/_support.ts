@@ -1,6 +1,11 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { LLMGenerateResult } from "../../../protocol/types.js";
-import { localBrowser, Stagehand } from "../../src/index.js";
+import {
+  localBrowser,
+  Stagehand,
+  type ClientLLM,
+  type LocalBrowserLaunchOptions,
+} from "../../src/index.js";
 
 export type FixtureResponse = {
   status?: number;
@@ -22,21 +27,30 @@ export type FixtureServer = {
 const CLOSE_TIMEOUT_MS = 5_000;
 const closePromises = new WeakMap<Stagehand, Promise<void>>();
 
-export async function createStagehand(): Promise<Stagehand> {
-  const browser = await localBrowser.launch({ headless: true });
-  return Stagehand.create({
-    browser,
-    model: {
-      generate: async (): Promise<LLMGenerateResult> => ({
-        role: "assistant",
-        content: { type: "text", text: "The integration test stub model was not configured" },
-        outputFormat: "text",
-      }),
-    },
-    logging: {
-      level: "off",
-    },
-  });
+export async function createStagehand(options?: {
+  browser?: LocalBrowserLaunchOptions;
+  model?: ClientLLM;
+}): Promise<Stagehand> {
+  // The integration suite is always headless; callers may customize other launch options.
+  const browser = await localBrowser.launch({ ...options?.browser, headless: true });
+  try {
+    return await Stagehand.create({
+      browser,
+      model: options?.model ?? {
+        generate: async (): Promise<LLMGenerateResult> => ({
+          role: "assistant",
+          content: { type: "text", text: "The integration test stub model was not configured" },
+          outputFormat: "text",
+        }),
+      },
+      logging: {
+        level: "off",
+      },
+    });
+  } catch (error) {
+    await Promise.resolve(browser.close()).catch(() => {});
+    throw error;
+  }
 }
 
 export function closeStagehand(stagehand?: Stagehand | null): Promise<void> {
@@ -64,12 +78,14 @@ export async function firstPage(stagehand: Stagehand) {
 }
 
 export async function startFixtureServer(
-  routesOrHtml: FixtureRoutes | string,
+  routesOrHtml: FixtureRoutes | FixtureHandler | string,
 ): Promise<FixtureServer> {
   const routes =
     typeof routesOrHtml === "string"
       ? ({ "/": routesOrHtml } satisfies FixtureRoutes)
-      : routesOrHtml;
+      : typeof routesOrHtml === "function"
+        ? ({ "*": routesOrHtml } satisfies FixtureRoutes)
+        : routesOrHtml;
   const server = createServer((request, response) => {
     void handleRequest(routes, request, response).catch((error: unknown) => {
       if (response.headersSent) {
