@@ -12,12 +12,12 @@ For questions or pairing, join the [Discord community](https://stagehand.dev/dis
 
 ## Development setup
 
-Prerequisites: **Node.js 20+** and **pnpm**.
+Prerequisites: **Node.js `^20.19.0` or `>=22.12.0`** (see `package.json` `engines`) and **pnpm**.
 
 ```bash
 pnpm install
 pnpm run build
-pnpm run example   # blank script at ./examples/example.ts (via @browserbasehq/stagehand)
+pnpm run example   # blank script at packages/core/examples/example.ts (via @browserbasehq/stagehand)
 ```
 
 Useful scripts (from the monorepo root):
