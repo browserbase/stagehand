@@ -10,12 +10,25 @@ export default defineBenchV4Task(
       // stagehand#2427): same supplied action as the v3 twin — a
       // "scrollTo" with arguments ["50%"], exercising the deterministic
       // executor with variable substitution and healing.
-      await stagehand.act({
+      const { data: healed } = await stagehand.act({
         description: "the element to scroll on",
         selector: "/html/body/div/div/button",
         arguments: ["50%"],
         method: "scrollTo",
       });
+
+      // Report a failed heal directly rather than letting it surface as an
+      // unchanged scroll position. Healing requires selfHeal: true at init;
+      // the server defaults it off and it cannot be set per-call.
+      if (!healed.success) {
+        return {
+          _success: false,
+          message: `self-heal did not scroll the page: ${healed.message}`,
+          debugUrl,
+          sessionUrl,
+          logs: logger.getLogs(),
+        };
+      }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
