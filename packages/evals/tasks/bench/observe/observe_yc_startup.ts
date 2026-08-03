@@ -1,4 +1,5 @@
 import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchV4Task(
   { name: "observe_yc_startup" },
@@ -36,43 +37,7 @@ export default defineBenchV4Task(
 
       for (const observation of observations) {
         try {
-          const matched = await page.evaluate(
-            ({
-              observedSelector,
-              candidateSelectors,
-            }: {
-              observedSelector: string;
-              candidateSelectors: string[];
-            }) => {
-              const resolve = (selector: string): Element | null => {
-                const raw = selector.startsWith("xpath=")
-                  ? selector.slice("xpath=".length)
-                  : selector;
-                if (raw.startsWith("/") || raw.startsWith("(")) {
-                  const result = document.evaluate(
-                    raw,
-                    document,
-                    null,
-                    XPathResult.FIRST_ORDERED_NODE_TYPE,
-                    null,
-                  );
-                  return result.singleNodeValue as Element | null;
-                }
-                return document.querySelector(raw);
-              };
-
-              const observed = resolve(observedSelector);
-              if (!observed) return null;
-              for (const candidate of candidateSelectors) {
-                if (resolve(candidate) === observed) return candidate;
-              }
-              return null;
-            },
-            {
-              observedSelector: observation.selector,
-              candidateSelectors: possibleLocators,
-            },
-          );
+          const matched = await matchingSelector(page, observation.selector, possibleLocators);
           if (matched) {
             foundMatch = true;
             matchedLocator = matched;
