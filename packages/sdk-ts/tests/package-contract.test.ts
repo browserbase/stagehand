@@ -44,9 +44,34 @@ describe("published TypeScript SDK", () => {
         `
             import { access, readFile } from "node:fs/promises";
             import { fileURLToPath } from "node:url";
-            import { Stagehand } from "@browserbasehq/stagehand";
+            import {
+              browserbase,
+              BrowserbaseConnectOptionsSchema,
+              localBrowser,
+              LocalBrowserConnectOptionsSchema,
+              Stagehand,
+              WebMCPInvocation,
+              WebMCPTool,
+              WebMCPToolsOptionsSchema,
+            } from "@browserbasehq/stagehand";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
+            if ("init" in Stagehand.prototype) {
+              throw new Error("legacy Stagehand.init is still published");
+            }
+            if (typeof localBrowser?.launch !== "function") {
+              throw new Error("localBrowser export is unavailable");
+            }
+            if (typeof browserbase?.connect !== "function") {
+              throw new Error("browserbase export is unavailable");
+            }
+            LocalBrowserConnectOptionsSchema.parse({ cdpUrl: "ws://127.0.0.1:9222" });
+            BrowserbaseConnectOptionsSchema.parse({ apiKey: "bb_key", sessionId: "session_123" });
+            if (typeof WebMCPTool !== "function") throw new Error("WebMCPTool export is unavailable");
+            if (typeof WebMCPInvocation !== "function") {
+              throw new Error("WebMCPInvocation export is unavailable");
+            }
+            WebMCPToolsOptionsSchema.parse({ timeout: 1000 });
             const entryUrl = import.meta.resolve("@browserbasehq/stagehand");
             const archiveUrl = new URL("./assets/stagehand-extension.zip", entryUrl);
             const manifestUrl = new URL("./extension/manifest.json", entryUrl);

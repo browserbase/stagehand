@@ -5,14 +5,29 @@ import { CdpConnection } from "./cdp.js";
 import { Frame } from "./frame.js";
 import { FrameLocator } from "./frameLocator.js";
 import { deepLocatorFromPage, resolveLocatorTarget } from "./deepLocator.js";
-import { captureHybridSnapshot, resolveXpathForLocation } from "./a11y/snapshot/index.js";
+import { captureHybridSnapshot } from "./a11y/snapshot/index.js";
 import { FrameRegistry } from "./frameRegistry.js";
 import { executionContexts } from "./executionContextRegistry.js";
+import {
+  WebMCPInvocationDescriptorSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPResultOptionsSchema,
+  WebMCPToolDescriptorSchema,
+  WebMCPToolResponseSchema,
+  WebMCPToolsOptionsSchema,
+} from "../../protocol/schemas.js";
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
   PageSnapshotOptions,
   SnapshotResult,
+  WebMCPAnnotation,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../../protocol/types.js";
 import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.js";
 import { NetworkManager } from "./networkManager.js";
@@ -59,6 +74,66 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
   networkidle: "networkIdle",
 };
 
+const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
+
+type Deferred<T> = {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (error: Error) => void;
+};
+
+type WebMCPInvocationRecord = {
+  descriptor: WebMCPInvocationDescriptor;
+  deferred: Deferred<WebMCPToolResponse>;
+  result?: WebMCPToolResponse;
+  retentionTimer?: ReturnType<typeof setTimeout>;
+};
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>["resolve"];
+  let reject!: Deferred<T>["reject"];
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  void promise.catch(() => {});
+  return { promise, resolve, reject };
+}
+
+function webMCPAnnotation(annotation: Protocol.WebMCP.Annotation): WebMCPAnnotation {
+  return {
+    ...(annotation.readOnly === undefined ? {} : { readOnly: annotation.readOnly }),
+    ...(annotation.untrustedContent === undefined
+      ? {}
+      : { untrustedContent: annotation.untrustedContent }),
+    ...(annotation.autosubmit === undefined ? {} : { autosubmit: annotation.autosubmit }),
+  };
+}
+
+function webMCPTool(tool: Protocol.WebMCP.Tool): WebMCPToolDescriptor {
+  return WebMCPToolDescriptorSchema.parse({
+    name: tool.name,
+    description: tool.description,
+    ...(tool.inputSchema === undefined
+      ? {}
+      : { inputSchema: tool.inputSchema as Record<string, unknown> }),
+    ...(tool.annotations === undefined ? {} : { annotations: webMCPAnnotation(tool.annotations) }),
+    frameId: tool.frameId,
+    ...(tool.backendNodeId === undefined ? {} : { backendNodeId: tool.backendNodeId }),
+  });
+}
+
+function webMCPToolResponse(event: Protocol.WebMCP.ToolRespondedEvent): WebMCPToolResponse {
+  return WebMCPToolResponseSchema.parse({
+    invocationId: event.invocationId,
+    status: event.status,
+    ...(event.output === undefined ? {} : { output: event.output }),
+    ...(event.errorText === undefined ? {} : { errorText: event.errorText }),
+    ...(event.exception === undefined ? {} : { exception: event.exception }),
+  });
+}
+
 export class Page {
   /** Every CDP child session this page owns (top-level + adopted OOPIF sessions). */
   readonly sessions = new Map<string, CDPSessionLike>(); // sessionId -> session
@@ -91,6 +166,23 @@ export class Page {
   /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
+  private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
+  private webMCPResponseListenerInstalled = false;
+
+  private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
+    const record = this.webMCPInvocations.get(event.invocationId);
+    if (!record || record.result !== undefined) return;
+
+    const result = webMCPToolResponse(event);
+    record.result = result;
+    record.deferred.resolve(result);
+    record.retentionTimer = setTimeout(() => {
+      if (this.webMCPInvocations.get(event.invocationId) === record) {
+        this.webMCPInvocations.delete(event.invocationId);
+        this.removeWebMCPResponseListenerIfIdle();
+      }
+    }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
+  };
 
   constructor(
     readonly conn: CdpConnection,
@@ -407,6 +499,217 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
+  /**
+   * Return a fresh snapshot of the WebMCP tools registered by the current page.
+   *
+   * Enabling the domain emits `toolsAdded` for every currently registered tool. Keep the
+   * listeners scoped to this call so tools from an earlier document or call are never cached.
+   */
+  public async listWebMCPTools(
+    options?: Partial<WebMCPToolsOptions>,
+  ): Promise<WebMCPToolDescriptor[]> {
+    const { timeout } = WebMCPToolsOptionsSchema.parse(options ?? {});
+    const quietWindowMs = Math.min(MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS, timeout);
+    const tools = new Map<string, WebMCPToolDescriptor>();
+    let toolsVersion = 0;
+    let lastUpdatedAt: number | undefined;
+    let scheduleQuietWindow: (() => void) | undefined;
+
+    const toolKey = (tool: Pick<WebMCPToolDescriptor, "frameId" | "name">): string =>
+      `${tool.frameId}\u0000${tool.name}`;
+
+    const onToolsAdded = (event: Protocol.WebMCP.ToolsAddedEvent): void => {
+      for (const tool of event.tools) {
+        const normalized = webMCPTool(tool);
+        tools.set(toolKey(normalized), normalized);
+      }
+      if (event.tools.length === 0) return;
+      toolsVersion += 1;
+      lastUpdatedAt = Date.now();
+      scheduleQuietWindow?.();
+    };
+
+    const onToolsRemoved = (event: Protocol.WebMCP.ToolsRemovedEvent): void => {
+      let changed = false;
+      for (const tool of event.tools) {
+        changed = tools.delete(toolKey(tool)) || changed;
+      }
+      if (!changed) return;
+      toolsVersion += 1;
+      lastUpdatedAt = Date.now();
+      scheduleQuietWindow?.();
+    };
+
+    const deadline = Date.now() + timeout;
+    this.mainSession.on("WebMCP.toolsAdded", onToolsAdded);
+    this.mainSession.on("WebMCP.toolsRemoved", onToolsRemoved);
+
+    try {
+      await this.mainSession.send("WebMCP.enable");
+      if (quietWindowMs === 0) return [...tools.values()];
+
+      await new Promise<void>((resolve) => {
+        const versionAfterEnable = toolsVersion;
+        let quietTimer: ReturnType<typeof setTimeout> | undefined;
+        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        let settled = false;
+
+        const finish = (): void => {
+          if (settled) return;
+          settled = true;
+          if (quietTimer !== undefined) clearTimeout(quietTimer);
+          if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+          resolve();
+        };
+
+        scheduleQuietWindow = (): void => {
+          if (settled) return;
+          if (quietTimer !== undefined) clearTimeout(quietTimer);
+
+          const now = Date.now();
+          if (now >= deadline) {
+            finish();
+            return;
+          }
+
+          const updatedAfterEnable = toolsVersion > versionAfterEnable;
+          const quietRemaining =
+            updatedAfterEnable && lastUpdatedAt !== undefined
+              ? Math.max(0, quietWindowMs - (now - lastUpdatedAt))
+              : quietWindowMs;
+          quietTimer = setTimeout(finish, Math.min(quietRemaining, deadline - now));
+        };
+
+        deadlineTimer = setTimeout(finish, Math.max(0, deadline - Date.now()));
+        scheduleQuietWindow();
+      });
+    } finally {
+      this.mainSession.off("WebMCP.toolsAdded", onToolsAdded);
+      this.mainSession.off("WebMCP.toolsRemoved", onToolsRemoved);
+    }
+
+    return [...tools.values()];
+  }
+
+  public async invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor> {
+    const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
+    this.ensureWebMCPResponseListener();
+
+    let response: Protocol.WebMCP.InvokeToolResponse;
+    try {
+      response = await this.mainSession.send<Protocol.WebMCP.InvokeToolResponse>(
+        "WebMCP.invokeTool",
+        {
+          frameId,
+          toolName,
+          input,
+        },
+      );
+    } catch (error) {
+      this.removeWebMCPResponseListenerIfIdle();
+      throw error;
+    }
+
+    if (this.webMCPInvocations.has(response.invocationId)) {
+      throw new Error(`WebMCP returned duplicate invocation ID "${response.invocationId}".`);
+    }
+
+    const descriptor = WebMCPInvocationDescriptorSchema.parse({
+      invocationId: response.invocationId,
+      toolName,
+      frameId,
+      input,
+    });
+    this.webMCPInvocations.set(response.invocationId, {
+      descriptor,
+      deferred: createDeferred<WebMCPToolResponse>(),
+    });
+    return descriptor;
+  }
+
+  public async waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse> {
+    const { timeout } = WebMCPResultOptionsSchema.parse(options ?? {});
+    const record = this.webMCPInvocation(invocationId);
+    if (timeout === undefined) return await record.deferred.promise;
+
+    let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutTimer = setTimeout(() => {
+        reject(
+          new Error(
+            `Timed out waiting for WebMCP tool "${record.descriptor.toolName}" invocation ` +
+              `"${invocationId}" after ${timeout}ms.`,
+          ),
+        );
+      }, timeout);
+    });
+
+    try {
+      return await Promise.race([record.deferred.promise, timeoutPromise]);
+    } finally {
+      if (timeoutTimer !== undefined) clearTimeout(timeoutTimer);
+    }
+  }
+
+  public async cancelWebMCPInvocation(invocationId: string): Promise<void> {
+    this.webMCPInvocation(invocationId);
+    await this.mainSession.send("WebMCP.cancelInvocation", { invocationId });
+  }
+
+  private ensureWebMCPResponseListener(): void {
+    if (this.webMCPResponseListenerInstalled) return;
+    this.mainSession.on<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    this.webMCPResponseListenerInstalled = true;
+  }
+
+  private removeWebMCPResponseListenerIfIdle(): void {
+    if (this.webMCPInvocations.size > 0 || !this.webMCPResponseListenerInstalled) return;
+    this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+      "WebMCP.toolResponded",
+      this.onWebMCPToolResponded,
+    );
+    this.webMCPResponseListenerInstalled = false;
+  }
+
+  private webMCPInvocation(invocationId: string): WebMCPInvocationRecord {
+    const record = this.webMCPInvocations.get(invocationId);
+    if (record) return record;
+    throw new Error(`WebMCP invocation "${invocationId}" was not found on page "${this.pageId}".`);
+  }
+
+  private teardownWebMCPInvocations(): void {
+    if (this.webMCPResponseListenerInstalled) {
+      this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
+        "WebMCP.toolResponded",
+        this.onWebMCPToolResponded,
+      );
+      this.webMCPResponseListenerInstalled = false;
+    }
+
+    for (const [invocationId, record] of this.webMCPInvocations) {
+      if (record.retentionTimer !== undefined) clearTimeout(record.retentionTimer);
+      if (record.result === undefined) {
+        record.deferred.reject(
+          new Error(
+            `WebMCP invocation "${invocationId}" was disposed before it completed on page ` +
+              `"${this.pageId}".`,
+          ),
+        );
+      }
+    }
+    this.webMCPInvocations.clear();
+  }
+
   /** Seed the cached URL before navigation events converge. */
   public seedCurrentUrl(url: string | undefined | null): void {
     if (!url) return;
@@ -427,10 +730,17 @@ export class Page {
     return this.mainFrameWrapper;
   }
 
+  /** Release page-scoped listeners, pending work, and network tracking. */
+  public dispose(): void {
+    this.teardownWebMCPInvocations();
+    this.networkManager.dispose();
+  }
+
   /**
    * Close this top-level page (tab). Best-effort via Target.closeTarget.
    */
   public async close(): Promise<void> {
+    this.teardownWebMCPInvocations();
     try {
       await this.conn.send("Target.closeTarget", { targetId: this._targetId });
     } catch {
@@ -441,7 +751,7 @@ export class Page {
       try {
         const targets = await this.conn.getTargets();
         if (!targets.some((t) => t.targetId === this._targetId)) {
-          this.networkManager.dispose();
+          this.dispose();
           return;
         }
       } catch {
@@ -449,7 +759,7 @@ export class Page {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
-    this.networkManager.dispose();
+    this.dispose();
   }
 
   public getFullFrameTree(): Protocol.Page.FrameTree {
@@ -1081,35 +1391,10 @@ export class Page {
     options?: {
       button?: "left" | "right" | "middle";
       clickCount?: number;
-      returnXpath?: boolean;
     },
-  ): Promise<string> {
+  ): Promise<void> {
     const button = options?.button ?? "left";
     const clickCount = options?.clickCount ?? 1;
-
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      // Resolve the deepest node at the given coordinates and compute absolute XPath efficiently
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) {
-          this.logger.debug("Click resolved hit", {
-            category: "page",
-            frameId: String(hit.frameId),
-            backendNodeId: String(hit.backendNodeId),
-            x,
-            y,
-          });
-          xpathResult = hit.absoluteXPath;
-          this.logger.debug("Click resolved XPath", {
-            category: "page",
-            xpath: String(xpathResult ?? ""),
-          });
-        }
-      } catch {
-        // best-effort; fall through if any step fails
-      }
-    }
 
     // Synthesize a simple mouse move + press + release sequence.
     await this.updateCursor(x, y);
@@ -1146,8 +1431,6 @@ export class Page {
       );
     }
     await Promise.all(dispatches);
-
-    return xpathResult ?? "";
   }
 
   /**
@@ -1155,30 +1438,7 @@ export class Page {
    * Dispatches mouseMoved via CDP Input domain on the top-level page target's
    * session.
    */
-  async hover(x: number, y: number, options?: { returnXpath?: boolean }): Promise<string> {
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) {
-          this.logger.debug("Hover resolved hit", {
-            category: "page",
-            frameId: String(hit.frameId),
-            backendNodeId: String(hit.backendNodeId),
-            x,
-            y,
-          });
-          xpathResult = hit.absoluteXPath;
-        }
-      } catch {
-        this.logger.debug("Failed to resolve XPath for hover", {
-          category: "page",
-          x,
-          y,
-        });
-      }
-    }
-
+  async hover(x: number, y: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -1186,26 +1446,8 @@ export class Page {
       y,
       button: "none",
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return xpathResult ?? "";
   }
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: { returnXpath?: boolean },
-  ): Promise<string> {
-    let xpathResult: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const hit = await resolveXpathForLocation(this, x, y);
-        if (hit) xpathResult = hit.absoluteXPath;
-      } catch {
-        // best-effort
-      }
-    }
-
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.updateCursor(x, y);
     await this.mainSession.send<never>("Input.dispatchMouseEvent", {
       type: "mouseMoved",
@@ -1223,8 +1465,6 @@ export class Page {
       deltaX,
       deltaY,
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return xpathResult ?? "";
   }
 
   /**
@@ -1240,9 +1480,8 @@ export class Page {
       button?: "left" | "right" | "middle";
       steps?: number;
       delay?: number;
-      returnXpath?: boolean;
     },
-  ): Promise<[string, string]> {
+  ): Promise<void> {
     const button = options?.button ?? "left";
     const steps = Math.max(1, Math.floor(options?.steps ?? 1));
     const delay = Math.max(0, options?.delay ?? 0);
@@ -1261,23 +1500,6 @@ export class Page {
           return 1;
       }
     };
-
-    let fromXpath: string | undefined;
-    let toXpath: string | undefined;
-    if (options?.returnXpath) {
-      try {
-        const start = await resolveXpathForLocation(this, fromX, fromY);
-        if (start) fromXpath = start.absoluteXPath;
-      } catch {
-        //
-      }
-      try {
-        const end = await resolveXpathForLocation(this, toX, toY);
-        if (end) toXpath = end.absoluteXPath;
-      } catch {
-        //
-      }
-    }
 
     // Move to start
     await this.updateCursor(fromX, fromY);
@@ -1324,8 +1546,6 @@ export class Page {
       buttons: buttonMask(button),
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
-
-    return [fromXpath ?? "", toXpath ?? ""];
   }
 
   /**

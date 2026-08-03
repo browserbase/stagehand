@@ -3,12 +3,10 @@ import type {
   LoadState,
   PageClickParams,
   PageDragAndDropParams,
-  PageHoverParams,
   PageKeyPressParams,
   PageNavigationOptions,
   PageRef,
   PageReloadParams,
-  PageScrollParams,
   PageScreenshotOptions,
   PageSetExtraHTTPHeadersParams,
   PageSetViewportSizeParams,
@@ -26,6 +24,8 @@ import {
   normalizeInitScriptSource,
 } from "./pageScripts.js";
 import type { RPCClient } from "./rpcClient.js";
+import { WebMCPTool } from "./webmcp.js";
+import type { WebMCPToolsOptions } from "./clientSchemas.js";
 
 export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   mask?: Locator[];
@@ -83,42 +83,31 @@ export class Page {
     return this;
   }
 
-  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageClick, {
+  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageClick, {
       pageId: this.pageId,
       x,
       y,
       ...(options ? { options } : {}),
     });
-    return result.xpath;
   }
 
-  async hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageHover, {
+  async hover(x: number, y: number): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageHover, {
       pageId: this.pageId,
       x,
       y,
-      ...(options ? { options } : {}),
     });
-    return result.xpath;
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: PageScrollParams["options"],
-  ): Promise<string> {
-    const result = await this.rpcClient.send(StagehandMethods.pageScroll, {
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageScroll, {
       pageId: this.pageId,
       x,
       y,
       deltaX,
       deltaY,
-      ...(options ? { options } : {}),
     });
-    return result.xpath;
   }
 
   async dragAndDrop(
@@ -127,8 +116,8 @@ export class Page {
     toX: number,
     toY: number,
     options?: PageDragAndDropParams["options"],
-  ): Promise<[string, string]> {
-    const result = await this.rpcClient.send(StagehandMethods.pageDragAndDrop, {
+  ): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.pageDragAndDrop, {
       pageId: this.pageId,
       fromX,
       fromY,
@@ -136,7 +125,6 @@ export class Page {
       toY,
       ...(options ? { options } : {}),
     });
-    return [result.fromXpath, result.toXpath];
   }
 
   async type(text: string, options?: PageTypeParams["options"]): Promise<void> {
@@ -240,6 +228,16 @@ export class Page {
       pageId: this.pageId,
       ...(options ? { options } : {}),
     });
+  }
+
+  async tools(options?: WebMCPToolsOptions): Promise<WebMCPTool[]> {
+    const result = await this.rpcClient.send(StagehandMethods.pageWebMCPTools, {
+      pageId: this.pageId,
+      ...(options ? { options } : {}),
+    });
+    return result.tools.map(
+      (descriptor) => new WebMCPTool(this.rpcClient, this.pageId, descriptor),
+    );
   }
 
   async url(): Promise<string> {

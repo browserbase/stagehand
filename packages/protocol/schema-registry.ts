@@ -8,7 +8,6 @@ import {
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
-  BrowserGetVersionResultSchema,
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
   ContextAddInitScriptParamsSchema,
@@ -62,9 +61,7 @@ import {
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
-  PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
-  PageDragAndDropResultSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -89,9 +86,11 @@ import {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
-  RuntimeConfigureParamsSchema,
-  RuntimeConfigureResultSchema,
-  RuntimeLoopbackStatusResultSchema,
+  PageWebMCPCancelInvocationParamsSchema,
+  PageWebMCPInvocationResultParamsSchema,
+  PageWebMCPInvokeToolParamsSchema,
+  PageWebMCPToolsParamsSchema,
+  PageWebMCPToolsResultSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
   StagehandExtractParamsSchema,
@@ -100,8 +99,9 @@ import {
   StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
-  StagehandPingResultSchema,
   SnapshotResultSchema,
+  WebMCPInvocationDescriptorSchema,
+  WebMCPToolResponseSchema,
 } from "./schemas.ts";
 
 export const STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost";
@@ -110,22 +110,6 @@ export const StagehandSendToHostBindingSchema = z
   .meta({ id: "StagehandSendToHostBinding" });
 
 export const StagehandMethods = {
-  ping: { name: "ping", params: EmptyParamsSchema, result: StagehandPingResultSchema },
-  runtimeConfigure: {
-    name: "runtime.configure",
-    params: RuntimeConfigureParamsSchema,
-    result: RuntimeConfigureResultSchema,
-  },
-  runtimeLoopbackStatus: {
-    name: "runtime.loopback_status",
-    params: EmptyParamsSchema,
-    result: RuntimeLoopbackStatusResultSchema,
-  },
-  browserGetVersion: {
-    name: "browser.get_version",
-    params: EmptyParamsSchema,
-    result: BrowserGetVersionResultSchema,
-  },
   stagehandInit: {
     name: "stagehand.init",
     params: StagehandInitParamsSchema,
@@ -274,22 +258,22 @@ export const StagehandMethods = {
   pageClick: {
     name: "page.click",
     params: PageClickParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageHover: {
     name: "page.hover",
     params: PageHoverParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageScroll: {
     name: "page.scroll",
     params: PageScrollParamsSchema,
-    result: PageCoordinateResultSchema,
+    result: PageVoidResultSchema,
   },
   pageDragAndDrop: {
     name: "page.drag_and_drop",
     params: PageDragAndDropParamsSchema,
-    result: PageDragAndDropResultSchema,
+    result: PageVoidResultSchema,
   },
   pageType: { name: "page.type", params: PageTypeParamsSchema, result: PageVoidResultSchema },
   pageKeyPress: {
@@ -344,6 +328,30 @@ export const StagehandMethods = {
     name: "page.wait_for_selector",
     params: PageWaitForSelectorParamsSchema,
     result: PageWaitForSelectorResultSchema,
+  },
+  pageWebMCPTools: {
+    name: "page.webmcp_tools",
+    params: PageWebMCPToolsParamsSchema,
+    result: PageWebMCPToolsResultSchema,
+    resultWire: { opaqueKeys: ["inputSchema"] },
+  },
+  pageWebMCPInvokeTool: {
+    name: "page.webmcp_invoke_tool",
+    params: PageWebMCPInvokeToolParamsSchema,
+    result: WebMCPInvocationDescriptorSchema,
+    paramsWire: { opaqueKeys: ["input"] },
+    resultWire: { opaqueKeys: ["input"] },
+  },
+  pageWebMCPInvocationResult: {
+    name: "page.webmcp_invocation_result",
+    params: PageWebMCPInvocationResultParamsSchema,
+    result: WebMCPToolResponseSchema,
+    resultWire: { opaqueKeys: ["output", "exception"] },
+  },
+  pageWebMCPCancelInvocation: {
+    name: "page.webmcp_cancel_invocation",
+    params: PageWebMCPCancelInvocationParamsSchema,
+    result: PageVoidResultSchema,
   },
   locatorClick: {
     name: "locator.click",

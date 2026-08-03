@@ -19,6 +19,10 @@ import type {
   PageWaitForLoadStateParams,
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
+  PageWebMCPCancelInvocationParams,
+  PageWebMCPInvocationResultParams,
+  PageWebMCPInvokeToolParams,
+  PageWebMCPToolsParams,
 } from "../../protocol/types.js";
 import type { HandlerContext } from "../rpcRouter.js";
 import type { StagehandRuntime } from "../runtime.js";
@@ -122,6 +126,32 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageSnapshot(params);
   }
 
+  async function webMCPTools(params: PageWebMCPToolsParams, { logger }: HandlerContext) {
+    logger.debug("page.webmcp_tools", {});
+    return runtime.pageWebMCPTools(params);
+  }
+
+  async function webMCPInvokeTool(params: PageWebMCPInvokeToolParams, { logger }: HandlerContext) {
+    logger.debug("page.webmcp_invoke_tool", {});
+    return runtime.pageWebMCPInvokeTool(params);
+  }
+
+  async function webMCPInvocationResult(
+    params: PageWebMCPInvocationResultParams,
+    { logger }: HandlerContext,
+  ) {
+    logger.debug("page.webmcp_invocation_result", {});
+    return runtime.pageWebMCPInvocationResult(params);
+  }
+
+  async function webMCPCancelInvocation(
+    params: PageWebMCPCancelInvocationParams,
+    { logger }: HandlerContext,
+  ) {
+    logger.debug("page.webmcp_cancel_invocation", {});
+    return runtime.pageWebMCPCancelInvocation(params);
+  }
+
   async function url(params: PageIdParams, { logger }: HandlerContext) {
     logger.debug("page.url", {});
     return runtime.pageUrl(params);
@@ -157,6 +187,10 @@ export function createPageController(runtime: StagehandRuntime) {
     waitForSelector,
     screenshot,
     snapshot,
+    webMCPTools,
+    webMCPInvokeTool,
+    webMCPInvocationResult,
+    webMCPCancelInvocation,
     url,
     title,
     close,

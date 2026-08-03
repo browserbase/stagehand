@@ -86,25 +86,25 @@ func (value *LLMMessageContentBlock) UnmarshalJSON(data []byte) error {
 	switch discriminator {
 	case contentTypeText:
 		var decoded LLMTextContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM text block: %w", err)
 		}
 		*value = TextContentBlock(decoded)
 	case contentTypeImage:
 		var decoded LLMImageContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM image block: %w", err)
 		}
 		*value = ImageContentBlock(decoded)
 	case contentTypeToolUse:
 		var decoded LLMToolUseContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM tool-use block: %w", err)
 		}
 		*value = ToolUseContentBlock(decoded)
 	case contentTypeToolResult:
 		var decoded LLMToolResultContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM tool-result block: %w", err)
 		}
 		*value = ToolResultContentBlock(decoded)
@@ -138,7 +138,7 @@ func (content *LLMMessageContent) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var decoded LLMMessageContentBlock
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode LLM message content: %w", err)
 	}
 	*content = LLMMessageContent{decoded}
@@ -199,13 +199,13 @@ func (value *LLMToolResultContentBlock) UnmarshalJSON(data []byte) error {
 	switch discriminator {
 	case contentTypeText:
 		var decoded LLMTextContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM tool-result text block: %w", err)
 		}
 		*value = ToolResultTextBlock(decoded)
 	case contentTypeImage:
 		var decoded LLMImageContent
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode LLM tool-result image block: %w", err)
 		}
 		*value = ToolResultImageBlock(decoded)
@@ -275,7 +275,7 @@ func (value *LLMGenerateParams) UnmarshalJSON(data []byte) error {
 	}
 	if present && format == outputFormatJSONSchema {
 		var decoded LLMStructuredGenerateParams
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 			return fmt.Errorf("decode structured LLM generate params: %w", err)
 		}
 		*value = StructuredGenerateParams(decoded)
@@ -285,7 +285,7 @@ func (value *LLMGenerateParams) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("decode LLM generate params: unknown response format %q", format)
 	}
 	var decoded LLMMessageGenerateParams
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	if err := decodeStrictVariantJSON(data, &decoded); err != nil {
 		return fmt.Errorf("decode message LLM generate params: %w", err)
 	}
 	*value = MessageGenerateParams(decoded)
@@ -345,17 +345,17 @@ func (value *LLMGenerateResult) UnmarshalJSON(data []byte) error {
 	}
 	switch format {
 	case outputFormatText:
-		var decoded LLMMessageGenerateResult
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		var messageResult LLMMessageGenerateResult
+		if err := decodeStrictVariantJSON(data, &messageResult); err != nil {
 			return fmt.Errorf("decode message LLM generate result: %w", err)
 		}
-		*value = MessageGenerateResult(decoded)
+		*value = MessageGenerateResult(messageResult)
 	case outputFormatJSONSchema:
-		var decoded LLMStructuredGenerateResult
-		if err := json.Unmarshal(data, &decoded); err != nil {
+		var structuredResult LLMStructuredGenerateResult
+		if err := decodeStrictVariantJSON(data, &structuredResult); err != nil {
 			return fmt.Errorf("decode structured LLM generate result: %w", err)
 		}
-		*value = StructuredGenerateResult(decoded)
+		*value = StructuredGenerateResult(structuredResult)
 	default:
 		return fmt.Errorf("decode LLM generate result: unknown output format %q", format)
 	}

@@ -6,466 +6,1063 @@ description: "Interact with a web page."
 ## What is `act()`?
 
 <View title="TypeScript" icon="js">
-
 ```typescript
-await stagehand.act("Click the add to cart button");
+await stagehand.act("click on add to cart");
 ```
-
-`act()` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes.
-
-## Why use `act()`?
-
-<CardGroup cols="2">
-  <Card title="Natural language" icon="wand-magic-sparkles">
-    Describe the action in plain English, with no selectors or brittle syntax.
-  </Card>
-  <Card title="Precise control" icon="crosshairs">
-    Drive your automation one deliberate step at a time.
-  </Card>
-  <Card title="Adapts to change" icon="bandage">
-    Instructions keep working when a site's markup shifts.
-  </Card>
-  <Card title="Composable" icon="layer-group">
-    Pair with [`observe()`](/v4/basics/observe) to plan before acting.
-  </Card>
-</CardGroup>
-
-## Using `act()`
-
-Call `act()` on your [`stagehand`](/v4/reference/stagehand) instance. By default it runs on
-the browser's active page; pass a `page` option to target a specific one. Keep each call to
-a single step, and break multi-step flows into multiple `act()` calls.
-
-<Tabs>
-  <Tab title="Do this" icon="check">
-
-Break the task into single-step actions.
-
-```typescript
-await page.goto("https://example-store.com");
-await stagehand.act("Open the filters panel");
-await stagehand.act("Choose the 4-star rating");
-await stagehand.act("Click the apply button");
-```
-
-</Tab>
-  <Tab title="Avoid this" icon="xmark">
-
-Cramming several steps into one instruction is less reliable.
-
-```typescript
-await stagehand.act("Open filters, choose 4-star rating, and click apply");
-```
-
-</Tab>
-</Tabs>
-
-<Note>
-  Stagehand resolves elements inside iframes and shadow DOM for you, so you rarely need to target
-  nested documents manually. This relies on privileged browser APIs that aren't available on
-  `about:blank` or `data:` URLs, so navigate to a real page first when a target sits inside a closed
-  shadow root (see [locator limitations](/v4/reference/locator)).
-</Note>
-
-<Accordion title="Suggested actions">
-
-| Action           | Example instruction                              |
-| ---------------- | ------------------------------------------------ |
-| Click            | `Click the sign in button`                       |
-| Fill a field     | `Fill the email field with user@example.com`     |
-| Type text        | `Type "wireless headphones" into the search box` |
-| Press a key      | `Press Enter in the search field`                |
-| Scroll           | `Scroll to the footer`                           |
-| Select an option | `Select "Large" from the size dropdown`          |
-
-</Accordion>
-
-### Return value
-
-`act()` resolves to an `ActResult` with typed `data` and shared `metadata`.
-
-```typescript
-const result = await stagehand.act("Click the sign in button");
-// {
-//   data: {
-//     success: true,
-//     message: "Successfully clicked the sign in button",
-//     actionDescription: "Clicked button with text 'Sign in'",
-//     actions: [...]
-//   },
-//   metadata: { cacheStatus: "MISS" }
-// }
-
-if (!result.data.success) {
-  throw new Error(`act() failed: ${result.data.message}`);
-}
-```
-
-Always check `data.success` before assuming the action ran. See the full field list in the
-[`stagehand` reference](/v4/reference/stagehand).
-
-<Card title="Complete act() reference" icon="book" href="/v4/reference/stagehand">
-  Full parameters, per-call options, and the `ActResult` shape.
-</Card>
-
-## Advanced configuration
-
-You can pass additional options to configure `act()` for your exact use case:
-
-```typescript
-await stagehand.act("Choose 'Peach' from the favorite color dropdown", {
-  model: { modelName: "google/gemini-2.5-flash", apiKey: process.env.GOOGLE_API_KEY },
-  timeout: 10_000,
-});
-```
-
-- `page`: the page to act on. Defaults to the active page.
-- `model`: override the model for this call.
-- `timeout`: maximum time in milliseconds.
-- `variables`: values substituted into the instruction (see below).
-- `locator`: a serialized element target to scope the action.
-- `cache`: reuse a prior result for this call.
-
-### Variables
-
-Variables keep sensitive or dynamic values **out of the model prompt**. Reference them in
-the instruction with `%name%`. A variable can be a plain value, or a
-`{ value, description }` object to give the model a hint about a secret without revealing
-it.
-
-```typescript
-await stagehand.act("Type %username% into the email field", {
-  variables: { username: "user@example.com" },
-});
-
-await stagehand.act("Type %password% into the password field", {
-  variables: {
-    password: { value: process.env.USER_PASSWORD, description: "the login password" },
-  },
-});
-
-await stagehand.act("Click the login button");
-```
-
-<Warning>
-  Load secrets from environment variables, and never hardcode them. Variables are substituted
-  locally, so their values are not sent to the model provider as part of the instruction.
-</Warning>
-
-## Best practices
-
-### Plan reliably with `observe()`
-
-`observe()` returns candidate actions on the current page. Use it to verify an element
-exists or to preview what `act()` will do.
-
-```typescript
-const {
-  data: [candidate],
-} = await stagehand.observe("Find the login button");
-if (candidate) {
-  await stagehand.act("Click the login button");
-}
-```
-
-<Card title="Plan with observe()" icon="eye" href="/v4/basics/observe">
-  Discover and verify actions before you run them.
-</Card>
-
-### Be specific
-
-Ambiguous instructions can target the wrong element. Add context like position, nearby
-text, or a visual cue: `"Click the red 'Delete' button next to the user John Smith"`.
-
-### Cache repeated actions
-
-On Browserbase, turn on caching
-so repeated, identical actions are served from a cache instead of calling the model again.
-
-```typescript
-const result = await stagehand.act("Click the sign in button", { cache: true });
-console.log(result.metadata.cacheStatus);
-```
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="Action failed or timed out">
-
-Make sure the page has finished loading, increase `timeout`, and use `observe()` to confirm
-the target element exists before acting.
-
-```typescript
-await page.waitForLoadState("domcontentloaded");
-
-const {
-  data: [candidate],
-} = await stagehand.observe("Find the submit button");
-if (candidate) {
-  await stagehand.act("Click the submit button", { timeout: 30_000 });
-}
-```
-
-</Accordion>
-  <Accordion title="Wrong element selected">
-
-Be more specific in the instruction, or preview the target with `observe()` and inspect its
-`description` before calling `act()`.
-
-```typescript
-// Instead of a vague instruction:
-await stagehand.act("Click the button");
-
-// Add context so the target is unambiguous:
-await stagehand.act("Click the red 'Delete' button next to the user John Smith");
-
-// Or preview with observe() and confirm the description before acting:
-const {
-  data: [candidate],
-} = await stagehand.observe("Find the submit button in the checkout form");
-if (candidate?.description.toLowerCase().includes("checkout")) {
-  await stagehand.act("Click the submit button in the checkout form");
-}
-```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
 
 <View title="Python" icon="python">
-
 ```python
-await stagehand.act("Click the add to cart button")
+await stagehand.act("click on add to cart")
 ```
+</View>
 
-`act()` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes.
+<View title="Go" icon="golang">
+```go
+if _, err := client.Act(ctx, "click on add to cart", nil); err != nil {
+	return err
+}
+```
+</View>
+
+`act` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes.
+
+`act` accepts either a natural language instruction or an `Action` returned by [`observe()`](/v4/basics/observe). Passing an instruction runs model inference to find the target; passing an `Action` replays it deterministically with no inference at all.
 
 ## Why use `act()`?
 
-<CardGroup cols="2">
-  <Card title="Natural language" icon="wand-magic-sparkles">
-    Describe the action in plain English, with no selectors or brittle syntax.
+<CardGroup cols={2}>
+  <Card title="Natural language instructions" icon="wand-magic-sparkles" href="#using-act">
+    Write automation in plain English. No selectors or complex syntax.
   </Card>
-  <Card title="Precise control" icon="crosshairs">
-    Drive your automation one deliberate step at a time.
+  <Card title="Precise control" icon="crosshairs" href="#best-practices">
+    Build automations step by step. Define exactly what happens at every moment.
   </Card>
-  <Card title="Adapts to change" icon="bandage">
-    Instructions keep working when a site's markup shifts.
+  <Card title="Self-healing" icon="bandage" href="#ensure-reliable-actions">
+    Actions automatically adapt when websites change.
   </Card>
-  <Card title="Composable" icon="layer-group">
-    Pair with [`observe()`](/v4/basics/observe) to plan before acting.
+  <Card title="Caching" icon="repeat" href="#reduce-model-costs">
+    Cache actions to avoid LLM calls and ensure consistent execution across runs.
   </Card>
 </CardGroup>
 
+
 ## Using `act()`
 
-Call `act()` on your [`stagehand`](/v4/reference/stagehand) instance. By default it runs on
-the browser's active page; pass a `page` option to target a specific one. Keep each call to
-a single step, and break multi-step flows into multiple `act()` calls.
+Use `act` to perform single actions in your automation. Here's how to click a button:
 
-<Tabs>
-  <Tab title="Do this" icon="check">
+<View title="TypeScript" icon="js">
+```typescript
+await page.goto("https://example-store.com");
+await stagehand.act("click the add to cart button");
+```
+</View>
 
-Break the task into single-step actions.
-
+<View title="Python" icon="python">
 ```python
 await page.goto("https://example-store.com")
-await stagehand.act("Open the filters panel")
-await stagehand.act("Choose the 4-star rating")
-await stagehand.act("Click the apply button")
+await stagehand.act("click the add to cart button")
 ```
+</View>
 
-</Tab>
-  <Tab title="Avoid this" icon="xmark">
-
-Cramming several steps into one instruction is less reliable.
-
-```python
-await stagehand.act("Open filters, choose 4-star rating, and click apply")
+<View title="Go" icon="golang">
+```go
+if err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
+	return err
+}
 ```
-
-</Tab>
-</Tabs>
+</View>
 
 <Note>
-  Stagehand resolves elements inside iframes and shadow DOM for you, so you rarely need to target
-  nested documents manually. This relies on privileged browser APIs that aren't available on
-  `about:blank` or `data:` URLs, so navigate to a real page first when a target sits inside a closed
-  shadow root (see [locator limitations](/v4/reference/locator)).
+**iFrame and Shadow DOM support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration. Page snapshots merge every frame's accessibility tree by default.
 </Note>
+
+With `act`, breaking complex actions into small, single-step actions works best. If you need to orchestrate multi-step flows, use multiple `act` commands.
 
 <Accordion title="Suggested actions">
 
-| Action           | Example instruction                              |
-| ---------------- | ------------------------------------------------ |
-| Click            | `Click the sign in button`                       |
-| Fill a field     | `Fill the email field with user@example.com`     |
-| Type text        | `Type "wireless headphones" into the search box` |
-| Press a key      | `Press Enter in the search field`                |
-| Scroll           | `Scroll to the footer`                           |
-| Select an option | `Select "Large" from the size dropdown`          |
+| Action | `method` | Example instruction |
+|--------|----------|---------------------|
+| Click | `click` | `click the button` |
+| Double click | `doubleClick` | `double click the file name` |
+| Fill | `fill` | `fill the field with <value>` |
+| Type | `type` | `type <text> into the search box` |
+| Press | `press` | `press <key> in the search field` |
+| Hover | `hover` | `hover over the account menu` |
+| Scroll | `scrollTo` | `scroll to <position>` |
+| Scroll one screen | `nextChunk` / `prevChunk` | `scroll down one page` |
+| Select from dropdown | `selectOptionFromDropdown` | `select <value> from the dropdown` |
+| Drag and drop | `dragAndDrop` | `drag the card onto the Done column` |
 
+The `method` column is the value you will see on an `Action` returned by [`observe()`](/v4/basics/observe).
 </Accordion>
 
-### Return value
+### Return value of `act()`?
+When you use `act()`, Stagehand returns a result with two fields: `data` holds the action payload, and `metadata` carries the action ID and server-side cache status.
 
-`act()` resolves to an `ActResult` with typed `data` and shared `metadata`.
-
-```python
-result = await stagehand.act("Click the sign in button")
-# result.data.success            -> bool
-# result.data.message            -> str
-# result.data.action_description -> str
-# result.data.actions            -> list of executed actions
-# result.metadata.cache_status   -> "HIT", "MISS", or None
-
-if not result.data.success:
-    raise RuntimeError(f"act() failed: {result.data.message}")
+<View title="TypeScript" icon="js">
+```typescript
+{
+  data: {
+    success: true,
+    message: 'Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1]',
+    actionDescription: 'Favorite Colour',
+    actions: [
+      {
+        selector: 'xpath=/html[1]/body[1]/div[1]/span[1]',
+        description: 'Favorite Colour',
+        method: 'click',
+        arguments: []
+      },
+      {
+        selector: 'xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]',
+        description: 'Peach',
+        method: 'click',
+        arguments: []
+      }
+    ]
+  },
+  metadata: {
+    actionId: 'act_01HZY...',
+    cache: { status: 'MISS', missReason: 'not_found' }
+  }
+}
 ```
+</View>
 
-Always check `data.success` before assuming the action ran. See the full field list in the
-[`stagehand` reference](/v4/reference/stagehand).
+<View title="Python" icon="python">
+```python
+ActResult(
+    data=ActResultData(
+        success=True,
+        message="Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1]",
+        action_description="Favorite Colour",
+        actions=[
+            Action(
+                selector="xpath=/html[1]/body[1]/div[1]/span[1]",
+                description="Favorite Colour",
+                method="click",
+                arguments=[],
+            ),
+            Action(
+                selector="xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]",
+                description="Peach",
+                method="click",
+                arguments=[],
+            ),
+        ],
+    ),
+    metadata=StagehandResultMetadata(
+        action_id="act_01HZY...",
+        cache={"status": "MISS", "miss_reason": "not_found"},
+    ),
+)
+```
+</View>
 
-<Card title="Complete act() reference" icon="book" href="/v4/reference/stagehand">
-  Full parameters, per-call options, and the `ActResult` shape.
-</Card>
+<View title="Go" icon="golang">
+```go
+clickMethod := "click"
+actionID := "act_01HZY..."
+cacheMetadata := stagehand.CacheMetadata{Status: stagehand.CacheStatusMISS}
+
+result := stagehand.ActResult{
+	Data: stagehand.ActResultData{
+		Success:           true,
+		Message:           "Action [click] performed successfully on selector: xpath=/html[1]/body[1]/div[1]/span[1]",
+		ActionDescription: "Favorite Colour",
+		Actions: []stagehand.Action{
+			{
+				Selector:    "xpath=/html[1]/body[1]/div[1]/span[1]",
+				Description: "Favorite Colour",
+				Method:      &clickMethod,
+				Arguments:   []string{},
+			},
+			{
+				Selector:    "xpath=/html[1]/body[1]/div[2]/div[1]/section[1]/div[1]/div[1]/div[25]",
+				Description: "Peach",
+				Method:      &clickMethod,
+				Arguments:   []string{},
+			},
+		},
+	},
+	Metadata: stagehand.StagehandResultMetadata{
+		ActionID:    &actionID,
+		Cache: &cacheMetadata,
+	},
+}
+
+// Read the fields you care about off the result
+fmt.Println(result.Data.Message, result.Metadata.Cache.Status)
+```
+</View>
+
+
+<Tabs>
+<Tab title="Do this" icon="check">
+Break your task into single-step actions.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Break it into single-step actions
+await stagehand.act("open the filters panel");
+await stagehand.act("choose 4-star rating");
+await stagehand.act("click the apply button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Break it into single-step actions
+await stagehand.act("open the filters panel")
+await stagehand.act("choose 4-star rating")
+await stagehand.act("click the apply button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Break it into single-step actions
+if _, err := client.Act(ctx, "open the filters panel", nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, "choose 4-star rating", nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, "click the apply button", nil); err != nil {
+	return err
+}
+```
+</View>
+</Tab>
+
+<Tab title="Don't do this" icon="xmark">
+Multi-step instructions are unreliable. Sequence them yourself instead.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Too complex - trying to do multiple things at once
+await stagehand.act("open the filters panel, choose 4-star rating, and click apply");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Too complex - trying to do multiple things at once
+await stagehand.act("open the filters panel, choose 4-star rating, and click apply")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Too complex - trying to do multiple things at once
+if _, err := client.Act(ctx, "open the filters panel, choose 4-star rating, and click apply", nil); err != nil {
+	return err
+}
+```
+</View>
+</Tab>
+</Tabs>
 
 ## Advanced configuration
 
-You can pass additional options to configure `act()` for your exact use case:
+You can pass additional options to configure the model, timeout, variables, and target page:
 
+<View title="TypeScript" icon="js">
+```typescript
+// Custom model configuration
+await stagehand.act("choose 'Peach' from the favorite color dropdown", {
+  model: {
+    modelName: "google/gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY,
+  },
+  timeout: 10000,
+});
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
-import os
-
+# Custom model configuration
 from stagehand import ModelConfig
 
-
 await stagehand.act(
-    "Choose 'Peach' from the favorite color dropdown",
-    model=ModelConfig.model_validate(
-        {
-            "model_name": "google/gemini-2.5-flash",
-            "api_key": os.environ["GOOGLE_API_KEY"],
-        }
-    ),
-    timeout=10_000,
+    "choose 'Peach' from the favorite color dropdown",
+    model=ModelConfig.model_validate({
+        "model_name": "google/gemini-2.5-flash",
+        "api_key": os.environ["GOOGLE_API_KEY"],
+    }),
+    timeout=10000,
 )
 ```
+</View>
 
-- `page`: the page to act on. Defaults to the active page.
-- `model`: override the complete model configuration for this call.
-- `timeout`: maximum time in milliseconds.
-- `variables`: values substituted into the instruction (see below).
-- `cache`: reuse a prior result for this call.
+<View title="Go" icon="golang">
+```go
+// Custom model configuration
+modelAPIKey := os.Getenv("GOOGLE_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "google/gemini-2.5-flash",
+	APIKey:    &modelAPIKey,
+})
+timeout := 10000.0
 
-### Variables
+if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{
+		Model:   &model,
+		Timeout: &timeout,
+	},
+}); err != nil {
+	return err
+}
+```
+</View>
 
-Variables keep sensitive or dynamic values **out of the model prompt**. Reference them in
-the instruction with `%name%`. A variable can be a plain value, or a
-`{ value, description }` object to give the model a hint about a secret without revealing
-it.
+### Server-side caching
 
+<Note>
+`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+</Note>
+
+When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Enable server-side caching for the entire instance
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: true,
+});
+
+// Or disable it for a single call
+await stagehand.act("click the login button", { cache: false });
+
+// Or lower the hit-count threshold for a single call
+await stagehand.act("click the login button", { cache: { threshold: 1 } });
+
+// Check whether a result was served from cache
+const result = await stagehand.act("click the login button");
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
+```
+</View>
+
+<View title="Python" icon="python">
 ```python
+from stagehand import CacheOptions, Stagehand
+
+# Enable server-side caching for the entire instance
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    cache=True,
+)
+
+# Or disable it for a single call
+await stagehand.act("click the login button", cache=False)
+
+# Or lower the hit-count threshold for a single call
+await stagehand.act("click the login button", cache=CacheOptions(threshold=1))
+
+# Check whether a result was served from cache
+result = await stagehand.act("click the login button")
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Enable server-side caching for the entire instance
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+instanceCache := stagehand.CacheEnabled(true)
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &instanceCache,
+})
+
+// Or disable it for a single call
+off := stagehand.CacheEnabled(false)
+if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{Cache: &off},
+}); err != nil {
+	return err
+}
+
+// Or lower the hit-count threshold for a single call
+eager := stagehand.CacheWithThreshold(1)
+if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{Cache: &eager},
+}); err != nil {
+	return err
+}
+
+// Check whether a result was served from cache
+result, err := client.Act(ctx, "click the login button", nil)
+if err != nil {
+	return err
+}
+fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
+```
+</View>
+
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+  Learn how the cache key is built, what the threshold does, and when results are invalidated.
+</Card>
+
+### Using with custom pages
+
+Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so there is no Puppeteer, Playwright, or Patchright page interop. Instead, target any page Stagehand manages by passing the `page` option:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+});
+await stagehand.init();
+
+// Open a second page in the same browser context
+const blogPage = await stagehand.context.newPage();
+await blogPage.goto("https://www.example.com/blog");
+
+// Use act with that specific page
+await stagehand.act("click the next page button", {
+  page: blogPage,
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+)
+await stagehand.init()
+
+# Open a second page in the same browser context
+blog_page = await stagehand.context.new_page()
+await blog_page.goto("https://www.example.com/blog")
+
+# Use act with that specific page
+await stagehand.act("click the next page button", page=blog_page)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+})
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+browserContext, err := client.Context()
+if err != nil {
+	return err
+}
+
+// Open a second page in the same browser context
+blogPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
+	return err
+}
+
+// Use Act with that specific page
+_, err = client.Act(ctx, "click the next page button", &stagehand.StagehandClientActOptions{
+	Page: blogPage,
+})
+```
+</View>
+
+This works with:
+- **Active page:** omit `page` and Stagehand uses `context.activePage()` (default)
+- **Existing pages:** receive the list from `context.pages()` first (await it in TypeScript and Python), then index into it
+- **New pages:** create one with `context.newPage()`
+- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+
+<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+  See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
+</Card>
+
+
+
+
+## Best practices
+
+### Ensure reliable actions
+
+Use `observe()` to discover candidate actions on the current page and plan reliably. It returns a list of suggested actions (with selector, description, method, and arguments). Inspect the action before you commit to it, then hand it straight back to `act`:
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: actions } = await stagehand.observe("click the login button");
+const [action] = actions;
+
+if (action?.method === "click") {
+  // No inference: Stagehand replays the observed action
+  await stagehand.act(action);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+result = await stagehand.observe("click the login button")
+
+if result.data and result.data[0].method == "click":
+    # No inference: Stagehand replays the observed action
+    await stagehand.act(result.data[0])
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+instruction := "click the login button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0].Method == "click" {
+	// No inference: Stagehand replays the observed action
+	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+<Note>
+Replaying an `Action` skips model inference, the page snapshot, and the DOM-settle wait, and it does not consult the server-side cache. If the recorded selector no longer resolves and `selfHeal` is on, Stagehand re-infers the action and retries once.
+</Note>
+
+<Card title="Analyze pages with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/v4/basics/observe">
+  Plan actions with `observe()` before executing with `act`.
+</Card>
+
+### Reduce model costs
+
+Enable server-side caching with `cache` when running on Browserbase. The first time an action runs it is cached; once the hit-count threshold is met, subsequent identical calls are served from the cache without an LLM call.
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: { threshold: 1 }, // Actions are cached after one identical result
+});
+
+await stagehand.init();
+
+// First run makes an LLM call and records the action
+await stagehand.act("click the login button");
+
+// Second run is served from the cache
+await stagehand.act("click the login button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import CacheOptions, Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    cache=CacheOptions(threshold=1),  # Actions are cached after one identical result
+)
+
+await stagehand.init()
+
+# First run makes an LLM call and records the action
+await stagehand.act("click the login button")
+
+# Second run is served from the cache
+await stagehand.act("click the login button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+cache := stagehand.CacheWithThreshold(1) // Actions are cached after one identical result
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &cache,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+// First run makes an LLM call and records the action
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
+
+// Second run is served from the cache
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
+```
+</View>
+
+<Note>
+The cache lives on Browserbase, keyed on the instruction, page content, and call options, so it persists across script executions and across machines. The model configuration is deliberately excluded from the key, so switching models does not invalidate your cache.
+</Note>
+
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+  Learn advanced caching techniques and patterns for optimal performance.
+</Card>
+
+### Secure your automations
+
+Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so the results and the cache record the placeholder rather than the secret.
+
+<Note>
+Load sensitive data from environment variables. Never hardcode API keys, passwords, or other secrets directly in your code.
+</Note>
+
+<View title="TypeScript" icon="js">
+```typescript
+// Variables use %variableName% syntax in the instruction
+await stagehand.act("type %username% into the email field", {
+  variables: { username: "user@example.com" },
+});
+
+await stagehand.act("type %password% into the password field", {
+  variables: { password: process.env.USER_PASSWORD },
+});
+
+await stagehand.act("click the login button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Variables use %variable_name% syntax in the instruction
 await stagehand.act(
-    "Type %username% into the email field",
+    "type %username% into the email field",
     variables={"username": "user@example.com"},
 )
 
 await stagehand.act(
-    "Type %password% into the password field",
-    variables={
-        "password": {"value": os.environ["USER_PASSWORD"], "description": "the login password"}
-    },
+    "type %password% into the password field",
+    variables={"password": os.environ["USER_PASSWORD"]},
 )
 
-await stagehand.act("Click the login button")
+await stagehand.act("click the login button")
 ```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Variables use %variableName% syntax in the instruction
+if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{
+		Variables: stagehand.Variables{
+			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
+		},
+	},
+}); err != nil {
+	return err
+}
+
+userPassword := os.Getenv("USER_PASSWORD")
+if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{
+		Variables: stagehand.Variables{
+			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
+		},
+	},
+}); err != nil {
+	return err
+}
+
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
+```
+</View>
 
 <Warning>
-  Load secrets from environment variables, and never hardcode them. Variables are substituted
-  locally, so their values are not sent to the model provider as part of the instruction.
+When handling sensitive data, turn logging off in your Stagehand configuration to prevent secrets from appearing in logs. See the [logging guide](/v4/configuration/logging) for more details.
 </Warning>
 
-## Best practices
-
-### Plan reliably with `observe()`
-
-`observe()` returns candidate actions on the current page. Use it to verify an element
-exists or to preview what `act()` will do.
-
-```python
-candidates = await stagehand.observe(instruction="Find the login button")
-if candidates.data:
-    await stagehand.act("Click the login button")
-```
-
-<Card title="Plan with observe()" icon="eye" href="/v4/basics/observe">
-  Discover and verify actions before you run them.
+<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v3/best-practices/user-data">
+  Complete guide to persisting and securing browser state across sessions.
 </Card>
-
-### Be specific
-
-Ambiguous instructions can target the wrong element. Add context like position, nearby
-text, or a visual cue: `"Click the red 'Delete' button next to the user John Smith"`.
-
-### Cache repeated actions
-
-On Browserbase, turn on caching
-so repeated, identical actions are served from a cache instead of calling the model again.
-
-```python
-result = await stagehand.act("Click the sign in button", cache=True)
-print(result.metadata.cache_status)
-```
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Action failed or timed out">
 
-Make sure the page has finished loading, increase `timeout`, and use `observe()` to confirm
-the target element exists before acting.
 
-```python
-await page.wait_for_load_state("domcontentloaded")
+<Accordion title="Method not supported">
+**Problem**: `act` fails with "method not supported" error
 
-candidates = await stagehand.observe(instruction="Find the submit button")
-if candidates.data:
-    await stagehand.act("Click the submit button", timeout=30_000)
+**Solutions**:
+- Use clear and detailed instructions for what you want to accomplish
+- Review the [Stagehand evals](https://stagehand.dev/evals) to find the best models for your use case
+- Use [`observe()`](/v4/basics/observe) and verify the resulting action is within a list of expected actions
+
+**Solution 1: Validate with observe**
+
+<View title="TypeScript" icon="js">
+```typescript
+const prompt = "click the submit button";
+const expectedMethod = "click";
+
+try {
+  await stagehand.act(prompt);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("method not supported")) {
+    // Observe the same prompt to get the planned action
+    const { data: actions } = await stagehand.observe(prompt);
+    const [action] = actions;
+
+    if (action && action.method === expectedMethod) {
+      await stagehand.act(action);
+    } else {
+      throw new Error(`Unsupported method: expected "${expectedMethod}", got "${action?.method}"`);
+    }
+  } else {
+    throw error;
+  }
+}
 ```
+</View>
+
+<View title="Python" icon="python">
+```python
+prompt = "click the submit button"
+expected_method = "click"
+
+try:
+    await stagehand.act(prompt)
+except Exception as error:
+    if "method not supported" not in str(error):
+        raise
+
+    # Observe the same prompt to get the planned action
+    observed = await stagehand.observe(prompt)
+    action = observed.data[0] if observed.data else None
+
+    if action is not None and action.method == expected_method:
+        await stagehand.act(action)
+    else:
+        method = action.method if action else None
+        raise RuntimeError(f'Unsupported method: expected "{expected_method}", got "{method}"')
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+prompt := "click the submit button"
+expectedMethod := "click"
+
+if _, err := client.Act(ctx, prompt, nil); err != nil {
+	if !strings.Contains(err.Error(), "method not supported") {
+		return err
+	}
+
+	// Observe the same prompt to get the planned action
+	observed, observeErr := client.Observe(ctx, &prompt, nil)
+	if observeErr != nil {
+		return observeErr
+	}
+	if len(observed.Data) == 0 {
+		return fmt.Errorf("no action found for %q", prompt)
+	}
+
+	action := observed.Data[0]
+	if action.Method == nil || *action.Method != expectedMethod {
+		return fmt.Errorf("unsupported method: expected %q, got %v", expectedMethod, action.Method)
+	}
+	if _, err := client.Act(ctx, action, nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+**Solution 2: Retry with exponential backoff**
+
+<View title="TypeScript" icon="js">
+```typescript
+// Retry with exponential backoff for intermittent issues
+const prompt = "click the submit button";
+const maxRetries = 3;
+
+for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  try {
+    await stagehand.act(prompt, { timeout: 10000 + (attempt * 5000) });
+    break; // Success, exit retry loop
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("method not supported") && attempt < maxRetries) {
+      // Exponential backoff: wait 2^attempt seconds
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    } else {
+      throw error;
+    }
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Retry with exponential backoff for intermittent issues
+import asyncio
+
+prompt = "click the submit button"
+max_retries = 3
+
+for attempt in range(max_retries + 1):
+    try:
+        await stagehand.act(prompt, timeout=10000 + (attempt * 5000))
+        break  # Success, exit retry loop
+    except Exception as error:
+        if "method not supported" in str(error) and attempt < max_retries:
+            # Exponential backoff: wait 2^attempt seconds
+            delay = 2**attempt
+            print(f"Retry {attempt + 1}/{max_retries} after {delay * 1000}ms")
+            await asyncio.sleep(delay)
+        else:
+            raise
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Retry with exponential backoff for intermittent issues
+prompt := "click the submit button"
+const maxRetries = 3
+
+for attempt := 0; attempt <= maxRetries; attempt++ {
+	timeout := float64(10000 + attempt*5000)
+	_, err := client.Act(ctx, prompt, &stagehand.StagehandClientActOptions{
+		ActOptions: stagehand.ActOptions{Timeout: &timeout},
+	})
+	if err == nil {
+		break // Success, exit retry loop
+	}
+	if !strings.Contains(err.Error(), "method not supported") || attempt == maxRetries {
+		return err
+	}
+	// Exponential backoff: wait 2^attempt seconds
+	delay := time.Duration(1<<attempt) * time.Second
+	fmt.Printf("Retry %d/%d after %v\n", attempt+1, maxRetries, delay)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(delay):
+	}
+}
+```
+</View>
 
 </Accordion>
-  <Accordion title="Wrong element selected">
 
-Be more specific in the instruction, or preview the target with `observe()` and inspect its
-`description` before calling `act()`.
+<Accordion title="Action failed or timed out">
+**Problem**: `act` times out or fails to complete action (often due to element not found)
 
-```python
-# Instead of a vague instruction:
-await stagehand.act("Click the button")
+**Solutions**:
+- Ensure page has fully loaded
+- Check if content is in iframes: Stagehand traverses them automatically, but a scoped `selector` can help
+- Increase action timeout
+- Use `observe()` first to verify element exists
+- Raise `domSettleTimeoutMs` on the constructor if the page keeps mutating after load
 
-# Add context so the target is unambiguous:
-await stagehand.act("Click the red 'Delete' button next to the user John Smith")
+<View title="TypeScript" icon="js">
+```typescript
+// Handle timeout and element not found issues
+try {
+  await stagehand.act("click the submit button", { timeout: 30000 });
+} catch (error) {
+  // Check if page is fully loaded
+  await page.waitForLoadState("domcontentloaded");
 
-# Or preview with observe() and confirm the description before acting:
-candidates = await stagehand.observe(instruction="Find the submit button in the checkout form")
-if candidates.data and "checkout" in candidates.data[0].description.lower():
-    await stagehand.act("Click the submit button in the checkout form")
+  // Use observe to check element state
+  const { data: elements } = await stagehand.observe("find the submit button");
+
+  if (elements.length > 0) {
+    console.log("Element found, trying more specific instruction");
+    await stagehand.act("click the submit button at the bottom of the form");
+  } else {
+    console.log("Element not found, trying alternative selector");
+    await stagehand.act("click the button with text 'Submit'");
+  }
+}
 ```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
+
+<View title="Python" icon="python">
+```python
+# Handle timeout and element not found issues
+try:
+    await stagehand.act("click the submit button", timeout=30000)
+except Exception:
+    # Check if page is fully loaded
+    await page.wait_for_load_state("domcontentloaded")
+
+    # Use observe to check element state
+    observed = await stagehand.observe("find the submit button")
+
+    if observed.data:
+        print("Element found, trying more specific instruction")
+        await stagehand.act("click the submit button at the bottom of the form")
+    else:
+        print("Element not found, trying alternative selector")
+        await stagehand.act("click the button with text 'Submit'")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Handle timeout and element not found issues
+timeout := 30000.0
+if _, err := client.Act(ctx, "click the submit button", &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{Timeout: &timeout},
+}); err != nil {
+	// Check if page is fully loaded
+	if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
+		return err
+	}
+
+	// Use Observe to check element state
+	instruction := "find the submit button"
+	observed, observeErr := client.Observe(ctx, &instruction, nil)
+	if observeErr != nil {
+		return observeErr
+	}
+
+	if len(observed.Data) > 0 {
+		fmt.Println("Element found, trying more specific instruction")
+		_, err = client.Act(ctx, "click the submit button at the bottom of the form", nil)
+	} else {
+		fmt.Println("Element not found, trying alternative selector")
+		_, err = client.Act(ctx, "click the button with text 'Submit'", nil)
+	}
+	if err != nil {
+		return err
+	}
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Incorrect element selected">
+**Problem**: `act` performs action on wrong element
+
+**Solutions**:
+- Be more specific in instructions: include visual cues, position, or context
+- Use `observe()` to preview which element will be selected
+- Add contextual information: "the search button in the header"
+- Use unique identifiers when available
+
+<View title="TypeScript" icon="js">
+```typescript
+// More precise element targeting
+// Instead of:
+await stagehand.act("click the button");
+
+// Use specific context:
+await stagehand.act("click the red 'Delete' button next to the user John Smith");
+
+// Or preview with observe first:
+const { data: actions } = await stagehand.observe("click the submit button in the checkout form");
+const [action] = actions;
+if (action?.description.includes("checkout")) {
+  await stagehand.act(action);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# More precise element targeting
+# Instead of:
+await stagehand.act("click the button")
+
+# Use specific context:
+await stagehand.act("click the red 'Delete' button next to the user John Smith")
+
+# Or preview with observe first:
+observed = await stagehand.observe(
+    "click the submit button in the checkout form"
+)
+if observed.data and "checkout" in observed.data[0].description:
+    await stagehand.act(observed.data[0])
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// More precise element targeting
+// Instead of:
+_, err := client.Act(ctx, "click the button", nil)
+
+// Use specific context:
+_, err = client.Act(ctx, "click the red 'Delete' button next to the user John Smith", nil)
+
+// Or preview with Observe first:
+instruction := "click the submit button in the checkout form"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "checkout") {
+	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+</Accordion>
+
+
+
+</AccordionGroup>
 
 ## Next steps
 
-<CardGroup cols="2">
-  <Card title="Observe" icon="eye" href="/v4/basics/observe">
-    Preview actions before executing them.
+<CardGroup cols={2}>
+
+  <Card title="Discover actions with observe()" icon="magnifying-glass" iconType="sharp-solid" href="/v4/basics/observe">
+    Use `observe()` to plan actions before executing them.
   </Card>
-  <Card title="Extract" icon="download" href="/v4/basics/extract">
-    Pull typed data from a page.
+
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/caching">
+    Speed up repeated automations by caching actions.
+  </Card>
+
+  <Card title="Extract data with extract()" icon="table" iconType="sharp-solid" href="/v4/basics/extract">
+    Use `extract` with a data schema to pull clean, typed data from any page.
+  </Card>
+
+  <Card title="Work across multiple tabs" icon="clone" iconType="sharp-solid" href="/v3/best-practices/using-multiple-tabs">
+    Target a specific page with the `page` option.
   </Card>
 </CardGroup>

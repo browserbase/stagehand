@@ -1,10 +1,13 @@
 package stagehand
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -18,22 +21,28 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	client := New(StagehandClientInitParams{
-		Browser: LocalBrowserSource{
-			ExecutablePath:   chromePath,
-			Headless:         true,
-			ConnectTimeoutMs: 15_000,
-		},
+	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
+		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
 	})
-	closeStagehandAfterTest(t, client)
-
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with local browser error = %v", err)
+	if err != nil {
+		t.Fatalf("LaunchLocalBrowser() error = %v", err)
 	}
-	extensionDir := client.browser.extensionDir
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with local browser error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with local browser error = %v", err)
+	}
+	if browser.Closed() {
+		t.Fatal("Stagehand.Close() closed the Browser handle")
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with local browser error = %v", err)
 	}
 	assertExtensionDirectoryRemoved(t, extensionDir)
 }
@@ -46,7 +55,7 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	launched, err := launchChrome(ctx, LocalBrowserSource{
+	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
 		ExecutablePath:   chromePath,
 		Headless:         true,
 		ConnectTimeoutMs: 15_000,
@@ -62,17 +71,23 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 		}
 	})
 
-	client := New(StagehandClientInitParams{
-		Browser: CDPBrowserSource{CDPURL: launched.cdpURL},
-	})
-	closeStagehandAfterTest(t, client)
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with existing CDP error = %v", err)
+	browser, err := ConnectLocalBrowser(ctx, LocalBrowserConnectOptions{CDPURL: launched.cdpURL})
+	if err != nil {
+		t.Fatalf("ConnectLocalBrowser() error = %v", err)
 	}
-	extensionDir := client.browser.extensionDir
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with existing CDP error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	extensionDir := browser.extensionDir
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with existing CDP error = %v", err)
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with existing CDP error = %v", err)
 	}
 
 	request, err := http.NewRequestWithContext(
@@ -95,14 +110,136 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 			response.StatusCode,
 		)
 	}
-	if _, err := os.Stat(extensionDir); err != nil {
-		t.Fatalf("kept-alive extension directory is unavailable: %v", err)
+	assertExtensionDirectoryRemoved(t, extensionDir)
+}
+
+func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
+	chromePath, err := findChromePath("")
+	if err != nil {
+		t.Skipf("Chrome is not installed: %v", err)
 	}
-	t.Cleanup(func() {
-		if err := os.RemoveAll(extensionDir); err != nil {
-			t.Errorf("remove kept-alive extension directory: %v", err)
+
+	fixture := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(
+			`<!doctype html><html><head><title>Stagehand Go Screenshot</title></head>` +
+				`<body><h1>Stagehand Go Screenshot</h1></body></html>`,
+		))
+	}))
+	defer fixture.Close()
+
+	screenshots := make(chan LLMImageContent, 1)
+	generate := func(
+		_ context.Context,
+		params LLMGenerateParams,
+	) (LLMGenerateResult, error) {
+		structured, ok := params.AsStructured()
+		if !ok {
+			return LLMGenerateResult{}, errors.New("smoke LLM only supports structured generation")
 		}
+		for _, message := range structured.Messages {
+			for _, block := range message.Content {
+				if image, ok := block.AsImage(); ok {
+					select {
+					case screenshots <- image:
+					default:
+					}
+				}
+			}
+		}
+
+		content := json.RawMessage(`{"heading":"Stagehand Go Screenshot"}`)
+		if structured.ResponseFormat.Name == "Metadata" {
+			content = json.RawMessage(
+				`{"progress":"The requested heading was extracted","completed":true}`,
+			)
+		}
+		return StructuredGenerateResult(LLMStructuredGenerateResult{
+			Role: LLMRoleAssistant,
+			Content: LLMMessageContent{
+				TextContentBlock(LLMTextContent{Text: string(content)}),
+			},
+			StructuredContent: content,
+		}), nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
+		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
 	})
+	if err != nil {
+		t.Fatalf("LaunchLocalBrowser() error = %v", err)
+	}
+	client, err := Create(ctx, CreateOptions{Browser: browser, Generate: generate})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with screenshot LLM error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	browserContext, err := client.Context()
+	if err != nil {
+		t.Fatalf("Stagehand.Context() error = %v", err)
+	}
+	page, err := browserContext.ActivePage(ctx)
+	if err != nil {
+		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
+	}
+	if page == nil {
+		page, err = browserContext.NewPage(ctx, nil)
+		if err != nil {
+			t.Fatalf("BrowserContext.NewPage() error = %v", err)
+		}
+	}
+	if err := page.Goto(ctx, fixture.URL, nil); err != nil {
+		t.Fatalf("Page.Goto() error = %v", err)
+	}
+
+	screenshot := true
+	result, err := client.Extract(
+		ctx,
+		"Extract the page heading",
+		json.RawMessage(
+			`{"type":"object","properties":{"heading":{"type":"string"}},"required":["heading"]}`,
+		),
+		&StagehandClientExtractOptions{
+			ExtractOptions: ExtractOptions{Screenshot: &screenshot},
+			Page:           page,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Stagehand.Extract() with screenshot error = %v", err)
+	}
+	var extracted struct {
+		Heading string `json:"heading"`
+	}
+	if err := json.Unmarshal(result.Data, &extracted); err != nil {
+		t.Fatalf("decode Extract() data: %v", err)
+	}
+	if extracted.Heading != "Stagehand Go Screenshot" {
+		t.Fatalf("Extract() heading = %q", extracted.Heading)
+	}
+
+	var image LLMImageContent
+	select {
+	case image = <-screenshots:
+	default:
+		t.Fatal("client LLM did not receive the requested extraction screenshot")
+	}
+	if image.Type != "image" || image.MIMEType != "image/png" {
+		t.Fatalf("screenshot content = %#v", image)
+	}
+	png, err := base64.StdEncoding.DecodeString(image.Data)
+	if err != nil {
+		t.Fatalf("decode LLM screenshot: %v", err)
+	}
+	if signature := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}; !bytes.HasPrefix(png, signature) {
+		t.Fatalf("LLM screenshot is not PNG data: %v", png[:min(len(png), len(signature))])
+	}
+
+	if err := client.Close(ctx); err != nil {
+		t.Fatalf("Stagehand.Close() with screenshot LLM error = %v", err)
+	}
 }
 
 func TestStagehandBrowserbaseIntegration(t *testing.T) {
@@ -116,25 +253,28 @@ func TestStagehandBrowserbaseIntegration(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	client := New(StagehandClientInitParams{
-		APIKey: &apiKey,
-		Browser: BrowserbaseClientBrowserSource{
-			KeepAlive: testPointer(false),
-			Timeout:   testPointer(300.0),
-			UserMetadata: map[string]json.RawMessage{
-				"suite": json.RawMessage(`"stagehand-v4-go-public-smoke"`),
-			},
+	browser, err := LaunchBrowserbase(ctx, BrowserbaseLaunchOptions{
+		APIKey: apiKey, KeepAlive: testPointer(false), Timeout: testPointer(300.0),
+		UserMetadata: map[string]json.RawMessage{
+			"suite": json.RawMessage(`"stagehand-go-public-smoke"`),
 		},
 	})
-	closeStagehandAfterTest(t, client)
-
-	if err := client.Init(ctx); err != nil {
-		t.Fatalf("Stagehand.Init() with Browserbase error = %v", err)
+	if err != nil {
+		t.Fatalf("LaunchBrowserbase() error = %v", err)
 	}
-	sessionID := client.browser.browserbaseSessionID
+	client, err := Create(ctx, CreateOptions{Browser: browser})
+	if err != nil {
+		_ = browser.Close(ctx)
+		t.Fatalf("Create() with Browserbase error = %v", err)
+	}
+	closeStagehandAfterTest(t, client, browser)
+	sessionID := browser.workerBrowser.SessionID
 	assertLiveStagehand(t, ctx, client)
 	if err := client.Close(ctx); err != nil {
 		t.Fatalf("Stagehand.Close() with Browserbase error = %v", err)
+	}
+	if err := browser.Close(ctx); err != nil {
+		t.Fatalf("Browser.Close() with Browserbase error = %v", err)
 	}
 	t.Logf("created and released Browserbase session %s", sessionID)
 }
@@ -146,14 +286,7 @@ func assertLiveStagehand(
 ) {
 	t.Helper()
 	if !client.Initialized() {
-		t.Fatal("Stagehand.Initialized() = false after Init")
-	}
-	ping, err := client.Ping(ctx)
-	if err != nil {
-		t.Fatalf("Stagehand.Ping() error = %v", err)
-	}
-	if !ping.Ok || ping.Runtime != "service_worker" {
-		t.Fatalf("Stagehand.Ping() = %#v", ping)
+		t.Fatal("Stagehand.Initialized() = false after Create")
 	}
 	browserContext, err := client.Context()
 	if err != nil {
@@ -168,7 +301,7 @@ func assertLiveStagehand(
 	}
 }
 
-func closeStagehandAfterTest(t *testing.T, client *Stagehand) {
+func closeStagehandAfterTest(t *testing.T, client *Stagehand, browser *Browser) {
 	t.Helper()
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -177,6 +310,9 @@ func closeStagehandAfterTest(t *testing.T, client *Stagehand) {
 			!errors.Is(err, ErrCDPClientClosed) &&
 			!errors.Is(err, ErrCDPConnectionClosed) {
 			t.Errorf("clean up Stagehand client: %v", err)
+		}
+		if err := browser.Close(ctx); err != nil && !errors.Is(err, ErrCDPClientClosed) {
+			t.Errorf("clean up Browser handle: %v", err)
 		}
 	})
 }

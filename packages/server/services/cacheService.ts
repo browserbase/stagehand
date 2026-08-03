@@ -1,6 +1,7 @@
 import type { Protocol } from "devtools-protocol";
 import type {
   Action,
+  CacheMetadata,
   Caching,
   Locator,
   StagehandActParams,
@@ -10,12 +11,12 @@ import type {
 } from "../../protocol/types.js";
 import {
   CacheClient,
-  apiUrlForRegion,
   type CacheGetResponse,
   type CacheLlmUsage,
   type CacheMethod,
   type CdpTree,
 } from "../clients/cacheClient.js";
+import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
 import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
@@ -34,8 +35,6 @@ import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
  * Everything here is best-effort: any cache failure falls back to normal
  * execution and must never break the action.
  */
-
-type CacheStatus = "HIT" | "MISS";
 
 /** The page surface the cache needs to assemble the raw CDP tree payload. */
 interface CachePage {
@@ -68,15 +67,17 @@ export function buildCacheContext(initParams: StagehandInitParams): CacheContext
 }
 
 /**
- * The `data` payloads mirror the API's v3 act/observe/extract schemas — only
- * the fields that participate in the cache key are sent (withCache threads
- * the caching threshold in separately). Model configuration is deliberately
+ * The `data` payloads mirror the external API's v3 act/observe/extract
+ * schemas — only the fields that participate in the cache key are sent
+ * (withCache threads the caching threshold in separately). The v3 act cache
+ * contract still calls its instruction `input`, so preserve that adapter key
+ * until the external API migrates. Model configuration is deliberately
  * omitted: it is not part of the cache key and its v4 shape does not parse
  * under the v3 schema.
  */
 export function buildActCacheData(params: StagehandActParams): Record<string, unknown> {
   return {
-    input: params.input,
+    input: params.instruction,
     options: params.options
       ? {
           variables: params.options.variables,
@@ -148,6 +149,41 @@ export interface CacheExecuteOutcome<Result> {
 }
 
 /**
+ * Cache observability for a served hit. Deliberately never carries
+ * `missReason`, and a miss builder never carries hit-only fields, so a result
+ * can't report both stories at once.
+ */
+function hitMetadata(response: CacheGetResponse): CacheMetadata {
+  const { tokensSaved } = response;
+  return {
+    status: "HIT",
+    ...(response.hitCount !== undefined && { count: response.hitCount }),
+    ...(response.threshold !== undefined && { threshold: response.threshold }),
+    ...(tokensSaved !== undefined && {
+      tokensSaved: {
+        inputTokens: tokensSaved.input,
+        outputTokens: tokensSaved.output,
+        totalTokens: tokensSaved.total,
+      },
+    }),
+  };
+}
+
+/**
+ * Cache observability for a miss. `reason` overrides the server's for failures
+ * that happen on this side of the wire, which would otherwise be
+ * indistinguishable from a cold cache.
+ */
+function missMetadata(response: CacheGetResponse | null, reason?: string): CacheMetadata {
+  return {
+    status: "MISS",
+    missReason: reason ?? response?.missReason ?? "unknown",
+    ...(response?.hitCount !== undefined && { count: response.hitCount }),
+    ...(response?.threshold !== undefined && { threshold: response.threshold }),
+  };
+}
+
+/**
  * Shared cache intercept for the act/observe/extract services.
  *
  * Collects the raw CDP accessibility tree(s), asks the API for a cached
@@ -156,7 +192,7 @@ export interface CacheExecuteOutcome<Result> {
  * or whenever any cache step fails, including `onHit` itself — falls back to
  * `execute` and then persists the outcome's `cacheValue`.
  */
-export async function withCache<Result extends { metadata: { cacheStatus?: CacheStatus } }>({
+export async function withCache<Result extends { metadata: { cache: CacheMetadata } }>({
   method,
   page,
   data,
@@ -172,7 +208,8 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
   page: unknown;
   data: Record<string, unknown>;
   /** Focus locator; resolved to a backendNodeId so the
-   * server scopes the DOM hash exactly like the live v3 routes. */
+   * server scopes the DOM hash exactly like the live v3 routes. Indexed
+   * locators cannot be represented by that API and therefore bypass caching. */
   locator?: Locator;
   /** Ignore locators used by observe/extract. Indexed ignores cannot be
    * represented by the legacy cache API and therefore bypass caching. */
@@ -189,8 +226,13 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
   if (!context || !cachePage) {
     return (await execute()).result;
   }
-  if (ignoreLocators?.some((ignoredLocator) => ignoredLocator.nth !== undefined)) {
-    logger.debug("Cache skipped: indexed ignore locators are not supported by the cache API", {
+  // TODO: Remove this bypass when the stateless cache contract accepts locator
+  // objects and includes nth in its cache key.
+  if (
+    locator?.nth !== undefined ||
+    ignoreLocators?.some((ignoredLocator) => ignoredLocator.nth !== undefined)
+  ) {
+    logger.debug("Cache skipped: indexed locators are not supported by the cache API", {
       category: "cache",
       method,
     });
@@ -221,10 +263,11 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
     });
   }
 
+  let cacheMetadata: CacheMetadata;
   if (getResponse?.hit && getResponse.value !== undefined && getResponse.value !== null) {
     try {
       const result = await onHit(getResponse.value);
-      result.metadata.cacheStatus = "HIT";
+      result.metadata.cache = hitMetadata(getResponse);
       logger.debug("Cache hit", {
         category: "cache",
         method,
@@ -240,18 +283,22 @@ export async function withCache<Result extends { metadata: { cacheStatus?: Cache
         cacheKey: getResponse.cacheKey ?? "",
         error: error instanceof Error ? error.message : String(error),
       });
+      cacheMetadata = missMetadata(getResponse, "replay_failed");
     }
   } else if (getResponse) {
+    cacheMetadata = missMetadata(getResponse);
     logger.debug("Cache miss", {
       category: "cache",
       method,
       cacheKey: getResponse.cacheKey ?? "",
-      missReason: getResponse.missReason ?? "unknown",
+      missReason: cacheMetadata.missReason ?? "unknown",
     });
+  } else {
+    cacheMetadata = missMetadata(null, "read_failed");
   }
 
   const outcome = await execute();
-  outcome.result.metadata.cacheStatus = "MISS";
+  outcome.result.metadata.cache = cacheMetadata;
 
   if (outcome.cacheValue !== undefined && outcome.cacheValue !== null) {
     try {

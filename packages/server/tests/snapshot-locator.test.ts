@@ -1,10 +1,12 @@
+import type { Protocol } from "devtools-protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Page } from "../understudy/page.js";
 import type { CDPSessionLike } from "../understudy/cdp.js";
 import { executionContexts } from "../understudy/executionContextRegistry.js";
 import { FrameSelectorResolver, type ResolvedNode } from "../understudy/selectorResolver.js";
 import type { FrameContext } from "../types/private/index.js";
-import { resolveIgnoredNodes } from "../understudy/a11y/snapshot/capture.js";
+import { a11yForFrame } from "../understudy/a11y/snapshot/a11yTree.js";
+import { captureHybridSnapshot, resolveIgnoredNodes } from "../understudy/a11y/snapshot/capture.js";
 import {
   resolveObjectIdForCss,
   resolveObjectIdForXPath,
@@ -49,6 +51,40 @@ describe("snapshot locator resolution", () => {
       );
     },
   );
+
+  it.each([
+    ["CSS", { selector: ".card", nth: 1 }],
+    ["XPath", { selector: "xpath=//section", nth: 1 }],
+  ] as const)("limits the %s accessibility outline to focusLocator.nth", async (_, locator) => {
+    const { session } = focusedSnapshotHarness();
+
+    const result = await a11yForFrame(session, "frame-1", {
+      focusLocator: locator,
+      tagNameMap: {},
+      scrollableMap: {},
+      encode: (backendNodeId) => `0-${backendNodeId}`,
+    });
+
+    expect(result.scopeApplied).toBe(true);
+    expect(result.outline).toContain("Second scope");
+    expect(result.outline).toContain("Second action");
+    expect(result.outline).not.toContain("First scope");
+    expect(result.outline).not.toContain("First action");
+  });
+
+  it.each([
+    ["CSS", { selector: ".card", nth: 1 }],
+    ["XPath", { selector: "xpath=//section", nth: 1 }],
+  ] as const)("returns a %s capture scoped to focusLocator.nth", async (_, locator) => {
+    const { page } = focusedSnapshotHarness();
+
+    const snapshot = await captureHybridSnapshot(page, { focusLocator: locator });
+
+    expect(snapshot.combinedTree).toContain("Second scope");
+    expect(snapshot.combinedTree).toContain("Second action");
+    expect(snapshot.combinedTree).not.toContain("First scope");
+    expect(snapshot.combinedTree).not.toContain("First action");
+  });
 
   it("resolves every ignored match when nth is omitted", async () => {
     const { page, context, send } = ignoredLocatorHarness();
@@ -143,4 +179,125 @@ function ignoredLocatorHarness(): {
     frames: ["frame-1"],
   };
   return { page, context, send };
+}
+
+function focusedSnapshotHarness(): {
+  page: Page;
+  session: CDPSessionLike;
+} {
+  const accessibilityNodes = [
+    {
+      nodeId: "root",
+      ignored: false,
+      role: { type: "role", value: "RootWebArea" },
+      childIds: ["first", "second"],
+    },
+    {
+      nodeId: "first",
+      ignored: false,
+      role: { type: "role", value: "region" },
+      name: { type: "computedString", value: "First scope" },
+      backendDOMNodeId: 101,
+      parentId: "root",
+      childIds: ["first-action"],
+    },
+    {
+      nodeId: "first-action",
+      ignored: false,
+      role: { type: "role", value: "button" },
+      name: { type: "computedString", value: "First action" },
+      backendDOMNodeId: 111,
+      parentId: "first",
+    },
+    {
+      nodeId: "second",
+      ignored: false,
+      role: { type: "role", value: "region" },
+      name: { type: "computedString", value: "Second scope" },
+      backendDOMNodeId: 202,
+      parentId: "root",
+      childIds: ["second-action"],
+    },
+    {
+      nodeId: "second-action",
+      ignored: false,
+      role: { type: "role", value: "button" },
+      name: { type: "computedString", value: "Second action" },
+      backendDOMNodeId: 222,
+      parentId: "second",
+    },
+  ] as Protocol.Accessibility.AXNode[];
+  const domRoot = {
+    nodeId: 1,
+    backendNodeId: 1,
+    nodeType: 9,
+    nodeName: "#document",
+    localName: "",
+    nodeValue: "",
+    childNodeCount: 2,
+    children: [
+      {
+        nodeId: 2,
+        backendNodeId: 101,
+        nodeType: 1,
+        nodeName: "SECTION",
+        localName: "section",
+        nodeValue: "",
+        childNodeCount: 0,
+        attributes: ["class", "card"],
+      },
+      {
+        nodeId: 3,
+        backendNodeId: 202,
+        nodeType: 1,
+        nodeName: "SECTION",
+        localName: "section",
+        nodeValue: "",
+        childNodeCount: 0,
+        attributes: ["class", "card"],
+      },
+    ],
+  } as Protocol.DOM.Node;
+  const send = vi.fn(async (method: string) => {
+    switch (method) {
+      case "Accessibility.getFullAXTree":
+        return { nodes: accessibilityNodes };
+      case "DOM.getDocument":
+        return { root: domRoot };
+      case "DOM.describeNode":
+        return { node: { backendNodeId: 202 } };
+      case "Runtime.evaluate":
+        return { result: { objectId: "object-2" } };
+      default:
+        return {};
+    }
+  });
+  const session = {
+    id: `session-focus-${Math.random()}`,
+    send,
+    on: vi.fn(),
+    off: vi.fn(),
+    close: vi.fn(),
+  } as unknown as CDPSessionLike;
+  executionContexts.registerExtensionWorld(session, "frame-1", 42);
+  const page = {
+    mainFrameId: vi.fn(() => "frame-1"),
+    asProtocolFrameTree: vi.fn(
+      () =>
+        ({
+          frame: {
+            id: "frame-1",
+            loaderId: "loader-1",
+            url: "https://example.test",
+            securityOrigin: "https://example.test",
+            mimeType: "text/html",
+          },
+        }) as Protocol.Page.FrameTree,
+    ),
+    listAllFrameIds: vi.fn(() => ["frame-1"]),
+    getSessionForFrame: vi.fn(() => session),
+    getOrdinal: vi.fn(() => 0),
+    logger: { warn: vi.fn() },
+  } as unknown as Page;
+  return { page, session };
 }

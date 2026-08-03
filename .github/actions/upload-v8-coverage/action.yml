@@ -1,0 +1,48 @@
+name: Upload V8 coverage
+description: Upload V8 coverage artifacts.
+inputs:
+  name:
+    description: Artifact name.
+    required: true
+  path:
+    description: Coverage path to upload (defaults to name).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Normalize artifact name
+      id: normalize
+      shell: bash
+      # Inputs arrive through env rather than `${{ }}` interpolation: expression results are
+      # pasted into the script before bash parses it, so a crafted value would run as code.
+      # These names derive from discovered test filenames, which a pull request controls.
+      env:
+        INPUT_NAME: ${{ inputs.name }}
+        INPUT_PATH: ${{ inputs.path }}
+      run: |
+        if [[ "$INPUT_NAME" == *$'\r'* || "$INPUT_NAME" == *$'\n'* ]]; then
+          echo "::error::Input 'name' must not contain carriage returns or line feeds."
+          exit 1
+        fi
+        if [[ "$INPUT_PATH" == *$'\r'* || "$INPUT_PATH" == *$'\n'* ]]; then
+          echo "::error::Input 'path' must not contain carriage returns or line feeds."
+          exit 1
+        fi
+        set -euo pipefail
+        echo "name=${INPUT_NAME//\//-}" >> "$GITHUB_OUTPUT"
+        if [ -n "$INPUT_PATH" ]; then
+          echo "path=$INPUT_PATH" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=$INPUT_NAME" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: ${{ steps.normalize.outputs.name }}
+        # package.json anchors uploaded paths to the repository root.
+        path: |
+          package.json
+          ${{ steps.normalize.outputs.path }}

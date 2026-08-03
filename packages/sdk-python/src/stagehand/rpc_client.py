@@ -5,7 +5,6 @@ import inspect
 import json
 from collections.abc import Awaitable, Callable, Coroutine
 from contextlib import suppress
-from importlib.metadata import version
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
 from pydantic import (
@@ -18,14 +17,8 @@ from pydantic import (
     ValidationError,
 )
 
-from ._generated import models
-
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
-_STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
-    name="stagehand-sdk-python",
-    version=version("stagehand"),
-)
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -119,6 +112,11 @@ class RPCClient:
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
+
+    @property
+    def browser_web_socket_debugger_url(self) -> str | None:
+        value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
+        return value if isinstance(value, str) else None
 
     @overload
     async def send(
@@ -265,7 +263,12 @@ class RPCClient:
 
         return remove
 
-    async def close(self, reason: BaseException | None = None) -> None:
+    async def close(
+        self,
+        reason: BaseException | None = None,
+        *,
+        close_transport: bool = True,
+    ) -> None:
         if self._closed:
             return
 
@@ -292,7 +295,8 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        await self._transport.close()
+        if close_transport:
+            await self._transport.close()
 
     async def _read(self) -> None:
         try:
@@ -483,42 +487,3 @@ class RPCClient:
         self._inbound_tasks.discard(task)
         if not task.cancelled() and (error := task.exception()) is not None:
             asyncio.create_task(self.close(error))
-
-
-async def connect_rpc_client(
-    *,
-    cdp_url: str,
-    extension_dir: str | None = None,
-    extension_id: str | None = None,
-    service_worker_url_includes: str | None = None,
-    discovery_timeout_ms: int = 10_000,
-    command_timeout_ms: int = 10_000,
-    cdp_connect_timeout_ms: int = 10_000,
-    telemetry: models.TelemetryConfig | None = None,
-    log_level: str = "info",
-) -> RPCClient:
-    from .cdp_client import CDPClient
-
-    cdp = await CDPClient.connect(
-        cdp_url=cdp_url,
-        extension_dir=extension_dir,
-        extension_id=extension_id,
-        service_worker_url_includes=service_worker_url_includes,
-        discovery_timeout_ms=discovery_timeout_ms,
-        command_timeout_ms=command_timeout_ms,
-        cdp_connect_timeout_ms=cdp_connect_timeout_ms,
-    )
-    client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
-    configure = models.RuntimeConfigureParams(
-        client_info=_STAGEHAND_SDK_CLIENT_INFO,
-        cdp_url=cdp.web_socket_debugger_url,
-        **({"telemetry": telemetry} if telemetry is not None else {}),
-        log_level=models.LogLevel(log_level),
-    )
-
-    try:
-        await client.send("runtime.configure", configure, models.RuntimeConfigureResult)
-    except BaseException:
-        await client.close()
-        raise
-    return client

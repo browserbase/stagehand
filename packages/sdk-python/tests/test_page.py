@@ -1,16 +1,37 @@
 from __future__ import annotations
 
+import inspect
 from typing import cast
 
 import pytest
 from pydantic import BaseModel
 
+from stagehand import WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
+    PageClickParams,
+    PageDragAndDropParams,
     PageEvaluateResult,
     PageGotoParams,
+    PageHoverParams,
     PageIdParams,
     PageRef,
+    PageScrollParams,
     PageUrlResult,
+    PageVoidResult,
+    PageWebMCPCancelInvocationParams,
+    PageWebMCPInvocationResultParams,
+    PageWebMCPInvokeToolParams,
+    PageWebMCPToolsParams,
+    PageWebMCPToolsResult,
+    WebMCPInvocationDescriptor,
+    WebMCPResultOptions,
+    WebMCPToolsOptions,
+)
+from stagehand._generated.models import (
+    WebMCPInvocationStatus as WireWebMCPInvocationStatus,
+)
+from stagehand._generated.models import (
+    WebMCPToolResponse as WireWebMCPToolResponse,
 )
 from stagehand.page import Page
 from stagehand.rpc_client import RPCClient
@@ -61,6 +82,79 @@ async def test_page_url_returns_a_scalar_string() -> None:
     ]
 
 
+@pytest.mark.asyncio
+async def test_page_coordinate_interactions_return_none() -> None:
+    void_result = PageVoidResult(ok=True)
+    recording = RecordingRPCClient({
+        "page.click": void_result,
+        "page.hover": void_result,
+        "page.scroll": void_result,
+        "page.drag_and_drop": void_result,
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    assert await page.click(10, 20, button="right", click_count=2) is None
+    assert await page.hover(30, 40) is None
+    assert await page.scroll(50, 60, -25, 400) is None
+    assert (
+        await page.drag_and_drop(
+            1,
+            2,
+            3,
+            4,
+            button="left",
+            steps=5,
+            delay=10,
+        )
+        is None
+    )
+
+    assert recording.calls == [
+        (
+            "page.click",
+            PageClickParams.model_validate({
+                "page_id": "page-1",
+                "x": 10,
+                "y": 20,
+                "options": {"button": "right", "click_count": 2},
+            }),
+            PageVoidResult,
+        ),
+        (
+            "page.hover",
+            PageHoverParams(page_id="page-1", x=30, y=40),
+            PageVoidResult,
+        ),
+        (
+            "page.scroll",
+            PageScrollParams(
+                page_id="page-1",
+                x=50,
+                y=60,
+                delta_x=-25,
+                delta_y=400,
+            ),
+            PageVoidResult,
+        ),
+        (
+            "page.drag_and_drop",
+            PageDragAndDropParams.model_validate({
+                "page_id": "page-1",
+                "from_x": 1,
+                "from_y": 2,
+                "to_x": 3,
+                "to_y": 4,
+                "options": {
+                    "button": "left",
+                    "steps": 5,
+                    "delay": 10,
+                },
+            }),
+            PageVoidResult,
+        ),
+    ]
+
+
 def test_page_locator_keeps_the_page_identifier_internal() -> None:
     recording = RecordingRPCClient()
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -91,3 +185,150 @@ async def test_page_evaluate_returns_json_or_a_requested_typed_result() -> None:
 
     assert raw == {"answer": True}
     assert typed == EvaluationResult(answer=True)
+
+
+@pytest.mark.asyncio
+async def test_page_wraps_callable_webmcp_tools_and_invocations_with_owned_identity() -> None:
+    wire_result = WireWebMCPToolResponse.model_validate({
+        "invocation_id": "invocation-1",
+        "status": WireWebMCPInvocationStatus.completed,
+        "output": {"resultValue": "done"},
+    })
+    recording = RecordingRPCClient({
+        "page.webmcp_tools": {
+            "tools": [
+                {
+                    "name": "search",
+                    "description": "Search this site",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {"searchQuery": {"type": "string"}},
+                    },
+                    "annotations": {"read_only": True},
+                    "frame_id": "frame-1",
+                    "backend_node_id": 42,
+                }
+            ]
+        },
+        "page.webmcp_invoke_tool": {
+            "invocation_id": "invocation-1",
+            "tool_name": "search",
+            "frame_id": "frame-1",
+            "input": {"searchQuery": "Stagehand"},
+        },
+        "page.webmcp_invocation_result": TimeoutError(
+            "RPC request timed out: page.webmcp_invocation_result"
+        ),
+        "page.webmcp_cancel_invocation": {"ok": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    tools = await page.tools(timeout=250)
+    tool = tools[0]
+    assert isinstance(tool, WebMCPTool)
+    assert tool.name == "search"
+    assert tool.description == "Search this site"
+    assert tool.input_schema == {
+        "type": "object",
+        "properties": {"searchQuery": {"type": "string"}},
+    }
+    assert tool.annotations is not None
+    assert tool.annotations.read_only is True
+    assert tool.frame_id == "frame-1"
+    assert tool.backend_node_id == 42
+
+    invocation = await tool.invoke(input={"searchQuery": "Stagehand"})
+    assert isinstance(invocation, WebMCPInvocation)
+    assert invocation.invocation_id == "invocation-1"
+    assert invocation.tool_name == "search"
+    assert invocation.frame_id == "frame-1"
+    assert invocation.input == {"searchQuery": "Stagehand"}
+    await tool.invoke()
+
+    with pytest.raises(TimeoutError, match="RPC request timed out"):
+        await invocation.result(timeout=1)
+    recording.responses["page.webmcp_invocation_result"] = wire_result
+    result = await invocation.result(timeout=5_000)
+    assert isinstance(result, WebMCPToolResponse)
+    assert result.invocation_id == "invocation-1"
+    assert result.status == "Completed"
+    assert result.output == {"resultValue": "done"}
+    assert await invocation.result(timeout=1) is result
+    await invocation.cancel()
+
+    assert recording.calls == [
+        (
+            "page.webmcp_tools",
+            PageWebMCPToolsParams(
+                page_id="page-1",
+                options=WebMCPToolsOptions(timeout=250),
+            ),
+            PageWebMCPToolsResult,
+        ),
+        (
+            "page.webmcp_invoke_tool",
+            PageWebMCPInvokeToolParams.model_validate({
+                "page_id": "page-1",
+                "frame_id": "frame-1",
+                "tool_name": "search",
+                "input": {"searchQuery": "Stagehand"},
+            }),
+            WebMCPInvocationDescriptor,
+        ),
+        (
+            "page.webmcp_invoke_tool",
+            PageWebMCPInvokeToolParams(
+                page_id="page-1",
+                frame_id="frame-1",
+                tool_name="search",
+                input={},
+            ),
+            WebMCPInvocationDescriptor,
+        ),
+        (
+            "page.webmcp_invocation_result",
+            PageWebMCPInvocationResultParams(
+                page_id="page-1",
+                invocation_id="invocation-1",
+                options=WebMCPResultOptions(timeout=1),
+            ),
+            WireWebMCPToolResponse,
+        ),
+        (
+            "page.webmcp_invocation_result",
+            PageWebMCPInvocationResultParams(
+                page_id="page-1",
+                invocation_id="invocation-1",
+                options=WebMCPResultOptions(timeout=5_000),
+            ),
+            WireWebMCPToolResponse,
+        ),
+        (
+            "page.webmcp_cancel_invocation",
+            PageWebMCPCancelInvocationParams(
+                page_id="page-1",
+                invocation_id="invocation-1",
+            ),
+            PageVoidResult,
+        ),
+    ]
+
+
+def test_optional_page_arguments_are_keyword_only() -> None:
+    """Required arguments are positional; anything with a default must be keyword-only."""
+    offenders: list[str] = []
+
+    for name in dir(Page):
+        if name.startswith("_"):
+            continue
+        attribute = inspect.getattr_static(Page, name)
+        if not (inspect.isfunction(attribute) or inspect.iscoroutinefunction(attribute)):
+            continue
+        for parameter in inspect.signature(attribute).parameters.values():
+            if (
+                parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+                and parameter.default is not inspect.Parameter.empty
+            ):
+                offenders.append(f"Page.{name}({parameter.name}=...)")
+
+    assert offenders == []

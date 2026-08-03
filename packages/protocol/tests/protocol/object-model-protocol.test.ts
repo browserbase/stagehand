@@ -6,6 +6,7 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
   it("derives every Stagehand method name from the RPC definitions", () => {
@@ -16,23 +17,24 @@ describe("Stagehand object-model protocol", () => {
 
   it("defines stagehand init as a JSON-RPC method", () => {
     const params = StagehandMethods.stagehandInit.params.parse({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       apiKey: "bb_key",
       browser: {
-        type: "browserbase",
         sessionId: "session_123",
         region: "eu-central-1",
-        userMetadata: { suite: "smoke" },
       },
       model: { modelName: "openai/gpt-5-mini" },
     });
 
     expect(params).toStrictEqual({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      logLevel: "info",
       apiKey: "bb_key",
       browser: {
-        type: "browserbase",
         sessionId: "session_123",
         region: "eu-central-1",
-        userMetadata: { suite: "smoke" },
       },
       model: { modelName: "openai/gpt-5-mini" },
       telemetry: {
@@ -75,7 +77,7 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           model: {
             modelName: "anthropic/claude-sonnet-4-6",
@@ -95,7 +97,7 @@ describe("Stagehand object-model protocol", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { model: { apiKey: "test-key" } },
       }),
     ).toThrow();
@@ -105,12 +107,12 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { cache: { threshold: 2 } },
       }),
     ).toStrictEqual({
       pageId: "target-1",
-      input: "Click the submit button",
+      instruction: "Click the submit button",
       options: { cache: { threshold: 2 } },
     });
     expect(
@@ -266,7 +268,7 @@ describe("Stagehand object-model protocol", () => {
     expect(
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           timeout: 1_000,
           variables: { accountEmail: "user@example.com" },
@@ -274,7 +276,7 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toStrictEqual({
       pageId: "target-1",
-      input: "Click the submit button",
+      instruction: "Click the submit button",
       options: {
         timeout: 1_000,
         variables: { accountEmail: "user@example.com" },
@@ -285,7 +287,7 @@ describe("Stagehand object-model protocol", () => {
   it("rejects actions without a page identity", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
-        input: "Click the submit button",
+        instruction: "Click the submit button",
       }),
     ).toThrow();
   });
@@ -294,7 +296,7 @@ describe("Stagehand object-model protocol", () => {
     expect(() =>
       StagehandMethods.stagehandAct.params.parse({
         pageId: "target-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: { tiemout: 1_000 },
       }),
     ).toThrow();
@@ -375,6 +377,10 @@ describe("Stagehand object-model protocol", () => {
       "page.wait_for_load_state",
       "page.wait_for_timeout",
       "page.wait_for_selector",
+      "page.webmcp_tools",
+      "page.webmcp_invoke_tool",
+      "page.webmcp_invocation_result",
+      "page.webmcp_cancel_invocation",
     ]);
   });
 
@@ -560,8 +566,10 @@ describe("Stagehand object-model protocol", () => {
 
   it("accepts telemetry configuration as protocol data", () => {
     expect(
-      StagehandMethods.runtimeConfigure.params.parse({
-        cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      StagehandMethods.stagehandInit.params.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+        browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
         telemetry: {
           traces: {
             endpoint: "https://otel.example.com/v1/traces",

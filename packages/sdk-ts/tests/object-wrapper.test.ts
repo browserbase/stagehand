@@ -5,9 +5,16 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { BrowserClipboard, BrowserContext, Locator, Page } from "../src/index.js";
+import {
+  BrowserClipboard,
+  BrowserContext,
+  Locator,
+  Page,
+  Stagehand,
+  WebMCPInvocation,
+  WebMCPTool,
+} from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
-import { createStagehandWithClientForTest } from "../src/stagehand.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -18,6 +25,7 @@ class FakeProtocolClient extends RPCClient {
   constructor() {
     super(
       {
+        webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
         serviceWorker: {
           targetId: "worker-target",
           url: "chrome-extension://stagehand/service-worker.js",
@@ -29,12 +37,11 @@ class FakeProtocolClient extends RPCClient {
       },
       1_000,
     );
-    this.queueResponse(StagehandMethods.stagehandInit, { initialized: true, pages: [] });
   }
 
   queueResponse<Method extends RPCMethod>(
     method: Method,
-    response: z.input<Method["result"]>,
+    response: z.input<Method["result"]> | Error,
   ): void {
     const responses = this.responses.get(method.name) ?? [];
     responses.push(response);
@@ -50,7 +57,9 @@ class FakeProtocolClient extends RPCClient {
     if (!responses?.length) {
       throw new Error(`No fake response queued for ${method.name}`);
     }
-    return method.result.parse(responses.shift()) as z.output<Method["result"]>;
+    const response = responses.shift();
+    if (response instanceof Error) throw response;
+    return method.result.parse(response) as z.output<Method["result"]>;
   }
 
   onNotification(): () => void {
@@ -60,6 +69,15 @@ class FakeProtocolClient extends RPCClient {
   close(): void {}
 }
 
+function createStagehandWithClientForTest(client: RPCClient): Stagehand {
+  // This lightweight wrapper intentionally has no browser handle; these tests must not use .browser.
+  const stagehand = Object.create(Stagehand.prototype) as Stagehand;
+  stagehand.rpcClient = client;
+  stagehand.browserContext = new BrowserContext(client);
+  stagehand.isInitialized = true;
+  return stagehand;
+}
+
 function requestCall<Method extends RPCMethod>(
   method: Method,
   params: z.input<Method["params"]>,
@@ -67,41 +85,32 @@ function requestCall<Method extends RPCMethod>(
   return { method: method.name, params };
 }
 
-const stagehandInitCall = requestCall(StagehandMethods.stagehandInit, {
-  telemetry: {
-    traces: {
-      endpoint: "https://example.com/v1/traces",
-      headers: {},
-    },
-  },
-});
-
+const zeroUsage = {
+  inputTokens: 0,
+  outputTokens: 0,
+  reasoningTokens: 0,
+  cachedInputTokens: 0,
+  inferenceTimeMs: 0,
+};
 describe("Stagehand TS object wrapper", () => {
-  it("initializes the remote Stagehand configuration", async () => {
+  it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
 
-    expect(stagehand.initialized).toBe(false);
-    await stagehand.init();
-
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.context).toBeInstanceOf(BrowserContext);
-    expect(client.calls).toStrictEqual([stagehandInitCall]);
+    expect(client.calls).toStrictEqual([]);
   });
 
   it("closes the remote runtime", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandClose, { closed: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     await stagehand.close();
 
     expect(stagehand.initialized).toBe(false);
-    expect(client.calls).toStrictEqual([
-      stagehandInitCall,
-      requestCall(StagehandMethods.stagehandClose, {}),
-    ]);
+    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.stagehandClose, {})]);
   });
 
   it("wraps context.pages results as Page objects", async () => {
@@ -111,14 +120,10 @@ describe("Stagehand TS object wrapper", () => {
       { pageId: "page-2" },
     ]);
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     const pages = await stagehand.context.pages();
 
-    expect(client.calls).toStrictEqual([
-      stagehandInitCall,
-      requestCall(StagehandMethods.contextPages, {}),
-    ]);
+    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextPages, {})]);
     expect(pages).toHaveLength(2);
     expect(pages[0]).toBeInstanceOf(Page);
     expect(pages[0]?.pageId).toBe("page-1");
@@ -137,12 +142,10 @@ describe("Stagehand TS object wrapper", () => {
       url: "https://browserbase.com",
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
     ]);
     expect(page).toBeInstanceOf(Page);
@@ -161,7 +164,6 @@ describe("Stagehand TS object wrapper", () => {
     });
     client.queueResponse(StagehandMethods.contextActivePage, null);
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     const activePage = await stagehand.context.activePage();
     const missingActivePage = await stagehand.context.activePage();
@@ -173,7 +175,6 @@ describe("Stagehand TS object wrapper", () => {
     });
     expect(missingActivePage).toBeUndefined();
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.contextActivePage, {}),
     ]);
@@ -184,14 +185,12 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextSetActivePage, { ok: true });
     client.queueResponse(StagehandMethods.contextClose, { closed: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     await stagehand.context.setActivePage(page);
     await stagehand.context.close();
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
       requestCall(StagehandMethods.contextClose, {}),
     ]);
@@ -202,7 +201,6 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
     client.queueResponse(StagehandMethods.contextAddInitScript, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const script = (arg: { ready: boolean }) => {
       globalThis.document.title = String(arg.ready);
     };
@@ -211,7 +209,6 @@ describe("Stagehand TS object wrapper", () => {
     await stagehand.context.addInitScript(script, { ready: true });
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextAddInitScript, {
         source: "globalThis.fromContent = true",
       }),
@@ -232,7 +229,6 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     await stagehand.context.setExtraHTTPHeaders({
       "X-Request-ID": "request-1",
@@ -247,7 +243,6 @@ describe("Stagehand TS object wrapper", () => {
     await stagehand.context.setDomainPolicy(null);
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextSetExtraHTTPHeaders, {
         headers: { "X-Request-ID": "request-1", doNotRenameMe: "value" },
       }),
@@ -278,7 +273,6 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
     client.queueResponse(StagehandMethods.contextClearCookies, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const cookieParam = {
       name: "preference",
       value: "compact",
@@ -300,7 +294,6 @@ describe("Stagehand TS object wrapper", () => {
     await stagehand.context.clearCookies();
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextCookies, {
         urls: "https://example.test/account",
       }),
@@ -326,13 +319,12 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextClipboardCopy, { ok: true });
     client.queueResponse(StagehandMethods.contextClipboardCut, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     const clipboard = stagehand.context.clipboard;
     expect(clipboard).toBeInstanceOf(BrowserClipboard);
     expect(stagehand.context.clipboard).toBe(clipboard);
-    expect(client.calls).toStrictEqual([stagehandInitCall]);
+    expect(client.calls).toStrictEqual([]);
 
     await expect(clipboard.readText({ page })).resolves.toBe("clipboard text");
     await clipboard.writeText("new clipboard text");
@@ -342,7 +334,6 @@ describe("Stagehand TS object wrapper", () => {
     await clipboard.cut({ page });
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextClipboardReadText, { pageId: "page-1" }),
       requestCall(StagehandMethods.contextClipboardWriteText, { text: "new clipboard text" }),
       requestCall(StagehandMethods.contextClipboardClear, { pageId: "page-1" }),
@@ -427,45 +418,36 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("routes page coordinate interactions and unwraps xpath results", async () => {
+  it("routes page coordinate interactions", async () => {
     const client = new FakeProtocolClient();
-    client.queueResponse(StagehandMethods.pageClick, { xpath: "/html/body/button" });
-    client.queueResponse(StagehandMethods.pageHover, { xpath: "/html/body/a" });
-    client.queueResponse(StagehandMethods.pageScroll, { xpath: "/html/body/main" });
-    client.queueResponse(StagehandMethods.pageDragAndDrop, {
-      fromXpath: "/html/body/div[1]",
-      toXpath: "/html/body/div[2]",
-    });
+    client.queueResponse(StagehandMethods.pageClick, { ok: true });
+    client.queueResponse(StagehandMethods.pageHover, { ok: true });
+    client.queueResponse(StagehandMethods.pageScroll, { ok: true });
+    client.queueResponse(StagehandMethods.pageDragAndDrop, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
 
-    await expect(
-      page.click(10, 20, { button: "right", clickCount: 2, returnXpath: true }),
-    ).resolves.toBe("/html/body/button");
-    await expect(page.hover(30, 40, { returnXpath: true })).resolves.toBe("/html/body/a");
-    await expect(page.scroll(50, 60, -25, 400, { returnXpath: true })).resolves.toBe(
-      "/html/body/main",
-    );
+    await expect(page.click(10, 20, { button: "right", clickCount: 2 })).resolves.toBeUndefined();
+    await expect(page.hover(30, 40)).resolves.toBeUndefined();
+    await expect(page.scroll(50, 60, -25, 400)).resolves.toBeUndefined();
     await expect(
       page.dragAndDrop(1, 2, 3, 4, {
         button: "left",
         steps: 5,
         delay: 10,
-        returnXpath: true,
       }),
-    ).resolves.toStrictEqual(["/html/body/div[1]", "/html/body/div[2]"]);
+    ).resolves.toBeUndefined();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageClick, {
         pageId: "page-1",
         x: 10,
         y: 20,
-        options: { button: "right", clickCount: 2, returnXpath: true },
+        options: { button: "right", clickCount: 2 },
       }),
       requestCall(StagehandMethods.pageHover, {
         pageId: "page-1",
         x: 30,
         y: 40,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageScroll, {
         pageId: "page-1",
@@ -473,7 +455,6 @@ describe("Stagehand TS object wrapper", () => {
         y: 60,
         deltaX: -25,
         deltaY: 400,
-        options: { returnXpath: true },
       }),
       requestCall(StagehandMethods.pageDragAndDrop, {
         pageId: "page-1",
@@ -481,7 +462,7 @@ describe("Stagehand TS object wrapper", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10, returnXpath: true },
+        options: { button: "left", steps: 5, delay: 10 },
       }),
     ]);
   });
@@ -661,6 +642,117 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("wraps callable WebMCP tools and invocations with their owned identity", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageWebMCPTools, {
+      tools: [
+        {
+          name: "search",
+          description: "Search this site",
+          inputSchema: {
+            type: "object",
+            properties: { searchQuery: { type: "string" } },
+          },
+          annotations: { readOnly: true },
+          frameId: "frame-1",
+          backendNodeId: 42,
+        },
+      ],
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-1",
+      toolName: "search",
+      frameId: "frame-1",
+      input: { searchQuery: "Stagehand" },
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPInvokeTool, {
+      invocationId: "invocation-2",
+      toolName: "search",
+      frameId: "frame-1",
+      input: {},
+    });
+    client.queueResponse(
+      StagehandMethods.pageWebMCPInvocationResult,
+      new Error("RPC request timed out: page.webmcp_invocation_result"),
+    );
+    client.queueResponse(StagehandMethods.pageWebMCPInvocationResult, {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "done" },
+    });
+    client.queueResponse(StagehandMethods.pageWebMCPCancelInvocation, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    const [tool] = await page.tools({ timeout: 250 });
+    expect(tool).toBeInstanceOf(WebMCPTool);
+    expect(tool).toMatchObject({
+      name: "search",
+      description: "Search this site",
+      inputSchema: {
+        type: "object",
+        properties: { searchQuery: { type: "string" } },
+      },
+      annotations: { readOnly: true },
+      frameId: "frame-1",
+      backendNodeId: 42,
+    });
+
+    const invocation = await tool!.invoke({ input: { searchQuery: "Stagehand" } });
+    expect(invocation).toBeInstanceOf(WebMCPInvocation);
+    expect(invocation).toMatchObject({
+      invocationId: "invocation-1",
+      toolName: "search",
+      frameId: "frame-1",
+      input: { searchQuery: "Stagehand" },
+    });
+    await tool!.invoke();
+
+    await expect(invocation.result({ timeout: 1 })).rejects.toThrow(
+      "RPC request timed out: page.webmcp_invocation_result",
+    );
+    const result = await invocation.result({ timeout: 5_000 });
+    await expect(invocation.result({ timeout: 1 })).resolves.toBe(result);
+    expect(result).toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { resultValue: "done" },
+    });
+    await invocation.cancel();
+
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.pageWebMCPTools, {
+        pageId: "page-1",
+        options: { timeout: 250 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "frame-1",
+        toolName: "search",
+        input: { searchQuery: "Stagehand" },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvokeTool, {
+        pageId: "page-1",
+        frameId: "frame-1",
+        toolName: "search",
+        input: {},
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvocationResult, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 1 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPInvocationResult, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 5_000 },
+      }),
+      requestCall(StagehandMethods.pageWebMCPCancelInvocation, {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+      }),
+    ]);
+  });
+
   it("routes page.url", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageUrl, "https://example.com");
@@ -711,10 +803,9 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(
@@ -737,13 +828,12 @@ describe("Stagehand TS object wrapper", () => {
           },
         ],
       },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.stagehandAct, {
         pageId: "page-1",
-        input: "Click the submit button",
+        instruction: "Click the submit button",
         options: {
           timeout: 5_000,
           variables: { accountEmail: "user@example.com" },
@@ -762,7 +852,7 @@ describe("Stagehand TS object wrapper", () => {
     };
     client.queueResponse(StagehandMethods.stagehandObserve, {
       data: [observedAction],
-      metadata: {},
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     client.queueResponse(StagehandMethods.stagehandAct, {
       data: {
@@ -771,10 +861,9 @@ describe("Stagehand TS object wrapper", () => {
         actionDescription: "Submit button",
         actions: [observedAction],
       },
-      metadata: {},
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     const actions = await stagehand.observe("Find the submit button", { page });
@@ -786,7 +875,6 @@ describe("Stagehand TS object wrapper", () => {
     });
 
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.stagehandObserve, {
         pageId: "page-1",
         instruction: "Find the submit button",
@@ -794,7 +882,7 @@ describe("Stagehand TS object wrapper", () => {
       }),
       requestCall(StagehandMethods.stagehandAct, {
         pageId: "page-1",
-        input: observedAction,
+        instruction: observedAction,
         options: {},
       }),
     ]);
@@ -811,10 +899,9 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(
@@ -838,10 +925,9 @@ describe("Stagehand TS object wrapper", () => {
           arguments: [],
         },
       ],
-      metadata: { cacheStatus: "MISS" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.stagehandObserve, {
         pageId: "page-1",
         instruction: "Find the submit button",
@@ -862,13 +948,17 @@ describe("Stagehand TS object wrapper", () => {
   it("uses the active page when stagehand.observe has no explicit page or instruction", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
-    client.queueResponse(StagehandMethods.stagehandObserve, { data: [], metadata: {} });
+    client.queueResponse(StagehandMethods.stagehandObserve, {
+      data: [],
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
+    });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
-    await expect(stagehand.observe()).resolves.toStrictEqual({ data: [], metadata: {} });
+    await expect(stagehand.observe()).resolves.toStrictEqual({
+      data: [],
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
+    });
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.contextActivePage, {}),
       requestCall(StagehandMethods.stagehandObserve, { pageId: "page-1" }),
     ]);
@@ -878,25 +968,20 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextActivePage, null);
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
 
     await expect(stagehand.act("Click the submit button")).rejects.toThrow(
       "Stagehand has no active page",
     );
-    expect(client.calls).toStrictEqual([
-      stagehandInitCall,
-      requestCall(StagehandMethods.contextActivePage, {}),
-    ]);
+    expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextActivePage, {})]);
   });
 
   it("sends the caller's Zod schema through stagehand.extract", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
     const schema = z.object({ heading: z.string() });
 
@@ -908,10 +993,9 @@ describe("Stagehand TS object wrapper", () => {
       }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
-      metadata: { cacheStatus: "HIT" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
     });
     expect(client.calls).toStrictEqual([
-      stagehandInitCall,
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page heading",
@@ -928,10 +1012,9 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
       data: { heading: 42 },
-      metadata: {},
+      metadata: { usage: zeroUsage, cache: { status: "DISABLED" } },
     });
     const stagehand = createStagehandWithClientForTest(client);
-    await stagehand.init();
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(

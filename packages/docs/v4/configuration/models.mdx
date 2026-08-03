@@ -1,0 +1,1741 @@
+---
+title: Models
+sidebarTitle: Models
+description: Use any LLM with Stagehand
+---
+
+<Callout icon="sparkles" color="#FFC107" iconType="regular">
+  **(NEW) Model Gateway**: Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
+</Callout>
+
+## Model Gateway
+
+Model Gateway lets you use Stagehand without wiring up model providers yourself. Instead of managing separate API keys for each provider, pass your Browserbase API key and pick a model. Browserbase routes the request to the upstream provider for you.
+
+### Setup
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  model: { modelName: "openai/gpt-5" },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    model="openai/gpt-5",
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// No model API key: requests route through Model Gateway
+model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "openai/gpt-5"})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+When only a Browserbase API key is provided (without a provider-specific API key), Stagehand automatically routes model requests through Model Gateway. No additional configuration is needed: omit the model API key and the gateway takes over.
+
+<Note>
+  Model Gateway requires Browserbase-hosted browsers. It does not work with the local or CDP browser sources, because those have no Browserbase session to bill and authorize against.
+</Note>
+
+{/* TODO: Model Gateway routing is not yet wired up in the v4 runtime, which currently raises "Direct model inference requires an API key" when no provider key is present. Verify before publishing. */}
+
+### Switching models
+
+With Model Gateway, switching between providers is a config change: no new accounts, API keys, or code rewiring required.
+
+<Tabs>
+<Tab title="OpenAI">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { modelName: "openai/gpt-5" },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="openai/gpt-5",
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// No model API key: requests route through Model Gateway
+model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "openai/gpt-5"})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+</Tab>
+<Tab title="Anthropic">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { modelName: "anthropic/claude-sonnet-4-6" },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="anthropic/claude-sonnet-4-6",
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// No model API key: requests route through Model Gateway
+model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "anthropic/claude-sonnet-4-6"})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+</Tab>
+<Tab title="Google">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { modelName: "google/gemini-3-flash-preview" },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="google/gemini-3-flash-preview",
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// No model API key: requests route through Model Gateway
+model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "google/gemini-3-flash-preview"})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+</Tab>
+</Tabs>
+
+### Key benefits
+
+- **One key, one bill:** LLM inference, browser infrastructure, and caching all run through your Browserbase API key.
+- **Market-price tokens:** Browserbase charges the same price as going direct to the provider. No markup.
+- **Built-in reliability:** Retries, backoff, and rate limit handling are managed for you.
+- **No tier-gating:** Access new models immediately without hitting provider spend thresholds.
+- **Action caching:** Model Gateway works with Stagehand's [managed action caching](/v3/best-practices/caching), so repeated steps are reused instead of re-run. Both features run off the same Browserbase session, so turning on `cache` costs you nothing extra to set up.
+
+### Supported providers
+
+| Provider   | Example Model                  |
+| ---------- | ------------------------------ |
+| OpenAI     | `openai/gpt-5`                |
+| Anthropic  | `anthropic/claude-sonnet-4-6` |
+| Google     | `google/gemini-2.5-flash`     |
+
+<Tip>
+  Need a provider that isn't listed? [Reach out](https://www.browserbase.com/contact): Browserbase is happy to work with teams on additional model support.
+</Tip>
+
+---
+
+## Configuration setup
+
+### Quick start
+
+<Tip>
+  Read your provider key from the environment and pass it on the model configuration. Stagehand does not read environment variables for you.
+</Tip>
+
+Get started with Google Gemini (recommended for speed and cost):
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "google/gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="google/gemini-2.5-flash",
+    model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "google/gemini-2.5-flash",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+<Note>
+Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is dropped when you point at a [custom endpoint](#custom-endpoints), where the name can be a deployment name instead.
+</Note>
+
+
+---
+
+### First class models
+
+Use any model from the following supported providers.
+
+<Tabs>
+<Tab title="Google">
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "google/gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="google/gemini-2.5-flash",
+    model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "google/gemini-2.5-flash",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+Commonly used: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`, `google/gemini-3.5-flash`, `google/gemini-2.5-flash`, `google/gemini-flash-latest`.
+
+[View all supported Google models →](https://ai.google.dev/gemini-api/docs/models)
+</Tab>
+
+<Tab title="Anthropic">
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "anthropic/claude-haiku-4-5",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="anthropic/claude-haiku-4-5",
+    model_api_key=os.environ["ANTHROPIC_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "anthropic/claude-haiku-4-5",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+Commonly used: `anthropic/claude-sonnet-5`, `anthropic/claude-fable-5`, `anthropic/claude-opus-4-8`, `anthropic/claude-sonnet-4-6`, `anthropic/claude-haiku-4-5`.
+
+[View all supported Anthropic models →](https://docs.anthropic.com/en/docs/models-overview)
+</Tab>
+
+<Tab title="OpenAI">
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "openai/gpt-5",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="openai/gpt-5",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("OPENAI_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "openai/gpt-5",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+Commonly used: `openai/gpt-5.6`, `openai/gpt-5.5`, `openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/gpt-5.4-nano`, `openai/o4-mini`.
+
+<Note>
+OpenAI models are called through the Responses API.
+</Note>
+
+[View all supported OpenAI models →](https://platform.openai.com/docs/models)
+</Tab>
+
+<Tab title="Groq">
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "groq/llama-3.3-70b-versatile",
+    apiKey: process.env.GROQ_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="groq/llama-3.3-70b-versatile",
+    model_api_key=os.environ["GROQ_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("GROQ_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "groq/llama-3.3-70b-versatile",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq/moonshotai/kimi-k2-instruct-0905`, `groq/qwen/qwen3-32b`.
+
+[View all supported Groq models →](https://console.groq.com/docs/models)
+</Tab>
+
+<Tab title="Cerebras">
+
+<View title="TypeScript" icon="js">
+```typescript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "cerebras/gpt-oss-120b",
+    apiKey: process.env.CEREBRAS_API_KEY,
+  },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="cerebras/gpt-oss-120b",
+    model_api_key=os.environ["CEREBRAS_API_KEY"],
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("CEREBRAS_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "cerebras/gpt-oss-120b",
+	APIKey:    &modelAPIKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Model:   &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+Commonly used: `cerebras/gpt-oss-120b`, `cerebras/qwen-3-235b-a22b-instruct-2507`, `cerebras/zai-glm-4.7`, `cerebras/llama3.1-8b`.
+
+[View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
+</Tab>
+
+</Tabs>
+
+---
+
+### Custom models
+
+Any provider Stagehand does not call natively is supported by bringing your own LLM. Instead of a model name, pass a function that Stagehand calls whenever it needs an inference. Your function runs in your process, on your machine, with your own SDKs and credentials: Amazon Bedrock, Cohere, Azure OpenAI, a self-hosted model, anything you can reach from code.
+
+Stagehand sends a provider-neutral request (messages, system prompt, temperature, and a response format) and expects a matching result back. When the response format is a JSON schema, return the parsed object in the structured content field.
+
+<AccordionGroup>
+<Accordion title="Amazon Bedrock">
+
+<Steps>
+<Step title="Install dependencies">
+Install your provider's SDK.
+
+<View title="TypeScript" icon="js">
+```bash
+npm install @aws-sdk/client-bedrock-runtime
+# pnpm add @aws-sdk/client-bedrock-runtime
+# yarn add @aws-sdk/client-bedrock-runtime
+# bun add @aws-sdk/client-bedrock-runtime
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+pip install boto3
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+go get github.com/aws/aws-sdk-go-v2/service/bedrockruntime
+```
+</View>
+</Step>
+
+<Step title="Write the generate callback">
+
+<View title="TypeScript" icon="js">
+```typescript
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+} from "@aws-sdk/client-bedrock-runtime";
+
+const bedrock = new BedrockRuntimeClient({ region: "us-east-1" });
+
+// The shape Stagehand passes to your callback. The TypeScript SDK does not
+// re-export `LLMGenerateParams` yet, so spell out the fields you read.
+type LLMContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+type LLMGenerateParams = {
+  messages: Array<{
+    role: "user" | "assistant";
+    content: LLMContentBlock | LLMContentBlock[];
+  }>;
+  systemPrompt?: string;
+  temperature?: number;
+  responseFormat?:
+    | { type: "text" }
+    | { type: "json_schema"; name: string; schema: unknown };
+};
+
+// A message's content is one block or an array of them. Converse takes a list
+// of content blocks, so map text to a text block and images (which
+// `extract({ screenshot: true })` sends) to Converse's image block.
+function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
+  const blocks = Array.isArray(content) ? content : [content];
+  return blocks.map((block) =>
+    block.type === "text"
+      ? { text: block.text }
+      : {
+          image: {
+            format: block.mimeType.replace("image/", ""),
+            source: { bytes: Buffer.from(block.data, "base64") },
+          },
+        },
+  );
+}
+
+async function generateWithBedrock(params: LLMGenerateParams) {
+  if (params.responseFormat?.type !== "json_schema") {
+    throw new TypeError("Stagehand only issues structured generations");
+  }
+
+  const response = await bedrock.send(new ConverseCommand({
+    modelId: "amazon.nova-pro-v1:0",
+    system: params.systemPrompt ? [{ text: params.systemPrompt }] : undefined,
+    messages: params.messages.map((message) => ({
+      role: message.role,
+      content: messageContent(message.content),
+    })),
+  }));
+
+  const text = response.output?.message?.content?.[0]?.text ?? "";
+  return {
+    role: "assistant",
+    content: { type: "text", text },
+    outputFormat: "json_schema",
+    structuredContent: JSON.parse(text),
+  };
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import base64
+import json
+
+import boto3
+
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
+
+
+def content_block(block):
+    # Each block is a LLMTextContent or LLMImageContent under `.root`. Converse
+    # takes its own content blocks, so map text to a text block and images
+    # (which `extract(screenshot=True)` sends) to Converse's image block.
+    if block.root.type == "text":
+        return {"text": block.root.text}
+    return {
+        "image": {
+            "format": block.root.mime_type.removeprefix("image/"),
+            "source": {"bytes": base64.b64decode(block.root.data)},
+        }
+    }
+
+
+def message_content(message):
+    # A message's content is one block or a list of them.
+    content = message.content
+    blocks = content if isinstance(content, list) else [content]
+    return [content_block(block) for block in blocks]
+
+
+async def generate_with_bedrock(params):
+    response = bedrock.converse(
+        modelId="amazon.nova-pro-v1:0",
+        system=[{"text": params.system_prompt}] if params.system_prompt else [],
+        messages=[
+            {"role": message.role.value, "content": message_content(message)}
+            for message in params.messages
+        ],
+    )
+
+    text = response["output"]["message"]["content"][0]["text"]
+    return LLMStructuredGenerateResult.model_validate({
+        "role": "assistant",
+        "content": {"type": "text", "text": text},
+        "output_format": "json_schema",
+        "structured_content": json.loads(text),
+    })
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// A message's content is a slice of blocks, each one text, image, tool-use, or
+// tool-result. Converse takes its own content blocks, so map text to a text
+// block and images (which extract sends when Screenshot is true) to an image
+// block.
+func messageContent(message stagehand.LLMMessage) ([]types.ContentBlock, error) {
+	blocks := make([]types.ContentBlock, 0, len(message.Content))
+	for _, block := range message.Content {
+		if content, ok := block.AsText(); ok {
+			blocks = append(blocks, &types.ContentBlockMemberText{Value: content.Text})
+		}
+		if content, ok := block.AsImage(); ok {
+			data, err := base64.StdEncoding.DecodeString(content.Data)
+			if err != nil {
+				return nil, err
+			}
+			blocks = append(blocks, &types.ContentBlockMemberImage{Value: types.ImageBlock{
+				Format: types.ImageFormat(strings.TrimPrefix(content.MIMEType, "image/")),
+				Source: &types.ImageSourceMemberBytes{Value: data},
+			}})
+		}
+	}
+	return blocks, nil
+}
+
+func generateWithBedrock(
+	ctx context.Context,
+	params stagehand.LLMGenerateParams,
+) (stagehand.LLMGenerateResult, error) {
+	request, ok := params.AsStructured()
+	if !ok {
+		return stagehand.LLMGenerateResult{}, errors.New("Stagehand only issues structured generations")
+	}
+
+	messages := make([]types.Message, 0, len(request.Messages))
+	for _, message := range request.Messages {
+		content, err := messageContent(message)
+		if err != nil {
+			return stagehand.LLMGenerateResult{}, err
+		}
+		messages = append(messages, types.Message{
+			Role:    types.ConversationRole(message.Role),
+			Content: content,
+		})
+	}
+
+	response, err := bedrock.Converse(ctx, &bedrockruntime.ConverseInput{
+		ModelId:  aws.String("amazon.nova-pro-v1:0"),
+		Messages: messages,
+		System:   systemBlocks(request.SystemPrompt),
+	})
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+
+	text := responseText(response)
+	return stagehand.StructuredGenerateResult(stagehand.LLMStructuredGenerateResult{
+		Role:              stagehand.LLMRoleAssistant,
+		Content:           stagehand.LLMMessageContent{stagehand.TextContentBlock(stagehand.LLMTextContent{Text: text})},
+		StructuredContent: json.RawMessage(text),
+	}), nil
+}
+```
+</View>
+</Step>
+
+<Step title="Pass the callback to Stagehand">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { generate: generateWithBedrock },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model=generate_with_bedrock,
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:   &apiKey,
+	Generate: generateWithBedrock,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="OpenAI-compatible SDKs">
+
+<Steps>
+<Step title="Install dependencies">
+Install your provider's SDK.
+
+<View title="TypeScript" icon="js">
+```bash
+npm install openai
+# pnpm add openai
+# yarn add openai
+# bun add openai
+```
+</View>
+
+<View title="Python" icon="python">
+```bash
+pip install openai
+```
+</View>
+
+<View title="Go" icon="golang">
+```bash
+go get github.com/openai/openai-go
+```
+</View>
+</Step>
+
+<Step title="Write the generate callback">
+
+<View title="TypeScript" icon="js">
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// The shape Stagehand passes to your callback. The TypeScript SDK does not
+// re-export `LLMGenerateParams` yet, so spell out the fields you read.
+type LLMContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+type LLMGenerateParams = {
+  messages: Array<{
+    role: "user" | "assistant";
+    content: LLMContentBlock | LLMContentBlock[];
+  }>;
+  systemPrompt?: string;
+  temperature?: number;
+  responseFormat?:
+    | { type: "text" }
+    | { type: "json_schema"; name: string; schema: unknown };
+};
+
+// A message's content is one block or an array of them. The Responses API takes
+// input parts, so map text to an input text part and images (which
+// `extract({ screenshot: true })` sends) to an input image data URL.
+function messageContent(content: LLMContentBlock | LLMContentBlock[]) {
+  const blocks = Array.isArray(content) ? content : [content];
+  return blocks.map((block) =>
+    block.type === "text"
+      ? { type: "input_text", text: block.text }
+      : {
+          type: "input_image",
+          image_url: `data:${block.mimeType};base64,${block.data}`,
+          detail: "auto",
+        },
+  );
+}
+
+async function generateWithOpenAI(params: LLMGenerateParams) {
+  if (params.responseFormat?.type !== "json_schema") {
+    throw new TypeError("Stagehand only issues structured generations");
+  }
+
+  const response = await openai.responses.create({
+    model: "gpt-5.4-mini",
+    instructions: params.systemPrompt,
+    input: params.messages.map((message) => ({
+      role: message.role,
+      content: messageContent(message.content),
+    })),
+    temperature: params.temperature,
+    text: {
+      format: {
+        type: "json_schema",
+        name: params.responseFormat.name,
+        schema: params.responseFormat.schema,
+        strict: true,
+      },
+    },
+  });
+
+  return {
+    role: "assistant",
+    content: { type: "text", text: response.output_text },
+    outputFormat: "json_schema",
+    structuredContent: JSON.parse(response.output_text),
+  };
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import json
+
+from openai import AsyncOpenAI
+
+from stagehand import LLMStructuredGenerateResult
+
+openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+
+def content_part(block):
+    # Each block is a LLMTextContent or LLMImageContent under `.root`. The
+    # Responses API takes input parts, so map text to an input text part and
+    # images (which `extract(screenshot=True)` sends) to an input image data URL.
+    if block.root.type == "text":
+        return {"type": "input_text", "text": block.root.text}
+    return {
+        "type": "input_image",
+        "image_url": f"data:{block.root.mime_type};base64,{block.root.data}",
+        "detail": "auto",
+    }
+
+
+def message_content(message):
+    # A message's content is one block or a list of them.
+    content = message.content
+    blocks = content if isinstance(content, list) else [content]
+    return [content_part(block) for block in blocks]
+
+
+async def generate_with_openai(params):
+    response_format = params.response_format
+    response = await openai.responses.create(
+        model="gpt-5.4-mini",
+        instructions=params.system_prompt,
+        input=[
+            {"role": message.role.value, "content": message_content(message)}
+            for message in params.messages
+        ],
+        temperature=params.temperature,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": response_format.name,
+                "schema": response_format.schema_.model_dump(),
+                "strict": True,
+            }
+        },
+    )
+
+    return LLMStructuredGenerateResult.model_validate({
+        "role": "assistant",
+        "content": {"type": "text", "text": response.output_text},
+        "output_format": "json_schema",
+        "structured_content": json.loads(response.output_text),
+    })
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+func generateWithOpenAI(
+	ctx context.Context,
+	params stagehand.LLMGenerateParams,
+) (stagehand.LLMGenerateResult, error) {
+	request, ok := params.AsStructured()
+	if !ok {
+		return stagehand.LLMGenerateResult{}, errors.New("Stagehand only issues structured generations")
+	}
+
+	text, err := callOpenAI(ctx, callOpenAIInput{
+		Model:          "gpt-5.4-mini",
+		Instructions:   request.SystemPrompt,
+		Messages:       request.Messages,
+		Temperature:    request.Temperature,
+		SchemaName:     request.ResponseFormat.Name,
+		Schema:         request.ResponseFormat.Schema,
+	})
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+
+	return stagehand.StructuredGenerateResult(stagehand.LLMStructuredGenerateResult{
+		Role:              stagehand.LLMRoleAssistant,
+		Content:           stagehand.LLMMessageContent{stagehand.TextContentBlock(stagehand.LLMTextContent{Text: text})},
+		StructuredContent: json.RawMessage(text),
+	}), nil
+}
+```
+</View>
+
+<Note>
+Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
+</Note>
+</Step>
+
+<Step title="Pass the callback to Stagehand">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { generate: generateWithOpenAI },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model=generate_with_openai,
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:   &apiKey,
+	Generate: generateWithOpenAI,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+</Step>
+</Steps>
+</Accordion>
+<Accordion title="All providers">
+
+The pattern is the same for every provider: implement one function, wire it in, done. Your callback never crosses the wire; Stagehand records only that the model lives on the client and calls back to you over the same connection.
+
+<Steps>
+<Step title="Install dependencies">
+Install your provider's SDK.
+</Step>
+<Step title="Write the generate callback">
+
+<View title="TypeScript" icon="js">
+```typescript
+// The shape Stagehand passes to your callback. The TypeScript SDK does not
+// re-export `LLMGenerateParams` yet, so spell out the fields you read.
+type LLMGenerateParams = {
+  messages: Array<{ role: "user" | "assistant"; content: unknown }>;
+  systemPrompt?: string;
+  temperature?: number;
+  responseFormat?:
+    | { type: "text" }
+    | { type: "json_schema"; name: string; schema: unknown };
+};
+
+async function generateWithYourProvider(params: LLMGenerateParams) {
+  // params.messages       Conversation so far
+  // params.systemPrompt   System instructions
+  // params.temperature    Sampling temperature, when set
+  // params.responseFormat { type: "json_schema", name, schema } for act/observe/extract
+
+  const text = await callYourProvider(params);
+
+  return {
+    role: "assistant",
+    content: { type: "text", text },
+    outputFormat: "json_schema",
+    structuredContent: JSON.parse(text),
+  };
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+async def generate_with_your_provider(params):
+    # params.messages         Conversation so far
+    # params.system_prompt    System instructions
+    # params.temperature      Sampling temperature, when set
+    # params.response_format  JSON schema request for act/observe/extract
+
+    text = await call_your_provider(params)
+
+    return LLMStructuredGenerateResult.model_validate({
+        "role": "assistant",
+        "content": {"type": "text", "text": text},
+        "output_format": "json_schema",
+        "structured_content": json.loads(text),
+    })
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+func generateWithYourProvider(
+	ctx context.Context,
+	params stagehand.LLMGenerateParams,
+) (stagehand.LLMGenerateResult, error) {
+	// params.AsStructured() yields the JSON schema request act/observe/extract send
+	//   request.Messages        Conversation so far
+	//   request.SystemPrompt    System instructions
+	//   request.Temperature     Sampling temperature, when set
+	//   request.ResponseFormat  Name plus the JSON Schema to satisfy
+	request, ok := params.AsStructured()
+	if !ok {
+		return stagehand.LLMGenerateResult{}, errors.New("expected a structured generation")
+	}
+
+	text, err := callYourProvider(ctx, request)
+	if err != nil {
+		return stagehand.LLMGenerateResult{}, err
+	}
+
+	return stagehand.StructuredGenerateResult(stagehand.LLMStructuredGenerateResult{
+		Role:              stagehand.LLMRoleAssistant,
+		Content:           stagehand.LLMMessageContent{stagehand.TextContentBlock(stagehand.LLMTextContent{Text: text})},
+		StructuredContent: json.RawMessage(text),
+	}), nil
+}
+```
+</View>
+
+<Note>
+A message's content is one content block or an array of them. Text blocks carry a string, and image blocks carry base64 data plus a MIME type. [`extract()` with the screenshot option](/v4/basics/extract) sends a viewport screenshot as an image block, so map image blocks onto your provider's own image format. A callback that reads only the text blocks answers a visual extraction from the accessibility tree alone.
+</Note>
+</Step>
+<Step title="Pass the callback to Stagehand">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { generate: generateWithYourProvider },
+});
+
+await stagehand.init();
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model=generate_with_your_provider,
+)
+
+await stagehand.init()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:   &apiKey,
+	Generate: generateWithYourProvider,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+```
+</View>
+
+</Step>
+</Steps>
+</Accordion>
+</AccordionGroup>
+
+<Note>
+The result is validated against the response format Stagehand asked for. If you return text when a JSON schema was requested, or structured content that does not match the schema, the call fails loudly rather than silently degrading.
+</Note>
+
+
+---
+
+## Choose a model
+
+Different models excel at different tasks. Consider speed, accuracy, and cost for your use case.
+
+<Card title="Model selection guide" href="https://www.stagehand.dev/evals" icon="scale-balanced">
+  Find detailed model comparisons and recommendations on the Stagehand model evaluation page.
+</Card>
+
+**Quick recommendations**
+
+| Use Case                  | Recommended Model                    | Why                            |
+| ------------------------- | ------------------------------------ | ------------------------------ |
+| **Production** | `google/gemini-2.5-flash`            | Fast, accurate, cost-effective |
+| **Intelligence**     | `google/gemini-3.1-pro-preview` | Best accuracy on hard tasks    |
+| **Speed**        | `google/gemini-2.5-flash`                 | Fastest response times         |
+| **Cost**     | `google/gemini-2.5-flash`            | Best value per token           |
+| **Local/offline**         | Bring your own LLM callback                    | No API costs, full control     |
+
+
+---
+
+## Advanced options
+
+### Per-call model overrides
+
+Every primitive accepts a model configuration for a single call, so you can run cheap inference by default and reach for a stronger model only where it matters:
+
+<View title="TypeScript" icon="js">
+```typescript
+const PricingSchema = z.object({ summary: z.string() });
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "google/gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+  },
+});
+
+// Uses the instance model
+await stagehand.act("click the login button");
+
+// Uses a stronger model for one hard extraction
+const { data } = await stagehand.extract("summarize the pricing table", PricingSchema, {
+  model: {
+    modelName: "anthropic/claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+});
+
+console.log(data.summary);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import ModelConfig, Stagehand
+
+
+class Pricing(BaseModel):
+    summary: str
+
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="google/gemini-2.5-flash",
+    model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
+)
+
+# Uses the instance model
+await stagehand.act("click the login button")
+
+# Uses a stronger model for one hard extraction
+data = (await stagehand.extract(
+    "summarize the pricing table",
+    Pricing,
+    model=ModelConfig.model_validate({
+        "model_name": "anthropic/claude-sonnet-4-6",
+        "api_key": os.environ["ANTHROPIC_API_KEY"],
+    }),
+)).data
+
+print(data.summary)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type pricing struct {
+	Summary string `json:"summary"`
+}
+
+var pricingSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {"summary": {"type": "string"}},
+  "required": ["summary"],
+  "additionalProperties": false
+}`)
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+instanceModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "google/gemini-2.5-flash",
+	APIKey:    &googleKey,
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Model:  &instanceModel,
+})
+
+// Uses the instance model
+if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+	return err
+}
+
+// Uses a stronger model for one hard extraction
+anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
+strongModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "anthropic/claude-sonnet-4-6",
+	APIKey:    &anthropicKey,
+})
+
+extracted, err := stagehand.ExtractAs[pricing](
+	ctx,
+	client,
+	"summarize the pricing table",
+	pricingSchema,
+	&stagehand.StagehandClientExtractOptions{
+		ExtractOptions: stagehand.ExtractOptions{Model: &strongModel},
+	},
+)
+if err != nil {
+	return err
+}
+
+fmt.Println(extracted.Summary)
+```
+</View>
+
+<Note>
+Model configuration is deliberately excluded from the [cache key](/v3/best-practices/caching), so switching models per call does not invalidate cached results.
+</Note>
+
+---
+
+### Custom endpoints
+
+If you need Azure OpenAI deployments or enterprise deployments, point Stagehand at an OpenAI-compatible base URL. The model name is passed through untouched, so it can be a deployment name rather than a public model ID.
+
+<Tabs>
+<Tab title="OpenAI-compatible endpoint">
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "gpt-5",
+    apiKey: process.env.OPENAI_API_KEY,
+    baseURL: "https://custom-openai-endpoint.com/v1",
+  },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="gpt-5",
+    model_api_key=os.environ["OPENAI_API_KEY"],
+    model_base_url="https://custom-openai-endpoint.com/v1",
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("OPENAI_API_KEY")
+model := stagehand.CustomModel(stagehand.CustomModelConfig{
+	ModelName: "gpt-5",
+	APIKey:    &modelAPIKey,
+	BaseURL:   "https://custom-openai-endpoint.com/v1",
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Model:  &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+</Tab>
+
+<Tab title="Custom headers">
+
+Some enterprise gateways require extra headers on every request. Attach them to the model configuration:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: {
+    modelName: "my-deployment",
+    apiKey: process.env.GATEWAY_TOKEN,
+    baseURL: "https://models.example.com/v1",
+    headers: { "x-tenant-id": "acme" },
+  },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model="my-deployment",
+    model_api_key=os.environ["GATEWAY_TOKEN"],
+    model_base_url="https://models.example.com/v1",
+    model_headers={"x-tenant-id": "acme"},
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+gatewayToken := os.Getenv("GATEWAY_TOKEN")
+model := stagehand.CustomModel(stagehand.CustomModelConfig{
+	ModelName: "my-deployment",
+	APIKey:    &gatewayToken,
+	BaseURL:   "https://models.example.com/v1",
+	Headers:   stagehand.CustomModelConfigHeaders{"x-tenant-id": "acme"},
+})
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey: &apiKey,
+	Model:  &model,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+</Tab>
+<Tab title="Providers without an OpenAI-compatible API">
+
+For anything that is not OpenAI-compatible, use the [bring-your-own-LLM callback](#custom-models). You keep full control of the client, the transport, and the credentials.
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { generate: generateWithYourProvider },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model=generate_with_your_provider,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:   &apiKey,
+	Generate: generateWithYourProvider,
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+</Tab>
+</Tabs>
+
+{/* TODO: baseURL / model_base_url validates but the v4 runtime currently raises "Custom OpenAI-compatible inference is not implemented yet." Verify before publishing. */}
+
+---
+
+### Extending your LLM client
+
+For advanced use cases like custom retries or caching logic, wrap your generate callback. Because the callback is ordinary code in your process, you can layer whatever behavior you need around it:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Generic in the callback's own params and result, so the wrapper stays
+// interchangeable with the callback it wraps.
+function withRetries<Params, Result>(
+  generate: (params: Params) => Promise<Result>,
+  attempts = 3,
+) {
+  return async (params: Params) => {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        return await generate(params);
+      } catch (error) {
+        if (attempt === attempts) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+      }
+    }
+    throw new Error("withRetries needs at least one attempt");
+  };
+}
+
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  model: { generate: withRetries(generateWithOpenAI) },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import asyncio
+
+
+def with_retries(generate, attempts: int = 3):
+    async def wrapped(params):
+        for attempt in range(1, attempts + 1):
+            try:
+                return await generate(params)
+            except Exception:
+                if attempt == attempts:
+                    raise
+                await asyncio.sleep(attempt)
+
+    return wrapped
+
+
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    model=with_retries(generate_with_openai),
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+func withRetries(generate stagehand.LLMGenerateFunc, attempts int) stagehand.LLMGenerateFunc {
+	return func(ctx context.Context, params stagehand.LLMGenerateParams) (stagehand.LLMGenerateResult, error) {
+		var lastErr error
+		for attempt := 1; attempt <= attempts; attempt++ {
+			result, err := generate(ctx, params)
+			if err == nil {
+				return result, nil
+			}
+			lastErr = err
+			if attempt == attempts {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return stagehand.LLMGenerateResult{}, ctx.Err()
+			case <-time.After(time.Duration(attempt) * time.Second):
+			}
+		}
+		return stagehand.LLMGenerateResult{}, lastErr
+	}
+}
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:   &apiKey,
+	Generate: withRetries(generateWithOpenAI, 3),
+})
+
+if err := client.Init(ctx); err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+<Tip>
+  Need result caching rather than request retries? Use the built-in [caching
+  feature](/v3/best-practices/caching), which skips the inference call entirely.
+</Tip>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+<Accordion title="Error: API key not found">
+**Error:** `API key not found`
+
+**Solutions:**
+
+- Read the provider key from the environment and pass it on the model configuration; Stagehand never reads it for you
+- Confirm you are reading the variable name your provider expects
+- If you intended to use Model Gateway, omit the model API key entirely and pass only your Browserbase key
+
+| Provider   | Conventional Environment Variable |
+| ---------- | ------------------------------ |
+| Model Gateway | `BROWSERBASE_API_KEY` (no provider key needed) |
+| Google     | `GOOGLE_GENERATIVE_AI_API_KEY` or `GEMINI_API_KEY` |
+| Anthropic  | `ANTHROPIC_API_KEY`            |
+| OpenAI     | `OPENAI_API_KEY`               |
+| Groq       | `GROQ_API_KEY`                 |
+| Cerebras   | `CEREBRAS_API_KEY`             |
+| Custom endpoint | Whatever your gateway issues, passed as the model API key |
+| Bring your own LLM | None; your callback owns its credentials |
+
+</Accordion>
+
+<Accordion title="Error: model not supported">
+**Error:** `Unsupported model`
+
+**Solutions:**
+
+- Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
+- Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- For a provider outside that list, use a [custom endpoint](#custom-endpoints) or a [bring-your-own-LLM callback](#custom-models)
+
+Only the provider prefix is checked. The model ID itself is not validated, so a typo or a model your key cannot reach surfaces as the provider's own error (usually a `400`) on the first inference, not as an `Unsupported model` error. Verify the model name against the provider's documentation and confirm your model API key has access to it.
+</Accordion>
+
+<Accordion title="Model doesn't support structured outputs">
+**Error:** `Model does not support structured outputs`
+
+**Solutions:**
+
+- Every Stagehand primitive requests a JSON schema response, so the model must support structured outputs
+- Check the [Stagehand model evaluation page](https://www.stagehand.dev/evals) for recommended models
+</Accordion>
+
+<Accordion title="High costs or slow performance">
+**Symptoms:** Automation is expensive or slow
+
+**Solutions:**
+
+- Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
+- Use faster models for simple tasks and reach for powerful ones per call with a [model override](#per-call-model-overrides)
+- Implement [caching](/v3/best-practices/caching) for repeated patterns
+</Accordion>
+<Accordion title="Python SDK or custom models">
+Python is a first-class SDK in Stagehand v4 with the same surface as TypeScript.
+
+**Solutions:**
+
+- Use the language selector on this page to see every sample in Python
+- Pass an async callable as the model to bring your own LLM
+</Accordion>
+</AccordionGroup>
+
+### Need help? Contact support
+
+Can't find a solution? Have a question? Reach out to the Browserbase support team:
+
+<Card
+  title="Contact support"
+  icon="envelope"
+  href="mailto:support@browserbase.com"
+>
+  Email Browserbase at support@browserbase.com
+</Card>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+<Card title="Prompting guide" href="/v3/best-practices/prompting-best-practices" icon="brain">
+  Learn how to prompt LLMs for optimal results
+</Card>
+<Card title="Observability" href="/v4/configuration/observability" icon="chart-line">
+  Track token usage and inference latency per operation
+</Card>
+
+<Card title="Caching guide" href="/v3/best-practices/caching" icon="database">
+  Cache responses to reduce costs and improve speed
+</Card>
+<Card
+  title="Optimize costs"
+  href="/v3/best-practices/cost-optimization"
+  icon="dollar-sign"
+>
+  Reduce LLM spending with caching and smart model selection
+</Card>
+</CardGroup>

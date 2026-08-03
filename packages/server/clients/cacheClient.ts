@@ -1,6 +1,5 @@
 import type { Protocol } from "devtools-protocol";
 import { z } from "zod/v4";
-import type { BrowserbaseRegion } from "../../protocol/types.js";
 
 /**
  * HTTP client for the Stagehand API's stateless cache routes (POST /cache/get
@@ -11,22 +10,6 @@ import type { BrowserbaseRegion } from "../../protocol/types.js";
  * consumer. See stagehand-api-v3's lib/cache/statelessCache.ts for the
  * server-side contract.
  */
-
-/** Stagehand API base URL per Browserbase region; sessions must hit the API
- * deployment in the region their browser runs in. Mirrors the v3 SDK's
- * REGION_API_URLS. */
-const REGION_API_URLS: Record<BrowserbaseRegion, string> = {
-  "us-west-2": "https://api.stagehand.browserbase.com",
-  "us-east-1": "https://api.use1.stagehand.browserbase.com",
-  "eu-central-1": "https://api.euc1.stagehand.browserbase.com",
-  "ap-southeast-1": "https://api.apse1.stagehand.browserbase.com",
-};
-
-const DEFAULT_REGION: BrowserbaseRegion = "us-west-2";
-
-export function apiUrlForRegion(region: BrowserbaseRegion | undefined): string {
-  return `${REGION_API_URLS[region ?? DEFAULT_REGION]}/v1`;
-}
 
 /** Ceiling for a single cache HTTP round-trip so a slow cache can only ever
  * add a bounded delay to the action it fronts. */
@@ -93,6 +76,15 @@ export const CacheGetResponseSchema = z.object({
   hitCount: z.number().optional(),
   /** Present on a hit: age of the cached entry in ms. */
   ageMs: z.number().optional(),
+  /** Present on a hit: LLM tokens the cached entry avoided spending. The API
+   * reports savings in its own `{input, output, total}` shape. */
+  tokensSaved: z
+    .object({
+      input: z.number(),
+      output: z.number(),
+      total: z.number(),
+    })
+    .optional(),
 });
 
 export const CacheSetResponseSchema = z.object({

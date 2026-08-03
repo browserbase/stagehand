@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"net/http"
-	"time"
+	"fmt"
+	"io"
 )
 
 var (
 	// ErrNotInitialized is returned when an operation needs an initialized client.
-	ErrNotInitialized = errors.New("stagehand is not initialized; call Init first")
+	ErrNotInitialized = errors.New("stagehand is unavailable; create a new instance with stagehand.Create")
 )
 
 type requestHandler struct {
@@ -25,55 +25,86 @@ type protocolClient interface {
 	call(ctx context.Context, method string, params any, result any) error
 	onRequest(method string, handler requestHandler) func()
 	onNotification(method string, handler func(StagehandLog)) func()
+	browserWebSocketDebuggerURL() string
 	close() error
 }
 
 type resolvedBrowserSource struct {
 	cdpURL               string
-	cdpHeaders           http.Header
 	browserbaseSessionID string
-	extensionDir         string
-	preloadedExtension   bool
-	connectTimeout       time.Duration
-	keepAlive            bool
 	close                func(context.Context) error
-	cleanup              func() error
 }
 
 type clientAdapters struct {
-	resolveBrowserSource func(context.Context, StagehandClientInitParams) (resolvedBrowserSource, error)
-	connectProtocol      func(
-		context.Context,
-		resolvedBrowserSource,
-		TelemetryConfig,
-	) (protocolClient, error)
+	connectClaimedBrowser func(claimedBrowser) (protocolClient, error)
 }
 
 func defaultClientAdapters() clientAdapters {
 	return clientAdapters{
-		resolveBrowserSource: resolveBrowserSource,
-		connectProtocol:      connectResolvedBrowser,
+		connectClaimedBrowser: func(claimed claimedBrowser) (protocolClient, error) {
+			if claimed.cdp == nil {
+				return nil, errors.New("stagehand browser must be created by a stagehand browser factory")
+			}
+			rpc, err := newRPCClient(claimed.cdp, false)
+			if err != nil {
+				return nil, err
+			}
+			rpc.browserWebSocketURL = claimed.cdp.webSocketDebuggerURL
+			return rpc, nil
+		},
 	}
 }
 
-// configureProtocol is transport setup, matching the TypeScript and Python
-// RPC clients rather than the public Stagehand.Init method.
-func configureProtocol(
-	ctx context.Context,
-	rpc protocolClient,
-	browser resolvedBrowserSource,
-	telemetry TelemetryConfig,
-) error {
-	protocolVersion := stagehandProtocolVersion
-	params := RuntimeConfigureParams{
-		ProtocolVersion: &protocolVersion,
-		ClientInfo: &ImplementationInfo{
-			Name:    stagehandSDKClientName,
-			Version: stagehandSDKVersion,
-		},
-		CDPURL:    browser.cdpURL,
-		Telemetry: telemetry,
+type resolvedStagehandClientLoggingConfig struct {
+	level  StagehandClientLogLevel
+	format StagehandClientLogFormat
+	onLog  func(StagehandLog)
+	writer io.Writer
+}
+
+func resolveLoggingConfig(
+	config *StagehandClientLoggingConfig,
+	writer io.Writer,
+) (resolvedStagehandClientLoggingConfig, error) {
+	resolved := resolvedStagehandClientLoggingConfig{
+		level:  StagehandClientLogLevelInfo,
+		format: StagehandClientLogFormatPretty,
+		writer: writer,
 	}
-	var result RuntimeConfigureResult
-	return rpc.call(ctx, "runtime.configure", params, &result)
+	if config != nil {
+		if config.Level != "" {
+			resolved.level = config.Level
+		}
+		if config.Format != "" {
+			resolved.format = config.Format
+		}
+		resolved.onLog = config.OnLog
+	}
+	if !validClientLogLevel(resolved.level) {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging level %q",
+			resolved.level,
+		)
+	}
+	if resolved.format != StagehandClientLogFormatPretty &&
+		resolved.format != StagehandClientLogFormatJSON {
+		return resolvedStagehandClientLoggingConfig{}, fmt.Errorf(
+			"stagehand: invalid logging format %q",
+			resolved.format,
+		)
+	}
+	return resolved, nil
+}
+
+func validClientLogLevel(level StagehandClientLogLevel) bool {
+	switch level {
+	case StagehandClientLogLevelOff,
+		StagehandClientLogLevelError,
+		StagehandClientLogLevelWarn,
+		StagehandClientLogLevelInfo,
+		StagehandClientLogLevelDebug:
+		return true
+	default:
+		return false
+	}
 }

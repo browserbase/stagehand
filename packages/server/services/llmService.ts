@@ -7,12 +7,14 @@ import type {
 import { LLMGenerateParamsSchema } from "../../protocol/schemas.js";
 import { createAiSdkLanguageModel, generateWithAiSdk } from "../llm/aiSdkClient.js";
 import { generateWithClientLlm, type ClientLlmRequest } from "../llm/clientLlmClient.js";
+import { createGatewayLanguageModel, type GatewayContext } from "../llm/gatewayClient.js";
 
 /** Generates a Stagehand LLM result using the configured local or connected client. */
 export async function generate(
   model: ModelConfig | ClientModelReference,
   input: LLMGenerateParams,
   clientRequest: ClientLlmRequest,
+  gateway?: GatewayContext,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
 
@@ -20,14 +22,15 @@ export async function generate(
     return await generateWithClientLlm(clientRequest, params);
   }
 
-  if ("baseURL" in model) {
-    throw new Error("Custom OpenAI-compatible inference is not implemented yet");
-  }
-
   if (!model.apiKey) {
-    // TODO: Send configurations without direct credentials through Browserbase Model Gateway.
-    throw new Error("Direct model inference requires an API key");
+    if (!gateway) {
+      throw new Error("Model inference requires a provider API key or a Browserbase session");
+    }
+    if (params.stopSequences && params.stopSequences.length > 0) {
+      throw new Error("Browserbase Model Gateway does not support stop sequences");
+    }
+    return await generateWithAiSdk(createGatewayLanguageModel(model, gateway), params);
   }
 
-  return await generateWithAiSdk(createAiSdkLanguageModel(model), params);
+  return await generateWithAiSdk(createAiSdkLanguageModel(model, params), params);
 }

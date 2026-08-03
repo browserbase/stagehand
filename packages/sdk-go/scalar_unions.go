@@ -84,7 +84,7 @@ func (value *Caching) UnmarshalJSON(data []byte) error {
 		return nil
 	case '{':
 		var options CacheOptions
-		if err := json.Unmarshal(data, &options); err != nil {
+		if err := decodeStrictVariantJSON(data, &options); err != nil {
 			return fmt.Errorf("decode caching options: %w", err)
 		}
 		if threshold := options.Threshold; threshold != nil &&

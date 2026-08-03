@@ -34,7 +34,11 @@ func (c *BrowserContext) Pages(ctx context.Context) ([]*Page, error) {
 }
 
 // NewPage creates a page using the generated protocol parameters.
-func (c *BrowserContext) NewPage(ctx context.Context, params ContextNewPageParams) (*Page, error) {
+func (c *BrowserContext) NewPage(ctx context.Context, options *ContextNewPageParams) (*Page, error) {
+	params := ContextNewPageParams{}
+	if options != nil {
+		params = *options
+	}
 	var result PageRef
 	if err := c.rpc.call(ctx, "context.new_page", params, &result); err != nil {
 		return nil, err

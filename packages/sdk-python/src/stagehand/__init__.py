@@ -8,8 +8,9 @@ from ._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserbaseRegion,
-    BrowserGetVersionResult,
+    CacheMetadata,
     CacheStatus,
+    CacheTokenSavings,
     Caret,
     Cookie,
     CookieParam,
@@ -29,14 +30,13 @@ from ._generated.models import (
     ObserveResult,
     PageScreenshotClip,
     RgbaColor,
-    RuntimeLoopbackStatusResult,
     Scale,
     StagehandMetrics,
-    StagehandPingResult,
     StagehandResultMetadata,
     State,
     TelemetryConfig,
     Variables,
+    WebMCPAnnotation,
 )
 from ._generated.models import (
     Locator as ProtocolLocator,
@@ -44,6 +44,7 @@ from ._generated.models import (
 from ._generated.models import (
     Type as ScreenshotType,
 )
+from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
@@ -57,20 +58,27 @@ from .client_models import (
 from .locator import Locator
 from .page import Page
 from .stagehand import Stagehand
+from .webmcp import (
+    WebMCPInvocation,
+    WebMCPInvocationStatus,
+    WebMCPTool,
+    WebMCPToolResponse,
+)
 
 __all__ = [
-    "ActResultData",
     "ActResult",
+    "ActResultData",
     "Action",
     "Animations",
-    "BrowserGetVersionResult",
     "BrowserClipboard",
     "BrowserContext",
     "BrowserbaseBrowserSettings",
     "BrowserbaseProxyConfig",
     "BrowserbaseRegion",
-    "CacheStatus",
     "CacheOptions",
+    "CacheMetadata",
+    "CacheStatus",
+    "CacheTokenSavings",
     "Caret",
     "Cookie",
     "CookieParam",
@@ -97,15 +105,21 @@ __all__ = [
     "PageScreenshotClip",
     "ProtocolLocator",
     "RgbaColor",
-    "RuntimeLoopbackStatusResult",
     "Scale",
     "ScreenshotType",
     "Stagehand",
+    "StagehandBrowser",
     "StagehandClientLoggingConfig",
     "StagehandMetrics",
-    "StagehandPingResult",
     "StagehandResultMetadata",
     "State",
     "TelemetryConfig",
     "Variables",
+    "WebMCPAnnotation",
+    "WebMCPInvocation",
+    "WebMCPInvocationStatus",
+    "WebMCPTool",
+    "WebMCPToolResponse",
+    "browserbase",
+    "local_browser",
 ]
