@@ -12,7 +12,7 @@ import { resolveKey } from "./tui/welcomeStatus.js";
 
 export type InitStagehandArgs = {
   logger: EvalLogger;
-  modelName: string;
+  modelName?: string;
   systemPrompt?: string;
   environment: "LOCAL" | "BROWSERBASE";
 };
@@ -31,6 +31,30 @@ const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
 };
 
 type StagehandLogEvent = Parameters<NonNullable<StagehandClientLoggingConfig["onLog"]>>[0];
+
+type KeyLookup = (name: string) => string;
+
+const resolvePackageAwareKey: KeyLookup = (name) => resolveKey(name).value;
+
+export function resolveStagehandModel(
+  modelName: string | undefined,
+  lookup: KeyLookup = resolvePackageAwareKey,
+): NonNullable<StagehandCreateOptions["model"]> | undefined {
+  if (!modelName) return undefined;
+
+  const provider = modelName.includes("/") ? modelName.split("/")[0].toLowerCase() : undefined;
+  const candidates = provider ? (PROVIDER_API_KEY_ENV[provider] ?? []) : [];
+  const apiKey = candidates.map(lookup).find(Boolean);
+  if (!apiKey) {
+    throw new Error(
+      `Stagehand init: no API key found for model "${modelName}". ` +
+        `Stagehand requires an explicit model API key ` +
+        `(checked: ${candidates.join(", ") || "no known provider prefix"}).`,
+    );
+  }
+
+  return { modelName, apiKey } as NonNullable<StagehandCreateOptions["model"]>;
+}
 
 function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) => void {
   return (event) => {
@@ -61,16 +85,7 @@ export async function initStagehand({
   systemPrompt,
   environment,
 }: InitStagehandArgs): Promise<StagehandInitResult> {
-  const provider = modelName.includes("/") ? modelName.split("/")[0].toLowerCase() : undefined;
-  const keyEnvVars = provider ? (PROVIDER_API_KEY_ENV[provider] ?? []) : [];
-  const apiKey = keyEnvVars.map((name) => resolveKey(name).value).find(Boolean);
-  if (!apiKey) {
-    throw new Error(
-      `Stagehand init: no API key found for model "${modelName}". ` +
-        `Stagehand requires an explicit model API key ` +
-        `(checked: ${keyEnvVars.join(", ") || "no known provider prefix"}).`,
-    );
-  }
+  const model = resolveStagehandModel(modelName);
 
   // `browser` is a factory-built handle rather than a config object:
   // StagehandBrowser is branded (#2517), so an object literal cannot satisfy it.
@@ -109,7 +124,7 @@ export async function initStagehand({
       // selfHeal defaults off on the server; without it the heal_* benchmarks
       // pass while measuring nothing.
       selfHeal: true,
-      model: { modelName, apiKey } as NonNullable<StagehandCreateOptions["model"]>,
+      ...(model ? { model } : {}),
       ...(systemPrompt ? { systemPrompt } : {}),
       logging: { onLog: createStagehandOnLog(logger) },
     });
