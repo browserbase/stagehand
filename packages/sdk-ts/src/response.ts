@@ -19,7 +19,10 @@ export class Response {
 
   constructor(rpcClient: RPCClient, descriptor: NavigationResponseDescriptor) {
     this.#rpcClient = rpcClient;
-    this.#descriptor = descriptor;
+    this.#descriptor = {
+      ...descriptor,
+      headers: { ...descriptor.headers },
+    };
   }
 
   url(): string {

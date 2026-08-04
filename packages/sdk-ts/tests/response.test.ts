@@ -9,8 +9,9 @@ import { RPCClient } from "../src/rpcClient.js";
 class FakeResponseClient extends RPCClient {
   readonly calls: Array<{ method: string; params: unknown }> = [];
   readonly responses = new Map<string, unknown[]>();
+  readonly preserveQueuedResponseIdentity: boolean;
 
-  constructor() {
+  constructor(options: { preserveQueuedResponseIdentity?: boolean } = {}) {
     super(
       {
         serviceWorker: {
@@ -24,6 +25,7 @@ class FakeResponseClient extends RPCClient {
       },
       1_000,
     );
+    this.preserveQueuedResponseIdentity = options.preserveQueuedResponseIdentity ?? false;
   }
 
   queue<Method extends RPCMethod>(
@@ -43,6 +45,9 @@ class FakeResponseClient extends RPCClient {
     const response = this.responses.get(method.name)?.shift();
     if (response === undefined) throw new Error(`No fake response queued for ${method.name}`);
     if (response instanceof Error) throw response;
+    if (this.preserveQueuedResponseIdentity) {
+      return response as z.output<Method["result"]>;
+    }
     return method.result.parse(response) as z.output<Method["result"]>;
   }
 }
@@ -57,6 +62,33 @@ const descriptor: NavigationResponseDescriptor = {
 };
 
 describe("TypeScript Response", () => {
+  it("copies its input descriptor", async () => {
+    const client = new FakeResponseClient();
+    const input: NavigationResponseDescriptor = {
+      ...descriptor,
+      headers: { ...descriptor.headers },
+    };
+    const response = new Response(client, input);
+    client.queue(StagehandMethods.responseFinished, { error: null });
+
+    input.responseId = "mutated-response";
+    input.url = "https://mutated.test";
+    input.status = 500;
+    input.statusText = "Mutated";
+    input.headers["content-type"] = "mutated";
+    input.fromServiceWorker = false;
+
+    expect(response.url()).toBe("https://example.test/final");
+    expect(response.status()).toBe(201);
+    expect(response.statusText()).toBe("Created");
+    expect(response.headers()).toStrictEqual({ "content-type": "application/json" });
+    expect(response.fromServiceWorker()).toBe(true);
+    await expect(response.finished()).resolves.toBeNull();
+    expect(client.calls).toStrictEqual([
+      { method: "response.finished", params: { responseId: "response-1" } },
+    ]);
+  });
+
   it("exposes immediate metadata locally with defensive header copies", () => {
     const client = new FakeResponseClient();
     const response = new Response(client, descriptor);
@@ -74,7 +106,7 @@ describe("TypeScript Response", () => {
   });
 
   it("retrieves headers and connection metadata lazily", async () => {
-    const client = new FakeResponseClient();
+    const client = new FakeResponseClient({ preserveQueuedResponseIdentity: true });
     const response = new Response(client, descriptor);
     const headerArray = {
       headers: [
@@ -107,6 +139,7 @@ describe("TypeScript Response", () => {
     });
     const headers = await response.headersArray();
     headers[0]!.value = "mutated";
+    expect(headerArray.headers[0]!.value).toBe("first=1");
     await expect(response.headerValue("SET-cookie")).resolves.toBe("first=1, second=2");
     await expect(response.headerValues("set-COOKIE")).resolves.toStrictEqual([
       "first=1",
