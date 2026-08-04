@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Awaitable, Callable
 from typing import cast
 
 import pytest
@@ -81,6 +82,47 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
         "url": "https://example.com",
         "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
+    assert result_model is PageNavigationResult
+
+
+@pytest.mark.parametrize(
+    ("rpc_method", "navigate"),
+    [
+        ("page.reload", lambda page: page.reload()),
+        ("page.go_back", lambda page: page.go_back()),
+        ("page.go_forward", lambda page: page.go_forward()),
+    ],
+)
+@pytest.mark.asyncio
+async def test_page_navigation_methods_wrap_non_null_responses(
+    rpc_method: str,
+    navigate: Callable[[Page], Awaitable[Response | None]],
+) -> None:
+    recording = RecordingRPCClient({
+        rpc_method: PageNavigationResult(
+            page=PageRef(page_id="page-2", url="https://example.com/final"),
+            response=NavigationResponseDescriptor(
+                response_id="response-1",
+                url="https://example.com/final",
+                status=201,
+                status_text="Created",
+                headers={"content-type": "text/html"},
+                from_service_worker=True,
+            ),
+        )
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    response = await navigate(page)
+
+    assert isinstance(response, Response)
+    assert response.url == "https://example.com/final"
+    assert response.status == 201
+    assert response.from_service_worker is True
+    assert page.page_id == "page-2"
+    assert len(recording.calls) == 1
+    method, _, result_model = recording.calls[0]
+    assert method == rpc_method
     assert result_model is PageNavigationResult
 
 
