@@ -14,6 +14,7 @@ describe("resolveMaskRect", () => {
     const declarations = new Map<string, { value: string; priority: string }>([
       ["transform", { value: "perspective(480px) rotateY(24deg)", priority: "" }],
       ["scale", { value: "1.15", priority: "important" }],
+      ["transition", { value: "transform 30s linear", priority: "" }],
     ]);
     const style = {
       getPropertyValue: (property: string) => declarations.get(property)?.value ?? "",
@@ -24,6 +25,8 @@ describe("resolveMaskRect", () => {
       removeProperty: (property: string) => declarations.delete(property),
     };
     const transformsAreNeutral = () =>
+      declarations.get("transition")?.value === "none" &&
+      declarations.get("will-change")?.value === "transform" &&
       ["transform", "translate", "rotate", "scale"].every(
         (property) => declarations.get(property)?.value === "none",
       );
@@ -53,11 +56,13 @@ describe("resolveMaskRect", () => {
       width: 86,
       height: 26,
       rootToken: null,
+      position: "absolute",
     });
     expect(declarations).toEqual(
       new Map([
         ["transform", { value: "perspective(480px) rotateY(24deg)", priority: "" }],
         ["scale", { value: "1.15", priority: "important" }],
+        ["transition", { value: "transform 30s linear", priority: "" }],
       ]),
     );
   });

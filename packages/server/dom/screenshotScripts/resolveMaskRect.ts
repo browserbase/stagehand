@@ -4,6 +4,7 @@ export type MaskRect = {
   width: number;
   height: number;
   rootToken?: string | null;
+  position?: "absolute" | "fixed";
 };
 
 export function resolveMaskRect(this: Element | null, maskToken?: string): MaskRect | null {
@@ -68,7 +69,20 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
         value: rootElement.style.getPropertyValue(property),
         priority: rootElement.style.getPropertyPriority(property),
       }));
+      const previousTransition = {
+        value: rootElement.style.getPropertyValue("transition"),
+        priority: rootElement.style.getPropertyPriority("transition"),
+      };
+      const previousWillChange = {
+        value: rootElement.style.getPropertyValue("will-change"),
+        priority: rootElement.style.getPropertyPriority("will-change"),
+      };
       try {
+        // Prevent the temporary transform reset from being interpolated. `will-change: transform`
+        // preserves the containing block for fixed descendants while the transform is `none`.
+        rootElement.style.setProperty("transition", "none", "important");
+        rootElement.style.setProperty("will-change", "transform", "important");
+        root.getBoundingClientRect();
         for (const property of transformProperties) {
           rootElement.style.setProperty(property, "none", "important");
         }
@@ -104,6 +118,27 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
           if (value) rootElement.style.setProperty(property, value, priority);
           else rootElement.style.removeProperty(property);
         }
+        if (previousWillChange.value) {
+          rootElement.style.setProperty(
+            "will-change",
+            previousWillChange.value,
+            previousWillChange.priority,
+          );
+        } else {
+          rootElement.style.removeProperty("will-change");
+        }
+        // Commit the restored transform while transitions are still disabled. Otherwise the
+        // browser may batch this restoration with re-enabling the page's transition.
+        root.getBoundingClientRect();
+        if (previousTransition.value) {
+          rootElement.style.setProperty(
+            "transition",
+            previousTransition.value,
+            previousTransition.priority,
+          );
+        } else {
+          rootElement.style.removeProperty("transition");
+        }
       }
     } catch {
       // Fall back to viewport-difference geometry if styles cannot be changed or measured.
@@ -125,6 +160,7 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
     return {
       ...localRect,
       rootToken,
+      position: style.position === "fixed" ? "fixed" : "absolute",
     };
   }
 

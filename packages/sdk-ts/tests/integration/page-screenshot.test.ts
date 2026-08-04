@@ -126,12 +126,12 @@ describe("Page.screenshot options", () => {
     const page = await firstPage(stagehand);
     await page.goto(
       `data:text/html,${encodeURIComponent(`<style>
-        #dialog { transform: translate(35px, 25px) perspective(450px) rotateY(24deg) rotateX(8deg) rotate(4deg); transform-origin: top left; scale: 1.15; }
+        #dialog { width: 240px; height: 150px; transform: translate(35px, 25px) perspective(450px) rotateY(24deg) rotateX(8deg) rotate(4deg); transform-origin: top left; scale: 1.15; }
         #secret { position: relative; width: 160px; height: 70px; background: green; }
         .probe { position: absolute; width: 1px; height: 1px; }
         .tl { left: 8px; top: 8px; } .tr { right: 8px; top: 8px; }
         .br { right: 8px; bottom: 8px; } .bl { left: 8px; bottom: 8px; }
-      </style><dialog id="dialog"><div id="secret">top-layer<span class="probe tl"></span><span class="probe tr"></span><span class="probe br"></span><span class="probe bl"></span></div></dialog><script>dialog.showModal()</script>`)}`,
+      </style><dialog id="dialog"><div id="secret">top-layer<span class="probe tl"></span><span class="probe tr"></span><span class="probe br"></span><span class="probe bl"></span></div></dialog><script>dialog.showModal(); dialog.getBoundingClientRect(); dialog.style.transition = "transform 30s linear"</script>`)}`,
     );
 
     const secret = page.locator("#secret");
@@ -164,6 +164,33 @@ describe("Page.screenshot options", () => {
         };
       }),
     ).resolves.toEqual({ dialogOpen: true, text: "top-layer", visibility: "visible" });
+  });
+
+  it("masks fixed descendants of transformed top-layer roots", async () => {
+    const page = await firstPage(stagehand);
+    await page.goto(
+      `data:text/html,${encodeURIComponent(`<style>
+        #dialog { width: 240px; height: 150px; transform: translate(60px, 40px) scale(1.1); transform-origin: top left; }
+        #secret { position: fixed; left: 30px; top: 35px; width: 100px; height: 60px; background: green; }
+      </style><dialog id="dialog"><div id="secret"></div></dialog><script>dialog.showModal()</script>`)}`,
+    );
+
+    const center = await page.evaluate(() => {
+      const rect = document.querySelector<HTMLElement>("#secret")!.getBoundingClientRect();
+      return [
+        { x: Math.floor(rect.left + rect.width / 2), y: Math.floor(rect.top + rect.height / 2) },
+      ];
+    });
+    const bytes = await page.screenshot({
+      mask: [page.locator("#secret")],
+      maskColor: "#ff00ff",
+      scale: "css",
+    });
+    await expect(
+      inspectScreenshotPixels(page, bytes, center, [255, 0, 255], 15),
+    ).resolves.toMatchObject({
+      pointMatches: [true],
+    });
   });
 
   it("masks every deep-locator match and respects nth() across an iframe hop", async () => {

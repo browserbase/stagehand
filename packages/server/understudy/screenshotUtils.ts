@@ -189,7 +189,10 @@ export async function applyMaskOverlays(
   locators: Array<Locator | DeepLocatorDelegate>,
   color: string,
 ): Promise<ScreenshotCleanup> {
-  type MaskRectSpec = ScreenshotClip & { rootToken?: string | null };
+  type MaskRectSpec = ScreenshotClip & {
+    rootToken?: string | null;
+    position?: "absolute" | "fixed";
+  };
   const rectsByFrame = new Map<Frame, { rects: MaskRectSpec[]; rootTokens: Set<string> }>();
 
   const token = `__v3_mask_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -254,7 +257,7 @@ export async function applyMaskOverlays(
                 }
                 const el = doc.createElement("div");
                 el.setAttribute("data-stagehand-mask", token);
-                el.style.position = "absolute";
+                el.style.position = rect.position ?? "absolute";
                 el.style.left = `${rect.x}px`;
                 el.style.top = `${rect.y}px`;
                 el.style.width = `${rect.width}px`;
@@ -354,7 +357,9 @@ async function resolveMaskRectForObject(
   session: CDPSessionLike,
   objectId: Protocol.Runtime.RemoteObjectId,
   maskToken: string,
-): Promise<(ScreenshotClip & { rootToken?: string | null }) | null> {
+): Promise<
+  (ScreenshotClip & { rootToken?: string | null; position?: "absolute" | "fixed" }) | null
+> {
   const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
     "Runtime.callFunctionOn",
     {
@@ -369,7 +374,9 @@ async function resolveMaskRectForObject(
     return null;
   }
 
-  const rect = result.result.value as (ScreenshotClip & { rootToken?: string | null }) | null;
+  const rect = result.result.value as
+    | (ScreenshotClip & { rootToken?: string | null; position?: "absolute" | "fixed" })
+    | null;
   if (!rect) return null;
 
   const { x, y, width, height } = rect;
@@ -390,6 +397,7 @@ async function resolveMaskRectForObject(
     width,
     height,
     rootToken: rect.rootToken && typeof rect.rootToken === "string" ? rect.rootToken : undefined,
+    position: rect.position === "fixed" ? "fixed" : "absolute",
   };
 }
 
