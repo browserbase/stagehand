@@ -126,17 +126,6 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	return client, nil
 }
 
-// Context returns the initialized browser context.
-func (s *Stagehand) Context() (*BrowserContext, error) {
-	s.mu.RLock()
-	browser := s.browser
-	s.mu.RUnlock()
-	if browser == nil {
-		return nil, ErrNotInitialized
-	}
-	return browser.Context()
-}
-
 // Browser returns the factory-created browser handle attached to Stagehand.
 func (s *Stagehand) Browser() *Browser {
 	s.mu.RLock()

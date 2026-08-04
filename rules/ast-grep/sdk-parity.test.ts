@@ -86,7 +86,7 @@ type PythonRpcCall = {
 type GoRpcCall = PythonRpcCall;
 
 const goAccessors: Readonly<Record<string, ReadonlySet<string>>> = {
-  Stagehand: new Set(["Browser", "Context", "Initialized"]),
+  Stagehand: new Set(["Browser", "Initialized"]),
   BrowserContext: new Set(["Clipboard"]),
   BrowserClipboard: new Set(),
   Page: new Set(["PageID", "Ref"]),
@@ -277,6 +277,13 @@ describe("All language SDK operations remain in sync", () => {
     expect(python, "Stagehand Python accessors must remain in sync").toStrictEqual(typescript);
     expect(goClient, "Stagehand Go accessors must remain in sync").toStrictEqual(typescript);
     expect(typescript.length, "Stagehand must expose public accessors").toBeGreaterThan(0);
+    for (const [language, accessors] of [
+      ["TypeScript", typescript],
+      ["Python", python],
+      ["Go", goClient],
+    ] as const) {
+      expect(accessors, `${language} Stagehand must not expose context`).not.toContain("context");
+    }
 
     for (const [, , , goFile, goType] of sdkObjects) {
       const root = parse("go", await readFile(new URL(goFile, goSource), "utf8")).root();
