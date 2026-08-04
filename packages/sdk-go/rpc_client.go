@@ -136,7 +136,8 @@ type registeredRequestHandler struct {
 
 type registeredNotificationHandler struct {
 	id      uint64
-	handler func(StagehandLog)
+	decode  func(json.RawMessage) (any, error)
+	handler func(any)
 }
 
 type bufferedRPCNotification struct {
@@ -145,8 +146,8 @@ type bufferedRPCNotification struct {
 }
 
 type rpcNotificationDelivery struct {
-	handlers     []func(StagehandLog)
-	notification StagehandLog
+	handler      func(any)
+	notification any
 }
 
 type rpcRequestEnvelope struct {
@@ -376,23 +377,46 @@ func (c *rpcClient) onRequest(method string, handler requestHandler) func() {
 }
 
 func (c *rpcClient) onNotification(method string, handler func(StagehandLog)) func() {
+	return registerNotification(c, method, handler)
+}
+
+func (c *rpcClient) onPageCDPEvent(handler func(PageCDPEventNotification)) func() {
+	return registerNotification(c, "page.cdp_event", handler)
+}
+
+func registerNotification[Notification any](
+	c *rpcClient,
+	method string,
+	handler func(Notification),
+) func() {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return func() {}
 	}
-	registration := registeredNotificationHandler{id: c.nextRegistrationID, handler: handler}
+	registration := registeredNotificationHandler{
+		id: c.nextRegistrationID,
+		decode: func(raw json.RawMessage) (any, error) {
+			var notification Notification
+			if err := decodeStrictJSON(raw, &notification); err != nil {
+				return nil, err
+			}
+			return notification, nil
+		},
+		handler: func(notification any) {
+			handler(notification.(Notification))
+		},
+	}
 	c.nextRegistrationID++
 	c.notificationHandlers[method] = append(c.notificationHandlers[method], registration)
 
 	retained := c.pendingNotifications[:0]
 	for _, notification := range c.pendingNotifications {
 		if notification.method == method {
-			var params StagehandLog
-			if decodeStrictJSON(notification.params, &params) == nil {
+			if decoded, err := registration.decode(notification.params); err == nil {
 				c.enqueueNotificationLocked(rpcNotificationDelivery{
-					handlers:     []func(StagehandLog){handler},
-					notification: params,
+					handler:      registration.handler,
+					notification: decoded,
 				})
 			}
 		} else {
@@ -598,14 +622,6 @@ func (c *rpcClient) receiveRequest(
 }
 
 func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
-	if method != "stagehand.log" {
-		return
-	}
-	var notification StagehandLog
-	if err := decodeStrictJSON(params, &notification); err != nil {
-		return
-	}
-
 	c.mu.Lock()
 	handlers := append([]registeredNotificationHandler(nil), c.notificationHandlers[method]...)
 	if len(handlers) == 0 {
@@ -620,14 +636,16 @@ func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 		return
 	}
 
-	delivery := rpcNotificationDelivery{
-		handlers:     make([]func(StagehandLog), len(handlers)),
-		notification: notification,
+	for _, registration := range handlers {
+		notification, err := registration.decode(params)
+		if err != nil {
+			continue
+		}
+		c.enqueueNotificationLocked(rpcNotificationDelivery{
+			handler:      registration.handler,
+			notification: notification,
+		})
 	}
-	for index, registration := range handlers {
-		delivery.handlers[index] = registration.handler
-	}
-	c.enqueueNotificationLocked(delivery)
 	c.mu.Unlock()
 	c.wakeNotificationDelivery()
 }
@@ -656,9 +674,7 @@ func (c *rpcClient) deliverNotifications() {
 			c.notificationQueue[0] = rpcNotificationDelivery{}
 			c.notificationQueue = c.notificationQueue[1:]
 			c.mu.Unlock()
-			for _, handler := range delivery.handlers {
-				handler(delivery.notification)
-			}
+			delivery.handler(delivery.notification)
 			continue
 		}
 		c.mu.Unlock()

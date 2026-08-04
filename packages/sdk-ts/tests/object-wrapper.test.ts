@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import type { StagehandRpcNotification } from "../../protocol/types.js";
 import {
   BrowserClipboard,
   BrowserContext,
@@ -27,6 +28,7 @@ type ProtocolCall = { method: string; params: unknown };
 class FakeProtocolClient extends RPCClient {
   readonly calls: ProtocolCall[] = [];
   responses = new Map<string, unknown[]>();
+  readonly listeners = new Set<(notification: StagehandRpcNotification) => void>();
 
   constructor() {
     super({
@@ -65,8 +67,13 @@ class FakeProtocolClient extends RPCClient {
     return method.result.parse(response) as z.output<Method["result"]>;
   }
 
-  onNotification(): () => void {
-    return () => {};
+  onNotification(listener: (notification: StagehandRpcNotification) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
+  emitNotification(notification: StagehandRpcNotification): void {
+    for (const listener of this.listeners) listener(notification);
   }
 
   close(): void {}
@@ -397,6 +404,54 @@ describe("Stagehand TS object wrapper", () => {
       url: "https://example.com/next",
       title: "Next",
     });
+  });
+
+  it("subscribes with page.on, canonicalizes console events, and unsubscribes", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const events: unknown[] = [];
+
+    const subscription = await page.on("console", (event) => events.push(event));
+    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.cdp_event",
+      params: {
+        subscriptionId,
+        event: {
+          pageId: "page-1",
+          method: "Runtime.consoleAPICalled",
+          params: { type: "log", executionContextId: 1 },
+          sessionId: "session-1",
+          targetId: "target-1",
+        },
+      },
+    });
+
+    expect(events).toStrictEqual([
+      {
+        pageId: "page-1",
+        method: "Runtime.consoleAPICalled",
+        params: { type: "log", executionContextId: 1 },
+        sessionId: "session-1",
+        targetId: "target-1",
+      },
+    ]);
+    expect(client.calls[0]).toStrictEqual(
+      requestCall(StagehandMethods.pageOn, {
+        pageId: "page-1",
+        subscriptionId,
+        event: "console",
+      }),
+    );
+
+    await subscription.unsubscribe();
+    expect(client.calls[1]).toStrictEqual(
+      requestCall(StagehandMethods.pageOff, { subscriptionId }),
+    );
+    expect(client.listeners).toHaveLength(0);
   });
 
   it("routes page navigation methods and updates the page ref", async () => {

@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
     NavigationResponseDescriptor,
+    PageCDPEventNotification,
     PageClickParams,
     PageDragAndDropParams,
     PageEvaluateResult,
@@ -17,6 +18,8 @@ from stagehand._generated.models import (
     PageHoverParams,
     PageIdParams,
     PageNavigationResult,
+    PageOffParams,
+    PageOnParams,
     PageRef,
     PageScrollParams,
     PageUrlResult,
@@ -167,6 +170,50 @@ async def test_page_url_returns_a_scalar_string() -> None:
     assert recording.calls == [
         ("page.url", PageIdParams(page_id="page-1"), PageUrlResult),
     ]
+
+
+@pytest.mark.asyncio
+async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    events = []
+
+    subscription = await page.on("console", events.append)
+    _, on_params, _ = recording.calls[0]
+    assert isinstance(on_params, PageOnParams)
+    _, raw_listener = recording.notifications["page.cdp_event"]
+    listener = cast(Callable[[PageCDPEventNotification], object], raw_listener)
+    notification = PageCDPEventNotification.model_validate({
+        "subscription_id": on_params.subscription_id,
+        "event": {
+            "page_id": "page-1",
+            "method": "Runtime.consoleAPICalled",
+            "params": {"type": "log", "executionContextId": 1},
+            "session_id": "session-1",
+            "target_id": "target-1",
+        },
+    })
+    result = listener(notification)
+    if inspect.isawaitable(result):
+        await result
+
+    assert [event.model_dump(mode="json") for event in events] == [
+        {
+            "page_id": "page-1",
+            "method": "Runtime.consoleAPICalled",
+            "params": {"type": "log", "executionContextId": 1},
+            "session_id": "session-1",
+            "target_id": "target-1",
+        }
+    ]
+
+    await subscription.unsubscribe()
+    assert recording.calls[1] == (
+        "page.off",
+        PageOffParams(subscription_id=on_params.subscription_id),
+        PageVoidResult,
+    )
+    assert "page.cdp_event" not in recording.notifications
 
 
 @pytest.mark.asyncio

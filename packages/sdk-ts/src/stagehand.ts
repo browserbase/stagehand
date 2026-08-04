@@ -5,7 +5,7 @@ import {
   StagehandInitParamsSchema,
 } from "../../protocol/schemas.js";
 import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
@@ -282,6 +282,7 @@ function handleStagehandNotification(
   notification: StagehandRpcNotification,
   logging: ResolvedStagehandClientLoggingConfig,
 ): void {
+  if (notification.method !== StagehandNotifications.log.name) return;
   const log = notification.params;
   if (LOG_LEVEL_PRIORITY[log.level] < LOG_LEVEL_PRIORITY[logging.level]) return;
 
@@ -299,7 +300,7 @@ function handleStagehandNotification(
 }
 
 function renderStagehandLog(
-  log: StagehandRpcNotification["params"],
+  log: Extract<StagehandRpcNotification, { method: "stagehand.log" }>["params"],
   format: ResolvedStagehandClientLoggingConfig["format"],
 ): string {
   if (format === "json") return JSON.stringify(log);

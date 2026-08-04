@@ -526,6 +526,32 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.on": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageOnParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.off": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageOffParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.set_extra_http_headers": {
           "type": "object",
           "properties": {
@@ -1010,6 +1036,8 @@
         "page.key_press",
         "page.evaluate",
         "page.add_init_script",
+        "page.on",
+        "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
         "page.snapshot",
@@ -1059,9 +1087,19 @@
           },
           "required": ["params"],
           "additionalProperties": false
+        },
+        "page.cdp_event": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
         }
       },
-      "required": ["stagehand.log"],
+      "required": ["stagehand.log", "page.cdp_event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -3431,6 +3469,277 @@
       "required": ["page_id", "source"],
       "additionalProperties": false
     },
+    "PageOnParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "$ref": "#/$defs/PageEventName"
+        }
+      },
+      "required": ["page_id", "subscription_id", "event"],
+      "additionalProperties": false
+    },
+    "PageEventName": {
+      "type": "string",
+      "enum": [
+        "Accessibility.loadComplete",
+        "Accessibility.nodesUpdated",
+        "Animation.animationCanceled",
+        "Animation.animationCreated",
+        "Animation.animationStarted",
+        "Animation.animationUpdated",
+        "Audits.issueAdded",
+        "Autofill.addressFormFilled",
+        "BackgroundService.backgroundServiceEventReceived",
+        "BackgroundService.recordingStateChanged",
+        "BluetoothEmulation.characteristicOperationReceived",
+        "BluetoothEmulation.descriptorOperationReceived",
+        "BluetoothEmulation.gattOperationReceived",
+        "Browser.downloadProgress",
+        "Browser.downloadWillBegin",
+        "CSS.computedStyleUpdated",
+        "CSS.fontsUpdated",
+        "CSS.mediaQueryResultChanged",
+        "CSS.styleSheetAdded",
+        "CSS.styleSheetChanged",
+        "CSS.styleSheetRemoved",
+        "Cast.issueUpdated",
+        "Cast.sinksUpdated",
+        "Console.messageAdded",
+        "DOM.adRelatedStateUpdated",
+        "DOM.adoptedStyleSheetsModified",
+        "DOM.affectedByStartingStylesFlagUpdated",
+        "DOM.attributeModified",
+        "DOM.attributeRemoved",
+        "DOM.characterDataModified",
+        "DOM.childNodeCountUpdated",
+        "DOM.childNodeInserted",
+        "DOM.childNodeRemoved",
+        "DOM.distributedNodesUpdated",
+        "DOM.documentUpdated",
+        "DOM.inlineStyleInvalidated",
+        "DOM.pseudoElementAdded",
+        "DOM.pseudoElementRemoved",
+        "DOM.scrollableFlagUpdated",
+        "DOM.setChildNodes",
+        "DOM.shadowRootPopped",
+        "DOM.shadowRootPushed",
+        "DOM.topLayerElementsUpdated",
+        "DOMStorage.domStorageItemAdded",
+        "DOMStorage.domStorageItemRemoved",
+        "DOMStorage.domStorageItemUpdated",
+        "DOMStorage.domStorageItemsCleared",
+        "Debugger.breakpointResolved",
+        "Debugger.paused",
+        "Debugger.resumed",
+        "Debugger.scriptFailedToParse",
+        "Debugger.scriptParsed",
+        "DeviceAccess.deviceRequestPrompted",
+        "Emulation.screenOrientationLockChanged",
+        "Emulation.virtualTimeBudgetExpired",
+        "FedCm.dialogClosed",
+        "FedCm.dialogShown",
+        "Fetch.authRequired",
+        "Fetch.requestPaused",
+        "HeapProfiler.addHeapSnapshotChunk",
+        "HeapProfiler.heapStatsUpdate",
+        "HeapProfiler.lastSeenObjectId",
+        "HeapProfiler.reportHeapSnapshotProgress",
+        "HeapProfiler.resetProfiles",
+        "Input.dragIntercepted",
+        "Inspector.detached",
+        "Inspector.targetCrashed",
+        "Inspector.targetReloadedAfterCrash",
+        "Inspector.workerScriptLoaded",
+        "LayerTree.layerPainted",
+        "LayerTree.layerTreeDidChange",
+        "Log.entryAdded",
+        "Media.playerCreated",
+        "Media.playerErrorsRaised",
+        "Media.playerEventsAdded",
+        "Media.playerMessagesLogged",
+        "Media.playerPropertiesChanged",
+        "Network.dataReceived",
+        "Network.deviceBoundSessionEventOccurred",
+        "Network.deviceBoundSessionsAdded",
+        "Network.directTCPSocketAborted",
+        "Network.directTCPSocketChunkReceived",
+        "Network.directTCPSocketChunkSent",
+        "Network.directTCPSocketClosed",
+        "Network.directTCPSocketCreated",
+        "Network.directTCPSocketOpened",
+        "Network.directUDPSocketAborted",
+        "Network.directUDPSocketChunkReceived",
+        "Network.directUDPSocketChunkSent",
+        "Network.directUDPSocketClosed",
+        "Network.directUDPSocketCreated",
+        "Network.directUDPSocketJoinedMulticastGroup",
+        "Network.directUDPSocketLeftMulticastGroup",
+        "Network.directUDPSocketOpened",
+        "Network.eventSourceMessageReceived",
+        "Network.loadingFailed",
+        "Network.loadingFinished",
+        "Network.policyUpdated",
+        "Network.reportingApiEndpointsChangedForOrigin",
+        "Network.reportingApiReportAdded",
+        "Network.reportingApiReportUpdated",
+        "Network.requestIntercepted",
+        "Network.requestServedFromCache",
+        "Network.requestWillBeSent",
+        "Network.requestWillBeSentExtraInfo",
+        "Network.resourceChangedPriority",
+        "Network.responseReceived",
+        "Network.responseReceivedEarlyHints",
+        "Network.responseReceivedExtraInfo",
+        "Network.signedExchangeReceived",
+        "Network.trustTokenOperationDone",
+        "Network.webSocketClosed",
+        "Network.webSocketCreated",
+        "Network.webSocketFrameError",
+        "Network.webSocketFrameReceived",
+        "Network.webSocketFrameSent",
+        "Network.webSocketHandshakeResponseReceived",
+        "Network.webSocketWillSendHandshakeRequest",
+        "Network.webTransportClosed",
+        "Network.webTransportConnectionEstablished",
+        "Network.webTransportCreated",
+        "Overlay.inspectModeCanceled",
+        "Overlay.inspectNodeRequested",
+        "Overlay.inspectPanelShowRequested",
+        "Overlay.inspectedElementWindowRestored",
+        "Overlay.nodeHighlightRequested",
+        "Overlay.screenshotRequested",
+        "Page.backForwardCacheNotUsed",
+        "Page.compilationCacheProduced",
+        "Page.documentOpened",
+        "Page.domContentEventFired",
+        "Page.downloadProgress",
+        "Page.downloadWillBegin",
+        "Page.fileChooserOpened",
+        "Page.frameAttached",
+        "Page.frameClearedScheduledNavigation",
+        "Page.frameDetached",
+        "Page.frameNavigated",
+        "Page.frameRequestedNavigation",
+        "Page.frameResized",
+        "Page.frameScheduledNavigation",
+        "Page.frameStartedLoading",
+        "Page.frameStartedNavigating",
+        "Page.frameStoppedLoading",
+        "Page.frameSubtreeWillBeDetached",
+        "Page.interstitialHidden",
+        "Page.interstitialShown",
+        "Page.javascriptDialogClosed",
+        "Page.javascriptDialogOpening",
+        "Page.lifecycleEvent",
+        "Page.loadEventFired",
+        "Page.navigatedWithinDocument",
+        "Page.screencastFrame",
+        "Page.screencastVisibilityChanged",
+        "Page.windowOpen",
+        "Performance.metrics",
+        "PerformanceTimeline.timelineEventAdded",
+        "Preload.prefetchStatusUpdated",
+        "Preload.preloadEnabledStateUpdated",
+        "Preload.preloadingAttemptSourcesUpdated",
+        "Preload.prerenderStatusUpdated",
+        "Preload.ruleSetRemoved",
+        "Preload.ruleSetUpdated",
+        "Profiler.consoleProfileFinished",
+        "Profiler.consoleProfileStarted",
+        "Profiler.preciseCoverageDeltaUpdate",
+        "Runtime.bindingCalled",
+        "Runtime.consoleAPICalled",
+        "Runtime.exceptionRevoked",
+        "Runtime.exceptionThrown",
+        "Runtime.executionContextCreated",
+        "Runtime.executionContextDestroyed",
+        "Runtime.executionContextsCleared",
+        "Runtime.inspectRequested",
+        "Security.certificateError",
+        "Security.securityStateChanged",
+        "Security.visibleSecurityStateChanged",
+        "ServiceWorker.workerErrorReported",
+        "ServiceWorker.workerRegistrationUpdated",
+        "ServiceWorker.workerVersionUpdated",
+        "SmartCardEmulation.beginTransactionRequested",
+        "SmartCardEmulation.cancelRequested",
+        "SmartCardEmulation.connectRequested",
+        "SmartCardEmulation.controlRequested",
+        "SmartCardEmulation.disconnectRequested",
+        "SmartCardEmulation.endTransactionRequested",
+        "SmartCardEmulation.establishContextRequested",
+        "SmartCardEmulation.getAttribRequested",
+        "SmartCardEmulation.getStatusChangeRequested",
+        "SmartCardEmulation.listReadersRequested",
+        "SmartCardEmulation.releaseContextRequested",
+        "SmartCardEmulation.setAttribRequested",
+        "SmartCardEmulation.statusRequested",
+        "SmartCardEmulation.transmitRequested",
+        "Storage.cacheStorageContentUpdated",
+        "Storage.cacheStorageListUpdated",
+        "Storage.indexedDBContentUpdated",
+        "Storage.indexedDBListUpdated",
+        "Storage.interestGroupAccessed",
+        "Storage.interestGroupAuctionEventOccurred",
+        "Storage.interestGroupAuctionNetworkRequestCreated",
+        "Storage.sharedStorageAccessed",
+        "Storage.sharedStorageWorkletOperationExecutionFinished",
+        "Storage.storageBucketCreatedOrUpdated",
+        "Storage.storageBucketDeleted",
+        "Target.attachedToTarget",
+        "Target.detachedFromTarget",
+        "Target.receivedMessageFromTarget",
+        "Target.targetCrashed",
+        "Target.targetCreated",
+        "Target.targetDestroyed",
+        "Target.targetInfoChanged",
+        "Tethering.accepted",
+        "Tracing.bufferUsage",
+        "Tracing.dataCollected",
+        "Tracing.tracingComplete",
+        "WebAudio.audioListenerCreated",
+        "WebAudio.audioListenerWillBeDestroyed",
+        "WebAudio.audioNodeCreated",
+        "WebAudio.audioNodeWillBeDestroyed",
+        "WebAudio.audioParamCreated",
+        "WebAudio.audioParamWillBeDestroyed",
+        "WebAudio.contextChanged",
+        "WebAudio.contextCreated",
+        "WebAudio.contextWillBeDestroyed",
+        "WebAudio.nodeParamConnected",
+        "WebAudio.nodeParamDisconnected",
+        "WebAudio.nodesConnected",
+        "WebAudio.nodesDisconnected",
+        "WebAuthn.credentialAdded",
+        "WebAuthn.credentialAsserted",
+        "WebAuthn.credentialDeleted",
+        "WebAuthn.credentialUpdated",
+        "WebMCP.toolInvoked",
+        "WebMCP.toolResponded",
+        "WebMCP.toolsAdded",
+        "WebMCP.toolsRemoved",
+        "console"
+      ]
+    },
+    "PageOffParams": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["subscription_id"],
+      "additionalProperties": false
+    },
     "PageSetExtraHTTPHeadersParams": {
       "type": "object",
       "properties": {
@@ -4643,6 +4952,327 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/__schema9"
+          }
+        }
+      ]
+    },
+    "PageCDPEventNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "$ref": "#/$defs/PageCDPEvent"
+        }
+      },
+      "required": ["subscription_id", "event"],
+      "additionalProperties": false
+    },
+    "PageCDPEvent": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "$ref": "#/$defs/CDPEventName"
+        },
+        "params": {
+          "$ref": "#/$defs/PageCDPEventParams"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "method", "params", "session_id", "target_id"],
+      "additionalProperties": false
+    },
+    "CDPEventName": {
+      "type": "string",
+      "enum": [
+        "Accessibility.loadComplete",
+        "Accessibility.nodesUpdated",
+        "Animation.animationCanceled",
+        "Animation.animationCreated",
+        "Animation.animationStarted",
+        "Animation.animationUpdated",
+        "Audits.issueAdded",
+        "Autofill.addressFormFilled",
+        "BackgroundService.backgroundServiceEventReceived",
+        "BackgroundService.recordingStateChanged",
+        "BluetoothEmulation.characteristicOperationReceived",
+        "BluetoothEmulation.descriptorOperationReceived",
+        "BluetoothEmulation.gattOperationReceived",
+        "Browser.downloadProgress",
+        "Browser.downloadWillBegin",
+        "CSS.computedStyleUpdated",
+        "CSS.fontsUpdated",
+        "CSS.mediaQueryResultChanged",
+        "CSS.styleSheetAdded",
+        "CSS.styleSheetChanged",
+        "CSS.styleSheetRemoved",
+        "Cast.issueUpdated",
+        "Cast.sinksUpdated",
+        "Console.messageAdded",
+        "DOM.adRelatedStateUpdated",
+        "DOM.adoptedStyleSheetsModified",
+        "DOM.affectedByStartingStylesFlagUpdated",
+        "DOM.attributeModified",
+        "DOM.attributeRemoved",
+        "DOM.characterDataModified",
+        "DOM.childNodeCountUpdated",
+        "DOM.childNodeInserted",
+        "DOM.childNodeRemoved",
+        "DOM.distributedNodesUpdated",
+        "DOM.documentUpdated",
+        "DOM.inlineStyleInvalidated",
+        "DOM.pseudoElementAdded",
+        "DOM.pseudoElementRemoved",
+        "DOM.scrollableFlagUpdated",
+        "DOM.setChildNodes",
+        "DOM.shadowRootPopped",
+        "DOM.shadowRootPushed",
+        "DOM.topLayerElementsUpdated",
+        "DOMStorage.domStorageItemAdded",
+        "DOMStorage.domStorageItemRemoved",
+        "DOMStorage.domStorageItemUpdated",
+        "DOMStorage.domStorageItemsCleared",
+        "Debugger.breakpointResolved",
+        "Debugger.paused",
+        "Debugger.resumed",
+        "Debugger.scriptFailedToParse",
+        "Debugger.scriptParsed",
+        "DeviceAccess.deviceRequestPrompted",
+        "Emulation.screenOrientationLockChanged",
+        "Emulation.virtualTimeBudgetExpired",
+        "FedCm.dialogClosed",
+        "FedCm.dialogShown",
+        "Fetch.authRequired",
+        "Fetch.requestPaused",
+        "HeapProfiler.addHeapSnapshotChunk",
+        "HeapProfiler.heapStatsUpdate",
+        "HeapProfiler.lastSeenObjectId",
+        "HeapProfiler.reportHeapSnapshotProgress",
+        "HeapProfiler.resetProfiles",
+        "Input.dragIntercepted",
+        "Inspector.detached",
+        "Inspector.targetCrashed",
+        "Inspector.targetReloadedAfterCrash",
+        "Inspector.workerScriptLoaded",
+        "LayerTree.layerPainted",
+        "LayerTree.layerTreeDidChange",
+        "Log.entryAdded",
+        "Media.playerCreated",
+        "Media.playerErrorsRaised",
+        "Media.playerEventsAdded",
+        "Media.playerMessagesLogged",
+        "Media.playerPropertiesChanged",
+        "Network.dataReceived",
+        "Network.deviceBoundSessionEventOccurred",
+        "Network.deviceBoundSessionsAdded",
+        "Network.directTCPSocketAborted",
+        "Network.directTCPSocketChunkReceived",
+        "Network.directTCPSocketChunkSent",
+        "Network.directTCPSocketClosed",
+        "Network.directTCPSocketCreated",
+        "Network.directTCPSocketOpened",
+        "Network.directUDPSocketAborted",
+        "Network.directUDPSocketChunkReceived",
+        "Network.directUDPSocketChunkSent",
+        "Network.directUDPSocketClosed",
+        "Network.directUDPSocketCreated",
+        "Network.directUDPSocketJoinedMulticastGroup",
+        "Network.directUDPSocketLeftMulticastGroup",
+        "Network.directUDPSocketOpened",
+        "Network.eventSourceMessageReceived",
+        "Network.loadingFailed",
+        "Network.loadingFinished",
+        "Network.policyUpdated",
+        "Network.reportingApiEndpointsChangedForOrigin",
+        "Network.reportingApiReportAdded",
+        "Network.reportingApiReportUpdated",
+        "Network.requestIntercepted",
+        "Network.requestServedFromCache",
+        "Network.requestWillBeSent",
+        "Network.requestWillBeSentExtraInfo",
+        "Network.resourceChangedPriority",
+        "Network.responseReceived",
+        "Network.responseReceivedEarlyHints",
+        "Network.responseReceivedExtraInfo",
+        "Network.signedExchangeReceived",
+        "Network.trustTokenOperationDone",
+        "Network.webSocketClosed",
+        "Network.webSocketCreated",
+        "Network.webSocketFrameError",
+        "Network.webSocketFrameReceived",
+        "Network.webSocketFrameSent",
+        "Network.webSocketHandshakeResponseReceived",
+        "Network.webSocketWillSendHandshakeRequest",
+        "Network.webTransportClosed",
+        "Network.webTransportConnectionEstablished",
+        "Network.webTransportCreated",
+        "Overlay.inspectModeCanceled",
+        "Overlay.inspectNodeRequested",
+        "Overlay.inspectPanelShowRequested",
+        "Overlay.inspectedElementWindowRestored",
+        "Overlay.nodeHighlightRequested",
+        "Overlay.screenshotRequested",
+        "Page.backForwardCacheNotUsed",
+        "Page.compilationCacheProduced",
+        "Page.documentOpened",
+        "Page.domContentEventFired",
+        "Page.downloadProgress",
+        "Page.downloadWillBegin",
+        "Page.fileChooserOpened",
+        "Page.frameAttached",
+        "Page.frameClearedScheduledNavigation",
+        "Page.frameDetached",
+        "Page.frameNavigated",
+        "Page.frameRequestedNavigation",
+        "Page.frameResized",
+        "Page.frameScheduledNavigation",
+        "Page.frameStartedLoading",
+        "Page.frameStartedNavigating",
+        "Page.frameStoppedLoading",
+        "Page.frameSubtreeWillBeDetached",
+        "Page.interstitialHidden",
+        "Page.interstitialShown",
+        "Page.javascriptDialogClosed",
+        "Page.javascriptDialogOpening",
+        "Page.lifecycleEvent",
+        "Page.loadEventFired",
+        "Page.navigatedWithinDocument",
+        "Page.screencastFrame",
+        "Page.screencastVisibilityChanged",
+        "Page.windowOpen",
+        "Performance.metrics",
+        "PerformanceTimeline.timelineEventAdded",
+        "Preload.prefetchStatusUpdated",
+        "Preload.preloadEnabledStateUpdated",
+        "Preload.preloadingAttemptSourcesUpdated",
+        "Preload.prerenderStatusUpdated",
+        "Preload.ruleSetRemoved",
+        "Preload.ruleSetUpdated",
+        "Profiler.consoleProfileFinished",
+        "Profiler.consoleProfileStarted",
+        "Profiler.preciseCoverageDeltaUpdate",
+        "Runtime.bindingCalled",
+        "Runtime.consoleAPICalled",
+        "Runtime.exceptionRevoked",
+        "Runtime.exceptionThrown",
+        "Runtime.executionContextCreated",
+        "Runtime.executionContextDestroyed",
+        "Runtime.executionContextsCleared",
+        "Runtime.inspectRequested",
+        "Security.certificateError",
+        "Security.securityStateChanged",
+        "Security.visibleSecurityStateChanged",
+        "ServiceWorker.workerErrorReported",
+        "ServiceWorker.workerRegistrationUpdated",
+        "ServiceWorker.workerVersionUpdated",
+        "SmartCardEmulation.beginTransactionRequested",
+        "SmartCardEmulation.cancelRequested",
+        "SmartCardEmulation.connectRequested",
+        "SmartCardEmulation.controlRequested",
+        "SmartCardEmulation.disconnectRequested",
+        "SmartCardEmulation.endTransactionRequested",
+        "SmartCardEmulation.establishContextRequested",
+        "SmartCardEmulation.getAttribRequested",
+        "SmartCardEmulation.getStatusChangeRequested",
+        "SmartCardEmulation.listReadersRequested",
+        "SmartCardEmulation.releaseContextRequested",
+        "SmartCardEmulation.setAttribRequested",
+        "SmartCardEmulation.statusRequested",
+        "SmartCardEmulation.transmitRequested",
+        "Storage.cacheStorageContentUpdated",
+        "Storage.cacheStorageListUpdated",
+        "Storage.indexedDBContentUpdated",
+        "Storage.indexedDBListUpdated",
+        "Storage.interestGroupAccessed",
+        "Storage.interestGroupAuctionEventOccurred",
+        "Storage.interestGroupAuctionNetworkRequestCreated",
+        "Storage.sharedStorageAccessed",
+        "Storage.sharedStorageWorkletOperationExecutionFinished",
+        "Storage.storageBucketCreatedOrUpdated",
+        "Storage.storageBucketDeleted",
+        "Target.attachedToTarget",
+        "Target.detachedFromTarget",
+        "Target.receivedMessageFromTarget",
+        "Target.targetCrashed",
+        "Target.targetCreated",
+        "Target.targetDestroyed",
+        "Target.targetInfoChanged",
+        "Tethering.accepted",
+        "Tracing.bufferUsage",
+        "Tracing.dataCollected",
+        "Tracing.tracingComplete",
+        "WebAudio.audioListenerCreated",
+        "WebAudio.audioListenerWillBeDestroyed",
+        "WebAudio.audioNodeCreated",
+        "WebAudio.audioNodeWillBeDestroyed",
+        "WebAudio.audioParamCreated",
+        "WebAudio.audioParamWillBeDestroyed",
+        "WebAudio.contextChanged",
+        "WebAudio.contextCreated",
+        "WebAudio.contextWillBeDestroyed",
+        "WebAudio.nodeParamConnected",
+        "WebAudio.nodeParamDisconnected",
+        "WebAudio.nodesConnected",
+        "WebAudio.nodesDisconnected",
+        "WebAuthn.credentialAdded",
+        "WebAuthn.credentialAsserted",
+        "WebAuthn.credentialDeleted",
+        "WebAuthn.credentialUpdated",
+        "WebMCP.toolInvoked",
+        "WebMCP.toolResponded",
+        "WebMCP.toolsAdded",
+        "WebMCP.toolsRemoved"
+      ]
+    },
+    "PageCDPEventParams": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema10"
+      }
+    },
+    "__schema10": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema10"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema10"
           }
         }
       ]
@@ -5977,6 +6607,60 @@
             },
             "method": {
               "type": "string",
+              "const": "page.on"
+            },
+            "params": {
+              "$ref": "#/$defs/PageOnParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.off"
+            },
+            "params": {
+              "$ref": "#/$defs/PageOffParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.set_extra_http_headers"
             },
             "params": {
@@ -6891,22 +7575,44 @@
       "maximum": 9007199254740991
     },
     "StagehandRpcNotification": {
-      "type": "object",
-      "properties": {
-        "jsonrpc": {
-          "type": "string",
-          "const": "2.0"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.log"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandLog"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
         },
-        "method": {
-          "type": "string",
-          "const": "stagehand.log"
-        },
-        "params": {
-          "$ref": "#/$defs/StagehandLog"
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.cdp_event"
+            },
+            "params": {
+              "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
         }
-      },
-      "required": ["jsonrpc", "method", "params"],
-      "additionalProperties": false
+      ]
     },
     "JSONRPCSuccessResponse": {
       "type": "object",
@@ -6916,7 +7622,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema10"
+          "$ref": "#/$defs/__schema11"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -6925,7 +7631,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema10": {
+    "__schema11": {
       "anyOf": [
         {
           "type": "string"
@@ -6942,7 +7648,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         },
         {
@@ -6951,7 +7657,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema10"
+            "$ref": "#/$defs/__schema11"
           }
         }
       ]
@@ -6985,13 +7691,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema11"
+          "$ref": "#/$defs/__schema12"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema11": {
+    "__schema12": {
       "anyOf": [
         {
           "type": "string"
@@ -7008,7 +7714,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         },
         {
@@ -7017,7 +7723,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema11"
+            "$ref": "#/$defs/__schema12"
           }
         }
       ]

@@ -12,7 +12,13 @@ export {
 } from "./browserClipboard.js";
 export { Locator } from "./locator.js";
 export type { FileInput, FilePayload } from "./fileUpload.js";
-export { Page, type ScreenshotOptions } from "./page.js";
+export {
+  CDPSubscription,
+  Page,
+  type PageCDPEventFor,
+  type PageEventListener,
+  type ScreenshotOptions,
+} from "./page.js";
 export {
   Response,
   type ResponseHeader,
@@ -42,6 +48,8 @@ export type {
   CacheStatus,
   CacheTokenSavings,
   ObserveResult,
+  PageCDPEvent,
+  PageEventName,
   StagehandMetrics,
   StagehandResultMetadata,
   WebMCPAnnotation,

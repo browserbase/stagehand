@@ -29,6 +29,7 @@ import type {
   CacheMetadataSchema,
   CacheStatusSchema,
   CacheTokenSavingsSchema,
+  CDPEventNameSchema,
   CachingSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
@@ -143,6 +144,9 @@ import type {
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
+  PageCDPEventNotificationSchema,
+  PageCDPEventParamsSchema,
+  PageCDPEventSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -154,9 +158,12 @@ import type {
   PageHoverParamsSchema,
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
+  PageEventNameSchema,
   PageLocatorSchema,
   PageNavigationResultSchema,
   PageNavigationOptionsSchema,
+  PageOffParamsSchema,
+  PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
   PageScreenshotOptionsSchema,
@@ -288,6 +295,11 @@ export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
+export type CDPEventName = z.infer<typeof CDPEventNameSchema>;
+export type PageEventName = z.infer<typeof PageEventNameSchema>;
+export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
+export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;
+export type PageCDPEventNotification = z.infer<typeof PageCDPEventNotificationSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type NavigationHeader = z.infer<typeof NavigationHeaderSchema>;
 export type NavigationSecurityDetails = z.infer<typeof NavigationSecurityDetailsSchema>;
@@ -341,6 +353,8 @@ export type ContextSetExtraHTTPHeadersParams = z.infer<
 >;
 export type ContextSetDomainPolicyParams = z.infer<typeof ContextSetDomainPolicyParamsSchema>;
 export type PageGotoParams = z.infer<typeof PageGotoParamsSchema>;
+export type PageOnParams = z.infer<typeof PageOnParamsSchema>;
+export type PageOffParams = z.infer<typeof PageOffParamsSchema>;
 export type PageIdParams = z.infer<typeof PageIdParamsSchema>;
 export type PageReloadParams = z.infer<typeof PageReloadParamsSchema>;
 export type PageGoBackParams = z.infer<typeof PageGoBackParamsSchema>;

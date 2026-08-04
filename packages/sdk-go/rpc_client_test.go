@@ -581,6 +581,44 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	}
 }
 
+func TestRPCClientValidatesPageCDPEventNotificationsWithoutRenamingRawParams(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	received := make(chan PageCDPEventNotification, 1)
+	client.onPageCDPEvent(func(notification PageCDPEventNotification) {
+		received <- notification
+	})
+
+	transport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"method": "page.cdp_event",
+		"params": {
+			"subscription_id": "subscription-1",
+			"event": {
+				"page_id": "page-1",
+				"method": "Runtime.consoleAPICalled",
+				"params": {"executionContextId": 7},
+				"session_id": "session-1",
+				"target_id": "target-1"
+			}
+		}
+	}`)
+
+	select {
+	case notification := <-received:
+		if notification.SubscriptionID != "subscription-1" {
+			t.Fatalf("subscription ID = %q", notification.SubscriptionID)
+		}
+		if string(notification.Event.Params["executionContextId"]) != "7" {
+			t.Fatalf("raw params = %#v", notification.Event.Params)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for page CDP event")
+	}
+}
+
 func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T) {
 	t.Parallel()
 
@@ -634,8 +672,8 @@ func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
 			maxPendingNotifications,
 		)
 	}
-	first := client.notificationQueue[0].notification.Message
-	last := client.notificationQueue[len(client.notificationQueue)-1].notification.Message
+	first := client.notificationQueue[0].notification.(StagehandLog).Message
+	last := client.notificationQueue[len(client.notificationQueue)-1].notification.(StagehandLog).Message
 	client.mu.Unlock()
 
 	if first != "50" || last != "149" {

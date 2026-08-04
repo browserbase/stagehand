@@ -29,7 +29,6 @@ import type {
 } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
 import {
-  StagehandNotifications,
   StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
@@ -455,8 +454,6 @@ export class RPCClient {
   }
 
   handleNotification(notification: StagehandRpcNotification): void {
-    if (notification.method !== StagehandNotifications.log.name) return;
-
     if (this.notificationListeners.size === 0) {
       if (this.pendingNotifications.length === MAX_PENDING_NOTIFICATIONS) {
         this.pendingNotifications.shift();

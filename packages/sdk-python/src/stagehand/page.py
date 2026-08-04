@@ -1,20 +1,25 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import builtins
-from collections.abc import Mapping, Sequence
+import inspect
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Literal, TypeVar, cast, overload
+from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
-from ._generated.input_types import PageScreenshotClip
+from ._generated.input_types import PageEventName, PageScreenshotClip
 from ._generated.models import (
     Animations,
     Caret,
     LoadState,
     MouseButton,
     PageAddInitScriptParams,
+    PageCDPEvent,
+    PageCDPEventNotification,
     PageClickOptions,
     PageClickParams,
     PageCloseResult,
@@ -31,6 +36,8 @@ from ._generated.models import (
     PageKeyPressParams,
     PageNavigationOptions,
     PageNavigationResult,
+    PageOffParams,
+    PageOnParams,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -69,12 +76,47 @@ from .rpc_client import RPCClient
 from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
+PageEventListener = Callable[[PageCDPEvent], object | Awaitable[object]]
+
+
+class CDPSubscription:
+    def __init__(
+        self,
+        rpc_client: RPCClient,
+        subscription_id: str,
+        remove_local_listener: Callable[[], None],
+        on_disposed: Callable[[], None],
+    ) -> None:
+        self._rpc_client = rpc_client
+        self._subscription_id = subscription_id
+        self._remove_local_listener = remove_local_listener
+        self._on_disposed = on_disposed
+        self._unsubscribe_task: asyncio.Task[None] | None = None
+
+    async def unsubscribe(self) -> None:
+        if self._unsubscribe_task is None:
+
+            async def run() -> None:
+                await self._unsubscribe_once()
+
+            self._unsubscribe_task = asyncio.create_task(run())
+        await self._unsubscribe_task
+
+    async def _unsubscribe_once(self) -> None:
+        self._remove_local_listener()
+        self._on_disposed()
+        await self._rpc_client.send(
+            "page.off",
+            PageOffParams(subscription_id=self._subscription_id),
+            PageVoidResult,
+        )
 
 
 class Page:
     def __init__(self, rpc_client: RPCClient, ref: PageRef) -> None:
         self._rpc_client = rpc_client
         self._ref = ref
+        self._event_subscriptions: set[CDPSubscription] = set()
 
     @property
     def page_id(self) -> str:
@@ -306,6 +348,56 @@ class Page:
             PageVoidResult,
         )
 
+    async def on(
+        self,
+        event: PageEventName,
+        listener: PageEventListener,
+    ) -> CDPSubscription:
+        subscription_id = uuid4().hex
+
+        async def notify(notification: PageCDPEventNotification) -> None:
+            if notification.subscription_id != subscription_id:
+                return
+            try:
+                result = listener(notification.event)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as error:
+                asyncio.get_running_loop().call_exception_handler({
+                    "message": "Stagehand page event listener failed",
+                    "exception": error,
+                })
+
+        remove_notification_listener = self._rpc_client.on_notification(
+            "page.cdp_event",
+            PageCDPEventNotification,
+            notify,
+        )
+
+        subscription: CDPSubscription
+        subscription = CDPSubscription(
+            self._rpc_client,
+            subscription_id,
+            remove_notification_listener,
+            lambda: self._event_subscriptions.discard(subscription),
+        )
+        self._event_subscriptions.add(subscription)
+        try:
+            await self._rpc_client.send(
+                "page.on",
+                PageOnParams.model_validate({
+                    "page_id": self.page_id,
+                    "subscription_id": subscription_id,
+                    "event": event,
+                }),
+                PageVoidResult,
+            )
+        except Exception:
+            remove_notification_listener()
+            self._event_subscriptions.discard(subscription)
+            raise
+        return subscription
+
     async def set_extra_http_headers(self, headers: Mapping[str, str]) -> None:
         await self._rpc_client.send(
             "page.set_extra_http_headers",
@@ -458,6 +550,11 @@ class Page:
         )
 
     async def close(self) -> None:
+        if self._event_subscriptions:
+            await asyncio.gather(
+                *(subscription.unsubscribe() for subscription in self._event_subscriptions),
+                return_exceptions=True,
+            )
         await self._rpc_client.send(
             "page.close",
             PageIdParams(page_id=self.page_id),

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 const schemaUrl = new URL("../../stagehand.v4.json", import.meta.url);
 
 type GeneratedNotification = {
+  anyOf?: unknown[];
   properties: Record<string, unknown>;
   required: string[];
 };
@@ -54,12 +55,15 @@ describe("generated Stagehand notifications", () => {
 
   it("requires params in the notification envelope", async () => {
     const protocol = JSON.parse(await readFile(schemaUrl, "utf8")) as GeneratedProtocol;
-    const notification = resolveDefinition(
+    const notificationSchema = resolveDefinition(
       protocol,
       protocol.properties.jsonrpc.properties.notification,
     );
-
-    expect(notification.required).toContain("params");
+    const variants = notificationSchema.anyOf ?? [notificationSchema];
+    for (const variant of variants) {
+      const notification = resolveDefinitionOrInline(protocol, variant);
+      expect(notification.required).toContain("params");
+    }
   });
 });
 
@@ -72,4 +76,13 @@ function resolveDefinition(protocol: GeneratedProtocol, schema: unknown): Genera
   const definition = protocol.$defs[name];
   expect(definition, `${reference as string} must resolve`).toBeDefined();
   return definition;
+}
+
+function resolveDefinitionOrInline(
+  protocol: GeneratedProtocol,
+  schema: unknown,
+): GeneratedNotification {
+  return (schema as { $ref?: unknown }).$ref
+    ? resolveDefinition(protocol, schema)
+    : (schema as GeneratedNotification);
 }

@@ -717,8 +717,12 @@ describe("JSON-RPC wire casing", () => {
     }
 
     const notification = resolveSchema(jsonrpc.notification, protocol);
-    expect(notification.required).toContain("params");
-    expectDeclaredPropertiesToBeSnakeCase(notification, "jsonrpc.notification", protocol);
+    const notificationVariants = notification.oneOf ?? notification.anyOf ?? [notification];
+    for (const variant of notificationVariants as unknown[]) {
+      const envelope = resolveSchema(variant, protocol);
+      expect(envelope.required).toContain("params");
+      expectDeclaredPropertiesToBeSnakeCase(envelope, "jsonrpc.notification", protocol);
+    }
   });
 });
 

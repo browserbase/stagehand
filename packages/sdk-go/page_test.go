@@ -3,10 +3,12 @@ package stagehand
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
@@ -90,6 +92,57 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rpc.calls, want) {
 		t.Fatalf("RPC calls = %#v, want %#v", rpc.calls, want)
+	}
+}
+
+func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":  PageVoidResult{Ok: true},
+		"page.off": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	events := make(chan PageCDPEvent, 1)
+
+	subscription, err := page.On(context.Background(), "console", func(event PageCDPEvent) {
+		events <- event
+	})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+	onParams, ok := rpc.calls[0].params.(PageOnParams)
+	if !ok || onParams.PageID != "page-1" || onParams.Event != PageEventNameConsole {
+		t.Fatalf("page.on params = %#v", rpc.calls[0].params)
+	}
+	rpc.pageEventHandler(PageCDPEventNotification{
+		SubscriptionID: onParams.SubscriptionID,
+		Event: PageCDPEvent{
+			PageID:    "page-1",
+			Method:    CDPEventNameRuntimeConsoleAPICalled,
+			Params:    PageCDPEventParams{"type": json.RawMessage(`"log"`)},
+			SessionID: "session-1",
+			TargetID:  "target-1",
+		},
+	})
+	select {
+	case event := <-events:
+		if event.Method != CDPEventNameRuntimeConsoleAPICalled || event.SessionID != "session-1" {
+			t.Fatalf("page event = %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for page event")
+	}
+
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("subscription.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("page event handler remained registered")
+	}
+	offParams, ok := rpc.calls[1].params.(PageOffParams)
+	if !ok || offParams.SubscriptionID != onParams.SubscriptionID {
+		t.Fatalf("page.off params = %#v", rpc.calls[1].params)
 	}
 }
 
