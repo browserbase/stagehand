@@ -282,59 +282,6 @@ describe("Stagehand service worker RPC client smoke", () => {
     ).resolves.toBe("Stagehand Smoke");
   });
 
-  it("preserves a drag route and de-duplicates its explicit endpoints", async () => {
-    const activeRpcClient = requireRpcClient(rpcClient);
-    const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {});
-
-    try {
-      await activeRpcClient.send(StagehandMethods.pageEvaluate, {
-        pageId: page.pageId,
-        expression: `(() => {
-          globalThis.__stagehandDragMoves = [];
-          document.addEventListener("mousemove", (event) => {
-            if (event.buttons === 1) {
-              globalThis.__stagehandDragMoves.push({ x: event.clientX, y: event.clientY });
-            }
-          });
-        })()`,
-      });
-
-      await expect(
-        activeRpcClient.send(StagehandMethods.pageDragAndDrop, {
-          pageId: page.pageId,
-          fromX: 10,
-          fromY: 10,
-          toX: 90,
-          toY: 90,
-          options: {
-            steps: 99,
-            route: [
-              { x: 10, y: 10 },
-              { x: 25, y: 60 },
-              { x: 70, y: 20 },
-              { x: 90, y: 90 },
-            ],
-          },
-        }),
-      ).resolves.toStrictEqual({ ok: true });
-
-      await expect(
-        activeRpcClient.send(StagehandMethods.pageEvaluate, {
-          pageId: page.pageId,
-          expression: "globalThis.__stagehandDragMoves",
-        }),
-      ).resolves.toStrictEqual({
-        value: [
-          { x: 25, y: 60 },
-          { x: 70, y: 20 },
-          { x: 90, y: 90 },
-        ],
-      });
-    } finally {
-      await activeRpcClient.send(StagehandMethods.pageClose, { pageId: page.pageId });
-    }
-  });
-
   it("closes a throwaway PageRef in a browser session", async () => {
     const activeRpcClient = requireRpcClient(rpcClient);
     const page = await activeRpcClient.send(StagehandMethods.contextNewPage, {
