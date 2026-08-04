@@ -43,7 +43,6 @@ describe("browser API contracts", () => {
     >();
     expectTypeOf<LocalBrowserConnectOptions>().toExtend<{
       cdpUrl: string;
-      connectTimeoutMs?: number;
       extensionId?: string;
     }>();
   });
@@ -64,7 +63,6 @@ describe("browser API contracts", () => {
     expectTypeOf<BrowserbaseConnectOptions>().toExtend<{
       apiKey: string;
       sessionId: string;
-      connectTimeoutMs?: number;
       extensionId?: string;
     }>();
   });

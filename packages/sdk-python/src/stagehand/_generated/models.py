@@ -29,7 +29,7 @@ class ActOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -548,7 +548,7 @@ class ExtractOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
     """
     Timeout in ms for the extraction
@@ -1290,7 +1290,7 @@ class ObserveOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -1881,6 +1881,7 @@ class StagehandInitParams(WireModel):
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
+    """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }

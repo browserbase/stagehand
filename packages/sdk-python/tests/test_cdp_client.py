@@ -1,7 +1,8 @@
 import asyncio
 import json
 from collections.abc import Callable
-from typing import cast
+from types import SimpleNamespace
+from typing import Self, cast
 
 import pytest
 
@@ -79,10 +80,10 @@ async def test_connect_loads_and_attaches_the_stagehand_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -139,10 +140,10 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -162,7 +163,7 @@ async def test_connect_uses_an_existing_extension_without_loading_it(
 @pytest.mark.asyncio
 async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
     socket = FakeWebSocket(lambda _: {"result": {}})
-    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test", 1_000)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
     client._session_id = "worker-session"
 
     try:
@@ -204,16 +205,142 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
 
 
 @pytest.mark.asyncio
-async def test_commands_time_out_and_are_removed() -> None:
+async def test_commands_inherit_caller_cancellation_and_are_removed() -> None:
     socket = FakeWebSocket(lambda _: None)
-    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test", 5)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
 
     try:
-        with pytest.raises(TimeoutError, match="CDP command timed out: Target.getTargets"):
-            await client.send_command("Target.getTargets")
+        command = asyncio.create_task(client.send_command("Target.getTargets"))
+        while not socket.sent:
+            await asyncio.sleep(0)
+
+        assert len(client._pending) == 1
+        assert command.done() is False
+
+        command.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await command
         assert client._pending == {}
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_service_worker_discovery_can_succeed_after_more_than_ten_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    target_polls = 0
+
+    def response_for(message: dict[str, object]) -> dict[str, object]:
+        nonlocal target_polls
+        method = message["method"]
+        if method == "Target.getTargets":
+            target_polls += 1
+            if target_polls == 1:
+                return {"result": {"targetInfos": []}}
+            return {
+                "result": {
+                    "targetInfos": [
+                        {
+                            "targetId": "worker-target",
+                            "type": "service_worker",
+                            "title": "Stagehand",
+                            "url": "chrome-extension://stagehand-extension/service-worker.js",
+                        }
+                    ]
+                }
+            }
+        return {"result": {}}
+
+    elapsed_seconds = iter((0.0, 10.1))
+    monkeypatch.setattr(
+        cdp_client,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(elapsed_seconds)),
+    )
+    socket = FakeWebSocket(response_for)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+
+    try:
+        worker = await client._wait_for_service_worker(
+            "stagehand-extension",
+            "service-worker.js",
+        )
+    finally:
+        await client.close()
+
+    assert worker.target_id == "worker-target"
+    assert target_polls == 2
+
+
+@pytest.mark.asyncio
+async def test_service_worker_discovery_closes_the_wake_target_after_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    socket = FakeWebSocket(lambda _: None)
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    wake_created = asyncio.Event()
+    wake_closed = asyncio.Event()
+    calls: list[tuple[str, object]] = []
+
+    async def send_command(method: str, params: object = None, **_: object) -> dict[str, object]:
+        calls.append((method, params))
+        if method == "Target.getTargets":
+            return {"targetInfos": []}
+        if method == "Target.createTarget":
+            wake_created.set()
+            return {"targetId": "wake-target"}
+        if method == "Target.closeTarget":
+            wake_closed.set()
+        return {}
+
+    monkeypatch.setattr(client, "send_command", send_command)
+    elapsed_seconds = iter((0.0, 2.0))
+    monkeypatch.setattr(
+        cdp_client,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(elapsed_seconds, 2.0)),
+    )
+
+    try:
+        waiting = asyncio.create_task(
+            client._wait_for_service_worker("stagehand-extension", "service-worker.js")
+        )
+        await asyncio.wait_for(wake_created.wait(), timeout=1)
+        waiting.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiting
+        await asyncio.wait_for(wake_closed.wait(), timeout=1)
+    finally:
+        await client.close()
+
+    assert ("Target.closeTarget", {"targetId": "wake-target"}) in calls
+
+
+def test_json_version_probe_uses_a_short_socket_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_timeout: object = None
+
+    class Response:
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    def open_url(_: str, *, timeout: object = None) -> Response:
+        nonlocal observed_timeout
+        observed_timeout = timeout
+        return Response()
+
+    monkeypatch.setattr(cdp_client, "urlopen", open_url)
+    monkeypatch.setattr(cdp_client.json, "load", lambda _: {"webSocketDebuggerUrl": "ws://cdp"})
+
+    assert cdp_client._read_json("http://127.0.0.1:9222/json/version") == {
+        "webSocketDebuggerUrl": "ws://cdp"
+    }
+    assert observed_timeout == 2
 
 
 @pytest.mark.asyncio
@@ -222,10 +349,10 @@ async def test_connect_explains_when_chrome_cannot_load_an_extension(
 ) -> None:
     socket = FakeWebSocket(lambda _: {"error": {"code": -32601, "message": "Method not found"}})
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -291,10 +418,10 @@ async def test_connect_discovers_a_ready_preloaded_extension(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -346,10 +473,10 @@ async def test_preloaded_discovery_detaches_stale_worker_then_accepts_ready_work
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -357,7 +484,6 @@ async def test_preloaded_discovery_detaches_stale_worker_then_accepts_ready_work
     client = await CDPClient.connect(
         cdp_url="wss://browserbase",
         preloaded_extension=True,
-        discovery_timeout_ms=1_000,
     )
     try:
         assert client.service_worker.target_id == "ready"
@@ -409,10 +535,10 @@ async def test_preloaded_discovery_detaches_incompatible_worker_then_accepts_rea
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -420,7 +546,6 @@ async def test_preloaded_discovery_detaches_incompatible_worker_then_accepts_rea
     client = await CDPClient.connect(
         cdp_url="wss://browserbase",
         preloaded_extension=True,
-        discovery_timeout_ms=1_000,
     )
     try:
         assert client.service_worker.target_id == "ready"
@@ -458,10 +583,10 @@ async def test_preloaded_discovery_accepts_worker_without_extension_id(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -509,10 +634,10 @@ async def test_preloaded_discovery_detaches_ready_worker_with_missing_title(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
@@ -520,7 +645,6 @@ async def test_preloaded_discovery_detaches_ready_worker_with_missing_title(
     client = await CDPClient.connect(
         cdp_url="wss://browserbase",
         preloaded_extension=True,
-        discovery_timeout_ms=1_000,
     )
     try:
         assert client.service_worker.target_id == "ready"
@@ -534,11 +658,14 @@ async def test_preloaded_discovery_detaches_ready_worker_with_missing_title(
         await client.close()
 
 
-async def test_preloaded_discovery_timeout_reports_observed_targets(
+async def test_preloaded_discovery_remains_open_until_the_caller_cancels(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    discovery_started = asyncio.Event()
+
     def response_for(message: dict[str, object]) -> dict[str, object]:
         if message["method"] == "Target.getTargets":
+            discovery_started.set()
             return {
                 "result": {
                     "targetInfos": [
@@ -555,23 +682,25 @@ async def test_preloaded_discovery_timeout_reports_observed_targets(
 
     socket = FakeWebSocket(response_for)
 
-    async def resolve(_: str, __: int) -> str:
+    async def resolve(_: str) -> str:
         return "ws://127.0.0.1/devtools/browser/test"
 
-    async def connect(_: str, __: int) -> FakeWebSocket:
+    async def connect(_: str) -> FakeWebSocket:
         return socket
 
     monkeypatch.setattr(cdp_client, "_resolve_browser_web_socket_url", resolve)
     monkeypatch.setattr(cdp_client, "_connect_web_socket", connect)
-    with pytest.raises(
-        TimeoutError,
-        match="Timed out discovering the preloaded Stagehand service worker.*page:https://example.com",
-    ):
-        await CDPClient.connect(
+    connecting = asyncio.create_task(
+        CDPClient.connect(
             cdp_url="wss://browserbase",
             preloaded_extension=True,
-            discovery_timeout_ms=1,
         )
+    )
+    await asyncio.wait_for(discovery_started.wait(), timeout=1)
+    await asyncio.sleep(0.01)
+    connecting.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(connecting, timeout=1)
     assert socket.closed is True
 
 

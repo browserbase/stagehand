@@ -29,6 +29,7 @@ from .client_models import (
     LocalViewport,
 )
 from .extension_assets import extension_directory
+from .timeouts import stagehand_init_deadline
 
 _WEBMCP_CHROME_FLAG = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 
@@ -61,7 +62,6 @@ _DEFAULT_CHROME_FLAGS = (
 )
 
 _BROWSER_TOKEN = object()
-_COMMAND_TIMEOUT_MS = 10_000
 
 
 @dataclass(frozen=True)
@@ -74,7 +74,6 @@ class _WorkerInitMetadata:
 class _ClaimedBrowser:
     cdp_client: CDPClient
     worker_init_metadata: _WorkerInitMetadata
-    command_timeout_ms: int = _COMMAND_TIMEOUT_MS
 
 
 @dataclass
@@ -200,7 +199,6 @@ class _LocalBrowserOptions(Protocol):
     device_scale_factor: float | None
     has_touch: bool | None
     ignore_https_errors: bool | None
-    connect_timeout_ms: int | None
     downloads_path: str | None
     accept_downloads: bool | None
     keep_alive: bool | None
@@ -214,13 +212,11 @@ async def _connect_browser(
     extension_dir: str | None = None,
     extension_id: str | None = None,
     preloaded_extension: bool = False,
-    connect_timeout_ms: int | None = None,
     after_connect: Callable[[CDPClient], Awaitable[None]] | None = None,
     worker_init_metadata: _WorkerInitMetadata,
 ) -> StagehandBrowser:
     owns_source = origin == "launched" and not source.keep_alive
     cdp_client: CDPClient | None = None
-    timeout_ms = connect_timeout_ms or 10_000
     try:
         cdp_client = await CDPClient.connect(
             cdp_url=source.cdp_url,
@@ -228,9 +224,6 @@ async def _connect_browser(
             extension_id=extension_id,
             preloaded_extension=preloaded_extension,
             service_worker_url_includes="service-worker.js",
-            discovery_timeout_ms=timeout_ms,
-            command_timeout_ms=_COMMAND_TIMEOUT_MS,
-            cdp_connect_timeout_ms=timeout_ms,
         )
         if after_connect is not None:
             await after_connect(cdp_client)
@@ -280,6 +273,7 @@ async def _connect_browser(
 
 
 class LocalBrowser:
+    @stagehand_init_deadline
     async def launch(
         self,
         *,
@@ -302,7 +296,6 @@ class LocalBrowser:
         device_scale_factor: float | None = None,
         has_touch: bool | None = None,
         ignore_https_errors: bool | None = None,
-        connect_timeout_ms: int | None = None,
         downloads_path: str | Path | None = None,
         accept_downloads: bool | None = None,
         keep_alive: bool | None = None,
@@ -376,7 +369,6 @@ class LocalBrowser:
                 ("device_scale_factor", device_scale_factor),
                 ("has_touch", has_touch),
                 ("ignore_https_errors", ignore_https_errors),
-                ("connect_timeout_ms", connect_timeout_ms),
                 ("downloads_path", str(downloads_path) if downloads_path is not None else None),
                 ("accept_downloads", accept_downloads),
                 ("keep_alive", keep_alive),
@@ -405,7 +397,6 @@ class LocalBrowser:
             origin="launched",
             source=source,
             extension_dir=str(extension_directory()),
-            connect_timeout_ms=options.connect_timeout_ms,
             after_connect=(
                 configure_downloads
                 if options.accept_downloads is not None or options.downloads_path is not None
@@ -414,18 +405,17 @@ class LocalBrowser:
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         )
 
+    @stagehand_init_deadline
     async def connect(
         self,
         *,
         cdp_url: str,
-        connect_timeout_ms: int | None = None,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
         options = LocalBrowserConnectOptions.model_validate({
             name: value
             for name, value in (
                 ("cdp_url", cdp_url),
-                ("connect_timeout_ms", connect_timeout_ms),
                 ("extension_id", extension_id),
             )
             if value is not None
@@ -437,7 +427,6 @@ class LocalBrowser:
             source=_ConnectedBrowserSource(options.cdp_url),
             extension_dir=extension_dir,
             extension_id=options.extension_id,
-            connect_timeout_ms=options.connect_timeout_ms,
             worker_init_metadata=_WorkerInitMetadata(api_key=None, browser=None),
         )
 
@@ -452,6 +441,7 @@ class _ConnectedBrowserSource:
 
 
 class BrowserbaseBrowser:
+    @stagehand_init_deadline
     async def launch(
         self,
         *,
@@ -504,12 +494,12 @@ class BrowserbaseBrowser:
             ),
         )
 
+    @stagehand_init_deadline
     async def connect(
         self,
         *,
         api_key: str,
         session_id: str,
-        connect_timeout_ms: int | None = None,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
         options = BrowserbaseConnectOptions.model_validate({
@@ -517,7 +507,6 @@ class BrowserbaseBrowser:
             for name, value in (
                 ("api_key", api_key),
                 ("session_id", session_id),
-                ("connect_timeout_ms", connect_timeout_ms),
                 ("extension_id", extension_id),
             )
             if value is not None
@@ -531,7 +520,6 @@ class BrowserbaseBrowser:
             source=_ConnectedBrowserSource(connection.cdp_url),
             extension_id=options.extension_id,
             preloaded_extension=options.extension_id is None,
-            connect_timeout_ms=options.connect_timeout_ms,
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=options.api_key,
                 browser=_browser_session_metadata(connection.session_id, connection.region),

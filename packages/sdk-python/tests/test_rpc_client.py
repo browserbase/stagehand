@@ -4,6 +4,7 @@ from typing import cast
 import pytest
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from stagehand import rpc_client
 from stagehand._generated import models
 from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
@@ -434,11 +435,14 @@ async def test_error_responses_preserve_the_json_rpc_code_and_data() -> None:
 
 
 @pytest.mark.asyncio
-async def test_timeout_and_transport_close_reject_pending_requests() -> None:
+async def test_response_timeout_and_transport_close_reject_pending_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(rpc_client, "_RPC_RESPONSE_GRACE_MS", 50)
     timeout_transport = QueueTransport()
-    timeout_client = RPCClient(timeout_transport, request_timeout_ms=10)
+    timeout_client = RPCClient(timeout_transport)
     try:
-        with pytest.raises(TimeoutError, match=r"RPC request timed out: test\.request"):
+        with pytest.raises(TimeoutError, match=r"RPC response timed out: test\.request"):
             await timeout_client.send("test.request", models.EmptyParams(), RPCResult)
     finally:
         await timeout_client.close()
@@ -451,6 +455,29 @@ async def test_timeout_and_transport_close_reject_pending_requests() -> None:
     with pytest.raises(RuntimeError, match="transport reader failed"):
         await call
     await asyncio.wait_for(failing_transport.closed.wait(), timeout=1)
+
+
+def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() -> None:
+    act_params = models.StagehandActParams.model_validate({
+        "page_id": "page-1",
+        "instruction": "Click",
+        "options": {"timeout": 30_000},
+    })
+    observe_params = models.StagehandObserveParams.model_validate({
+        "page_id": "page-1",
+        "options": {"timeout": 20_000},
+    })
+    extract_params = models.StagehandExtractParams.model_validate({
+        "page_id": "page-1",
+        "instruction": "Extract",
+        "schema": {"type": "object"},
+        "options": {"timeout": 15_000},
+    })
+
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.act", act_params) == 40
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.observe", observe_params) == 30
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.extract", extract_params) == 25
+    assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
 @pytest.mark.asyncio

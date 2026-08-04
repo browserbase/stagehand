@@ -10,6 +10,7 @@ import {
   type RuntimeCompatibility,
   type RuntimeRequirement,
 } from "./runtimeCompatibility.js";
+import { abortable, abortableDelay, abortReason, throwIfAborted } from "./abort.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -33,11 +34,9 @@ export type CDPClientOptions = {
   extensionId?: string;
   preloadedExtension?: true;
   serviceWorkerUrlIncludes?: string;
-  discoveryTimeoutMs: number;
-  commandTimeoutMs: number;
-  cdpConnectTimeoutMs: number;
   runtimeRequirement?: RuntimeRequirement;
   allowFallbackInstall?: boolean;
+  signal: AbortSignal;
 };
 
 type RuntimeEvaluateResult = {
@@ -57,7 +56,7 @@ type PendingCDPRequest = {
   method: string;
   resolve: (value: unknown) => void;
   reject: (reason: Error) => void;
-  timeoutId: ReturnType<typeof setTimeout>;
+  removeAbortListener?: () => void;
 };
 
 type VersionResponse = {
@@ -68,11 +67,10 @@ type VersionResponse = {
 };
 
 type ResolveBrowserWebSocketUrlOptions = {
-  timeout?: number;
   pollIntervalMs?: number;
-  fetchFn?: (url: string) => Promise<VersionResponse>;
+  fetchFn?: (url: string, init?: { signal?: AbortSignal }) => Promise<VersionResponse>;
   delayFn?: (ms: number) => Promise<void>;
-  nowFn?: () => number;
+  signal: AbortSignal;
 };
 
 export class StagehandRuntimeIncompatibleError extends Error {
@@ -152,11 +150,10 @@ export class CDPClient {
   constructor(
     readonly socket: WebSocket,
     webSocketDebuggerUrl: string,
-    readonly commandTimeoutMs: number,
   ) {
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.socket.addEventListener("message", (event) => {
-      this.handleMessage((event as MessageEvent).data).catch((error: unknown) => {
+      this.handleMessage(event.data).catch((error: unknown) => {
         const normalized = asError(error);
         this.rejectPending(normalized);
         this.onerror?.(normalized);
@@ -179,12 +176,12 @@ export class CDPClient {
   }
 
   static async connect(options: CDPClientOptions): Promise<CDPClient> {
-    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, {
-      timeout: options.cdpConnectTimeoutMs,
-    });
-    const socket = await openCDPWebSocket(webSocketDebuggerUrl, options.cdpConnectTimeoutMs);
+    const signal = options.signal;
+    const webSocketDebuggerUrl = await resolveBrowserWebSocketUrl(options.cdpUrl, { signal });
+    throwIfAborted(signal);
+    const socket = await openCDPWebSocket(webSocketDebuggerUrl, signal);
 
-    const client = new CDPClient(socket, webSocketDebuggerUrl, options.commandTimeoutMs);
+    const client = new CDPClient(socket, webSocketDebuggerUrl);
 
     try {
       let serviceWorker: TargetInfo;
@@ -194,26 +191,31 @@ export class CDPClient {
       if (options.preloadedExtension) {
         const discovered = await waitForPreloadedStagehandServiceWorker(client, {
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
           runtimeRequirement: options.runtimeRequirement,
           allowFallbackInstall: options.allowFallbackInstall,
+          signal,
         });
         serviceWorker = discovered.serviceWorker;
         attached = { sessionId: discovered.sessionId };
         extensionId = extensionIdFromUrl(serviceWorker.url);
       } else {
         extensionId = options.extensionDir
-          ? await loadUnpackedExtension(client, options.extensionDir)
+          ? await loadUnpackedExtension(client, options.extensionDir, signal)
           : options.extensionId;
         serviceWorker = await waitForServiceWorker(client, {
           extensionId,
           urlIncludes: options.serviceWorkerUrlIncludes,
-          timeout: options.discoveryTimeoutMs,
+          signal,
         });
-        attached = await client.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
-          targetId: serviceWorker.targetId,
-          flatten: true,
-        });
+        attached = await client.sendCommand<{ sessionId: string }>(
+          "Target.attachToTarget",
+          {
+            targetId: serviceWorker.targetId,
+            flatten: true,
+          },
+          undefined,
+          signal,
+        );
       }
 
       client.sessionId = attached.sessionId;
@@ -224,16 +226,20 @@ export class CDPClient {
         extensionId,
       };
 
-      await client.sendCommand("Runtime.enable", {}, attached.sessionId).catch(() => {});
+      await client.sendCommand("Runtime.enable", {}, attached.sessionId, signal).catch(() => {
+        throwIfAborted(signal);
+        return undefined;
+      });
       await client.sendCommand(
         "Runtime.addBinding",
         { name: STAGEHAND_SEND_TO_HOST_BINDING },
         attached.sessionId,
+        signal,
       );
-      await waitForRuntimeReceiver(client, attached.sessionId, {
-        timeout: options.discoveryTimeoutMs,
+      await waitForRuntimeReady(client, attached.sessionId, {
         runtimeRequirement: options.runtimeRequirement,
         allowFallbackInstall: options.allowFallbackInstall,
+        signal,
       });
       return client;
     } catch (error) {
@@ -249,7 +255,7 @@ export class CDPClient {
     return this.attachedServiceWorker;
   }
 
-  async send(message: JSONRPCMessage): Promise<void> {
+  async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {
     if (this.closed) throw new Error("CDP client is closed");
     if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
 
@@ -262,7 +268,7 @@ export class CDPClient {
         returnByValue: true,
       },
       this.sessionId,
-      this.commandTimeoutMs,
+      signal,
     );
 
     if (evaluated.exceptionDetails) {
@@ -278,8 +284,9 @@ export class CDPClient {
     method: string,
     params: JsonObject = {},
     sessionId?: string,
-    timeout = 10_000,
+    signal?: AbortSignal,
   ): Promise<Result> {
+    throwIfAborted(signal);
     if (this.socket.readyState !== WebSocket.OPEN) {
       throw new Error("CDP connection is not open");
     }
@@ -288,19 +295,32 @@ export class CDPClient {
     const message = sessionId ? { id, method, params, sessionId } : { id, method, params };
 
     return await new Promise<Result>((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
+      const onAbort = () => {
         this.pending.delete(id);
-        reject(new Error(`CDP command timed out: ${method}`));
-      }, timeout);
+        reject(signal ? abortReason(signal) : new Error("CDP command aborted"));
+      };
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       this.pending.set(id, {
         method,
         resolve: (value) => resolve(value as Result),
         reject,
-        timeoutId,
+        ...(signal
+          ? { removeAbortListener: () => signal.removeEventListener("abort", onAbort) }
+          : {}),
       });
 
-      this.socket.send(JSON.stringify(message));
+      if (signal?.aborted) {
+        onAbort();
+        return;
+      }
+      try {
+        this.socket.send(JSON.stringify(message));
+      } catch (error) {
+        this.pending.delete(id);
+        signal?.removeEventListener("abort", onAbort);
+        reject(asError(error));
+      }
     });
   }
 
@@ -339,7 +359,7 @@ export class CDPClient {
     if (!pending) return;
 
     this.pending.delete(message.id);
-    clearTimeout(pending.timeoutId);
+    pending.removeAbortListener?.();
 
     if (message.error) {
       pending.reject(
@@ -359,7 +379,7 @@ export class CDPClient {
   rejectPending(error: Error): void {
     for (const pending of this.pending.values()) {
       pending.reject(error);
-      clearTimeout(pending.timeoutId);
+      pending.removeAbortListener?.();
     }
     this.pending.clear();
   }
@@ -369,12 +389,23 @@ type CDPWebSocketFactory = (url: string) => WebSocket;
 
 export async function openCDPWebSocket(
   url: string,
-  timeoutMs: number,
+  signal: AbortSignal,
   createSocket: CDPWebSocketFactory = (socketUrl) => new WebSocket(socketUrl),
 ): Promise<WebSocket> {
+  throwIfAborted(signal);
   const socket = createSocket(url);
 
   await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
+      socket.removeEventListener("open", onOpen);
+      socket.removeEventListener("error", onError);
+    };
+    const onAbort = () => {
+      cleanup();
+      socket.close();
+      reject(signal ? abortReason(signal) : new Error("CDP WebSocket opening aborted"));
+    };
     const onOpen = () => {
       cleanup();
       resolve();
@@ -383,139 +414,106 @@ export async function openCDPWebSocket(
       cleanup();
       reject(new Error("Failed to open CDP WebSocket"));
     };
-    const timeout = setTimeout(() => {
-      cleanup();
-      socket.close();
-      reject(new Error("Timed out opening CDP WebSocket"));
-    }, timeoutMs);
-    const cleanup = () => {
-      clearTimeout(timeout);
-      socket.removeEventListener("open", onOpen);
-      socket.removeEventListener("error", onError);
-    };
 
-    socket.addEventListener("open", onOpen);
-    socket.addEventListener("error", onError);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    socket.addEventListener("open", onOpen, { once: true });
+    socket.addEventListener("error", onError, { once: true });
+    if (signal?.aborted) onAbort();
   });
 
   return socket;
 }
 
-type CDPCommandSender = Pick<CDPClient, "sendCommand">;
-
-type RuntimeWaitOptions = {
-  timeout: number;
-  pollIntervalMs?: number;
-  delayFn?: (ms: number) => Promise<void>;
-  nowFn?: () => number;
-  runtimeRequirement?: RuntimeRequirement;
-  allowFallbackInstall?: boolean;
+type CDPCommandSender = {
+  sendCommand<Result = JsonObject>(
+    method: string,
+    params?: JsonObject,
+    sessionId?: string,
+    signal?: AbortSignal,
+  ): Promise<Result>;
 };
 
-export async function waitForRuntimeReceiver(
+export async function waitForRuntimeReady(
   cdp: CDPCommandSender,
   sessionId: string,
-  options: RuntimeWaitOptions,
-): Promise<void> {
-  await waitForRuntime(cdp, sessionId, options);
-}
-
-async function waitForRuntime(
-  cdp: CDPCommandSender,
-  sessionId: string,
-  options: RuntimeWaitOptions,
+  options: {
+    pollIntervalMs?: number;
+    delayFn?: (ms: number) => Promise<void>;
+    runtimeRequirement?: RuntimeRequirement;
+    allowFallbackInstall?: boolean;
+    signal: AbortSignal;
+  },
 ): Promise<void> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
-  const nowFn = options.nowFn ?? Date.now;
-  const startedAt = nowFn();
-  let lastReadiness: z.output<typeof RuntimeReadinessEnvelopeSchema> | undefined;
-  let lastError = "";
 
-  while (nowFn() - startedAt < options.timeout) {
-    try {
-      const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
+  while (true) {
+    throwIfAborted(options.signal);
+    const evaluated = await evaluateRuntimeReadiness(cdp, sessionId, options.signal);
 
-      if (evaluated.exceptionDetails) {
-        lastError =
-          evaluated.exceptionDetails.exception?.description ??
-          evaluated.exceptionDetails.text ??
-          "readiness evaluation threw";
-      } else {
-        const readiness = parseRuntimeReadiness(evaluated.result?.value);
-        lastReadiness = readiness;
+    if (!evaluated.exceptionDetails) {
+      const readiness = parseRuntimeReadiness(evaluated.result?.value);
 
-        const compatibility = negotiateRuntimeCompatibility(
-          options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
-          readiness.marker,
-        );
-        if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
-          throw new StagehandRuntimeIncompatibleError(compatibility);
-        if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
-
-        lastError = `protocolVersion=${String(
-          observedProtocolVersion(readiness.marker),
-        )}, __stagehandReceiveFromHost=${String(readiness.hasReceiver)}`;
-      }
-    } catch (error) {
-      if (error instanceof StagehandRuntimeIncompatibleError) throw error;
-      lastError = error instanceof Error ? error.message : String(error);
+      const compatibility = negotiateRuntimeCompatibility(
+        options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
+        readiness.marker,
+      );
+      if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false)
+        throw new StagehandRuntimeIncompatibleError(compatibility);
+      if (compatibility.kind === "compatible" && readiness.hasReceiver) return;
     }
 
-    await delayFn(pollIntervalMs);
+    await abortable(delayFn(pollIntervalMs), options.signal);
   }
-
-  throw new Error(
-    `Timed out waiting for the Stagehand extension runtime RPC receiver${
-      lastError ? ` (${lastError})` : ""
-    }`,
-    { cause: lastReadiness },
-  );
 }
 
 export async function waitForPreloadedStagehandServiceWorker(
   cdp: CDPCommandSender,
   options: {
     urlIncludes?: string;
-    timeout: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
-    nowFn?: () => number;
     runtimeRequirement?: RuntimeRequirement;
     allowFallbackInstall?: boolean;
+    signal: AbortSignal;
   },
 ): Promise<{ serviceWorker: TargetInfo; sessionId: string }> {
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
-  const nowFn = options.nowFn ?? Date.now;
-  const startedAt = nowFn();
   const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
-  let lastTargets: TargetInfo[] = [];
-  const lastReadinessByTarget = new Map<string, z.output<typeof RuntimeReadinessEnvelopeSchema>>();
-  let lastIncompatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
 
-  while (nowFn() - startedAt < options.timeout) {
-    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
-    lastTargets = targets.targetInfos;
+  while (true) {
+    throwIfAborted(options.signal);
+    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>(
+      "Target.getTargets",
+      {},
+      undefined,
+      options.signal,
+    );
     const candidates = targets.targetInfos.filter(
       (target) =>
         target.type === "service_worker" &&
         target.url.startsWith("chrome-extension://") &&
         target.url.includes(workerUrlIncludes),
     );
+    let incompatibleRuntime: Extract<RuntimeCompatibility, { kind: "incompatible" }> | undefined;
     for (const serviceWorker of candidates) {
       let sessionId: string | undefined;
       let keepAttached = false;
       try {
-        const attached = await cdp.sendCommand<{ sessionId: string }>("Target.attachToTarget", {
-          targetId: serviceWorker.targetId,
-          flatten: true,
-        });
+        const attached = await cdp.sendCommand<{ sessionId: string }>(
+          "Target.attachToTarget",
+          {
+            targetId: serviceWorker.targetId,
+            flatten: true,
+          },
+          undefined,
+          options.signal,
+        );
         sessionId = attached.sessionId;
-        const evaluated = await evaluateRuntimeReadiness(cdp, sessionId);
+        const evaluated = await evaluateRuntimeReadiness(cdp, sessionId, options.signal);
         if (!evaluated.exceptionDetails) {
           const readiness = parseRuntimeReadiness(evaluated.result?.value);
-          lastReadinessByTarget.set(serviceWorker.targetId, readiness);
           const compatibility = negotiateRuntimeCompatibility(
             options.runtimeRequirement ?? DEFAULT_RUNTIME_REQUIREMENT,
             readiness.marker,
@@ -524,45 +522,33 @@ export async function waitForPreloadedStagehandServiceWorker(
             keepAttached = true;
             return { serviceWorker, sessionId };
           }
-
-          if (compatibility.kind === "incompatible") {
-            lastIncompatibility = compatibility;
+          if (compatibility.kind === "incompatible" && options.allowFallbackInstall === false) {
+            incompatibleRuntime = compatibility;
           }
         }
       } catch {
-        // The worker may still be starting. Detach and retry until discovery times out.
+        throwIfAborted(options.signal);
+        // The worker may still be starting. Detach and retry until initialization is cancelled.
       } finally {
         if (sessionId && !keepAttached) {
-          await cdp.sendCommand("Target.detachFromTarget", { sessionId }).catch(() => undefined);
+          await cdp
+            .sendCommand("Target.detachFromTarget", { sessionId }, undefined, options.signal)
+            .catch(() => undefined);
         }
       }
     }
 
-    await delayFn(pollIntervalMs);
+    if (incompatibleRuntime) {
+      throw new StagehandRuntimeIncompatibleError(incompatibleRuntime);
+    }
+    await abortable(delayFn(pollIntervalMs), options.signal);
   }
-
-  if (options.allowFallbackInstall === false && lastIncompatibility) {
-    throw new StagehandRuntimeIncompatibleError(lastIncompatibility);
-  }
-
-  const observedReadiness = [...lastReadinessByTarget.entries()]
-    .map(
-      ([targetId, readiness]) =>
-        `${targetId}=protocolVersion:${String(
-          observedProtocolVersion(readiness.marker),
-        )},receiver:${String(readiness.hasReceiver)}`,
-    )
-    .join(", ");
-  throw new Error(
-    `Timed out discovering the preloaded Stagehand service worker. Observed targets: ${lastTargets
-      .map((target) => `${target.type}:${target.url}`)
-      .join(", ")}${observedReadiness ? `. Runtime probes: ${observedReadiness}` : ""}`,
-  );
 }
 
 async function evaluateRuntimeReadiness(
   cdp: CDPCommandSender,
   sessionId: string,
+  signal: AbortSignal,
 ): Promise<RuntimeEvaluateResult> {
   return await cdp.sendCommand<RuntimeEvaluateResult>(
     "Runtime.evaluate",
@@ -574,17 +560,13 @@ async function evaluateRuntimeReadiness(
       returnByValue: true,
     },
     sessionId,
+    signal,
   );
 }
 
 function parseRuntimeReadiness(value: unknown): z.output<typeof RuntimeReadinessEnvelopeSchema> {
   const parsed = RuntimeReadinessEnvelopeSchema.safeParse(value);
   return parsed.success ? parsed.data : { marker: null, hasReceiver: false };
-}
-
-function observedProtocolVersion(marker: unknown): unknown {
-  if (typeof marker !== "object" || marker === null) return undefined;
-  return Reflect.get(marker, "protocolVersion");
 }
 
 function extensionIdFromUrl(url: string): string | undefined {
@@ -597,10 +579,10 @@ export async function waitForServiceWorker(
   options: {
     extensionId?: string;
     urlIncludes?: string;
-    timeout: number;
     activationDelayMs?: number;
     pollIntervalMs?: number;
     delayFn?: (ms: number) => Promise<void>;
+    signal: AbortSignal;
   },
 ): Promise<TargetInfo> {
   const startedAt = Date.now();
@@ -608,64 +590,78 @@ export async function waitForServiceWorker(
   const pollIntervalMs = options.pollIntervalMs ?? 100;
   const delayFn = options.delayFn ?? delay;
   const workerUrlIncludes = options.urlIncludes ?? "service-worker.js";
-  let lastTargets: TargetInfo[] = [];
   let activationTargetId: string | undefined;
 
-  while (Date.now() - startedAt < options.timeout) {
-    const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>("Target.getTargets");
-    lastTargets = targets.targetInfos;
-    const serviceWorker = targets.targetInfos.find(
-      (target) =>
-        target.type === "service_worker" &&
-        target.url.startsWith("chrome-extension://") &&
-        (options.extensionId
-          ? target.url.startsWith(`chrome-extension://${options.extensionId}/`)
-          : true) &&
-        target.url.includes(workerUrlIncludes),
-    );
+  try {
+    while (true) {
+      throwIfAborted(options.signal);
+      const targets = await cdp.sendCommand<{ targetInfos: TargetInfo[] }>(
+        "Target.getTargets",
+        {},
+        undefined,
+        options.signal,
+      );
+      const serviceWorker = targets.targetInfos.find(
+        (target) =>
+          target.type === "service_worker" &&
+          target.url.startsWith("chrome-extension://") &&
+          (options.extensionId
+            ? target.url.startsWith(`chrome-extension://${options.extensionId}/`)
+            : true) &&
+          target.url.includes(workerUrlIncludes),
+      );
 
-    if (serviceWorker) {
-      if (activationTargetId) {
-        await cdp
-          .sendCommand("Target.closeTarget", { targetId: activationTargetId })
-          .catch(() => {});
+      if (serviceWorker) return serviceWorker;
+
+      if (
+        options.extensionId &&
+        !activationTargetId &&
+        Date.now() - startedAt >= activationDelayMs
+      ) {
+        const activation = await cdp
+          .sendCommand<{ targetId?: string }>(
+            "Target.createTarget",
+            {
+              url: `chrome-extension://${options.extensionId}/wake-service-worker.html`,
+            },
+            undefined,
+            options.signal,
+          )
+          .catch(() => {
+            throwIfAborted(options.signal);
+            return undefined;
+          });
+        activationTargetId = activation?.targetId;
       }
-      return serviceWorker;
-    }
 
-    if (options.extensionId && !activationTargetId && Date.now() - startedAt >= activationDelayMs) {
-      const activation = await cdp
-        .sendCommand<{ targetId?: string }>("Target.createTarget", {
-          url: `chrome-extension://${options.extensionId}/wake-service-worker.html`,
-        })
+      await abortable(delayFn(pollIntervalMs), options.signal);
+    }
+  } finally {
+    if (activationTargetId) {
+      // Cleanup must not inherit an already-aborted init signal or delay its rejection.
+      void cdp
+        .sendCommand("Target.closeTarget", { targetId: activationTargetId })
         .catch(() => undefined);
-      activationTargetId = activation?.targetId;
     }
-
-    await delayFn(pollIntervalMs);
   }
-
-  if (activationTargetId) {
-    await cdp.sendCommand("Target.closeTarget", { targetId: activationTargetId }).catch(() => {});
-  }
-
-  throw new Error(
-    `Timed out discovering the Stagehand service worker target. Observed targets: ${lastTargets
-      .map((target) => `${target.type}:${target.url}`)
-      .join(", ")}`,
-  );
 }
 
 export async function loadUnpackedExtension(
   cdp: CDPCommandSender,
   extensionDir: string,
+  signal: AbortSignal,
 ): Promise<string> {
   let loaded: { id?: string };
 
   try {
-    loaded = await cdp.sendCommand<{ id?: string }>("Extensions.loadUnpacked", {
-      path: extensionDir,
-    });
+    loaded = await cdp.sendCommand<{ id?: string }>(
+      "Extensions.loadUnpacked",
+      {
+        path: extensionDir,
+      },
+      undefined,
+      signal,
+    );
   } catch (error) {
     if (isExtensionsLoadUnpackedUnavailable(error)) {
       throw new Error(
@@ -686,42 +682,36 @@ export async function loadUnpackedExtension(
 
 export async function resolveBrowserWebSocketUrl(
   cdpUrl: string,
-  options: ResolveBrowserWebSocketUrlOptions = {},
+  options: ResolveBrowserWebSocketUrlOptions,
 ): Promise<string> {
+  throwIfAborted(options.signal);
   if (cdpUrl.startsWith("ws://") || cdpUrl.startsWith("wss://")) return cdpUrl;
 
-  const timeout = options.timeout ?? 10_000;
   const pollIntervalMs = options.pollIntervalMs ?? 250;
   const fetchFn = options.fetchFn ?? fetch;
   const delayFn = options.delayFn ?? delay;
-  const nowFn = options.nowFn ?? Date.now;
   const baseUrl = cdpUrl.replace(/\/$/, "");
-  const deadlineMs = nowFn() + timeout;
-  let lastError = "";
 
-  while (nowFn() <= deadlineMs) {
+  while (true) {
+    throwIfAborted(options.signal);
     try {
-      const response = await fetchFn(`${baseUrl}/json/version`);
+      const response = await abortable(
+        fetchFn(`${baseUrl}/json/version`, { signal: options.signal }),
+        options.signal,
+      );
 
-      if (!response.ok) {
-        lastError = `${response.status} ${response.statusText}`;
-      } else {
-        const version = (await response.json()) as { webSocketDebuggerUrl?: string };
+      if (response.ok) {
+        const version = (await abortable(response.json(), options.signal)) as {
+          webSocketDebuggerUrl?: string;
+        };
         if (version.webSocketDebuggerUrl) return version.webSocketDebuggerUrl;
-        lastError = "CDP version endpoint did not include webSocketDebuggerUrl";
       }
-    } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+    } catch {
+      throwIfAborted(options.signal);
     }
 
-    await delayFn(pollIntervalMs);
+    await abortable(delayFn(pollIntervalMs), options.signal);
   }
-
-  throw new Error(
-    `Timed out resolving CDP WebSocket URL from ${baseUrl}${
-      lastError ? ` (last error: ${lastError})` : ""
-    }`,
-  );
 }
 
 async function messageDataToString(data: unknown): Promise<string> {
@@ -734,7 +724,7 @@ async function messageDataToString(data: unknown): Promise<string> {
 }
 
 function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return abortableDelay(ms);
 }
 
 function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {

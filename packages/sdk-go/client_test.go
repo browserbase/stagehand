@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 )
 
 func newStagehandWithClient(options CreateOptions, rpc protocolClient, writers ...io.Writer) (*Stagehand, error) {
@@ -36,17 +37,23 @@ type recordingProtocolClient struct {
 	calls      []recordedCall
 	responses  map[string]any
 	callErrors map[string]error
+	callHook   func(context.Context, string) error
 	handlers   map[string]requestHandler
 	closed     bool
 }
 
 func (c *recordingProtocolClient) call(
-	_ context.Context,
+	ctx context.Context,
 	method string,
 	params any,
 	result any,
 ) error {
 	c.calls = append(c.calls, recordedCall{method: method, params: params})
+	if c.callHook != nil {
+		if err := c.callHook(ctx, method); err != nil {
+			return err
+		}
+	}
 	if err := c.callErrors[method]; err != nil {
 		return err
 	}
@@ -451,7 +458,7 @@ func TestCreateLocalBrowserOmitsBrowserMetadata(t *testing.T) {
 
 func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
 	browser := &Browser{}
-	initErr := errors.New("init failed")
+	initErr := &RPCError{Code: -32_000, Message: "init failed"}
 	failedRPC := &recordingProtocolClient{callErrors: map[string]error{"stagehand.init": initErr}}
 	successRPC := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":  StagehandInitResult{Initialized: true},
@@ -486,4 +493,151 @@ func TestCreateFailureReleasesClaimAndSuccessfulCloseRetainsIt(t *testing.T) {
 	if _, err := claimBrowser(browser); err == nil || err.Error() != "this browser is already attached to a Stagehand instance" {
 		t.Fatalf("claim after successful Close error = %v", err)
 	}
+}
+
+func TestCreateBoundsInitializationAndFailsClosedOnCancellation(t *testing.T) {
+	t.Run("internal deadline", func(t *testing.T) {
+		browser := &Browser{}
+		settledErr := &RPCError{Code: -32_000, Message: "worker rejected initialization"}
+		rpc := &recordingProtocolClient{callHook: func(ctx context.Context, method string) error {
+			if method != "stagehand.init" {
+				return nil
+			}
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("stagehand.init context has no deadline")
+			}
+			remaining := time.Until(deadline)
+			if remaining < stagehandInitTimeout-time.Second || remaining > stagehandInitTimeout {
+				t.Fatalf("stagehand.init deadline remaining = %s", remaining)
+			}
+			return settledErr
+		}}
+
+		_, err := createWithAdapters(
+			context.Background(),
+			CreateOptions{Browser: browser},
+			clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+				return rpc, nil
+			}},
+		)
+		if !errors.Is(err, settledErr) {
+			t.Fatalf("Create() error = %v, want %v", err, settledErr)
+		}
+		if browser.Closed() {
+			t.Fatal("settled initialization failure closed the Browser")
+		}
+		if _, err := claimBrowser(browser); err != nil {
+			t.Fatalf("settled initialization failure retained claim: %v", err)
+		}
+		releaseBrowserClaim(browser)
+	})
+
+	for _, test := range []struct {
+		name    string
+		context func() (context.Context, context.CancelFunc)
+	}{
+		{
+			name: "caller deadline",
+			context: func() (context.Context, context.CancelFunc) {
+				return context.WithTimeout(context.Background(), 20*time.Millisecond)
+			},
+		},
+		{
+			name: "caller cancellation",
+			context: func() (context.Context, context.CancelFunc) {
+				ctx, cancel := context.WithCancel(context.Background())
+				cancel()
+				return ctx, func() {}
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			browser := &Browser{}
+			rpc := &recordingProtocolClient{callHook: func(ctx context.Context, method string) error {
+				if method != "stagehand.init" {
+					return nil
+				}
+				<-ctx.Done()
+				return ctx.Err()
+			}}
+			ctx, cancel := test.context()
+			defer cancel()
+
+			_, err := createWithAdapters(
+				ctx,
+				CreateOptions{Browser: browser},
+				clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+					return rpc, nil
+				}},
+			)
+			if err == nil || (!errors.Is(err, context.Canceled) &&
+				!errors.Is(err, context.DeadlineExceeded)) {
+				t.Fatalf("Create() error = %v, want context cancellation", err)
+			}
+			if !browser.Closed() {
+				t.Fatal("ambiguous initialization failure left Browser reusable")
+			}
+			if !rpc.closed {
+				t.Fatal("ambiguous initialization failure left RPC open")
+			}
+			if _, retryErr := createWithAdapters(
+				context.Background(),
+				CreateOptions{Browser: browser},
+				clientAdapters{},
+			); retryErr == nil || retryErr.Error() != "cannot attach Stagehand to a closed browser" {
+				t.Fatalf("retry Create() error = %v", retryErr)
+			}
+		})
+	}
+
+	t.Run("ambiguous transport failure", func(t *testing.T) {
+		browser := &Browser{}
+		transportErr := errors.New("transport closed after request dispatch")
+		rpc := &recordingProtocolClient{callErrors: map[string]error{
+			"stagehand.init": transportErr,
+		}}
+
+		_, err := createWithAdapters(
+			context.Background(),
+			CreateOptions{Browser: browser},
+			clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+				return rpc, nil
+			}},
+		)
+		if !errors.Is(err, transportErr) {
+			t.Fatalf("Create() error = %v, want %v", err, transportErr)
+		}
+		if !browser.Closed() {
+			t.Fatal("ambiguous transport failure left Browser reusable")
+		}
+		if _, retryErr := createWithAdapters(
+			context.Background(),
+			CreateOptions{Browser: browser},
+			clientAdapters{},
+		); retryErr == nil || retryErr.Error() != "cannot attach Stagehand to a closed browser" {
+			t.Fatalf("retry Create() error = %v", retryErr)
+		}
+	})
+
+	t.Run("malformed success response", func(t *testing.T) {
+		browser := &Browser{}
+		rpc := &recordingProtocolClient{responses: map[string]any{
+			"stagehand.init": map[string]any{"initialized": "not-a-boolean"},
+		}}
+
+		_, err := createWithAdapters(
+			context.Background(),
+			CreateOptions{Browser: browser},
+			clientAdapters{connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+				return rpc, nil
+			}},
+		)
+		if err == nil {
+			t.Fatal("Create() error = nil")
+		}
+		if !browser.Closed() {
+			t.Fatal("malformed success response left Browser reusable")
+		}
+	})
 }

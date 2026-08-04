@@ -1036,6 +1036,7 @@
           "$ref": "#/$defs/BrowserSessionMetadata"
         },
         "model": {
+          "description": "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
           "anyOf": [
             {
               "$ref": "#/$defs/ModelConfig"
@@ -1347,7 +1348,7 @@
       "type": "object",
       "properties": {
         "model": {
-          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
           "$ref": "#/$defs/ModelConfig"
         },
         "variables": {
@@ -1621,7 +1622,7 @@
       "type": "object",
       "properties": {
         "model": {
-          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
           "$ref": "#/$defs/ModelConfig"
         },
         "variables": {
@@ -1736,7 +1737,7 @@
       "type": "object",
       "properties": {
         "model": {
-          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+          "description": "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
           "$ref": "#/$defs/ModelConfig"
         },
         "timeout": {

@@ -434,10 +434,10 @@ For Browserbase cloud browsers, pass a Browserbase API key:
 stagehand = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
     browser="browserbase",
-    model="openai/gpt-5.4-mini",
-    model_api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
+
+With no model configured, Browserbase Model Gateway selects one automatically for each inference call.
 
 Stagehand never reads environment variables for you. Always pass keys explicitly.
 

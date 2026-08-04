@@ -71,9 +71,7 @@ function isTopLevelPage(info: Protocol.Target.TargetInfo): boolean {
   return info.type === "page" && ti.subtype !== "iframe";
 }
 
-const DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS = 5000;
 const DEFAULT_ACTIVE_PAGE_TIMEOUT_MS = 3000;
-const WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION = "waitForFirstTopLevelPage (no top-level Page)";
 
 /**
  * BrowserContext
@@ -114,6 +112,8 @@ export class BrowserContext {
   typeByTarget = new Map<TargetId, TargetType>();
   pendingCreatedTargetUrl = new Map<TargetId, string>();
   pageCreationFailures = new Map<TargetId, Error>();
+  pendingInitialTopLevelTargets = new Set<TargetId>();
+  pendingNewPageTargets = new Set<TargetId>();
   // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
   // In-flight promises let attach wait for a close result before deciding whether
   // to skip normal setup. Successful closes stay deduped for the context lifetime
@@ -176,14 +176,9 @@ export class BrowserContext {
         opts.fallbackLocatorScriptSource,
       );
       await ctx.bootstrap();
-      // Allow connectTimeoutMs to also govern how long we wait for the first
-      // top-level page to appear.  On slow machines the browser may need more
-      // time after the CDP socket is open before the initial page registers.
-      const firstPageTimeoutMs = Math.max(
-        opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-        DEFAULT_FIRST_TOP_LEVEL_PAGE_TIMEOUT_MS,
-      );
-      await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+      if (!ctx.hasTopLevelPage()) {
+        await ctx.newPage();
+      }
       return ctx;
     };
 
@@ -199,65 +194,30 @@ export class BrowserContext {
     return false;
   }
 
-  async ensureFirstTopLevelPage(timeout: number): Promise<void> {
-    if (this.hasTopLevelPage()) return;
-
-    try {
-      await this.waitForFirstTopLevelPage(timeout);
-      return;
-    } catch (err) {
-      if (!(err instanceof TimeoutError)) {
-        throw err;
-      }
-      this.logger.debug(
-        "No open browser pages found after connect; creating an initial blank page",
-        {
-          category: "ctx",
-        },
-      );
-    }
-
-    await this.newPage();
-  }
-
-  /**
-   * Wait until at least one top-level Page has been created and registered.
-   * We poll internal maps that bootstrap/onAttachedToTarget populate.
-   */
-  async waitForFirstTopLevelPage(timeout: number): Promise<void> {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-      // A top-level Page is present if typeByTarget has an entry "page"
-      // and pagesByTarget has the corresponding Page object.
-      for (const [tid, ttype] of this.typeByTarget) {
-        if (ttype === "page") {
-          const p = this.pagesByTarget.get(tid);
-          if (p) return;
-        }
-      }
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    throw new TimeoutError(WAIT_FOR_FIRST_TOP_LEVEL_PAGE_OPERATION, timeout);
-  }
-
-  async waitForInitialTopLevelTargets(targetIds: TargetId[], timeout = 3000): Promise<void> {
+  async waitForInitialTopLevelTargets(targetIds: TargetId[]): Promise<void> {
     if (!targetIds.length) return;
     const pending = new Set(targetIds);
-    const deadline = Date.now() + timeout;
-    while (pending.size && Date.now() < deadline) {
-      for (const tid of Array.from(pending)) {
-        if (this.pagesByTarget.has(tid)) {
-          pending.delete(tid);
+    for (const targetId of targetIds) this.pendingInitialTopLevelTargets.add(targetId);
+    try {
+      while (pending.size) {
+        if (!this.conn.connected) {
+          throw new Error(
+            `CDP connection closed while waiting for initial top-level targets: ${Array.from(
+              pending,
+            ).join(", ")}`,
+          );
         }
+        for (const tid of Array.from(pending)) {
+          if (this.pagesByTarget.has(tid) || this.pageCreationFailures.has(tid)) {
+            this.pageCreationFailures.delete(tid);
+            pending.delete(tid);
+          }
+        }
+        if (!pending.size) return;
+        await new Promise((r) => setTimeout(r, 25));
       }
-      if (!pending.size) return;
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    if (pending.size) {
-      this.logger.debug("Timed out waiting for existing top-level targets to attach", {
-        category: "ctx",
-        remainingTargets: Array.from(pending),
-      });
+    } finally {
+      for (const targetId of targetIds) this.pendingInitialTopLevelTargets.delete(targetId);
     }
   }
 
@@ -556,33 +516,34 @@ export class BrowserContext {
       { url: this.blankPageUrl },
     );
     this.pendingCreatedTargetUrl.set(targetId, this.blankPageUrl);
+    this.pendingNewPageTargets.add(targetId);
     // Best-effort bring-to-front
     await this.conn.send("Target.activateTarget", { targetId }).catch(() => {});
 
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      const failure = this.pageCreationFailures.get(targetId);
-      if (failure) {
-        this.pageCreationFailures.delete(targetId);
-        this.pendingCreatedTargetUrl.delete(targetId);
-        throw failure;
-      }
+    try {
+      while (this.conn.connected) {
+        const failure = this.pageCreationFailures.get(targetId);
+        if (failure) throw failure;
 
-      const page = this.pagesByTarget.get(targetId);
-      if (page) {
-        await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
-        if (url !== undefined) {
-          await page.goto(targetUrl);
-          if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
-            await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
+        const page = this.pagesByTarget.get(targetId);
+        if (page) {
+          await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
+          if (url !== undefined) {
+            await page.goto(targetUrl);
+            if (targetUrl.startsWith("http://") || targetUrl.startsWith("https://")) {
+              await page.mainFrameWrapper.getExtensionWorldExecutionContextId();
+            }
           }
+          return page;
         }
-        return page;
+        await new Promise((r) => setTimeout(r, 25));
       }
-      await new Promise((r) => setTimeout(r, 25));
+      throw new Error(`CDP connection closed before newPage target attached (${targetId})`);
+    } finally {
+      this.pendingNewPageTargets.delete(targetId);
+      this.pendingCreatedTargetUrl.delete(targetId);
+      this.pageCreationFailures.delete(targetId);
     }
-    this.pendingCreatedTargetUrl.delete(targetId);
-    throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
   }
 
   /**
@@ -599,6 +560,8 @@ export class BrowserContext {
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
     this.pageCreationFailures.clear();
+    this.pendingInitialTopLevelTargets.clear();
+    this.pendingNewPageTargets.clear();
     this.domainPolicyClosingTargets.clear();
     this.domainPolicyClosePromises.clear();
   }
@@ -635,20 +598,39 @@ export class BrowserContext {
       void this.closePopupIfBlockedByDomainPolicy(evt.targetInfo, "targetInfoChanged");
     });
 
-    // Only enable auto-attach after listeners are ready so replayed targets are captured.
+    // Register the targets that bootstrap must account for before enabling
+    // auto-attach. Chrome can replay, detach, or destroy an existing target as
+    // part of Target.setAutoAttach; those terminal events must remain visible to
+    // the waiter below instead of being discarded before the target is pending.
+    const targets = await this.conn.getTargets();
+    const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
+    for (const targetId of topLevelTargetIds) this.pendingInitialTopLevelTargets.add(targetId);
+
+    // Only enable auto-attach after listeners and initial target state are ready
+    // so replayed targets are captured without racing bootstrap bookkeeping.
     await this.conn.enableAutoAttach();
 
-    const targets = await this.conn.getTargets();
+    const targetsAfterAutoAttach = new Map(
+      (await this.conn.getTargets()).map((target) => [target.targetId, target]),
+    );
     for (const t of targets) {
-      if (t.attached) continue; // auto-attach already handled this target
+      const currentTarget = targetsAfterAutoAttach.get(t.targetId);
+      if (!currentTarget) {
+        this.recordPageCreationFailure(
+          t.targetId,
+          new Error(`Initial target disappeared before attachment (${t.targetId})`),
+          "Initial target disappeared before attachment",
+        );
+        continue;
+      }
+      if (currentTarget.attached) continue; // auto-attach already handled this target
       try {
         await this.conn.attachToTarget(t.targetId);
-      } catch {
-        // ignore attach race
+      } catch (error) {
+        this.recordPageCreationFailure(t.targetId, error, "Failed to attach initial target");
       }
     }
 
-    const topLevelTargetIds = targets.filter((t) => isTopLevelPage(t)).map((t) => t.targetId);
     await this.waitForInitialTopLevelTargets(topLevelTargetIds);
   }
 
@@ -826,6 +808,11 @@ export class BrowserContext {
       // Short-lived child targets can detach before resume is acknowledged.
       // Keep this noisy only for top-level pages where missing attach is fatal.
       if (isTopLevelPage(info)) {
+        this.recordPageCreationFailure(
+          info.targetId,
+          new Error("Failed target pre-resume setup ordering"),
+          "Failed target pre-resume setup ordering",
+        );
         this.logger.debug("Failed target pre-resume setup ordering", {
           category: "ctx",
           targetId: String(info.targetId),
@@ -852,14 +839,13 @@ export class BrowserContext {
       const policyFailureMessage =
         "Fetch.enable failed during target attach; closing target because " +
         "Stagehand cannot guarantee domain policy enforcement";
-      if (this.pendingCreatedTargetUrl.has(info.targetId)) {
-        this.pageCreationFailures.set(
-          info.targetId,
-          fetchError instanceof Error
-            ? fetchError
-            : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
-        );
-      }
+      this.recordPageCreationFailure(
+        info.targetId,
+        fetchError instanceof Error
+          ? fetchError
+          : new Error(`${policyFailureMessage}: ${fetchErrorMessage}`),
+        policyFailureMessage,
+      );
       this.logger.error("Closing target because domain policy could not be guaranteed", {
         category: "ctx",
         targetId: String(info.targetId),
@@ -900,6 +886,11 @@ export class BrowserContext {
           createError = error;
         }
         if (!page) {
+          this.recordPageCreationFailure(
+            info.targetId,
+            createError,
+            "Failed to create top-level page",
+          );
           this.logger.debug("Failed to create top-level page", {
             category: "ctx",
             targetId: String(info.targetId),
@@ -1072,11 +1063,15 @@ export class BrowserContext {
    * Cleanup a top-level Page by target id, removing its root and staged children.
    */
   cleanupByTarget(targetId: TargetId): void {
+    this.recordPageCreationFailure(
+      targetId,
+      new Error(`Target closed before page registration (${targetId})`),
+      "Target closed before page registration",
+    );
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
     page.dispose();
-    this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
     this.frameOwnerPage.delete(mainId);
@@ -1094,6 +1089,27 @@ export class BrowserContext {
     this.createdAtByTarget.delete(targetId);
     this.typeByTarget.delete(targetId);
     this.pendingCreatedTargetUrl.delete(targetId);
+  }
+
+  private recordPageCreationFailure(
+    targetId: TargetId,
+    cause: unknown,
+    fallbackMessage: string,
+  ): void {
+    if (
+      !this.pendingInitialTopLevelTargets.has(targetId) &&
+      !this.pendingNewPageTargets.has(targetId)
+    ) {
+      return;
+    }
+    // Preserve the first failure, which is normally the most specific one.
+    // Target cleanup may run after Page.create or attach has already recorded
+    // the underlying error and must not replace it with a generic close message.
+    if (this.pageCreationFailures.has(targetId)) return;
+    this.pageCreationFailures.set(
+      targetId,
+      cause instanceof Error ? cause : new Error(`${fallbackMessage}: ${String(cause)}`),
+    );
   }
 
   /**

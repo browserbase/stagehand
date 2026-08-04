@@ -9,6 +9,12 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
+)
+
+const (
+	stagehandInitTimeout           = 60 * time.Second
+	stagehandFailureCleanupTimeout = 5 * time.Second
 )
 
 // Stagehand is the root SDK client.
@@ -30,6 +36,11 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error) {
 }
 
 func createWithAdapters(ctx context.Context, options CreateOptions, adapters clientAdapters, writers ...io.Writer) (*Stagehand, error) {
+	if ctx == nil {
+		return nil, errors.New("stagehand initialization context is required")
+	}
+	initCtx, cancelInit := context.WithTimeout(ctx, stagehandInitTimeout)
+	defer cancelInit()
 	if options.Browser == nil {
 		return nil, errors.New("stagehand: browser is required")
 	}
@@ -67,7 +78,6 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if options.Generate != nil {
 		client.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(options.Generate))
 	}
-
 	apiKey := options.APIKey
 	if claimed.workerAPIKey != nil {
 		apiKey = claimed.workerAPIKey
@@ -80,14 +90,29 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),
 	})
 	var initResult StagehandInitResult
-	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
+	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
 		if client.removeLLMHandler != nil {
 			client.removeLLMHandler()
 		}
 		client.removeNotificationHandler()
 		closeErr := rpc.close()
-		releaseBrowserClaim(options.Browser)
-		return nil, errors.Join(err, closeErr)
+		var rpcError *RPCError
+		if errors.As(err, &rpcError) {
+			// A JSON-RPC error proves the worker settled stagehand.init, so the
+			// Browser can safely be claimed by a later Create call.
+			releaseBrowserClaim(options.Browser)
+			return nil, errors.Join(err, closeErr)
+		}
+		// Cancellation and transport/decode failures do not prove whether the
+		// worker completed initialization. Invalidate the Browser and transport
+		// so the same handle cannot be retried against uncertain server state.
+		cleanupCtx, cancelCleanup := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			stagehandFailureCleanupTimeout,
+		)
+		browserErr := options.Browser.Close(cleanupCtx)
+		cancelCleanup()
+		return nil, errors.Join(err, closeErr, browserErr)
 	}
 	client.context = &BrowserContext{rpc: rpc}
 	client.initialized = true
