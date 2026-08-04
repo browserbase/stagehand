@@ -70,7 +70,11 @@ export async function executeBenchTask(
       const ctx = {
         v3: harnessCtx.v3,
         agent: harnessCtx.agent,
-        page: harnessCtx.page,
+        // Deterministic (act/extract/observe) tasks run on the v4 SDK: they
+        // receive the v4 client and its RPC-backed page in place of the
+        // Playwright page the v3 harness provides.
+        stagehand: harnessCtx.stagehand,
+        page: harnessCtx.v4Page ?? harnessCtx.page,
         logger,
         input,
         modelName: input.modelName,
