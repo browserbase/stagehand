@@ -655,14 +655,65 @@ func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T
 	}
 }
 
-func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
+func TestRPCClientDecodesNotificationsOutsideMutex(t *testing.T) {
+	t.Parallel()
+
+	decodeStarted := make(chan struct{})
+	releaseDecode := make(chan struct{})
+	receiveDone := make(chan struct{})
+	client := &rpcClient{
+		notificationHandlers: map[string][]registeredNotificationHandler{
+			"test.notification": {{
+				decode: func(json.RawMessage) (any, error) {
+					close(decodeStarted)
+					<-releaseDecode
+					return "decoded", nil
+				},
+				handler: func(any) {},
+			}},
+		},
+		notificationWake: make(chan struct{}, 1),
+	}
+	go func() {
+		defer close(receiveDone)
+		client.receiveNotification("test.notification", json.RawMessage(`{}`))
+	}()
+	select {
+	case <-decodeStarted:
+	case <-time.After(time.Second):
+		close(releaseDecode)
+		t.Fatal("timed out waiting for notification decode")
+	}
+
+	mutexAvailableDuringDecode := client.mu.TryLock()
+	if mutexAvailableDuringDecode {
+		client.mu.Unlock()
+	}
+	close(releaseDecode)
+	select {
+	case <-receiveDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for notification receive")
+	}
+	if !mutexAvailableDuringDecode {
+		t.Fatal("RPC mutex remained locked during notification decode")
+	}
+}
+
+func TestRPCClientBoundsQueuedNotificationsWithoutSplittingHandlerGroups(t *testing.T) {
 	t.Parallel()
 
 	client := &rpcClient{}
 	client.mu.Lock()
 	for index := range maxPendingNotifications + 50 {
-		client.enqueueNotificationLocked(rpcNotificationDelivery{
-			notification: StagehandLog{Message: strconv.Itoa(index)},
+		deliveries := make([]rpcNotificationDelivery, 3)
+		for handlerIndex := range deliveries {
+			deliveries[handlerIndex] = rpcNotificationDelivery{
+				notification: StagehandLog{Message: strconv.Itoa(index)},
+			}
+		}
+		client.enqueueNotificationLocked(rpcNotificationDeliveryGroup{
+			deliveries: deliveries,
 		})
 	}
 	if len(client.notificationQueue) != maxPendingNotifications {
@@ -672,10 +723,19 @@ func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
 			maxPendingNotifications,
 		)
 	}
-	first := client.notificationQueue[0].notification.(StagehandLog).Message
-	last := client.notificationQueue[len(client.notificationQueue)-1].notification.(StagehandLog).Message
+	firstGroup := client.notificationQueue[0]
+	lastGroup := client.notificationQueue[len(client.notificationQueue)-1]
 	client.mu.Unlock()
 
+	if len(firstGroup.deliveries) != 3 || len(lastGroup.deliveries) != 3 {
+		t.Fatalf(
+			"retained handler group sizes = %d, %d; want 3, 3",
+			len(firstGroup.deliveries),
+			len(lastGroup.deliveries),
+		)
+	}
+	first := firstGroup.deliveries[0].notification.(StagehandLog).Message
+	last := lastGroup.deliveries[0].notification.(StagehandLog).Message
 	if first != "50" || last != "149" {
 		t.Fatalf("retained notification range = %s..%s, want 50..149", first, last)
 	}

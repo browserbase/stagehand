@@ -126,6 +126,7 @@ import { Page } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
+import { DuplicatePageEventSubscriptionError } from "./errors.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -737,7 +738,7 @@ export class StagehandRuntime {
 
   pageOn(params: PageOnParams): PageVoidResult {
     if (this.pageEventSubscriptions.has(params.subscriptionId)) {
-      throw new Error(`Page event subscription "${params.subscriptionId}" already exists`);
+      throw new DuplicatePageEventSubscriptionError();
     }
     const method =
       params.event === "console" ? ("Runtime.consoleAPICalled" as const) : params.event;

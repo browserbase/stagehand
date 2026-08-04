@@ -546,15 +546,24 @@ export class Page {
         params !== null && typeof params === "object" && !Array.isArray(params)
           ? (params as Record<string, unknown>)
           : {};
-      subscription.listener(
-        PageCDPEventSchema.parse({
+      const event = PageCDPEventSchema.parse({
+        pageId: this.pageId,
+        method: subscription.method,
+        params: normalizedParams,
+        sessionId,
+        targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
+      });
+      try {
+        subscription.listener(event);
+      } catch (error) {
+        this.logger.error("Page CDP event listener failed", {
+          category: "page",
           pageId: this.pageId,
           method: subscription.method,
-          params: normalizedParams,
           sessionId,
-          targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
-        }),
-      );
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     };
     subscription.sessionHandlers.set(sessionId, { session, handler });
     session.on(subscription.method, handler);

@@ -146,6 +146,76 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	}
 }
 
+func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":  PageVoidResult{Ok: true},
+		"page.off": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	secondStarted := make(chan struct{})
+
+	subscription, err := page.On(context.Background(), "console", func(event PageCDPEvent) {
+		switch string(event.Params["sequence"]) {
+		case "1":
+			close(firstStarted)
+			<-releaseFirst
+		case "2":
+			close(secondStarted)
+		}
+	})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+	onParams := rpc.calls[0].params.(PageOnParams)
+	deliveryDone := make(chan struct{})
+	go func() {
+		defer close(deliveryDone)
+		for _, sequence := range []string{"1", "2"} {
+			rpc.pageEventHandler(PageCDPEventNotification{
+				SubscriptionID: onParams.SubscriptionID,
+				Event: PageCDPEvent{
+					PageID: "page-1",
+					Method: CDPEventNameRuntimeConsoleAPICalled,
+					Params: PageCDPEventParams{
+						"sequence": json.RawMessage(sequence),
+					},
+				},
+			})
+		}
+	}()
+
+	select {
+	case <-firstStarted:
+	case <-time.After(time.Second):
+		close(releaseFirst)
+		t.Fatal("timed out waiting for first event")
+	}
+	select {
+	case <-secondStarted:
+		close(releaseFirst)
+		t.Fatal("second event listener ran before the first listener returned")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(releaseFirst)
+	select {
+	case <-secondStarted:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for second event")
+	}
+	select {
+	case <-deliveryDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for event delivery")
+	}
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("subscription.Close() error = %v", err)
+	}
+}
+
 func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 	t.Parallel()
 

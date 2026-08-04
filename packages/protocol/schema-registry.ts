@@ -539,22 +539,28 @@ export const StagehandNotifications = {
   },
 } as const satisfies Record<string, RPCNotification>;
 
-const stagehandRpcNotificationSchemas = [
+type RegisteredNotificationSchema = {
+  [Key in keyof typeof StagehandNotifications]: z.ZodType<{
+    jsonrpc: "2.0";
+    method: (typeof StagehandNotifications)[Key]["name"];
+    params: z.output<(typeof StagehandNotifications)[Key]["params"]>;
+  }>;
+}[keyof typeof StagehandNotifications];
+
+const stagehandRpcNotificationSchemas = Object.values(StagehandNotifications).map((notification) =>
   JSONRPCNotificationSchema.extend({
-    method: z.literal(StagehandNotifications.log.name),
-    params: wireSchema(StagehandNotifications.log.params, StagehandNotifications.log.paramsWire),
+    method: z.literal(notification.name),
+    params: wireSchema(notification.params, notification.paramsWire),
   }),
-  JSONRPCNotificationSchema.extend({
-    method: z.literal(StagehandNotifications.pageCDPEvent.name),
-    params: wireSchema(
-      StagehandNotifications.pageCDPEvent.params,
-      StagehandNotifications.pageCDPEvent.paramsWire,
-    ),
-  }),
-] as const;
+) as RegisteredNotificationSchema[];
 
 export const StagehandRpcNotificationSchema = z
-  .union(stagehandRpcNotificationSchemas)
+  .union(
+    stagehandRpcNotificationSchemas as [
+      RegisteredNotificationSchema,
+      ...RegisteredNotificationSchema[],
+    ],
+  )
   .meta({ id: "StagehandRpcRuntimeNotification" });
 
 const stagehandMethodsByName = new Map<string, RPCMethod>(

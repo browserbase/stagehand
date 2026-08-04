@@ -106,7 +106,7 @@ type rpcClient struct {
 	requestHandlers      map[string]registeredRequestHandler
 	notificationHandlers map[string][]registeredNotificationHandler
 	pendingNotifications []bufferedRPCNotification
-	notificationQueue    []rpcNotificationDelivery
+	notificationQueue    []rpcNotificationDeliveryGroup
 	notificationWake     chan struct{}
 	closed               bool
 	closeReason          error
@@ -148,6 +148,10 @@ type bufferedRPCNotification struct {
 type rpcNotificationDelivery struct {
 	handler      func(any)
 	notification any
+}
+
+type rpcNotificationDeliveryGroup struct {
+	deliveries []rpcNotificationDelivery
 }
 
 type rpcRequestEnvelope struct {
@@ -414,9 +418,11 @@ func registerNotification[Notification any](
 	for _, notification := range c.pendingNotifications {
 		if notification.method == method {
 			if decoded, err := registration.decode(notification.params); err == nil {
-				c.enqueueNotificationLocked(rpcNotificationDelivery{
-					handler:      registration.handler,
-					notification: decoded,
+				c.enqueueNotificationLocked(rpcNotificationDeliveryGroup{
+					deliveries: []rpcNotificationDelivery{{
+						handler:      registration.handler,
+						notification: decoded,
+					}},
 				})
 			}
 		} else {
@@ -623,6 +629,10 @@ func (c *rpcClient) receiveRequest(
 
 func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
 	handlers := append([]registeredNotificationHandler(nil), c.notificationHandlers[method]...)
 	if len(handlers) == 0 {
 		c.pendingNotifications = append(c.pendingNotifications, bufferedRPCNotification{
@@ -635,23 +645,35 @@ func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 		c.mu.Unlock()
 		return
 	}
+	c.mu.Unlock()
 
+	deliveries := make([]rpcNotificationDelivery, 0, len(handlers))
 	for _, registration := range handlers {
 		notification, err := registration.decode(params)
 		if err != nil {
 			continue
 		}
-		c.enqueueNotificationLocked(rpcNotificationDelivery{
+		deliveries = append(deliveries, rpcNotificationDelivery{
 			handler:      registration.handler,
 			notification: notification,
 		})
 	}
+	if len(deliveries) == 0 {
+		return
+	}
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.enqueueNotificationLocked(rpcNotificationDeliveryGroup{deliveries: deliveries})
 	c.mu.Unlock()
 	c.wakeNotificationDelivery()
 }
 
-func (c *rpcClient) enqueueNotificationLocked(delivery rpcNotificationDelivery) {
-	c.notificationQueue = append(c.notificationQueue, delivery)
+func (c *rpcClient) enqueueNotificationLocked(group rpcNotificationDeliveryGroup) {
+	c.notificationQueue = append(c.notificationQueue, group)
 	if len(c.notificationQueue) > maxPendingNotifications {
 		dropped := len(c.notificationQueue) - maxPendingNotifications
 		clear(c.notificationQueue[:dropped])
@@ -670,11 +692,13 @@ func (c *rpcClient) deliverNotifications() {
 	for {
 		c.mu.Lock()
 		if len(c.notificationQueue) > 0 {
-			delivery := c.notificationQueue[0]
-			c.notificationQueue[0] = rpcNotificationDelivery{}
+			group := c.notificationQueue[0]
+			c.notificationQueue[0] = rpcNotificationDeliveryGroup{}
 			c.notificationQueue = c.notificationQueue[1:]
 			c.mu.Unlock()
-			delivery.handler(delivery.notification)
+			for _, delivery := range group.deliveries {
+				delivery.handler(delivery.notification)
+			}
 			continue
 		}
 		c.mu.Unlock()

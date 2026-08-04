@@ -60,6 +60,10 @@ describe("generated Stagehand notifications", () => {
       protocol.properties.jsonrpc.properties.notification,
     );
     const variants = notificationSchema.anyOf ?? [notificationSchema];
+    expect(
+      variants,
+      "the notification envelope must include at least one variant",
+    ).not.toHaveLength(0);
     for (const variant of variants) {
       const notification = resolveDefinitionOrInline(protocol, variant);
       expect(notification.required).toContain("params");

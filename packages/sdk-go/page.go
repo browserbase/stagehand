@@ -250,7 +250,7 @@ func (p *Page) On(
 		if notification.SubscriptionID != subscriptionID {
 			return
 		}
-		go invokePageEventListener(listener, notification.Event)
+		invokePageEventListener(listener, notification.Event)
 	})
 	subscription := &CDPSubscription{
 		rpc:                  p.rpc,

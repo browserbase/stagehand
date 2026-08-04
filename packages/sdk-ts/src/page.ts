@@ -55,7 +55,10 @@ export class CDPSubscription {
   ) {}
 
   unsubscribe(): Promise<void> {
-    this.unsubscribePromise ??= this.unsubscribeOnce();
+    this.unsubscribePromise ??= this.unsubscribeOnce().catch((error: unknown) => {
+      this.unsubscribePromise = undefined;
+      throw error;
+    });
     return this.unsubscribePromise;
   }
 
@@ -354,7 +357,7 @@ export class Page {
 }
 
 function reportPageEventListenerError(error: unknown): void {
-  process.emitWarning(error instanceof Error ? error : new Error(String(error)), {
+  process.emitWarning(error instanceof Error ? error.message : String(error), {
     code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",
   });
 }

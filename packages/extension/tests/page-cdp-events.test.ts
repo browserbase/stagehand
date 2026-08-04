@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { PageCDPEvent } from "../../protocol/types.js";
 import type { StagehandLogger } from "../logger.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
 import { Page } from "../understudy/page.js";
@@ -33,11 +34,14 @@ class FakeCDPSession implements CDPSessionLike {
   }
 }
 
-function createPage(mainSession: FakeCDPSession): Page {
+function createPage(
+  mainSession: FakeCDPSession,
+  logger: StagehandLogger = {} as StagehandLogger,
+): Page {
   const connection = {
     targetIdForSession: (sessionId: string) => `target-${sessionId}`,
   } as CdpConnection;
-  return new Page(connection, mainSession, "target-main", "frame-main", {} as StagehandLogger);
+  return new Page(connection, mainSession, "target-main", "frame-main", logger);
 }
 
 describe("Page CDP event subscriptions", () => {
@@ -88,5 +92,29 @@ describe("Page CDP event subscriptions", () => {
 
     expect(main.listenerCount("Network.responseReceived")).toBe(0);
     expect(child.listenerCount("Network.responseReceived")).toBe(0);
+  });
+
+  it("isolates listener failures so other subscriptions still receive the event", () => {
+    const main = new FakeCDPSession("main");
+    const logError = vi.fn();
+    const page = createPage(main, { error: logError } as unknown as StagehandLogger);
+    const events: PageCDPEvent[] = [];
+
+    page.subscribeCDPEvent("Runtime.consoleAPICalled", () => {
+      throw new Error("listener failed");
+    });
+    page.subscribeCDPEvent("Runtime.consoleAPICalled", (event) => events.push(event));
+
+    expect(() => main.emit("Runtime.consoleAPICalled", { type: "log", args: [] })).not.toThrow();
+    expect(events).toHaveLength(1);
+    expect(logError).toHaveBeenCalledWith(
+      "Page CDP event listener failed",
+      expect.objectContaining({
+        category: "page",
+        method: "Runtime.consoleAPICalled",
+        sessionId: "main",
+        error: "listener failed",
+      }),
+    );
   });
 });

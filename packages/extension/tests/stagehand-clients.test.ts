@@ -19,6 +19,7 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
+import { DuplicatePageEventSubscriptionError } from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -698,6 +699,26 @@ describe("Stagehand worker clients", () => {
     });
     expect(notifications).toHaveLength(1);
     expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(false);
+  });
+
+  it("rejects duplicate page event subscriptions without reflecting their identifier", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+    const subscriptionId = 'caller-controlled-<script>alert("x")</script>';
+
+    runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+
+    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
+      DuplicatePageEventSubscriptionError,
+    );
+    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
+      "A page event subscription with this identifier already exists",
+    );
+    try {
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+    } catch (error) {
+      expect((error as Error).message).not.toContain(subscriptionId);
+    }
   });
 
   it("accepts only the shared Stagehand Chrome binding name", () => {

@@ -100,7 +100,7 @@ class CDPSubscription:
                 await self._unsubscribe_once()
 
             self._unsubscribe_task = asyncio.create_task(run())
-        await self._unsubscribe_task
+        await asyncio.shield(self._unsubscribe_task)
 
     async def _unsubscribe_once(self) -> None:
         self._remove_local_listener()

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import cast
+from typing import TypeVar, cast, overload
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
 
 from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
@@ -47,6 +48,10 @@ from ._support import RecordingRPCClient
 
 class EvaluationResult(BaseModel):
     answer: bool
+
+
+ResultT = TypeVar("ResultT", bound=BaseModel)
+RootResultT = TypeVar("RootResultT")
 
 
 @pytest.mark.asyncio
@@ -214,6 +219,131 @@ async def test_page_on_delivers_canonical_console_events_and_unsubscribes() -> N
         PageVoidResult,
     )
     assert "page.cdp_event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_page_on_cleans_up_local_state_when_remote_registration_fails() -> None:
+    recording = RecordingRPCClient({
+        "page.on": RuntimeError("registration failed"),
+        "page.close": {"closed": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    with pytest.raises(RuntimeError, match="registration failed"):
+        await page.on("Runtime.consoleAPICalled", lambda _: None)
+
+    assert "page.cdp_event" not in recording.notifications
+    await page.close()
+    assert [method for method, _, _ in recording.calls] == ["page.on", "page.close"]
+
+
+@pytest.mark.asyncio
+async def test_page_on_delivers_events_in_order_across_page_owned_cdp_sessions() -> None:
+    recording = RecordingRPCClient({"page.on": {"ok": True}, "page.off": {"ok": True}})
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    sessions: list[str] = []
+    subscription = await page.on(
+        "Runtime.consoleAPICalled",
+        lambda event: sessions.append(event.session_id),
+    )
+    _, on_params, _ = recording.calls[0]
+    assert isinstance(on_params, PageOnParams)
+    _, raw_listener = recording.notifications["page.cdp_event"]
+    listener = cast(Callable[[PageCDPEventNotification], object], raw_listener)
+
+    for session_id, target_id in (
+        ("main-session", "main-target"),
+        ("oopif-session", "oopif-target"),
+    ):
+        result = listener(
+            PageCDPEventNotification.model_validate({
+                "subscription_id": on_params.subscription_id,
+                "event": {
+                    "page_id": "page-1",
+                    "method": "Runtime.consoleAPICalled",
+                    "params": {"type": "log", "executionContextId": 1},
+                    "session_id": session_id,
+                    "target_id": target_id,
+                },
+            })
+        )
+        if inspect.isawaitable(result):
+            await result
+
+    assert sessions == ["main-session", "oopif-session"]
+    await subscription.unsubscribe()
+
+
+@pytest.mark.asyncio
+async def test_page_close_unsubscribes_event_listeners_before_closing() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": {"ok": True},
+        "page.close": {"closed": True},
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    await page.on("Runtime.consoleAPICalled", lambda _: None)
+
+    await page.close()
+
+    assert [method for method, _, _ in recording.calls] == [
+        "page.on",
+        "page.off",
+        "page.close",
+    ]
+    assert "page.cdp_event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_continues_after_calling_task_is_cancelled() -> None:
+    class BlockingPageOffRPCClient(RecordingRPCClient):
+        def __init__(self) -> None:
+            super().__init__({"page.on": {"ok": True}})
+            self.page_off_started = asyncio.Event()
+            self.release_page_off = asyncio.Event()
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[RootModel[RootResultT]],
+        ) -> RootResultT: ...
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[ResultT],
+        ) -> ResultT: ...
+
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BaseModel],
+        ) -> object:
+            if method != "page.off":
+                return await super().send(method, params, result_model)
+            self.calls.append((method, params, result_model))
+            self.page_off_started.set()
+            await self.release_page_off.wait()
+            return PageVoidResult(ok=True)
+
+    recording = BlockingPageOffRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+    unsubscribe = asyncio.create_task(subscription.unsubscribe())
+    await recording.page_off_started.wait()
+
+    unsubscribe.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await unsubscribe
+
+    recording.release_page_off.set()
+    await subscription.unsubscribe()
+    assert [method for method, _, _ in recording.calls] == ["page.on", "page.off"]
 
 
 @pytest.mark.asyncio

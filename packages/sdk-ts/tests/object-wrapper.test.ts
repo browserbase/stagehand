@@ -454,6 +454,125 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.listeners).toHaveLength(0);
   });
 
+  it("cleans up page.on state when remote registration fails", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, new Error("registration failed"));
+    client.queueResponse(StagehandMethods.pageClose, { closed: true });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.on("Runtime.consoleAPICalled", () => {})).rejects.toThrow(
+      "registration failed",
+    );
+    expect(client.listeners).toHaveLength(0);
+
+    await page.close();
+    expect(client.calls.map((call) => call.method)).toStrictEqual(["page.on", "page.close"]);
+  });
+
+  it("retries the remote unsubscribe after a transient failure", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, new Error("temporary failure"));
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const subscription = await page.on("Runtime.consoleAPICalled", () => {});
+
+    await expect(subscription.unsubscribe()).rejects.toThrow("temporary failure");
+    await expect(subscription.unsubscribe()).resolves.toBeUndefined();
+
+    expect(client.calls.map((call) => call.method)).toStrictEqual([
+      "page.on",
+      "page.off",
+      "page.off",
+    ]);
+  });
+
+  it("delivers page events in notification order across page-owned CDP sessions", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const sessions: string[] = [];
+    const subscription = await page.on("Runtime.consoleAPICalled", (event) => {
+      sessions.push(event.sessionId);
+    });
+    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
+
+    for (const [sessionId, targetId] of [
+      ["main-session", "main-target"],
+      ["oopif-session", "oopif-target"],
+    ] as const) {
+      client.emitNotification({
+        jsonrpc: "2.0",
+        method: "page.cdp_event",
+        params: {
+          subscriptionId,
+          event: {
+            pageId: "page-1",
+            method: "Runtime.consoleAPICalled",
+            params: { type: "log", executionContextId: 1 },
+            sessionId,
+            targetId,
+          },
+        },
+      });
+    }
+
+    expect(sessions).toStrictEqual(["main-session", "oopif-session"]);
+    await subscription.unsubscribe();
+  });
+
+  it("unsubscribes page event listeners before closing the page", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    client.queueResponse(StagehandMethods.pageClose, { closed: true });
+    const page = new Page(client, { pageId: "page-1" });
+    await page.on("Runtime.consoleAPICalled", () => {});
+
+    await page.close();
+
+    expect(client.calls.map((call) => call.method)).toStrictEqual([
+      "page.on",
+      "page.off",
+      "page.close",
+    ]);
+    expect(client.listeners).toHaveLength(0);
+  });
+
+  it("reports page event listener failures with a stable warning code", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageOn, { ok: true });
+    client.queueResponse(StagehandMethods.pageOff, { ok: true });
+    const page = new Page(client, { pageId: "page-1" });
+    const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    const subscription = await page.on("Runtime.consoleAPICalled", () => {
+      throw new Error("listener failed");
+    });
+    const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
+
+    client.emitNotification({
+      jsonrpc: "2.0",
+      method: "page.cdp_event",
+      params: {
+        subscriptionId,
+        event: {
+          pageId: "page-1",
+          method: "Runtime.consoleAPICalled",
+          params: { type: "log", executionContextId: 1 },
+          sessionId: "session-1",
+          targetId: "target-1",
+        },
+      },
+    });
+
+    expect(warning).toHaveBeenCalledWith("listener failed", {
+      code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",
+    });
+    await subscription.unsubscribe();
+    warning.mockRestore();
+  });
+
   it("routes page navigation methods and updates the page ref", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageReload, {

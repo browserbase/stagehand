@@ -70,7 +70,10 @@ func runPageEvents(ctx context.Context) (err error) {
 	consoleEvent := make(chan stagehand.PageCDPEvent, 1)
 	subscription, err := page.On(ctx, "console", func(event stagehand.PageCDPEvent) {
 		if string(event.Params["type"]) == `"log"` {
-			consoleEvent <- event
+			select {
+			case consoleEvent <- event:
+			default:
+			}
 		}
 	})
 	if err != nil {
