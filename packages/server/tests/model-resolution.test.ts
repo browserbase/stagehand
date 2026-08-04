@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  ActOptionsSchema,
   AnthropicModelIdSchema,
   CerebrasModelIdSchema,
+  ExtractOptionsSchema,
   GoogleModelIdSchema,
   GroqModelIdSchema,
   ModelConfigSchema,
   ModelNameSchema,
+  ObserveOptionsSchema,
   OpenAIModelIdSchema,
+  StagehandInitParamsSchema,
+  STAGEHAND_PROTOCOL_VERSION,
 } from "../../protocol/schemas.js";
 
 describe("model configuration", () => {
@@ -93,7 +98,17 @@ describe("model configuration", () => {
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it.todo("uses Browserbase automatic model selection when no model is provided");
+    it("accepts an omitted model at initialization and for every primitive", () => {
+      expect(
+        StagehandInitParamsSchema.parse({
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "stagehand-test", version: "1.0.0" },
+        }),
+      ).not.toHaveProperty("model");
+      expect(ActOptionsSchema.parse({})).not.toHaveProperty("model");
+      expect(ExtractOptionsSchema.parse({})).not.toHaveProperty("model");
+      expect(ObserveOptionsSchema.parse({})).not.toHaveProperty("model");
+    });
     it.todo("rejects Browserbase managed inference when using a local browser");
     it.todo("rejects an explicit model without provider auth when using a local browser");
     it.todo("rejects a missing model when using a local browser");

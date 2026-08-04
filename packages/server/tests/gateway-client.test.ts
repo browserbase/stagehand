@@ -53,6 +53,19 @@ describe("createGatewayLanguageModel", () => {
       modelId: "openai/gpt-5",
     });
   });
+
+  it("uses an internal placeholder when Browserbase will select the model", () => {
+    const model = createGatewayLanguageModel(undefined, {
+      apiUrl: "https://api.stagehand.browserbase.com/v1",
+      apiKey: "bb-api-key",
+      sessionId: "session-123",
+    });
+
+    expect(model).toMatchObject({
+      provider: "openai.responses",
+      modelId: "auto",
+    });
+  });
 });
 
 describe("llmService.generate gateway routing", () => {
@@ -84,10 +97,41 @@ describe("llmService.generate gateway routing", () => {
     );
   });
 
+  it("routes missing model configurations through the Browserbase gateway", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      text: "Hello",
+      output: undefined,
+      finishReason: "stop",
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+    } as never);
+
+    await llmService.generate(undefined, input, vi.fn(), {
+      apiUrl: "https://api.stagehand.browserbase.com/v1",
+      apiKey: "bb-api-key",
+      sessionId: "session-123",
+    });
+
+    expect(generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          provider: "openai.responses",
+          modelId: "auto",
+        }),
+      }),
+    );
+  });
+
   it("rejects key-less model configurations when no gateway context is available", async () => {
     await expect(
       llmService.generate({ modelName: "openai/gpt-5" }, input, vi.fn()),
     ).rejects.toThrow(/requires a provider API key or a Browserbase session/);
+    expect(generateText).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing model configurations when no gateway context is available", async () => {
+    await expect(llmService.generate(undefined, input, vi.fn())).rejects.toThrow(
+      /requires a provider API key or a Browserbase session/,
+    );
     expect(generateText).not.toHaveBeenCalled();
   });
 

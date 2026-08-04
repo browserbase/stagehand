@@ -34,7 +34,7 @@ export async function observe({
 }: {
   params: StagehandObserveParams;
   page: Pick<Page, "captureSnapshot">;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;

@@ -14,7 +14,8 @@ type ActOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// Timeout in ms for the action
@@ -512,7 +513,8 @@ type ExtractOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
@@ -1054,7 +1056,8 @@ type ObserveOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// CSS selector to scope observation to a specific element

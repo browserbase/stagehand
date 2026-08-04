@@ -22,19 +22,36 @@ export function buildGatewayContext(initParams: StagehandInitParams): GatewayCon
 
 /** Creates an OpenAI Responses model backed by Browserbase Model Gateway. */
 export function createGatewayLanguageModel(
-  config: ModelConfig,
+  config: ModelConfig | undefined,
   gateway: GatewayContext,
 ): LanguageModel {
+  const fetchWithoutModel: typeof globalThis.fetch = async (input, init) => {
+    if (typeof init?.body !== "string") return await globalThis.fetch(input, init);
+
+    const body: unknown = JSON.parse(init.body);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return await globalThis.fetch(input, init);
+    }
+
+    const routedBody = { ...(body as Record<string, unknown>) };
+    delete routedBody.model;
+    return await globalThis.fetch(input, {
+      ...init,
+      body: JSON.stringify(routedBody),
+    });
+  };
+
   const provider = createOpenAI({
     // Satisfies the SDK's required-key check; the server authenticates via
     // the x-bb-* headers and ignores the Authorization header.
     apiKey: gateway.apiKey,
     baseURL: `${gateway.apiUrl}/llm`,
     headers: {
-      ...config.headers,
+      ...config?.headers,
       "x-bb-api-key": gateway.apiKey,
       "x-bb-session-id": gateway.sessionId,
     },
+    ...(config ? {} : { fetch: fetchWithoutModel }),
   });
-  return provider.responses(config.modelName);
+  return provider.responses(config?.modelName ?? "auto");
 }
