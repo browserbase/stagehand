@@ -43,7 +43,10 @@ type Inflight = {
   params?: object;
   stack?: string;
   ts: number;
+  logger: CdpTelemetryLogger;
 };
+
+type CdpTelemetryLogger = Pick<StagehandLogger, "debug" | "error">;
 
 type EventHandler = (params: unknown) => void;
 type SessionDispatchWaiter = {
@@ -98,6 +101,7 @@ export class CdpConnection implements CDPSessionLike {
   sessionDispatchWaiters = new Set<SessionDispatchWaiter>();
   public readonly id: string | null = null; // root
   transportCloseHandlers = new Set<(why: string) => void>();
+  private readonly telemetryScopes = new Map<symbol, CdpTelemetryLogger[]>();
 
   get connected(): boolean {
     return this.transport.connected;
@@ -122,7 +126,7 @@ export class CdpConnection implements CDPSessionLike {
 
   constructor(
     readonly transport: CdpWebSocketTransport,
-    readonly logger: Pick<StagehandLogger, "debug" | "error">,
+    readonly logger: CdpTelemetryLogger,
   ) {
     this.transport.onClose((event) => {
       const why = `socket-close code=${String(event.code)} reason=${event.reason}`;
@@ -150,10 +154,32 @@ export class CdpConnection implements CDPSessionLike {
   static async connect(
     wsUrl: string,
     websocketFactory: CdpWebSocketFactory,
-    logger: Pick<StagehandLogger, "debug" | "error">,
+    logger: CdpTelemetryLogger,
   ): Promise<CdpConnection> {
     const transport = await websocketFactory(wsUrl);
     return new CdpConnection(transport, logger);
+  }
+
+  async runWithTelemetryContext<Result>(
+    scope: symbol,
+    logger: CdpTelemetryLogger,
+    run: () => Result | Promise<Result>,
+  ): Promise<Result> {
+    const stack = this.telemetryScopes.get(scope) ?? [];
+    stack.push(logger);
+    this.telemetryScopes.set(scope, stack);
+    try {
+      return await run();
+    } finally {
+      stack.pop();
+      if (stack.length === 0) this.telemetryScopes.delete(scope);
+    }
+  }
+
+  private telemetryLogger(): CdpTelemetryLogger {
+    if (this.telemetryScopes.size !== 1) return this.logger;
+    const stack = this.telemetryScopes.values().next().value;
+    return stack?.[stack.length - 1] ?? this.logger;
   }
 
   async enableAutoAttach(): Promise<void> {
@@ -169,7 +195,8 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    this.logger.debug("CDP call", {
+    const logger = this.telemetryLogger();
+    logger.debug("CDP call", {
       requestId: id,
       method,
       sessionId: null,
@@ -185,6 +212,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
+        logger,
       });
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.
@@ -321,14 +349,14 @@ export class CdpConnection implements CDPSessionLike {
         };
 
         if (isExpectedReleaseObjectCleanupError(rec.method, msg.error)) {
-          this.logger.debug("CDP releaseObject cleanup raced with context destruction", data);
+          rec.logger.debug("CDP releaseObject cleanup raced with context destruction", data);
         } else {
-          this.logger.error("CDP response failed", data);
+          rec.logger.error("CDP response failed", data);
         }
 
         rec.reject(new Error(`${msg.error.code} ${msg.error.message}`));
       } else {
-        this.logger.debug("CDP response", {
+        rec.logger.debug("CDP response", {
           requestId: msg.id,
           method: rec.method,
           targetId: this.targetIdForSession(rec.sessionId),
@@ -365,7 +393,7 @@ export class CdpConnection implements CDPSessionLike {
       }
 
       const { method, params, sessionId } = msg;
-      this.logger.debug("CDP message", {
+      this.telemetryLogger().debug("CDP message", {
         method,
         sessionId: sessionId ?? null,
         targetId: this.targetIdForSession(sessionId),
@@ -399,7 +427,8 @@ export class CdpConnection implements CDPSessionLike {
     const id = this.nextId++;
     const payload = { id, method, params, sessionId };
     const stack = new Error().stack?.split("\n").slice(1, 4).join("\n");
-    this.logger.debug("CDP call", {
+    const logger = this.telemetryLogger();
+    logger.debug("CDP call", {
       requestId: id,
       method,
       sessionId,
@@ -416,6 +445,7 @@ export class CdpConnection implements CDPSessionLike {
         params,
         stack,
         ts: Date.now(),
+        logger,
       });
     });
     // Prevent unhandledRejection if a session detaches before the caller awaits.

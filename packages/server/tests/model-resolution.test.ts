@@ -38,7 +38,10 @@ const testLogger = {
       await run(testLogger),
   ),
 };
-const handlerContext = { logger: testLogger } as unknown as HandlerContext;
+const handlerContext = {
+  logger: testLogger,
+  telemetryScope: Symbol("model-resolution-test"),
+} as unknown as HandlerContext;
 
 function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
   return {
@@ -47,6 +50,8 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
     resolvePage: vi.fn(() => ({})),
     adapters: { clientLLMGenerate: vi.fn() },
     metrics: { record: vi.fn() },
+    runWithTelemetryContext: async (_scope: symbol, _logger: unknown, run: () => unknown) =>
+      await run(),
   } as unknown as StagehandRuntime;
 }
 

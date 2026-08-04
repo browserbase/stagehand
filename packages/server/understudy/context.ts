@@ -130,6 +130,14 @@ export class BrowserContext {
     return this.conn.connected;
   }
 
+  async runWithTelemetryContext<Result>(
+    scope: symbol,
+    logger: StagehandLogger,
+    run: () => Result | Promise<Result>,
+  ): Promise<Result> {
+    return await this.conn.runWithTelemetryContext(scope, logger, run);
+  }
+
   installTargetSessionListeners(session: CDPSessionLike): void {
     const sessionId = session.id;
     if (!sessionId) return;

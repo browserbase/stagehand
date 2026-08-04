@@ -23,13 +23,24 @@ export function createStagehandController(
   runtime: StagehandRuntime,
   options: StagehandControllerOptions = {},
 ) {
-  const initialize = options.initialize ?? ((params) => runtime.initialize(params));
   const closeRuntime = options.close ?? (() => runtime.close());
+
+  async function runOperation<Result>(
+    name: string,
+    { logger, telemetryScope }: HandlerContext,
+    run: (logger: HandlerContext["logger"]) => Result | Promise<Result>,
+  ): Promise<Result> {
+    return await logger.span(name, {}, (logger) =>
+      runtime.runWithTelemetryContext(telemetryScope, logger, () => run(logger)),
+    );
+  }
 
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
     logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});
-    return await initialize(params);
+    return options.initialize
+      ? await options.initialize(params)
+      : await runtime.initialize(params, logger);
   }
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
@@ -38,8 +49,8 @@ export function createStagehandController(
     return { closed: true as const };
   }
 
-  async function act(params: StagehandActParams, { logger }: HandlerContext) {
-    return await logger.span("stagehand.act", {}, async (logger) => {
+  async function act(params: StagehandActParams, context: HandlerContext) {
+    return await runOperation("stagehand.act", context, async (logger) => {
       logger.debug("stagehand.act", {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {
@@ -69,8 +80,8 @@ export function createStagehandController(
     });
   }
 
-  async function observe(params: StagehandObserveParams, { logger }: HandlerContext) {
-    return await logger.span("stagehand.observe", {}, async (logger) => {
+  async function observe(params: StagehandObserveParams, context: HandlerContext) {
+    return await runOperation("stagehand.observe", context, async (logger) => {
       logger.debug("stagehand.observe", {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {
@@ -98,8 +109,8 @@ export function createStagehandController(
     });
   }
 
-  async function extract(params: StagehandExtractParams, { logger }: HandlerContext) {
-    return await logger.span("stagehand.extract", {}, async (logger) => {
+  async function extract(params: StagehandExtractParams, context: HandlerContext) {
+    return await runOperation("stagehand.extract", context, async (logger) => {
       logger.debug("stagehand.extract", {});
       const state = runtime.state.getState();
       if (state.status !== "initialized") {

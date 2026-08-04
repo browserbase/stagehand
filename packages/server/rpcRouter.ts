@@ -28,6 +28,7 @@ const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
 export type HandlerContext = {
   logger: StagehandLogger;
+  telemetryScope: symbol;
 };
 
 export type RPCRouterOptions = {
@@ -86,11 +87,18 @@ export class RPCRouter {
       parentContext,
     );
     const requestContext = trace.setSpan(parentContext, span);
-    const handlerContext = { logger: this.runtime.logger.withContext(requestContext) };
+    const handlerContext = {
+      logger: this.runtime.logger.withContext(requestContext),
+      telemetryScope: Symbol(`rpc:${String(request.id)}`),
+    };
 
     try {
       return await context.with(requestContext, () =>
-        this.route(request, handlerContext, initParams),
+        this.runtime.runWithTelemetryContext(
+          handlerContext.telemetryScope,
+          handlerContext.logger,
+          () => this.route(request, handlerContext, initParams),
+        ),
       );
     } catch (error) {
       setRPCErrorOnSpan(span, error);
