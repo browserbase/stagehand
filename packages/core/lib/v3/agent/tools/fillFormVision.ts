@@ -100,14 +100,18 @@ MANDATORY USE CASES (always use fillFormVision for these):
         const actions: Action[] = [];
 
         for (const field of safeFields) {
-          // Click the field, only requesting XPath when caching is enabled
-          const xpath = await page.click(
-            field.coordinates.x,
-            field.coordinates.y,
-            {
-              returnXpath: shouldCollectXpath,
-            },
-          );
+          // Focus the field, only requesting XPath when caching is enabled. On a
+          // touch session this must be a trusted tap — a synthesized mouse click
+          // never registers on touch-gated mobile layouts, so the field would stay
+          // unfocused and the value go nowhere. The recorded step stays a "type",
+          // whose replay focuses via the selector rather than a pointer event.
+          const xpath = v3.usesTouch
+            ? await page.tap(field.coordinates.x, field.coordinates.y, {
+                returnXpath: shouldCollectXpath,
+              })
+            : await page.click(field.coordinates.x, field.coordinates.y, {
+                returnXpath: shouldCollectXpath,
+              });
           // Substitute variables only at the moment of typing so the resolved
           // value never leaves this scope.
           await page.type(substituteVariables(field.value, variables));
