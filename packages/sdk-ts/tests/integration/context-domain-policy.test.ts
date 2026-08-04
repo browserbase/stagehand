@@ -66,10 +66,12 @@ describe("context.setDomainPolicy", () => {
     const page = await firstPage(stagehand);
     // Prove the alternate hostname reaches this fixture before policy is applied,
     // so the later chrome-error can only be attributed to domain policy.
-    await expect(page.goto(alternateHostUrl)).resolves.toBe(page);
+    const initialResponse = await page.goto(alternateHostUrl);
+    expect(initialResponse?.ok()).toBe(true);
     await stagehand.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
 
-    await expect(page.goto(allowedUrl)).resolves.toBe(page);
+    const allowedResponse = await page.goto(allowedUrl);
+    expect(allowedResponse?.ok()).toBe(true);
     const blockedPage = await stagehand.context.newPage();
     await blockedPage.goto(alternateHostUrl);
     await expect(blockedPage.url()).resolves.toMatch(/^chrome-error:/);
@@ -89,7 +91,8 @@ describe("context.setDomainPolicy", () => {
     await stagehand.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
     const page = await stagehand.context.newPage();
 
-    await expect(page.goto(allowedUrl)).resolves.toBe(page);
+    const response = await page.goto(allowedUrl);
+    expect(response?.ok()).toBe(true);
   });
 
   it("does not retain a popup targeting a blocked domain", async () => {
