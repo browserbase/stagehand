@@ -127,7 +127,7 @@ When you use `act()`, Stagehand returns a result with two fields: `data` holds t
   },
   metadata: {
     actionId: 'act_01HZY...',
-    cacheStatus: 'MISS'
+    cache: { status: 'MISS', missReason: 'not_found' }
   }
 }
 ```
@@ -157,7 +157,7 @@ ActResult(
     ),
     metadata=StagehandResultMetadata(
         action_id="act_01HZY...",
-        cache_status="MISS",
+        cache={"status": "MISS", "miss_reason": "not_found"},
     ),
 )
 ```
@@ -167,7 +167,7 @@ ActResult(
 ```go
 clickMethod := "click"
 actionID := "act_01HZY..."
-cacheStatus := stagehand.CacheStatusMISS
+cacheMetadata := stagehand.CacheMetadata{Status: stagehand.CacheStatusMISS}
 
 result := stagehand.ActResult{
 	Data: stagehand.ActResultData{
@@ -191,12 +191,12 @@ result := stagehand.ActResult{
 	},
 	Metadata: stagehand.StagehandResultMetadata{
 		ActionID:    &actionID,
-		CacheStatus: &cacheStatus,
+		Cache: &cacheMetadata,
 	},
 }
 
 // Read the fields you care about off the result
-fmt.Println(result.Data.Message, *result.Metadata.CacheStatus)
+fmt.Println(result.Data.Message, result.Metadata.Cache.Status)
 ```
 </View>
 
@@ -346,7 +346,7 @@ await stagehand.act("click the login button", { cache: { threshold: 1 } });
 
 // Check whether a result was served from cache
 const result = await stagehand.act("click the login button");
-console.log(result.metadata.cacheStatus); // "HIT", "MISS", or undefined
+console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -369,7 +369,7 @@ await stagehand.act("click the login button", cache=CacheOptions(threshold=1))
 
 # Check whether a result was served from cache
 result = await stagehand.act("click the login button")
-print(result.metadata.cache_status)  # "HIT", "MISS", or None
+print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -405,9 +405,7 @@ result, err := client.Act(ctx, "click the login button", nil)
 if err != nil {
 	return err
 }
-if result.Metadata.CacheStatus != nil {
-	fmt.Println(*result.Metadata.CacheStatus) // "HIT" or "MISS"
-}
+fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
@@ -520,7 +518,7 @@ if (action?.method === "click") {
 
 <View title="Python" icon="python">
 ```python
-result = await stagehand.observe(instruction="click the login button")
+result = await stagehand.observe("click the login button")
 
 if result.data and result.data[0].method == "click":
     # No inference: Stagehand replays the observed action
@@ -764,7 +762,7 @@ except Exception as error:
         raise
 
     # Observe the same prompt to get the planned action
-    observed = await stagehand.observe(instruction=prompt)
+    observed = await stagehand.observe(prompt)
     action = observed.data[0] if observed.data else None
 
     if action is not None and action.method == expected_method:
@@ -930,7 +928,7 @@ except Exception:
     await page.wait_for_load_state("domcontentloaded")
 
     # Use observe to check element state
-    observed = await stagehand.observe(instruction="find the submit button")
+    observed = await stagehand.observe("find the submit button")
 
     if observed.data:
         print("Element found, trying more specific instruction")
@@ -1013,7 +1011,7 @@ await stagehand.act("click the red 'Delete' button next to the user John Smith")
 
 # Or preview with observe first:
 observed = await stagehand.observe(
-    instruction="click the submit button in the checkout form"
+    "click the submit button in the checkout form"
 )
 if observed.data and "checkout" in observed.data[0].description:
     await stagehand.act(observed.data[0])

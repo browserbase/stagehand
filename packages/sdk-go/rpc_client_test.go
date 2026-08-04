@@ -93,6 +93,62 @@ type uppercaseRPCResult struct {
 	Value string `json:"value"`
 }
 
+func TestRPCResponseTimeoutPolicy(t *testing.T) {
+	t.Parallel()
+
+	fastTimeout, ok := rpcResponseTimeout("context.pages", json.RawMessage(`{}`))
+	if !ok || fastTimeout != 10*time.Second {
+		t.Fatalf("context.pages timeout = %v, %t; want 10s, true", fastTimeout, ok)
+	}
+
+	waitTimeout, ok := rpcResponseTimeout(
+		"page.wait_for_timeout",
+		json.RawMessage(`{"page_id":"page-1","ms":30000}`),
+	)
+	if !ok || waitTimeout != 40*time.Second {
+		t.Fatalf("page.wait_for_timeout timeout = %v, %t; want 40s, true", waitTimeout, ok)
+	}
+
+	actTimeout, ok := rpcResponseTimeout(
+		"stagehand.act",
+		json.RawMessage(`{"page_id":"page-1","input":"click","options":{"timeout":30000}}`),
+	)
+	if !ok || actTimeout != 40*time.Second {
+		t.Fatalf("stagehand.act timeout = %v, %t; want 40s, true", actTimeout, ok)
+	}
+
+	webMCPTimeout, ok := rpcResponseTimeout(
+		"page.webmcp_invocation_result",
+		json.RawMessage(
+			`{"page_id":"page-1","invocation_id":"invocation-1","options":{"timeout":30000}}`,
+		),
+	)
+	if !ok || webMCPTimeout != 40*time.Second {
+		t.Fatalf(
+			"page.webmcp_invocation_result timeout = %v, %t; want 40s, true",
+			webMCPTimeout,
+			ok,
+		)
+	}
+
+	if timeout, ok := rpcResponseTimeout("stagehand.init", json.RawMessage(`{}`)); ok {
+		t.Fatalf("stagehand.init timeout = %v, true; want no nested RPC deadline", timeout)
+	}
+
+	hugeTimeout, ok := rpcResponseTimeout(
+		"stagehand.act",
+		json.RawMessage(`{"options":{"timeout":1e1000}}`),
+	)
+	if !ok || hugeTimeout != maxRPCResponseTimeout {
+		t.Fatalf(
+			"huge stagehand.act timeout = %v, %t; want %v, true",
+			hugeTimeout,
+			ok,
+			maxRPCResponseTimeout,
+		)
+	}
+}
+
 func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	t.Parallel()
 

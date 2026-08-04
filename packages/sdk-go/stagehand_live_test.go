@@ -22,7 +22,7 @@ func TestStagehandLocalBrowserIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
-		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath, Headless: true,
 	})
 	if err != nil {
 		t.Fatalf("LaunchLocalBrowser() error = %v", err)
@@ -56,9 +56,8 @@ func TestStagehandExistingCDPBrowserIntegration(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
-		ExecutablePath:   chromePath,
-		Headless:         true,
-		ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath,
+		Headless:       true,
 	})
 	if err != nil {
 		t.Fatalf("launch Chrome for existing CDP source: %v", err)
@@ -166,7 +165,7 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	browser, err := LaunchLocalBrowser(ctx, &LocalBrowserLaunchOptions{
-		ExecutablePath: chromePath, Headless: true, ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath, Headless: true,
 	})
 	if err != nil {
 		t.Fatalf("LaunchLocalBrowser() error = %v", err)
@@ -186,7 +185,7 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
 	}
 	if page == nil {
-		page, err = browserContext.NewPage(ctx, ContextNewPageParams{})
+		page, err = browserContext.NewPage(ctx, nil)
 		if err != nil {
 			t.Fatalf("BrowserContext.NewPage() error = %v", err)
 		}

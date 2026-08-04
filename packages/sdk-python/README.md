@@ -17,7 +17,7 @@ async def main() -> None:
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")
-            await stagehand.observe(instruction="Find the more information link")
+            await stagehand.observe("Find the more information link")
             print(await page.title())
         finally:
             await stagehand.close()

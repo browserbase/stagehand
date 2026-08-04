@@ -47,7 +47,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -62,7 +63,7 @@ export function createStagehandController(
         selfHeal: state.initParams.selfHeal,
         domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
         cache: cacheService.buildCacheContext(state.initParams),
-        gateway: buildGatewayContext(state.initParams),
+        gateway,
       }),
       params.options?.timeout,
       "act()",
@@ -79,7 +80,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -92,7 +94,7 @@ export function createStagehandController(
         logger,
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
-        gateway: buildGatewayContext(state.initParams),
+        gateway,
       }),
       params.options?.timeout,
       "observe()",
@@ -109,7 +111,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -122,7 +125,7 @@ export function createStagehandController(
         logger,
         systemPrompt: state.initParams.systemPrompt,
         cache: cacheService.buildCacheContext(state.initParams),
-        gateway: buildGatewayContext(state.initParams),
+        gateway,
       }),
       params.options?.timeout,
       "extract()",

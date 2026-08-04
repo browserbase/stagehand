@@ -5,7 +5,7 @@ import type {
   LLMGenerateResult,
   StagehandMetrics,
 } from "../../protocol/types.js";
-import { Stagehand, StagehandCreateOptionsSchema } from "../src/index.js";
+import { Stagehand, StagehandCreateOptionsSchema, type StagehandBrowser } from "../src/index.js";
 import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { CDPConnectionClosedError, type CDPClient } from "../src/cdpClient.js";
 
@@ -22,6 +22,7 @@ class FakeCDPClient {
   onerror?: (error: Error) => void;
   close = vi.fn();
   initError: Error | undefined;
+  respondToInit = true;
   readonly requests: JSONRPCMessage[] = [];
   readonly responses = new Map<string, unknown>();
 
@@ -29,8 +30,14 @@ class FakeCDPClient {
     this.requests.push(message);
     if (!("id" in message) || !("method" in message)) return;
     if (message.method === "stagehand.init" && this.initError) {
-      throw this.initError;
+      await this.onmessage?.({
+        jsonrpc: "2.0",
+        id: message.id,
+        error: { code: -32603, message: this.initError.message },
+      });
+      return;
     }
+    if (message.method === "stagehand.init" && !this.respondToInit) return;
 
     const configured = this.responses.get(message.method);
     if (configured instanceof Error) throw configured;
@@ -84,7 +91,7 @@ describe("Stagehand.create", () => {
     expect(cdp.close).toHaveBeenCalledOnce();
   });
 
-  it("releases the browser claim when initialization fails", async () => {
+  it("releases the browser claim after a fully settled initialization error", async () => {
     const cdp = new FakeCDPClient();
     cdp.initError = new Error("worker initialization failed");
     const { localBrowser } = createBrowserFactoriesForTest({
@@ -93,6 +100,8 @@ describe("Stagehand.create", () => {
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
     await expect(Stagehand.create({ browser })).rejects.toThrow("worker initialization failed");
+    expect(browser.closed).toBe(false);
+    expect(cdp.close).not.toHaveBeenCalled();
 
     cdp.initError = undefined;
     const stagehand = await Stagehand.create({ browser });
@@ -100,6 +109,61 @@ describe("Stagehand.create", () => {
 
     await stagehand.close();
     await browser.close();
+  });
+
+  it("invalidates the browser after an ambiguous invalid initialization result", async () => {
+    const cdp = new FakeCDPClient();
+    cdp.responses.set("stagehand.init", { initialized: "not-a-boolean" });
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+
+    await expect(Stagehand.create({ browser })).rejects.toThrow();
+    expect(browser.closed).toBe(true);
+    expect(cdp.close).toHaveBeenCalledOnce();
+    await expect(Stagehand.create({ browser })).rejects.toThrow(
+      "Cannot attach Stagehand to a closed browser",
+    );
+  });
+
+  it("invalidates the browser after an ambiguous stagehand.init timeout", async () => {
+    let browser: StagehandBrowser | undefined;
+    try {
+      vi.useFakeTimers();
+      const cdp = new FakeCDPClient();
+      cdp.respondToInit = false;
+      const { localBrowser } = createBrowserFactoriesForTest({
+        connectCdp: async () => cdp as unknown as CDPClient,
+      });
+      browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
+
+      const creating = Stagehand.create({ browser });
+      const rejection = expect(creating).rejects.toThrow(
+        "Stagehand initialization timed out after 60000ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      await rejection;
+      expect(cdp.close).toHaveBeenCalledOnce();
+      expect(browser.closed).toBe(true);
+      expect(cdp.onmessage).toBeUndefined();
+
+      cdp.respondToInit = true;
+      await expect(Stagehand.create({ browser })).rejects.toThrow(
+        "Cannot attach Stagehand to a closed browser",
+      );
+
+      await cdp.emit({
+        jsonrpc: "2.0",
+        id: 1,
+        result: { initialized: true, pages: [] },
+      });
+      expect(cdp.requestsFor("stagehand.init")).toHaveLength(1);
+    } finally {
+      await browser?.close();
+      vi.useRealTimers();
+    }
   });
 
   it("rejects browser-like objects not created by a Stagehand factory", async () => {

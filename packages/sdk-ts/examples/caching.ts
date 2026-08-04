@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { z } from "zod/v4";
+import type { StagehandResultMetadata } from "../../protocol/types.js";
 import { browserbase, Stagehand } from "../src/index.js";
 
 const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
@@ -45,15 +46,21 @@ const extractCompanies = async () => {
   return { result, durationMs: Math.round(performance.now() - start) };
 };
 
+// A miss reports why it missed; a hit reports how established the entry is
+// and the LLM tokens it saved. Absent entirely when caching did not run.
+const reportCache = ({ metadata }: { metadata: StagehandResultMetadata }) => {
+  console.log(`Cache: ${JSON.stringify(metadata.cache ?? "disabled")}`);
+};
+
 const first = await extractCompanies();
 console.log(`First extraction (expected cache miss, ${first.durationMs}ms):`);
 console.log(JSON.stringify(first.result.data, null, 2));
-console.log(`Cache status: ${first.result.metadata.cacheStatus ?? "disabled"}`);
+reportCache(first.result);
 
 const second = await extractCompanies();
 console.log(`Second extraction (expected cache hit, ${second.durationMs}ms):`);
 console.log(JSON.stringify(second.result.data, null, 2));
-console.log(`Cache status: ${second.result.metadata.cacheStatus ?? "disabled"}`);
+reportCache(second.result);
 
 await stagehand.close();
 await browser.close();

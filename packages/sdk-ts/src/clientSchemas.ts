@@ -47,7 +47,6 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
     keepAlive: z.boolean().optional(),
@@ -57,7 +56,6 @@ export const LocalBrowserLaunchOptionsSchema = z
 export const LocalBrowserConnectOptionsSchema = z
   .strictObject({
     cdpUrl: z.string().min(1),
-    connectTimeoutMs: z.number().int().positive().optional(),
     extensionId: z.string().min(1).optional(),
   })
   .meta({ id: "LocalBrowserConnectOptions" });
@@ -79,7 +77,6 @@ export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
     sessionId: z.string().min(1),
-    connectTimeoutMs: z.number().int().positive().optional(),
     extensionId: z.string().min(1).optional(),
   })
   .meta({ id: "BrowserbaseConnectOptions" });

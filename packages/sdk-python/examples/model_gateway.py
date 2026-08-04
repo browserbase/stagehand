@@ -17,14 +17,11 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    # No model_api_key: inference routes through the Browserbase Model Gateway,
-    # authenticated by the Browserbase API key and session.
+    # With no model, Browserbase Model Gateway selects one automatically for
+    # each inference call. The Browserbase API key and session authenticate it.
     browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
     try:
-        stagehand = await Stagehand.create(
-            browser=browser,
-            model="openai/gpt-4.1",
-        )
+        stagehand = await Stagehand.create(browser=browser)
         try:
             page = await stagehand.context.active_page()
             if page is None:
@@ -32,8 +29,8 @@ async def main() -> None:
             await page.goto("https://example.com")
 
             page_info = await stagehand.extract(
-                instruction="Extract the page heading and the domain this page says it is for",
-                schema=PageInfo,
+                "Extract the page heading and the domain this page says it is for",
+                PageInfo,
             )
 
             print(json.dumps(page_info.model_dump(mode="json"), indent=2))
