@@ -145,7 +145,18 @@ export function createAiSdkLanguageModel(
         : openai.responses(openAiModelId);
     }
     case "anthropic":
-      return createAnthropic(connection)(AnthropicModelIdSchema.parse(modelId));
+      // The server runs inside the browser extension, so this request is
+      // browser-origin. Anthropic rejects CORS requests without this explicit
+      // opt-in header ("CORS requests must set
+      // 'anthropic-dangerous-direct-browser-access' header"); OpenAI and
+      // Google allow browser-origin calls without one.
+      return createAnthropic({
+        ...connection,
+        headers: {
+          ...connection.headers,
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+      })(AnthropicModelIdSchema.parse(modelId));
     case "google":
       return createGoogleGenerativeAI(connection)(GoogleModelIdSchema.parse(modelId));
     case "groq":
