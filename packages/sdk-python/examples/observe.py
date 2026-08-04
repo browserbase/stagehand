@@ -24,7 +24,7 @@ async def main() -> None:
             await page.goto("https://example.com")
 
             actions = await stagehand.observe(
-                instruction="Find the link that provides more information about Example Domain",
+                "Find the link that provides more information about Example Domain",
             )
 
             print(

@@ -30,7 +30,7 @@ func TestBrowserContextMapsPagesAndCookies(t *testing.T) {
 	}
 	page, err := browserContext.NewPage(
 		context.Background(),
-		ContextNewPageParams{URL: &pageURL},
+		&ContextNewPageParams{URL: &pageURL},
 	)
 	if err != nil {
 		t.Fatalf("NewPage() error = %v", err)

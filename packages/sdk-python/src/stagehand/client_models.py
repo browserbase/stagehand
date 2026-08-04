@@ -86,7 +86,6 @@ class LocalBrowserLaunchOptions(WireModel):
     device_scale_factor: float | None = None
     has_touch: bool | None = None
     ignore_https_errors: bool | None = None
-    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
     downloads_path: str | None = None
     accept_downloads: bool | None = None
     keep_alive: bool | None = None
@@ -96,7 +95,6 @@ class LocalBrowserConnectOptions(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     cdp_url: Annotated[str, Field(min_length=1)]
-    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 
 
@@ -105,7 +103,6 @@ class BrowserbaseConnectOptions(WireModel):
 
     api_key: Annotated[str, Field(min_length=1)]
     session_id: Annotated[str, Field(min_length=1)]
-    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 
 

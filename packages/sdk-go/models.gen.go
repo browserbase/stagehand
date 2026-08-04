@@ -14,7 +14,8 @@ type ActOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// Timeout in ms for the action
@@ -250,10 +251,45 @@ type BrowserbaseViewport struct {
 	Width *float64 `json:"width,omitempty,omitzero"`
 }
 
+type CacheMetadata struct {
+	// Times this cache key has been seen, including this request; compare with
+	// threshold to see how close the key is to being served
+	Count *int `json:"count,omitempty,omitzero"`
+
+	// Why the cache did not serve this request; misses only. Reported by the server:
+	// "not_found", "threshold", "empty_array", "timeout", "error", "bypass",
+	// "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed"
+	// (the cache request itself failed) and "replay_failed" (a cached value was found
+	// but could not be applied)
+	MissReason *string `json:"miss_reason,omitempty,omitzero"`
+
+	// Whether server-side caching served this result, computed it, or was not
+	// consulted
+	Status CacheStatus `json:"status"`
+
+	// Hit-count threshold in effect for this key
+	Threshold *int `json:"threshold,omitempty,omitzero"`
+
+	// LLM tokens avoided by serving this request from cache; hits only
+	TokensSaved *CacheTokenSavings `json:"tokens_saved,omitempty,omitzero"`
+}
+
 type CacheStatus string
 
+const CacheStatusDISABLED CacheStatus = "DISABLED"
 const CacheStatusHIT CacheStatus = "HIT"
 const CacheStatusMISS CacheStatus = "MISS"
+
+type CacheTokenSavings struct {
+	// InputTokens corresponds to the JSON schema field "input_tokens".
+	InputTokens int `json:"input_tokens,omitempty,omitzero"`
+
+	// OutputTokens corresponds to the JSON schema field "output_tokens".
+	OutputTokens int `json:"output_tokens,omitempty,omitzero"`
+
+	// TotalTokens corresponds to the JSON schema field "total_tokens".
+	TotalTokens int `json:"total_tokens,omitempty,omitzero"`
+}
 
 type CerebrasModelName string
 
@@ -477,7 +513,8 @@ type ExtractOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
@@ -1019,7 +1056,8 @@ type ObserveOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// CSS selector to scope observation to a specific element
@@ -1729,8 +1767,9 @@ type StagehandResultMetadata struct {
 	// Action ID for tracking
 	ActionID *string `json:"action_id,omitempty,omitzero"`
 
-	// Server-side cache status for this result
-	CacheStatus *CacheStatus `json:"cache_status,omitempty,omitzero"`
+	// Cache observability for this result; status is DISABLED when no cache lookup
+	// ran
+	Cache CacheMetadata `json:"cache"`
 
 	// Aggregate LLM usage for this operation; zeroed when the operation did not run
 	// inference
@@ -1909,8 +1948,14 @@ type generatedModelCatalog struct {
 	// BrowserbaseViewport corresponds to the JSON schema field "BrowserbaseViewport".
 	BrowserbaseViewport *BrowserbaseViewport `json:"BrowserbaseViewport,omitempty,omitzero"`
 
+	// CacheMetadata corresponds to the JSON schema field "CacheMetadata".
+	CacheMetadata *CacheMetadata `json:"CacheMetadata,omitempty,omitzero"`
+
 	// CacheStatus corresponds to the JSON schema field "CacheStatus".
 	CacheStatus *CacheStatus `json:"CacheStatus,omitempty,omitzero"`
+
+	// CacheTokenSavings corresponds to the JSON schema field "CacheTokenSavings".
+	CacheTokenSavings *CacheTokenSavings `json:"CacheTokenSavings,omitempty,omitzero"`
 
 	// Caching corresponds to the JSON schema field "Caching".
 	Caching *Caching `json:"Caching,omitempty,omitzero"`

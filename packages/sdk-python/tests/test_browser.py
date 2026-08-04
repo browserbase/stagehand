@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from stagehand import browser
+from stagehand import timeouts as timeout_settings
 from stagehand._generated.models import (
     BrowserbaseBrowserSettings,
     BrowserbaseRegion,
@@ -414,15 +415,41 @@ async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_so
     assert fake_cdp.connect_arguments[-1]["extension_dir"] is None
     await with_id.close()
 
-    packaged = await local_browser.connect(cdp_url="http://browser", connect_timeout_ms=1_234)
+    packaged = await local_browser.connect(cdp_url="http://browser")
     arguments = fake_cdp.connect_arguments[-1]
     assert arguments["extension_id"] is None
     assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "server/dist"))
     assert arguments["service_worker_url_includes"] == "service-worker.js"
-    assert arguments["discovery_timeout_ms"] == 1_234
-    assert arguments["cdp_connect_timeout_ms"] == 1_234
-    assert arguments["command_timeout_ms"] == 10_000
+    assert set(arguments) == {
+        "cdp_url",
+        "extension_dir",
+        "extension_id",
+        "preloaded_extension",
+        "service_worker_url_includes",
+    }
     await packaged.close()
+
+
+async def test_browser_factory_bounds_the_complete_connection_lifecycle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert timeout_settings.STAGEHAND_INIT_TIMEOUT_MS == 60_000
+    monkeypatch.setattr(timeout_settings, "STAGEHAND_INIT_TIMEOUT_MS", 50)
+    started = asyncio.Event()
+
+    class BlockingCDPClient:
+        @classmethod
+        async def connect(cls, **_: object) -> BlockingCDPClient:
+            started.set()
+            await asyncio.Event().wait()
+            raise AssertionError("unreachable")
+
+    monkeypatch.setattr(browser, "CDPClient", BlockingCDPClient)
+    connecting = asyncio.ensure_future(local_browser.connect(cdp_url="http://browser"))
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    with pytest.raises(TimeoutError, match="Stagehand initialization timed out after 50ms"):
+        await connecting
 
 
 def test_local_browser_flags_are_unchanged_for_launch_options(tmp_path: Path) -> None:

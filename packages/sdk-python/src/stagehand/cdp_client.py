@@ -79,20 +79,16 @@ class CDPClient:
         self,
         socket: _WebSocket,
         web_socket_debugger_url: str,
-        command_timeout_ms: int,
     ) -> None:
-        if command_timeout_ms <= 0:
-            raise ValueError("command_timeout_ms must be positive")
-
         self.web_socket_debugger_url = web_socket_debugger_url
         self._socket = socket
-        self._command_timeout_seconds = command_timeout_ms / 1_000
         self._next_id = 1
         self._pending: dict[int, tuple[str, asyncio.Future[object]]] = {}
         self._incoming: asyncio.Queue[object] = asyncio.Queue()
         self._session_id: str | None = None
         self._service_worker: ServiceWorkerInfo | None = None
         self._closed = False
+        self._background_tasks: set[asyncio.Task[dict[str, object]]] = set()
         self._reader = asyncio.create_task(self._read(), name="stagehand-cdp-reader")
 
     @classmethod
@@ -104,27 +100,26 @@ class CDPClient:
         extension_id: str | None = None,
         preloaded_extension: bool = False,
         service_worker_url_includes: str | None = None,
-        discovery_timeout_ms: int = 10_000,
-        command_timeout_ms: int = 10_000,
-        cdp_connect_timeout_ms: int = 10_000,
     ) -> CDPClient:
+        """Connect without an independent lifecycle deadline.
+
+        The production browser factories own the complete 60-second initialization
+        lifecycle. Direct internal callers must provide cancellation themselves.
+        CDP command acknowledgements inherit that same caller-owned cancellation.
+        """
         if sum((bool(extension_dir), bool(extension_id), preloaded_extension)) != 1:
             raise ValueError(
                 "Exactly one of extension_dir, extension_id, or preloaded_extension is required"
             )
 
-        web_socket_debugger_url = await _resolve_browser_web_socket_url(
-            cdp_url,
-            cdp_connect_timeout_ms,
-        )
-        socket = await _connect_web_socket(web_socket_debugger_url, cdp_connect_timeout_ms)
-        client = cls(socket, web_socket_debugger_url, command_timeout_ms)
+        web_socket_debugger_url = await _resolve_browser_web_socket_url(cdp_url)
+        socket = await _connect_web_socket(web_socket_debugger_url)
+        client = cls(socket, web_socket_debugger_url)
 
         try:
             if preloaded_extension:
                 worker, session_id = await client._wait_for_preloaded_service_worker(
                     service_worker_url_includes or "service-worker.js",
-                    discovery_timeout_ms,
                 )
                 resolved_extension_id = _extension_id_from_url(worker.url)
             else:
@@ -135,7 +130,6 @@ class CDPClient:
                 worker = await client._wait_for_service_worker(
                     resolved_extension_id,
                     service_worker_url_includes or "service-worker.js",
-                    discovery_timeout_ms,
                 )
                 attached = await client.send_command(
                     "Target.attachToTarget",
@@ -157,10 +151,10 @@ class CDPClient:
                 {"name": STAGEHAND_SEND_TO_HOST_BINDING},
                 session_id=session_id,
             )
-            await client._wait_for_runtime_receiver(session_id, discovery_timeout_ms)
+            await client._wait_for_runtime_receiver(session_id)
             return client
         except BaseException:
-            await client.close()
+            await asyncio.shield(client.close())
             raise
 
     @property
@@ -211,16 +205,9 @@ class CDPClient:
         params: Mapping[str, object] | None = None,
         *,
         session_id: str | None = None,
-        timeout_ms: int | None = None,
     ) -> dict[str, object]:
         if self._closed:
             raise RuntimeError("CDP client is closed")
-
-        timeout_seconds = (
-            self._command_timeout_seconds if timeout_ms is None else timeout_ms / 1_000
-        )
-        if timeout_seconds <= 0:
-            raise ValueError("timeout_ms must be positive")
 
         command_id = self._next_id
         self._next_id += 1
@@ -236,11 +223,7 @@ class CDPClient:
 
         try:
             await self._socket.send(json.dumps(message, separators=(",", ":")))
-            result = await asyncio.wait_for(asyncio.shield(response), timeout_seconds)
-        except TimeoutError as error:
-            if not response.done():
-                response.cancel()
-            raise TimeoutError(f"CDP command timed out: {method}") from error
+            result = await response
         except BaseException:
             if not response.done():
                 response.cancel()
@@ -356,89 +339,72 @@ class CDPClient:
         self,
         extension_id: str | None,
         url_includes: str,
-        timeout_ms: int,
     ) -> ServiceWorkerInfo:
         started = time.monotonic()
         activation_target_id: str | None = None
-        last_targets: list[object] = []
 
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
-            response = await self.send_command("Target.getTargets")
-            targets = response.get("targetInfos")
-            last_targets = cast(list[object], targets) if isinstance(targets, list) else []
-            for target in last_targets:
-                if not isinstance(target, dict):
-                    continue
-                target_info = cast(dict[str, object], target)
-                url = target_info.get("url")
+        try:
+            while True:
+                response = await self.send_command("Target.getTargets")
+                targets = response.get("targetInfos")
+                target_infos = cast(list[object], targets) if isinstance(targets, list) else []
+                for target in target_infos:
+                    if not isinstance(target, dict):
+                        continue
+                    target_info = cast(dict[str, object], target)
+                    url = target_info.get("url")
+                    if (
+                        target_info.get("type") == "service_worker"
+                        and isinstance(url, str)
+                        and url.startswith("chrome-extension://")
+                        and (
+                            extension_id is None
+                            or url.startswith(f"chrome-extension://{extension_id}/")
+                        )
+                        and url_includes in url
+                    ):
+                        return ServiceWorkerInfo(
+                            target_id=_required_string(
+                                target_info, "targetId", "Target.getTargets"
+                            ),
+                            title=_required_string(target_info, "title", "Target.getTargets"),
+                            url=url,
+                            extension_id=extension_id,
+                        )
+
                 if (
-                    target_info.get("type") == "service_worker"
-                    and isinstance(url, str)
-                    and url.startswith("chrome-extension://")
-                    and (
-                        extension_id is None
-                        or url.startswith(f"chrome-extension://{extension_id}/")
-                    )
-                    and url_includes in url
+                    extension_id is not None
+                    and activation_target_id is None
+                    and (time.monotonic() - started) >= 1
                 ):
-                    if activation_target_id is not None:
-                        with suppress(Exception):
-                            await self.send_command(
-                                "Target.closeTarget",
-                                {"targetId": activation_target_id},
-                            )
-                    return ServiceWorkerInfo(
-                        target_id=_required_string(target_info, "targetId", "Target.getTargets"),
-                        title=_required_string(target_info, "title", "Target.getTargets"),
-                        url=url,
-                        extension_id=extension_id,
-                    )
-
-            if (
-                extension_id is not None
-                and activation_target_id is None
-                and (time.monotonic() - started) >= 1
-            ):
-                with suppress(Exception):
-                    activation = await self.send_command(
-                        "Target.createTarget",
-                        {"url": f"chrome-extension://{extension_id}/wake-service-worker.html"},
-                    )
-                    target_id = activation.get("targetId")
-                    activation_target_id = target_id if isinstance(target_id, str) else None
-            await asyncio.sleep(0.1)
-
-        if activation_target_id is not None:
-            with suppress(Exception):
-                await self.send_command("Target.closeTarget", {"targetId": activation_target_id})
-        observed = ", ".join(
-            f"{target.get('type')}:{target.get('url')}"
-            for target in last_targets
-            if isinstance(target, dict)
-        )
-        raise TimeoutError(
-            "Timed out discovering the Stagehand service worker target. "
-            f"Observed targets: {observed}"
-        )
+                    with suppress(Exception):
+                        activation = await self.send_command(
+                            "Target.createTarget",
+                            {"url": f"chrome-extension://{extension_id}/wake-service-worker.html"},
+                        )
+                        target_id = activation.get("targetId")
+                        activation_target_id = target_id if isinstance(target_id, str) else None
+                await asyncio.sleep(0.1)
+        finally:
+            if activation_target_id is not None:
+                self._schedule_best_effort_command(
+                    "Target.closeTarget", {"targetId": activation_target_id}
+                )
 
     async def _wait_for_preloaded_service_worker(
         self,
         url_includes: str,
-        timeout_ms: int,
     ) -> tuple[ServiceWorkerInfo, str]:
         """Return a discovered worker and its flat CDP session, left attached for the caller.
 
         Each candidate must be attached to evaluate readiness; unready or incompatible
         candidates are detached before the next poll.
         """
-        started = time.monotonic()
-        last_targets: list[object] = []
-
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
+        while True:
             response = await self.send_command("Target.getTargets")
             targets = response.get("targetInfos")
-            last_targets = cast(list[object], targets) if isinstance(targets, list) else []
-            for target in last_targets:
+            target_infos = cast(list[object], targets) if isinstance(targets, list) else []
+            for target in target_infos:
                 if not isinstance(target, dict):
                     continue
                 target_info = cast(dict[str, object], target)
@@ -491,7 +457,7 @@ class CDPClient:
                                 keep_attached = True
                                 return service_worker, session_id
                 except Exception:
-                    # The worker may still be starting. Detach and retry until discovery times out.
+                    # The worker may still be starting. Detach and retry until cancellation.
                     pass
                 finally:
                     if session_id is not None and not keep_attached:
@@ -502,21 +468,8 @@ class CDPClient:
                             )
             await asyncio.sleep(0.1)
 
-        observed = ", ".join(
-            f"{target.get('type')}:{target.get('url')}"
-            for target in last_targets
-            if isinstance(target, dict)
-        )
-        raise TimeoutError(
-            "Timed out discovering the preloaded Stagehand service worker. "
-            f"Observed targets: {observed}"
-        )
-
-    async def _wait_for_runtime_receiver(self, session_id: str, timeout_ms: int) -> None:
-        started = time.monotonic()
-        last_error = ""
-
-        while (time.monotonic() - started) * 1_000 < timeout_ms:
+    async def _wait_for_runtime_receiver(self, session_id: str) -> None:
+        while True:
             try:
                 evaluated = await self.send_command(
                     "Runtime.evaluate",
@@ -527,59 +480,55 @@ class CDPClient:
                     session_id=session_id,
                 )
                 exception = evaluated.get("exceptionDetails")
-                if isinstance(exception, Mapping):
-                    nested = exception.get("exception")
-                    description = nested.get("description") if isinstance(nested, Mapping) else None
-                    last_error = str(
-                        description or exception.get("text") or "readiness evaluation threw"
-                    )
-                else:
+                if not isinstance(exception, Mapping):
                     result = evaluated.get("result")
                     value = result.get("value") if isinstance(result, Mapping) else None
                     if isinstance(value, Mapping):
                         has_receiver = value.get("hasReceiver") is True
-                        compatible, detail = _negotiate_runtime(value.get("marker"))
+                        compatible, _ = _negotiate_runtime(value.get("marker"))
                         if compatible and has_receiver:
                             return
-                        last_error = f"runtime {detail}, __stagehandReceiveFromHost={has_receiver}"
-            except Exception as error:
-                last_error = str(error)
+            except Exception:
+                pass
             await asyncio.sleep(0.1)
 
-        detail = f" ({last_error})" if last_error else ""
-        raise TimeoutError(
-            f"Timed out waiting for the Stagehand extension runtime to become ready{detail}"
-        )
+    def _schedule_best_effort_command(self, method: str, params: Mapping[str, object]) -> None:
+        if self._closed:
+            return
+        task = asyncio.create_task(self.send_command(method, params))
+        self._background_tasks.add(task)
+
+        def finish(completed: asyncio.Task[dict[str, object]]) -> None:
+            self._background_tasks.discard(completed)
+            if not completed.cancelled():
+                completed.exception()
+
+        task.add_done_callback(finish)
 
 
-async def _connect_web_socket(url: str, timeout_ms: int) -> _WebSocket:
+async def _connect_web_socket(url: str) -> _WebSocket:
     from websockets.asyncio.client import connect
 
     return cast(
         _WebSocket,
-        await connect(url, open_timeout=timeout_ms / 1_000, max_size=None),
+        await connect(url, open_timeout=None, max_size=None),
     )
 
 
-async def _resolve_browser_web_socket_url(cdp_url: str, timeout_ms: int) -> str:
+async def _resolve_browser_web_socket_url(cdp_url: str) -> str:
     if cdp_url.startswith(("ws://", "wss://")):
         return cdp_url
 
     base_url = cdp_url.rstrip("/")
-    deadline = time.monotonic() + timeout_ms / 1_000
-    last_error = ""
-    while time.monotonic() <= deadline:
+    while True:
         try:
             version = await asyncio.to_thread(_read_json, f"{base_url}/json/version")
             debugger_url = version.get("webSocketDebuggerUrl")
             if isinstance(debugger_url, str) and debugger_url:
                 return debugger_url
-            last_error = "CDP version endpoint did not include webSocketDebuggerUrl"
-        except Exception as error:
-            last_error = str(error)
+        except Exception:
+            pass
         await asyncio.sleep(0.25)
-    detail = f" (last error: {last_error})" if last_error else ""
-    raise TimeoutError(f"Timed out resolving CDP WebSocket URL from {base_url}{detail}")
 
 
 def _read_json(url: str) -> dict[str, object]:
