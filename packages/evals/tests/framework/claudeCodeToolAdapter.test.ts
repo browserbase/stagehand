@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  executeV4AiSnippet,
   executeV4DeterministicSnippet,
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
@@ -68,6 +69,17 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
+  it("supports AI-enabled V4 only as a local tool-launched surface", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
+    expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe("tool_launch_local");
+    expect(() =>
+      resolveClaudeCodeStartupProfile("v4_code", "LOCAL", "runner_provided_local_cdp"),
+    ).toThrow(/requires startup profile "tool_launch_local"/);
+    expect(() => resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toThrow(
+      /supports only the LOCAL environment/,
+    );
+  });
+
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
       /supports --tool .*v4_code_deterministic/,
@@ -121,6 +133,37 @@ describe("claude code tool adapter resolution", () => {
         message: "run console.log: binding check",
       }),
     ]);
+  });
+
+  it("adds native Stagehand and Zod bindings only for the AI-enabled V4 surface", async () => {
+    const logger = new EvalLogger(false);
+    const stagehand = {
+      act: async (instruction: string) => ({ instruction, success: true }),
+    };
+
+    const result = await executeV4AiSnippet({
+      code: `
+        const schema = z.object({ heading: z.string() });
+        return {
+          action: await stagehand.act("click the link"),
+          parsed: schema.parse({ heading: "Example Domain" }),
+        };
+      `,
+      stagehand: stagehand as never,
+      page: {} as never,
+      context: {} as never,
+      plan: {
+        dataset: "webvoyager",
+        startUrl: "https://example.com",
+        instruction: "Inspect the example page",
+      },
+      logger,
+    });
+
+    expect(result).toEqual({
+      action: { instruction: "click the link", success: true },
+      parsed: { heading: "Example Domain" },
+    });
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {

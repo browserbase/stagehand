@@ -8,6 +8,7 @@ export type ToolSurface =
   | "playwright_code"
   | "cdp_code"
   | "v4_code_deterministic"
+  | "v4_code"
   | "playwright_mcp"
   | "chrome_devtools_mcp"
   | "browse_cli";
