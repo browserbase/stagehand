@@ -1,0 +1,9 @@
+packages/evals/core/contracts/tool.ts
+  ai_agent 8,150-156,162-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9ccb340074f4d2e8a7412eda8440bd0a1ac8d4f6",
+  "prompts": {}
+}
