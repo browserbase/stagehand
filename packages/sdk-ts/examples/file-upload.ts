@@ -13,7 +13,7 @@ try {
   try {
     const stagehand = await Stagehand.create({ browser });
     try {
-      const page = await stagehand.context.activePage();
+      const page = await browser.context.activePage();
       if (!page) throw new Error("Stagehand initialized without an active page");
 
       await page.goto(`data:text/html,${encodeURIComponent('<input id="upload" type="file">')}`);

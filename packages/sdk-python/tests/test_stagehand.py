@@ -463,7 +463,7 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     assert browser.closed is False
     assert transport.close_calls == 0
     with pytest.raises(RuntimeError, match="Browser context is unavailable.*Stagehand.create"):
-        _ = stagehand.context
+        _ = stagehand.browser.context
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 

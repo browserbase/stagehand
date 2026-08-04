@@ -51,7 +51,7 @@ Use `observe()` to discover actionable elements on a page. Here's how to find a 
 
 <View title="TypeScript" icon="js">
 ```typescript
-const page = await stagehand.context.activePage();
+const [page] = await browser.context.pages();
 if (!page) {
   throw new Error("Stagehand initialized without an active page");
 }
@@ -62,7 +62,7 @@ const { data: actions } = await stagehand.observe("find the learn more button");
 
 <View title="Python" icon="python">
 ```python
-page = await stagehand.context.active_page()
+page = (await browser.context.pages())[0]
 if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
@@ -478,9 +478,11 @@ When running on Browserbase, Stagehand can cache `observe()` results server-side
 <View title="TypeScript" icon="js">
 ```typescript
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -494,9 +496,11 @@ const { data: actions } = await stagehand.observe("find the login button", { cac
 from stagehand import Stagehand
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -510,9 +514,12 @@ result = await stagehand.observe("find the login button", cache=False)
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
 
@@ -540,14 +547,13 @@ Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so t
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const productsPage = await stagehand.context.newPage();
+const productsPage = await browser.context.newPage();
 await productsPage.goto("https://www.example.com/products");
 
 // Use observe with that specific page
@@ -559,14 +565,13 @@ const { data: actions } = await stagehand.observe("find all product cards", {
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-products_page = await stagehand.context.new_page()
+products_page = await browser.context.new_page()
 await products_page.goto("https://www.example.com/products")
 
 # Use observe with that specific page
@@ -580,15 +585,16 @@ result = await stagehand.observe(
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
@@ -915,7 +921,7 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 <View title="TypeScript" icon="js">
 ```typescript
 // Check page state before observing
-const page = await stagehand.context.activePage();
+const [page] = await browser.context.pages();
 if (!page) {
   throw new Error("Stagehand initialized without an active page");
 }
@@ -933,7 +939,7 @@ if (actions.length === 0) {
 <View title="Python" icon="python">
 ```python
 # Check page state before observing
-page = await stagehand.context.active_page()
+page = (await browser.context.pages())[0]
 if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.wait_for_load_state("domcontentloaded")

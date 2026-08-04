@@ -12,17 +12,21 @@ Stagehand connects to a browser through a browser source. There are three:
 
 <View title="TypeScript" icon="js">
 ```typescript
-new Stagehand({ apiKey: process.env.BROWSERBASE_API_KEY, browser: { type: "browserbase" } }); // default
-new Stagehand({ browser: { type: "local", headless: true } });
-new Stagehand({ browser: { type: "cdp", cdpUrl: "http://127.0.0.1:9222" } });
+const cloud = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const local = await localBrowser.launch({ headless: true });
+const connected = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" });
+
+await Stagehand.create({ browser: cloud });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-Stagehand(api_key=os.environ["BROWSERBASE_API_KEY"], browser="browserbase")  # default
-Stagehand(browser="local", headless=True)
-Stagehand(browser="cdp", cdp_url="http://127.0.0.1:9222")
+cloud = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+local = await local_browser.launch(headless=True)
+connected = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
+
+await Stagehand.create(browser=cloud)
 ```
 </View>
 
@@ -30,16 +34,13 @@ Stagehand(browser="cdp", cdp_url="http://127.0.0.1:9222")
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-stagehand.New(stagehand.StagehandClientInitParams{ // default
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+cloud, _ := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+local, _ := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+connected, _ := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL: "http://127.0.0.1:9222",
 })
-stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{Headless: true},
-})
-stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{CDPURL: "http://127.0.0.1:9222"},
-})
+
+client, _ := stagehand.Create(ctx, stagehand.CreateOptions{Browser: cloud})
 ```
 </View>
 
@@ -57,31 +58,25 @@ Browserbase runs browsers in four regions, so you can cut latency by starting th
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
-    region: "eu-central-1", // Browser runs in Frankfurt
-  },
+  region: "eu-central-1", // Browser runs in Frankfurt
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     region="eu-central-1",  # Browser runs in Frankfurt
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -90,14 +85,15 @@ await stagehand.init()
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 region := stagehand.BrowserbaseRegionEUCentral1 // Browser runs in Frankfurt
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		Region: &region,
-	},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+	Region: &region,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -143,25 +139,23 @@ The simplest way to get started is with default settings. Browserbase is the def
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -169,11 +163,12 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -187,32 +182,27 @@ Configure browser settings, proxy support, and other session parameters directly
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
-    proxies: true,
-    region: "us-west-2",
-    browserSettings: {
-      viewport: { width: 1920, height: 1080 },
-      blockAds: true,
-    },
+  proxies: true,
+  region: "us-west-2",
+  browserSettings: {
+    viewport: { width: 1920, height: 1080 },
+    blockAds: true,
   },
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import BrowserbaseBrowserSettings, Stagehand
+from stagehand import BrowserbaseBrowserSettings, Stagehand, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     proxies=True,
     region="us-west-2",
     browser_settings=BrowserbaseBrowserSettings.model_validate({
@@ -220,8 +210,7 @@ stagehand = Stagehand(
         "block_ads": True,
     }),
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -233,19 +222,20 @@ proxies := stagehand.BrowserbaseProxyEnabled(true)
 blockAds := true
 width, height := 1920.0, 1080.0
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		Proxies: &proxies,
-		Region:  &region,
-		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
-			Viewport: &stagehand.BrowserbaseViewport{Width: &width, Height: &height},
-			BlockAds: &blockAds,
-		},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:   apiKey,
+	Proxies:  &proxies,
+	Region:   &region,
+	BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+		Viewport: &stagehand.BrowserbaseViewport{Width: &width, Height: &height},
+		BlockAds: &blockAds,
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -255,28 +245,25 @@ if err := client.Init(ctx); err != nil {
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
-    proxies: true,
-    region: "us-west-2",
-    timeout: 3600, // 1 hour session timeout
-    keepAlive: true, // Available on Startup plan
-    browserSettings: {
-      verified: false, // this is a Scale Plan feature - reach out to support@browserbase.com to enable
-      blockAds: true,
-      solveCaptchas: true,
-      recordSession: false,
-      viewport: {
-        width: 1920,
-        height: 1080,
-      },
+  proxies: true,
+  region: "us-west-2",
+  timeout: 3600, // 1 hour session timeout
+  keepAlive: true, // Available on Startup plan
+  browserSettings: {
+    verified: false, // this is a Scale Plan feature - reach out to support@browserbase.com to enable
+    blockAds: true,
+    solveCaptchas: true,
+    recordSession: false,
+    viewport: {
+      width: 1920,
+      height: 1080,
     },
-    userMetadata: {
-      userId: "automation-user-123",
-      environment: "production",
-    },
+  },
+  userMetadata: {
+    userId: "automation-user-123",
+    environment: "production",
   },
 });
 ```
@@ -284,9 +271,8 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     proxies=True,
     region="us-west-2",
     timeout=3600,  # 1 hour session timeout
@@ -322,28 +308,29 @@ solveCaptchas := true
 recordSession := false
 width, height := 1920.0, 1080.0
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		Proxies:   &proxies,
-		Region:    &region,
-		Timeout:   &timeout,
-		KeepAlive: &keepAlive,
-		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
-			Verified:      &verified,
-			BlockAds:      &blockAds,
-			SolveCaptchas: &solveCaptchas,
-			RecordSession: &recordSession,
-			Viewport:      &stagehand.BrowserbaseViewport{Width: &width, Height: &height},
-		},
-		UserMetadata: map[string]json.RawMessage{
-			"userId":      json.RawMessage(`"automation-user-123"`),
-			"environment": json.RawMessage(`"production"`),
-		},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:    apiKey,
+	Proxies:   &proxies,
+	Region:    &region,
+	Timeout:   &timeout,
+	KeepAlive: &keepAlive,
+	BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+		Verified:      &verified,
+		BlockAds:      &blockAds,
+		SolveCaptchas: &solveCaptchas,
+		RecordSession: &recordSession,
+		Viewport:      &stagehand.BrowserbaseViewport{Width: &width, Height: &height},
+	},
+	UserMetadata: map[string]json.RawMessage{
+		"userId":      json.RawMessage(`"automation-user-123"`),
+		"environment": json.RawMessage(`"production"`),
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -362,7 +349,7 @@ If you prefer to manage sessions directly, create the session with the Browserba
 <View title="TypeScript" icon="js">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const bb = new Browserbase({
   apiKey: process.env.BROWSERBASE_API_KEY!,
@@ -373,11 +360,8 @@ const session = await bb.sessions.create({
   // Add configuration options here
 });
 
-const stagehand = new Stagehand({
-  browser: { type: "cdp", cdpUrl: session.connectUrl },
-});
-
-await stagehand.init();
+const browser = await localBrowser.connect({ cdpUrl: session.connectUrl });
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
@@ -385,7 +369,7 @@ await stagehand.init();
 ```python
 from browserbase import Browserbase
 
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
 bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -394,12 +378,8 @@ session = bb.sessions.create(
     # Add configuration options here
 )
 
-stagehand = Stagehand(
-    browser="cdp",
-    cdp_url=session.connect_url,
-)
-
-await stagehand.init()
+browser = await local_browser.connect(cdp_url=session.connect_url)
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -412,11 +392,14 @@ if err != nil {
 	return err
 }
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{CDPURL: connectURL},
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL: connectURL,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -428,44 +411,36 @@ The `cdp` browser source attaches to any Chromium browser that is already runnin
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "cdp",
-    cdpUrl: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
-    headers: { "x-my-header": "value" },
-  },
+const browser = await localBrowser.connect({
+  cdpUrl: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(
-    browser="cdp",
+browser = await local_browser.connect(
     cdp_url=connect_url,  # from your Browserbase session
-    headers={"x-my-header": "value"},
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{
-		CDPURL:  "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
-		Headers: map[string]string{"x-my-header": "value"},
-	},
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -474,8 +449,6 @@ if err := client.Init(ctx); err != nil {
 <Note>
 Stagehand never closes a browser it did not launch. With the `cdp` source, `close()` tears down the Stagehand connection and leaves the browser running.
 </Note>
-
-{/* TODO: custom CDP headers only work in Go (sdk-go/browser_source.go:163 forwards them to the handshake). TypeScript accepts and resolves them (sdk-ts/src/browserSource.ts:83) then drops them: sdk-ts/src/stagehand.ts:88 is an explicit TODO and CDPClientOptions (sdk-ts/src/cdpClient.ts:30) has no headers field, so the header is silently ignored rather than failing. Python is worse: sdk-python/src/stagehand/browser_source.py:76 raises NotImplementedError("CDP headers are not implemented yet"), so the Python View fails at init() whenever headers is set. The cdp source itself works in all three languages without headers. Verify before publishing. */}
 
 ## Local environment
 
@@ -501,33 +474,30 @@ The local environment runs browsers directly on your machine, providing full con
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: { type: "local" },
-});
-
-await stagehand.init();
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(browser="local")
-
-await stagehand.init()
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -539,12 +509,10 @@ Customize browser launch options for local development:
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    headless: false, // Show browser window
+const browser = await localBrowser.launch({
+  headless: false, // Show browser window
     devtools: true, // Open developer tools
     viewport: { width: 1280, height: 720 },
     executablePath: "/opt/google/chrome/chrome", // Custom Chrome path
@@ -570,19 +538,16 @@ const stagehand = new Stagehand({
     },
     downloadsPath: "./downloads", // Download directory
     acceptDownloads: true, // Allow downloads
-  },
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(
-    browser="local",
+browser = await local_browser.launch(
     headless=False,  # Show browser window
     devtools=True,  # Open developer tools
     viewport_width=1280,
@@ -607,8 +572,7 @@ stagehand = Stagehand(
     downloads_path="./downloads",  # Download directory
     accept_downloads=True,  # Allow downloads
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -618,8 +582,7 @@ chromiumSandbox := false // Disable sandbox (adds --no-sandbox)
 acceptDownloads := true  // Allow downloads
 deviceScaleFactor := 1.0 // Display scaling
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
 		Headless:       false,                            // Show browser window
 		Devtools:       true,                             // Open developer tools
 		Viewport:       &stagehand.LocalViewport{Width: 1280, Height: 720},
@@ -646,10 +609,12 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 		DownloadsPath:    "./downloads", // Download directory
 		AcceptDownloads:  &acceptDownloads,
-	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -705,23 +670,19 @@ A larger set of standard Chrome automation flags (disabling background networkin
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    ignoreDefaultArgs: ["--disable-sync"],
-    args: [
-      "--disable-features=site-per-process,IsolateOrigins",
-      "--renderer-process-limit=6",
-    ],
-  },
+const browser = await localBrowser.launch({
+  ignoreDefaultArgs: ["--disable-sync"],
+  args: [
+    "--disable-features=site-per-process,IsolateOrigins",
+    "--renderer-process-limit=6",
+  ],
 });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    browser="local",
+browser = await local_browser.launch(
     ignore_default_args=["--disable-sync"],
     args=[
         "--disable-features=site-per-process,IsolateOrigins",
@@ -733,22 +694,18 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{
-		IgnoreDefaultArgs: &stagehand.IgnoreDefaultArgs{
-			Args: []string{"--disable-sync"},
-		},
-		Args: []string{
-			"--disable-features=site-per-process,IsolateOrigins",
-			"--renderer-process-limit=6",
-		},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
+	IgnoreDefaultArgs: &stagehand.IgnoreDefaultArgs{
+		Args: []string{"--disable-sync"},
+	},
+	Args: []string{
+		"--disable-features=site-per-process,IsolateOrigins",
+		"--renderer-process-limit=6",
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -764,44 +721,41 @@ By default, Stagehand terminates the browser it launched and cleans up all resou
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase", keepAlive: true },
+  keepAlive: true,
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // The browser session continues running after close()
 await stagehand.close();
+await browser.close();
 
 // Later, reconnect to the same session over CDP
-const stagehand2 = new Stagehand({
-  browser: { type: "cdp", cdpUrl: existingConnectUrl },
-});
-await stagehand2.init();
+const browser2 = await localBrowser.connect({ cdpUrl: existingConnectUrl });
+const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase, local_browser
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     keep_alive=True,
 )
-
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # The browser session continues running after close()
 await stagehand.close()
+await browser.close()
 
 # Later, reconnect to the same session over CDP
-stagehand2 = Stagehand(browser="cdp", cdp_url=existing_connect_url)
-await stagehand2.init()
+browser2 = await local_browser.connect(cdp_url=existing_connect_url)
+stagehand2 = await Stagehand.create(browser=browser2)
 ```
 </View>
 
@@ -810,14 +764,15 @@ await stagehand2.init()
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 keepAlive := true
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		KeepAlive: &keepAlive,
-	},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:    apiKey,
+	KeepAlive: &keepAlive,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
@@ -825,12 +780,19 @@ if err := client.Init(ctx); err != nil {
 if err := client.Close(ctx); err != nil {
 	return err
 }
+if err := browser.Close(ctx); err != nil {
+	return err
+}
 
 // Later, reconnect to the same session over CDP
-client2 := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{CDPURL: existingConnectURL},
+browser2, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL: existingConnectURL,
 })
-if err := client2.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client2, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser2})
+if err != nil {
 	return err
 }
 ```
@@ -850,78 +812,71 @@ When running locally with keep-alive on, Stagehand leaves the Chrome process run
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    keepAlive: true,
-    headless: false,
-    port: 9222,
-  },
+const browser = await localBrowser.launch({
+  keepAlive: true,
+  headless: false,
+  port: 9222,
 });
-
-await stagehand.init();
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const stagehand = await Stagehand.create({ browser });
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 
 // Browser window stays open after the script exits
 await stagehand.close();
+await browser.close();
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    browser="local",
+browser = await local_browser.launch(
     keep_alive=True,
     headless=False,
     port=9222,
 )
-
-await stagehand.init()
-page = await stagehand.context.active_page()
-if page is None:
-    raise RuntimeError("Stagehand initialized without an active page")
+stagehand = await Stagehand.create(browser=browser)
+page = (await browser.context.pages())[0]
 await page.goto("https://example.com")
 
 # Browser window stays open after the script exits
 await stagehand.close()
+await browser.close()
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{
-		KeepAlive: true,
-		Headless:  false,
-		Port:      9222,
-	},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
+	KeepAlive: true,
+	Headless:  false,
+	Port:      9222,
 })
-
-if err := client.Init(ctx); err != nil {
-	return err
-}
-
-browserContext, err := client.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 if err != nil {
 	return err
 }
-if page == nil {
+
+browserContext, err := browser.Context()
+if err != nil {
+	return err
+}
+pages, err := browserContext.Pages(ctx)
+if err != nil {
+	return err
+}
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
+page := pages[0]
 if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
 // Browser window stays open after the program exits
-return client.Close(ctx)
+return errors.Join(client.Close(ctx), browser.Close(ctx))
 ```
 </View>
 
@@ -943,41 +898,30 @@ Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
-    port: 9222,
-  },
-});
-
-await stagehand.init();
+const browser = await localBrowser.launch({ port: 9222 });
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(
-    browser="local",
-    port=9222,
-)
-
-await stagehand.init()
+browser = await local_browser.launch(port=9222)
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{
-		Port: 9222,
-	},
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Port: 9222})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 ```
@@ -993,8 +937,9 @@ Configure how long Stagehand waits for the DOM to stabilize before taking action
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const stagehand = await Stagehand.create({
+  browser,
   domSettleTimeoutMs: 3000, // Wait up to 3 seconds for DOM to settle
 });
 ```
@@ -1002,8 +947,9 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+stagehand = await Stagehand.create(
+    browser=browser,
     dom_settle_timeout_ms=3000,  # Wait up to 3 seconds for DOM to settle
 )
 ```
@@ -1014,12 +960,15 @@ stagehand = Stagehand(
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 domSettleTimeoutMs := 3000 // Wait up to 3 seconds for DOM to settle
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:             &apiKey,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:            browser,
 	DOMSettleTimeoutMs: &domSettleTimeoutMs,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -1049,14 +998,16 @@ Increase the DOM settle timeout for pages with:
 <View title="TypeScript" icon="js">
 ```typescript
 // For fast, static pages
-const fast = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const fastBrowser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const fast = await Stagehand.create({
+  browser: fastBrowser,
   domSettleTimeoutMs: 500, // Minimal wait
 });
 
 // For dynamic, animated pages
-const dynamic = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const dynamicBrowser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const dynamic = await Stagehand.create({
+  browser: dynamicBrowser,
   domSettleTimeoutMs: 5000, // Longer wait for stability
 });
 ```
@@ -1065,14 +1016,16 @@ const dynamic = new Stagehand({
 <View title="Python" icon="python">
 ```python
 # For fast, static pages
-fast = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+fast_browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+fast = await Stagehand.create(
+    browser=fast_browser,
     dom_settle_timeout_ms=500,  # Minimal wait
 )
 
 # For dynamic, animated pages
-dynamic = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+dynamic_browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+dynamic = await Stagehand.create(
+    browser=dynamic_browser,
     dom_settle_timeout_ms=5000,  # Longer wait for stability
 )
 ```
@@ -1082,26 +1035,19 @@ dynamic = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-// For fast, static pages
-fastSettle := 500 // Minimal wait
-fast := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:             &apiKey,
-	DOMSettleTimeoutMs: &fastSettle,
-})
-
-// For dynamic, animated pages
-slowSettle := 5000 // Longer wait for stability
-dynamic := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:             &apiKey,
-	DOMSettleTimeoutMs: &slowSettle,
-})
-
-// Pick the client that matches the pages you are about to automate
-client := fast
-if os.Getenv("PAGE_PROFILE") == "dynamic" {
-	client = dynamic
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
 }
-if err := client.Init(ctx); err != nil {
+settleTimeout := 500 // Fast, static pages
+if os.Getenv("PAGE_PROFILE") == "dynamic" {
+	settleTimeout = 5000 // Dynamic, animated pages
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:            browser,
+	DOMSettleTimeoutMs: &settleTimeout,
+})
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()

@@ -5,7 +5,12 @@ import type {
   LLMGenerateResult,
   StagehandMetrics,
 } from "../../protocol/types.js";
-import { Stagehand, StagehandCreateOptionsSchema, type StagehandBrowser } from "../src/index.js";
+import {
+  BrowserContext,
+  Stagehand,
+  StagehandCreateOptionsSchema,
+  type StagehandBrowser,
+} from "../src/index.js";
 import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { CDPConnectionClosedError, type CDPClient } from "../src/cdpClient.js";
 
@@ -78,7 +83,7 @@ describe("Stagehand.create", () => {
 
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.browser).toBe(browser);
-    expect(browser.context).toBe(stagehand.context);
+    expect(browser.context).toBeInstanceOf(BrowserContext);
     expect("init" in stagehand).toBe(false);
     expect(cdp.requests[0]).toMatchObject({
       method: "stagehand.init",

@@ -14,9 +14,7 @@ async def main() -> None:
         try:
             stagehand = await Stagehand.create(browser=browser)
             try:
-                page = await stagehand.context.active_page()
-                if page is None:
-                    raise RuntimeError("Stagehand initialized without an active page")
+                page = (await browser.context.pages())[0]
 
                 await page.goto('data:text/html,<input id="upload" type="file">')
                 await page.locator("#upload").set_input_files(file_path)

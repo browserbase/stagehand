@@ -44,7 +44,7 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return err
 	}

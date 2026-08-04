@@ -39,7 +39,8 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
       throw new Error("Stagehand was not initialized");
     }
 
-    const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+    const page =
+      (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
 
     await page.goto("https://example.com", { waitUntil: "load" });
 
@@ -53,7 +54,8 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
       throw new Error("Stagehand was not initialized");
     }
 
-    const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+    const page =
+      (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
 
     await page.goto(webMCPTestSite, { waitUntil: "load" });
 
@@ -85,7 +87,8 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     const filePath = path.join(directory, "hello.txt");
     await writeFile(filePath, "hello from Browserbase");
     try {
-      const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+      const page =
+        (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
       await page.goto(`data:text/html,${encodeURIComponent('<input id="upload" type="file">')}`);
       const input = page.locator("#upload");
 

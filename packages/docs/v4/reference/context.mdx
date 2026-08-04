@@ -11,7 +11,7 @@ Use `BrowserContext` to coordinate pages and browser state that is shared across
 ## Quick start
 
 ```typescript
-const context = stagehand.context;
+const context = browser.context;
 const page = await context.newPage();
 ```
 
@@ -20,7 +20,7 @@ const page = await context.newPage();
 Return every open page in the browser context.
 
 ```typescript
-const pages = await stagehand.context.pages();
+const pages = await browser.context.pages();
 ```
 
 <ResponseField name="result" type="Promise<Page[]>">
@@ -32,7 +32,7 @@ const pages = await stagehand.context.pages();
 Create a new page in the browser context.
 
 ```typescript
-const page = await stagehand.context.newPage({ url: "https://example.com" });
+const page = await browser.context.newPage({ url: "https://example.com" });
 ```
 
 <ParamField path="options" type="ContextNewPageParams" optional>
@@ -52,7 +52,7 @@ const page = await stagehand.context.newPage({ url: "https://example.com" });
 Return the page that is currently active.
 
 ```typescript
-const page = await stagehand.context.activePage();
+const [page] = await browser.context.pages();
 ```
 
 <ResponseField name="result" type="Promise<Page | undefined>">
@@ -64,7 +64,7 @@ const page = await stagehand.context.activePage();
 Make a page the active page in the browser context.
 
 ```typescript
-await stagehand.context.setActivePage(page);
+await browser.context.setActivePage(page);
 ```
 
 <ParamField path="page" type="Page">
@@ -80,7 +80,7 @@ await stagehand.context.setActivePage(page);
 Close the remote browser context.
 
 ```typescript
-await stagehand.context.close();
+await browser.context.close();
 ```
 
 <ResponseField name="result" type="Promise<void>">
@@ -92,7 +92,7 @@ await stagehand.context.close();
 Run a script before scripts on every newly created page.
 
 ```typescript
-await stagehand.context.addInitScript(() => {
+await browser.context.addInitScript(() => {
   window.localStorage.clear();
 });
 ```
@@ -114,7 +114,7 @@ await stagehand.context.addInitScript(() => {
 Set additional HTTP headers for every page in the context.
 
 ```typescript
-await stagehand.context.setExtraHTTPHeaders({ "x-test": "true" });
+await browser.context.setExtraHTTPHeaders({ "x-test": "true" });
 ```
 
 <ParamField path="headers" type="Record<string, string>">
@@ -130,7 +130,7 @@ await stagehand.context.setExtraHTTPHeaders({ "x-test": "true" });
 Return the context's current domain policy.
 
 ```typescript
-const policy = await stagehand.context.getDomainPolicy();
+const policy = await browser.context.getDomainPolicy();
 ```
 
 <ResponseField name="result" type="Promise<DomainPolicy | null>">
@@ -150,7 +150,7 @@ const policy = await stagehand.context.getDomainPolicy();
 Set or clear the context's domain policy.
 
 ```typescript
-await stagehand.context.setDomainPolicy(null);
+await browser.context.setDomainPolicy(null);
 ```
 
 <ParamField path="policy" type="DomainPolicy | null">
@@ -174,7 +174,7 @@ await stagehand.context.setDomainPolicy(null);
 Return cookies, optionally filtered to one or more URLs.
 
 ```typescript
-const cookies = await stagehand.context.cookies("https://example.com");
+const cookies = await browser.context.cookies("https://example.com");
 ```
 
 <ParamField path="urls" type="string | string[]" optional>
@@ -222,7 +222,7 @@ const cookies = await stagehand.context.cookies("https://example.com");
 Add cookies to the browser context.
 
 ```typescript
-await stagehand.context.addCookies([cookie]);
+await browser.context.addCookies([cookie]);
 ```
 
 <ParamField path="cookies" type="CookieParam[]">
@@ -274,7 +274,7 @@ await stagehand.context.addCookies([cookie]);
 Clear cookies that match optional name, domain, and path filters.
 
 ```typescript
-await stagehand.context.clearCookies({ domain: "example.com" });
+await browser.context.clearCookies({ domain: "example.com" });
 ```
 
 <ParamField path="options" type="ClearCookieOptions" optional>
@@ -304,7 +304,7 @@ await stagehand.context.clearCookies({ domain: "example.com" });
 ## Quick start
 
 ```python
-context = stagehand.context
+context = browser.context
 page = await context.new_page()
 ```
 
@@ -313,7 +313,7 @@ page = await context.new_page()
 Return every open page in the browser context.
 
 ```python
-pages = await stagehand.context.pages()
+pages = await browser.context.pages()
 ```
 
 <ResponseField name="result" type="list[Page]">
@@ -325,7 +325,7 @@ pages = await stagehand.context.pages()
 Create a new page in the browser context.
 
 ```python
-page = await stagehand.context.new_page(url="https://example.com")
+page = await browser.context.new_page(url="https://example.com")
 ```
 
 <ParamField path="url" type="str | None" optional>
@@ -341,7 +341,7 @@ page = await stagehand.context.new_page(url="https://example.com")
 Return the page that is currently active.
 
 ```python
-page = await stagehand.context.active_page()
+page = (await browser.context.pages())[0]
 ```
 
 <ResponseField name="result" type="Page | None">
@@ -353,7 +353,7 @@ page = await stagehand.context.active_page()
 Make a page the active page in the browser context.
 
 ```python
-await stagehand.context.set_active_page(page)
+await browser.context.set_active_page(page)
 ```
 
 <ParamField path="page" type="Page">
@@ -369,7 +369,7 @@ await stagehand.context.set_active_page(page)
 Close the remote browser context.
 
 ```python
-await stagehand.context.close()
+await browser.context.close()
 ```
 
 <ResponseField name="result" type="None">
@@ -381,7 +381,7 @@ await stagehand.context.close()
 Run a script before scripts on every newly created page.
 
 ```python
-await stagehand.context.add_init_script("window.localStorage.clear()")
+await browser.context.add_init_script("window.localStorage.clear()")
 ```
 
 <ParamField path="source" type="str | Path">
@@ -397,7 +397,7 @@ await stagehand.context.add_init_script("window.localStorage.clear()")
 Set additional HTTP headers for every page in the context.
 
 ```python
-await stagehand.context.set_extra_http_headers({"x-test": "true"})
+await browser.context.set_extra_http_headers({"x-test": "true"})
 ```
 
 <ParamField path="headers" type="Mapping[str, str]">
@@ -413,7 +413,7 @@ await stagehand.context.set_extra_http_headers({"x-test": "true"})
 Return the context's current domain policy.
 
 ```python
-policy = await stagehand.context.get_domain_policy()
+policy = await browser.context.get_domain_policy()
 ```
 
 <ResponseField name="result" type="DomainPolicy | None">
@@ -433,7 +433,7 @@ policy = await stagehand.context.get_domain_policy()
 Set or clear the context's domain policy.
 
 ```python
-await stagehand.context.set_domain_policy(None)
+await browser.context.set_domain_policy(None)
 ```
 
 <ParamField path="policy" type="DomainPolicy | DomainPolicyInput | None">
@@ -457,7 +457,7 @@ await stagehand.context.set_domain_policy(None)
 Return cookies, optionally filtered to one or more URLs.
 
 ```python
-cookies = await stagehand.context.cookies("https://example.com")
+cookies = await browser.context.cookies("https://example.com")
 ```
 
 <ParamField path="urls" type="str | Sequence[str] | None" optional>
@@ -505,7 +505,7 @@ cookies = await stagehand.context.cookies("https://example.com")
 Add cookies to the browser context.
 
 ```python
-await stagehand.context.add_cookies([cookie])
+await browser.context.add_cookies([cookie])
 ```
 
 <ParamField path="cookies" type="Sequence[CookieParam]">
@@ -557,7 +557,7 @@ await stagehand.context.add_cookies([cookie])
 Clear cookies that match optional name, domain, and path filters.
 
 ```python
-await stagehand.context.clear_cookies(domain="example.com")
+await browser.context.clear_cookies(domain="example.com")
 ```
 
 <ParamField path="name" type="str | re.Pattern[str] | None" optional>
