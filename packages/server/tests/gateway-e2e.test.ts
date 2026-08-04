@@ -75,6 +75,25 @@ beforeEach(() => {
 });
 
 describe("gateway inference end to end", () => {
+  it("omits the model when Browserbase should select it automatically", async () => {
+    await llmService.generate(
+      undefined,
+      {
+        messages: [{ role: "user", content: { type: "text", text: "Say hello" } }],
+      },
+      () => {
+        throw new Error("client LLM must not be used on the gateway path");
+      },
+      gateway,
+    );
+
+    const request = requests[0]!;
+    expect(request.url).toBe("/v1/llm/responses");
+    expect(request.headers["x-bb-api-key"]).toBe("bb-api-key");
+    expect(request.headers["x-bb-session-id"]).toBe("session-123");
+    expect(request.body).not.toHaveProperty("model");
+  });
+
   it("sends an OpenAI-format request to the gateway endpoint and maps the response back", async () => {
     const result = await llmService.generate(
       {

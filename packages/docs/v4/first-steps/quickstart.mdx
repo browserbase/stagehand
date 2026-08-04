@@ -48,10 +48,6 @@ async function main() {
   const stagehand = new Stagehand({
     apiKey: process.env.BROWSERBASE_API_KEY,
     browser: { type: "browserbase" },
-    model: {
-      modelName: "openai/gpt-5.4-mini",
-      apiKey: process.env.OPENAI_API_KEY,
-    },
   });
 
   await stagehand.init();
@@ -104,8 +100,6 @@ async def main() -> None:
     stagehand = Stagehand(
         api_key=os.environ["BROWSERBASE_API_KEY"],
         browser="browserbase",
-        model="openai/gpt-5.4-mini",
-        model_api_key=os.environ["OPENAI_API_KEY"],
     )
 
     await stagehand.init()
@@ -172,16 +166,10 @@ func main() {
 
 func run(ctx context.Context) (err error) {
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
-	modelAPIKey := os.Getenv("OPENAI_API_KEY")
-	model := stagehand.KnownModel(stagehand.KnownModelConfig{
-		ModelName: "openai/gpt-5.4-mini",
-		APIKey:    &modelAPIKey,
-	})
 
 	client := stagehand.New(stagehand.StagehandClientInitParams{
 		APIKey:  &apiKey,
 		Browser: stagehand.BrowserbaseClientBrowserSource{},
-		Model:   &model,
 	})
 
 	if err := client.Init(ctx); err != nil {
@@ -236,17 +224,16 @@ func run(ctx context.Context) (err error) {
 </View>
 
 <Note>
-Stagehand never reads environment variables on your behalf. Read them in your own code and pass the values to the constructor, as the script above does.
+Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the constructor, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
 </Note>
 
 ## 3) Run it
 
-Set your API keys as environment variables, then run the script. Stagehand runs on Browserbase cloud browsers by default, so you need a `BROWSERBASE_API_KEY` plus a key for your model provider.
+Set your Browserbase API key, then run the script. Model Gateway selects and authenticates the model automatically, so no model provider key is required.
 
 <View title="TypeScript" icon="js">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
 npx tsx index.ts                         # Run the example script
 ```
 </View>
@@ -254,7 +241,6 @@ npx tsx index.ts                         # Run the example script
 <View title="Python" icon="python">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
 python main.py                           # Run the example script
 ```
 </View>
@@ -262,7 +248,6 @@ python main.py                           # Run the example script
 <View title="Go" icon="golang">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
-export OPENAI_API_KEY="sk-..."           # Your model provider key
 go run .                                 # Run the example script
 ```
 </View>
