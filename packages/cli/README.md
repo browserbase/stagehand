@@ -273,7 +273,10 @@ Set your Browserbase API key to enable remote sessions and cloud commands:
 
 ```bash
 export BROWSERBASE_API_KEY=bb_live_...
+browse doctor                           # run to check that it's configured correctly
 ```
+
+Any `BROWSERBASE_API_KEY` in the current shell environment takes precedence over `.env` (note the `browse` CLI does not auto-load from `.env.local`, only `.env`).
 
 Local driver commands (`--local`) work without an API key.
 

@@ -1,4 +1,7 @@
 import { promises as fs } from "node:fs";
+import { join } from "node:path";
+
+import { parse } from "dotenv";
 
 import { CommandFailure } from "../errors.js";
 import { getDriverStatus } from "./daemon/client.js";
@@ -49,6 +52,7 @@ export interface BuildDoctorReportOptions {
 }
 
 export interface DoctorDeps {
+  cwd?: string;
   discoverLocalCdp?: typeof discoverLocalCdp;
   env?: NodeJS.ProcessEnv;
   getDriverStatus?: typeof getDriverStatus;
@@ -194,6 +198,12 @@ export async function buildDoctorReport(
     if (modeCheck) checks.push(modeCheck);
   }
 
+  const environmentWarning = await dotenvShadowingWarning(
+    env,
+    deps.cwd ?? process.cwd(),
+  );
+  if (environmentWarning) checks.push(environmentWarning);
+
   const verdict = reportVerdict(checks);
   return {
     checks,
@@ -232,6 +242,87 @@ export function renderDoctorReport(report: DoctorReport): string {
     lines.push(`Next: ${report.next}`);
   }
   return lines.join("\n");
+}
+
+async function dotenvShadowingWarning(
+  env: NodeJS.ProcessEnv,
+  cwd: string,
+): Promise<DoctorCheck | null> {
+  const envKeys = (await getRemote()).forwardedEnvKeys();
+  // `.env` is auto-loaded by `browse`, so a differing process value genuinely
+  // overrides it. `.env.local` is never loaded at all, so a differing value
+  // there was never going to apply -- flag it as ignored, not overridden, or
+  // the fix advice ("set it explicitly instead of relying on dotenv") reads
+  // as if unsetting the process var would let `.env.local` take effect.
+  const dotenvFiles = [
+    { loaded: true, name: ".env" },
+    { loaded: false, name: ".env.local" },
+  ];
+  const overrides: Array<{ file: string; variable: string }> = [];
+  const ignored: Array<{ file: string; variable: string }> = [];
+
+  for (const { loaded, name } of dotenvFiles) {
+    let parsed: Record<string, string>;
+    try {
+      parsed = parse(await fs.readFile(join(cwd, name)));
+    } catch {
+      continue;
+    }
+
+    for (const variable of envKeys) {
+      const processValue = env[variable];
+      const fileValue = parsed[variable];
+      if (
+        typeof processValue === "string" &&
+        typeof fileValue === "string" &&
+        fileValue !== processValue
+      ) {
+        (loaded ? overrides : ignored).push({ file: name, variable });
+      }
+    }
+  }
+
+  if (overrides.length === 0 && ignored.length === 0) return null;
+
+  const messages: string[] = [];
+  const fixes: string[] = [];
+
+  if (overrides.length > 0) {
+    const variables = [...new Set(overrides.map(({ variable }) => variable))];
+    const plural = variables.length > 1;
+    messages.push(
+      `${variables.join(" and ")} in the process environment ${plural ? "override" : "overrides"} a different .env value`,
+    );
+    fixes.push(
+      `set ${variables.join(" and ")} explicitly for each process instead of relying on .env`,
+    );
+  }
+
+  if (ignored.length > 0) {
+    const variables = [...new Set(ignored.map(({ variable }) => variable))];
+    const plural = variables.length > 1;
+    messages.push(
+      `${variables.join(" and ")} in .env.local ${plural ? "differ" : "differs"} from the process environment -- browse never loads .env.local, so ${plural ? "these values are" : "this value is"} ignored, not applied`,
+    );
+    fixes.push(
+      `move ${variables.join(" and ")} from .env.local to .env, or export ${plural ? "them" : "it"} directly, if you want browse to pick ${plural ? "them" : "it"} up`,
+    );
+  }
+
+  const files = [
+    ...new Set([...overrides, ...ignored].map(({ file }) => file)),
+  ];
+  const variables = [
+    ...new Set([...overrides, ...ignored].map(({ variable }) => variable)),
+  ];
+
+  return {
+    details: { files, variables },
+    fix: fixes.join("; "),
+    message: messages.join("; "),
+    name: "environment",
+    status: "warn",
+  };
 }
 
 async function daemonCheck(

@@ -98,6 +98,104 @@ describe("doctor command", () => {
     });
   });
 
+  it("warns when the process API key shadows dotenv files in local mode", async () => {
+    const cwd = await tempProjectDir();
+    const daemonDir = await tempDaemonDir();
+    await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=dotenv-key\n");
+    await writeFile(
+      join(cwd, ".env.local"),
+      "BROWSERBASE_API_KEY=dotenv-local-key\n",
+    );
+
+    const result = await runCli(["doctor", "--local", "--json"], {
+      cwd,
+      env: {
+        BROWSERBASE_API_KEY: "process-key",
+        BROWSE_DAEMON_DIR: daemonDir,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      verdict: "warn",
+      checks: expect.arrayContaining([
+        expect.objectContaining({
+          details: {
+            files: [".env", ".env.local"],
+            variables: ["BROWSERBASE_API_KEY"],
+          },
+          name: "environment",
+          status: "warn",
+        }),
+      ]),
+    });
+    expect(result.stdout).not.toContain("process-key");
+    expect(result.stdout).not.toContain("dotenv-key");
+    expect(result.stdout).not.toContain("dotenv-local-key");
+  });
+
+  it("flags a .env.local-only mismatch as ignored, not overridden", async () => {
+    const cwd = await tempProjectDir();
+    const daemonDir = await tempDaemonDir();
+    await writeFile(
+      join(cwd, ".env.local"),
+      "BROWSERBASE_API_KEY=dotenv-local-key\n",
+    );
+
+    const result = await runCli(["doctor", "--local", "--json"], {
+      cwd,
+      env: {
+        BROWSERBASE_API_KEY: "process-key",
+        BROWSE_DAEMON_DIR: daemonDir,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      checks: Array<{
+        details?: { files: string[]; variables: string[] };
+        message: string;
+        name: string;
+      }>;
+      verdict: string;
+    };
+    expect(report.verdict).toBe("warn");
+    const check = report.checks.find((c) => c.name === "environment");
+    expect(check?.details).toEqual({
+      files: [".env.local"],
+      variables: ["BROWSERBASE_API_KEY"],
+    });
+    expect(check?.message).toContain("browse never loads .env.local");
+    expect(check?.message).not.toContain("overrides");
+  });
+
+  it("does not warn when process and dotenv API keys match", async () => {
+    const cwd = await tempProjectDir();
+    const daemonDir = await tempDaemonDir();
+    await writeFile(join(cwd, ".env"), "BROWSERBASE_API_KEY=same-key\n");
+    await writeFile(join(cwd, ".env.local"), "BROWSERBASE_API_KEY=same-key\n");
+
+    const result = await runCli(["doctor", "--local", "--json"], {
+      cwd,
+      env: {
+        BROWSERBASE_API_KEY: "same-key",
+        BROWSE_DAEMON_DIR: daemonDir,
+      },
+    });
+
+    expect(result.exitCode).toBe(0);
+    const report = JSON.parse(result.stdout) as {
+      checks: Array<{ name: string }>;
+      verdict: string;
+    };
+    expect(report.verdict).toBe("ok");
+    expect(report.checks).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "environment" }),
+      ]),
+    );
+  });
+
   it("reports conflicting mode flags as a failed target check", async () => {
     const daemonDir = await tempDaemonDir();
     const result = await runCli(["doctor", "--local", "--remote", "--json"], {
@@ -267,6 +365,7 @@ describe("doctor report builder", () => {
         session: "default",
       },
       {
+        cwd: await tempProjectDir(),
         env: { BROWSERBASE_API_KEY: "" },
         getDriverStatus: async () => ({
           browserConnected: true,
@@ -296,6 +395,7 @@ describe("doctor report builder", () => {
           session: "default",
         },
         {
+          cwd: await tempProjectDir(),
           discoverLocalCdp: async () => ({
             source: "DevToolsActivePort:/tmp/profile",
             wsUrl: "ws://127.0.0.1:9222/devtools/browser/test",
@@ -321,6 +421,7 @@ describe("doctor report builder", () => {
     const report = await buildDoctorReport(
       { flags: {}, session: "default" },
       {
+        cwd: await tempProjectDir(),
         env: { BROWSERBASE_API_KEY: "test-key" },
         getDriverStatus: async () => ({
           browserbaseDebugUrl: "https://www.browserbase.com/live/sess-123",
@@ -366,6 +467,7 @@ describe("doctor report builder", () => {
         session: "default",
       },
       {
+        cwd: await tempProjectDir(),
         env: { BROWSERBASE_API_KEY: "test-key" },
         getDriverStatus: async () => null,
         readPackageVersion: async () => "0.0.0-test",
@@ -389,6 +491,12 @@ describe("doctor report builder", () => {
 
 async function tempDaemonDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "browse-doctor-test-"));
+  cleanupPaths.push(dir);
+  return dir;
+}
+
+async function tempProjectDir(): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "browse-doctor-project-test-"));
   cleanupPaths.push(dir);
   return dir;
 }
