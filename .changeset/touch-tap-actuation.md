@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Actuate agent clicks as touch on mobile sessions
+Add `useTouch` option to actuate agent clicks as trusted touch
