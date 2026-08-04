@@ -1559,9 +1559,11 @@ export const StagehandObserveParamsSchema = z
   })
   .meta({ id: "StagehandObserveParams" });
 
-export const DefaultExtractDataSchema = z.object({
-  extraction: z.string(),
-});
+export const DefaultExtractDataSchema = z
+  .strictObject({
+    extraction: z.string(),
+  })
+  .meta({ id: "DefaultExtractData" });
 
 export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
 
