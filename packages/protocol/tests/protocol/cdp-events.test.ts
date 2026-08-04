@@ -4,7 +4,7 @@ import { CDP_EVENT_NAMES } from "../../generated/cdp-events.js";
 import {
   loadOfficialCDPEventNames,
   renderCDPEventNames,
-} from "../../scripts/generate-cdp-event-names.js";
+} from "../../json-rpc/build-json-rpc-schema.js";
 import { encodeWireValue, wireSchema } from "../../json-rpc/wire-casing.js";
 import {
   CDPEventNameSchema,
