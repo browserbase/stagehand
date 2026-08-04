@@ -344,7 +344,7 @@ func planCheckoutWorkflow(
 	var plan checkoutPlan
 
 	// Step 1: Cart page analysis
-	if err := page.Goto(ctx, "/cart", nil); err != nil {
+	if _, err := page.Goto(ctx, "/cart", nil); err != nil {
 		return plan, err
 	}
 	cartInstruction := "Find checkout and cart modification options"

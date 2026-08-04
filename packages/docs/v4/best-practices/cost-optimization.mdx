@@ -18,11 +18,10 @@ Reach for a stronger model only on the calls that need it, with a per-call model
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "google/gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   },
 });
 
@@ -42,18 +41,18 @@ await stagehand.extract("summarize the contract terms", termsSchema, {
 ```python
 import os
 
-from stagehand import ModelConfig, Stagehand
+from stagehand import ModelConfig, Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="google/gemini-2.5-flash",
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
 
-
 class Terms(BaseModel):
     summary: str
-
 
 # One hard extraction gets the expensive model, everything else stays cheap
 await stagehand.extract(
@@ -71,22 +70,32 @@ await stagehand.extract(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
-cheapModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+cheapModel := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &googleKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Model:  &cheapModel,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &cheapModel,
+})
+if err != nil {
+	return err
+}
 
 // One hard extraction gets the expensive model, everything else stays cheap
 anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
-strongModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+strongModel := stagehand.ModelConfig{
 	ModelName: "anthropic/claude-sonnet-4-6",
 	APIKey:    &anthropicKey,
-})
+}
 
 var termsSchema = json.RawMessage(`{
   "type": "object",
@@ -121,13 +130,10 @@ Enable server-side caching to eliminate redundant LLM calls. Turn on the `cache`
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   cache: { threshold: 1 }, // Serve hits after one identical result
 });
-
-await stagehand.init();
 
 // First run: uses LLM inference and records the action
 // Subsequent runs: reuses the cached action (no LLM cost)
@@ -139,15 +145,14 @@ await stagehand.act("Click the sign in button");
 ```python
 import os
 
-from stagehand import CacheOptions, Stagehand
+from stagehand import CacheOptions, Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=CacheOptions(threshold=1),  # Serve hits after one identical result
 )
-
-await stagehand.init()
 
 # First run: uses LLM inference and records the action
 # Subsequent runs: reuses the cached action (no LLM cost)
@@ -160,13 +165,18 @@ await stagehand.act("Click the sign in button")
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 cache := stagehand.CacheWithThreshold(1) // Serve hits after one identical result
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &cache,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 
@@ -190,25 +200,25 @@ Reuse sessions when possible and set appropriate timeouts. See [Browser Configur
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
     timeout: 1800, // 30 minutes instead of default 1 hour
     keepAlive: true, // Keep session alive between tasks
-  },
+  }),
 });
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     timeout=1800,  # 30 minutes instead of default 1 hour
     keep_alive=True,  # Keep session alive between tasks
 )
+
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -218,13 +228,22 @@ apiKey := os.Getenv("BROWSERBASE_API_KEY")
 timeout := 1800.0 // 30 minutes instead of default 1 hour
 keepAlive := true // Keep session alive between tasks
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		Timeout:   &timeout,
-		KeepAlive: &keepAlive,
-	},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:    apiKey,
+	Timeout:   &timeout,
+	KeepAlive: &keepAlive,
 })
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -311,14 +330,14 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 	openaiKey := os.Getenv("OPENAI_API_KEY")
 
 	models := []stagehand.ModelConfig{
-		stagehand.KnownModel(stagehand.KnownModelConfig{
+		stagehand.ModelConfig{
 			ModelName: "google/gemini-2.5-flash",
 			APIKey:    &googleKey,
-		}),
-		stagehand.KnownModel(stagehand.KnownModelConfig{
+		},
+		stagehand.ModelConfig{
 			ModelName: "openai/gpt-5.4",
 			APIKey:    &openaiKey,
-		}),
+		},
 	}
 
 	for i := range models {
@@ -361,11 +380,9 @@ class SessionManager {
     }
 
     const pending = (async () => {
-      const stagehand = new Stagehand({
-        apiKey: process.env.BROWSERBASE_API_KEY,
-        browser: { type: "browserbase" },
+      const stagehand = await Stagehand.create({
+        browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
       });
-      await stagehand.init();
       return stagehand;
     })().catch((error) => {
       // Drop the failed attempt so the next caller retries instead of
@@ -395,7 +412,6 @@ class SessionManager {
 import os
 import asyncio
 
-
 class SessionManager:
     def __init__(self) -> None:
         # Store the in-flight task, not the resolved instance: two callers racing
@@ -416,11 +432,9 @@ class SessionManager:
             raise
 
     async def _open_session(self) -> Stagehand:
-        stagehand = Stagehand(
-            api_key=os.environ["BROWSERBASE_API_KEY"],
-            browser="browserbase",
-        )
-        await stagehand.init()
+        browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+        stagehand = await Stagehand.create(browser=browser)
         return stagehand
 
     async def close_all(self) -> None:
@@ -450,14 +464,19 @@ func (m *sessionManager) getSession(ctx context.Context, taskType string) (*stag
 	}
 
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		APIKey:  &apiKey,
-		Browser: stagehand.BrowserbaseClientBrowserSource{},
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: apiKey,
 	})
-	if err := client.Init(ctx); err != nil {
-		return nil, err
+	if err != nil {
+		return err
 	}
 
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+	})
+	if err != nil {
+		return err
+	}
 	if m.sessions == nil {
 		m.sessions = map[string]*stagehand.Stagehand{}
 	}
@@ -568,7 +587,6 @@ class BudgetGuard {
 <View title="Python" icon="python">
 ```python
 from datetime import date
-
 
 class BudgetGuard:
     def __init__(self, max_daily_budget: float = 25) -> None:

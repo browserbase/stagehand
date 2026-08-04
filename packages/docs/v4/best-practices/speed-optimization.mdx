@@ -163,8 +163,8 @@ Use shorter timeouts for simple operations and longer ones for complex page load
 <View title="TypeScript" icon="js">
 ```typescript
 // Stable pages: shorten the settle wait (default is 5000ms)
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   domSettleTimeoutMs: 1000,
 });
 
@@ -185,8 +185,10 @@ await page.goto("https://heavy-spa.com", {
 <View title="Python" icon="python">
 ```python
 # Stable pages: shorten the settle wait (default is 5000ms)
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     dom_settle_timeout_ms=1000,
 )
 
@@ -208,10 +210,20 @@ await page.goto(
 // Stable pages: shorten the settle wait (default is 5000ms)
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 domSettleTimeoutMs := 1000
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:             &apiKey,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:            browser,
 	DOMSettleTimeoutMs: &domSettleTimeoutMs,
 })
+if err != nil {
+	return err
+}
 
 // Simple actions: reduce the action timeout
 timeout := 5000.0
@@ -224,7 +236,7 @@ if _, err := client.Act(ctx, "Click the login button", &stagehand.StagehandClien
 // Complex page loads: optimize navigation
 waitUntil := stagehand.LoadStateDOMContentLoaded // Don't wait for all resources
 navTimeout := 15000
-if err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOptions{
+if _, err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOptions{
 	WaitUntil: &waitUntil,
 	Timeout:   &navTimeout,
 }); err != nil {
@@ -270,7 +282,6 @@ class PerformanceTracker {
 <View title="Python" icon="python">
 ```python
 from time import perf_counter
-
 
 class PerformanceTracker:
     def __init__(self) -> None:

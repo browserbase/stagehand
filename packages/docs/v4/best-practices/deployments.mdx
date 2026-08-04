@@ -89,28 +89,25 @@ go mod init example.com/bb-stagehand-on-vercel
 ```typescript
 // api/run.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 async function run(): Promise<string> {
-  const stagehand = new Stagehand({
-    apiKey: process.env.BROWSERBASE_API_KEY!,
-    browser: {
-      type: "browserbase",
+  const stagehand = await Stagehand.create({
+    browser: await browserbase.launch({
+      apiKey: process.env.BROWSERBASE_API_KEY!,
       region: "us-west-2",
       browserSettings: {
         blockAds: true,
       },
-    },
+    }),
     model: {
       modelName: "google/gemini-2.5-flash",
-      apiKey: process.env.GOOGLE_API_KEY,
     },
     logging: { level: "warn", format: "json" },
   });
 
   try {
-    await stagehand.init();
     const page = await stagehand.context.activePage();
     if (!page) throw new Error("Stagehand initialized without an active page");
 
@@ -155,26 +152,22 @@ from http.server import BaseHTTPRequestHandler
 import anyio
 from pydantic import BaseModel
 
-from stagehand import BrowserbaseBrowserSettings, Stagehand, StagehandClientLoggingConfig
-
+from stagehand import BrowserbaseBrowserSettings, Stagehand, StagehandClientLoggingConfig, browserbase
 
 class FastestModel(BaseModel):
     fastest_model: str
 
-
 async def run() -> str:
-    stagehand = Stagehand(
-        api_key=os.environ["BROWSERBASE_API_KEY"],
-        browser="browserbase",
-        region="us-west-2",
-        browser_settings=BrowserbaseBrowserSettings.model_validate({"block_ads": True}),
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"], region="us-west-2", browser_settings=BrowserbaseBrowserSettings.model_validate({"block_ads": True}))
+
+    stagehand = await Stagehand.create(
+        browser=browser,
         model="google/gemini-2.5-flash",
         model_api_key=os.environ["GOOGLE_API_KEY"],
         logging=StagehandClientLoggingConfig(level="warn", format="json"),
     )
 
     try:
-        await stagehand.init()
         page = await stagehand.context.active_page()
         if page is None:
             raise RuntimeError("Stagehand initialized without an active page")
@@ -189,7 +182,6 @@ async def run() -> str:
         return result.data.fastest_model
     finally:
         await stagehand.close()
-
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
@@ -218,8 +210,6 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(body).encode())
 ```
 </View>
-
-{/* TODO: the Python View fails at init(): sdk-python/src/stagehand/browser_source.py raises NotImplementedError("Browserbase session creation is not implemented yet"). TypeScript and Go create sessions normally. */}
 
 <View title="Go" icon="golang">
 ```go
@@ -273,29 +263,34 @@ func run(ctx context.Context) (result string, err error) {
 	region := stagehand.BrowserbaseRegionUSWest2
 	blockAds := true
 
-	model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	model := stagehand.ModelConfig{
 		ModelName: "google/gemini-2.5-flash",
 		APIKey:    &modelAPIKey,
-	})
+	}
 
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		APIKey: &apiKey,
-		Browser: stagehand.BrowserbaseClientBrowserSource{
-			Region: &region,
-			BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
-				BlockAds: &blockAds,
-			},
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: apiKey,
+		Region: &region,
+		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+			BlockAds: &blockAds,
 		},
-		Model: &model,
+	})
+	if err != nil {
+		return err
+	}
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Model:   &model,
 		Logging: &stagehand.StagehandClientLoggingConfig{
 			Level:  stagehand.StagehandClientLogLevelWarn,
 			Format: stagehand.StagehandClientLogFormatJSON,
 		},
 	})
-
-	if err := client.Init(ctx); err != nil {
-		return "", err
+	if err != nil {
+		return err
 	}
+
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 	browserContext, err := client.Context()
@@ -310,7 +305,7 @@ func run(ctx context.Context) (result string, err error) {
 		return "", errors.New("Stagehand initialized without an active page")
 	}
 
-	if err := page.Goto(ctx, "https://www.stagehand.dev/", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://www.stagehand.dev/", nil); err != nil {
 		return "", err
 	}
 	if _, err := client.Act(ctx, "click the evals button", nil); err != nil {
@@ -693,7 +688,7 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
 </View>
 
 ### Features
-- **No local browsers needed** with the Browserbase browser source. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.
+- **No local browsers needed** with a Browserbase browser. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.
 - **Fast functionality**: Offload browser work to Browserbase and return JSON promptly.
 - **Long-running tasks**: Raise `maxDuration` and/or consider Edge runtime limits depending on plan.
 - **Cheap repeat runs**: Turn on [server-side caching](/v4/best-practices/caching) so scheduled invocations replay recorded actions instead of paying for inference every hour.

@@ -52,7 +52,7 @@ page, err := browserContext.ActivePage(ctx)
 if err != nil {
 	return err
 }
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click the button that opens a new tab", nil); err != nil {

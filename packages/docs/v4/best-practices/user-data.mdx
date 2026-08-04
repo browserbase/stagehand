@@ -10,47 +10,46 @@ Persist browser data between sessions.
 
 ### Local sessions
 
-For local sessions, point the browser source at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
+For local sessions, point `localBrowser.launch()` at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: {
-    type: "local",
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch({
     userDataDir: "./browser-data",
-  },
+  }),
 });
-
-await stagehand.init();
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(
-    browser="local",
-    user_data_dir="./browser-data",
-)
+browser = await local_browser.launch(user_data_dir="./browser-data")
 
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{
-		UserDataDir: "./browser-data",
-	},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
+	UserDataDir: "./browser-data",
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -61,7 +60,7 @@ When no user data directory is set, Stagehand launches Chrome against a temporar
 The preserve flag governs only that generated temporary profile, never a directory you passed yourself:
 
 <View title="TypeScript" icon="js">
-`preserveUserDataDir` is accepted but has no effect. A generated temporary profile is always deleted on shutdown.
+`preserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
 </View>
 
 <View title="Python" icon="python">
@@ -72,7 +71,6 @@ The preserve flag governs only that generated temporary profile, never a directo
 `PreserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
 </View>
 
-{/* TODO: preserveUserDataDir is honored in Python and Go, where the delete only happens for a Stagehand-generated profile. TypeScript ignores the flag: sdk-ts/src/browserSource.ts forwards only userDataDir and port to chrome-launcher, whose destroyTmp always removes a generated profile and never removes one the caller supplied. Explicit userDataDir survives in all three. */}
 
 ### Browserbase sessions
 
@@ -80,23 +78,19 @@ For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/c
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: {
-    type: "browserbase",
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
     browserSettings: {
       context: {
         id: "my-context-id",
         persist: true,
       },
     },
-  },
+  }),
 });
-
-await stagehand.init();
-console.log("Session ID:", stagehand.browser.browserbaseSessionId);
 ```
 </View>
 
@@ -104,11 +98,10 @@ console.log("Session ID:", stagehand.browser.browserbaseSessionId);
 ```python
 import os
 
-from stagehand import BrowserbaseBrowserSettings, Stagehand
+from stagehand import BrowserbaseBrowserSettings, Stagehand, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
     browser_settings=BrowserbaseBrowserSettings.model_validate({
         "context": {
             "id": "my-context-id",
@@ -117,32 +110,35 @@ stagehand = Stagehand(
     }),
 )
 
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
-
-{/* TODO: the Python View fails at init(): sdk-python/src/stagehand/browser_source.py raises NotImplementedError("Browserbase session creation is not implemented yet". TypeScript and Go create sessions normally. */}
 
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 persist := true
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{
-		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
-			Context: &stagehand.BrowserbaseContext{
-				ID:      "my-context-id",
-				Persist: &persist,
-			},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+	BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+		Context: &stagehand.BrowserbaseContext{
+			ID:      "my-context-id",
+			Persist: &persist,
 		},
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 

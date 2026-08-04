@@ -69,7 +69,7 @@ if err != nil {
 }
 
 // Hand the result to Stagehand as an ordinary instruction
-if err := page.Goto(ctx, searchResults.TopURL, nil); err != nil {
+if _, err := page.Goto(ctx, searchResults.TopURL, nil); err != nil {
 	return err
 }
 
