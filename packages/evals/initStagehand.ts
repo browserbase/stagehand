@@ -85,7 +85,16 @@ export async function initStagehand({
         "Stagehand init: BROWSERBASE_API_KEY or BB_API_KEY is required for BROWSERBASE runs",
       );
     }
-    browser = await browserbase.launch({ apiKey: browserbaseApiKey });
+    // Passed explicitly, matching initV3 and core/targets/browserbase: the
+    // Browserbase SDK does not read BROWSERBASE_PROJECT_ID from the
+    // environment, and omitting it lands sessions in the key's default
+    // project — the wrong one for keys that own several.
+    const projectId =
+      resolveKey("BROWSERBASE_PROJECT_ID").value || resolveKey("BB_PROJECT_ID").value;
+    browser = await browserbase.launch({
+      apiKey: browserbaseApiKey,
+      ...(projectId ? { projectId } : {}),
+    });
   } else {
     browser = await localBrowser.launch({ headless: false });
   }
@@ -109,10 +118,19 @@ export async function initStagehand({
     throw error;
   }
 
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    await stagehand.close();
-    throw new Error("Stagehand init: Stagehand initialized without an active page");
+  // Page acquisition failures need the same cleanup as create failures: the
+  // client is up and the browser is running, and stagehand.close() alone
+  // tears down the RPC client without closing the browser.
+  let page: Page | null;
+  try {
+    page = await stagehand.context.activePage();
+    if (!page) {
+      throw new Error("Stagehand init: Stagehand initialized without an active page");
+    }
+  } catch (error) {
+    await stagehand.close().catch(() => {});
+    await browser.close().catch(() => {});
+    throw error;
   }
 
   // No sessionUrl: StagehandBrowser is an opaque branded handle and does not
