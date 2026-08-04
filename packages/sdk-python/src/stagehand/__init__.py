@@ -1,6 +1,9 @@
 """Stagehand Python SDK."""
 
 from ._generated.input_types import (
+    Action as ActionInput,
+)
+from ._generated.input_types import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
@@ -11,6 +14,9 @@ from ._generated.input_types import (
     RgbaColor,
     TelemetryConfig,
     Variables,
+)
+from ._generated.input_types import (
+    DomainPolicy as DomainPolicyInput,
 )
 from ._generated.input_types import Locator as ProtocolLocator
 from ._generated.models import (
@@ -78,6 +84,7 @@ __all__ = [
     "ActResult",
     "ActResultData",
     "Action",
+    "ActionInput",
     "Animations",
     "BrowserClipboard",
     "BrowserContext",
@@ -93,6 +100,7 @@ __all__ = [
     "Cookie",
     "CookieParam",
     "DomainPolicy",
+    "DomainPolicyInput",
     "DefaultExtract",
     "ExternalProxyConfig",
     "ExtractResult",
