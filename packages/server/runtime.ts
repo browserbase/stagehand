@@ -326,7 +326,7 @@ export class StagehandRuntime {
       }
       await this.browserSession?.prepareForInitialization?.();
       const pages = await this.contextPages();
-      this.tracing.configure(params.telemetry);
+      this.tracing.configure(params.telemetry, params.clientInfo);
       this.state.setState(
         StagehandRuntimeStateSchema.parse({
           status: "initialized",

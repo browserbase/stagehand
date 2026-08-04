@@ -31,9 +31,14 @@ const metadata: StagehandResultMetadata = {
   },
 };
 
-const handlerContext = {
-  logger: { debug: vi.fn() },
-} as unknown as HandlerContext;
+const testLogger = {
+  debug: vi.fn(),
+  span: vi.fn(
+    async (_name: string, _data: unknown, run: (logger: unknown) => unknown) =>
+      await run(testLogger),
+  ),
+};
+const handlerContext = { logger: testLogger } as unknown as HandlerContext;
 
 function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
   return {

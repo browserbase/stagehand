@@ -150,10 +150,53 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
+  it("wraps top-level AI methods in operation spans", async () => {
+    const spans = new InMemorySpanExporter();
+    const tracing = configuredTracing(
+      createStagehandTracingRuntime(
+        { registerGlobals: false },
+        { spanProcessors: [new SimpleSpanProcessor(spans)] },
+      ),
+    );
+    const router = createRouter(tracing);
+
+    await expect(
+      router.handle(
+        request({
+          id: 15,
+          method: "stagehand.act",
+          params: { page_id: "missing", instruction: "click the link" },
+        }),
+      ),
+    ).rejects.toThrow("Stagehand must be initialized before acting");
+    await tracing.forceFlush();
+
+    const requestSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.name === "stagehand.act" && span.kind === SpanKind.SERVER);
+    const operationSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.attributes["stagehand.span.type"] === "operation");
+    expect(operationSpan?.name).toBe("stagehand.act");
+    expect(operationSpan?.status.code).toBe(SpanStatusCode.ERROR);
+    expect(operationSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
+    await tracing.shutdown();
+  });
+
   it("applies the init log level before logging and delegates lifecycle overrides", async () => {
-    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const configureTracing = vi.fn();
+    const tracing = {
+      ...configuredTracing(createStagehandTracingRuntime({ registerGlobals: false })),
+      configure: configureTracing,
+    };
     const logs: string[] = [];
-    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const initializeStagehand = vi.fn(async () => {
+      expect(configureTracing).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({ name: "stagehand-sdk-ts", version: "4.0.0" }),
+      );
+      return { initialized: true as const, pages: [] };
+    });
     const closeStagehand = vi.fn(async () => {});
     const runtime = createStagehandRuntime(
       {
@@ -214,5 +257,5 @@ function request(input: {
 function configuredTracing(
   runtime: ReturnType<typeof createStagehandTracingRuntime>,
 ): StagehandTracing {
-  return { ...runtime, configure: () => {} };
+  return { ...runtime, configure: vi.fn() };
 }

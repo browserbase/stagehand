@@ -14,7 +14,7 @@ import {
   ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
-import type { TelemetryConfig } from "../protocol/types.js";
+import type { ImplementationInfo, TelemetryConfig } from "../protocol/types.js";
 import serverPackageJson from "./package.json" with { type: "json" };
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
@@ -22,6 +22,8 @@ const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
 export const StagehandTracingRuntimeOptionsSchema = z.strictObject({
   serviceName: z.string().min(1).default("stagehand-service-worker"),
   serviceVersion: z.string().min(1).default(serverPackageJson.version),
+  clientName: z.string().min(1).optional(),
+  clientVersion: z.string().min(1).optional(),
   registerGlobals: z.boolean().default(true),
 });
 
@@ -34,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig): void;
+  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): void;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -57,6 +59,8 @@ export function createStagehandTracingRuntime(
         [ATTR_SERVICE_NAME]: options.serviceName,
         [ATTR_SERVICE_NAMESPACE]: "browserbase",
         [ATTR_SERVICE_VERSION]: options.serviceVersion,
+        ...(options.clientName ? { "stagehand.client.name": options.clientName } : {}),
+        ...(options.clientVersion ? { "stagehand.client.version": options.clientVersion } : {}),
       }),
     ),
     sampler: new AlwaysOnSampler(),
@@ -93,11 +97,21 @@ export function createStagehandTracing(
     get tracer() {
       return runtime?.tracer ?? pendingTracer;
     },
-    configure(telemetry) {
+    configure(telemetry, clientInfo) {
       if (runtime || shutDown) return;
-      runtime = createStagehandTracingRuntime(options, {
-        spanProcessors: [...dependencies.spanProcessors, createOtlpSpanProcessor(telemetry.traces)],
-      });
+      runtime = createStagehandTracingRuntime(
+        {
+          ...options,
+          clientName: clientInfo.name,
+          clientVersion: clientInfo.version,
+        },
+        {
+          spanProcessors: [
+            ...dependencies.spanProcessors,
+            createOtlpSpanProcessor(telemetry.traces),
+          ],
+        },
+      );
     },
     forceFlush: () => runtime?.forceFlush() ?? Promise.resolve(),
     shutdown: () => {

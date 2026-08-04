@@ -39,86 +39,92 @@ export function createStagehandController(
   }
 
   async function act(params: StagehandActParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.act", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before acting");
-    }
+    return await logger.span("stagehand.act", {}, async (logger) => {
+      logger.debug("stagehand.act", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before acting");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await actService.act({
-      params,
-      page: runtime.resolveUnderstudyPage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      selfHeal: state.initParams.selfHeal,
-      domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await actService.act({
+        params,
+        page: runtime.resolveUnderstudyPage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        selfHeal: state.initParams.selfHeal,
+        domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("act", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("act", result.metadata.usage);
-    return result;
   }
 
   async function observe(params: StagehandObserveParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.observe", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before observing");
-    }
+    return await logger.span("stagehand.observe", {}, async (logger) => {
+      logger.debug("stagehand.observe", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before observing");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await observeService.observe({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await observeService.observe({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("observe", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("observe", result.metadata.usage);
-    return result;
   }
 
   async function extract(params: StagehandExtractParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.extract", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before extracting");
-    }
+    return await logger.span("stagehand.extract", {}, async (logger) => {
+      logger.debug("stagehand.extract", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before extracting");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await extractService.extract({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await extractService.extract({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("extract", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("extract", result.metadata.usage);
-    return result;
   }
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext) {
