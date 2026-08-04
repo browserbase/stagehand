@@ -11,18 +11,18 @@ import { createGatewayLanguageModel, type GatewayContext } from "../llm/gatewayC
 
 /** Generates a Stagehand LLM result using the configured local or connected client. */
 export async function generate(
-  model: ModelConfig | ClientModelReference,
+  model: ModelConfig | ClientModelReference | undefined,
   input: LLMGenerateParams,
   clientRequest: ClientLlmRequest,
   gateway?: GatewayContext,
 ): Promise<LLMGenerateResult> {
   const params = LLMGenerateParamsSchema.parse(input);
 
-  if ("source" in model) {
+  if (model && "source" in model) {
     return await generateWithClientLlm(clientRequest, params);
   }
 
-  if (!model.apiKey) {
+  if (!model?.apiKey) {
     if (!gateway) {
       throw new Error("Model inference requires a provider API key or a Browserbase session");
     }

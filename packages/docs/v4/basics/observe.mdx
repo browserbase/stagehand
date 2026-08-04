@@ -317,6 +317,9 @@ const { data: actions } = await stagehand.observe("find the main call-to-action 
 
 <View title="Python" icon="python">
 ```python
+from stagehand import ProtocolLocator
+
+
 result = await stagehand.observe(
     "find the main call-to-action buttons",
     ignore_locators=[
@@ -704,6 +707,9 @@ for (const tier of pricing.tiers) {
 
 <View title="Python" icon="python">
 ```python
+from stagehand import ProtocolLocator
+
+
 class PricingTier(BaseModel):
     name: str
     price: str

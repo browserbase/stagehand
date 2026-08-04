@@ -20,9 +20,30 @@ export function buildGatewayContext(initParams: StagehandInitParams): GatewayCon
   };
 }
 
+export const fetchWithoutModel: typeof globalThis.fetch = async (input, init) => {
+  if (typeof init?.body !== "string") return await globalThis.fetch(input, init);
+
+  let body: unknown;
+  try {
+    body = JSON.parse(init.body);
+  } catch {
+    return await globalThis.fetch(input, init);
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return await globalThis.fetch(input, init);
+  }
+
+  const routedBody = { ...(body as Record<string, unknown>) };
+  delete routedBody.model;
+  return await globalThis.fetch(input, {
+    ...init,
+    body: JSON.stringify(routedBody),
+  });
+};
+
 /** Creates an OpenAI Responses model backed by Browserbase Model Gateway. */
 export function createGatewayLanguageModel(
-  config: ModelConfig,
+  config: ModelConfig | undefined,
   gateway: GatewayContext,
 ): LanguageModel {
   const provider = createOpenAI({
@@ -31,10 +52,11 @@ export function createGatewayLanguageModel(
     apiKey: gateway.apiKey,
     baseURL: `${gateway.apiUrl}/llm`,
     headers: {
-      ...config.headers,
+      ...config?.headers,
       "x-bb-api-key": gateway.apiKey,
       "x-bb-session-id": gateway.sessionId,
     },
+    ...(config ? {} : { fetch: fetchWithoutModel }),
   });
-  return provider.responses(config.modelName);
+  return provider.responses(config?.modelName ?? "auto");
 }

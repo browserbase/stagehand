@@ -404,6 +404,67 @@ describe("extract service", () => {
     expect(clientLLMGenerate).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
   });
+
+  it("bypasses caching for indexed locator scoping while preserving the live snapshot", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const captureSnapshot = vi.fn(async () => ({
+      combinedTree: "[0-1] text: 1",
+      combinedXpathMap: {},
+      combinedUrlMap: {},
+    }));
+    const page = {
+      captureSnapshot,
+      screenshot: vi.fn(),
+      url: () => "https://example.com",
+      frames: () => [frame],
+      mainFrame: () => frame,
+    };
+    const clientLLMGenerate = vi.fn(
+      async (params: LLMGenerateParams): Promise<LLMGenerateResult> =>
+        structuredResult(
+          params.responseFormat?.type === "json_schema" &&
+            params.responseFormat.name === "Extraction"
+            ? { count: 1 }
+            : { progress: "Extracted the count", completed: true },
+        ),
+    );
+    const get = vi.fn();
+    const set = vi.fn();
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the count",
+        schema: z.json().parse(z.toJSONSchema(z.object({ count: z.number() }))),
+        options: {
+          cache: true,
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".advertisement", nth: 2 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: false,
+      },
+    });
+
+    expect(result.data).toStrictEqual({ count: 1 });
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+    expect(captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: ".card", nth: 1 },
+      ignoreLocators: [{ selector: ".advertisement", nth: 2 }],
+    });
+  });
 });
 
 function structuredResult(

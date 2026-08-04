@@ -54,7 +54,8 @@ from .client_models import (
     _model_config,
 )
 from .page import Page
-from .rpc_client import RPCClient
+from .rpc_client import RPCClient, RPCError
+from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
 _CONSTRUCTION_TOKEN = object()
@@ -82,6 +83,7 @@ class Stagehand:
         self._remove_notification_listener: Callable[[], None] | None = None
         self._remove_client_llm_handler: Callable[[], None] | None = None
         self._initialized = False
+        self._init_request_started = False
         self._close_task: asyncio.Task[None] | None = None
 
     @classmethod
@@ -144,9 +146,10 @@ class Stagehand:
             create_config=create_config,
         )
         try:
-            await stagehand._initialize(claimed)
-        except BaseException:
-            await asyncio.shield(stagehand._cleanup_failed_create(browser))
+            await with_stagehand_init_deadline(stagehand._initialize(claimed))
+        except BaseException as error:
+            fail_closed = stagehand._initialization_failure_is_ambiguous(error)
+            await asyncio.shield(stagehand._cleanup_failed_create(browser, fail_closed=fail_closed))
             raise
         return stagehand
 
@@ -172,10 +175,7 @@ class Stagehand:
         )
 
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:
-        rpc_client = RPCClient(
-            claimed.cdp_client,
-            request_timeout_ms=claimed.command_timeout_ms,
-        )
+        rpc_client = RPCClient(claimed.cdp_client)
         self._rpc_client = rpc_client
         self._remove_notification_listener = rpc_client.on_notification(
             "stagehand.log",
@@ -195,9 +195,11 @@ class Stagehand:
                 generate,
             )
 
+        init_params = self._worker_init_params(claimed)
+        self._init_request_started = True
         await rpc_client.send(
             "stagehand.init",
-            self._worker_init_params(claimed),
+            init_params,
             StagehandInitResult,
         )
         self._browser_context = BrowserContext(rpc_client)
@@ -397,7 +399,25 @@ class Stagehand:
         if rpc_client is not None:
             await rpc_client.close(RuntimeError("Stagehand closed"), close_transport=False)
 
-    async def _cleanup_failed_create(self, browser: StagehandBrowser) -> None:
+    def _initialization_failure_is_ambiguous(self, error: BaseException) -> bool:
+        if isinstance(error, (asyncio.CancelledError, TimeoutError)):
+            return True
+        return self._init_request_started and not isinstance(error, RPCError)
+
+    async def _cleanup_failed_create(
+        self,
+        browser: StagehandBrowser,
+        *,
+        fail_closed: bool,
+    ) -> None:
+        if fail_closed:
+            browser_close = browser.close()
+            try:
+                await self._release_resources()
+            finally:
+                await browser_close
+            return
+
         try:
             await self._release_resources()
         finally:

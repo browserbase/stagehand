@@ -12,7 +12,7 @@ import (
 
 func newBrowserTestCDP(t *testing.T) *cdpClient {
 	t.Helper()
-	client, err := newCDPClient(newFakeCDPWebSocket(), "ws://browser.test", time.Second)
+	client, err := newCDPClient(newFakeCDPWebSocket(), "ws://browser.test")
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
 	}
@@ -222,22 +222,34 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 	accept := false
 	sender := &recordingBrowserCommandSender{}
 	var connected cdpClientOptions
+	var launchDeadline time.Time
+	var connectDeadline time.Time
 	materializeCalls := 0
 	browser, err := launchLocalBrowserWithDependencies(context.Background(), &LocalBrowserLaunchOptions{
 		AcceptDownloads: &accept, DownloadsPath: "/tmp/downloads", KeepAlive: true,
 	}, browserFactoryDependencies{
-		launchLocal: func(context.Context, LocalBrowserLaunchOptions) (resolvedBrowserSource, error) {
+		launchLocal: func(ctx context.Context, _ LocalBrowserLaunchOptions) (resolvedBrowserSource, error) {
+			var ok bool
+			launchDeadline, ok = ctx.Deadline()
+			if !ok {
+				t.Fatal("local launch context has no initialization deadline")
+			}
 			return resolvedBrowserSource{cdpURL: "ws://browser.test"}, nil
 		},
 		materializeExtension: func() (string, func() error, error) {
 			materializeCalls++
 			return "/tmp/extension", func() error { return nil }, nil
 		},
-		connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
+		connectCDP: func(ctx context.Context, options cdpClientOptions) (*cdpClient, error) {
 			connected = options
+			var ok bool
+			connectDeadline, ok = ctx.Deadline()
+			if !ok {
+				t.Fatal("CDP setup context has no initialization deadline")
+			}
 			return newBrowserTestCDP(t), nil
 		},
-		commandSender: func(*cdpClient, time.Duration) browserCommandSender { return sender },
+		commandSender: func(*cdpClient) browserCommandSender { return sender },
 	})
 	if err != nil {
 		t.Fatalf("LaunchLocalBrowser() error = %v", err)
@@ -245,6 +257,9 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 	defer browser.Close(context.Background())
 	if materializeCalls != 1 || connected.extensionDir != "/tmp/extension" || connected.serviceWorkerURLIncludes != "service-worker.js" {
 		t.Fatalf("extension connect options = %#v", connected)
+	}
+	if !connectDeadline.Equal(launchDeadline) {
+		t.Fatalf("factory lifecycle deadlines differ: launch %v, connect %v", launchDeadline, connectDeadline)
 	}
 	wantParams := map[string]any{"behavior": "deny", "downloadPath": "/tmp/downloads"}
 	if sender.method != "Browser.setDownloadBehavior" || !reflect.DeepEqual(sender.params, wantParams) {
@@ -255,15 +270,21 @@ func TestLaunchLocalBrowserDownloadBehaviorAndExtension(t *testing.T) {
 func TestConnectLocalBrowserExtensionIDSkipsMaterialization(t *testing.T) {
 	materializeCalls := 0
 	var connected cdpClientOptions
+	var connectDeadline time.Duration
 	browser, err := connectLocalBrowserWithDependencies(context.Background(), LocalBrowserConnectOptions{
-		CDPURL: "ws://browser.test", ExtensionID: "extension-id", ConnectTimeoutMs: 250,
+		CDPURL: "ws://browser.test", ExtensionID: "extension-id",
 	}, browserFactoryDependencies{
 		materializeExtension: func() (string, func() error, error) {
 			materializeCalls++
 			return "", nil, errors.New("unexpected materialization")
 		},
-		connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
+		connectCDP: func(ctx context.Context, options cdpClientOptions) (*cdpClient, error) {
 			connected = options
+			deadline, ok := ctx.Deadline()
+			if !ok {
+				t.Fatal("browser connect context has no deadline")
+			}
+			connectDeadline = time.Until(deadline)
 			return newBrowserTestCDP(t), nil
 		},
 	})
@@ -274,8 +295,102 @@ func TestConnectLocalBrowserExtensionIDSkipsMaterialization(t *testing.T) {
 	if materializeCalls != 0 || connected.extensionID != "extension-id" || connected.extensionDir != "" {
 		t.Fatalf("extension routing = calls %d, options %#v", materializeCalls, connected)
 	}
-	if connected.connectTimeout != 250*time.Millisecond || connected.discoveryTimeout != 250*time.Millisecond {
-		t.Fatalf("timeouts = %v, %v", connected.connectTimeout, connected.discoveryTimeout)
+	if connectDeadline < stagehandInitTimeout-time.Second || connectDeadline > stagehandInitTimeout {
+		t.Fatalf("browser connect deadline = %v, want approximately %v", connectDeadline, stagehandInitTimeout)
+	}
+}
+
+func TestBrowserLifecycleContextIsInternalAndCallerCapped(t *testing.T) {
+	t.Run("uses the internal initialization deadline", func(t *testing.T) {
+		lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(context.Background())
+		if err != nil {
+			t.Fatalf("browserLifecycleContext() error = %v", err)
+		}
+		defer cancelLifecycle()
+		deadline, ok := lifecycleCtx.Deadline()
+		remaining := time.Until(deadline)
+		if !ok || remaining < stagehandInitTimeout-time.Second || remaining > stagehandInitTimeout {
+			t.Fatalf("lifecycle deadline remaining = %v, %t", remaining, ok)
+		}
+	})
+
+	t.Run("preserves a shorter caller deadline", func(t *testing.T) {
+		callerCtx, cancelCaller := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancelCaller()
+
+		lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(callerCtx)
+		if err != nil {
+			t.Fatalf("browserLifecycleContext() error = %v", err)
+		}
+		defer cancelLifecycle()
+		callerDeadline, _ := callerCtx.Deadline()
+		lifecycleDeadline, ok := lifecycleCtx.Deadline()
+		if !ok || !lifecycleDeadline.Equal(callerDeadline) {
+			t.Fatalf("lifecycle deadline = %v, %t; want caller deadline %v", lifecycleDeadline, ok, callerDeadline)
+		}
+	})
+
+	t.Run("rejects nil context", func(t *testing.T) {
+		if _, _, err := browserLifecycleContext(nil); err == nil {
+			t.Fatal("browserLifecycleContext(nil) error = nil")
+		}
+	})
+}
+
+func TestBrowserFactoriesRejectNilContext(t *testing.T) {
+	tests := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "launch local",
+			call: func() error {
+				_, err := LaunchLocalBrowser(nil, nil)
+				return err
+			},
+		},
+		{
+			name: "connect local",
+			call: func() error {
+				_, err := ConnectLocalBrowser(nil, LocalBrowserConnectOptions{})
+				return err
+			},
+		},
+		{
+			name: "launch Browserbase",
+			call: func() error {
+				_, err := LaunchBrowserbase(nil, BrowserbaseLaunchOptions{})
+				return err
+			},
+		},
+		{
+			name: "connect Browserbase",
+			call: func() error {
+				_, err := ConnectBrowserbase(nil, BrowserbaseConnectOptions{})
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.call(); err == nil ||
+				err.Error() != "stagehand browser initialization context is required" {
+				t.Fatalf("factory error = %v", err)
+			}
+		})
+	}
+}
+
+func TestBrowserFactoryOptionsDoNotExposeConnectTimeout(t *testing.T) {
+	for _, options := range []any{
+		LocalBrowserLaunchOptions{},
+		LocalBrowserConnectOptions{},
+		BrowserbaseLaunchOptions{},
+		BrowserbaseConnectOptions{},
+	} {
+		if _, exposed := reflect.TypeOf(options).FieldByName("ConnectTimeoutMs"); exposed {
+			t.Fatalf("%T exposes ConnectTimeoutMs", options)
+		}
 	}
 }
 
@@ -347,88 +462,6 @@ func TestConnectBrowserFailureClosesSourceWithLiveContext(t *testing.T) {
 	}
 	if closeCalls != 1 || closeCanceled || closeValue != "value" {
 		t.Fatalf("source close = calls %d, canceled %t, value %q", closeCalls, closeCanceled, closeValue)
-	}
-}
-
-func TestConnectFactoriesValidateTimeout(t *testing.T) {
-	tests := []struct {
-		name            string
-		timeout         int
-		connect         func(context.Context, browserFactoryDependencies, int) (*Browser, error)
-		wantError       bool
-		wantMaterialize int
-		wantClient      int
-		wantConnect     int
-	}{
-		{
-			name: "local negative", timeout: -1, wantError: true,
-			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
-				return connectLocalBrowserWithDependencies(ctx, LocalBrowserConnectOptions{
-					CDPURL: "ws://browser.test", ConnectTimeoutMs: timeout,
-				}, dependencies)
-			},
-		},
-		{
-			name: "Browserbase negative", timeout: -1, wantError: true,
-			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
-				return connectBrowserbaseWithDependencies(ctx, BrowserbaseConnectOptions{
-					APIKey: "key", SessionID: "session", ConnectTimeoutMs: timeout,
-				}, dependencies)
-			},
-		},
-		{
-			name: "local zero", wantMaterialize: 1, wantConnect: 1,
-			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
-				return connectLocalBrowserWithDependencies(ctx, LocalBrowserConnectOptions{
-					CDPURL: "ws://browser.test", ConnectTimeoutMs: timeout,
-				}, dependencies)
-			},
-		},
-		{
-			name: "Browserbase zero", wantClient: 1, wantConnect: 1,
-			connect: func(ctx context.Context, dependencies browserFactoryDependencies, timeout int) (*Browser, error) {
-				return connectBrowserbaseWithDependencies(ctx, BrowserbaseConnectOptions{
-					APIKey: "key", SessionID: "session", ConnectTimeoutMs: timeout,
-				}, dependencies)
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			materializeCalls, clientCalls, connectCalls := 0, 0, 0
-			dependencies := browserFactoryDependencies{
-				materializeExtension: func() (string, func() error, error) {
-					materializeCalls++
-					return "/tmp/extension", func() error { return nil }, nil
-				},
-				createBrowserbaseClient: func(string) (browserbaseFactoryClient, error) {
-					clientCalls++
-					return &fakeBrowserbaseFactoryClient{connected: browserbaseSessionConnection{
-						cdpURL: "ws://browser.test", sessionID: "session",
-					}}, nil
-				},
-				connectCDP: func(context.Context, cdpClientOptions) (*cdpClient, error) {
-					connectCalls++
-					return newBrowserTestCDP(t), nil
-				},
-			}
-			browser, err := test.connect(context.Background(), dependencies, test.timeout)
-			if test.wantError {
-				if err == nil || err.Error() != "stagehand browser connect timeout cannot be negative" {
-					t.Fatalf("factory error = %v", err)
-				}
-			} else {
-				if err != nil {
-					t.Fatalf("factory error = %v", err)
-				}
-				if err := browser.Close(context.Background()); err != nil {
-					t.Fatalf("Close() error = %v", err)
-				}
-			}
-			if materializeCalls != test.wantMaterialize || clientCalls != test.wantClient || connectCalls != test.wantConnect {
-				t.Fatalf("dependency calls = materialize %d, client %d, connect %d", materializeCalls, clientCalls, connectCalls)
-			}
-		})
 	}
 }
 

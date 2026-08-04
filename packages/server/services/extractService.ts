@@ -51,7 +51,7 @@ export async function extract({
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
