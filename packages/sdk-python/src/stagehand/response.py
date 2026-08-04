@@ -102,9 +102,12 @@ class Response:
             ResponseBodyResult,
         )
         try:
-            return base64.b64decode(result.body, validate=True)
+            decoded = base64.b64decode(result.body, validate=True)
         except (binascii.Error, ValueError) as error:
             raise ValueError("response.body returned invalid base64") from error
+        if base64.b64encode(decoded).decode("ascii") != result.body:
+            raise ValueError("response.body returned invalid base64")
+        return decoded
 
     async def text(self) -> str:
         return (await self.body()).decode("utf-8")

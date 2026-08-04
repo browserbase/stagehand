@@ -169,11 +169,16 @@ describe("TypeScript Response", () => {
       body: "%%%",
       base64Encoded: true,
     });
+    client.queue(StagehandMethods.responseBody, {
+      body: "Zh==",
+      base64Encoded: true,
+    });
     client.queue(StagehandMethods.responseAllHeaders, new Error("handle unavailable"));
 
     const finishedError = await response.finished();
     expect(finishedError).toBeInstanceOf(Error);
     expect(finishedError?.message).toBe("net::ERR_FAILED");
+    await expect(response.body()).rejects.toThrow("response.body returned invalid base64");
     await expect(response.body()).rejects.toThrow("response.body returned invalid base64");
     await expect(response.allHeaders()).rejects.toThrow("handle unavailable");
   });

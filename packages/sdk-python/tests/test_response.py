@@ -135,6 +135,15 @@ async def test_response_surfaces_finished_failures_transport_errors_and_malforme
 
 
 @pytest.mark.asyncio
+async def test_response_rejects_noncanonical_base64_pad_bits() -> None:
+    recording = RecordingRPCClient({"response.body": {"body": "Zh==", "base64_encoded": True}})
+    response = Response(cast(RPCClient, recording), descriptor())
+
+    with pytest.raises(ValueError, match="response.body returned invalid base64"):
+        await response.body()
+
+
+@pytest.mark.asyncio
 async def test_response_finished_returns_none_after_success() -> None:
     recording = RecordingRPCClient({"response.finished": {"error": None}})
     response = Response(cast(RPCClient, recording), descriptor())

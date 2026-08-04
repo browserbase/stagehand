@@ -121,6 +121,9 @@ function decodeBase64(value: string): Uint8Array {
   } catch {
     throw new Error("response.body returned invalid base64");
   }
+  if (globalThis.btoa(binary) !== value) {
+    throw new Error("response.body returned invalid base64");
+  }
 
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
