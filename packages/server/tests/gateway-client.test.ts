@@ -1,6 +1,10 @@
 import { generateText } from "ai";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { buildGatewayContext, createGatewayLanguageModel } from "../llm/gatewayClient.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  buildGatewayContext,
+  createGatewayLanguageModel,
+  fetchWithoutModel,
+} from "../llm/gatewayClient.js";
 import * as llmService from "../services/llmService.js";
 import type { StagehandInitParams } from "../../protocol/types.js";
 
@@ -14,6 +18,10 @@ vi.mock("ai", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 const initParams = {
@@ -65,6 +73,19 @@ describe("createGatewayLanguageModel", () => {
       provider: "openai.responses",
       modelId: "auto",
     });
+  });
+});
+
+describe("fetchWithoutModel", () => {
+  it("passes non-JSON string bodies through unchanged", async () => {
+    const response = {} as Response;
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(response);
+    const init = { method: "POST", body: "not-json" };
+
+    await expect(fetchWithoutModel("https://gateway.example/request", init)).resolves.toBe(
+      response,
+    );
+    expect(fetch).toHaveBeenCalledWith("https://gateway.example/request", init);
   });
 });
 
