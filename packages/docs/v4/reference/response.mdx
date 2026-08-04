@@ -4,7 +4,7 @@ description: "Inspect the main-document network response returned by page naviga
 icon: "globe"
 ---
 
-The page navigation methods for goto, reload, back, and forward return the final main-document response when navigation performs a network request. Redirects return the final response in the chain.
+The page navigation methods for going to a URL, reloading, going back, and going forward return the final main-document response when navigation performs a network request. Redirects return the final response in the chain.
 
 The nullable result is not an error. Navigations to URLs such as `data:` and `about:`, same-document navigations, and history operations with no matching entry can complete without a network response.
 
