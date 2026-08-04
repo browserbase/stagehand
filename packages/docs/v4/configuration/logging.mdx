@@ -46,30 +46,30 @@ const testing = new Stagehand({
 ```python
 import os
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 # Development: full debug output, human-readable
 development = Stagehand(
     browser="local",
-    logging=StagehandClientLoggingConfig(level="debug", format="pretty"),
+    logging={"level": "debug", "format": "pretty"},
     # rest_of_your_configuration...
 )
 
 # Production: standard logging, machine-readable, forwarded to your platform
 production = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="json",
-        on_log=your_production_logger,  # Send to Sentry, DataDog, or similar
-    ),
+    logging={
+        "level": "info",
+        "format": "json",
+        "on_log": your_production_logger,  # Send to Sentry, DataDog, or similar
+    },
     # rest_of_your_configuration...
 )
 
 # Testing: warnings and errors only, no console noise
 testing = Stagehand(
     browser="local",
-    logging=StagehandClientLoggingConfig(level="warn", on_log=your_test_logger),
+    logging={"level": "warn", "on_log": your_test_logger},
     # rest_of_your_configuration...
 )
 ```
@@ -153,7 +153,7 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 ```python
 stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="debug"),  # Maximum detail
+    logging={"level": "debug"},  # Maximum detail
     # rest_of_your_configuration...
 )
 ```
@@ -206,7 +206,7 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 ```python
 stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info"),  # Default level
+    logging={"level": "info"},  # Default level
     # rest_of_your_configuration...
 )
 ```
@@ -267,12 +267,12 @@ const silent = new Stagehand({
 <View title="Python" icon="python">
 ```python
 stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="error"),  # Errors only
+    logging={"level": "error"},  # Errors only
     # rest_of_your_configuration...
 )
 
 silent = Stagehand(
-    logging=StagehandClientLoggingConfig(level="off"),  # Nothing at all
+    logging={"level": "off"},  # Nothing at all
     # rest_of_your_configuration...
 )
 ```
@@ -351,7 +351,7 @@ const stagehand = new Stagehand({
 ```python
 # Enabled by default: level "info", format "pretty"
 stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info", format="pretty"),
+    logging={"level": "info", "format": "pretty"},
     # rest_of_your_configuration...
 )
 ```
@@ -404,7 +404,7 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 ```python
 stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info", format="json"),
+    logging={"level": "info", "format": "json"},
     # rest_of_your_configuration...
 )
 ```
@@ -514,10 +514,7 @@ const stagehand = new Stagehand({
 ```python
 stagehand = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        on_log=simple_logger,
-    ),
+    logging={"level": "info", "on_log": simple_logger},
     # rest_of_your_configuration...
 )
 ```
@@ -706,11 +703,11 @@ const stagehand = new Stagehand({
 ```python
 stagehand = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="json",
-        on_log=production_logger,
-    ),
+    logging={
+        "level": "info",
+        "format": "json",
+        "on_log": production_logger,
+    },
     # rest_of_your_configuration...
 )
 ```
@@ -827,14 +824,11 @@ try {
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 stagehand = Stagehand(
     browser="local",
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-    ),
+    logging={"level": "info", "format": "pretty"},
 )
 ```
 
@@ -852,18 +846,18 @@ Use `on_log` to send each displayed log to a file or your application logger. Th
 additive: Stagehand continues to write its normal terminal output.
 
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 
 log_file = open("stagehand.jsonl", "a", encoding="utf-8")
 
 stagehand = Stagehand(
     # ...
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-        on_log=lambda log: print(log.model_dump_json(), file=log_file),
-    ),
+    logging={
+        "level": "info",
+        "format": "pretty",
+        "on_log": lambda log: print(log.model_dump_json(), file=log_file),
+    },
 )
 
 try:
@@ -1037,11 +1031,11 @@ def capture_inference(log) -> None:
 
 stagehand = Stagehand(
     browser="local",
-    logging=StagehandClientLoggingConfig(
-        level="debug",
-        format="json",
-        on_log=capture_inference,
-    ),
+    logging={
+        "level": "debug",
+        "format": "json",
+        "on_log": capture_inference,
+    },
 )
 ```
 </View>
@@ -1152,11 +1146,11 @@ type StagehandClientLoggingConfig = {
 ```python
 stagehand = Stagehand(
     # ... your other configurations (browser, model, etc.)
-    logging=StagehandClientLoggingConfig(
-        level="info",   # "off" | "error" | "warn" | "info" | "debug"
-        format="pretty",  # "pretty" | "json"
-        on_log=None,      # Callable[[StagehandLog], None | Awaitable[None]]
-    ),
+    logging={
+        "level": "info",  # "off" | "error" | "warn" | "info" | "debug"
+        "format": "pretty",  # "pretty" | "json"
+        "on_log": None,  # Callable[[StagehandLog], None | Awaitable[None]]
+    },
 )
 ```
 </View>

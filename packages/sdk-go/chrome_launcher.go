@@ -220,7 +220,6 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 		fmt.Sprintf("--remote-debugging-port=%d", port),
 		"--user-data-dir="+userDataDir,
 	)
-	args = append(args, options.Args...)
 
 	if options.Headless {
 		args = append(args, "--headless")
@@ -259,6 +258,7 @@ func buildChromeArgs(options LocalBrowserLaunchOptions, port int, userDataDir st
 	if options.IgnoreHTTPSErrors {
 		args = append(args, "--ignore-certificate-errors")
 	}
+	args = append(args, options.Args...)
 	return append(args, "about:blank")
 }
 

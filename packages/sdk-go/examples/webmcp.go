@@ -41,7 +41,7 @@ func run(ctx context.Context) (err error) {
 	if page == nil {
 		return errors.New("Stagehand initialized without an active page")
 	}
-	if err := page.Goto(ctx, webMCPTestSite, nil); err != nil {
+	if _, err := page.Goto(ctx, webMCPTestSite, nil); err != nil {
 		return err
 	}
 

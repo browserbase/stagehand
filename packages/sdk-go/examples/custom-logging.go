@@ -65,7 +65,7 @@ func run(ctx context.Context) (err error) {
 	if page == nil {
 		return errors.New("Stagehand initialized without an active page")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		return err
 	}
 	instruction := "Find the Learn more link"

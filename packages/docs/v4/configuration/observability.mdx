@@ -330,7 +330,7 @@ from time import perf_counter
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 
 class Data(BaseModel):
@@ -339,7 +339,7 @@ class Data(BaseModel):
 
 stagehand = Stagehand(
     browser="local",
-    logging=StagehandClientLoggingConfig(level="info"),  # Monitor without debug noise
+    logging={"level": "info"},  # Monitor without debug noise
 )
 
 await stagehand.init()

@@ -95,7 +95,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
-		"page.goto":           PageRef{PageID: "page-1"},
+		"page.goto":           PageNavigationResult{Page: PageRef{PageID: "page-1"}},
 		"stagehand.act": ActResult{Data: ActResultData{
 			Success: true, Message: "clicked", ActionDescription: "click", Actions: []Action{},
 		}},
@@ -117,7 +117,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if page == nil {
 		t.Fatal("ActivePage() = nil")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		t.Fatalf("Goto() error = %v", err)
 	}
 	if _, err := client.Act(ctx, ActInstruction("click the link"), nil); err != nil {
