@@ -1559,11 +1559,19 @@ export const StagehandObserveParamsSchema = z
   })
   .meta({ id: "StagehandObserveParams" });
 
+export const DefaultExtractDataSchema = z
+  .strictObject({
+    extraction: z.string(),
+  })
+  .meta({ id: "DefaultExtractData" });
+
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+
 export const StagehandExtractParamsSchema = z
   .strictObject({
     pageId: z.string().min(1),
     instruction: z.string().min(1),
-    schema: z.json(),
+    schema: z.json().default(DEFAULT_EXTRACT_JSON_SCHEMA),
     options: ExtractOptionsSchema.optional(),
   })
   .meta({ id: "StagehandExtractParams" });

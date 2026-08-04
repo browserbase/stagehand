@@ -1,10 +1,15 @@
 import { RPCClient } from "./rpcClient.js";
-import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
+import {
+  DefaultExtractDataSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+  StagehandInitParamsSchema,
+} from "../../protocol/schemas.js";
 import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
+  DefaultExtractData,
   ObserveResult,
   StagehandMetrics,
   StagehandRpcNotification,
@@ -38,6 +43,14 @@ type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
 export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult, "data"> & {
   data: z.output<Schema>;
 };
+
+const isZodSchema = (value: unknown): value is z.ZodType =>
+  typeof value === "object" &&
+  value !== null &&
+  "parse" in value &&
+  typeof value.parse === "function" &&
+  "safeParse" in value &&
+  typeof value.safeParse === "function";
 
 export class Stagehand {
   browserContext: BrowserContext | undefined;
@@ -175,25 +188,38 @@ export class Stagehand {
     return response;
   }
 
+  async extract(
+    instruction: string,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<z.ZodType<DefaultExtractData>>>;
   async extract<Schema extends z.ZodType>(
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<ExtractResult<Schema>> {
-    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
+  ): Promise<ExtractResult<Schema>>;
+  async extract<Schema extends z.ZodType | StagehandClientExtractOptions>(
+    instruction: string,
+    schema?: Schema,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<z.ZodType>> {
+    const hasCustomSchema = isZodSchema(schema);
+    const resolvedSchema = hasCustomSchema ? schema : DefaultExtractDataSchema;
+    const resolvedOptions = hasCustomSchema ? options : schema;
+    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(
+      resolvedOptions ?? {},
+    );
     const targetPage = page ?? (await this.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
-    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
       instruction,
-      schema: jsonSchema,
-      ...(options === undefined ? {} : { options: protocolOptions }),
+      ...(hasCustomSchema ? { schema: z.json().parse(z.toJSONSchema(resolvedSchema)) } : {}),
+      ...(resolvedOptions === undefined ? {} : { options: protocolOptions }),
     });
 
     return {
       ...response,
-      data: schema.parse(response.data),
+      data: resolvedSchema.parse(response.data),
     };
   }
 

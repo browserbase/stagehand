@@ -5,12 +5,14 @@ import importlib
 import inspect
 import json
 from collections.abc import Awaitable, Callable
-from typing import TypeVar, cast, overload
+from typing import TypeVar, assert_type, cast, overload
 
 import pytest
 from pydantic import BaseModel, RootModel, StrictInt
 
 from stagehand import (
+    DefaultExtract,
+    ExtractResult,
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
@@ -681,6 +683,51 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         if method == "stagehand.extract"
     )
     assert extract_params.page_id == "explicit-page"
+
+
+@pytest.mark.asyncio
+async def test_stagehand_extract_uses_default_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({
+        "stagehand.extract": {
+            "data": {"extraction": "Example Domain"},
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.disabled),
+                usage=StagehandResultUsage(
+                    input_tokens=0,
+                    output_tokens=0,
+                    reasoning_tokens=0,
+                ),
+            ),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+
+    try:
+        extracted = await stagehand.extract(instruction="Extract the page text", page=page)
+
+        assert_type(extracted, ExtractResult[DefaultExtract])
+        assert extracted.data.extraction == "Example Domain"
+        extract_params = next(
+            cast(StagehandExtractParams, params)
+            for method, params, _ in recording.calls
+            if method == "stagehand.extract"
+        )
+        assert extract_params.schema_ is not None
+        schema = extract_params.schema_.model_dump()
+        assert schema["type"] == "object"
+        assert schema["properties"] == {"extraction": {"type": "string"}}
+        assert schema["required"] == ["extraction"]
+        assert schema["additionalProperties"] is False
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,12 @@ from .client_types import Cache as CacheInput
 ExtractData = TypeVar("ExtractData", bound=BaseModel)
 
 
+class DefaultExtract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    extraction: str
+
+
 class ExtractResult(WireModel, Generic[ExtractData]):
     model_config = ConfigDict(extra="forbid")
 

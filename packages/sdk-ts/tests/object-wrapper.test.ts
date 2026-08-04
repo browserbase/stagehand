@@ -1010,6 +1010,62 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("uses the default extraction schema when stagehand.extract omits a schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+
+    const result = await stagehand.extract("Extract the page text");
+
+    expect(result.data.extraction).toBe("Example Domain");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.contextActivePage, {}),
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+      }),
+    ]);
+  });
+
+  it("accepts extract options as the second argument with the default schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      stagehand.extract("Extract the page text", { page, selector: "main" }),
+    ).resolves.toStrictEqual({
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+        options: { selector: "main" },
+      }),
+    ]);
+  });
+
+  it("requires a runtime schema when selecting a custom extract type", () => {
+    const stagehand = createStagehandWithClientForTest(new FakeProtocolClient());
+    const customSchema = z.object({ heading: z.string() });
+    const typecheck = (): void => {
+      // @ts-expect-error A custom schema generic requires the matching runtime schema.
+      void stagehand.extract<typeof customSchema>("Extract the heading", undefined);
+    };
+
+    expect(typecheck).toBeTypeOf("function");
+  });
+
   it("validates stagehand.extract data with the caller's original Zod schema", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {

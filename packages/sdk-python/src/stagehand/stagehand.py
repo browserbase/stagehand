@@ -7,7 +7,7 @@ import json
 import sys
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
-from typing import TypeVar
+from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from ._generated.models import (
     ClientModelReference,
     EmptyParams,
     ExtractOptions,
+    FieldSchema0,
     ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -42,6 +43,7 @@ from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
+    DefaultExtract,
     ExtractResult,
     _cache_config,
     _ExtractWireResult,
@@ -269,10 +271,42 @@ class Stagehand:
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
         return result
 
+    @overload
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[DefaultExtract] = DefaultExtract,
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[DefaultExtract]: ...
+
+    @overload
     async def extract(
         self,
         instruction: str,
         schema: builtins.type[ResultModel],
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[ResultModel]: ...
+
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[ResultModel] = cast(builtins.type[ResultModel], DefaultExtract),
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -302,8 +336,9 @@ class Stagehand:
         params = StagehandExtractParams(
             page_id=target_page.page_id,
             instruction=instruction,
-            schema_=schema.model_json_schema(),
         )
+        if schema is not DefaultExtract:
+            params.schema_ = FieldSchema0.model_validate(schema.model_json_schema())
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(

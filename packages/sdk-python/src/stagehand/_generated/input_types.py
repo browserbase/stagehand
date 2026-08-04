@@ -954,7 +954,7 @@ class StagehandCloseResult(TypedDict):
 class StagehandExtractParams(TypedDict):
     page_id: str
     instruction: str
-    schema: FieldSchema0
+    schema: NotRequired[FieldSchema0]
     options: NotRequired[ExtractOptions]
 
 

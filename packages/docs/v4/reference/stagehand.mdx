@@ -504,8 +504,9 @@ console.log(product.data, product.metadata.cache.status);
   The natural-language instruction.
 </ParamField>
 
-<ParamField path="schema" type="Schema">
-  The schema used to validate extracted data.
+<ParamField path="schema" type="Schema" optional>
+  The schema used to validate extracted data. Defaults to an object with a string `extraction` field
+  when omitted; when selecting a custom schema generic, provide the matching runtime schema.
 </ParamField>
 
 <ParamField path="options" type="StagehandClientExtractOptions" optional>
@@ -1140,8 +1141,8 @@ print(product.data, product.metadata.cache.status)
   The natural-language instruction.
 </ParamField>
 
-<ParamField path="schema" type="type[ResultModel]">
-  The schema used to validate extracted data.
+<ParamField path="schema" type="type[ResultModel]" optional>
+  The schema used to validate extracted data. Defaults to a model with a string `extraction` field.
 </ParamField>
 
 <ParamField path="page" type="Page | None" optional>
