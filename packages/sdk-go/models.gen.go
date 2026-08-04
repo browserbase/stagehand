@@ -1736,7 +1736,7 @@ type StagehandExtractParams struct {
 	PageID string `json:"page_id"`
 
 	// Schema corresponds to the JSON schema field "schema".
-	Schema json.RawMessage `json:"schema"`
+	Schema json.RawMessage `json:"schema,omitempty,omitzero"`
 }
 
 type StagehandInitParams struct {

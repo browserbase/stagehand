@@ -360,20 +360,8 @@ func TestExtractUsesDefaultSchema(t *testing.T) {
 	if !ok {
 		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
 	}
-	var schema map[string]any
-	if err := json.Unmarshal(params.Schema, &schema); err != nil {
-		t.Fatalf("unmarshal default extract schema: %v", err)
-	}
-	wantSchema := map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"extraction": map[string]any{"type": "string"},
-		},
-		"required":             []any{"extraction"},
-		"additionalProperties": false,
-	}
-	if !reflect.DeepEqual(schema, wantSchema) {
-		t.Fatalf("default extract schema = %#v, want %#v", schema, wantSchema)
+	if params.Schema != nil {
+		t.Fatalf("default extract schema = %s, want protocol default", params.Schema)
 	}
 }
 

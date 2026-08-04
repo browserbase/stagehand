@@ -1983,7 +1983,13 @@ class StagehandExtractParams(WireModel):
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Annotated[StrictStr, Field(min_length=1)]
-    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"extraction": {"type": "string"}},
+        "required": ["extraction"],
+        "additionalProperties": False,
+    }
     options: Optional[ExtractOptions] = None
 
 

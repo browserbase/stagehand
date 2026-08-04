@@ -212,9 +212,6 @@ func (s *Stagehand) Extract(
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
 ) (ExtractResult, error) {
-	if schema == nil {
-		schema = defaultExtractSchema()
-	}
 	rpc, err := s.connectedProtocol()
 	if err != nil {
 		return ExtractResult{}, err
@@ -223,8 +220,9 @@ func (s *Stagehand) Extract(
 	if err != nil {
 		return ExtractResult{}, err
 	}
-	params := StagehandExtractParams{
-		PageID: page.PageID(), Instruction: instruction, Schema: schema,
+	params := StagehandExtractParams{PageID: page.PageID(), Instruction: instruction}
+	if schema != nil {
+		params.Schema = schema
 	}
 	if options != nil {
 		params.Options = &options.ExtractOptions
@@ -234,10 +232,6 @@ func (s *Stagehand) Extract(
 		return ExtractResult{}, err
 	}
 	return result, nil
-}
-
-func defaultExtractSchema() json.RawMessage {
-	return json.RawMessage(`{"type":"object","properties":{"extraction":{"type":"string"}},"required":["extraction"],"additionalProperties":false}`)
 }
 
 // TypedExtractResult contains caller-decoded extract data and its protocol metadata.

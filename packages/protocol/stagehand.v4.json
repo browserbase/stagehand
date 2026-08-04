@@ -1777,13 +1777,24 @@
           "minLength": 1
         },
         "schema": {
+          "default": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "type": "object",
+            "properties": {
+              "extraction": {
+                "type": "string"
+              }
+            },
+            "required": ["extraction"],
+            "additionalProperties": false
+          },
           "$ref": "#/$defs/__schema0"
         },
         "options": {
           "$ref": "#/$defs/ExtractOptions"
         }
       },
-      "required": ["page_id", "instruction", "schema"],
+      "required": ["page_id", "instruction"],
       "additionalProperties": false
     },
     "__schema0": {

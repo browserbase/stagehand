@@ -43,7 +43,6 @@ from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
-    _DEFAULT_EXTRACT_SCHEMA,
     DefaultExtract,
     ExtractResult,
     _cache_config,
@@ -337,10 +336,9 @@ class Stagehand:
         params = StagehandExtractParams(
             page_id=target_page.page_id,
             instruction=instruction,
-            schema_=FieldSchema0.model_validate(
-                _DEFAULT_EXTRACT_SCHEMA if schema is DefaultExtract else schema.model_json_schema()
-            ),
         )
+        if schema is not DefaultExtract:
+            params.schema_ = FieldSchema0.model_validate(schema.model_json_schema())
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(

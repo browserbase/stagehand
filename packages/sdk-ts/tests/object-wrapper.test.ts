@@ -1027,13 +1027,6 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page text",
-        schema: z.json().parse(
-          z.toJSONSchema(
-            z.object({
-              extraction: z.string(),
-            }),
-          ),
-        ),
       }),
     ]);
   });
@@ -1057,7 +1050,6 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page text",
-        schema: z.json().parse(z.toJSONSchema(z.object({ extraction: z.string() }))),
         options: { selector: "main" },
       }),
     ]);

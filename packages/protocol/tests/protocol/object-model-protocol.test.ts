@@ -7,6 +7,7 @@ import {
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
 import {
+  DEFAULT_EXTRACT_JSON_SCHEMA,
   decodedBase64ByteLength,
   InputFilePayloadSchema,
   PageLocatorSchema,
@@ -100,6 +101,19 @@ describe("Stagehand object-model protocol", () => {
         model: { modelName: "gpt-5-mini" },
       }),
     ).toThrow();
+  });
+
+  it("defaults extract requests to the protocol extract schema", () => {
+    expect(
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        instruction: "Extract the page text",
+      }),
+    ).toStrictEqual({
+      pageId: "target-1",
+      instruction: "Extract the page text",
+      schema: DEFAULT_EXTRACT_JSON_SCHEMA,
+    });
   });
 
   it("requires a per-call model override to be a complete model configuration", () => {
@@ -201,7 +215,7 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 
-  it("rejects extraction without a page, instruction, or schema", () => {
+  it("rejects extraction without a page or instruction", () => {
     expect(() =>
       StagehandMethods.stagehandExtract.params.parse({
         instruction: "Extract the page heading",
@@ -212,12 +226,6 @@ describe("Stagehand object-model protocol", () => {
       StagehandMethods.stagehandExtract.params.parse({
         pageId: "target-1",
         schema: { type: "object" },
-      }),
-    ).toThrow();
-    expect(() =>
-      StagehandMethods.stagehandExtract.params.parse({
-        pageId: "target-1",
-        instruction: "Extract the page heading",
       }),
     ).toThrow();
   });

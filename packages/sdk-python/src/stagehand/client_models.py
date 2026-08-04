@@ -28,14 +28,6 @@ class DefaultExtract(BaseModel):
     extraction: str
 
 
-_DEFAULT_EXTRACT_SCHEMA: dict[str, object] = {
-    "type": "object",
-    "properties": {"extraction": {"type": "string"}},
-    "required": ["extraction"],
-    "additionalProperties": False,
-}
-
-
 class ExtractResult(WireModel, Generic[ExtractData]):
     model_config = ConfigDict(extra="forbid")
 
