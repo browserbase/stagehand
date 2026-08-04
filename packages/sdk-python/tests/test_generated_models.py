@@ -93,3 +93,36 @@ def test_generated_models_serialize_protocol_defaults() -> None:
             "headers": {},
         }
     }
+
+
+def test_generated_webmcp_models_apply_defaults_and_preserve_user_keys() -> None:
+    tools_params = models.PageWebMCPToolsParams.model_validate({
+        "page_id": "page-1",
+        "options": {},
+    })
+    invoke_params = models.PageWebMCPInvokeToolParams.model_validate({
+        "page_id": "page-1",
+        "frame_id": "frame-1",
+        "tool_name": "search",
+    })
+    response = models.WebMCPToolResponse.model_validate({
+        "invocation_id": "invocation-1",
+        "status": "Completed",
+        "output": {"resultValue": "unchanged"},
+    })
+
+    assert tools_params.model_dump(mode="json", exclude_unset=True) == {
+        "page_id": "page-1",
+        "options": {"timeout": 1_000},
+    }
+    assert invoke_params.model_dump(mode="json", exclude_unset=True) == {
+        "page_id": "page-1",
+        "frame_id": "frame-1",
+        "tool_name": "search",
+        "input": {},
+    }
+    assert response.model_dump(mode="json", exclude_unset=True) == {
+        "invocation_id": "invocation-1",
+        "status": "Completed",
+        "output": {"resultValue": "unchanged"},
+    }

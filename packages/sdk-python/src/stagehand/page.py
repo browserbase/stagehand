@@ -18,16 +18,13 @@ from ._generated.models import (
     PageClickOptions,
     PageClickParams,
     PageCloseResult,
-    PageCoordinateResult,
     PageDragAndDropOptions,
     PageDragAndDropParams,
-    PageDragAndDropResult,
     PageEvaluateParams,
     PageEvaluateResult,
     PageGoBackParams,
     PageGoForwardParams,
     PageGotoParams,
-    PageHoverOptions,
     PageHoverParams,
     PageIdParams,
     PageKeyPressOptions,
@@ -39,7 +36,6 @@ from ._generated.models import (
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
-    PageScrollOptions,
     PageScrollParams,
     PageSetExtraHTTPHeadersParams,
     PageSetViewportSizeOptions,
@@ -56,15 +52,19 @@ from ._generated.models import (
     PageWaitForSelectorParams,
     PageWaitForSelectorResult,
     PageWaitForTimeoutParams,
+    PageWebMCPToolsParams,
+    PageWebMCPToolsResult,
     Scale,
     SnapshotResult,
     State,
+    WebMCPToolsOptions,
 )
 from ._generated.models import (
     Type as ScreenshotType,
 )
 from .locator import Locator
 from .rpc_client import RPCClient
+from .webmcp import WebMCPTool
 
 EvaluateResult = TypeVar("EvaluateResult")
 
@@ -165,35 +165,27 @@ class Page:
         *,
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         click_count: int | None = None,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageClickParams(page_id=self.page_id, x=x, y=y)
         options = PageClickOptions.model_validate({
             name: value
             for name, value in (
                 ("button", button),
                 ("click_count", click_count),
-                ("return_xpath", return_xpath),
             )
             if value is not None
         })
         if options.model_fields_set:
             params.options = options
-        result = await self._rpc_client.send("page.click", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.click", params, PageVoidResult)
 
     async def hover(
         self,
         x: float,
         y: float,
-        *,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageHoverParams(page_id=self.page_id, x=x, y=y)
-        if return_xpath is not None:
-            params.options = PageHoverOptions(return_xpath=return_xpath)
-        result = await self._rpc_client.send("page.hover", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.hover", params, PageVoidResult)
 
     async def scroll(
         self,
@@ -201,9 +193,7 @@ class Page:
         y: float,
         delta_x: float,
         delta_y: float,
-        *,
-        return_xpath: bool | None = None,
-    ) -> str:
+    ) -> None:
         params = PageScrollParams(
             page_id=self.page_id,
             x=x,
@@ -211,10 +201,7 @@ class Page:
             delta_x=delta_x,
             delta_y=delta_y,
         )
-        if return_xpath is not None:
-            params.options = PageScrollOptions(return_xpath=return_xpath)
-        result = await self._rpc_client.send("page.scroll", params, PageCoordinateResult)
-        return result.xpath
+        await self._rpc_client.send("page.scroll", params, PageVoidResult)
 
     async def drag_and_drop(
         self,
@@ -226,8 +213,7 @@ class Page:
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         steps: int | None = None,
         delay: float | None = None,
-        return_xpath: bool | None = None,
-    ) -> tuple[str, str]:
+    ) -> None:
         params = PageDragAndDropParams(
             page_id=self.page_id,
             from_x=from_x,
@@ -241,18 +227,16 @@ class Page:
                 ("button", button),
                 ("steps", steps),
                 ("delay", delay),
-                ("return_xpath", return_xpath),
             )
             if value is not None
         })
         if options.model_fields_set:
             params.options = options
-        result = await self._rpc_client.send(
+        await self._rpc_client.send(
             "page.drag_and_drop",
             params,
-            PageDragAndDropResult,
+            PageVoidResult,
         )
-        return result.from_xpath, result.to_xpath
 
     async def type(
         self,
@@ -340,6 +324,7 @@ class Page:
     async def wait_for_load_state(
         self,
         state: LoadState | Literal["load", "domcontentloaded", "networkidle"],
+        *,
         timeout: int | None = None,
     ) -> None:
         params = PageWaitForLoadStateParams.model_validate({
@@ -440,6 +425,17 @@ class Page:
         if include_iframes is not None:
             params.options = PageSnapshotOptions(include_iframes=include_iframes)
         return await self._rpc_client.send("page.snapshot", params, SnapshotResult)
+
+    async def tools(self, *, timeout: float | None = None) -> list[WebMCPTool]:
+        params = PageWebMCPToolsParams(page_id=self.page_id)
+        if timeout is not None:
+            params.options = WebMCPToolsOptions(timeout=timeout)
+        result = await self._rpc_client.send(
+            "page.webmcp_tools",
+            params,
+            PageWebMCPToolsResult,
+        )
+        return [WebMCPTool(self._rpc_client, self.page_id, tool) for tool in result.tools]
 
     async def url(self) -> str:
         return await self._rpc_client.send(

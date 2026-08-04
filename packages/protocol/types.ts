@@ -16,9 +16,8 @@ import type {
   AzureEntraIdAuthSchema,
   AzureModelProviderOptionsSchema,
   AzureProviderOptionsSchema,
-  BrowserGetVersionResultSchema,
   BrowserbaseBrowserSettingsSchema,
-  BrowserbaseBrowserSourceSchema,
+  BrowserSessionMetadataSchema,
   BrowserbaseContextSchema,
   BrowserbaseFingerprintSchema,
   BrowserbaseFingerprintScreenSchema,
@@ -27,7 +26,9 @@ import type {
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
   BrowserbaseViewportSchema,
+  CacheMetadataSchema,
   CacheStatusSchema,
+  CacheTokenSavingsSchema,
   CachingSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
@@ -66,7 +67,6 @@ import type {
   ExternalProxyConfigSchema,
   ExtractOptionsSchema,
   ExtractResultSchema,
-  CustomModelConfigSchema,
   GoogleModelIdSchema,
   GoogleModelNameSchema,
   GoogleServiceAccountAuthSchema,
@@ -131,15 +131,12 @@ import type {
   ModelProviderSchema,
   GroqModelIdSchema,
   GroqModelNameSchema,
-  KnownModelConfigSchema,
   ObserveOptionsSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
-  PageCoordinateResultSchema,
   PageDragAndDropParamsSchema,
-  PageDragAndDropResultSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -169,11 +166,13 @@ import type {
   PageWaitForSelectorParamsSchema,
   PageWaitForSelectorResultSchema,
   PageWaitForTimeoutParamsSchema,
+  PageWebMCPCancelInvocationParamsSchema,
+  PageWebMCPInvocationResultParamsSchema,
+  PageWebMCPInvokeToolParamsSchema,
+  PageWebMCPToolsParamsSchema,
+  PageWebMCPToolsResultSchema,
   ProxyConfigSchema,
-  RuntimeConfigureParamsSchema,
-  RuntimeConfigureResultSchema,
   RuntimeDescriptorSchema,
-  RuntimeLoopbackStatusResultSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
   StagehandCloseResultSchema,
@@ -185,8 +184,8 @@ import type {
   StagehandLogSchema,
   StagehandMetricsSchema,
   StagehandObserveParamsSchema,
-  StagehandPingResultSchema,
   StagehandResultMetadataSchema,
+  StagehandResultUsageSchema,
   SnapshotResultSchema,
   TelemetryConfigSchema,
   ThinkingEffortSchema,
@@ -197,6 +196,15 @@ import type {
   VariableValueSchema,
   VertexModelProviderOptionsSchema,
   VertexProviderOptionsSchema,
+  WebMCPAnnotationSchema,
+  WebMCPInvocationDescriptorSchema,
+  WebMCPInvocationStatusSchema,
+  WebMCPInvokeOptionsSchema,
+  WebMCPRemoteObjectSchema,
+  WebMCPResultOptionsSchema,
+  WebMCPToolDescriptorSchema,
+  WebMCPToolResponseSchema,
+  WebMCPToolsOptionsSchema,
 } from "./schemas.js";
 
 export type VariablePrimitive = z.infer<typeof VariablePrimitiveSchema>;
@@ -223,8 +231,6 @@ export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
 export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
 export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
 export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
-export type KnownModelConfig = z.infer<typeof KnownModelConfigSchema>;
-export type CustomModelConfig = z.infer<typeof CustomModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;
@@ -266,16 +272,23 @@ export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
 export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
-export type PageCoordinateResult = z.infer<typeof PageCoordinateResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;
 export type SnapshotResult = z.infer<typeof SnapshotResultSchema>;
+export type WebMCPAnnotation = z.infer<typeof WebMCPAnnotationSchema>;
+export type WebMCPToolDescriptor = z.infer<typeof WebMCPToolDescriptorSchema>;
+export type WebMCPToolsOptions = z.infer<typeof WebMCPToolsOptionsSchema>;
+export type WebMCPInvokeOptions = z.infer<typeof WebMCPInvokeOptionsSchema>;
+export type WebMCPResultOptions = z.infer<typeof WebMCPResultOptionsSchema>;
+export type WebMCPInvocationDescriptor = z.infer<typeof WebMCPInvocationDescriptorSchema>;
+export type WebMCPInvocationStatus = z.infer<typeof WebMCPInvocationStatusSchema>;
+export type WebMCPRemoteObject = z.infer<typeof WebMCPRemoteObjectSchema>;
+export type WebMCPToolResponse = z.infer<typeof WebMCPToolResponseSchema>;
 export type LocatorDescriptor = z.infer<typeof LocatorDescriptorSchema>;
 export type StagehandInitParams = z.infer<typeof StagehandInitParamsSchema>;
 export type TelemetryConfig = z.infer<typeof TelemetryConfigSchema>;
 export type ImplementationInfo = z.infer<typeof ImplementationInfoSchema>;
 export type RuntimeDescriptor = z.infer<typeof RuntimeDescriptorSchema>;
-export type RuntimeConfigureParams = z.infer<typeof RuntimeConfigureParamsSchema>;
 export type StagehandActParams = z.infer<typeof StagehandActParamsSchema>;
 export type StagehandObserveParams = z.infer<typeof StagehandObserveParamsSchema>;
 export type StagehandExtractParams = z.infer<typeof StagehandExtractParamsSchema>;
@@ -317,6 +330,15 @@ export type PageSetViewportSizeParams = z.infer<typeof PageSetViewportSizeParams
 export type PageWaitForLoadStateParams = z.infer<typeof PageWaitForLoadStateParamsSchema>;
 export type PageWaitForTimeoutParams = z.infer<typeof PageWaitForTimeoutParamsSchema>;
 export type PageWaitForSelectorParams = z.infer<typeof PageWaitForSelectorParamsSchema>;
+export type PageWebMCPToolsParams = z.infer<typeof PageWebMCPToolsParamsSchema>;
+export type PageWebMCPToolsResult = z.infer<typeof PageWebMCPToolsResultSchema>;
+export type PageWebMCPInvokeToolParams = z.infer<typeof PageWebMCPInvokeToolParamsSchema>;
+export type PageWebMCPInvocationResultParams = z.infer<
+  typeof PageWebMCPInvocationResultParamsSchema
+>;
+export type PageWebMCPCancelInvocationParams = z.infer<
+  typeof PageWebMCPCancelInvocationParamsSchema
+>;
 export type LocatorClickParams = z.infer<typeof LocatorClickParamsSchema>;
 export type LocatorFillParams = z.infer<typeof LocatorFillParamsSchema>;
 export type LocatorScrollToParams = z.infer<typeof LocatorScrollToParamsSchema>;
@@ -325,12 +347,11 @@ export type LocatorHighlightParams = z.infer<typeof LocatorHighlightParamsSchema
 export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventParamsSchema>;
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
-export type StagehandPingResult = z.infer<typeof StagehandPingResultSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
+export type CacheTokenSavings = z.infer<typeof CacheTokenSavingsSchema>;
+export type CacheMetadata = z.infer<typeof CacheMetadataSchema>;
+export type StagehandResultUsage = z.infer<typeof StagehandResultUsageSchema>;
 export type StagehandResultMetadata = z.infer<typeof StagehandResultMetadataSchema>;
-export type RuntimeConfigureResult = z.infer<typeof RuntimeConfigureResultSchema>;
-export type RuntimeLoopbackStatusResult = z.infer<typeof RuntimeLoopbackStatusResultSchema>;
-export type BrowserGetVersionResult = z.infer<typeof BrowserGetVersionResultSchema>;
 export type StagehandInitResult = z.infer<typeof StagehandInitResultSchema>;
 export type StagehandCloseResult = z.infer<typeof StagehandCloseResultSchema>;
 export type ContextPagesResult = z.infer<typeof ContextPagesResultSchema>;
@@ -341,7 +362,6 @@ export type ContextGetDomainPolicyResult = z.infer<typeof ContextGetDomainPolicy
 export type PageUrlResult = z.infer<typeof PageUrlResultSchema>;
 export type PageTitleResult = z.infer<typeof PageTitleResultSchema>;
 export type PageCloseResult = z.infer<typeof PageCloseResultSchema>;
-export type PageDragAndDropResult = z.infer<typeof PageDragAndDropResultSchema>;
 export type PageEvaluateResult = z.infer<typeof PageEvaluateResultSchema>;
 export type PageScreenshotResult = z.infer<typeof PageScreenshotResultSchema>;
 export type PageWaitForSelectorResult = z.infer<typeof PageWaitForSelectorResultSchema>;
@@ -370,7 +390,7 @@ export type StagehandMethod = z.infer<typeof StagehandMethodSchema>;
 export type StagehandSendToHostBinding = z.infer<typeof StagehandSendToHostBindingSchema>;
 
 export type ApiKeyAuth = z.infer<typeof ApiKeyAuthSchema>;
-export type BrowserbaseBrowserSource = z.infer<typeof BrowserbaseBrowserSourceSchema>;
+export type BrowserSessionMetadata = z.infer<typeof BrowserSessionMetadataSchema>;
 export type BrowserbaseRegion = z.infer<typeof BrowserbaseRegionSchema>;
 export type BrowserbaseSessionCreateParams = z.infer<typeof BrowserbaseSessionCreateParamsSchema>;
 export type Caching = z.infer<typeof CachingSchema>;

@@ -1,5 +1,4 @@
 import type {
-  BrowserGetVersionResult,
   ClearCookieOptions,
   ContextActivePageResult,
   ContextAddCookiesParams,
@@ -55,10 +54,8 @@ import type {
   LocatorTypeResult,
   PageClickParams,
   PageCloseResult,
-  PageCoordinateResult,
   PageAddInitScriptParams,
   PageDragAndDropParams,
-  PageDragAndDropResult,
   PageEvaluateParams,
   PageEvaluateResult,
   PageGoBackParams,
@@ -86,22 +83,32 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForSelectorResult,
   PageWaitForTimeoutParams,
-  RuntimeConfigureParams,
-  RuntimeConfigureResult,
-  RuntimeLoopbackStatusResult,
+  PageWebMCPCancelInvocationParams,
+  PageWebMCPInvocationResultParams,
+  PageWebMCPInvokeToolParams,
+  PageWebMCPToolsParams,
+  PageWebMCPToolsResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
+  WebMCPInvocationDescriptor,
+  WebMCPInvokeOptions,
+  WebMCPResultOptions,
+  WebMCPToolDescriptor,
+  WebMCPToolResponse,
+  WebMCPToolsOptions,
 } from "../protocol/types.js";
 import { bytesToBase64 } from "./understudy/fileUploadUtils.js";
 import { createStore } from "zustand/vanilla";
 import type { StagehandLogEmitter } from "./logger.js";
 import { StagehandLogger } from "./logger.js";
+import { buildGatewayContext } from "./llm/gatewayClient.js";
 import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
 import { Page } from "./understudy/page.js";
+import { StagehandMetricsAccumulator } from "./metrics.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -110,22 +117,16 @@ export type UnderstudyRuntimePage = {
   reload(options?: PageReloadParams["options"]): Promise<unknown>;
   goBack(options?: PageNavigationOptions): Promise<unknown>;
   goForward(options?: PageNavigationOptions): Promise<unknown>;
-  click(x: number, y: number, options?: PageClickParams["options"]): Promise<string>;
-  hover(x: number, y: number, options?: PageHoverParams["options"]): Promise<string>;
-  scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-    options?: PageScrollParams["options"],
-  ): Promise<string>;
+  click(x: number, y: number, options?: PageClickParams["options"]): Promise<void>;
+  hover(x: number, y: number): Promise<void>;
+  scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
   dragAndDrop(
     fromX: number,
     fromY: number,
     toX: number,
     toY: number,
     options?: PageDragAndDropParams["options"],
-  ): Promise<[string, string]>;
+  ): Promise<void>;
   type(text: string, options?: PageTypeParams["options"]): Promise<void>;
   keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void>;
   evaluate(expression: string): Promise<unknown>;
@@ -144,6 +145,17 @@ export type UnderstudyRuntimePage = {
   ): Promise<boolean>;
   screenshot(options?: UnderstudyRuntimeScreenshotOptions): Promise<Uint8Array>;
   snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult>;
+  listWebMCPTools(options?: Partial<WebMCPToolsOptions>): Promise<WebMCPToolDescriptor[]>;
+  invokeWebMCPTool(
+    frameId: string,
+    toolName: string,
+    options?: Partial<WebMCPInvokeOptions>,
+  ): Promise<WebMCPInvocationDescriptor>;
+  waitForWebMCPInvocationResult(
+    invocationId: string,
+    options?: WebMCPResultOptions,
+  ): Promise<WebMCPToolResponse>;
+  cancelWebMCPInvocation(invocationId: string): Promise<void>;
   title(): Promise<string>;
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
@@ -199,7 +211,7 @@ export type UnderstudyRuntimeLocator = {
 
 export type StagehandBrowserSession = {
   readonly connected: boolean;
-  getVersion(): Promise<BrowserGetVersionResult>;
+  prepareForInitialization?(): Promise<void>;
   pages(): UnderstudyRuntimePage[];
   newPage(url?: string): Promise<UnderstudyRuntimePage>;
   activePage(): Promise<UnderstudyRuntimePage | undefined>;
@@ -252,11 +264,13 @@ export function createStagehandRuntime(
 
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
+  readonly metrics = new StagehandMetricsAccumulator();
   readonly state = createStore<StagehandRuntimeState>()(() =>
     StagehandRuntimeStateSchema.parse({ status: "created" }),
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private initializationInProgress = false;
 
   constructor(
     readonly adapters: ResolvedStagehandRuntimeAdapters,
@@ -265,15 +279,7 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  loopbackStatus(): RuntimeLoopbackStatusResult {
-    return {
-      configured: this.browserSession !== undefined,
-      connected: this.browserSession?.connected ?? false,
-    };
-  }
-
-  async configureLoopback(params: RuntimeConfigureParams): Promise<RuntimeConfigureResult> {
-    this.logger.setLevel(params.logLevel);
+  async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
@@ -287,42 +293,54 @@ export class StagehandRuntime {
       this.browserSession = undefined;
       throw error;
     }
-
-    return { configured: true };
   }
 
   async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
     }
+    if (this.initializationInProgress) {
+      throw new Error("Stagehand initialization is already in progress");
+    }
+    this.initializationInProgress = true;
 
-    const pages = await this.contextPages();
-    this.state.setState(
-      StagehandRuntimeStateSchema.parse({
-        status: "initialized",
-        initParams: params,
-      }),
-      true,
-    );
+    try {
+      this.logger.setLevel(params.logLevel);
+      if (!this.browserSession) {
+        if (!params.browserCdpUrl) {
+          throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
+        }
+        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+      }
+      await this.browserSession?.prepareForInitialization?.();
+      const pages = await this.contextPages();
+      this.tracing.configure(params.telemetry);
+      this.state.setState(
+        StagehandRuntimeStateSchema.parse({
+          status: "initialized",
+          initParams: params,
+        }),
+        true,
+      );
 
-    return {
-      initialized: true,
-      pages,
-    };
-  }
-
-  async browserGetVersion(): Promise<BrowserGetVersionResult> {
-    return await this.requireBrowserSession().getVersion();
+      return {
+        initialized: true,
+        pages,
+      };
+    } finally {
+      this.initializationInProgress = false;
+    }
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
-    if (!model) {
+    const gateway =
+      state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
-
-    return await llmService.generate(model, input, this.adapters.clientLLMGenerate);
+    return await llmService.generate(model, input, this.adapters.clientLLMGenerate, gateway);
   }
 
   async contextPages(): Promise<ContextPagesResult> {
@@ -461,33 +479,28 @@ export class StagehandRuntime {
     return pageRefFromUnderstudyPage(page);
   }
 
-  async pageClick(params: PageClickParams): Promise<PageCoordinateResult> {
+  async pageClick(params: PageClickParams): Promise<PageVoidResult> {
     const { pageId, x, y, options } = params;
-    return { xpath: await this.resolvePage(pageId).click(x, y, options) };
+    await this.resolvePage(pageId).click(x, y, options);
+    return { ok: true };
   }
 
-  async pageHover(params: PageHoverParams): Promise<PageCoordinateResult> {
-    const { pageId, x, y, options } = params;
-    return { xpath: await this.resolvePage(pageId).hover(x, y, options) };
+  async pageHover(params: PageHoverParams): Promise<PageVoidResult> {
+    const { pageId, x, y } = params;
+    await this.resolvePage(pageId).hover(x, y);
+    return { ok: true };
   }
 
-  async pageScroll(params: PageScrollParams): Promise<PageCoordinateResult> {
-    const { pageId, x, y, deltaX, deltaY, options } = params;
-    return {
-      xpath: await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY, options),
-    };
+  async pageScroll(params: PageScrollParams): Promise<PageVoidResult> {
+    const { pageId, x, y, deltaX, deltaY } = params;
+    await this.resolvePage(pageId).scroll(x, y, deltaX, deltaY);
+    return { ok: true };
   }
 
-  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageDragAndDropResult> {
+  async pageDragAndDrop(params: PageDragAndDropParams): Promise<PageVoidResult> {
     const { pageId, fromX, fromY, toX, toY, options } = params;
-    const [fromXpath, toXpath] = await this.resolvePage(pageId).dragAndDrop(
-      fromX,
-      fromY,
-      toX,
-      toY,
-      options,
-    );
-    return { fromXpath, toXpath };
+    await this.resolvePage(pageId).dragAndDrop(fromX, fromY, toX, toY, options);
+    return { ok: true };
   }
 
   async pageType(params: PageTypeParams): Promise<PageVoidResult> {
@@ -571,6 +584,36 @@ export class StagehandRuntime {
 
   async pageSnapshot(params: PageSnapshotParams): Promise<SnapshotResult> {
     return await this.resolvePage(params.pageId).snapshot(params.options);
+  }
+
+  async pageWebMCPTools(params: PageWebMCPToolsParams): Promise<PageWebMCPToolsResult> {
+    return {
+      tools: await this.resolvePage(params.pageId).listWebMCPTools(params.options),
+    };
+  }
+
+  async pageWebMCPInvokeTool(
+    params: PageWebMCPInvokeToolParams,
+  ): Promise<WebMCPInvocationDescriptor> {
+    return await this.resolvePage(params.pageId).invokeWebMCPTool(params.frameId, params.toolName, {
+      input: params.input,
+    });
+  }
+
+  async pageWebMCPInvocationResult(
+    params: PageWebMCPInvocationResultParams,
+  ): Promise<WebMCPToolResponse> {
+    return await this.resolvePage(params.pageId).waitForWebMCPInvocationResult(
+      params.invocationId,
+      params.options,
+    );
+  }
+
+  async pageWebMCPCancelInvocation(
+    params: PageWebMCPCancelInvocationParams,
+  ): Promise<PageVoidResult> {
+    await this.resolvePage(params.pageId).cancelWebMCPInvocation(params.invocationId);
+    return { ok: true };
   }
 
   pageUrl(params: PageIdParams): PageUrlResult {

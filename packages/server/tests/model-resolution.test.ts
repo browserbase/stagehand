@@ -1,14 +1,49 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AnthropicModelIdSchema,
   CerebrasModelIdSchema,
-  CustomModelConfigSchema,
   GoogleModelIdSchema,
   GroqModelIdSchema,
   ModelConfigSchema,
   ModelNameSchema,
   OpenAIModelIdSchema,
 } from "../../protocol/schemas.js";
+import type { StagehandInitParams, StagehandResultMetadata } from "../../protocol/types.js";
+import { createStagehandController } from "../controllers/stagehandController.js";
+import type { HandlerContext } from "../rpcRouter.js";
+import type { StagehandRuntime } from "../runtime.js";
+import * as actService from "../services/actService.js";
+import * as extractService from "../services/extractService.js";
+import * as observeService from "../services/observeService.js";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+const metadata: StagehandResultMetadata = {
+  cache: { status: "DISABLED" },
+  usage: {
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cachedInputTokens: 0,
+    inferenceTimeMs: 0,
+  },
+};
+
+const handlerContext = {
+  logger: { debug: vi.fn() },
+} as unknown as HandlerContext;
+
+function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
+  return {
+    state: { getState: () => ({ status: "initialized", initParams }) },
+    resolveUnderstudyPage: vi.fn(() => ({})),
+    resolvePage: vi.fn(() => ({})),
+    adapters: { clientLLMGenerate: vi.fn() },
+    metrics: { record: vi.fn() },
+  } as unknown as StagehandRuntime;
+}
 
 describe("model configuration", () => {
   describe("supported models", () => {
@@ -78,61 +113,86 @@ describe("model configuration", () => {
     });
   });
 
-  describe("custom models", () => {
-    it("accepts any non-empty model name for a custom OpenAI-compatible endpoint", () => {
-      expect(
-        CustomModelConfigSchema.parse({
-          modelName: "private/model-v2",
-          baseURL: "https://models.example.com/v1",
-          apiKey: "custom-secret",
-          headers: { "x-tenant-id": "tenant-123" },
-        }),
-      ).toEqual({
+  it("rejects declarative custom models", () => {
+    expect(
+      ModelConfigSchema.safeParse({
         modelName: "private/model-v2",
         baseURL: "https://models.example.com/v1",
-        apiKey: "custom-secret",
-        headers: { "x-tenant-id": "tenant-123" },
-      });
-    });
-
-    it("requires a base URL for a custom model name", () => {
-      expect(
-        ModelConfigSchema.safeParse({
-          modelName: "private/model-v2",
-          apiKey: "custom-secret",
-        }).success,
-      ).toBe(false);
-    });
-
-    it("rejects an empty custom model name", () => {
-      expect(
-        CustomModelConfigSchema.safeParse({
-          modelName: "",
-          baseURL: "https://models.example.com/v1",
-        }).success,
-      ).toBe(false);
-    });
-
-    it("rejects an invalid custom base URL", () => {
-      expect(
-        CustomModelConfigSchema.safeParse({
-          modelName: "private/model-v2",
-          baseURL: "not-a-url",
-        }).success,
-      ).toBe(false);
-    });
+      }).success,
+    ).toBe(false);
   });
 
   describe("direct inference", () => {
     it.todo("uses direct inference when provider authentication is provided");
-    it.todo("uses direct inference when a custom base URL is provided");
-    it.todo("forwards custom headers to the custom base URL");
     it.todo("prefers direct inference when using a Browserbase browser with provider auth");
   });
 
   describe("Browserbase managed inference", () => {
     it.todo("uses Browserbase managed inference for an explicit model without provider auth");
-    it.todo("uses Browserbase automatic model selection when no model is provided");
+    it("routes every primitive without a model through the Browserbase gateway", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const controller = createStagehandController(
+        runtimeWith({
+          apiKey: "bb-api-key",
+          browser: { sessionId: "session-123", region: "eu-central-1" },
+        } as StagehandInitParams),
+      );
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model: undefined,
+            gateway: {
+              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
+              apiKey: "bb-api-key",
+              sessionId: "session-123",
+            },
+          }),
+        );
+      }
+    });
+
+    it("rejects every primitive without a model or Browserbase gateway", async () => {
+      const act = vi.spyOn(actService, "act");
+      const extract = vi.spyOn(extractService, "extract");
+      const observe = vi.spyOn(observeService, "observe");
+      const controller = createStagehandController(runtimeWith({} as StagehandInitParams));
+
+      await expect(
+        controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(
+        controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {} },
+          handlerContext,
+        ),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(controller.observe({ pageId: "page-1" }, handlerContext)).rejects.toThrow(
+        "An LLM was not configured during Stagehand initialization",
+      );
+
+      expect(act).not.toHaveBeenCalled();
+      expect(extract).not.toHaveBeenCalled();
+      expect(observe).not.toHaveBeenCalled();
+    });
     it.todo("rejects Browserbase managed inference when using a local browser");
     it.todo("rejects an explicit model without provider auth when using a local browser");
     it.todo("rejects a missing model when using a local browser");

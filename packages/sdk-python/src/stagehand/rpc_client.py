@@ -3,9 +3,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
-from importlib.metadata import version
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
 from pydantic import (
@@ -18,14 +17,9 @@ from pydantic import (
     ValidationError,
 )
 
-from ._generated import models
-
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
-_STAGEHAND_SDK_CLIENT_INFO = models.ImplementationInfo(
-    name="stagehand-sdk-python",
-    version=version("stagehand"),
-)
+_RPC_RESPONSE_GRACE_MS = 10_000
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -95,12 +89,8 @@ class RPCError(RuntimeError):
 
 
 class RPCClient:
-    def __init__(self, transport: _Transport, *, request_timeout_ms: int = 10_000) -> None:
-        if request_timeout_ms <= 0:
-            raise ValueError("request_timeout_ms must be positive")
-
+    def __init__(self, transport: _Transport) -> None:
         self._transport = transport
-        self._request_timeout_seconds = request_timeout_ms / 1_000
         self._next_request_id = 1
         self._pending: dict[
             int,
@@ -119,6 +109,11 @@ class RPCClient:
         self._closed = False
         self._close_reason: BaseException | None = None
         self._reader = asyncio.create_task(self._read(), name="stagehand-rpc-reader")
+
+    @property
+    def browser_web_socket_debugger_url(self) -> str | None:
+        value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
+        return value if isinstance(value, str) else None
 
     @overload
     async def send(
@@ -171,18 +166,21 @@ class RPCClient:
             ),
         )
 
+        response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))
         try:
-            async with asyncio.timeout(self._request_timeout_seconds):
-                await self._transport.send(
-                    cast(
-                        dict[str, object],
-                        request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+            try:
+                async with response_timeout:
+                    await self._transport.send(
+                        cast(
+                            dict[str, object],
+                            request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+                        )
                     )
-                )
-                result = await response
-                return result
-        except TimeoutError as error:
-            raise TimeoutError(f"RPC request timed out: {method}") from error
+                    return await response
+            except TimeoutError as error:
+                if response_timeout.expired():
+                    raise TimeoutError(f"RPC response timed out: {method}") from error
+                raise
         finally:
             self._pending.pop(request_id, None)
             if not response.done():
@@ -265,7 +263,12 @@ class RPCClient:
 
         return remove
 
-    async def close(self, reason: BaseException | None = None) -> None:
+    async def close(
+        self,
+        reason: BaseException | None = None,
+        *,
+        close_transport: bool = True,
+    ) -> None:
         if self._closed:
             return
 
@@ -292,7 +295,8 @@ class RPCClient:
         if remaining:
             await asyncio.gather(*remaining, return_exceptions=True)
         self._inbound_tasks.clear()
-        await self._transport.close()
+        if close_transport:
+            await self._transport.close()
 
     async def _read(self) -> None:
         try:
@@ -366,7 +370,8 @@ class RPCClient:
             return
 
         if isinstance(response, _JSONRPCErrorResponse):
-            future.set_exception(RPCError(response.error))
+            error = RPCError(response.error)
+            future.set_exception(error)
             return
 
         try:
@@ -485,40 +490,43 @@ class RPCClient:
             asyncio.create_task(self.close(error))
 
 
-async def connect_rpc_client(
-    *,
-    cdp_url: str,
-    extension_dir: str | None = None,
-    extension_id: str | None = None,
-    service_worker_url_includes: str | None = None,
-    discovery_timeout_ms: int = 10_000,
-    command_timeout_ms: int = 10_000,
-    cdp_connect_timeout_ms: int = 10_000,
-    telemetry: models.TelemetryConfig | None = None,
-    log_level: str = "info",
-) -> RPCClient:
-    from .cdp_client import CDPClient
+def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
+    if method == "stagehand.init":
+        return None
 
-    cdp = await CDPClient.connect(
-        cdp_url=cdp_url,
-        extension_dir=extension_dir,
-        extension_id=extension_id,
-        service_worker_url_includes=service_worker_url_includes,
-        discovery_timeout_ms=discovery_timeout_ms,
-        command_timeout_ms=command_timeout_ms,
-        cdp_connect_timeout_ms=cdp_connect_timeout_ms,
-    )
-    client = RPCClient(cdp, request_timeout_ms=command_timeout_ms)
-    configure = models.RuntimeConfigureParams(
-        client_info=_STAGEHAND_SDK_CLIENT_INFO,
-        cdp_url=cdp.web_socket_debugger_url,
-        **({"telemetry": telemetry} if telemetry is not None else {}),
-        log_level=models.LogLevel(log_level),
-    )
+    operation_timeout_ms: float | int | None = None
+    if method in {
+        "stagehand.act",
+        "stagehand.extract",
+        "stagehand.observe",
+        "page.goto",
+        "page.reload",
+        "page.go_back",
+        "page.go_forward",
+        "page.screenshot",
+        "page.wait_for_selector",
+        "page.webmcp_tools",
+        "page.webmcp_invocation_result",
+    }:
+        operation_timeout_ms = _numeric_property(_property(params, "options"), "timeout")
+    elif method == "page.wait_for_load_state":
+        operation_timeout_ms = _numeric_property(params, "timeout")
+    elif method == "page.wait_for_timeout":
+        operation_timeout_ms = _numeric_property(params, "ms")
 
-    try:
-        await client.send("runtime.configure", configure, models.RuntimeConfigureResult)
-    except BaseException:
-        await client.close()
-        raise
-    return client
+    return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms or 0)) / 1_000
+
+
+def _property(value: object, name: str) -> object:
+    if isinstance(value, BaseModel):
+        return getattr(value, name, None)
+    if isinstance(value, Mapping):
+        return value.get(name)
+    return None
+
+
+def _numeric_property(value: object, name: str) -> float | int | None:
+    candidate = _property(value, name)
+    if isinstance(candidate, (float, int)) and not isinstance(candidate, bool):
+        return candidate
+    return None

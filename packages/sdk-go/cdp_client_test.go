@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,11 +24,12 @@ type fakeCDPRead struct {
 }
 
 type fakeCDPWebSocket struct {
-	writes    chan []byte
-	reads     chan fakeCDPRead
-	closed    chan struct{}
-	closeOnce sync.Once
-	writeHook func([]byte)
+	writes      chan []byte
+	reads       chan fakeCDPRead
+	closed      chan struct{}
+	closeOnce   sync.Once
+	writeHook   func([]byte)
+	contextHook func(context.Context, []byte)
 }
 
 type gatedCDPWebSocket struct {
@@ -86,6 +88,9 @@ func (s *fakeCDPWebSocket) Write(
 	copied := append([]byte(nil), message...)
 	select {
 	case s.writes <- copied:
+		if s.contextHook != nil {
+			s.contextHook(ctx, copied)
+		}
 		if s.writeHook != nil {
 			s.writeHook(copied)
 		}
@@ -115,7 +120,6 @@ func TestResolveBrowserWebSocketURLUsesDirectWebSocketURL(t *testing.T) {
 		directURL,
 		nil,
 		nil,
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolveBrowserWebSocketURL() error = %v", err)
@@ -153,7 +157,6 @@ func TestResolveBrowserWebSocketURLPollsVersionEndpointWithHeaders(t *testing.T)
 		server.URL,
 		http.Header{"X-Stagehand-Test": []string{"cdp-header"}},
 		server.Client(),
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolveBrowserWebSocketURL() error = %v", err)
@@ -163,6 +166,95 @@ func TestResolveBrowserWebSocketURLPollsVersionEndpointWithHeaders(t *testing.T)
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("version endpoint calls = %d, want 2", calls.Load())
+	}
+}
+
+func TestWaitForServiceWorkerClosesWakeTargetAfterCancellation(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	wakeCreated := make(chan struct{})
+	wakeClosed := make(chan struct{})
+	cleanupDeadline := make(chan time.Duration, 1)
+	var createdOnce sync.Once
+	var closedOnce sync.Once
+	targetPolls := 0
+	socket.contextHook = func(ctx context.Context, message []byte) {
+		var command cdpCommandEnvelope
+		if json.Unmarshal(message, &command) != nil || command.Method != "Target.closeTarget" {
+			return
+		}
+		deadline, ok := ctx.Deadline()
+		if !ok {
+			t.Error("wake-page cleanup context has no safety deadline")
+			return
+		}
+		cleanupDeadline <- time.Until(deadline)
+	}
+	socket.writeHook = func(message []byte) {
+		var command cdpCommandEnvelope
+		if err := json.Unmarshal(message, &command); err != nil {
+			t.Errorf("decode CDP command: %v", err)
+			return
+		}
+		var result string
+		switch command.Method {
+		case "Target.getTargets":
+			result = `{"targetInfos":[]}`
+			targetPolls++
+			if targetPolls > 1 {
+				createdOnce.Do(func() { close(wakeCreated) })
+			}
+		case "Target.createTarget":
+			result = `{"targetId":"wake-target"}`
+		case "Target.closeTarget":
+			result = `{}`
+			closedOnce.Do(func() { close(wakeClosed) })
+		default:
+			result = `{}`
+		}
+		socket.receiveJSON(fmt.Sprintf(`{"id":%d,"result":%s}`, command.ID, result))
+	}
+	client, err := newCDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+	if err != nil {
+		t.Fatalf("newCDPClient() error = %v", err)
+	}
+	defer client.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, waitErr := client.waitForServiceWorker(
+			ctx,
+			"stagehand-extension",
+			"service-worker.js",
+			0,
+			time.Millisecond,
+		)
+		done <- waitErr
+	}()
+
+	select {
+	case <-wakeCreated:
+		cancel()
+	case <-time.After(time.Second):
+		t.Fatal("wake target was not created")
+	}
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitForServiceWorker() error = %v, want context.Canceled", err)
+	}
+	select {
+	case <-wakeClosed:
+	case <-time.After(time.Second):
+		t.Fatal("wake target was not closed after cancellation")
+	}
+	select {
+	case remaining := <-cleanupDeadline:
+		if remaining <= 0 || remaining > wakePageCleanupTimeout {
+			t.Fatalf("wake-page cleanup deadline = %s", remaining)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("wake-page cleanup did not use a safety deadline")
 	}
 }
 
@@ -206,12 +298,11 @@ func TestCoderWebSocketDialCarriesHeadersAndCDPCommands(t *testing.T) {
 		webSocketURL,
 		http.Header{"X-CDP-Authorization": []string{"test-token"}},
 		server.Client(),
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("dialCDPWebSocket() error = %v", err)
 	}
-	client := newTestCDPClient(t, socket, webSocketURL, time.Second)
+	client := newTestCDPClient(t, socket, webSocketURL)
 
 	var version struct {
 		Product         string `json:"product"`
@@ -222,7 +313,6 @@ func TestCoderWebSocketDialCarriesHeadersAndCDPCommands(t *testing.T) {
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("sendCommand() error = %v", err)
@@ -274,13 +364,10 @@ func TestCDPClientInitializesLoadedExtension(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	options := normalizeCDPClientOptions(cdpClientOptions{
-		extensionDir:     "/tmp/stagehand-extension",
-		discoveryTimeout: time.Second,
-		commandTimeout:   time.Second,
-		pollInterval:     time.Millisecond,
+		extensionDir: "/tmp/stagehand-extension",
+		pollInterval: time.Millisecond,
 	})
 	if err := client.initialize(context.Background(), options); err != nil {
 		t.Fatalf("initialize() error = %v", err)
@@ -348,12 +435,9 @@ func TestCDPClientDiscoversPreloadedExtension(t *testing.T) {
 		t,
 		socket,
 		"wss://connect.browserbase.example/devtools/browser/test",
-		time.Second,
 	)
 	options := normalizeCDPClientOptions(cdpClientOptions{
 		preloadedExtension: true,
-		discoveryTimeout:   time.Second,
-		commandTimeout:     time.Second,
 		pollInterval:       time.Millisecond,
 	})
 	if err := client.initialize(context.Background(), options); err != nil {
@@ -394,13 +478,12 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	client.mu.Lock()
 	client.sessionID = "worker-session"
 	client.mu.Unlock()
 
-	outgoing := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}`)
+	outgoing := json.RawMessage(`{"jsonrpc":"2.0","id":1,"method":"test.request","params":{}}`)
 	if err := client.Send(context.Background(), outgoing); err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
@@ -419,7 +502,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 		t.Fatalf("Runtime.evaluate command = %#v", command)
 	}
 	if !strings.Contains(command.Params.Expression, stagehandReceiveFromHostFunction) ||
-		!strings.Contains(command.Params.Expression, `\"method\":\"ping\"`) {
+		!strings.Contains(command.Params.Expression, `\"method\":\"test.request\"`) {
 		t.Fatalf("Runtime.evaluate expression = %q", command.Params.Expression)
 	}
 
@@ -441,7 +524,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	assertJSONEqual(t, received, incoming)
 }
 
-func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
+func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 
 	timeoutSocket := newFakeCDPWebSocket()
@@ -449,19 +532,19 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		t,
 		timeoutSocket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	var ignored map[string]any
+	commandContext, cancelCommand := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelCommand()
 	err := timeoutClient.sendCommand(
-		context.Background(),
+		commandContext,
 		"Target.getTargets",
 		map[string]any{},
 		"",
-		10*time.Millisecond,
 		&ignored,
 	)
-	if err == nil || err.Error() != "CDP command timed out: Target.getTargets" {
-		t.Fatalf("timeout error = %v", err)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("cancellation error = %v", err)
 	}
 	timeoutClient.mu.Lock()
 	pendingCount := len(timeoutClient.pending)
@@ -485,14 +568,12 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 		t,
 		errorSocket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	err = errorClient.sendCommand(
 		context.Background(),
 		"Extensions.loadUnpacked",
 		map[string]any{},
 		"",
-		time.Second,
 		&ignored,
 	)
 	var commandError *cdpCommandError
@@ -507,7 +588,7 @@ func TestCDPClientCommandTimeoutAndErrors(t *testing.T) {
 	assertJSONEqual(t, commandError.Data, `{"detail":"missing"}`)
 }
 
-func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T) {
+func TestCDPClientRequestCancellationAbortsBlockedWriteWithoutClosingClient(t *testing.T) {
 	t.Parallel()
 
 	socket := &gatedCDPWebSocket{
@@ -537,7 +618,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -549,7 +629,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 			"Target.getTargets",
 			map[string]any{},
 			"",
-			time.Second,
 			&ignored,
 		)
 	}()
@@ -557,12 +636,11 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 	cancel()
 	select {
 	case err := <-firstDone:
-		t.Fatalf("command returned while shared socket write was blocked: %v", err)
-	case <-time.After(25 * time.Millisecond):
-	}
-	close(socket.release)
-	if err := <-firstDone; !errors.Is(err, context.Canceled) {
-		t.Fatalf("canceled command error = %v", err)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled command error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for blocked CDP write cancellation")
 	}
 
 	var version struct {
@@ -573,7 +651,6 @@ func TestCDPClientRequestCancellationDoesNotCancelSharedSocketWrite(t *testing.T
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("later command on shared socket error = %v", err)
@@ -590,7 +667,6 @@ func TestCDPClientCloseRejectsPendingAndReceive(t *testing.T) {
 	client, err := newCDPClient(
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
@@ -604,7 +680,6 @@ func TestCDPClientCloseRejectsPendingAndReceive(t *testing.T) {
 			"Target.getTargets",
 			map[string]any{},
 			"",
-			time.Second,
 			&ignored,
 		)
 	}()
@@ -632,7 +707,6 @@ func TestCDPClientInvalidMessageClosesConnection(t *testing.T) {
 	client, err := newCDPClient(
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
@@ -669,7 +743,6 @@ func TestCDPClientExplainsUnavailableExtensionLoading(t *testing.T) {
 		t,
 		socket,
 		"ws://127.0.0.1/devtools/browser/test",
-		time.Second,
 	)
 	_, err := client.loadUnpackedExtension(context.Background(), "/tmp/stagehand-extension")
 	if err == nil || !strings.Contains(err.Error(), "launch with --load-extension") {
@@ -682,39 +755,38 @@ func TestCDPClientBrowserIntegration(t *testing.T) {
 	if cdpURL == "" {
 		t.Skip("set STAGEHAND_GO_CDP_URL to run against a real browser")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	webSocketURL, err := resolveBrowserWebSocketURL(
-		context.Background(),
+		ctx,
 		cdpURL,
 		nil,
 		http.DefaultClient,
-		5*time.Second,
 	)
 	if err != nil {
 		t.Fatalf("resolve browser WebSocket URL: %v", err)
 	}
 	socket, err := dialCDPWebSocket(
-		context.Background(),
+		ctx,
 		webSocketURL,
 		nil,
 		http.DefaultClient,
-		5*time.Second,
 	)
 	if err != nil {
 		t.Fatalf("dial browser WebSocket: %v", err)
 	}
-	client := newTestCDPClient(t, socket, webSocketURL, 5*time.Second)
+	client := newTestCDPClient(t, socket, webSocketURL)
 
 	var version struct {
 		Product         string `json:"product"`
 		ProtocolVersion string `json:"protocolVersion"`
 	}
 	if err := client.sendCommand(
-		context.Background(),
+		ctx,
 		"Browser.getVersion",
 		map[string]any{},
 		"",
-		5*time.Second,
 		&version,
 	); err != nil {
 		t.Fatalf("Browser.getVersion: %v", err)
@@ -730,22 +802,17 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	if cdpURL == "" || os.Getenv("STAGEHAND_GO_TEST_EXTENSION") == "" {
 		t.Skip("set STAGEHAND_GO_CDP_URL and STAGEHAND_GO_TEST_EXTENSION for extension integration")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	options := cdpClientOptions{
-		cdpURL:           cdpURL,
-		connectTimeout:   5 * time.Second,
-		commandTimeout:   5 * time.Second,
-		discoveryTimeout: 10 * time.Second,
-		extensionDir:     os.Getenv("STAGEHAND_GO_EXTENSION_DIR"),
-		extensionID:      os.Getenv("STAGEHAND_GO_EXTENSION_ID"),
+		cdpURL:       cdpURL,
+		extensionDir: os.Getenv("STAGEHAND_GO_EXTENSION_DIR"),
+		extensionID:  os.Getenv("STAGEHAND_GO_EXTENSION_ID"),
 	}
 	rpc, err := connectRPCClient(
-		context.Background(),
+		ctx,
 		options,
-		TelemetryConfig{Traces: TelemetryTraces{
-			Endpoint: "https://example.com/v1/traces",
-			Headers:  TelemetryTracesHeaders{},
-		}},
 	)
 	if err != nil {
 		t.Fatalf("connectRPCClient() error = %v", err)
@@ -766,12 +833,12 @@ func TestCDPClientStagehandExtensionIntegration(t *testing.T) {
 	if service.TargetID == "" || service.URL == "" || service.ExtensionID == "" {
 		t.Fatalf("service worker = %#v", service)
 	}
-	var ping StagehandPingResult
-	if err := rpc.call(context.Background(), "ping", EmptyParams{}, &ping); err != nil {
-		t.Fatalf("Stagehand ping over CDP: %v", err)
+	var pages ContextPagesResult
+	if err := rpc.call(ctx, "context.pages", EmptyParams{}, &pages); err != nil {
+		t.Fatalf("Stagehand context.pages over CDP: %v", err)
 	}
-	if !ping.Ok || ping.Runtime != "service_worker" {
-		t.Fatalf("Stagehand ping = %#v", ping)
+	if len(pages) == 0 || pages[0].PageID == "" {
+		t.Fatalf("Stagehand context.pages = %#v", pages)
 	}
 	t.Logf("attached to Stagehand extension %s at %s", service.ExtensionID, service.URL)
 }
@@ -780,10 +847,9 @@ func newTestCDPClient(
 	t *testing.T,
 	socket cdpWebSocket,
 	webSocketURL string,
-	timeout time.Duration,
 ) *cdpClient {
 	t.Helper()
-	client, err := newCDPClient(socket, webSocketURL, timeout)
+	client, err := newCDPClient(socket, webSocketURL)
 	if err != nil {
 		t.Fatalf("newCDPClient() error = %v", err)
 	}

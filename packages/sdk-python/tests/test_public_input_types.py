@@ -20,6 +20,7 @@ from stagehand import (
     Stagehand,
     StagehandClientLoggingConfig,
     TelemetryConfig,
+    browserbase,
 )
 
 
@@ -53,7 +54,7 @@ def test_public_structured_inputs_are_typed_dictionary_shapes(input_type: object
 @pytest.mark.parametrize(
     "method",
     [
-        Stagehand.__init__,
+        Stagehand.create,
         Stagehand.act,
         Stagehand.observe,
         Stagehand.extract,
@@ -62,6 +63,7 @@ def test_public_structured_inputs_are_typed_dictionary_shapes(input_type: object
         Locator.highlight,
         Page.goto,
         Page.screenshot,
+        browserbase.launch,
     ],
 )
 def test_typed_dictionary_inputs_do_not_replace_explicit_parameters_with_kwargs(

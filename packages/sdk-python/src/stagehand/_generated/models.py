@@ -29,7 +29,7 @@ class ActOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -149,16 +149,13 @@ class Browser(StrEnum):
     safari = "safari"
 
 
-class BrowserGetVersionResult(WireModel):
+class BrowserSessionMetadata(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
-    protocol_version: Optional[StrictStr] = None
-    product: Optional[StrictStr] = None
-    revision: Optional[StrictStr] = None
-    user_agent: Optional[StrictStr] = None
-    js_version: Optional[StrictStr] = None
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    region: Optional[BrowserbaseRegion] = None
 
 
 class BrowserbaseBrowserSettings(WireModel):
@@ -179,22 +176,6 @@ class BrowserbaseBrowserSettings(WireModel):
     solve_captchas: Optional[StrictBool] = None
     verified: Optional[StrictBool] = None
     viewport: Optional[BrowserbaseViewport] = None
-
-
-class BrowserbaseBrowserSource(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    browser_settings: Optional[BrowserbaseBrowserSettings] = None
-    extension_id: Optional[StrictStr] = None
-    keep_alive: Optional[StrictBool] = None
-    proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
-    region: Optional[BrowserbaseRegion] = None
-    timeout: Optional[StrictFloat] = None
-    user_metadata: Optional[dict[StrictStr, Any]] = None
-    type: Literal["browserbase"]
-    session_id: Annotated[StrictStr, Field(min_length=1)]
 
 
 class BrowserbaseContext(WireModel):
@@ -257,6 +238,20 @@ class BrowserbaseRegion(StrEnum):
     ap_southeast_1 = "ap-southeast-1"
 
 
+class BrowserbaseSessionCreateParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    browser_settings: Optional[BrowserbaseBrowserSettings] = None
+    extension_id: Optional[StrictStr] = None
+    keep_alive: Optional[StrictBool] = None
+    proxies: Optional[Union[StrictBool, list[ProxyConfig]]] = None
+    region: Optional[BrowserbaseRegion] = None
+    timeout: Optional[StrictFloat] = None
+    user_metadata: Optional[dict[StrictStr, Any]] = None
+
+
 class BrowserbaseViewport(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -266,9 +261,37 @@ class BrowserbaseViewport(WireModel):
     height: Optional[StrictFloat] = None
 
 
+class CacheMetadata(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    status: CacheStatus
+    """Whether server-side caching served this result, computed it, or was not consulted"""
+    count: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    """Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served"""
+    threshold: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+    """Hit-count threshold in effect for this key"""
+    miss_reason: Optional[StrictStr] = None
+    """Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)"""
+    tokens_saved: Optional[CacheTokenSavings] = None
+    """LLM tokens avoided by serving this request from cache; hits only"""
+
+
 class CacheStatus(StrEnum):
     hit = "HIT"
     miss = "MISS"
+    disabled = "DISABLED"
+
+
+class CacheTokenSavings(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    total_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
 
 
 class Caching1(WireModel):
@@ -473,36 +496,6 @@ class CookieFilter(RootModel[Union[StrictStr, CookieRegex]]):
     root: Union[StrictStr, CookieRegex]
 
 
-class CustomModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[StrictStr, Field(examples=["private/model-v2"], min_length=1)]
-    """
-    Model name accepted by the custom OpenAI-compatible endpoint
-
-    Example: 'private/model-v2'
-    """
-    base_url: Annotated[WireUrl, Field(examples=["https://models.example.com/v1"])]
-    """
-    Base URL for the custom OpenAI-compatible endpoint
-
-    Example: 'https://models.example.com/v1'
-    """
-
-
 class DescribedVariableValue(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -555,7 +548,7 @@ class ExtractOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
     """
     Timeout in ms for the extraction
@@ -615,6 +608,12 @@ class FieldSchema10(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
 ):
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
+
+
+class FieldSchema11(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
 class FieldSchema2(
@@ -697,7 +696,7 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
-class Input(RootModel[StrictStr]):
+class Instruction(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(min_length=1)]
 
 
@@ -708,7 +707,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema10] = None
+    data: Optional[FieldSchema11] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -717,25 +716,6 @@ class JSONRPCRequestId(RootModel[StrictInt]):
 
 class JSONRPCErrorResponseId(RootModel[Optional[JSONRPCRequestId]]):
     root: Optional[JSONRPCRequestId]
-
-
-class KnownModelConfig(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    api_key: Annotated[
-        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
-    ] = None
-    """
-    API key for the model provider
-
-    Example: 'sk-some-openai-api-key'
-    """
-    headers: Optional[dict[StrictStr, StrictStr]] = None
-    """Custom headers sent with every request to the model provider"""
-    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
-    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class LLMAnnotations(WireModel):
@@ -1240,8 +1220,23 @@ class Mode(StrEnum):
     none = "none"
 
 
-class ModelConfig(RootModel[Union[KnownModelConfig, CustomModelConfig]]):
-    root: Union[KnownModelConfig, CustomModelConfig]
+class ModelConfig(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    api_key: Annotated[
+        Optional[StrictStr], Field(examples=["sk-some-openai-api-key"], min_length=1)
+    ] = None
+    """
+    API key for the model provider
+
+    Example: 'sk-some-openai-api-key'
+    """
+    headers: Optional[dict[StrictStr, StrictStr]] = None
+    """Custom headers sent with every request to the model provider"""
+    model_name: Annotated[ModelName, Field(examples=["openai/gpt-5.4-mini"])]
+    """Example: 'openai/gpt-5.4-mini'"""
 
 
 class MouseButton(StrEnum):
@@ -1256,7 +1251,7 @@ class ObserveOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -1352,7 +1347,6 @@ class PageClickOptions(WireModel):
     )
     button: Optional[MouseButton] = None
     click_count: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageClickParams(WireModel):
@@ -1374,14 +1368,6 @@ class PageCloseResult(WireModel):
     closed: Literal[True]
 
 
-class PageCoordinateResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    xpath: StrictStr
-
-
 class PageDragAndDropOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1390,7 +1376,6 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
-    return_xpath: Optional[StrictBool] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1404,15 +1389,6 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
-
-
-class PageDragAndDropResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    from_xpath: StrictStr
-    to_xpath: StrictStr
 
 
 class PageEvaluateParams(WireModel):
@@ -1460,14 +1436,6 @@ class PageGotoParams(WireModel):
     options: Optional[PageNavigationOptions] = None
 
 
-class PageHoverOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageHoverParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1476,7 +1444,6 @@ class PageHoverParams(WireModel):
     page_id: StrictStr
     x: StrictFloat
     y: StrictFloat
-    options: Optional[PageHoverOptions] = None
 
 
 class PageIdParams(WireModel):
@@ -1605,14 +1572,6 @@ class PageScreenshotResult(WireModel):
     type: Type
 
 
-class PageScrollOptions(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    return_xpath: Optional[StrictBool] = None
-
-
 class PageScrollParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1623,7 +1582,6 @@ class PageScrollParams(WireModel):
     y: StrictFloat
     delta_x: StrictFloat
     delta_y: StrictFloat
-    options: Optional[PageScrollOptions] = None
 
 
 class PageSetExtraHTTPHeadersParams(WireModel):
@@ -1753,6 +1711,55 @@ class PageWaitForTimeoutParams(WireModel):
     ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
 
 
+class PageWebMCPCancelInvocationParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageWebMCPInvocationResultParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    options: Optional[WebMCPResultOptions] = None
+
+
+class PageWebMCPInvokeToolParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    input: Annotated[dict[StrictStr, WebMCPJsonValue], Field(validate_default=True)] = {
+
+    }
+
+
+class PageWebMCPToolsParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    options: Optional[WebMCPToolsOptions] = None
+
+
+class PageWebMCPToolsResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    tools: list[WebMCPToolDescriptor]
+
+
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
@@ -1766,39 +1773,6 @@ class RgbaColor(WireModel):
     g: StrictFloat
     b: StrictFloat
     a: Optional[StrictFloat] = None
-
-
-class RuntimeConfigureParams(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    protocol_version: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = (
-        None
-    )
-    client_info: Optional[ImplementationInfo] = None
-    cdp_url: Annotated[StrictStr, Field(min_length=1)]
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
-    log_level: LogLevel = LogLevel.info
-
-
-class RuntimeConfigureResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: Literal[True]
-
-
-class RuntimeLoopbackStatusResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    configured: StrictBool
-    connected: StrictBool
 
 
 class SameSite(StrEnum):
@@ -1834,7 +1808,7 @@ class StagehandActParams(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
-    input: Union[Input, Action]
+    instruction: Union[Instruction, Action]
     options: Optional[ActOptions] = None
 
 
@@ -1862,12 +1836,17 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
+    protocol_version: Literal[1]
+    client_info: ImplementationInfo
+    browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    browser: Optional[BrowserbaseBrowserSource] = None
+    browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
+    """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }
+    log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None
     dom_settle_timeout_ms: Annotated[
@@ -1896,8 +1875,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema8]]]):
-    root: dict[StrictStr, Optional[FieldSchema8]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
+    root: dict[StrictStr, Optional[FieldSchema9]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -1944,15 +1923,6 @@ class StagehandObserveParams(WireModel):
     options: Optional[ObserveOptions] = None
 
 
-class StagehandPingResult(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    ok: Literal[True]
-    runtime: Literal["service_worker"]
-
-
 class StagehandResultMetadata(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1960,8 +1930,29 @@ class StagehandResultMetadata(WireModel):
     )
     action_id: Optional[StrictStr] = None
     """Action ID for tracking"""
-    cache_status: Optional[CacheStatus] = None
-    """Server-side cache status for this result"""
+    cache: CacheMetadata
+    """Cache observability for this result; status is DISABLED when no cache lookup ran"""
+    usage: StagehandResultUsage
+    """Aggregate LLM usage for this operation; zeroed when the operation did not run inference"""
+
+
+class StagehandResultUsage(WireModel):
+    """Aggregate LLM usage for one Stagehand operation"""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Input tokens consumed by all LLM calls made for this operation"""
+    output_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Output tokens consumed by all LLM calls made for this operation"""
+    reasoning_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Reasoning tokens consumed by all LLM calls made for this operation"""
+    cached_input_tokens: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Cached input tokens used by all LLM calls made for this operation"""
+    inference_time_ms: Annotated[StrictInt, Field(ge=0, le=9007199254740991)] = 0
+    """Total time spent waiting for LLM inference during this operation"""
 
 
 class State(StrEnum):
@@ -2017,9 +2008,88 @@ class Variables(RootModel[dict[StrictStr, VariableValue]]):
     root: dict[StrictStr, VariableValue]
 
 
+class WebMCPAnnotation(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    read_only: Optional[StrictBool] = None
+    untrusted_content: Optional[StrictBool] = None
+    autosubmit: Optional[StrictBool] = None
+
+
+class WebMCPInvocationDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    tool_name: Annotated[StrictStr, Field(min_length=1)]
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    input: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPInvocationStatus(StrEnum):
+    completed = "Completed"
+    canceled = "Canceled"
+    error = "Error"
+
+
+class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
+    root: Optional[FieldSchema8]
+
+
+class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
+    root: dict[StrictStr, WebMCPJsonValue]
+
+
+class WebMCPResultOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+
+
+class WebMCPToolDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    description: StrictStr
+    input_schema: Optional[dict[StrictStr, WebMCPJsonValue]] = None
+    annotations: Optional[WebMCPAnnotation] = None
+    frame_id: Annotated[StrictStr, Field(min_length=1)]
+    backend_node_id: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+
+
+class WebMCPToolResponse(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    invocation_id: Annotated[StrictStr, Field(min_length=1)]
+    status: WebMCPInvocationStatus
+    output: Optional[WebMCPJsonValue] = None
+    error_text: Optional[StrictStr] = None
+    exception: Optional[WebMCPRemoteObject] = None
+
+
+class WebMCPToolsOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    timeout: Annotated[StrictFloat, Field(ge=0.0)] = 1000
+
+
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
+FieldSchema11.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

@@ -28,20 +28,28 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, logFile.Close()) }()
 
-	model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	model := stagehand.ModelConfig{
 		ModelName: "openai/gpt-5.4-mini",
 		APIKey:    &apiKey,
-	})
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		Browser: stagehand.LocalBrowserSource{Headless: true},
+	}
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
 		Model:   &model,
 		Logging: &stagehand.StagehandClientLoggingConfig{
+			Level:  stagehand.StagehandClientLogLevelInfo,
+			Format: stagehand.StagehandClientLogFormatPretty,
 			OnLog: func(entry stagehand.StagehandLog) {
 				_ = json.NewEncoder(logFile).Encode(entry)
 			},
 		},
 	})
-	if err := client.Init(ctx); err != nil {
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()

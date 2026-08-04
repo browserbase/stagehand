@@ -7,9 +7,7 @@ from pydantic import ValidationError
 
 from stagehand import client_models, client_types
 from stagehand.client_models import (
-    CdpBrowserSource,
-    LocalBrowserSource,
-    StagehandClientInitParams,
+    StagehandClientCreateConfig,
     StagehandClientLoggingConfig,
 )
 
@@ -17,14 +15,14 @@ from stagehand.client_models import (
 @pytest.mark.parametrize(
     ("input_name", "model_name"),
     [
-        ("BrowserbaseBrowserSource", "BrowserbaseBrowserSource"),
+        ("BrowserbaseConnectOptions", "BrowserbaseConnectOptions"),
         ("CacheOptions", "CacheOptions"),
-        ("CdpBrowserSource", "CdpBrowserSource"),
         ("ClientLLM", "ClientLLM"),
-        ("LocalBrowserSource", "LocalBrowserSource"),
+        ("LocalBrowserConnectOptions", "LocalBrowserConnectOptions"),
+        ("LocalBrowserLaunchOptions", "LocalBrowserLaunchOptions"),
         ("LocalProxyConfig", "LocalProxyConfig"),
         ("LocalViewport", "LocalViewport"),
-        ("StagehandClientInitParams", "StagehandClientInitParams"),
+        ("StagehandClientCreateConfig", "StagehandClientCreateConfig"),
         ("StagehandClientLoggingConfig", "StagehandClientLoggingConfig"),
     ],
 )
@@ -42,51 +40,35 @@ def test_client_typed_dicts_match_runtime_model_fields(
     )
 
 
-def test_client_configuration_selects_local_and_cdp_browser_sources() -> None:
-    local = StagehandClientInitParams.model_validate({
-        "browser": {"type": "local", "headless": True}
-    })
-    cdp = StagehandClientInitParams.model_validate({
-        "browser": {"type": "cdp", "cdp_url": "http://localhost:9222"}
-    })
-
-    assert isinstance(local.browser, LocalBrowserSource)
-    assert local.browser.headless is True
-    assert isinstance(cdp.browser, CdpBrowserSource)
-    assert cdp.browser.cdp_url == "http://localhost:9222"
-
-
-def test_client_configuration_requires_an_api_key_for_browserbase() -> None:
-    with pytest.raises(ValidationError, match="Browserbase API key"):
-        StagehandClientInitParams.model_validate({"browser": {"type": "browserbase"}})
-
-
-def test_client_configuration_rejects_unknown_sdk_options() -> None:
+def test_create_configuration_rejects_unknown_options() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
-        StagehandClientInitParams.model_validate({
-            "browser": {"type": "local", "headless": True, "unknown": True}
-        })
+        StagehandClientCreateConfig.model_validate({"unknown": True})
 
 
-def test_client_logging_uses_info_and_pretty_output_by_default() -> None:
-    params = StagehandClientInitParams.model_validate({"browser": {"type": "local"}})
+@pytest.mark.parametrize("timeout", [True, 9_007_199_254_740_992])
+def test_create_configuration_rejects_invalid_dom_settle_timeouts(timeout: object) -> None:
+    with pytest.raises(ValidationError):
+        StagehandClientCreateConfig.model_validate({"dom_settle_timeout_ms": timeout})
 
-    assert params.logging == StagehandClientLoggingConfig(level="info", format="pretty")
+
+def test_create_configuration_uses_default_logging() -> None:
+    config = StagehandClientCreateConfig.model_validate({})
+
+    assert config.logging == StagehandClientLoggingConfig(level="info", format="pretty")
 
 
-def test_client_logging_accepts_json_output_and_a_structured_callback() -> None:
+def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:
     def on_log(_: object) -> None:
         pass
 
-    params = StagehandClientInitParams.model_validate({
-        "browser": {"type": "local"},
+    config = StagehandClientCreateConfig.model_validate({
         "logging": {
             "level": "debug",
             "format": "json",
             "on_log": on_log,
-        },
+        }
     })
 
-    assert params.logging.level == "debug"
-    assert params.logging.format == "json"
-    assert params.logging.on_log is on_log
+    assert config.logging.level == "debug"
+    assert config.logging.format == "json"
+    assert config.logging.on_log is on_log

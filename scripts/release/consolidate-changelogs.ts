@@ -13,6 +13,10 @@ const packageChangelogs = [
     label: "Python SDK",
     path: path.join(repositoryRoot, "packages/sdk-python/CHANGELOG.md"),
   },
+  {
+    label: "Extension Runtime",
+    path: path.join(repositoryRoot, "packages/server/CHANGELOG.md"),
+  },
 ];
 
 function isFileNotFound(error: unknown): boolean {
@@ -90,7 +94,7 @@ async function checkPackageChangelogsAreTemporary(): Promise<void> {
 
   if (existingPaths.length > 0) {
     throw new Error(
-      `SDK changelogs must be consolidated into CHANGELOG.md: ${existingPaths.join(", ")}`,
+      `Package changelogs must be consolidated into CHANGELOG.md: ${existingPaths.join(", ")}`,
     );
   }
 }

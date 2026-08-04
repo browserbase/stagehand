@@ -4,11 +4,15 @@ import {
   SimpleSpanProcessor,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
+
+const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
 
 describe("Stagehand RPC router", () => {
   it("creates one server span for every valid JSON-RPC request", async () => {
@@ -21,16 +25,18 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(request({ id: 10, method: "ping", params: {} }));
+    await expect(
+      router.handle(request({ id: 10, method: "stagehand.metrics", params: {} })),
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     expect(spans.getFinishedSpans()).toContainEqual(
       expect.objectContaining({
-        name: "ping",
+        name: "stagehand.metrics",
         kind: SpanKind.SERVER,
         attributes: expect.objectContaining({
           "rpc.system.name": "jsonrpc",
-          "rpc.method": "ping",
+          "rpc.method": "stagehand.metrics",
           "jsonrpc.request.id": "10",
         }) as object,
       }),
@@ -48,20 +54,24 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(
-      request({
-        id: 11,
-        method: "ping",
-        params: {},
-        traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
-        tracestate: "vendor=value",
-      }),
-    );
+    await expect(
+      router.handle(
+        request({
+          id: 11,
+          method: "stagehand.metrics",
+          params: {},
+          traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
+          tracestate: "vendor=value",
+        }),
+      ),
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const span = spans
       .getFinishedSpans()
-      .find((candidate) => candidate.name === "ping" && candidate.kind === SpanKind.SERVER);
+      .find(
+        (candidate) => candidate.name === "stagehand.metrics" && candidate.kind === SpanKind.SERVER,
+      );
     expect(span?.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
     expect(span?.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
     expect(span?.parentSpanContext?.isRemote).toBe(true);
@@ -124,18 +134,57 @@ describe("Stagehand RPC router", () => {
     );
     const router = createRouter(tracing);
 
-    await router.handle(request({ id: 14, method: "ping", params: {} }));
+    await expect(
+      router.handle(request({ id: 14, method: "stagehand.metrics", params: {} })),
+    ).resolves.toStrictEqual(EMPTY_METRICS);
     await tracing.forceFlush();
 
     const requestSpan = spans
       .getFinishedSpans()
-      .find((span) => span.name === "ping" && span.kind === SpanKind.SERVER);
+      .find((span) => span.name === "stagehand.metrics" && span.kind === SpanKind.SERVER);
     const logSpan = spans
       .getFinishedSpans()
       .find((span) => span.attributes["stagehand.span.type"] === "log");
     expect(logSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId);
     expect(logSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
     await tracing.shutdown();
+  });
+
+  it("applies the init log level before logging and delegates lifecycle overrides", async () => {
+    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const logs: string[] = [];
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const closeStagehand = vi.fn(async () => {});
+    const runtime = createStagehandRuntime(
+      {
+        emitLog: (log) => logs.push(log.message),
+      },
+      tracing,
+    );
+    const router = new RPCRouter(runtime, { initializeStagehand, closeStagehand });
+    const initRequest = request({
+      id: 15,
+      method: "stagehand.init",
+      params: {
+        protocol_version: STAGEHAND_PROTOCOL_VERSION,
+        client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        browser_cdp_url: "ws://127.0.0.1:9222/devtools/browser/session",
+        log_level: "off",
+      },
+    });
+
+    await expect(router.handle(initRequest)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+    expect(logs).not.toContain("stagehand.init");
+    expect(initializeStagehand).toHaveBeenCalledOnce();
+    expect(initializeStagehand).toHaveBeenCalledWith(initRequest.params);
+
+    await expect(
+      router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
+    ).resolves.toStrictEqual({ closed: true });
+    expect(closeStagehand).toHaveBeenCalledOnce();
   });
 });
 

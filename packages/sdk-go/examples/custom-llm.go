@@ -30,11 +30,14 @@ func main() {
 }
 
 func run(ctx context.Context) (err error) {
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		Browser:  stagehand.LocalBrowserSource{Headless: true},
-		Generate: generateWithHTTP,
-	})
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Generate: generateWithHTTP})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -65,7 +68,9 @@ func run(ctx context.Context) (err error) {
 	}
 	actionResult, err := client.Act(
 		ctx,
-		"Click the link that provides more information about Example Domain",
+		stagehand.ActInstruction(
+			"Click the link that provides more information about Example Domain",
+		),
 		nil,
 	)
 	if err != nil {

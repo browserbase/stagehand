@@ -9,6 +9,7 @@ import type {
 import { TimeoutError } from "../errors.js";
 import * as inference from "../inference.js";
 import type { ClientLlmRequest } from "../llm/clientLlmClient.js";
+import type { GatewayContext } from "../llm/gatewayClient.js";
 import type { StagehandLogger } from "../logger.js";
 import { bytesToBase64 } from "../understudy/fileUploadUtils.js";
 import type { Page } from "../understudy/page.js";
@@ -17,6 +18,7 @@ import { injectUrls, transformSchema } from "../utils.js";
 import { createTimeoutGuard } from "../handlers/handlerUtils/timeoutGuard.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
+import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
 /** Replaces URL strings with numeric DOM IDs until extraction has resolved the page's URL map. */
 export function transformUrlStringsToNumericIds<Schema extends z.ZodType>(
@@ -31,7 +33,7 @@ interface ExtractionResponseBase {
   prompt_tokens: number;
   completion_tokens: number;
   reasoning_tokens: number;
-  cached_input_tokens?: number;
+  cached_input_tokens: number;
   inference_time_ms: number;
 }
 
@@ -45,14 +47,16 @@ export async function extract({
   logger,
   systemPrompt = "",
   cache,
+  gateway,
 }: {
   params: StagehandExtractParams;
   page: Pick<Page, "captureSnapshot" | "screenshot">;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
   cache?: cacheService.CacheContext;
+  gateway?: GatewayContext;
 }): Promise<ExtractResult> {
   const { instruction, options } = params;
   const ensureTimeRemaining = createTimeoutGuard(
@@ -76,7 +80,10 @@ export async function extract({
     caching: options?.cache,
     context: cache,
     logger,
-    onHit: (value) => ({ data: z.json().parse(value), metadata: {} }),
+    onHit: (value) => ({
+      data: z.json().parse(value),
+      metadata: { usage: zeroStagehandResultUsage(), cache: disabledCacheMetadata() },
+    }),
     execute: () => runExtraction(),
   });
 
@@ -134,7 +141,7 @@ export async function extract({
         instruction,
         domElements: combinedTree,
         schema: transformedSchema as z.ZodObject,
-        generate: (input) => llmService.generate(model, input, clientLLMGenerate),
+        generate: (input) => llmService.generate(model, input, clientLLMGenerate, gateway),
         userProvidedInstructions: systemPrompt,
         screenshot: screenshotContent,
       });
@@ -144,8 +151,8 @@ export async function extract({
       metadata: { completed },
       prompt_tokens,
       completion_tokens,
-      reasoning_tokens: _reasoningTokens,
-      cached_input_tokens: _cachedInputTokens,
+      reasoning_tokens,
+      cached_input_tokens,
       inference_time_ms,
       ...rest
     } = extractionResponse;
@@ -176,7 +183,19 @@ export async function extract({
     );
 
     return {
-      result: { data: z.json().parse(output), metadata: {} },
+      result: {
+        data: z.json().parse(output),
+        metadata: {
+          usage: {
+            inputTokens: prompt_tokens,
+            outputTokens: completion_tokens,
+            reasoningTokens: reasoning_tokens,
+            cachedInputTokens: cached_input_tokens,
+            inferenceTimeMs: inference_time_ms,
+          },
+          cache: disabledCacheMetadata(),
+        },
+      },
       cacheValue: output,
       llmUsage: {
         inputTokens: prompt_tokens,

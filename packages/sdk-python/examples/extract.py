@@ -4,7 +4,7 @@ import os
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 if not OPENAI_API_KEY:
@@ -17,29 +17,29 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(
-        browser="local",
-        headless=True,
-        model="openai/gpt-5.4-mini",
-        model_api_key=OPENAI_API_KEY,
-    )
-
+    browser = await local_browser.launch(headless=True)
     try:
-        await stagehand.init()
-
-        page = await stagehand.context.active_page()
-        if page is None:
-            raise RuntimeError("Stagehand initialized without an active page")
-        await page.goto("https://example.com")
-
-        page_info = await stagehand.extract(
-            instruction="Extract the page heading and description",
-            schema=PageInfo,
+        stagehand = await Stagehand.create(
+            browser=browser,
+            model="openai/gpt-5.4-mini",
+            model_api_key=OPENAI_API_KEY,
         )
+        try:
+            page = await stagehand.context.active_page()
+            if page is None:
+                raise RuntimeError("Stagehand initialized without an active page")
+            await page.goto("https://example.com")
 
-        print(json.dumps(page_info.model_dump(mode="json"), indent=2))
+            page_info = await stagehand.extract(
+                "Extract the page heading and description",
+                PageInfo,
+            )
+
+            print(json.dumps(page_info.model_dump(mode="json"), indent=2))
+        finally:
+            await stagehand.close()
     finally:
-        await stagehand.close()
+        await browser.close()
 
 
 if __name__ == "__main__":

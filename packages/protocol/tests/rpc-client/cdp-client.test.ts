@@ -13,7 +13,10 @@ type CdpCall = {
   method: string;
   params?: Record<string, unknown>;
   sessionId?: string;
+  signal?: AbortSignal;
 };
+
+const lifecycleSignal = new AbortController().signal;
 
 type TargetInfo = {
   targetId: string;
@@ -37,8 +40,9 @@ class FakeCdp {
     method: string,
     params?: Record<string, unknown>,
     sessionId?: string,
+    signal?: AbortSignal,
   ): Promise<Result> {
-    this.calls.push({ method, params, sessionId });
+    this.calls.push({ method, params, sessionId, signal });
     const handler = this.handlers.get(method);
 
     if (!handler) {
@@ -52,22 +56,20 @@ class FakeCdp {
 describe("resolveBrowserWebSocketUrl", () => {
   it("returns direct websocket URLs without fetching /json/version", async () => {
     await expect(
-      resolveBrowserWebSocketUrl("ws://127.0.0.1:9222/devtools/browser/1"),
+      resolveBrowserWebSocketUrl("ws://127.0.0.1:9222/devtools/browser/1", {
+        signal: lifecycleSignal,
+      }),
     ).resolves.toBe("ws://127.0.0.1:9222/devtools/browser/1");
   });
 
   it("retries /json/version until the websocket URL is available", async () => {
     const requestedUrls: string[] = [];
-    let now = 0;
 
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
+        signal: lifecycleSignal,
         pollIntervalMs: 1,
-        timeout: 1_000,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
+        delayFn: async () => {},
         fetchFn: async (url) => {
           requestedUrls.push(url);
 
@@ -93,16 +95,16 @@ describe("resolveBrowserWebSocketUrl", () => {
     ]);
   });
 
-  it("includes the last /json/version error on timeout", async () => {
-    let now = 0;
+  it("stops /json/version polling when initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
 
     await expect(
       resolveBrowserWebSocketUrl("http://127.0.0.1:9222", {
         pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
         fetchFn: async () => ({
           ok: false,
@@ -111,7 +113,7 @@ describe("resolveBrowserWebSocketUrl", () => {
           json: async () => ({}),
         }),
       }),
-    ).rejects.toThrow("last error: 503 Unavailable");
+    ).rejects.toBe(reason);
   });
 });
 
@@ -119,14 +121,15 @@ describe("loadUnpackedExtension", () => {
   it("returns the id from Extensions.loadUnpacked", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({ id: "stagehandext" }));
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).resolves.toBe(
-      "stagehandext",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).resolves.toBe("stagehandext");
     expect(cdp.calls).toStrictEqual([
       {
         method: "Extensions.loadUnpacked",
         params: { path: "/tmp/stagehand-extension" },
         sessionId: undefined,
+        signal: lifecycleSignal,
       },
     ]);
   });
@@ -142,17 +145,17 @@ describe("loadUnpackedExtension", () => {
       });
     });
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "Launch with --load-extension",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).rejects.toThrow("Launch with --load-extension");
   });
 
   it("rejects loadUnpacked responses without an extension id", async () => {
     const cdp = new FakeCdp().on("Extensions.loadUnpacked", () => ({}));
 
-    await expect(loadUnpackedExtension(cdp, "/tmp/stagehand-extension")).rejects.toThrow(
-      "did not return an extension id",
-    );
+    await expect(
+      loadUnpackedExtension(cdp, "/tmp/stagehand-extension", lifecycleSignal),
+    ).rejects.toThrow("did not return an extension id");
   });
 });
 
@@ -169,8 +172,8 @@ describe("waitForServiceWorker", () => {
     await expect(
       waitForServiceWorker(cdp, {
         extensionId: "stagehandext",
-        timeout: 1_000,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
   });
@@ -186,8 +189,8 @@ describe("waitForServiceWorker", () => {
 
     await expect(
       waitForServiceWorker(cdp, {
-        timeout: 1_000,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
   });
@@ -204,8 +207,8 @@ describe("waitForServiceWorker", () => {
       waitForServiceWorker(cdp, {
         activationDelayMs: 0,
         extensionId: "stagehandext",
-        timeout: 1_000,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual(worker);
 
@@ -250,9 +253,8 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
 
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
-        timeout: 1_000,
-        nowFn: () => 0,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: stagehandWorker,
@@ -263,6 +265,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "wrong-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
     expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
   });
@@ -283,9 +286,8 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
 
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
-        timeout: 1_000,
-        nowFn: () => 0,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: currentWorker,
@@ -296,11 +298,13 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 
-  it("times out with the observed protocol version when the only runtime is stale", async () => {
-    let now = 0;
+  it("keeps looking past a stale runtime until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
@@ -313,27 +317,24 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const error = await rejectedError(
       waitForPreloadedStagehandServiceWorker(cdp, {
         pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
       }),
     );
 
-    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
-    expect(error.message).toContain("Timed out discovering the preloaded Stagehand service worker");
-    expect(error.message).toContain("protocolVersion:3");
+    expect(error).toBe(reason);
 
     expect(cdp.calls).toContainEqual({
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: controller.signal,
     });
   });
 
   it("throws for a stale runtime when fallback installation is disabled", async () => {
-    let now = 0;
     const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
@@ -344,12 +345,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         allowFallbackInstall: false,
-        pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
+        signal: lifecycleSignal,
       }),
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
 
@@ -357,6 +353,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 
@@ -377,9 +374,8 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     await expect(
       waitForPreloadedStagehandServiceWorker(cdp, {
         allowFallbackInstall: false,
-        timeout: 1_000,
-        nowFn: () => 0,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toStrictEqual({
       serviceWorker: currentWorker,
@@ -390,6 +386,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       method: "Target.detachFromTarget",
       params: { sessionId: "stale-session" },
       sessionId: undefined,
+      signal: lifecycleSignal,
     });
   });
 });
@@ -404,8 +401,8 @@ describe("waitForRuntimeReady", () => {
 
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
-        timeout: 1_000,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
@@ -417,6 +414,7 @@ describe("waitForRuntimeReady", () => {
           returnByValue: true,
         }),
         sessionId: "worker-session",
+        signal: lifecycleSignal,
       },
     ]);
 
@@ -427,7 +425,6 @@ describe("waitForRuntimeReady", () => {
   });
 
   it("retries until the Stagehand runtime is ready", async () => {
-    let now = 0;
     const readiness = [
       {
         marker: runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
@@ -444,19 +441,17 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 5,
-        timeout: 100,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
+        delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
   });
 
-  it("returns a clear error when the worker is not a Stagehand runtime", async () => {
-    let now = 0;
+  it("keeps polling a non-Stagehand runtime until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
@@ -472,17 +467,15 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeout: 2,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
       }),
-    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime to become ready");
+    ).rejects.toBe(reason);
   });
 
   it("keeps retrying when readiness evaluation throws", async () => {
-    let now = 0;
     const results = [
       {
         exceptionDetails: {
@@ -500,39 +493,35 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeout: 10,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
+        delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).resolves.toBeUndefined();
 
     expect(cdp.calls.filter((call) => call.method === "Runtime.evaluate")).toHaveLength(2);
   });
 
-  it("reports a malformed readiness envelope without a Zod error dump", async () => {
-    let now = 0;
+  it("keeps polling a malformed readiness envelope until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({}));
 
     const error = await rejectedError(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
       }),
     );
 
-    expect(error.message).toContain("protocolVersion=undefined, __stagehandReceiveFromHost=false");
-    expect(error.message).not.toContain("invalid_type");
-    expect(error.message).not.toContain("ZodError");
+    expect(error).toBe(reason);
   });
 
-  it("times out on an out-of-range runtime by default", async () => {
-    let now = 0;
+  it("keeps polling an out-of-range runtime by default until initialization is cancelled", async () => {
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: { value: runtimeReadiness(3) },
     }));
@@ -540,20 +529,14 @@ describe("waitForRuntimeReady", () => {
     const error = await rejectedError(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
       }),
     );
 
-    expect(error).not.toBeInstanceOf(StagehandRuntimeIncompatibleError);
-    expect(error.message).toContain(
-      "Timed out waiting for the Stagehand extension runtime to become ready",
-    );
-    expect(error.message).toContain("protocolVersion=3");
-    expect(error.message).not.toContain("undefined");
+    expect(error).toBe(reason);
   });
 
   it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {
@@ -564,15 +547,15 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         allowFallbackInstall: false,
-        timeout: 1_000,
-        nowFn: () => 0,
         delayFn: async () => {},
+        signal: lifecycleSignal,
       }),
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });
 
   it("does not accept markers with unknown descriptor fields", async () => {
-    let now = 0;
+    const controller = new AbortController();
+    const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
@@ -585,13 +568,12 @@ describe("waitForRuntimeReady", () => {
     await expect(
       waitForRuntimeReady(cdp, "worker-session", {
         pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
+        signal: controller.signal,
+        delayFn: async () => {
+          controller.abort(reason);
         },
       }),
-    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime to become ready");
+    ).rejects.toBe(reason);
   });
 });
 

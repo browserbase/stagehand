@@ -56,25 +56,20 @@ func TestLLMToolResultContentBlockVariants(t *testing.T) {
 	}
 }
 
-func TestLLMMessageGenerateResultTextAndOpenProperties(t *testing.T) {
+func TestLLMMessageGenerateResultIsStrict(t *testing.T) {
 	t.Parallel()
 
-	input := []byte(`{
+	valid := []byte(`{
 		"role":"assistant",
 		"content":{"type":"text","text":"done"},
-		"output_format":"text",
-		"provider_request_id":"req_123"
+		"output_format":"text"
 	}`)
 	var result LLMGenerateResult
-	if err := json.Unmarshal(input, &result); err != nil {
+	if err := json.Unmarshal(valid, &result); err != nil {
 		t.Fatal(err)
 	}
-	message, ok := result.AsMessage()
-	if !ok {
+	if _, ok := result.AsMessage(); !ok {
 		t.Fatal("decoded the wrong LLM result variant")
-	}
-	if string(message.AdditionalProperties["provider_request_id"]) != `"req_123"` {
-		t.Fatal("did not retain message result additional property")
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -83,11 +78,20 @@ func TestLLMMessageGenerateResultTextAndOpenProperties(t *testing.T) {
 	want := []byte(`{
 		"role":"assistant",
 		"content":[{"type":"text","text":"done"}],
-		"output_format":"text",
-		"provider_request_id":"req_123"
+		"output_format":"text"
 	}`)
 	if !jsonEqual(want, data) {
 		t.Fatalf("message result round trip mismatch:\nwant %s\n got %s", want, data)
+	}
+
+	unknownProviderField := []byte(`{
+		"role":"assistant",
+		"content":{"type":"text","text":"done"},
+		"output_format":"text",
+		"provider_request_id":"req_123"
+	}`)
+	if err := json.Unmarshal(unknownProviderField, &result); err == nil {
+		t.Fatal("expected unknown provider field to fail")
 	}
 
 	if err := json.Unmarshal([]byte(`{"output_format":"audio"}`), &result); err == nil {

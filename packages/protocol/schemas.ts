@@ -645,7 +645,7 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
-export const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
+export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -824,27 +824,12 @@ const ModelConnectionSchema = z
   })
   .meta({ id: "ModelConnection" });
 
-export const KnownModelConfigSchema = ModelConnectionSchema.extend({
+export const ModelConfigSchema = ModelConnectionSchema.extend({
   modelName: ModelNameSchema.meta({
     description: "An explicitly supported model name with its provider prefix",
     example: "openai/gpt-5.4-mini",
   }),
-}).meta({ id: "KnownModelConfig" });
-
-export const CustomModelConfigSchema = ModelConnectionSchema.extend({
-  modelName: z.string().min(1).meta({
-    description: "Model name accepted by the custom OpenAI-compatible endpoint",
-    example: "private/model-v2",
-  }),
-  baseURL: z.url().meta({
-    description: "Base URL for the custom OpenAI-compatible endpoint",
-    example: "https://models.example.com/v1",
-  }),
-}).meta({ id: "CustomModelConfig" });
-
-export const ModelConfigSchema = z
-  .union([KnownModelConfigSchema, CustomModelConfigSchema])
-  .meta({ id: "ModelConfig" });
+}).meta({ id: "ModelConfig" });
 
 /** Serializable reference to an LLM implemented by the connected Stagehand client. */
 export const ClientModelReferenceSchema = z
@@ -962,11 +947,13 @@ export const BrowserbaseSessionCreateParamsSchema = z
   })
   .meta({ id: "BrowserbaseSessionCreateParams" });
 
-/** Browserbase configuration available to both the SDK and the service worker. */
-export const BrowserbaseBrowserSourceSchema = BrowserbaseSessionCreateParamsSchema.extend({
-  type: z.literal("browserbase"),
-  sessionId: z.string().min(1),
-}).meta({ id: "BrowserbaseBrowserSource" });
+/** Browser session metadata used by provider-independent worker services. */
+export const BrowserSessionMetadataSchema = z
+  .strictObject({
+    sessionId: z.string().min(1),
+    region: BrowserbaseRegionSchema.optional(),
+  })
+  .meta({ id: "BrowserSessionMetadata" });
 
 /** Browser launch options for local browsers. */
 export const LocalBrowserLaunchOptionsSchema = z
@@ -993,7 +980,6 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
     keepAlive: z.boolean().optional(),
@@ -1032,13 +1018,78 @@ export const ActionSchema = z
 // Act
 // =============================================================================
 
+export const StagehandResultUsageSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Input tokens consumed by all LLM calls made for this operation",
+    }),
+    outputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Output tokens consumed by all LLM calls made for this operation",
+    }),
+    reasoningTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Reasoning tokens consumed by all LLM calls made for this operation",
+    }),
+    cachedInputTokens: z.number().int().nonnegative().default(0).meta({
+      description: "Cached input tokens used by all LLM calls made for this operation",
+    }),
+    inferenceTimeMs: z.number().int().nonnegative().default(0).meta({
+      description: "Total time spent waiting for LLM inference during this operation",
+    }),
+  })
+  .meta({
+    id: "StagehandResultUsage",
+    description: "Aggregate LLM usage for one Stagehand operation",
+  });
+
+/** LLM tokens avoided by serving a request from the cache. */
+export const CacheTokenSavingsSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().default(0),
+    outputTokens: z.number().int().nonnegative().default(0),
+    totalTokens: z.number().int().nonnegative().default(0),
+  })
+  .meta({ id: "CacheTokenSavings" });
+
+/**
+ * Cache observability for one act/observe/extract call. Always present, like
+ * `usage`: DISABLED says no lookup ran, and otherwise it is self-explaining —
+ * a miss carries why it missed, a hit carries how established the entry is.
+ */
+export const CacheMetadataSchema = z
+  .strictObject({
+    status: CacheStatusSchema.meta({
+      description:
+        "Whether server-side caching served this result, computed it, or was not consulted",
+    }),
+    count: z.number().int().nonnegative().optional().meta({
+      description:
+        "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+    }),
+    threshold: z.number().int().positive().optional().meta({
+      description: "Hit-count threshold in effect for this key",
+    }),
+    missReason: z.string().optional().meta({
+      description:
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+    }),
+    tokensSaved: CacheTokenSavingsSchema.optional().meta({
+      description: "LLM tokens avoided by serving this request from cache; hits only",
+    }),
+  })
+  .meta({ id: "CacheMetadata" });
+
 export const StagehandResultMetadataSchema = z
   .strictObject({
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
+    cache: CacheMetadataSchema.meta({
+      description:
+        "Cache observability for this result; status is DISABLED when no cache lookup ran",
+    }),
+    usage: StagehandResultUsageSchema.meta({
+      description:
+        "Aggregate LLM usage for this operation; zeroed when the operation did not run inference",
     }),
   })
   .meta({ id: "StagehandResultMetadata" });
@@ -1047,7 +1098,7 @@ export const ActOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1109,7 +1160,7 @@ export const ExtractOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
@@ -1157,7 +1208,7 @@ export const ObserveOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1232,12 +1283,6 @@ export const ContextCloseResultSchema = z
   })
   .meta({ id: "ContextCloseResult" });
 
-export const PageCoordinateResultSchema = z
-  .strictObject({
-    xpath: z.string(),
-  })
-  .meta({ id: "PageCoordinateResult" });
-
 export const PageScreenshotClipSchema = z
   .strictObject({
     x: z.number(),
@@ -1268,6 +1313,72 @@ export const PageRefSchema = z
     title: z.string().optional(),
   })
   .meta({ id: "PageRef" });
+
+export const WebMCPAnnotationSchema = z
+  .strictObject({
+    readOnly: z.boolean().optional(),
+    untrustedContent: z.boolean().optional(),
+    autosubmit: z.boolean().optional(),
+  })
+  .meta({ id: "WebMCPAnnotation" });
+
+const WebMCPJsonValueSchema = z.json().meta({ id: "WebMCPJsonValue" });
+
+export const WebMCPToolDescriptorSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    description: z.string(),
+    inputSchema: z.record(z.string(), WebMCPJsonValueSchema).optional(),
+    annotations: WebMCPAnnotationSchema.optional(),
+    frameId: z.string().min(1),
+    backendNodeId: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPToolDescriptor" });
+
+export const WebMCPToolsOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().default(1_000),
+  })
+  .meta({ id: "WebMCPToolsOptions" });
+
+export const WebMCPInvokeOptionsSchema = z
+  .strictObject({
+    input: z.record(z.string(), WebMCPJsonValueSchema).default({}),
+  })
+  .meta({ id: "WebMCPInvokeOptions" });
+
+export const WebMCPResultOptionsSchema = z
+  .strictObject({
+    timeout: z.number().nonnegative().optional(),
+  })
+  .meta({ id: "WebMCPResultOptions" });
+
+export const WebMCPInvocationDescriptorSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    toolName: z.string().min(1),
+    frameId: z.string().min(1),
+    input: z.record(z.string(), WebMCPJsonValueSchema),
+  })
+  .meta({ id: "WebMCPInvocationDescriptor" });
+
+export const WebMCPInvocationStatusSchema = z
+  .enum(["Completed", "Canceled", "Error"])
+  .meta({ id: "WebMCPInvocationStatus" });
+
+export const WebMCPRemoteObjectSchema = z
+  .record(z.string(), WebMCPJsonValueSchema)
+  .meta({ id: "WebMCPRemoteObject" });
+
+export const WebMCPToolResponseSchema = z
+  .strictObject({
+    invocationId: z.string().min(1),
+    status: WebMCPInvocationStatusSchema,
+    output: WebMCPJsonValueSchema.optional(),
+    errorText: z.string().optional(),
+    exception: WebMCPRemoteObjectSchema.optional(),
+  })
+  .meta({ id: "WebMCPToolResponse" });
 
 export const LocatorDescriptorSchema = z
   .strictObject({
@@ -1320,10 +1431,17 @@ export const TelemetryConfigSchema = z
 
 export const StagehandInitParamsSchema = z
   .strictObject({
+    protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+    clientInfo: ImplementationInfoSchema,
+    browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
-    browser: BrowserbaseBrowserSourceSchema.optional(),
-    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
+    browser: BrowserSessionMetadataSchema.optional(),
+    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
+      description:
+        "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
+    }),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
     domSettleTimeoutMs: z.number().int().positive().optional(),
@@ -1334,20 +1452,10 @@ export const StagehandInitParamsSchema = z
   })
   .meta({ id: "StagehandInitParams" });
 
-export const RuntimeConfigureParamsSchema = z
-  .strictObject({
-    protocolVersion: z.int().positive().optional(),
-    clientInfo: ImplementationInfoSchema.optional(),
-    cdpUrl: z.string().min(1),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
-    logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
-  })
-  .meta({ id: "RuntimeConfigureParams" });
-
 export const StagehandActParamsSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    input: z.union([z.string().min(1), ActionSchema]),
+    instruction: z.union([z.string().min(1), ActionSchema]),
     options: ActOptionsSchema.optional(),
   })
   .meta({ id: "StagehandActParams" });
@@ -1453,6 +1561,43 @@ export const PageIdParamsSchema = z
   })
   .meta({ id: "PageIdParams" });
 
+export const PageWebMCPToolsParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    options: WebMCPToolsOptionsSchema.optional(),
+  })
+  .meta({ id: "PageWebMCPToolsParams" });
+
+export const PageWebMCPToolsResultSchema = z
+  .strictObject({
+    tools: z.array(WebMCPToolDescriptorSchema),
+  })
+  .meta({ id: "PageWebMCPToolsResult" });
+
+export const PageWebMCPInvokeToolParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    frameId: z.string().min(1),
+    toolName: z.string().min(1),
+    ...WebMCPInvokeOptionsSchema.shape,
+  })
+  .meta({ id: "PageWebMCPInvokeToolParams" });
+
+export const PageWebMCPInvocationResultParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+    options: WebMCPResultOptionsSchema.optional(),
+  })
+  .meta({ id: "PageWebMCPInvocationResultParams" });
+
+export const PageWebMCPCancelInvocationParamsSchema = z
+  .strictObject({
+    ...PageIdParamsSchema.shape,
+    invocationId: z.string().min(1),
+  })
+  .meta({ id: "PageWebMCPCancelInvocationParams" });
+
 export const MouseButtonSchema = z.enum(["left", "right", "middle"]).meta({ id: "MouseButton" });
 
 export const PageReloadParamsSchema = PageIdParamsSchema.extend({
@@ -1478,7 +1623,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
     .strictObject({
       button: MouseButtonSchema.optional(),
       clickCount: z.number().int().positive().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageClickOptions" })
     .optional(),
@@ -1487,12 +1631,6 @@ export const PageClickParamsSchema = PageIdParamsSchema.extend({
 export const PageHoverParamsSchema = PageIdParamsSchema.extend({
   x: z.number(),
   y: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageHoverOptions" })
-    .optional(),
 }).meta({ id: "PageHoverParams" });
 
 export const PageScrollParamsSchema = PageIdParamsSchema.extend({
@@ -1500,12 +1638,6 @@ export const PageScrollParamsSchema = PageIdParamsSchema.extend({
   y: z.number(),
   deltaX: z.number(),
   deltaY: z.number(),
-  options: z
-    .strictObject({
-      returnXpath: z.boolean().optional(),
-    })
-    .meta({ id: "PageScrollOptions" })
-    .optional(),
 }).meta({ id: "PageScrollParams" });
 
 export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
@@ -1518,7 +1650,6 @@ export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
       button: MouseButtonSchema.optional(),
       steps: z.number().int().positive().optional(),
       delay: z.number().nonnegative().optional(),
-      returnXpath: z.boolean().optional(),
     })
     .meta({ id: "PageDragAndDropOptions" })
     .optional(),
@@ -1686,36 +1817,6 @@ export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
-export const StagehandPingResultSchema = z
-  .strictObject({
-    ok: z.literal(true),
-    runtime: z.literal("service_worker"),
-  })
-  .meta({ id: "StagehandPingResult" });
-
-export const RuntimeConfigureResultSchema = z
-  .strictObject({
-    configured: z.literal(true),
-  })
-  .meta({ id: "RuntimeConfigureResult" });
-
-export const RuntimeLoopbackStatusResultSchema = z
-  .strictObject({
-    configured: z.boolean(),
-    connected: z.boolean(),
-  })
-  .meta({ id: "RuntimeLoopbackStatusResult" });
-
-export const BrowserGetVersionResultSchema = z
-  .strictObject({
-    protocolVersion: z.string().optional(),
-    product: z.string().optional(),
-    revision: z.string().optional(),
-    userAgent: z.string().optional(),
-    jsVersion: z.string().optional(),
-  })
-  .meta({ id: "BrowserGetVersionResult" });
-
 export const StagehandInitResultSchema = z
   .strictObject({
     initialized: z.literal(true),
@@ -1756,13 +1857,6 @@ export const PageCloseResultSchema = z
     closed: z.literal(true),
   })
   .meta({ id: "PageCloseResult" });
-
-export const PageDragAndDropResultSchema = z
-  .strictObject({
-    fromXpath: z.string(),
-    toXpath: z.string(),
-  })
-  .meta({ id: "PageDragAndDropResult" });
 
 export const PageEvaluateResultSchema = z
   .strictObject({

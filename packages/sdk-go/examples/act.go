@@ -22,11 +22,14 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		Browser: stagehand.LocalBrowserSource{Headless: true},
-		Model:   &model,
-	})
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -48,7 +51,9 @@ func run(ctx context.Context) (err error) {
 
 	result, err := client.Act(
 		ctx,
-		"Click the link that provides more information about Example Domain",
+		stagehand.ActInstruction(
+			"Click the link that provides more information about Example Domain",
+		),
 		nil,
 	)
 	if err != nil {
@@ -70,8 +75,8 @@ func modelFromEnvironment() (stagehand.ModelConfig, error) {
 	if apiKey == "" {
 		return stagehand.ModelConfig{}, errors.New("OPENAI_API_KEY is required")
 	}
-	return stagehand.KnownModel(stagehand.KnownModelConfig{
+	return stagehand.ModelConfig{
 		ModelName: "openai/gpt-5.4-mini",
 		APIKey:    &apiKey,
-	}), nil
+	}, nil
 }

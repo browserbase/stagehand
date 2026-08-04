@@ -2,22 +2,19 @@ import { describe, expect, it } from "vitest";
 import { connectRPCClient, RPCClientOptionsSchema } from "../../../sdk-ts/src/rpcClient.ts";
 
 describe("RPCClientOptionsSchema", () => {
+  const signal = new AbortController().signal;
+
   it("accepts load-unpacked mode with extensionDir", () => {
     expect(
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
+        signal,
       }),
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionDir: "/tmp/stagehand-extension",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
+      signal,
     });
   });
 
@@ -26,17 +23,12 @@ describe("RPCClientOptionsSchema", () => {
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        signal,
       }),
     ).toStrictEqual({
       cdpUrl: "http://127.0.0.1:9222",
       extensionId: "abcdefghijklmnopabcdefghijklmnop",
-      logLevel: "info",
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
+      signal,
     });
   });
 
@@ -45,25 +37,30 @@ describe("RPCClientOptionsSchema", () => {
       RPCClientOptionsSchema.parse({
         cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
         preloadedExtension: true,
+        signal,
       }),
     ).toStrictEqual({
       cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
-      logLevel: "info",
       preloadedExtension: true,
-      telemetry: {
-        traces: {
-          endpoint: "https://example.com/v1/traces",
-          headers: {},
-        },
-      },
+      signal,
     });
   });
 
-  it("accepts a custom OTLP traces destination", () => {
-    expect(
+  it("requires an initialization lifecycle signal", () => {
+    expect(() =>
+      RPCClientOptionsSchema.parse({
+        cdpUrl: "http://127.0.0.1:9222",
+        extensionDir: "/tmp/stagehand-extension",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects telemetry because it belongs to stagehand.init", () => {
+    expect(() =>
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        signal,
         telemetry: {
           traces: {
             endpoint: "https://collector.example.com/v1/traces",
@@ -71,20 +68,14 @@ describe("RPCClientOptionsSchema", () => {
           },
         },
       }),
-    ).toMatchObject({
-      telemetry: {
-        traces: {
-          endpoint: "https://collector.example.com/v1/traces",
-          headers: { Authorization: "Bearer test" },
-        },
-      },
-    });
+    ).toThrow();
   });
 
   it("rejects options without an explicit extension load mode", () => {
     expect(() =>
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
+        signal,
       }),
     ).toThrow();
   });
@@ -95,6 +86,7 @@ describe("RPCClientOptionsSchema", () => {
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
         extensionId: "abcdefghijklmnopabcdefghijklmnop",
+        signal,
       }),
     ).toThrow();
   });
@@ -105,6 +97,7 @@ describe("RPCClientOptionsSchema", () => {
         cdpUrl: "wss://connect.browserbase.com/devtools/browser/session",
         extensionDir: "/tmp/stagehand-extension",
         preloadedExtension: true,
+        signal,
       }),
     ).toThrow();
   });
@@ -114,6 +107,7 @@ describe("RPCClientOptionsSchema", () => {
       RPCClientOptionsSchema.parse({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: "/tmp/stagehand-extension",
+        signal,
         rawCdp: true,
       }),
     ).toThrow();
@@ -123,6 +117,7 @@ describe("RPCClientOptionsSchema", () => {
     await expect(
       connectRPCClient({
         cdpUrl: "http://127.0.0.1:1",
+        signal,
       } as never),
     ).rejects.toThrow();
   });

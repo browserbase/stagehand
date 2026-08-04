@@ -21,12 +21,10 @@ const (
 	stagehandSendToHostBinding       = "__stagehandSendToHost"
 	stagehandReceiveFromHostFunction = "__stagehandReceiveFromHost"
 
-	defaultCDPConnectTimeout   = 10 * time.Second
-	defaultCDPCommandTimeout   = 10 * time.Second
-	defaultCDPDiscoveryTimeout = 10 * time.Second
-	defaultCDPPollInterval     = 100 * time.Millisecond
-	defaultCDPResolveInterval  = 250 * time.Millisecond
-	defaultCDPActivationDelay  = time.Second
+	defaultCDPPollInterval    = 100 * time.Millisecond
+	defaultCDPResolveInterval = 250 * time.Millisecond
+	defaultCDPActivationDelay = time.Second
+	wakePageCleanupTimeout    = 5 * time.Second
 )
 
 var (
@@ -62,9 +60,6 @@ type cdpClientOptions struct {
 	extensionID              string
 	preloadedExtension       bool
 	serviceWorkerURLIncludes string
-	connectTimeout           time.Duration
-	commandTimeout           time.Duration
-	discoveryTimeout         time.Duration
 	pollInterval             time.Duration
 	activationDelay          time.Duration
 	httpClient               *http.Client
@@ -73,7 +68,6 @@ type cdpClientOptions struct {
 type cdpClient struct {
 	socket               cdpWebSocket
 	webSocketDebuggerURL string
-	commandTimeout       time.Duration
 
 	ctx        context.Context
 	cancel     context.CancelFunc
@@ -163,7 +157,6 @@ func connectCDPClient(ctx context.Context, options cdpClientOptions) (*cdpClient
 		options.cdpURL,
 		options.headers,
 		options.httpClient,
-		options.connectTimeout,
 	)
 	if err != nil {
 		return nil, err
@@ -173,12 +166,11 @@ func connectCDPClient(ctx context.Context, options cdpClientOptions) (*cdpClient
 		webSocketDebuggerURL,
 		options.headers,
 		options.httpClient,
-		options.connectTimeout,
 	)
 	if err != nil {
 		return nil, err
 	}
-	client, err := newCDPClient(socket, webSocketDebuggerURL, options.commandTimeout)
+	client, err := newCDPClient(socket, webSocketDebuggerURL)
 	if err != nil {
 		_ = socket.CloseNow()
 		return nil, err
@@ -194,38 +186,21 @@ func connectCDPClient(ctx context.Context, options cdpClientOptions) (*cdpClient
 func connectRPCClient(
 	ctx context.Context,
 	options cdpClientOptions,
-	telemetry TelemetryConfig,
 ) (*rpcClient, error) {
 	options = normalizeCDPClientOptions(options)
 	cdp, err := connectCDPClient(ctx, options)
 	if err != nil {
 		return nil, err
 	}
-	rpc, err := newRPCClient(cdp)
+	rpc, err := newRPCClient(cdp, true)
 	if err != nil {
 		return nil, errors.Join(err, cdp.Close())
 	}
-	if err := configureProtocol(
-		ctx,
-		rpc,
-		resolvedBrowserSource{cdpURL: cdp.webSocketDebuggerURL},
-		telemetry,
-	); err != nil {
-		return nil, errors.Join(err, rpc.close())
-	}
+	rpc.browserWebSocketURL = cdp.webSocketDebuggerURL
 	return rpc, nil
 }
 
 func normalizeCDPClientOptions(options cdpClientOptions) cdpClientOptions {
-	if options.connectTimeout == 0 {
-		options.connectTimeout = defaultCDPConnectTimeout
-	}
-	if options.commandTimeout == 0 {
-		options.commandTimeout = defaultCDPCommandTimeout
-	}
-	if options.discoveryTimeout == 0 {
-		options.discoveryTimeout = defaultCDPDiscoveryTimeout
-	}
 	if options.pollInterval == 0 {
 		options.pollInterval = defaultCDPPollInterval
 	}
@@ -244,15 +219,6 @@ func normalizeCDPClientOptions(options cdpClientOptions) cdpClientOptions {
 func validateCDPClientOptions(options cdpClientOptions) error {
 	if options.cdpURL == "" {
 		return errors.New("stagehand CDP URL is required")
-	}
-	if options.connectTimeout <= 0 {
-		return errors.New("stagehand CDP connect timeout must be positive")
-	}
-	if options.commandTimeout <= 0 {
-		return errors.New("stagehand CDP command timeout must be positive")
-	}
-	if options.discoveryTimeout <= 0 {
-		return errors.New("stagehand CDP discovery timeout must be positive")
 	}
 	if options.pollInterval <= 0 {
 		return errors.New("stagehand CDP poll interval must be positive")
@@ -274,12 +240,8 @@ func dialCDPWebSocket(
 	webSocketDebuggerURL string,
 	headers http.Header,
 	httpClient *http.Client,
-	timeout time.Duration,
 ) (*websocket.Conn, error) {
-	dialContext, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	socket, response, err := websocket.Dial(dialContext, webSocketDebuggerURL, &websocket.DialOptions{
+	socket, response, err := websocket.Dial(ctx, webSocketDebuggerURL, &websocket.DialOptions{
 		HTTPClient: httpClient,
 		HTTPHeader: headers.Clone(),
 	})
@@ -302,7 +264,6 @@ func dialCDPWebSocket(
 func newCDPClient(
 	socket cdpWebSocket,
 	webSocketDebuggerURL string,
-	commandTimeout time.Duration,
 ) (*cdpClient, error) {
 	if socket == nil {
 		return nil, errors.New("stagehand CDP WebSocket is required")
@@ -310,15 +271,10 @@ func newCDPClient(
 	if webSocketDebuggerURL == "" {
 		return nil, errors.New("stagehand CDP WebSocket URL is required")
 	}
-	if commandTimeout <= 0 {
-		return nil, errors.New("stagehand CDP command timeout must be positive")
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	client := &cdpClient{
 		socket:               socket,
 		webSocketDebuggerURL: webSocketDebuggerURL,
-		commandTimeout:       commandTimeout,
 		ctx:                  ctx,
 		cancel:               cancel,
 		readerDone:           make(chan struct{}),
@@ -342,7 +298,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		serviceWorker, sessionID, err = c.waitForPreloadedServiceWorker(
 			ctx,
 			options.serviceWorkerURLIncludes,
-			options.discoveryTimeout,
 			options.pollInterval,
 		)
 		if err != nil {
@@ -361,7 +316,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 			ctx,
 			extensionID,
 			options.serviceWorkerURLIncludes,
-			options.discoveryTimeout,
 			options.activationDelay,
 			options.pollInterval,
 		)
@@ -376,7 +330,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 			"Target.attachToTarget",
 			map[string]any{"targetId": serviceWorker.TargetID, "flatten": true},
 			"",
-			c.commandTimeout,
 			&attached,
 		); err != nil {
 			return err
@@ -403,7 +356,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		"Runtime.enable",
 		map[string]any{},
 		sessionID,
-		c.commandTimeout,
 		&ignored,
 	)
 	if err := c.sendCommand(
@@ -411,7 +363,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 		"Runtime.addBinding",
 		map[string]any{"name": stagehandSendToHostBinding},
 		sessionID,
-		c.commandTimeout,
 		&ignored,
 	); err != nil {
 		return err
@@ -419,7 +370,6 @@ func (c *cdpClient) initialize(ctx context.Context, options cdpClientOptions) er
 	return c.waitForRuntimeReady(
 		ctx,
 		sessionID,
-		options.discoveryTimeout,
 		options.pollInterval,
 	)
 }
@@ -459,7 +409,6 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 			"returnByValue": true,
 		},
 		sessionID,
-		c.commandTimeout,
 		&evaluated,
 	); err != nil {
 		return err
@@ -518,7 +467,6 @@ func (c *cdpClient) sendCommand(
 	method string,
 	params any,
 	sessionID string,
-	timeout time.Duration,
 	result any,
 ) error {
 	if ctx == nil {
@@ -526,9 +474,6 @@ func (c *cdpClient) sendCommand(
 	}
 	if method == "" {
 		return errors.New("stagehand CDP command method is required")
-	}
-	if timeout <= 0 {
-		return errors.New("stagehand CDP command timeout must be positive")
 	}
 	if params == nil {
 		params = map[string]any{}
@@ -553,12 +498,10 @@ func (c *cdpClient) sendCommand(
 	if err != nil {
 		return fmt.Errorf("encode CDP command %s: %w", method, err)
 	}
-	if err := c.socket.Write(c.ctx, websocket.MessageText, encoded); err != nil {
+	if err := c.socket.Write(ctx, websocket.MessageText, encoded); err != nil {
 		return fmt.Errorf("send CDP command %s: %w", method, err)
 	}
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
 	select {
 	case response := <-pending.response:
 		if response.err != nil {
@@ -576,8 +519,6 @@ func (c *cdpClient) sendCommand(
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("CDP command canceled: %s: %w", method, ctx.Err())
-	case <-timer.C:
-		return fmt.Errorf("CDP command timed out: %s", method)
 	}
 }
 
@@ -811,7 +752,6 @@ func (c *cdpClient) loadUnpackedExtension(
 		"Extensions.loadUnpacked",
 		map[string]any{"path": extensionDir},
 		"",
-		c.commandTimeout,
 		&loaded,
 	)
 	if err != nil {
@@ -838,18 +778,31 @@ func (c *cdpClient) waitForServiceWorker(
 	ctx context.Context,
 	extensionID string,
 	urlIncludes string,
-	timeout time.Duration,
 	activationDelay time.Duration,
 	pollInterval time.Duration,
 ) (cdpTargetInfo, error) {
 	startedAt := time.Now()
-	deadline := startedAt.Add(timeout)
 	var (
 		lastTargets        []cdpTargetInfo
 		activationTargetID string
 	)
+	defer func() {
+		if activationTargetID == "" {
+			return
+		}
+		// Cleanup must not inherit an already-canceled init context, delay its
+		// error, or wait forever for a CDP acknowledgement.
+		go c.closeWakeTarget(ctx, activationTargetID)
+	}()
 
-	for time.Now().Before(deadline) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return cdpTargetInfo{}, fmt.Errorf(
+				"discover Stagehand service worker target: %w; observed targets: %s",
+				err,
+				formatCDPTargets(lastTargets),
+			)
+		}
 		targets, err := c.getTargets(ctx)
 		if err != nil {
 			return cdpTargetInfo{}, err
@@ -857,11 +810,6 @@ func (c *cdpClient) waitForServiceWorker(
 		lastTargets = targets
 		for _, target := range targets {
 			if isStagehandServiceWorker(target, extensionID, urlIncludes) {
-				if activationTargetID != "" {
-					c.bestEffortCommand("Target.closeTarget", map[string]any{
-						"targetId": activationTargetID,
-					})
-				}
 				return target, nil
 			}
 		}
@@ -882,36 +830,32 @@ func (c *cdpClient) waitForServiceWorker(
 					),
 				},
 				"",
-				c.commandTimeout,
 				&activation,
 			) == nil {
 				activationTargetID = activation.TargetID
 			}
 		}
-		if err := waitForCDPPoll(ctx, deadline, pollInterval); err != nil {
-			break
+		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
+			continue
 		}
 	}
-
-	if activationTargetID != "" {
-		c.bestEffortCommand("Target.closeTarget", map[string]any{"targetId": activationTargetID})
-	}
-	return cdpTargetInfo{}, fmt.Errorf(
-		"timed out discovering the Stagehand service worker target; observed targets: %s",
-		formatCDPTargets(lastTargets),
-	)
 }
 
 func (c *cdpClient) waitForPreloadedServiceWorker(
 	ctx context.Context,
 	urlIncludes string,
-	timeout time.Duration,
 	pollInterval time.Duration,
 ) (cdpTargetInfo, string, error) {
-	deadline := time.Now().Add(timeout)
 	var lastTargets []cdpTargetInfo
 
-	for time.Now().Before(deadline) {
+	for {
+		if err := ctx.Err(); err != nil {
+			return cdpTargetInfo{}, "", fmt.Errorf(
+				"discover preloaded Stagehand service worker: %w; observed targets: %s",
+				err,
+				formatCDPTargets(lastTargets),
+			)
+		}
 		targets, err := c.getTargets(ctx)
 		if err != nil {
 			return cdpTargetInfo{}, "", err
@@ -929,7 +873,6 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 				"Target.attachToTarget",
 				map[string]any{"targetId": target.TargetID, "flatten": true},
 				"",
-				c.commandTimeout,
 				&attached,
 			)
 			if err != nil || attached.SessionID == "" {
@@ -940,19 +883,15 @@ func (c *cdpClient) waitForPreloadedServiceWorker(
 				return target, attached.SessionID, nil
 			}
 			c.bestEffortCommand(
+				ctx,
 				"Target.detachFromTarget",
 				map[string]any{"sessionId": attached.SessionID},
 			)
 		}
-		if err := waitForCDPPoll(ctx, deadline, pollInterval); err != nil {
-			break
+		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
+			continue
 		}
 	}
-
-	return cdpTargetInfo{}, "", fmt.Errorf(
-		"timed out discovering the preloaded Stagehand service worker; observed targets: %s",
-		formatCDPTargets(lastTargets),
-	)
 }
 
 func (c *cdpClient) getTargets(ctx context.Context) ([]cdpTargetInfo, error) {
@@ -964,7 +903,6 @@ func (c *cdpClient) getTargets(ctx context.Context) ([]cdpTargetInfo, error) {
 		"Target.getTargets",
 		map[string]any{},
 		"",
-		c.commandTimeout,
 		&response,
 	); err != nil {
 		return nil, err
@@ -975,28 +913,32 @@ func (c *cdpClient) getTargets(ctx context.Context) ([]cdpTargetInfo, error) {
 func (c *cdpClient) waitForRuntimeReady(
 	ctx context.Context,
 	sessionID string,
-	timeout time.Duration,
 	pollInterval time.Duration,
 ) error {
-	deadline := time.Now().Add(timeout)
 	lastError := ""
-	for time.Now().Before(deadline) {
+	for {
+		if err := ctx.Err(); err != nil {
+			if lastError != "" {
+				return fmt.Errorf(
+					"wait for the Stagehand extension runtime to become ready: %w (%s)",
+					err,
+					lastError,
+				)
+			}
+			return fmt.Errorf(
+				"wait for the Stagehand extension runtime to become ready: %w",
+				err,
+			)
+		}
 		ready, detail := c.evaluateRuntimeReadiness(ctx, sessionID)
 		if ready {
 			return nil
 		}
 		lastError = detail
-		if err := waitForCDPPoll(ctx, deadline, pollInterval); err != nil {
-			break
+		if err := waitForCDPPoll(ctx, pollInterval); err != nil {
+			continue
 		}
 	}
-	if lastError != "" {
-		return fmt.Errorf(
-			"timed out waiting for the Stagehand extension runtime to become ready (%s)",
-			lastError,
-		)
-	}
-	return errors.New("timed out waiting for the Stagehand extension runtime to become ready")
 }
 
 func (c *cdpClient) evaluateRuntimeReadiness(
@@ -1012,7 +954,6 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 			"returnByValue": true,
 		},
 		sessionID,
-		c.commandTimeout,
 		&evaluated,
 	)
 	if err != nil {
@@ -1042,11 +983,23 @@ func (c *cdpClient) evaluateRuntimeReadiness(
 	)
 }
 
-func (c *cdpClient) bestEffortCommand(method string, params any) {
-	ctx, cancel := context.WithTimeout(context.Background(), c.commandTimeout)
-	defer cancel()
+func (c *cdpClient) bestEffortCommand(ctx context.Context, method string, params any) {
 	var ignored map[string]any
-	_ = c.sendCommand(ctx, method, params, "", c.commandTimeout, &ignored)
+	_ = c.sendCommand(ctx, method, params, "", &ignored)
+}
+
+func (c *cdpClient) closeWakeTarget(parent context.Context, targetID string) {
+	base := context.Background()
+	if parent != nil {
+		base = context.WithoutCancel(parent)
+	}
+	cleanupCtx, cancel := context.WithTimeout(base, wakePageCleanupTimeout)
+	defer cancel()
+	c.bestEffortCommand(
+		cleanupCtx,
+		"Target.closeTarget",
+		map[string]any{"targetId": targetID},
+	)
 }
 
 func resolveBrowserWebSocketURL(
@@ -1054,13 +1007,12 @@ func resolveBrowserWebSocketURL(
 	cdpURL string,
 	headers http.Header,
 	httpClient *http.Client,
-	timeout time.Duration,
 ) (string, error) {
 	if ctx == nil {
 		return "", errors.New("stagehand CDP context is required")
 	}
-	if timeout <= 0 {
-		return "", errors.New("stagehand CDP connect timeout must be positive")
+	if err := ctx.Err(); err != nil {
+		return "", fmt.Errorf("resolve CDP WebSocket URL: %w", err)
 	}
 	parsed, err := url.Parse(cdpURL)
 	if err != nil {
@@ -1076,15 +1028,12 @@ func resolveBrowserWebSocketURL(
 		httpClient = http.DefaultClient
 	}
 
-	resolveContext, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	baseURL := strings.TrimRight(cdpURL, "/")
 	versionURL := baseURL + "/json/version"
-	deadline := time.Now().Add(timeout)
 	lastError := ""
 	for {
 		request, err := http.NewRequestWithContext(
-			resolveContext,
+			ctx,
 			http.MethodGet,
 			versionURL,
 			nil,
@@ -1104,28 +1053,18 @@ func resolveBrowserWebSocketURL(
 			lastError = readErr.Error()
 		}
 
-		if !time.Now().Before(deadline) {
-			break
-		}
-		if err := waitForCDPPoll(
-			resolveContext,
-			deadline,
-			defaultCDPResolveInterval,
-		); err != nil {
-			if ctx.Err() != nil {
-				return "", fmt.Errorf("resolve CDP WebSocket URL: %w", ctx.Err())
+		if err := waitForCDPPoll(ctx, defaultCDPResolveInterval); err != nil {
+			if lastError != "" {
+				return "", fmt.Errorf(
+					"resolve CDP WebSocket URL from %s: %w (last error: %s)",
+					baseURL,
+					err,
+					lastError,
+				)
 			}
-			break
+			return "", fmt.Errorf("resolve CDP WebSocket URL from %s: %w", baseURL, err)
 		}
 	}
-	if lastError != "" {
-		return "", fmt.Errorf(
-			"timed out resolving CDP WebSocket URL from %s (last error: %s)",
-			baseURL,
-			lastError,
-		)
-	}
-	return "", fmt.Errorf("timed out resolving CDP WebSocket URL from %s", baseURL)
 }
 
 func readCDPVersionResponse(response *http.Response) (string, error) {
@@ -1153,16 +1092,8 @@ func readCDPVersionResponse(response *http.Response) (string, error) {
 
 func waitForCDPPoll(
 	ctx context.Context,
-	deadline time.Time,
 	interval time.Duration,
 ) error {
-	remaining := time.Until(deadline)
-	if remaining <= 0 {
-		return context.DeadlineExceeded
-	}
-	if interval > remaining {
-		interval = remaining
-	}
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
 	select {

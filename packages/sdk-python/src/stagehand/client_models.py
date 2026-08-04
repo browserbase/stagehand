@@ -3,23 +3,18 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any, Generic, Literal, TypeVar, cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from ._generated import models as _models
 from ._generated.models import (
-    BrowserbaseBrowserSettings,
-    BrowserbaseRegion,
-    CustomModelConfig,
-    KnownModelConfig,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     ModelConfig,
-    ProxyConfig,
-    StagehandInitParams,
     StagehandLog,
     StagehandResultMetadata,
+    TelemetryConfig,
 )
 from ._validation import WireModel
 from .client_types import Cache as CacheInput
@@ -52,21 +47,6 @@ class LocalProxyConfig(WireModel):
     password: str | None = None
 
 
-class BrowserbaseBrowserSource(WireModel):
-    """Browserbase session options accepted before the SDK creates a session."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    type: Literal["browserbase"]
-    browser_settings: BrowserbaseBrowserSettings | None = None
-    extension_id: str | None = None
-    keep_alive: bool | None = None
-    proxies: bool | list[ProxyConfig] | None = None
-    region: BrowserbaseRegion | None = None
-    timeout: float | None = None
-    user_metadata: dict[str, object] | None = None
-
-
 class CacheOptions(WireModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -89,10 +69,9 @@ class LocalViewport(WireModel):
     height: int
 
 
-class LocalBrowserSource(WireModel):
-    model_config = ConfigDict(extra="forbid")
+class LocalBrowserLaunchOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
 
-    type: Literal["local"]
     args: list[str] | None = None
     executable_path: str | None = None
     port: Annotated[int | None, Field(ge=1, le=65_535)] = None
@@ -108,24 +87,25 @@ class LocalBrowserSource(WireModel):
     device_scale_factor: float | None = None
     has_touch: bool | None = None
     ignore_https_errors: bool | None = None
-    connect_timeout_ms: Annotated[int | None, Field(gt=0)] = None
     downloads_path: str | None = None
     accept_downloads: bool | None = None
     keep_alive: bool | None = None
 
 
-class CdpBrowserSource(WireModel):
-    model_config = ConfigDict(extra="forbid")
+class LocalBrowserConnectOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
 
-    type: Literal["cdp"]
     cdp_url: Annotated[str, Field(min_length=1)]
-    headers: dict[str, str] | None = None
+    extension_id: Annotated[str | None, Field(min_length=1)] = None
 
 
-BrowserSource = Annotated[
-    BrowserbaseBrowserSource | LocalBrowserSource | CdpBrowserSource,
-    Field(discriminator="type"),
-]
+class BrowserbaseConnectOptions(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key: Annotated[str, Field(min_length=1)]
+    session_id: Annotated[str, Field(min_length=1)]
+    extension_id: Annotated[str | None, Field(min_length=1)] = None
+
 
 LLMGenerateInput = LLMStructuredGenerateParams | LLMMessageGenerateParams
 LLMGenerateOutput = LLMStructuredGenerateResult | LLMMessageGenerateResult
@@ -147,26 +127,28 @@ class StagehandClientLoggingConfig(WireModel):
     on_log: StagehandOnLog | None = None
 
 
-class StagehandClientInitParams(StagehandInitParams):
-    browser: BrowserSource = BrowserbaseBrowserSource(type="browserbase")
+class StagehandClientCreateConfig(WireModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    api_key: Annotated[str | None, Field(min_length=1)] = None
     model: ModelConfig | ClientLLM | None = None
+    telemetry: TelemetryConfig | None = None
+    system_prompt: str | None = None
+    self_heal: bool | None = None
+    dom_settle_timeout_ms: Annotated[
+        int | None, Field(gt=0, le=9_007_199_254_740_991, strict=True)
+    ] = None
+    cache: _models.Caching | None = None
     logging: StagehandClientLoggingConfig = Field(default_factory=StagehandClientLoggingConfig)
 
-    @model_validator(mode="after")
-    def require_browserbase_api_key(self) -> StagehandClientInitParams:
-        if self.browser.type == "browserbase" and self.api_key is None:
-            raise ValueError("A Browserbase API key is required for the Browserbase browser source")
-        return self
 
-
-StagehandClientInitParams.model_rebuild(_types_namespace={**vars(_models), **globals()})
+StagehandClientCreateConfig.model_rebuild(_types_namespace={**vars(_models), **globals()})
 
 
 def _model_config(
     model: str,
     *,
     api_key: str | None = None,
-    base_url: str | None = None,
     headers: dict[str, str] | None = None,
 ) -> ModelConfig:
     connection: dict[str, object] = {
@@ -174,14 +156,4 @@ def _model_config(
         for name, value in (("api_key", api_key), ("headers", headers))
         if value is not None
     }
-    if base_url is None:
-        return ModelConfig(
-            root=KnownModelConfig.model_validate({"model_name": model, **connection})
-        )
-    return ModelConfig(
-        root=CustomModelConfig.model_validate({
-            "model_name": model,
-            "base_url": base_url,
-            **connection,
-        })
-    )
+    return ModelConfig.model_validate({"model_name": model, **connection})

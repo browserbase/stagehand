@@ -4,12 +4,7 @@ from collections.abc import Awaitable, Callable
 from typing import Literal, NotRequired, TypedDict
 
 from ._generated.input_types import (
-    BrowserbaseBrowserSettings,
-    BrowserbaseProxyConfig,
-    BrowserbaseRegion,
-    ExternalProxyConfig,
     ModelConfig,
-    ProxyConfig,
     TelemetryConfig,
 )
 from ._generated.models import (
@@ -33,17 +28,6 @@ class LocalProxyConfig(TypedDict):
     password: NotRequired[str]
 
 
-class BrowserbaseBrowserSource(TypedDict):
-    type: Literal["browserbase"]
-    browser_settings: NotRequired[BrowserbaseBrowserSettings]
-    extension_id: NotRequired[str]
-    keep_alive: NotRequired[bool]
-    proxies: NotRequired[bool | list[ProxyConfig]]
-    region: NotRequired[BrowserbaseRegion]
-    timeout: NotRequired[float]
-    user_metadata: NotRequired[dict[str, object]]
-
-
 class CacheOptions(TypedDict, total=False):
     threshold: int
 
@@ -56,8 +40,7 @@ class LocalViewport(TypedDict):
     height: int
 
 
-class LocalBrowserSource(TypedDict):
-    type: Literal["local"]
+class LocalBrowserLaunchOptions(TypedDict, total=False):
     args: NotRequired[list[str]]
     executable_path: NotRequired[str]
     port: NotRequired[int]
@@ -73,19 +56,20 @@ class LocalBrowserSource(TypedDict):
     device_scale_factor: NotRequired[float]
     has_touch: NotRequired[bool]
     ignore_https_errors: NotRequired[bool]
-    connect_timeout_ms: NotRequired[int]
     downloads_path: NotRequired[str]
     accept_downloads: NotRequired[bool]
     keep_alive: NotRequired[bool]
 
 
-class CdpBrowserSource(TypedDict):
-    type: Literal["cdp"]
+class LocalBrowserConnectOptions(TypedDict):
     cdp_url: str
-    headers: NotRequired[dict[str, str]]
+    extension_id: NotRequired[str]
 
 
-BrowserSource = BrowserbaseBrowserSource | LocalBrowserSource | CdpBrowserSource
+class BrowserbaseConnectOptions(TypedDict):
+    api_key: str
+    session_id: str
+    extension_id: NotRequired[str]
 
 
 class ClientLLM(TypedDict):
@@ -98,9 +82,8 @@ class StagehandClientLoggingConfig(TypedDict, total=False):
     on_log: StagehandOnLog
 
 
-class StagehandClientInitParams(TypedDict, total=False):
+class StagehandClientCreateConfig(TypedDict, total=False):
     api_key: str
-    browser: BrowserSource
     model: ModelConfig | ClientLLM
     telemetry: TelemetryConfig
     system_prompt: str
@@ -111,23 +94,18 @@ class StagehandClientInitParams(TypedDict, total=False):
 
 
 __all__ = [
-    "BrowserSource",
-    "BrowserbaseBrowserSettings",
-    "BrowserbaseBrowserSource",
-    "BrowserbaseProxyConfig",
-    "BrowserbaseRegion",
+    "BrowserbaseConnectOptions",
     "Cache",
     "CacheOptions",
-    "CdpBrowserSource",
     "ClientLLM",
-    "ExternalProxyConfig",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",
-    "LocalBrowserSource",
+    "LocalBrowserConnectOptions",
+    "LocalBrowserLaunchOptions",
     "LocalProxyConfig",
     "LocalViewport",
-    "StagehandClientInitParams",
+    "StagehandClientCreateConfig",
     "StagehandClientLoggingConfig",
     "StagehandOnLog",
 ]

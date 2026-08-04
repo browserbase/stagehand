@@ -250,9 +250,9 @@ The `add-go` model PR adopts the narrow hybrid, without modifying the canonical 
 - Ordinary objects, maps, aliases, and string enums are emitted by pinned `go-jsonschema` `v0.23.1` in model-only mode. The checked-in result has no SDK runtime dependency. `LoadState` is the one handwritten enum because its concatenated wire values otherwise produce non-idiomatic exported constant names.
 - The projection converts only the schema's `T | null` pairs to Go pointers. It routes real unions through the generator's custom-type extension and fails generation if any unhandled `anyOf` or `oneOf` remains. This prevents a future schema change from silently becoming `interface{}`.
 - Handwritten wrappers cover the irreducible Go cases: model, proxy, variable, cookie, LLM, boolean-or-list, string-or-list, and string-or-number unions. Constructors set known discriminators, JSON decoding rejects unknown discriminators, and zero-value unions fail to marshal.
-- `json.RawMessage` is used for intentionally arbitrary JSON. LLM callback results preserve allowed unknown properties in an explicit `AdditionalProperties` map.
+- `json.RawMessage` is used for intentionally arbitrary JSON. LLM callback results are closed protocol objects and reject unknown provider-specific properties.
 - The generator lives in a nested module to keep its dependencies out of the SDK runtime. Both modules target Go 1.26, and the generated SDK does not import Omissis.
-- Tests compare the generated catalog with the complete reachable protocol definition graph, forbid `interface{}` fallbacks, and round-trip representative union and open-object values. CI also checks generator staleness, formatting, vet, tests, and build.
+- Tests compare the generated catalog with the complete reachable protocol definition graph, forbid `interface{}` fallbacks, and round-trip representative union and closed-object values. CI also checks generator staleness, formatting, vet, tests, and build.
 
 This is deliberately schema projection, not output patching: Omissis output is accepted as generated or generation fails. The only custom logic is the part Go cannot express as native tagged unions.
 
@@ -263,7 +263,7 @@ This is deliberately schema projection, not output patching: Omissis output is a
 - Omissis emits schema `const` properties as ordinary Go fields. Later client-facing constructors should set constants for browser sources, response formats, and similar tagged objects; callers constructing generated structs directly can still set invalid strings.
 - Required fields are ordinary zero-valued Go fields. The thin client currently relies on authoritative RPC errors rather than duplicating protocol validation; generated structs alone do not prove a required string was supplied.
 - The module path is `github.com/browserbase/stagehand/packages/sdk-go`, matching the module's `packages/sdk-go` directory inside `github.com/browserbase/stagehand`. Releases from this layout will need subdirectory-prefixed Go tags such as `packages/sdk-go/v0.1.0`.
-- Dynamic extract/evaluate payloads intentionally remain `json.RawMessage`. `ExtractAs` provides caller-selected typed decoding without weakening the generated protocol boundary to `any`.
+- Dynamic extract/evaluate payloads intentionally remain `json.RawMessage`. `ExtractAs` provides caller-selected typed decoding while preserving result metadata, without weakening the generated protocol boundary to `any`.
 - Single-string-or-array values and single-block-or-array LLM content normalize to arrays when marshalled. Arrays are schema-valid and give callers one stable Go representation, but byte-for-byte preservation of the input shape is not promised.
 - The handwritten union layer is part of the public model API. Before v1, evaluate constructor/accessor naming against the first thin-client implementation and real examples.
 - Browser source resolution and the CDP-backed JSON-RPC transport are intentionally stubbed in the first thin-client pass. Examples compile and exercise the public surface, but cannot complete `Stagehand.Init` until that bootstrap layer is implemented.

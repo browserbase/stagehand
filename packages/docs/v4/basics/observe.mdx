@@ -5,466 +5,1116 @@ description: "Discover and plan executable actions on any web page."
 
 ## What is `observe()`?
 
-`observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
-
 <View title="TypeScript" icon="js">
-
 ```typescript
-const actions = await stagehand.observe("Find the sign in button");
-// actions.data -> [
-//   { selector: "xpath=/html/body/...", description: "Sign in", method: "click", arguments: [] }
-// ]
-// actions.metadata.cacheStatus -> "HIT", "MISS", or undefined
+await stagehand.observe("find the login button");
 ```
+</View>
 
-The `instruction` is optional: call `observe()` with no argument to survey the page broadly.
+<View title="Python" icon="python">
+```python
+await stagehand.observe("find the login button")
+```
+</View>
 
-<Accordion title="Common things to observe">
+<View title="Go" icon="golang">
+```go
+instruction := "find the login button"
+if _, err := client.Observe(ctx, &instruction, nil); err != nil {
+	return err
+}
+```
+</View>
 
-| Goal                | Example instruction                          |
-| ------------------- | -------------------------------------------- |
-| Find a button       | `Find the submit button`                     |
-| Locate form fields  | `Find all input fields in the checkout form` |
-| Discover links      | `Find the navigation links`                  |
-| Identify a region   | `Find the pricing table`                     |
-| Map a workflow      | `Find each step in the checkout flow`        |
-| Validate an element | `Find the delete account button`             |
-
-</Accordion>
+`observe()` discovers actionable elements on a page and returns structured actions you can execute or validate before acting. Use it to explore pages, plan multi-step workflows, cache actions, and validate elements before acting.
 
 ## Why use `observe()`?
 
-<CardGroup cols="2">
-  <Card title="Plan before acting" icon="list-check">
-    Preview what an action will target before running it.
+<CardGroup cols={2}>
+  <Card title="Explore" icon="compass" href="#using-observe">
+    Discover what's possible on a page: find buttons, forms, links, and interactive elements
   </Card>
-  <Card title="Verify elements" icon="circle-check">
-    Confirm an element is present before interacting with it.
+  <Card title="Plan" icon="map" href="#plan-then-execute">
+    Map out multi-step workflows by discovering all required actions upfront
   </Card>
-  <Card title="Scope the search" icon="crop">
-    Limit consideration to part of the page.
+  <Card title="Cache" icon="database" href="/v3/best-practices/caching">
+    Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
-  <Card title="Cheaper than acting blind" icon="gauge-high">
-    One planning call can prevent repeated failed actions.
+  <Card title="Validate" icon="check" href="#validate-before-acting">
+    Verify elements exist and check their properties before performing critical actions
   </Card>
 </CardGroup>
 
 ## Using `observe()`
 
-The most common pattern is to observe first, decide, then act.
+Use `observe()` to discover actionable elements on a page. Here's how to find a button:
 
+<View title="TypeScript" icon="js">
 ```typescript
-const {
-  data: [candidate],
-} = await stagehand.observe("Find the primary call-to-action");
-
-if (candidate) {
-  console.log(candidate.description); // inspect before acting
-  await stagehand.act("Click the primary call-to-action");
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
 }
+await page.goto("https://example.com");
+const { data: actions } = await stagehand.observe("find the learn more button");
 ```
+</View>
+
+<View title="Python" icon="python">
+```python
+page = await stagehand.context.active_page()
+if page is None:
+    raise RuntimeError("Stagehand initialized without an active page")
+await page.goto("https://example.com")
+result = await stagehand.observe("find the learn more button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
+}
+if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+
+instruction := "find the learn more button"
+result, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "actions")
+```
+</View>
+
+<Note>
+**iFrame and Shadow DOM support** Stagehand automatically handles iFrame traversal and shadow DOM elements without requiring additional configuration.
+</Note>
+
+<Accordion title="Common use cases">
+
+| Use Case | Example instruction |
+|----------|---------------------|
+| Find buttons | `find the submit button` |
+| Locate forms | `find all input fields in the form` |
+| Discover links | `find navigation links` |
+| Identify tables | `find the pricing table` |
+| Map workflows | `find all checkout steps` |
+| Validate elements | `find the delete account button` |
+
+</Accordion>
+
+
+### Return value of `observe()`?
+When you use `observe()`, Stagehand returns a result whose `data` field is a list of `Action` objects, alongside `metadata` carrying the action ID and server-side cache status. Each `Action` can be passed straight to [`act()`](/v4/basics/act) for deterministic replay:
+
+<View title="TypeScript" icon="js">
+```typescript
+[
+  {
+    description: 'Learn more button',
+    method: 'click',
+    arguments: [],
+    selector: 'xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]'
+  }
+]
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+[
+    Action(
+        description="Learn more button",
+        method="click",
+        arguments=[],
+        selector="xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]",
+    )
+]
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+clickMethod := "click"
+
+actions := []stagehand.Action{
+	{
+		Description: "Learn more button",
+		Method:      &clickMethod,
+		Arguments:   []string{},
+		Selector:    "xpath=/html[1]/body[1]/shadow-demo[1]//div[1]/button[1]",
+	},
+}
+
+fmt.Println(actions[0].Description, *actions[0].Method, actions[0].Selector)
+```
+</View>
 
 <Tabs>
-  <Tab title="Do this" icon="check">
-
+<Tab title="Do this">
 Use specific, descriptive instructions.
 
+<View title="TypeScript" icon="js">
 ```typescript
-await stagehand.observe("Find the primary call-to-action in the hero section");
-await stagehand.observe("Find all input fields in the checkout form");
+// Clear and specific
+await stagehand.observe("find the primary call-to-action button in the hero section");
+await stagehand.observe("find all input fields in the checkout form");
+await stagehand.observe("find the delete account button in settings");
 ```
+</View>
 
+<View title="Python" icon="python">
+```python
+# Clear and specific
+await stagehand.observe(
+    "find the primary call-to-action button in the hero section"
+)
+await stagehand.observe("find all input fields in the checkout form")
+await stagehand.observe("find the delete account button in settings")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Clear and specific
+hero := "find the primary call-to-action button in the hero section"
+if _, err := client.Observe(ctx, &hero, nil); err != nil {
+	return err
+}
+
+fields := "find all input fields in the checkout form"
+if _, err := client.Observe(ctx, &fields, nil); err != nil {
+	return err
+}
+
+deleteButton := "find the delete account button in settings"
+if _, err := client.Observe(ctx, &deleteButton, nil); err != nil {
+	return err
+}
+```
+</View>
 </Tab>
-  <Tab title="Avoid this" icon="xmark">
 
-Avoid vague instructions, and reach for [`extract()`](/v4/basics/extract) to read data instead of observing it.
+<Tab title="Don't do this">
+Avoid vague or data-oriented queries.
 
+<View title="TypeScript" icon="js">
 ```typescript
-// Too vague to target reliably
-await stagehand.observe("Find buttons");
+// Too vague
+await stagehand.observe("find buttons");
 
-// Reading data: use extract() instead
-await stagehand.observe("What is the page title?");
+// Use extract() for data instead
+await stagehand.observe("what is the page title?");
 ```
+</View>
 
+<View title="Python" icon="python">
+```python
+# Too vague
+await stagehand.observe("find buttons")
+
+# Use extract() for data instead
+await stagehand.observe("what is the page title?")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Too vague
+vague := "find buttons"
+if _, err := client.Observe(ctx, &vague, nil); err != nil {
+	return err
+}
+
+// Use Extract() for data instead
+title := "what is the page title?"
+if _, err := client.Observe(ctx, &title, nil); err != nil {
+	return err
+}
+```
+</View>
 </Tab>
 </Tabs>
 
-<Card title="Act on what you found" icon="arrow-pointer" href="/v4/basics/act">
-  Run the action once observe confirms the right target.
-</Card>
-
-### Return value
-
-`observe()` resolves to an `ObserveResult`. Its `data` is an array of `Action` objects,
-and its `metadata` contains shared operation information such as cache status.
-
-```typescript
-const actions = await stagehand.observe("Find the learn more button");
-// actions.data -> [
-//   {
-//     selector: "xpath=/html/body/shadow-demo/div[1]/button[1]",
-//     description: "Learn more button",
-//     method: "click",
-//     arguments: [],
-//   },
-// ]
-```
-
 ## Advanced configuration
 
+You can pass additional options to configure the model, timeout, selector scope, ignored page regions, and placeholder variables:
+
+<View title="TypeScript" icon="js">
 ```typescript
-const actions = await stagehand.observe("Find form fields", {
-  selector: "form#signup",
-  ignoreSelectors: [".advertisement"],
-  timeout: 15_000,
-  model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
+// Custom model configuration
+const { data: actions } = await stagehand.observe("find navigation links", {
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: process.env.OPENAI_API_KEY,
+  },
+  timeout: 30000,
+  selector: "//header", // Focus on specific area
 });
 ```
+</View>
 
-- `page`: the page to observe. Defaults to the active page.
-- `selector`: a CSS selector that scopes observation to one element.
-- `ignoreSelectors`: elements to exclude.
-- `timeout`: maximum time in milliseconds.
-- `model`: override the model for this call.
-- `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
-  below).
-- `cache`: reuse a prior result for this call.
+<View title="Python" icon="python">
+```python
+# Custom model configuration
+result = await stagehand.observe(
+    "find navigation links",
+    model={
+        "model_name": "openai/gpt-5.4-mini",
+        "api_key": os.environ["OPENAI_API_KEY"],
+    },
+    timeout=30000,
+    selector="//header",  # Focus on specific area
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Custom model configuration
+modelAPIKey := os.Getenv("OPENAI_API_KEY")
+model := stagehand.KnownModel(stagehand.KnownModelConfig{
+	ModelName: "openai/gpt-5.4-mini",
+	APIKey:    &modelAPIKey,
+})
+timeout := 30000.0
+selector := "//header" // Focus on specific area
+
+instruction := "find navigation links"
+result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{
+		Model:    &model,
+		Timeout:  &timeout,
+		Selector: &selector,
+	},
+})
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "navigation links")
+```
+</View>
+
+You can also exclude specific nodes, including their descendant nodes, with the ignore-selectors option.
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: actions } = await stagehand.observe("find the main call-to-action buttons", {
+  ignoreSelectors: [
+    "//aside[contains(@class, 'promo-rail')]",
+    "//div[@id='floating-chat-launcher']",
+    "//section[@aria-label='recommended articles']",
+  ],
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+result = await stagehand.observe(
+    "find the main call-to-action buttons",
+    ignore_selectors=[
+        "//aside[contains(@class, 'promo-rail')]",
+        "//div[@id='floating-chat-launcher']",
+        "//section[@aria-label='recommended articles']",
+    ],
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+instruction := "find the main call-to-action buttons"
+result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{
+		IgnoreSelectors: []string{
+			"//aside[contains(@class, 'promo-rail')]",
+			"//div[@id='floating-chat-launcher']",
+			"//section[@aria-label='recommended articles']",
+		},
+	},
+})
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "call-to-action buttons")
+```
+</View>
 
 <Note>
-  `ignoreSelectors` removes every match and its descendants from consideration, while `selector`
-  scopes observation to a single resolved subtree.
+  The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes observation to a single resolved subtree.
 </Note>
 
-### Variables and placeholders
+### Validate then act with variables
 
-When you pass `variables`, `observe()` exposes their **names** to the model and returns
-`%name%` placeholders in suggested action arguments instead of literal values, so secrets
-stay out of the returned plan.
+For login and other safety-sensitive flows, use `observe()` to discover candidate actions, validate them, and then execute them. When you pass variables, `observe()` returns `%variableName%` placeholders in the suggested action arguments instead of raw secret values, so no secret ever reaches the model.
 
+<View title="TypeScript" icon="js">
 ```typescript
-const actions = await stagehand.observe("Fill the login form", {
+const { data: actions } = await stagehand.observe("find the login form fields", {
   variables: {
-    username: { value: "user@example.com", description: "the login email" },
-    rememberMe: true,
+    username: { value: "user@example.com", description: "The login email" },
+    password: { value: process.env.USER_PASSWORD, description: "The login password" },
   },
 });
-// suggested arguments reference %username% rather than the literal email
+
+const emailField = actions.find((action) => action.arguments?.includes("%username%"));
+const passwordField = actions.find((action) => action.arguments?.includes("%password%"));
+
+if (emailField && passwordField) {
+  // Replay the observed actions, resolving placeholders locally
+  await stagehand.act(emailField, { variables: { username: "user@example.com" } });
+  await stagehand.act(passwordField, { variables: { password: process.env.USER_PASSWORD } });
+}
 ```
+</View>
 
-### Cache repeated observations
+<View title="Python" icon="python">
+```python
+observed = await stagehand.observe(
+    "find the login form fields",
+    variables={
+        "username": {"value": "user@example.com", "description": "The login email"},
+        "password": {
+            "value": os.environ["USER_PASSWORD"],
+            "description": "The login password",
+        },
+    },
+)
 
-On Browserbase, turn on caching
-so repeated, identical observations are served from a cache instead of calling the model again.
+email_field = next(
+    (a for a in observed.data if "%username%" in (a.arguments or [])), None
+)
+password_field = next(
+    (a for a in observed.data if "%password%" in (a.arguments or [])), None
+)
 
+if email_field is not None and password_field is not None:
+# Replay the observed actions, resolving placeholders locally
+await stagehand.act(email_field, variables={"username": "user@example.com"})
+    await stagehand.act(
+        password_field, variables={"password": os.environ["USER_PASSWORD"]}
+    )
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+usernameDescription := "The login email"
+passwordDescription := "The login password"
+password := os.Getenv("USER_PASSWORD")
+
+instruction := "find the login form fields"
+result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{
+		Variables: stagehand.Variables{
+			"username": stagehand.DescribedVariable(stagehand.DescribedVariableValue{
+				Value:       stagehand.StringVariable("user@example.com"),
+				Description: &usernameDescription,
+			}),
+			"password": stagehand.DescribedVariable(stagehand.DescribedVariableValue{
+				Value:       stagehand.StringVariable(password),
+				Description: &passwordDescription,
+			}),
+		},
+	},
+})
+if err != nil {
+	return err
+}
+
+var emailField, passwordField *stagehand.Action
+for i, action := range result.Data {
+	if slices.Contains(action.Arguments, "%username%") {
+		emailField = &result.Data[i]
+	}
+	if slices.Contains(action.Arguments, "%password%") {
+		passwordField = &result.Data[i]
+	}
+}
+
+if emailField != nil && passwordField != nil {
+	// Replay the observed actions, resolving placeholders locally
+	if _, err := client.Act(ctx, *emailField, &stagehand.StagehandClientActOptions{
+		ActOptions: stagehand.ActOptions{
+			Variables: stagehand.Variables{
+				"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
+			},
+		},
+	}); err != nil {
+		return err
+	}
+	if _, err := client.Act(ctx, *passwordField, &stagehand.StagehandClientActOptions{
+		ActOptions: stagehand.ActOptions{
+			Variables: stagehand.Variables{
+				"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
+			},
+		},
+	}); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+<Tip>
+`act()` supports the same variables option with either input form. Pass an instruction when you want Stagehand to locate the field for you, or pass the observed `Action` to replay a known target, in both cases keeping the value out of the prompt.
+</Tip>
+
+### Server-side caching
+
+<Note>
+`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+</Note>
+
+When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+
+<View title="TypeScript" icon="js">
 ```typescript
-const actions = await stagehand.observe("Find the sign in button", { cache: true });
-console.log(actions.metadata.cacheStatus);
+// Enable server-side caching for the entire instance
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+  cache: true,
+});
+
+// Or disable it for a single call
+const { data: actions } = await stagehand.observe("find the login button", { cache: false });
 ```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand
+
+# Enable server-side caching for the entire instance
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+    cache=True,
+)
+
+# Or disable it for a single call
+result = await stagehand.observe("find the login button", cache=False)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Enable server-side caching for the entire instance
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+instanceCache := stagehand.CacheEnabled(true)
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+	Cache:   &instanceCache,
+})
+
+// Or disable it for a single call
+off := stagehand.CacheEnabled(false)
+instruction := "find the login button"
+result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{Cache: &off},
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
+```
+</View>
+
+<Note>
+  Cache status is reported on the result metadata, alongside the observed actions. You can also see it in the [Browserbase session replay dashboard](https://docs.browserbase.com/features/observability#stagehand) or in the session logs at debug level.
+</Note>
+
+### Using with custom pages
+
+Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so there is no Puppeteer, Playwright, or Patchright page interop. Instead, target any page Stagehand manages by passing the `page` option:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = new Stagehand({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  browser: { type: "browserbase" },
+});
+await stagehand.init();
+
+// Open a second page in the same browser context
+const productsPage = await stagehand.context.newPage();
+await productsPage.goto("https://www.example.com/products");
+
+// Use observe with that specific page
+const { data: actions } = await stagehand.observe("find all product cards", {
+  page: productsPage,
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+stagehand = Stagehand(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser="browserbase",
+)
+await stagehand.init()
+
+# Open a second page in the same browser context
+products_page = await stagehand.context.new_page()
+await products_page.goto("https://www.example.com/products")
+
+# Use observe with that specific page
+result = await stagehand.observe(
+    "find all product cards",
+    page=products_page,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+client := stagehand.New(stagehand.StagehandClientInitParams{
+	APIKey:  &apiKey,
+	Browser: stagehand.BrowserbaseClientBrowserSource{},
+})
+if err := client.Init(ctx); err != nil {
+	return err
+}
+
+browserContext, err := client.Context()
+if err != nil {
+	return err
+}
+
+// Open a second page in the same browser context
+productsPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+if err != nil {
+	return err
+}
+if err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
+	return err
+}
+
+// Use Observe with that specific page
+instruction := "find all product cards"
+result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	Page: productsPage,
+})
+if err != nil {
+	return err
+}
+fmt.Println("found", len(result.Data), "product cards")
+```
+</View>
+
+This works with:
+- **Active page:** omit `page` and Stagehand uses the active page (default)
+- **Existing pages:** index into the list of context pages
+- **New pages:** create one on the context
+- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+
+<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+  See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
+</Card>
 
 ## Best practices
 
-- **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
-  then run `act()` with the same intent.
-- **Scope busy pages:** `selector` and `ignoreSelectors` cut noise and speed up planning.
-- **Handle empty results:** An empty `data` array means nothing matched, so surface that instead
-  of acting anyway.
+### Plan then execute
 
-### Scope downstream work
+Discover all actions once, then feed each one back to `act()`. Passing an action rather than a string skips inference, so the loop below makes one model call for the whole form instead of one per field.
 
-An observed action's `selector` can scope a follow-up `extract()`, narrowing the model to
-just the relevant region.
-
+<View title="TypeScript" icon="js">
 ```typescript
-const {
-  data: [table],
-} = await stagehand.observe("Find the pricing table");
-if (table) {
-  const pricing = await stagehand.extract("Extract each pricing tier", pricingSchema, {
-    selector: table.selector,
-  });
-  console.log(pricing.data);
+const { data: formFields } = await stagehand.observe("find all form input fields");
+
+for (const field of formFields) {
+  // No LLM call: Stagehand replays the observed action
+  await stagehand.act(field);
 }
 ```
+</View>
+
+<View title="Python" icon="python">
+```python
+observed = await stagehand.observe("find all form input fields")
+
+for field in observed.data:
+    # No LLM call: Stagehand replays the observed action
+    await stagehand.act(field)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+instruction := "find all form input fields"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+for _, field := range observed.Data {
+	// No LLM call: Stagehand replays the observed action
+	if _, err := client.Act(ctx, field, nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v3/references/stagehand">
+  Complete guide to planning actions with `observe()`.
+</Card>
+
+### Scope extractions
+
+Use `observe()` to find a container, then pass its selector to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
+
+<View title="TypeScript" icon="js">
+```typescript
+const PricingSchema = z.object({
+  tiers: z.array(
+    z.object({
+      name: z.string(),
+      price: z.string(),
+    }),
+  ),
+});
+
+const { data: tables } = await stagehand.observe("find the pricing table");
+const [table] = tables;
+
+const { data: pricing } = await stagehand.extract(
+  "extract all pricing tiers",
+  PricingSchema,
+  { selector: table.selector },
+);
+
+for (const tier of pricing.tiers) {
+  console.log(tier.name, tier.price);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+class PricingTier(BaseModel):
+    name: str
+    price: str
+
+
+class Pricing(BaseModel):
+    tiers: list[PricingTier]
+
+
+observed = await stagehand.observe("find the pricing table")
+
+pricing = (await stagehand.extract(
+    "extract all pricing tiers",
+    Pricing,
+    selector=observed.data[0].selector,
+)).data
+
+for tier in pricing.tiers:
+    print(tier.name, tier.price)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type pricingTier struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+}
+
+type pricingTiers struct {
+	Tiers []pricingTier `json:"tiers"`
+}
+
+var pricingSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "tiers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "price": {"type": "string"}
+        },
+        "required": ["name", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["tiers"],
+  "additionalProperties": false
+}`)
+
+instruction := "find the pricing table"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+if len(observed.Data) == 0 {
+	return errors.New("pricing table not found")
+}
+
+selector := observed.Data[0].Selector
+pricing, err := stagehand.ExtractAs[pricingTiers](
+	ctx,
+	client,
+	"extract all pricing tiers",
+	pricingSchema,
+	&stagehand.StagehandClientExtractOptions{
+	ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+	},
+)
+if err != nil {
+	return err
+}
+
+for _, tier := range pricing.Tiers {
+	fmt.Println(tier.Name, tier.Price)
+}
+```
+</View>
+
+<Card title="Extract structured data" icon="table" href="/v4/basics/extract">
+  Learn how to use `observe()` with `extract()` for precise data extraction.
+</Card>
 
 ### Validate before acting
 
-Check that an observed action matches what you expect before running a critical step.
+Check elements exist and verify their properties before performing critical operations.
 
+<View title="TypeScript" icon="js">
 ```typescript
-const {
-  data: [deleteButton],
-} = await stagehand.observe("Find the delete account button");
+const { data: buttons } = await stagehand.observe("find the delete account button");
+const [deleteButton] = buttons;
+
 if (deleteButton?.method === "click") {
-  await stagehand.act("Click the delete account button");
+  await stagehand.act(deleteButton);
 } else {
   throw new Error("Delete button not found");
 }
 ```
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="No actions returned">
-
-An empty `data` array means nothing matched. Loosen an over-specific instruction, make sure the
-page has loaded, and confirm you're scoped to the right region.
-
-```typescript
-let actions = await stagehand.observe("Find the checkout button");
-if (actions.data.length === 0) {
-  await page.waitForLoadState("domcontentloaded");
-  actions = await stagehand.observe("Find the checkout button");
-}
-```
-
-</Accordion>
-  <Accordion title="Too many or irrelevant actions">
-
-Scope observation to the relevant region with `selector`, and exclude noise with
-`ignoreSelectors`.
-
-```typescript
-const actions = await stagehand.observe("Find the form fields", {
-  selector: "form#signup",
-  ignoreSelectors: [".advertisement"],
-});
-```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
 
 <View title="Python" icon="python">
-
 ```python
-actions = await stagehand.observe(instruction="Find the sign in button")
-# actions.data -> [Action(selector="xpath=...", description="Sign in", method="click", arguments=[])]
-# actions.metadata.cache_status -> "HIT", "MISS", or None
-```
+observed = await stagehand.observe("find the delete account button")
+delete_button = observed.data[0] if observed.data else None
 
-The `instruction` is optional: call `observe()` with no argument to survey the page broadly.
-
-<Accordion title="Common things to observe">
-
-| Goal                | Example instruction                          |
-| ------------------- | -------------------------------------------- |
-| Find a button       | `Find the submit button`                     |
-| Locate form fields  | `Find all input fields in the checkout form` |
-| Discover links      | `Find the navigation links`                  |
-| Identify a region   | `Find the pricing table`                     |
-| Map a workflow      | `Find each step in the checkout flow`        |
-| Validate an element | `Find the delete account button`             |
-
-</Accordion>
-
-## Why use `observe()`?
-
-<CardGroup cols="2">
-  <Card title="Plan before acting" icon="list-check">
-    Preview what an action will target before running it.
-  </Card>
-  <Card title="Verify elements" icon="circle-check">
-    Confirm an element is present before interacting with it.
-  </Card>
-  <Card title="Scope the search" icon="crop">
-    Limit consideration to part of the page.
-  </Card>
-  <Card title="Cheaper than acting blind" icon="gauge-high">
-    One planning call can prevent repeated failed actions.
-  </Card>
-</CardGroup>
-
-## Using `observe()`
-
-The most common pattern is to observe first, decide, then act.
-
-```python
-candidates = await stagehand.observe(instruction="Find the primary call-to-action")
-
-if candidates.data:
-    print(candidates.data[0].description)  # inspect before acting
-    await stagehand.act("Click the primary call-to-action")
-```
-
-<Tabs>
-  <Tab title="Do this" icon="check">
-
-Use specific, descriptive instructions.
-
-```python
-await stagehand.observe(instruction="Find the primary call-to-action in the hero section")
-await stagehand.observe(instruction="Find all input fields in the checkout form")
-```
-
-</Tab>
-  <Tab title="Avoid this" icon="xmark">
-
-Avoid vague instructions, and reach for [`extract()`](/v4/basics/extract) to read data instead of observing it.
-
-```python
-# Too vague to target reliably
-await stagehand.observe(instruction="Find buttons")
-
-# Reading data: use extract() instead
-await stagehand.observe(instruction="What is the page title?")
-```
-
-</Tab>
-</Tabs>
-
-<Card title="Act on what you found" icon="arrow-pointer" href="/v4/basics/act">
-  Run the action once observe confirms the right target.
-</Card>
-
-### Return value
-
-`observe()` resolves to an `ObserveResult`. Its `data` is a list of `Action` objects,
-and its `metadata` contains shared operation information such as cache status.
-
-```python
-actions = await stagehand.observe(instruction="Find the learn more button")
-# actions.data -> [
-#     Action(
-#         selector="xpath=/html/body/shadow-demo/div[1]/button[1]",
-#         description="Learn more button",
-#         method="click",
-#         arguments=[],
-#     ),
-# ]
-```
-
-## Advanced configuration
-
-```python
-actions = await stagehand.observe(
-    instruction="Find form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
-    timeout=15_000,
-    model={"model_name": "openai/gpt-5.4-mini"},
-)
-```
-
-- `page`: the page to observe. Defaults to the active page.
-- `selector`: a CSS selector that scopes observation to one element.
-- `ignore_selectors`: elements to exclude.
-- `timeout`: maximum time in milliseconds.
-- `model`: override the complete model configuration for this call.
-- `variables`: variable names surface as `%name%` placeholders in suggested arguments (see
-  below).
-- `cache`: reuse a prior result for this call.
-
-<Note>
-  `ignore_selectors` removes every match and its descendants from consideration, while `selector`
-  scopes observation to a single resolved subtree.
-</Note>
-
-### Variables and placeholders
-
-When you pass `variables`, `observe()` exposes their **names** to the model and returns
-`%name%` placeholders in suggested action arguments instead of literal values, so secrets
-stay out of the returned plan.
-
-```python
-actions = await stagehand.observe(
-    instruction="Fill the login form",
-    variables={
-        "username": {"value": "user@example.com", "description": "the login email"},
-        "remember_me": True,
-    },
-)
-# suggested arguments reference %username% rather than the literal email
-```
-
-### Cache repeated observations
-
-On Browserbase, turn on caching
-so repeated, identical observations are served from a cache instead of calling the model again.
-
-```python
-actions = await stagehand.observe(instruction="Find the sign in button", cache=True)
-print(actions.metadata.cache_status)
-```
-
-## Best practices
-
-- **Observe to verify, act to do:** Use `observe()` to confirm the right element exists,
-  then run `act()` with the same intent.
-- **Scope busy pages:** `selector` and `ignore_selectors` cut noise and speed up planning.
-- **Handle empty results:** An empty `data` list means nothing matched, so surface that instead
-  of acting anyway.
-
-### Scope downstream work
-
-An observed action's `selector` can scope a follow-up `extract()`, narrowing the model to
-just the relevant region.
-
-```python
-tables = await stagehand.observe(instruction="Find the pricing table")
-if tables.data:
-    pricing = await stagehand.extract(
-        instruction="Extract each pricing tier",
-        schema=Pricing,
-        selector=tables.data[0].selector,
-    )
-    print(pricing.data)
-```
-
-### Validate before acting
-
-Check that an observed action matches what you expect before running a critical step.
-
-```python
-candidates = await stagehand.observe(instruction="Find the delete account button")
-if candidates.data and candidates.data[0].method == "click":
-    await stagehand.act("Click the delete account button")
+if delete_button is not None and delete_button.method == "click":
+    await stagehand.act(delete_button)
 else:
     raise RuntimeError("Delete button not found")
 ```
+</View>
+
+<View title="Go" icon="golang">
+```go
+instruction := "find the delete account button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+if len(observed.Data) == 0 || observed.Data[0].Method == nil || *observed.Data[0].Method != "click" {
+	return errors.New("Delete button not found")
+}
+
+if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	return err
+}
+```
+</View>
+
+<Card title="Execute actions with act()" icon="play" href="/v4/basics/act">
+  Learn how to execute observed actions reliably.
+</Card>
+
+### Cache observed actions
+
+Store and reuse observed actions to eliminate redundant LLM calls. Build a simple in-process cache:
+
+<View title="TypeScript" icon="js">
+```typescript
+const actionCache = new Map<string, Action[]>();
+
+async function cachedObserve(instruction: string) {
+  if (actionCache.has(instruction)) {
+    return actionCache.get(instruction)!;
+  }
+
+  const { data: actions } = await stagehand.observe(instruction);
+  actionCache.set(instruction, actions);
+  return actions;
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+action_cache: dict[str, list[Action]] = {}
+
+
+async def cached_observe(instruction: str) -> list[Action]:
+    if instruction in action_cache:
+        return action_cache[instruction]
+
+    observed = await stagehand.observe(instruction)
+    action_cache[instruction] = observed.data
+    return observed.data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+actionCache := map[string][]stagehand.Action{}
+
+cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Action, error) {
+	if cached, ok := actionCache[instruction]; ok {
+		return cached, nil
+	}
+
+	observed, err := client.Observe(ctx, &instruction, nil)
+	if err != nil {
+		return nil, err
+	}
+	actionCache[instruction] = observed.Data
+	return observed.Data, nil
+}
+```
+</View>
+
+<Card title="Complete caching guide" icon="database" href="/v3/best-practices/caching">
+  Learn advanced caching techniques and patterns for optimal performance.
+</Card>
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="No actions returned">
 
-An empty `data` list means nothing matched. Loosen an over-specific instruction, make sure the
-page has loaded, and confirm you're scoped to the right region.
+<Accordion title="No elements found">
+**Problem**: `observe()` returns an empty list
 
-```python
-actions = await stagehand.observe(instruction="Find the checkout button")
-if not actions.data:
-    await page.wait_for_load_state("domcontentloaded")
-    actions = await stagehand.observe(instruction="Find the checkout button")
+**Solutions**:
+- Verify the element exists on the page
+- Use more specific instructions (e.g., "find the blue submit button" instead of "find button")
+- Ensure page has fully loaded before calling `observe()`
+- Set the log level to `debug` in your Stagehand configuration to inspect detection behavior
+
+<View title="TypeScript" icon="js">
+```typescript
+// Check page state before observing
+const page = await stagehand.context.activePage();
+if (!page) {
+  throw new Error("Stagehand initialized without an active page");
+}
+await page.waitForLoadState("domcontentloaded");
+
+const { data: actions } = await stagehand.observe("find the submit button");
+
+if (actions.length === 0) {
+  console.log("No elements found, trying alternative instruction");
+  const { data: altActions } = await stagehand.observe("find the button at the bottom of the form");
+}
 ```
+</View>
 
-</Accordion>
-  <Accordion title="Too many or irrelevant actions">
-
-Scope observation to the relevant region with `selector`, and exclude noise with
-`ignore_selectors`.
-
+<View title="Python" icon="python">
 ```python
-actions = await stagehand.observe(
-    instruction="Find the form fields",
-    selector="form#signup",
-    ignore_selectors=[".advertisement"],
+# Check page state before observing
+page = await stagehand.context.active_page()
+if page is None:
+    raise RuntimeError("Stagehand initialized without an active page")
+await page.wait_for_load_state("domcontentloaded")
+
+observed = await stagehand.observe("find the submit button")
+
+if not observed.data:
+    print("No elements found, trying alternative instruction")
+    alt = await stagehand.observe(
+        "find the button at the bottom of the form"
+    )
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Check page state before observing
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if page == nil {
+	return errors.New("Stagehand initialized without an active page")
+}
+if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
+	return err
+}
+
+instruction := "find the submit button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+if len(observed.Data) == 0 {
+	fmt.Println("No elements found, trying alternative instruction")
+	alt := "find the button at the bottom of the form"
+	if _, err := client.Observe(ctx, &alt, nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Inaccurate results">
+**Problem**: Descriptions or selectors don't match actual elements
+
+**Solutions**:
+- Use more capable models, and check [model evals](https://stagehand.dev/evals) for recommendations
+- Provide more context in your instruction (e.g., "find the submit button in the checkout form")
+- Set the log level to `debug` in your Stagehand configuration to inspect LLM reasoning
+
+<View title="TypeScript" icon="js">
+```typescript
+// More specific instructions improve accuracy
+// Instead of:
+await stagehand.observe("find the button");
+
+// Use context:
+await stagehand.observe("find the red 'Delete' button in the user settings panel");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# More specific instructions improve accuracy
+# Instead of:
+await stagehand.observe("find the button")
+
+# Use context:
+await stagehand.observe(
+    "find the red 'Delete' button in the user settings panel"
 )
 ```
-
-  </Accordion>
-</AccordionGroup>
-
 </View>
+
+<View title="Go" icon="golang">
+```go
+// More specific instructions improve accuracy
+// Instead of:
+vague := "find the button"
+if _, err := client.Observe(ctx, &vague, nil); err != nil {
+	return err
+}
+
+// Use context:
+specific := "find the red 'Delete' button in the user settings panel"
+if _, err := client.Observe(ctx, &specific, nil); err != nil {
+	return err
+}
+```
+</View>
+</Accordion>
+
+<Accordion title="Wrong method suggested">
+**Problem**: The `method` field has an unexpected value
+
+**Solutions**:
+- Validate the method before using it
+- Check [supported actions](/v4/basics/act) for valid method names
+- Reach for a [locator](/v3/references/stagehand) when you want to call a specific method instead of trusting the suggestion
+
+<View title="TypeScript" icon="js">
+```typescript
+const { data: actions } = await stagehand.observe("find the submit button");
+const [action] = actions;
+
+// Validate method before acting
+const validMethods = ["click", "fill", "type", "press"];
+if (action && validMethods.includes(action.method || "")) {
+  await stagehand.act(action);
+} else {
+  console.warn(`Unexpected method: ${action?.method}`);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+observed = await stagehand.observe("find the submit button")
+action = observed.data[0] if observed.data else None
+
+# Validate method before acting
+valid_methods = {"click", "fill", "type", "press"}
+if action is not None and action.method in valid_methods:
+    await stagehand.act(action)
+else:
+    print(f"Unexpected method: {action.method if action else None}")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+instruction := "find the submit button"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+var action *stagehand.Action
+if len(observed.Data) > 0 {
+	action = &observed.Data[0]
+}
+
+method := "<none>"
+if action != nil && action.Method != nil {
+	method = *action.Method
+}
+
+// Validate method before acting
+validMethods := []string{"click", "fill", "type", "press"}
+if action != nil && slices.Contains(validMethods, method) {
+	if _, err := client.Act(ctx, *action, nil); err != nil {
+		return err
+	}
+} else {
+	fmt.Println("Unexpected method:", method)
+}
+```
+</View>
+</Accordion>
+
+</AccordionGroup>
 
 ## Next steps
 
-<CardGroup cols="2">
-  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
-    Execute the action you planned.
+<CardGroup cols={2}>
+  <Card title="Execute actions with act()" icon="play" href="/v4/basics/act">
+    Use `act()` to execute discovered actions reliably.
   </Card>
-  <Card title="Extract" icon="download" href="/v4/basics/extract">
-    Pull typed data from a page.
+
+  <Card title="Extract structured data" icon="table" href="/v4/basics/extract">
+    Combine `observe()` with `extract()` for precise data extraction.
+  </Card>
+
+  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/caching">
+    Build action caches to eliminate redundant LLM calls.
+  </Card>
+
+  <Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+    Full `Stagehand` reference with detailed parameter documentation.
   </Card>
 </CardGroup>

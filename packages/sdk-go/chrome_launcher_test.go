@@ -57,7 +57,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 	t.Setenv("CI", "")
 	sandbox := false
 	deviceScaleFactor := 2.0
-	options := LocalBrowserSource{
+	options := LocalBrowserLaunchOptions{
 		Args:              []string{"--custom-flag=value"},
 		Headless:          true,
 		Devtools:          true,
@@ -75,6 +75,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 		"--enable-unsafe-extension-debugging",
 		"--remote-allow-origins=*",
 		"--window-size=1440,900",
+		webMCPChromeFlag,
 		"--remote-debugging-port=9222",
 		"--user-data-dir=/tmp/stagehand profile",
 		"--custom-flag=value",
@@ -100,7 +101,7 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("all", func(t *testing.T) {
 		got := buildChromeArgs(
-			LocalBrowserSource{IgnoreDefaultArgs: &IgnoreDefaultArgs{All: true}},
+			LocalBrowserLaunchOptions{IgnoreDefaultArgs: &IgnoreDefaultArgs{All: true}},
 			9_222,
 			"/tmp/profile",
 		)
@@ -109,12 +110,22 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 				t.Fatalf("buildChromeArgs() contains ignored default %q", defaultArg)
 			}
 		}
+		for _, stagehandDefault := range []string{
+			"--enable-unsafe-extension-debugging",
+			"--remote-allow-origins=*",
+			"--window-size=1280,800",
+			webMCPChromeFlag,
+		} {
+			if slices.Contains(got, stagehandDefault) {
+				t.Fatalf("buildChromeArgs() contains ignored Stagehand default %q", stagehandDefault)
+			}
+		}
 	})
 
 	t.Run("selected", func(t *testing.T) {
 		ignored := defaultChromeFlags[1]
 		got := buildChromeArgs(
-			LocalBrowserSource{
+			LocalBrowserLaunchOptions{
 				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{ignored}},
 			},
 			9_222,
@@ -125,6 +136,22 @@ func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 		}
 		if !slices.Contains(got, defaultChromeFlags[0]) {
 			t.Fatalf("buildChromeArgs() omitted non-ignored default %q", defaultChromeFlags[0])
+		}
+	})
+
+	t.Run("WebMCP", func(t *testing.T) {
+		got := buildChromeArgs(
+			LocalBrowserLaunchOptions{
+				IgnoreDefaultArgs: &IgnoreDefaultArgs{Args: []string{webMCPChromeFlag}},
+			},
+			9_222,
+			"/tmp/profile",
+		)
+		if slices.Contains(got, webMCPChromeFlag) {
+			t.Fatalf("buildChromeArgs() contains ignored default %q", webMCPChromeFlag)
+		}
+		if !slices.Contains(got, "--enable-unsafe-extension-debugging") {
+			t.Fatal("buildChromeArgs() omitted non-ignored Stagehand defaults")
 		}
 	})
 }
@@ -214,53 +241,45 @@ func TestFindChromePathForSupportedPlatforms(t *testing.T) {
 func TestValidateLocalBrowserOptions(t *testing.T) {
 	tests := []struct {
 		name    string
-		options LocalBrowserSource
+		options LocalBrowserLaunchOptions
 	}{
-		{name: "negative port", options: LocalBrowserSource{Port: -1}},
-		{name: "large port", options: LocalBrowserSource{Port: 65_536}},
-		{name: "negative timeout", options: LocalBrowserSource{ConnectTimeoutMs: -1}},
-		{name: "empty viewport", options: LocalBrowserSource{Viewport: &LocalViewport{}}},
+		{name: "negative port", options: LocalBrowserLaunchOptions{Port: -1}},
+		{name: "large port", options: LocalBrowserLaunchOptions{Port: 65_536}},
+		{name: "empty viewport", options: LocalBrowserLaunchOptions{Viewport: &LocalViewport{}}},
 		{
 			name: "negative scale",
-			options: func() LocalBrowserSource {
+			options: func() LocalBrowserLaunchOptions {
 				scale := -1.0
-				return LocalBrowserSource{DeviceScaleFactor: &scale}
+				return LocalBrowserLaunchOptions{DeviceScaleFactor: &scale}
 			}(),
 		},
 		{
 			name: "NaN scale",
-			options: func() LocalBrowserSource {
+			options: func() LocalBrowserLaunchOptions {
 				scale := math.NaN()
-				return LocalBrowserSource{DeviceScaleFactor: &scale}
+				return LocalBrowserLaunchOptions{DeviceScaleFactor: &scale}
 			}(),
 		},
 		{
 			name: "positive infinite scale",
-			options: func() LocalBrowserSource {
+			options: func() LocalBrowserLaunchOptions {
 				scale := math.Inf(1)
-				return LocalBrowserSource{DeviceScaleFactor: &scale}
+				return LocalBrowserLaunchOptions{DeviceScaleFactor: &scale}
 			}(),
 		},
 		{
 			name: "negative infinite scale",
-			options: func() LocalBrowserSource {
+			options: func() LocalBrowserLaunchOptions {
 				scale := math.Inf(-1)
-				return LocalBrowserSource{DeviceScaleFactor: &scale}
+				return LocalBrowserLaunchOptions{DeviceScaleFactor: &scale}
 			}(),
 		},
-		{name: "empty proxy", options: LocalBrowserSource{Proxy: &LocalProxyConfig{}}},
+		{name: "empty proxy", options: LocalBrowserLaunchOptions{Proxy: &LocalProxyConfig{}}},
 		{
 			name: "authenticated proxy",
-			options: LocalBrowserSource{
+			options: LocalBrowserLaunchOptions{
 				Proxy: &LocalProxyConfig{Server: "http://proxy.test", Username: "user"},
 			},
-		},
-		{
-			name: "download options",
-			options: func() LocalBrowserSource {
-				acceptDownloads := false
-				return LocalBrowserSource{AcceptDownloads: &acceptDownloads}
-			}(),
 		},
 	}
 	for _, test := range tests {
@@ -276,7 +295,7 @@ func TestLaunchChromeRejectsCanceledContextBeforeStarting(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := launchChrome(ctx, LocalBrowserSource{ExecutablePath: os.Args[0]})
+	_, err := launchChrome(ctx, LocalBrowserLaunchOptions{ExecutablePath: os.Args[0]})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("launchChrome() error = %v, want context.Canceled", err)
 	}
@@ -293,7 +312,9 @@ func TestWaitForChromeRequiresCDPVersionEndpoint(t *testing.T) {
 	defer server.Close()
 
 	process := &chromeProcess{done: make(chan struct{})}
-	err := waitForChrome(context.Background(), server.URL, process, 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	err := waitForChrome(ctx, server.URL, process)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("waitForChrome() error = %v, want context deadline exceeded", err)
 	}
@@ -315,7 +336,9 @@ func TestWaitForChromeAcceptsValidCDPVersionEndpoint(t *testing.T) {
 	defer server.Close()
 
 	process := &chromeProcess{done: make(chan struct{})}
-	if err := waitForChrome(context.Background(), server.URL, process, time.Second); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := waitForChrome(ctx, server.URL, process); err != nil {
 		t.Fatalf("waitForChrome() error = %v", err)
 	}
 }
@@ -336,7 +359,7 @@ func TestWaitForChromePrioritizesCancellationAndProcessExit(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		process := &chromeProcess{done: make(chan struct{})}
-		err := waitForChrome(ctx, server.URL, process, time.Second)
+		err := waitForChrome(ctx, server.URL, process)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("waitForChrome() error = %v, want context.Canceled", err)
 		}
@@ -345,7 +368,7 @@ func TestWaitForChromePrioritizesCancellationAndProcessExit(t *testing.T) {
 	t.Run("exited process", func(t *testing.T) {
 		process := &chromeProcess{done: make(chan struct{}), err: errors.New("exit status 1")}
 		close(process.done)
-		err := waitForChrome(context.Background(), server.URL, process, time.Second)
+		err := waitForChrome(context.Background(), server.URL, process)
 		if err == nil || !strings.Contains(err.Error(), "exited before") {
 			t.Fatalf("waitForChrome() error = %v, want exited-before-ready error", err)
 		}
@@ -360,10 +383,9 @@ func TestLaunchLocalBrowserAgainstInstalledChrome(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	launched, err := launchChrome(ctx, LocalBrowserSource{
-		ExecutablePath:   chromePath,
-		Headless:         true,
-		ConnectTimeoutMs: 15_000,
+	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
+		ExecutablePath: chromePath,
+		Headless:       true,
 	})
 	if err != nil {
 		t.Fatalf("launchLocalBrowser() error = %v", err)

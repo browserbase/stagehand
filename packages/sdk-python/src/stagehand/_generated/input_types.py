@@ -21,14 +21,6 @@ class ActResultData(TypedDict):
 AnthropicModelName: TypeAlias = str
 
 
-class BrowserGetVersionResult(TypedDict):
-    protocol_version: NotRequired[str]
-    product: NotRequired[str]
-    revision: NotRequired[str]
-    user_agent: NotRequired[str]
-    js_version: NotRequired[str]
-
-
 class BrowserbaseContext(TypedDict):
     id: str
     persist: NotRequired[bool]
@@ -65,6 +57,11 @@ class BrowserbaseProxyConfig(TypedDict):
 BrowserbaseRegion: TypeAlias = Literal["us-west-2", "us-east-1", "eu-central-1", "ap-southeast-1"]
 
 
+class BrowserSessionMetadata(TypedDict):
+    session_id: str
+    region: NotRequired[BrowserbaseRegion]
+
+
 class BrowserbaseViewport(TypedDict):
     width: NotRequired[float]
     height: NotRequired[float]
@@ -86,7 +83,21 @@ class BrowserbaseBrowserSettings(TypedDict):
     viewport: NotRequired[BrowserbaseViewport]
 
 
-CacheStatus: TypeAlias = Literal["HIT", "MISS"]
+CacheStatus: TypeAlias = Literal["HIT", "MISS", "DISABLED"]
+
+
+class CacheTokenSavings(TypedDict):
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    total_tokens: NotRequired[int]
+
+
+class CacheMetadata(TypedDict):
+    status: CacheStatus
+    count: NotRequired[int]
+    threshold: NotRequired[int]
+    miss_reason: NotRequired[str]
+    tokens_saved: NotRequired[CacheTokenSavings]
 
 
 class Caching1(TypedDict):
@@ -196,13 +207,6 @@ class ContextClearCookiesParams(TypedDict):
     options: NotRequired[ClearCookieOptions]
 
 
-class CustomModelConfig(TypedDict):
-    api_key: NotRequired[str]
-    headers: NotRequired[dict[str, str]]
-    model_name: str
-    base_url: str
-
-
 class DomainPolicy(TypedDict):
     allowed_domains: NotRequired[list[str]]
     blocked_domains: NotRequired[list[str]]
@@ -234,6 +238,9 @@ FieldSchema1: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema1"],
 
 
 FieldSchema10: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema10"], dict[str, "FieldSchema10"]]]
+
+
+FieldSchema11: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema11"], dict[str, "FieldSchema11"]]]
 
 
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
@@ -274,7 +281,7 @@ class ImplementationInfo(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema10]
+    data: NotRequired[FieldSchema11]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -575,13 +582,10 @@ OpenAIModelName: TypeAlias = str
 ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName
 
 
-class KnownModelConfig(TypedDict):
+class ModelConfig(TypedDict):
     api_key: NotRequired[str]
     headers: NotRequired[dict[str, str]]
     model_name: ModelName
-
-
-ModelConfig: TypeAlias = KnownModelConfig | CustomModelConfig
 
 
 class ExtractOptions(TypedDict):
@@ -602,7 +606,6 @@ class PageAddInitScriptParams(TypedDict):
 class PageClickOptions(TypedDict):
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
-    return_xpath: NotRequired[bool]
 
 
 class PageClickParams(TypedDict):
@@ -616,15 +619,10 @@ class PageCloseResult(TypedDict):
     closed: Literal[True]
 
 
-class PageCoordinateResult(TypedDict):
-    xpath: str
-
-
 class PageDragAndDropOptions(TypedDict):
     button: NotRequired[MouseButton]
     steps: NotRequired[int]
     delay: NotRequired[float]
-    return_xpath: NotRequired[bool]
 
 
 class PageDragAndDropParams(TypedDict):
@@ -636,11 +634,6 @@ class PageDragAndDropParams(TypedDict):
     options: NotRequired[PageDragAndDropOptions]
 
 
-class PageDragAndDropResult(TypedDict):
-    from_xpath: str
-    to_xpath: str
-
-
 class PageEvaluateParams(TypedDict):
     page_id: str
     expression: str
@@ -650,15 +643,10 @@ class PageEvaluateResult(TypedDict):
     value: FieldSchema7
 
 
-class PageHoverOptions(TypedDict):
-    return_xpath: NotRequired[bool]
-
-
 class PageHoverParams(TypedDict):
     page_id: str
     x: float
     y: float
-    options: NotRequired[PageHoverOptions]
 
 
 class PageIdParams(TypedDict):
@@ -751,17 +739,12 @@ class PageScreenshotResult(TypedDict):
     type: Literal["png", "jpeg"]
 
 
-class PageScrollOptions(TypedDict):
-    return_xpath: NotRequired[bool]
-
-
 class PageScrollParams(TypedDict):
     page_id: str
     x: float
     y: float
     delta_x: float
     delta_y: float
-    options: NotRequired[PageScrollOptions]
 
 
 class PageSetExtraHTTPHeadersParams(TypedDict):
@@ -837,10 +820,15 @@ class PageWaitForTimeoutParams(TypedDict):
     ms: int
 
 
+class PageWebMCPCancelInvocationParams(TypedDict):
+    page_id: str
+    invocation_id: str
+
+
 ProxyConfig: TypeAlias = BrowserbaseProxyConfig | ExternalProxyConfig
 
 
-class BrowserbaseBrowserSource(TypedDict):
+class BrowserbaseSessionCreateParams(TypedDict):
     browser_settings: NotRequired[BrowserbaseBrowserSettings]
     extension_id: NotRequired[str]
     keep_alive: NotRequired[bool]
@@ -848,8 +836,6 @@ class BrowserbaseBrowserSource(TypedDict):
     region: NotRequired[BrowserbaseRegion]
     timeout: NotRequired[float]
     user_metadata: NotRequired[dict[str, Any]]
-    type: Literal["browserbase"]
-    session_id: str
 
 
 class RgbaColor(TypedDict):
@@ -870,15 +856,6 @@ class LocatorHighlightParams(TypedDict):
     selector: str
     nth: NotRequired[int]
     options: NotRequired[LocatorHighlightOptions]
-
-
-class RuntimeConfigureResult(TypedDict):
-    configured: Literal[True]
-
-
-class RuntimeLoopbackStatusResult(TypedDict):
-    configured: bool
-    connected: bool
 
 
 class SnapshotResult(TypedDict):
@@ -903,7 +880,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema8]
+StagehandLogData: TypeAlias = dict[str, FieldSchema9]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -938,14 +915,18 @@ class StagehandMetrics(TypedDict):
     total_inference_time_ms: float
 
 
-class StagehandPingResult(TypedDict):
-    ok: Literal[True]
-    runtime: Literal["service_worker"]
+class StagehandResultUsage(TypedDict):
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    reasoning_tokens: NotRequired[int]
+    cached_input_tokens: NotRequired[int]
+    inference_time_ms: NotRequired[int]
 
 
 class StagehandResultMetadata(TypedDict):
     action_id: NotRequired[str]
-    cache_status: NotRequired[CacheStatus]
+    cache: CacheMetadata
+    usage: StagehandResultUsage
 
 
 class ActResult(TypedDict):
@@ -972,19 +953,15 @@ class TelemetryConfig(TypedDict):
     traces: TelemetryTraces
 
 
-class RuntimeConfigureParams(TypedDict):
-    protocol_version: NotRequired[int]
-    client_info: NotRequired[ImplementationInfo]
-    cdp_url: str
-    telemetry: NotRequired[TelemetryConfig]
-    log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
-
-
 class StagehandInitParams(TypedDict):
+    protocol_version: Literal[1]
+    client_info: ImplementationInfo
+    browser_cdp_url: NotRequired[str]
     api_key: NotRequired[str]
-    browser: NotRequired[BrowserbaseBrowserSource]
+    browser: NotRequired[BrowserSessionMetadata]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]
+    log_level: NotRequired[Literal["off", "error", "warn", "info", "debug"]]
     system_prompt: NotRequired[str]
     self_heal: NotRequired[bool]
     dom_settle_timeout_ms: NotRequired[int]
@@ -1025,7 +1002,7 @@ class ObserveOptions(TypedDict):
 
 class StagehandActParams(TypedDict):
     page_id: str
-    input: str | Action
+    instruction: str | Action
     options: NotRequired[ActOptions]
 
 
@@ -1033,3 +1010,72 @@ class StagehandObserveParams(TypedDict):
     page_id: str
     instruction: NotRequired[str]
     options: NotRequired[ObserveOptions]
+
+
+class WebMCPAnnotation(TypedDict):
+    read_only: NotRequired[bool]
+    untrusted_content: NotRequired[bool]
+    autosubmit: NotRequired[bool]
+
+
+WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
+
+
+WebMCPJsonValue: TypeAlias = FieldSchema8
+
+
+class PageWebMCPInvokeToolParams(TypedDict):
+    page_id: str
+    frame_id: str
+    tool_name: str
+    input: NotRequired[dict[str, WebMCPJsonValue]]
+
+
+class WebMCPInvocationDescriptor(TypedDict):
+    invocation_id: str
+    tool_name: str
+    frame_id: str
+    input: dict[str, WebMCPJsonValue]
+
+
+WebMCPRemoteObject: TypeAlias = dict[str, WebMCPJsonValue]
+
+
+class WebMCPResultOptions(TypedDict):
+    timeout: NotRequired[float]
+
+
+class PageWebMCPInvocationResultParams(TypedDict):
+    page_id: str
+    invocation_id: str
+    options: NotRequired[WebMCPResultOptions]
+
+
+class WebMCPToolDescriptor(TypedDict):
+    name: str
+    description: str
+    input_schema: NotRequired[dict[str, WebMCPJsonValue]]
+    annotations: NotRequired[WebMCPAnnotation]
+    frame_id: str
+    backend_node_id: NotRequired[int]
+
+
+class PageWebMCPToolsResult(TypedDict):
+    tools: list[WebMCPToolDescriptor]
+
+
+class WebMCPToolResponse(TypedDict):
+    invocation_id: str
+    status: WebMCPInvocationStatus
+    output: NotRequired[WebMCPJsonValue]
+    error_text: NotRequired[str]
+    exception: NotRequired[WebMCPRemoteObject]
+
+
+class WebMCPToolsOptions(TypedDict):
+    timeout: NotRequired[float]
+
+
+class PageWebMCPToolsParams(TypedDict):
+    page_id: str
+    options: NotRequired[WebMCPToolsOptions]
