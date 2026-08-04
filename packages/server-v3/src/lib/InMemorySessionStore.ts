@@ -236,6 +236,7 @@ export class InMemorySessionStore implements SessionStore {
       verbose: params.verbose,
       systemPrompt: params.systemPrompt,
       selfHeal: params.selfHeal,
+      useTouch: params.useTouch,
       domSettleTimeout: params.domSettleTimeoutMs,
       experimental: params.experimental,
       // Wrap logger to use the ref so it can be updated per-request

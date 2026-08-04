@@ -1121,6 +1121,7 @@ export class V3 {
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
+              useTouch: this.opts.useTouch,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
             });

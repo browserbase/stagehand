@@ -555,6 +555,11 @@ export const SessionStartRequestSchema = z
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
     }),
+    useTouch: z.boolean().optional().meta({
+      description:
+        "Actuate coordinate pointer actions as trusted touch taps instead of mouse input (for sessions rendering a mobile layout)",
+      example: false,
+    }),
   })
   .meta({ id: "SessionStartRequest" });
 
