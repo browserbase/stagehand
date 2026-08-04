@@ -30,7 +30,6 @@
     cdpURL: "cdp_url",
     chromiumSandbox: "chromium_sandbox",
     clientLanguage: "client_language",
-    connectTimeoutMs: "connect_timeout_ms",
     deviceScaleFactor: "device_scale_factor",
     domSettleTimeoutMs: "dom_settle_timeout_ms",
     domainPattern: "domain_pattern",

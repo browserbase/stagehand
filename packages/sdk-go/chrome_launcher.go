@@ -20,11 +20,10 @@ import (
 )
 
 const (
-	defaultChromeWidth         = 1280
-	defaultChromeHeight        = 800
-	defaultChromeLaunchTimeout = 10 * time.Second
-	chromePollInterval         = 100 * time.Millisecond
-	webMCPChromeFlag           = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
+	defaultChromeWidth  = 1280
+	defaultChromeHeight = 800
+	chromePollInterval  = 100 * time.Millisecond
+	webMCPChromeFlag    = "--enable-features=WebMCPTesting,DevToolsWebMCPSupport"
 )
 
 // Copyright 2017 Google Inc. All Rights Reserved.
@@ -169,8 +168,14 @@ func launchChrome(
 		process:     process,
 		removeDir:   removeDir,
 	}
-	if err := waitForChrome(ctx, launched.cdpURL, process, chromeLaunchTimeout(options)); err != nil {
-		return nil, errors.Join(err, launched.close(context.Background()))
+	if err := waitForChrome(ctx, launched.cdpURL, process); err != nil {
+		closeCtx, cancelClose := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			stagehandFailureCleanupTimeout,
+		)
+		closeErr := launched.close(closeCtx)
+		cancelClose()
+		return nil, errors.Join(err, closeErr)
 	}
 	return launched, nil
 }
@@ -178,9 +183,6 @@ func launchChrome(
 func validateLocalBrowserOptions(options LocalBrowserLaunchOptions) error {
 	if options.Port < 0 || options.Port > 65_535 {
 		return errors.New("stagehand Chrome port must be 0 or between 1 and 65535")
-	}
-	if options.ConnectTimeoutMs < 0 {
-		return errors.New("stagehand Chrome connect timeout cannot be negative")
 	}
 	if options.Viewport != nil && (options.Viewport.Width <= 0 || options.Viewport.Height <= 0) {
 		return errors.New("stagehand Chrome viewport dimensions must be positive")
@@ -370,27 +372,17 @@ func availablePort() (int, error) {
 	return port, nil
 }
 
-func chromeLaunchTimeout(options LocalBrowserLaunchOptions) time.Duration {
-	if options.ConnectTimeoutMs > 0 {
-		return time.Duration(options.ConnectTimeoutMs) * time.Millisecond
-	}
-	return defaultChromeLaunchTimeout
-}
-
 func waitForChrome(
 	ctx context.Context,
 	cdpURL string,
 	process *chromeProcess,
-	timeout time.Duration,
 ) error {
-	waitContext, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
 	client := &http.Client{Timeout: chromePollInterval}
 	ticker := time.NewTicker(chromePollInterval)
 	defer ticker.Stop()
 
 	for {
-		if err := waitContext.Err(); err != nil {
+		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("wait for Chrome debugging port: %w", err)
 		}
 		select {
@@ -399,8 +391,8 @@ func waitForChrome(
 		default:
 		}
 
-		if chromeDebuggingReady(waitContext, client, cdpURL) {
-			if err := waitContext.Err(); err != nil {
+		if chromeDebuggingReady(ctx, client, cdpURL) {
+			if err := ctx.Err(); err != nil {
 				return fmt.Errorf("wait for Chrome debugging port: %w", err)
 			}
 			select {
@@ -414,8 +406,8 @@ func waitForChrome(
 		select {
 		case <-process.done:
 			return chromeExitedBeforeReadyError(process)
-		case <-waitContext.Done():
-			return fmt.Errorf("wait for Chrome debugging port: %w", waitContext.Err())
+		case <-ctx.Done():
+			return fmt.Errorf("wait for Chrome debugging port: %w", ctx.Err())
 		case <-ticker.C:
 		}
 	}

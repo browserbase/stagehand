@@ -645,7 +645,7 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
-export const CacheStatusSchema = z.enum(["HIT", "MISS"]).meta({ id: "CacheStatus" });
+export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
  * caching with an optional hit-count threshold (how many identical results
@@ -980,7 +980,6 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
     keepAlive: z.boolean().optional(),
@@ -1042,13 +1041,51 @@ export const StagehandResultUsageSchema = z
     description: "Aggregate LLM usage for one Stagehand operation",
   });
 
+/** LLM tokens avoided by serving a request from the cache. */
+export const CacheTokenSavingsSchema = z
+  .strictObject({
+    inputTokens: z.number().int().nonnegative().default(0),
+    outputTokens: z.number().int().nonnegative().default(0),
+    totalTokens: z.number().int().nonnegative().default(0),
+  })
+  .meta({ id: "CacheTokenSavings" });
+
+/**
+ * Cache observability for one act/observe/extract call. Always present, like
+ * `usage`: DISABLED says no lookup ran, and otherwise it is self-explaining —
+ * a miss carries why it missed, a hit carries how established the entry is.
+ */
+export const CacheMetadataSchema = z
+  .strictObject({
+    status: CacheStatusSchema.meta({
+      description:
+        "Whether server-side caching served this result, computed it, or was not consulted",
+    }),
+    count: z.number().int().nonnegative().optional().meta({
+      description:
+        "Times this cache key has been seen, including this request; compare with threshold to see how close the key is to being served",
+    }),
+    threshold: z.number().int().positive().optional().meta({
+      description: "Hit-count threshold in effect for this key",
+    }),
+    missReason: z.string().optional().meta({
+      description:
+        'Why the cache did not serve this request; misses only. Reported by the server: "not_found", "threshold", "empty_array", "timeout", "error", "bypass", "screenshot", "not_enabled", "no_cache_key". Reported locally: "read_failed" (the cache request itself failed) and "replay_failed" (a cached value was found but could not be applied)',
+    }),
+    tokensSaved: CacheTokenSavingsSchema.optional().meta({
+      description: "LLM tokens avoided by serving this request from cache; hits only",
+    }),
+  })
+  .meta({ id: "CacheMetadata" });
+
 export const StagehandResultMetadataSchema = z
   .strictObject({
     actionId: z.string().optional().meta({
       description: "Action ID for tracking",
     }),
-    cacheStatus: CacheStatusSchema.optional().meta({
-      description: "Server-side cache status for this result",
+    cache: CacheMetadataSchema.meta({
+      description:
+        "Cache observability for this result; status is DISABLED when no cache lookup ran",
     }),
     usage: StagehandResultUsageSchema.meta({
       description:
@@ -1061,7 +1098,7 @@ export const ActOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1123,7 +1160,7 @@ export const ExtractOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
@@ -1171,7 +1208,7 @@ export const ObserveOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1399,7 +1436,10 @@ export const StagehandInitParamsSchema = z
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserSessionMetadataSchema.optional(),
-    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
+    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
+      description:
+        "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
+    }),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),

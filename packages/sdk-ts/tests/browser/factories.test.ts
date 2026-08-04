@@ -9,6 +9,14 @@ function fakeCdpClient(close = vi.fn()) {
   return { close } as unknown as CDPClient;
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("Stagehand browser factories", () => {
   it("launches a local browser and prepares the packaged extension", async () => {
     const closeSource = vi.fn();
@@ -24,19 +32,17 @@ describe("Stagehand browser factories", () => {
       connectCdp,
     });
 
-    const browser = await localBrowser.launch({ headless: true, connectTimeoutMs: 2_000 });
+    const browser = await localBrowser.launch({ headless: true });
 
     expect(browser).toMatchObject({ provider: "local", origin: "launched", closed: false });
     expect(launchLocalBrowser).toHaveBeenCalledWith({
       headless: true,
-      connectTimeoutMs: 2_000,
     });
     expect(connectCdp).toHaveBeenCalledWith(
       expect.objectContaining({
         cdpUrl: "http://127.0.0.1:9222",
         extensionDir: expect.stringContaining("dist/extension") as string,
-        discoveryTimeoutMs: 2_000,
-        cdpConnectTimeoutMs: 2_000,
+        signal: expect.any(AbortSignal),
       }),
     );
 
@@ -192,5 +198,54 @@ describe("Stagehand browser factories", () => {
 
     await expect(localBrowser.launch({ keepAlive: true })).rejects.toThrow("extension failed");
     expect(closeSource).not.toHaveBeenCalled();
+  });
+
+  it("closes a connector that resolves after the internal lifecycle deadline", async () => {
+    vi.useFakeTimers();
+    const connection = deferred<CDPClient>();
+    const closeCdp = vi.fn();
+    const { localBrowser } = createBrowserFactoriesForTest({
+      connectCdp: async () => connection.promise,
+    });
+
+    try {
+      const connecting = localBrowser.connect({ cdpUrl: "ws://browser.example" });
+      const rejection = expect(connecting).rejects.toThrow(
+        "Stagehand initialization timed out after 60000ms",
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await rejection;
+
+      connection.resolve(fakeCdpClient(closeCdp));
+      await vi.waitFor(() => expect(closeCdp).toHaveBeenCalledOnce());
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("closes an owned local browser that launches after the lifecycle deadline", async () => {
+    vi.useFakeTimers();
+    const launch = deferred<{ cdpUrl: string; close: () => Promise<void> }>();
+    const closeSource = vi.fn(async () => {});
+    const connectCdp = vi.fn(async () => fakeCdpClient());
+    const { localBrowser } = createBrowserFactoriesForTest({
+      launchLocalBrowser: async () => launch.promise,
+      connectCdp,
+    });
+
+    try {
+      const launching = localBrowser.launch();
+      const rejection = expect(launching).rejects.toThrow(
+        "Stagehand initialization timed out after 60000ms",
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await rejection;
+
+      launch.resolve({ cdpUrl: "ws://late-browser", close: closeSource });
+      await vi.waitFor(() => expect(closeSource).toHaveBeenCalledOnce());
+      expect(connectCdp).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

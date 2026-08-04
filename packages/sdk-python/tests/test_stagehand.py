@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import inspect
 import json
 from collections.abc import Awaitable, Callable
 from typing import TypeVar, cast, overload
@@ -17,12 +18,14 @@ from stagehand import (
     ProtocolLocator,
     Stagehand,
 )
+from stagehand import timeouts as timeout_settings
 from stagehand._generated.models import (
     Action,
     ActResult,
     ActResultData,
     BrowserbaseRegion,
     BrowserSessionMetadata,
+    CacheMetadata,
     CacheStatus,
     ClientModelReference,
     LLMGenerateParams,
@@ -55,7 +58,7 @@ from stagehand.browser import (
 )
 from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
 from stagehand.client_models import CacheOptions, StagehandClientLoggingConfig
-from stagehand.rpc_client import RPCClient
+from stagehand.rpc_client import RPCClient, RPCError, _JSONRPCError
 
 from ._support import RecordingRPCClient
 
@@ -120,10 +123,7 @@ def _install_rpc_client(
 ) -> None:
     def build_rpc_client(
         _transport: object,
-        *,
-        request_timeout_ms: int,
     ) -> RPCClient:
-        assert request_timeout_ms == 10_000
         return cast(RPCClient, recording)
 
     monkeypatch.setattr(stagehand_module, "RPCClient", build_rpc_client)
@@ -277,7 +277,9 @@ async def test_create_claim_errors_for_closed_and_attached_handles(
 async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    failed = _recording({"stagehand.init": RuntimeError("init failed")})
+    failed = _recording({
+        "stagehand.init": RPCError(_JSONRPCError(code=-32603, message="init failed"))
+    })
     _install_rpc_client(monkeypatch, failed)
     browser, transport = _browser_handle()
 
@@ -298,7 +300,26 @@ async def test_failed_create_releases_claim_and_keeps_browser_open_for_retry(
 
 
 @pytest.mark.asyncio
-async def test_cancelled_create_releases_claim_and_keeps_browser_open_for_retry(
+async def test_invalid_success_response_fails_closed_because_initialization_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _recording({"stagehand.init": ValueError("invalid init result")})
+    _install_rpc_client(monkeypatch, failed)
+    browser, transport = _browser_handle()
+
+    with pytest.raises(ValueError, match="invalid init result"):
+        await Stagehand.create(browser=browser)
+
+    assert failed.closed is True
+    assert failed.close_transport_flags == [False]
+    assert browser.closed is True
+    assert transport.close_calls == 1
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        await Stagehand.create(browser=browser)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     started = asyncio.Event()
@@ -337,20 +358,71 @@ async def test_cancelled_create_releases_claim_and_keeps_browser_open_for_retry(
     browser, transport = _browser_handle()
     create_task = asyncio.create_task(Stagehand.create(browser=browser))
 
-    await started.wait()
+    await asyncio.wait_for(started.wait(), timeout=1)
     create_task.cancel()
     with pytest.raises(asyncio.CancelledError):
         await create_task
 
     assert blocking.closed is True
     assert blocking.close_transport_flags == [False]
-    assert browser.closed is False
-    assert transport.close_calls == 0
+    assert browser.closed is True
+    assert transport.close_calls == 1
 
-    successful = _recording()
-    _install_rpc_client(monkeypatch, successful)
-    stagehand = await Stagehand.create(browser=browser)
-    assert stagehand.initialized is True
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        await Stagehand.create(browser=browser)
+
+
+@pytest.mark.asyncio
+async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_timer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert timeout_settings.STAGEHAND_INIT_TIMEOUT_MS == 60_000
+    monkeypatch.setattr(timeout_settings, "STAGEHAND_INIT_TIMEOUT_MS", 50)
+    started = asyncio.Event()
+
+    class BlockingInitRPCClient(RecordingRPCClient):
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[RootModel[RootResultT]],
+        ) -> RootResultT: ...
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[ResultT],
+        ) -> ResultT: ...
+
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BaseModel],
+        ) -> object:
+            if method == "stagehand.init":
+                started.set()
+                await asyncio.Event().wait()
+            return await super().send(method, params, result_model)
+
+    blocking = BlockingInitRPCClient()
+    _install_rpc_client(monkeypatch, blocking)
+    browser, transport = _browser_handle()
+    creating = asyncio.create_task(Stagehand.create(browser=browser))
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    with pytest.raises(TimeoutError, match="Stagehand initialization timed out after 50ms"):
+        await creating
+
+    assert blocking.closed is True
+    assert blocking.close_transport_flags == [False]
+    assert browser.closed is True
+    assert transport.close_calls == 1
+    with pytest.raises(RuntimeError, match="Cannot attach Stagehand to a closed browser"):
+        await Stagehand.create(browser=browser)
 
 
 @pytest.mark.asyncio
@@ -542,15 +614,17 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         "stagehand.metrics": metrics,
         "stagehand.act": ActResult.model_validate({
             "data": act_data,
-            "metadata": {"cache_status": "HIT", "usage": usage},
+            "metadata": {"cache": {"status": "HIT"}, "usage": usage},
         }),
         "stagehand.observe": ObserveResult.model_validate({
             "data": [action],
-            "metadata": {"cache_status": "MISS", "usage": usage},
+            "metadata": {"cache": {"status": "MISS"}, "usage": usage},
         }),
         "stagehand.extract": {
             "data": {"heading": "Example Domain", "count": 1},
-            "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit, usage=usage),
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.hit), usage=usage
+            ),
         },
     })
     _install_rpc_client(monkeypatch, recording)
@@ -569,10 +643,10 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         locator=locator,
         cache=CacheOptions(threshold=1),
     )
-    observed = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
+    observed = await stagehand.observe("Find the link", model=model, locator=locator)
     extracted = await stagehand.extract(
-        instruction="Extract the heading",
-        schema=PageInfo,
+        "Extract the heading",
+        PageInfo,
         page=page,
         model=model,
         screenshot=True,
@@ -580,13 +654,13 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     )
 
     assert act_result.data == act_data
-    assert act_result.metadata.cache_status is CacheStatus.hit
+    assert act_result.metadata.cache.status is CacheStatus.hit
     assert act_result.metadata.usage == usage
     assert observed.data == [action]
-    assert observed.metadata.cache_status is CacheStatus.miss
+    assert observed.metadata.cache.status is CacheStatus.miss
     assert observed.metadata.usage == usage
     assert extracted.data == PageInfo(heading="Example Domain", count=1)
-    assert extracted.metadata.cache_status is CacheStatus.hit
+    assert extracted.metadata.cache.status is CacheStatus.hit
     assert extracted.metadata.usage == usage
     act_params = next(
         cast(StagehandActParams, params)
@@ -620,3 +694,25 @@ async def test_stagehand_ai_methods_require_an_active_page(
 
     with pytest.raises(RuntimeError, match="no active page"):
         await stagehand.act("Click the link")
+
+
+@pytest.mark.parametrize(
+    ("method", "positional"),
+    [
+        ("act", ["instruction"]),
+        ("observe", ["instruction"]),
+        ("extract", ["instruction", "schema"]),
+    ],
+)
+def test_semantic_arguments_stay_positional(method: str, positional: list[str]) -> None:
+    """TS and Go take these positionally; Python must match, with options keyword-only."""
+    parameters = list(inspect.signature(getattr(Stagehand, method)).parameters.values())
+    assert [
+        parameter.name
+        for parameter in parameters[1:]
+        if parameter.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+    ] == positional
+    assert all(
+        parameter.kind is inspect.Parameter.KEYWORD_ONLY
+        for parameter in parameters[1 + len(positional) :]
+    )

@@ -56,13 +56,13 @@ class Price(BaseModel):
     price: float
 
 result = await stagehand.extract(
-    instruction="extract the price",
-    schema=Price,
+    "extract the price",
+    Price,
 )
 price = result.data.price
 
 # Observe: discover available actions
-actions = (await stagehand.observe(instruction="find submit buttons")).data
+actions = (await stagehand.observe("find submit buttons")).data
 ```
 </View>
 

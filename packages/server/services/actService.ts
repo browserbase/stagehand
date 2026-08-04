@@ -27,14 +27,14 @@ import type { Page } from "../understudy/page.js";
 import { trimTrailingTextNode } from "../utils.js";
 import * as cacheService from "./cacheService.js";
 import * as llmService from "./llmService.js";
-import { zeroStagehandResultUsage } from "./resultUsage.js";
+import { disabledCacheMetadata, zeroStagehandResultUsage } from "./resultUsage.js";
 
 type ActInferenceResponse = Awaited<ReturnType<typeof inference.act>>;
 type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
 
 type ActContext = {
   page: Page;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt: string;
@@ -59,7 +59,7 @@ export async function act({
 }: {
   params: StagehandActParams;
   page: Page;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
@@ -115,10 +115,19 @@ export async function act({
     onHit: (value) => replayCachedActions(value, instruction, variables, context),
     execute: async () => {
       const result = await runActPipeline();
+      // Act can run several inferences (planning, self-heal), so report the
+      // aggregate — without it the server has no basis to compute the token
+      // savings a future hit avoided.
+      const { usage } = result.metadata;
       return {
         result,
         cacheValue:
           result.data.success && result.data.actions.length > 0 ? result.data.actions : undefined,
+        llmUsage: {
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          llmDurationMs: usage.inferenceTimeMs,
+        },
       };
     },
   });
@@ -520,7 +529,7 @@ function actResult(
   result: ActResultData,
   usage: StagehandResultUsage = zeroStagehandResultUsage(),
 ): ActResult {
-  return { data: result, metadata: { usage } };
+  return { data: result, metadata: { usage, cache: disabledCacheMetadata() } };
 }
 
 function describeAction(action: Action): string {
