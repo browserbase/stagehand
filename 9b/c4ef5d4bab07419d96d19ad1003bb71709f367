@@ -1,0 +1,29 @@
+packages/evals/initStagehand.ts
+  s_d039eb5c1662ee::t_6c0ec592e4ab83 81-82
+  s_d039eb5c1662ee::t_4c5ea3a1ef41f5 1-36,39-63,74,92,96-97,107-117,120-127
+  s_d039eb5c1662ee::t_8fbf906c60d22e 37-38,64-73,75-80,83-91,93-95,98-106,118-119
+packages/evals/framework/benchHarness.ts
+  s_d039eb5c1662ee::t_37ec6ab1eb32e2 152-157
+  s_d039eb5c1662ee::t_4c5ea3a1ef41f5 18,53,55,158-202
+  s_d039eb5c1662ee::t_954adda3f03d2c 52,54
+packages/evals/framework/benchRunner.ts
+  s_d039eb5c1662ee::t_a00ea7a24c6b6c 73-77
+packages/evals/tests/framework/benchRunner.test.ts
+  s_d039eb5c1662ee::t_9dce1803c0b30e 79-80,82,84-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9bc4ef5d4bab07419d96d19ad1003bb71709f367",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": null
+    }
+  }
+}
