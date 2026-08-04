@@ -47,14 +47,13 @@ export interface V3Options {
    * Actuate coordinate pointer actions as touch (a real `Input.dispatchTouchEvent`
    * tap) instead of mouse input. Mobile layouts commonly gate their handlers on
    * touch/pointer events, where a synthesized mouse click never registers — e.g. a
-   * size selector that keeps reporting "please choose a size".
+   * size selector that keeps reporting "please choose a size". Set this when the
+   * session renders a mobile layout (e.g. Browserbase `browserSettings.os:
+   * "mobile"`).
    *
-   * When omitted this is derived from the session: a Browserbase session with
-   * `browserSettings.os` of `"mobile"` or `"tablet"`, or a local session launched
-   * with `localBrowserLaunchOptions.hasTouch`. For sessions whose creation config
-   * is unknown here — resumed via `browserbaseSessionID` or attached via `cdpUrl` —
-   * init probes the browser's user agent instead. Set explicitly to override
-   * either resolution.
+   * Explicit opt-in only — nothing is derived from the session.
+   *
+   * @default false
    */
   useTouch?: boolean;
 

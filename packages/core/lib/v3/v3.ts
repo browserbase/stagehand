@@ -228,56 +228,12 @@ export class V3 {
   /**
    * Whether coordinate pointer actions should actuate as touch instead of mouse.
    *
-   * Resolved once, before the first action, and stable for the whole run — a
-   * mobile session behaves like one from the very first click, and the answer does
-   * not depend on what page happened to be loaded. An explicit `useTouch` always
-   * wins; otherwise a Browserbase `os: "mobile" | "tablet"` session (which renders
-   * touch-gated mobile layouts) or a local session launched with `hasTouch` implies
-   * touch. For sessions whose creation config Stagehand never saw — resumed via
-   * `browserbaseSessionID` or attached via `cdpUrl` — init probes the browser's
-   * user agent (`Browser.getVersion`) instead, so touch sessions are recognized
-   * automatically there too.
+   * Explicit opt-in via the `useTouch` option — no session-derived or probed
+   * detection, so the answer is known before the first action, is stable for the
+   * whole run, and never surprises a caller who didn't ask for touch.
    */
   public get usesTouch(): boolean {
-    if (typeof this.opts.useTouch === "boolean") {
-      return this.opts.useTouch;
-    }
-    if (this.probedTouch !== undefined) {
-      return this.probedTouch;
-    }
-    if (this.opts.env === "BROWSERBASE") {
-      const os = this.opts.browserbaseSessionCreateParams?.browserSettings?.os;
-      return os === "mobile" || os === "tablet";
-    }
-    return this.opts.localBrowserLaunchOptions?.hasTouch === true;
-  }
-
-  /**
-   * Touch capability probed from the running browser during init. Only set for
-   * sessions whose creation config is unknown to this process (resumed by
-   * `browserbaseSessionID` or attached via `cdpUrl`); config-created sessions
-   * resolve from config alone in {@link usesTouch}.
-   */
-  private probedTouch?: boolean;
-
-  /**
-   * Derive touch actuation from the browser's own user agent, for sessions whose
-   * creation config Stagehand never saw. `Browser.getVersion` is session-level
-   * (no page, no secure-context requirement — signals like
-   * `navigator.userAgentData` are absent on about:blank and insecure origins) and
-   * reflects the launch-level UA, which Browserbase mobile/tablet sessions carry.
-   * One round trip (~35ms remote), sent once during init. Best-effort: on failure
-   * the config-derived resolution stands.
-   */
-  private async probeTouchFromBrowser(): Promise<void> {
-    try {
-      const { userAgent } = await this.ctx.conn.send<{ userAgent: string }>(
-        "Browser.getVersion",
-      );
-      this.probedTouch = /Mobi|Android|iPhone|iPad/i.test(userAgent);
-    } catch {
-      // leave undefined — usesTouch falls back to config-derived resolution
-    }
+    return this.opts.useTouch === true;
   }
 
   /**
@@ -1033,9 +989,6 @@ export class V3 {
             });
             this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
             this.ctx.conn.onTransportClosed(this._onCdpClosed);
-            // Attached to a browser we didn't launch — config can't know whether
-            // it's a touch session, so ask the browser itself.
-            await this.probeTouchFromBrowser();
             this.state = {
               kind: "LOCAL",
               // no LaunchedChrome when attaching externally; create a stub kill
@@ -1115,10 +1068,6 @@ export class V3 {
 
         if (this.opts.env === "BROWSERBASE") {
           const { apiKey, projectId } = this.requireBrowserbaseCreds();
-          // Whether the user handed us an existing session. Captured before the
-          // API-client block below, which assigns the id it creates back onto
-          // `opts.browserbaseSessionID` and would make every session look resumed.
-          const resumedById = !!this.opts.browserbaseSessionID;
           this.logger({
             category: "init",
             message: "Starting browserbase session",
@@ -1204,12 +1153,6 @@ export class V3 {
           });
           this.ctx.conn.flowLoggerContext = this.flowLoggerContext;
           this.ctx.conn.onTransportClosed(this._onCdpClosed);
-          if (resumedById) {
-            // The session's browserSettings aren't echoed back by the API, so a
-            // resumed mobile session would silently fall back to mouse. Ask the
-            // browser itself instead.
-            await this.probeTouchFromBrowser();
-          }
           this.state = { kind: "BROWSERBASE", sessionId, ws, bb };
           this.browserbaseSessionId = sessionId;
           if (!keepAlive && !this.disableAPI) {
