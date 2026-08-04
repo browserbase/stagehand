@@ -32,6 +32,7 @@ type Browser struct {
 	provider       BrowserProvider
 	origin         BrowserOrigin
 	claimed        bool
+	browserContext *BrowserContext
 	closeRequested bool
 	closeResult    error
 	cdp            *cdpClient
@@ -72,6 +73,19 @@ func (browser *Browser) Closed() bool {
 	browser.mu.Lock()
 	defer browser.mu.Unlock()
 	return browser.closeRequested
+}
+
+// Context returns the Stagehand context attached to this browser.
+func (browser *Browser) Context() (*BrowserContext, error) {
+	if browser == nil {
+		return nil, ErrNotInitialized
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	if browser.browserContext == nil {
+		return nil, ErrNotInitialized
+	}
+	return browser.browserContext, nil
 }
 
 // Close tears down the browser-owned resources once and memoizes the result.
@@ -159,5 +173,33 @@ func releaseBrowserClaim(browser *Browser) {
 	}
 	browser.mu.Lock()
 	browser.claimed = false
+	browser.mu.Unlock()
+}
+
+func attachBrowserContext(browser *Browser, browserContext *BrowserContext) error {
+	if browser == nil {
+		return errors.New("browser is required")
+	}
+	if browserContext == nil {
+		return errors.New("browser context is required")
+	}
+	browser.mu.Lock()
+	defer browser.mu.Unlock()
+	if !browser.claimed {
+		return errors.New("cannot attach a browser context before Stagehand claims the browser")
+	}
+	if browser.browserContext != nil {
+		return errors.New("this browser already has a Stagehand context")
+	}
+	browser.browserContext = browserContext
+	return nil
+}
+
+func detachBrowserContext(browser *Browser) {
+	if browser == nil {
+		return
+	}
+	browser.mu.Lock()
+	browser.browserContext = nil
 	browser.mu.Unlock()
 }
