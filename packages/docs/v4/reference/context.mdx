@@ -436,7 +436,7 @@ Set or clear the context's domain policy.
 await stagehand.context.set_domain_policy(None)
 ```
 
-<ParamField path="policy" type="DomainPolicy | None">
+<ParamField path="policy" type="DomainPolicy | DomainPolicyInput | None">
   The policy to apply, or null/None to clear it.
 
 <ParamField path="policy.allowed_domains" type="list[str]" optional>
