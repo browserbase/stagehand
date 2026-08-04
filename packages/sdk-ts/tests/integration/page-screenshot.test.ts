@@ -125,37 +125,45 @@ describe("Page.screenshot options", () => {
   it("masks elements inside the dialog top layer", async () => {
     const page = await firstPage(stagehand);
     await page.goto(
-      `data:text/html,${encodeURIComponent(`<style>#dialog { transform: translate(35px, 25px) scale(1.2) rotate(4deg); transform-origin: top left; }</style><dialog id="dialog"><input id="secret" value="top-layer"></dialog><script>dialog.showModal()</script>`)}`,
+      `data:text/html,${encodeURIComponent(`<style>
+        #dialog { transform: translate(35px, 25px) perspective(450px) rotateY(24deg) rotateX(8deg) rotate(4deg); transform-origin: top left; scale: 1.15; }
+        #secret { position: relative; width: 160px; height: 70px; background: green; }
+        .probe { position: absolute; width: 1px; height: 1px; }
+        .tl { left: 8px; top: 8px; } .tr { right: 8px; top: 8px; }
+        .br { right: 8px; bottom: 8px; } .bl { left: 8px; bottom: 8px; }
+      </style><dialog id="dialog"><div id="secret">top-layer<span class="probe tl"></span><span class="probe tr"></span><span class="probe br"></span><span class="probe bl"></span></div></dialog><script>dialog.showModal()</script>`)}`,
     );
 
     const secret = page.locator("#secret");
-    const center = await page.evaluate(() => {
-      const rect = document.querySelector<HTMLInputElement>("#secret")!.getBoundingClientRect();
-      return {
-        x: Math.floor(rect.left + rect.width / 2),
-        y: Math.floor(rect.top + rect.height / 2),
-      };
-    });
+    const probeCenters = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>(".probe")).map((probe) => {
+        const rect = probe.getBoundingClientRect();
+        return {
+          x: Math.floor(rect.left + rect.width / 2),
+          y: Math.floor(rect.top + rect.height / 2),
+        };
+      }),
+    );
     const bytes = await page.screenshot({
       mask: [secret],
       maskColor: "#ff00ff",
       scale: "css",
     });
     expect(bytes.length).toBeGreaterThan(0);
-    const maskPixels = await inspectScreenshotPixels(page, bytes, [center], [255, 0, 255], 15);
+    const maskPixels = await inspectScreenshotPixels(page, bytes, probeCenters, [255, 0, 255], 15);
     expect(maskPixels.matchingPixels).toBeGreaterThan(100);
-    expect(maskPixels.pointMatches).toEqual([true]);
+    expect(maskPixels.pointMatches).toEqual([true, true, true, true]);
     await expect(
       page.evaluate(() => {
         const dialog = document.querySelector<HTMLDialogElement>("#dialog")!;
-        const secret = document.querySelector<HTMLInputElement>("#secret")!;
+        const secret = document.querySelector<HTMLElement>("#secret")!;
         return {
           dialogOpen: dialog.open,
-          inputValue: secret.value,
+          text: secret.textContent,
           visibility: getComputedStyle(secret).visibility,
         };
       }),
-    ).resolves.toEqual({ dialogOpen: true, inputValue: "top-layer", visibility: "visible" });
+    ).resolves.toEqual({ dialogOpen: true, text: "top-layer", visibility: "visible" });
   });
 
   it("masks every deep-locator match and respects nth() across an iframe hop", async () => {

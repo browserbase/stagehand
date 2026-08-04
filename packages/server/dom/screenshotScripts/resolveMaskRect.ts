@@ -7,9 +7,6 @@ export type MaskRect = {
 };
 
 export function resolveMaskRect(this: Element | null, maskToken?: string): MaskRect | null {
-  type QuadPoint = { x: number; y: number };
-  type BoxQuad = { p1: QuadPoint; p2: QuadPoint; p3: QuadPoint; p4: QuadPoint };
-
   function safeClosest(el: Element | null, selector: string): Element | null {
     try {
       return el && typeof el.closest === "function" ? el.closest(selector) : null;
@@ -58,50 +55,58 @@ export function resolveMaskRect(this: Element | null, maskToken?: string): MaskR
       height: rect.height,
     };
 
-    // getBoxQuads exposes the transformed border-box basis in viewport space. Inverting that
-    // affine basis maps the target's viewport bounds back into the root's local coordinate space,
-    // so overlays remain aligned when a top-layer dialog/popover is scaled or rotated.
+    // Chromium does not expose getBoxQuads(), and an affine inverse is insufficient for
+    // perspective transforms. Measure both boxes while the root's own transforms are temporarily
+    // neutralized instead. Transforms do not participate in layout, so this yields the coordinates
+    // used by an absolutely positioned child; restoring the transform then projects the overlay
+    // through the same 2D or 3D transform as the target.
     try {
-      const rootWithQuads = root as Element & { getBoxQuads?: () => BoxQuad[] };
-      const quad = rootWithQuads.getBoxQuads?.call(root)?.[0];
       const rootElement = root as HTMLElement;
-      const borderWidth = rootElement.offsetWidth;
-      const borderHeight = rootElement.offsetHeight;
-      if (quad && borderWidth > 0 && borderHeight > 0) {
-        const a = (quad.p2.x - quad.p1.x) / borderWidth;
-        const b = (quad.p2.y - quad.p1.y) / borderWidth;
-        const c = (quad.p4.x - quad.p1.x) / borderHeight;
-        const d = (quad.p4.y - quad.p1.y) / borderHeight;
-        const determinant = a * d - b * c;
-        if (Number.isFinite(determinant) && Math.abs(determinant) > 1e-8) {
-          const toLocal = (point: QuadPoint): QuadPoint => {
-            const x = point.x - quad.p1.x;
-            const y = point.y - quad.p1.y;
-            return {
-              x: (d * x - c * y) / determinant,
-              y: (-b * x + a * y) / determinant,
-            };
-          };
-          const points = [
-            toLocal({ x: rect.left, y: rect.top }),
-            toLocal({ x: rect.right, y: rect.top }),
-            toLocal({ x: rect.right, y: rect.bottom }),
-            toLocal({ x: rect.left, y: rect.bottom }),
-          ];
-          const left = Math.min(...points.map((point) => point.x));
-          const right = Math.max(...points.map((point) => point.x));
-          const top = Math.min(...points.map((point) => point.y));
-          const bottom = Math.max(...points.map((point) => point.y));
+      const transformProperties = ["transform", "translate", "rotate", "scale"] as const;
+      const previous = transformProperties.map((property) => ({
+        property,
+        value: rootElement.style.getPropertyValue(property),
+        priority: rootElement.style.getPropertyPriority(property),
+      }));
+      try {
+        for (const property of transformProperties) {
+          rootElement.style.setProperty(property, "none", "important");
+        }
+        const untransformedRootRect = root.getBoundingClientRect();
+        const untransformedTargetRect = this.getBoundingClientRect();
+        if (
+          untransformedTargetRect.width > 0 &&
+          untransformedTargetRect.height > 0 &&
+          Number.isFinite(untransformedRootRect.left) &&
+          Number.isFinite(untransformedRootRect.top)
+        ) {
+          // A small bleed prevents transformed edge antialiasing from exposing target pixels.
+          const maskBleed = 3;
           localRect = {
-            x: left - rootClientLeft + rootScrollLeft,
-            y: top - rootClientTop + rootScrollTop,
-            width: right - left,
-            height: bottom - top,
+            x:
+              untransformedTargetRect.left -
+              untransformedRootRect.left -
+              rootClientLeft +
+              rootScrollLeft -
+              maskBleed,
+            y:
+              untransformedTargetRect.top -
+              untransformedRootRect.top -
+              rootClientTop +
+              rootScrollTop -
+              maskBleed,
+            width: untransformedTargetRect.width + maskBleed * 2,
+            height: untransformedTargetRect.height + maskBleed * 2,
           };
+        }
+      } finally {
+        for (const { property, value, priority } of previous) {
+          if (value) rootElement.style.setProperty(property, value, priority);
+          else rootElement.style.removeProperty(property);
         }
       }
     } catch {
-      // Fall back to untransformed root-relative geometry when box quads are unavailable.
+      // Fall back to viewport-difference geometry if styles cannot be changed or measured.
     }
     let rootToken: string | null = null;
     if (maskToken) {
