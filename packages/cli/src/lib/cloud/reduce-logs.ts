@@ -3,12 +3,6 @@
 // console errors/warnings/asserts, uncaught exceptions, HTTP 4xx/5xx responses, and net-level load
 // failures. No LLM — pure allowlist + severity/status filter + field projection + dedupe + stack trim.
 
-/* eslint-disable @typescript-eslint/no-explicit-any --
- * This reducer parses the raw, untyped CDP event firehose; `any` on the
- * dynamic JSON params is intentional and load-bearing (narrowing to typed
- * shapes would only re-introduce optional-chaining noise for the same
- * runtime behavior). */
-
 export interface ReduceLogsOptions {
   /** Only failed / error-status network requests (4xx/5xx + load failures). */
   failedRequests?: boolean;
@@ -19,12 +13,24 @@ interface RawLog {
   request?: { rawBody?: string; params?: unknown };
 }
 
-function paramsOf(e: RawLog): Record<string, any> {
+interface CdpLogParams {
+  args?: Array<{ description?: string; value?: unknown }>;
+  entry?: { level?: string; text?: unknown; url?: unknown };
+  errorText?: unknown;
+  exceptionDetails?: {
+    exception?: { description?: string };
+    text?: string;
+  };
+  response?: { status?: number; url?: unknown };
+  type?: string;
+}
+
+function paramsOf(e: RawLog): CdpLogParams {
   try {
-    return (
-      (JSON.parse(e.request?.rawBody ?? "{}").params as Record<string, any>) ??
-      {}
-    );
+    const parsed = JSON.parse(e.request?.rawBody ?? "{}") as {
+      params?: CdpLogParams;
+    };
+    return parsed.params ?? {};
   } catch {
     return {};
   }
@@ -65,14 +71,19 @@ export function reduceLogs(
   for (const e of raw) {
     const p = paramsOf(e);
     const m = e.method;
+    const responseStatus = p.response?.status;
     let rec: Record<string, unknown> | null = null;
 
     if (
       m === "Runtime.consoleAPICalled" &&
+      typeof p.type === "string" &&
       ["error", "warning", "assert"].includes(p.type)
     ) {
-      const text = (p.args ?? [])
-        .map((a: any) => a.description || a.value || "")
+      const text = (Array.isArray(p.args) ? p.args : [])
+        .map((a) =>
+          a && typeof a === "object" ? a.description || a.value || "" : "",
+        )
+        .filter(Boolean)
         .join(" ");
       if (text && !/^%[os]/.test(text))
         rec = {
@@ -94,6 +105,7 @@ export function reduceLogs(
       };
     } else if (
       m === "Log.entryAdded" &&
+      typeof p.entry?.level === "string" &&
       ["error", "warning"].includes(p.entry?.level)
     ) {
       rec = {
@@ -105,13 +117,14 @@ export function reduceLogs(
       };
     } else if (
       m === "Network.responseReceived" &&
-      (p.response?.status ?? 0) >= 400
+      typeof responseStatus === "number" &&
+      responseStatus >= 400
     ) {
       rec = {
         kind: "network",
         domain: "Network",
-        status: p.response.status,
-        url: p.response.url,
+        status: responseStatus,
+        url: p.response?.url,
         type: p.type,
       };
     } else if (

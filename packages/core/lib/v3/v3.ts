@@ -226,6 +226,17 @@ export class V3 {
   }
 
   /**
+   * Whether coordinate pointer actions should actuate as touch instead of mouse.
+   *
+   * Explicit opt-in via the `useTouch` option — no session-derived or probed
+   * detection, so the answer is known before the first action, is stable for the
+   * whole run, and never surprises a caller who didn't ask for touch.
+   */
+  public get usesTouch(): boolean {
+    return this.opts.useTouch === true;
+  }
+
+  /**
    * Returns the configured viewport dimensions from launch options.
    * Falls back to default 1288x711 if not configured.
    */
@@ -1110,6 +1121,7 @@ export class V3 {
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
+              useTouch: this.opts.useTouch,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
             });
