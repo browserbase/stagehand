@@ -145,23 +145,28 @@ func TestPageNavigationMethodsReturnNilWithoutNetworkResponse(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"page.reload":     PageNavigationResult{Page: PageRef{PageID: "page-2"}},
-		"page.go_back":    PageNavigationResult{Page: PageRef{PageID: "page-3"}},
-		"page.go_forward": PageNavigationResult{Page: PageRef{PageID: "page-4"}},
+		"page.goto":       PageNavigationResult{Page: PageRef{PageID: "page-2"}},
+		"page.reload":     PageNavigationResult{Page: PageRef{PageID: "page-3"}},
+		"page.go_back":    PageNavigationResult{Page: PageRef{PageID: "page-4"}},
+		"page.go_forward": PageNavigationResult{Page: PageRef{PageID: "page-5"}},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	ctx := context.Background()
 
-	response, err := page.Reload(ctx, nil)
+	response, err := page.Goto(ctx, "data:text/html,inline", nil)
 	if err != nil || response != nil || page.PageID() != "page-2" {
+		t.Fatalf("Goto() = (%#v, %v), page ID = %q", response, err, page.PageID())
+	}
+	response, err = page.Reload(ctx, nil)
+	if err != nil || response != nil || page.PageID() != "page-3" {
 		t.Fatalf("Reload() = (%#v, %v), page ID = %q", response, err, page.PageID())
 	}
 	response, err = page.GoBack(ctx, nil)
-	if err != nil || response != nil || page.PageID() != "page-3" {
+	if err != nil || response != nil || page.PageID() != "page-4" {
 		t.Fatalf("GoBack() = (%#v, %v), page ID = %q", response, err, page.PageID())
 	}
 	response, err = page.GoForward(ctx, nil)
-	if err != nil || response != nil || page.PageID() != "page-4" {
+	if err != nil || response != nil || page.PageID() != "page-5" {
 		t.Fatalf("GoForward() = (%#v, %v), page ID = %q", response, err, page.PageID())
 	}
 }
