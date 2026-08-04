@@ -155,7 +155,7 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport := newQueueRPCTransport()
 	client := newTestRPCClient(t, transport)
 
-	var result PageRef
+	var result PageNavigationResult
 	callDone := make(chan error, 1)
 	go func() {
 		callDone <- client.call(
@@ -179,19 +179,22 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 		"jsonrpc": "2.0",
 		"id": 1,
 		"result": {
-			"page_id": "page-2",
-			"url": "https://example.com"
+			"page": {
+				"page_id": "page-2",
+				"url": "https://example.com"
+			},
+			"response": null
 		}
 	}`)
 
 	if err := receiveCallError(t, callDone); err != nil {
 		t.Fatalf("call() error = %v", err)
 	}
-	if result.PageID != "page-2" || result.URL == nil || *result.URL != "https://example.com" {
+	if result.Page.PageID != "page-2" || result.Page.URL == nil || *result.Page.URL != "https://example.com" {
 		t.Fatalf("call() result = %#v", result)
 	}
 
-	var invalid PageRef
+	var invalid PageNavigationResult
 	invalidDone := make(chan error, 1)
 	go func() {
 		invalidDone <- client.call(
@@ -206,15 +209,15 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 		"jsonrpc": "2.0",
 		"id": 2,
 		"result": {
-			"page_id": "page-2",
-			"unexpected": true
+			"page": {"page_id": "page-2", "unexpected": true},
+			"response": null
 		}
 	}`)
 	if err := receiveCallError(t, invalidDone); err == nil {
 		t.Fatal("call() accepted an unknown result field")
 	}
 
-	var missing PageRef
+	var missing PageNavigationResult
 	missingDone := make(chan error, 1)
 	go func() {
 		missingDone <- client.call(
@@ -228,10 +231,12 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 3,
-		"result": {"url": "https://example.com"}
+		"result": {"page": {}, "response": null}
 	}`)
 	if err := receiveCallError(t, missingDone); err == nil {
 		t.Fatal("call() accepted a result missing page_id")
+	} else if !strings.Contains(err.Error(), `page: missing required JSON field "page_id"`) {
+		t.Fatalf("call() error = %v, want missing nested page_id error", err)
 	}
 }
 

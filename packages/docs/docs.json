@@ -56,6 +56,7 @@
               "v4/reference/context",
               "v4/reference/clipboard",
               "v4/reference/page",
+              "v4/reference/response",
               "v4/reference/locator"
             ]
           }

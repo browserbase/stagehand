@@ -12,12 +12,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
+from ._generated.input_types import BrowserbaseBrowserSettings, ProxyConfig
 from ._generated.models import (
-    BrowserbaseBrowserSettings,
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
     BrowserSessionMetadata,
-    ProxyConfig,
 )
 from .browserbase_session import _create_browserbase_session_client
 from .cdp_client import CDPClient
@@ -458,12 +457,6 @@ class BrowserbaseBrowser:
             raise ValueError("api_key must not be empty")
         if extension_id is not None and not extension_id.strip():
             raise ValueError("extension_id must not be empty")
-        if (
-            browser_settings is not None
-            and browser_settings.extension_id is not None
-            and not browser_settings.extension_id.strip()
-        ):
-            raise ValueError("browser_settings.extension_id must not be empty")
         options = BrowserbaseSessionCreateParams.model_validate({
             name: value
             for name, value in (
@@ -477,6 +470,12 @@ class BrowserbaseBrowser:
             )
             if value is not None
         })
+        if (
+            options.browser_settings is not None
+            and options.browser_settings.extension_id is not None
+            and not options.browser_settings.extension_id.strip()
+        ):
+            raise ValueError("browser_settings.extension_id must not be empty")
         session = await _create_browserbase_session_client(api_key).create_session(options)
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
