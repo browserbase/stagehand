@@ -1,7 +1,7 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import type { Action } from "@browserbasehq/stagehand";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "no_js_click" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**

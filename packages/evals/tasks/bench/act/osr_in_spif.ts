@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "osr_in_spif" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     // this eval is designed to test whether stagehand can successfully

@@ -203,7 +203,7 @@ const args = strippedCli.filtered;
 if (listRequested) {
   const categories = (
     process.env.EVAL_CATEGORIES ??
-    "observe,act,combination,extract,targeted_extract,regression,agent"
+    "observe,act,extract,targeted_extract,regression,agent"
   ).split(",");
   const entries = categories.map((category) => ({
     category,

@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { compareStrings } from "../../../framework/stringScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_hamilton_weather" },
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {

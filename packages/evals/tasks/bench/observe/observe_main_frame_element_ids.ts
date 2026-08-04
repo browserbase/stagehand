@@ -1,4 +1,4 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import type { Action } from "@browserbasehq/stagehand";
 
 const filler = Array.from(
@@ -49,7 +49,7 @@ function buildHtml(): string {
   `)}`;
 }
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_main_frame_element_ids" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {

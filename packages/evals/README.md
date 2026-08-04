@@ -1,6 +1,6 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, `combination`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, GAIA).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, GAIA).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
 
@@ -53,7 +53,7 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 | ------------------------------------------------------- | ------------------------------ |
 | _(none)_ / `all`                                        | All bench tasks                |
 | `bench`                                                 | Entire bench tier              |
-| `act` / `extract` / `observe` / `agent` / `combination` | A category                     |
+| `act` / `extract` / `observe` / `agent`                 | A category                     |
 | `extract/extract_text`                                  | A specific task                |
 | `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench`  | Dataset-backed benchmark suite |
 
