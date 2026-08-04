@@ -39,7 +39,14 @@ from ._generated.models import (
     StagehandObserveParams,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
-from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release_browser
+from .browser import (
+    StagehandBrowser,
+    _attach_browser_context,
+    _claim_browser,
+    _ClaimedBrowser,
+    _detach_browser_context,
+    _release_browser,
+)
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
@@ -75,7 +82,6 @@ class Stagehand:
             )
         self._browser_handle = browser
         self._create_config = create_config
-        self._browser_context: BrowserContext | None = None
         self._rpc_client: RPCClient | None = None
         self._remove_notification_listener: Callable[[], None] | None = None
         self._remove_client_llm_handler: Callable[[], None] | None = None
@@ -152,9 +158,7 @@ class Stagehand:
 
     @property
     def context(self) -> BrowserContext:
-        if self._browser_context is None:
-            raise RuntimeError(_UNAVAILABLE_MESSAGE)
-        return self._browser_context
+        return self._browser_handle.context
 
     @property
     def browser(self) -> StagehandBrowser:
@@ -199,7 +203,7 @@ class Stagehand:
             init_params,
             StagehandInitResult,
         )
-        self._browser_context = BrowserContext(rpc_client)
+        _attach_browser_context(self._browser_handle, BrowserContext(rpc_client))
         self._initialized = True
 
     async def act(
@@ -224,7 +228,7 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandActParams.model_validate({
@@ -262,7 +266,7 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandObserveParams(page_id=target_page.page_id, instruction=instruction)
@@ -330,7 +334,7 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandExtractParams(
@@ -352,7 +356,7 @@ class Stagehand:
     async def close(self) -> None:
         async def close_impl() -> None:
             try:
-                if self._browser_context is not None and self._rpc_client is not None:
+                if self._initialized and self._rpc_client is not None:
                     try:
                         await self._rpc_client.send(
                             "stagehand.close",
@@ -428,7 +432,7 @@ class Stagehand:
             self._remove_notification_listener = None
         rpc_client = self._rpc_client
         self._rpc_client = None
-        self._browser_context = None
+        _detach_browser_context(self._browser_handle)
         self._initialized = False
         if rpc_client is not None:
             await rpc_client.close(RuntimeError("Stagehand closed"), close_transport=False)
