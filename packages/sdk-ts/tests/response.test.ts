@@ -12,19 +12,16 @@ class FakeResponseClient extends RPCClient {
   readonly preserveQueuedResponseIdentity: boolean;
 
   constructor(options: { preserveQueuedResponseIdentity?: boolean } = {}) {
-    super(
-      {
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
+    super({
+      serviceWorker: {
+        targetId: "worker-target",
+        url: "chrome-extension://stagehand/service-worker.js",
+        title: "Stagehand",
+        extensionId: "stagehand",
       },
-      1_000,
-    );
+      send: async () => {},
+      close: () => {},
+    });
     this.preserveQueuedResponseIdentity = options.preserveQueuedResponseIdentity ?? false;
   }
 
