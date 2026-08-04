@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -24,6 +26,8 @@ const (
 	jsonRPCInternalError           = -32603
 	maxJSONRPCRequestID     uint64 = 9_007_199_254_740_991
 	maxPendingNotifications        = 100
+	rpcResponseGrace               = 10 * time.Second
+	maxRPCResponseTimeout          = time.Duration(math.MaxInt64)
 )
 
 var (
@@ -175,6 +179,12 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 	if err != nil {
 		return fmt.Errorf("validate RPC params for %s: %w", method, err)
 	}
+	callContext := ctx
+	cancel := func() {}
+	if timeout, ok := rpcResponseTimeout(method, encodedParams); ok {
+		callContext, cancel = context.WithTimeout(ctx, timeout)
+	}
+	defer cancel()
 
 	pending := &pendingRPCRequest{
 		method:   method,
@@ -187,7 +197,7 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 	defer c.removePending(requestID, pending)
 
 	traceCarrier := propagation.MapCarrier{}
-	rpcTracePropagator.Inject(ctx, traceCarrier)
+	rpcTracePropagator.Inject(callContext, traceCarrier)
 	request, err := json.Marshal(rpcRequestEnvelope{
 		JSONRPC:     jsonRPCVersion,
 		ID:          requestID,
@@ -199,7 +209,13 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 	if err != nil {
 		return fmt.Errorf("encode RPC request for %s: %w", method, err)
 	}
-	if err := c.transport.Send(ctx, request); err != nil {
+	if err := c.transport.Send(callContext, request); err != nil {
+		if ctx.Err() != nil {
+			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
+		}
+		if callContext.Err() != nil {
+			return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
+		}
 		return fmt.Errorf("send RPC request for %s: %w", method, err)
 	}
 
@@ -212,9 +228,83 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 			return fmt.Errorf("decode RPC result for %s: %w", method, err)
 		}
 		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
+	case <-callContext.Done():
+		if ctx.Err() != nil {
+			return fmt.Errorf("RPC request canceled: %s: %w", method, ctx.Err())
+		}
+		return fmt.Errorf("RPC response timed out: %s: %w", method, callContext.Err())
 	}
+}
+
+func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
+	if method == "stagehand.init" {
+		return 0, false
+	}
+
+	var path []string
+	switch method {
+	case "stagehand.act",
+		"stagehand.extract",
+		"stagehand.observe",
+		"page.goto",
+		"page.reload",
+		"page.go_back",
+		"page.go_forward",
+		"page.screenshot",
+		"page.wait_for_selector",
+		"page.webmcp_tools",
+		"page.webmcp_invocation_result":
+		path = []string{"options", "timeout"}
+	case "page.wait_for_load_state":
+		path = []string{"timeout"}
+	case "page.wait_for_timeout":
+		path = []string{"ms"}
+	default:
+		return rpcResponseGrace, true
+	}
+
+	durationMilliseconds := jsonNumberAtPath(params, path...)
+	if durationMilliseconds < 0 {
+		durationMilliseconds = 0
+	}
+	maxOperationDuration := maxRPCResponseTimeout - rpcResponseGrace
+	operationNanoseconds := durationMilliseconds * float64(time.Millisecond)
+	if math.IsInf(operationNanoseconds, 1) ||
+		operationNanoseconds >= float64(maxOperationDuration) {
+		return maxRPCResponseTimeout, true
+	}
+	return rpcResponseGrace + time.Duration(operationNanoseconds), true
+}
+
+func jsonNumberAtPath(encoded json.RawMessage, path ...string) float64 {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	var current any
+	if err := decoder.Decode(&current); err != nil {
+		return 0
+	}
+	for _, property := range path {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return 0
+		}
+		current, ok = object[property]
+		if !ok {
+			return 0
+		}
+	}
+	number, ok := current.(json.Number)
+	if !ok {
+		return 0
+	}
+	value, err := number.Float64()
+	if err != nil {
+		if math.IsInf(value, 1) {
+			return value
+		}
+		return 0
+	}
+	return value
 }
 
 func (c *rpcClient) onRequest(method string, handler requestHandler) func() {

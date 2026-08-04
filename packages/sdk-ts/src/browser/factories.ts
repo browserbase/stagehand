@@ -23,6 +23,8 @@ import {
 } from "./browserbaseSession.js";
 import { launchLocalBrowser, type LocalBrowserLauncher } from "./localBrowser.js";
 import { STAGEHAND_EXTENSION_DIRECTORY_PATH } from "../extensionAssets.js";
+import { abortable } from "../abort.js";
+import { withStagehandInitDeadline } from "../timeouts.js";
 
 export { isStagehandBrowser };
 export type { BrowserbaseBrowser, LocalBrowser, StagehandBrowser } from "./index.js";
@@ -31,7 +33,6 @@ export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "
 
 export type ClaimedStagehandBrowser = {
   cdpClient: CDPClient;
-  commandTimeoutMs: number;
   workerInitMetadata: StagehandWorkerInitMetadata;
 };
 
@@ -63,31 +64,48 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
         if (options.acceptDownloads === true && options.downloadsPath === undefined) {
           throw new Error("downloadsPath is required when acceptDownloads is true");
         }
-        const launched = await launchLocal(options);
-        const source: BrowserConnectionSource = {
-          cdpUrl: launched.cdpUrl,
-          keepAlive: options.keepAlive ?? false,
-          close: launched.close,
-        };
-        return await connectBrowser({
-          provider: "local",
-          origin: "launched",
-          source,
-          connectCdp,
-          extension: { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
-          connectTimeoutMs: options.connectTimeoutMs,
-          afterConnect:
-            options.acceptDownloads === undefined && options.downloadsPath === undefined
-              ? undefined
-              : async (cdpClient) => {
-                  await cdpClient.sendCommand("Browser.setDownloadBehavior", {
-                    behavior: options.acceptDownloads === false ? "deny" : "allow",
-                    ...(options.downloadsPath === undefined
-                      ? {}
-                      : { downloadPath: options.downloadsPath }),
-                  });
-                },
-          workerInitMetadata: {},
+        return await withStagehandInitDeadline(async (signal) => {
+          const launchPromise = launchLocal(options);
+          let launched: Awaited<typeof launchPromise>;
+          try {
+            launched = await abortable(launchPromise, signal);
+          } catch (error) {
+            if (signal.aborted && options.keepAlive !== true) {
+              // A launcher may finish after the deadline; close that late-owned browser.
+              void launchPromise.then((lateBrowser) => lateBrowser.close()).catch(() => undefined);
+            }
+            throw error;
+          }
+          const source: BrowserConnectionSource = {
+            cdpUrl: launched.cdpUrl,
+            keepAlive: options.keepAlive ?? false,
+            close: launched.close,
+          };
+          return await connectBrowser({
+            provider: "local",
+            origin: "launched",
+            source,
+            connectCdp,
+            extension: { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH },
+            signal,
+            afterConnect:
+              options.acceptDownloads === undefined && options.downloadsPath === undefined
+                ? undefined
+                : async (cdpClient, commandSignal) => {
+                    await cdpClient.sendCommand(
+                      "Browser.setDownloadBehavior",
+                      {
+                        behavior: options.acceptDownloads === false ? "deny" : "allow",
+                        ...(options.downloadsPath === undefined
+                          ? {}
+                          : { downloadPath: options.downloadsPath }),
+                      },
+                      undefined,
+                      commandSignal,
+                    );
+                  },
+            workerInitMetadata: {},
+          });
         });
       },
 
@@ -97,44 +115,60 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
           cdpUrl: parsed.cdpUrl,
           keepAlive: true,
         };
-        return await connectBrowser({
-          provider: "local",
-          origin: "connected",
-          source,
-          connectCdp,
-          extension:
-            parsed.extensionId === undefined
-              ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
-              : { extensionId: parsed.extensionId },
-          connectTimeoutMs: parsed.connectTimeoutMs,
-          workerInitMetadata: {},
-        });
+        return await withStagehandInitDeadline(async (signal) =>
+          connectBrowser({
+            provider: "local",
+            origin: "connected",
+            source,
+            connectCdp,
+            extension:
+              parsed.extensionId === undefined
+                ? { extensionDir: STAGEHAND_EXTENSION_DIRECTORY_PATH }
+                : { extensionId: parsed.extensionId },
+            signal,
+            workerInitMetadata: {},
+          }),
+        );
       },
     },
 
     browserbase: {
       async launch(input) {
         const { apiKey, ...sessionOptions } = BrowserbaseLaunchOptionsSchema.parse(input);
-        const session = await createBrowserbase(apiKey).createSession(sessionOptions);
-        const source: BrowserConnectionSource = {
-          cdpUrl: session.cdpUrl,
-          keepAlive: sessionOptions.keepAlive ?? false,
-          close: session.close,
-        };
-        return await connectBrowser({
-          provider: "browserbase",
-          origin: "launched",
-          source,
-          connectCdp,
-          extension: { preloadedExtension: true },
-          connectTimeoutMs: undefined,
-          workerInitMetadata: {
-            apiKey,
-            browser: {
-              sessionId: session.sessionId,
-              ...(sessionOptions.region === undefined ? {} : { region: sessionOptions.region }),
+        return await withStagehandInitDeadline(async (signal) => {
+          const sessionPromise = createBrowserbase(apiKey).createSession(sessionOptions);
+          let session: Awaited<typeof sessionPromise>;
+          try {
+            session = await abortable(sessionPromise, signal);
+          } catch (error) {
+            if (signal.aborted && sessionOptions.keepAlive !== true) {
+              // A remote session may finish launching after the deadline; release it when owned.
+              void sessionPromise
+                .then((lateSession) => lateSession.close?.())
+                .catch(() => undefined);
+            }
+            throw error;
+          }
+          const source: BrowserConnectionSource = {
+            cdpUrl: session.cdpUrl,
+            keepAlive: sessionOptions.keepAlive ?? false,
+            close: session.close,
+          };
+          return await connectBrowser({
+            provider: "browserbase",
+            origin: "launched",
+            source,
+            connectCdp,
+            extension: { preloadedExtension: true },
+            signal,
+            workerInitMetadata: {
+              apiKey,
+              browser: {
+                sessionId: session.sessionId,
+                ...(sessionOptions.region === undefined ? {} : { region: sessionOptions.region }),
+              },
             },
-          },
+          });
         });
       },
 
@@ -144,28 +178,30 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
         if (!client.connectSession) {
           throw new Error("Browserbase session connection is not supported by this client");
         }
-        const session = await client.connectSession(options.sessionId);
-        const source: BrowserConnectionSource = {
-          cdpUrl: session.cdpUrl,
-          keepAlive: true,
-        };
-        return await connectBrowser({
-          provider: "browserbase",
-          origin: "connected",
-          source,
-          connectCdp,
-          extension:
-            options.extensionId === undefined
-              ? { preloadedExtension: true }
-              : { extensionId: options.extensionId },
-          connectTimeoutMs: options.connectTimeoutMs,
-          workerInitMetadata: {
-            apiKey: options.apiKey,
-            browser: {
-              sessionId: session.sessionId,
-              ...(session.region === undefined ? {} : { region: session.region }),
+        return await withStagehandInitDeadline(async (signal) => {
+          const session = await abortable(client.connectSession!(options.sessionId), signal);
+          const source: BrowserConnectionSource = {
+            cdpUrl: session.cdpUrl,
+            keepAlive: true,
+          };
+          return await connectBrowser({
+            provider: "browserbase",
+            origin: "connected",
+            source,
+            connectCdp,
+            extension:
+              options.extensionId === undefined
+                ? { preloadedExtension: true }
+                : { extensionId: options.extensionId },
+            signal,
+            workerInitMetadata: {
+              apiKey: options.apiKey,
+              browser: {
+                sessionId: session.sessionId,
+                ...(session.region === undefined ? {} : { region: session.region }),
+              },
             },
-          },
+          });
         });
       },
     },
@@ -199,30 +235,35 @@ async function connectBrowser(options: {
   source: BrowserConnectionSource;
   connectCdp: (options: CDPClientOptions) => Promise<CDPClient>;
   extension: { extensionDir: string } | { extensionId: string } | { preloadedExtension: true };
-  connectTimeoutMs: number | undefined;
-  afterConnect?: (cdpClient: CDPClient) => Promise<void>;
+  signal: AbortSignal;
+  afterConnect?: (cdpClient: CDPClient, signal: AbortSignal) => Promise<void>;
   workerInitMetadata: StagehandWorkerInitMetadata;
 }): Promise<StagehandBrowser> {
-  const commandTimeoutMs = 10_000;
   const ownsSource = options.origin === "launched" && !options.source.keepAlive;
   let cdpClient: CDPClient | undefined;
   try {
-    cdpClient = await options.connectCdp({
+    const connectionPromise = options.connectCdp({
       cdpUrl: options.source.cdpUrl,
       ...options.extension,
       serviceWorkerUrlIncludes: "service-worker.js",
-      discoveryTimeoutMs: options.connectTimeoutMs ?? 10_000,
-      cdpConnectTimeoutMs: options.connectTimeoutMs ?? 10_000,
-      commandTimeoutMs,
+      signal: options.signal,
     });
-    await options.afterConnect?.(cdpClient);
+    try {
+      cdpClient = await abortable(connectionPromise, options.signal);
+    } catch (error) {
+      if (options.signal.aborted) {
+        // An injected connector may ignore AbortSignal and resolve after the factory rejects.
+        void connectionPromise.then((lateClient) => lateClient.close()).catch(() => undefined);
+      }
+      throw error;
+    }
+    await options.afterConnect?.(cdpClient, options.signal);
     const connectedClient = cdpClient;
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
       attachment: {
         cdpClient: connectedClient,
-        commandTimeoutMs,
         workerInitMetadata: options.workerInitMetadata,
       } satisfies ClaimedStagehandBrowser,
       close: async () => {

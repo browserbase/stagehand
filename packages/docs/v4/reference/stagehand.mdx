@@ -188,7 +188,7 @@ const result = await stagehand.act("Click the sign in button");
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -367,7 +367,7 @@ const actions = await stagehand.observe("Find the sign in button");
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -538,7 +538,7 @@ console.log(product.data, product.metadata.cache.status);
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -809,7 +809,7 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
@@ -981,7 +981,7 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
@@ -1149,7 +1149,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.

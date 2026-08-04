@@ -1,8 +1,9 @@
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
@@ -64,7 +65,7 @@ class ManualCDPTransport implements CDPTransport {
 describe("RPCClient", () => {
   it("accepts page methods without SDK wrapper methods", async () => {
     const cdp = new FakeCDPTransport({ matched: true });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     const request = client.send(StagehandMethods.pageWaitForSelector, {
       pageId: "page-1",
@@ -99,7 +100,7 @@ describe("RPCClient", () => {
         same_site: "Lax",
       },
     ]);
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     const request = client.send(StagehandMethods.contextCookies, {
       urls: ["https://example.com/account"],
@@ -147,7 +148,7 @@ describe("RPCClient", () => {
       },
       response: null,
     });
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     await expect(
       client.send(StagehandMethods.pageGoto, {
@@ -174,8 +175,8 @@ describe("RPCClient", () => {
   });
 
   it("rejects invalid method params before sending them over CDP", async () => {
-    const cdp = new FakeCDPTransport([]);
-    const client = new RPCClient(cdp, 1_000);
+    const cdp = new FakeCDPTransport({ ok: true, runtime: "service_worker" });
+    const client = new RPCClient(cdp);
 
     await expect(
       client.send(StagehandMethods.contextPages, { extra: true } as never),
@@ -186,7 +187,7 @@ describe("RPCClient", () => {
 
   it("lets the worker request client work while the original SDK request is still pending", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async ({ value }) => ({ value: value.toUpperCase() }));
 
     const originalRequest = client.send(StagehandMethods.contextPages, {});
@@ -213,7 +214,7 @@ describe("RPCClient", () => {
 
   it("validates incoming request parameters before invoking the SDK handler", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     let calls = 0;
     client.onRequest(UppercaseMethod, async ({ value }) => {
       calls += 1;
@@ -240,7 +241,7 @@ describe("RPCClient", () => {
 
   it("validates an SDK handler result before returning it to the worker", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async () => ({ value: 42 }) as never);
 
     await cdp.receive({
@@ -262,7 +263,7 @@ describe("RPCClient", () => {
 
   it("returns method not found when no SDK handler is registered", async () => {
     const cdp = new ManualCDPTransport();
-    new RPCClient(cdp, 1_000);
+    new RPCClient(cdp);
 
     await cdp.receive({
       jsonrpc: "2.0",
@@ -283,7 +284,7 @@ describe("RPCClient", () => {
 
   it("returns a JSON-RPC error when an SDK handler throws", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     client.onRequest(UppercaseMethod, async () => {
       throw new Error("Client handler failed");
     });
@@ -308,7 +309,7 @@ describe("RPCClient", () => {
 
   it("rejects a failed request with a plain Error that preserves the JSON-RPC failure", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     const request = client.send(StagehandMethods.contextPages, {});
     const rpcError = {
       code: JSONRPCErrorCodes.internalError,
@@ -325,9 +326,131 @@ describe("RPCClient", () => {
     });
   });
 
+  it("times out an ordinary JSON-RPC response after the internal grace period", async () => {
+    vi.useFakeTimers();
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+
+    try {
+      const request = client.send(StagehandMethods.contextPages, {});
+      const rejection = expect(request).rejects.toThrow("RPC response timed out: context.pages");
+      await vi.advanceTimersByTimeAsync(9_999);
+
+      expect(client.pending.size).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(client.pending.size).toBe(0);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    {
+      name: "an Act operation timeout",
+      method: StagehandMethods.stagehandAct,
+      params: {
+        pageId: "page-1",
+        instruction: "click the button",
+        options: { timeout: 30_000 },
+      },
+    },
+    {
+      name: "page.waitForTimeout",
+      method: StagehandMethods.pageWaitForTimeout,
+      params: { pageId: "page-1", ms: 30_000 },
+    },
+    {
+      name: "a WebMCP result timeout",
+      method: StagehandMethods.pageWebMCPInvocationResult,
+      params: {
+        pageId: "page-1",
+        invocationId: "invocation-1",
+        options: { timeout: 30_000 },
+      },
+    },
+  ])("derives the JSON-RPC deadline from $name", async ({ method, params }) => {
+    vi.useFakeTimers();
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+
+    try {
+      const request = client.send(method, params);
+      const rejection = expect(request).rejects.toThrow(`RPC response timed out: ${method.name}`);
+      await vi.advanceTimersByTimeAsync(39_999);
+
+      expect(client.pending.size).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await rejection;
+      expect(client.pending.size).toBe(0);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects initialization RPCs that have no lifecycle signal", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+
+    try {
+      await expect(
+        client.send(StagehandMethods.stagehandInit, {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "test-client", version: "1.0.0" },
+          browserCdpUrl: "ws://cdp.test",
+        }),
+      ).rejects.toThrow("stagehand.init requires an initialization lifecycle signal");
+      expect(cdp.sent).toHaveLength(0);
+    } finally {
+      client.close();
+    }
+  });
+
+  it("lets initialization RPCs inherit the outer lifecycle deadline", async () => {
+    vi.useFakeTimers();
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    const controller = new AbortController();
+
+    try {
+      const request = client.sendStagehandInit(
+        {
+          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+          clientInfo: { name: "test-client", version: "1.0.0" },
+          browserCdpUrl: "ws://cdp.test",
+        },
+        controller.signal,
+      );
+      const rejection = expect(request).rejects.toThrow("initialization deadline expired");
+      await vi.advanceTimersByTimeAsync(60_000);
+
+      expect(client.pending.size).toBe(1);
+      controller.abort(new Error("initialization deadline expired"));
+      await rejection;
+      expect(client.pending.size).toBe(0);
+    } finally {
+      client.close();
+      vi.useRealTimers();
+    }
+  });
+
+  it("rejects pending requests when the client closes", async () => {
+    const cdp = new ManualCDPTransport();
+    const client = new RPCClient(cdp);
+    const request = client.send(StagehandMethods.contextPages, {});
+    const reason = new Error("transport closed");
+
+    client.close(reason);
+
+    await expect(request).rejects.toBe(reason);
+    expect(client.pending.size).toBe(0);
+  });
+
   it("removes incoming SDK request handlers when the RPC client closes", async () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
     let calls = 0;
     client.onRequest(UppercaseMethod, async ({ value }) => {
       calls += 1;
@@ -348,7 +471,7 @@ describe("RPCClient", () => {
 
   it("can close without taking ownership of the CDP transport", () => {
     const cdp = new ManualCDPTransport();
-    const client = new RPCClient(cdp, 1_000);
+    const client = new RPCClient(cdp);
 
     client.close(new Error("detached"), { closeTransport: false });
 

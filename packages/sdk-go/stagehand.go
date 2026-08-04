@@ -9,6 +9,12 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
+)
+
+const (
+	stagehandInitTimeout           = 60 * time.Second
+	stagehandFailureCleanupTimeout = 5 * time.Second
 )
 
 // Stagehand is the root SDK client.
@@ -30,6 +36,11 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error) {
 }
 
 func createWithAdapters(ctx context.Context, options CreateOptions, adapters clientAdapters, writers ...io.Writer) (*Stagehand, error) {
+	if ctx == nil {
+		return nil, errors.New("stagehand initialization context is required")
+	}
+	initCtx, cancelInit := context.WithTimeout(ctx, stagehandInitTimeout)
+	defer cancelInit()
 	if options.Browser == nil {
 		return nil, errors.New("stagehand: browser is required")
 	}
@@ -67,7 +78,6 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if options.Generate != nil {
 		client.removeLLMHandler = rpc.onRequest("llm.generate", newRequestHandler(options.Generate))
 	}
-
 	apiKey := options.APIKey
 	if claimed.workerAPIKey != nil {
 		apiKey = claimed.workerAPIKey
@@ -80,14 +90,29 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),
 	})
 	var initResult StagehandInitResult
-	if err := rpc.call(ctx, "stagehand.init", initParams, &initResult); err != nil {
+	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
 		if client.removeLLMHandler != nil {
 			client.removeLLMHandler()
 		}
 		client.removeNotificationHandler()
 		closeErr := rpc.close()
-		releaseBrowserClaim(options.Browser)
-		return nil, errors.Join(err, closeErr)
+		var rpcError *RPCError
+		if errors.As(err, &rpcError) {
+			// A JSON-RPC error proves the worker settled stagehand.init, so the
+			// Browser can safely be claimed by a later Create call.
+			releaseBrowserClaim(options.Browser)
+			return nil, errors.Join(err, closeErr)
+		}
+		// Cancellation and transport/decode failures do not prove whether the
+		// worker completed initialization. Invalidate the Browser and transport
+		// so the same handle cannot be retried against uncertain server state.
+		cleanupCtx, cancelCleanup := context.WithTimeout(
+			context.WithoutCancel(ctx),
+			stagehandFailureCleanupTimeout,
+		)
+		browserErr := options.Browser.Close(cleanupCtx)
+		cancelCleanup()
+		return nil, errors.Join(err, closeErr, browserErr)
 	}
 	client.context = &BrowserContext{rpc: rpc}
 	client.initialized = true
@@ -132,7 +157,7 @@ func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 // Act performs an AI-guided action on the selected or active page.
 func (s *Stagehand) Act(
 	ctx context.Context,
-	instruction any,
+	instruction ActInstructionValue,
 	options *StagehandClientActOptions,
 ) (ActResult, error) {
 	rpc, err := s.connectedProtocol()
@@ -143,19 +168,7 @@ func (s *Stagehand) Act(
 	if err != nil {
 		return ActResult{}, err
 	}
-	var actInstruction ActInstructionValue
-	switch value := instruction.(type) {
-	case string:
-		actInstruction = ActInstruction(value)
-	case Action:
-		actInstruction = ObservedAction(value)
-	default:
-		return ActResult{}, fmt.Errorf(
-			"act instruction must be a string or stagehand.Action, got %T",
-			instruction,
-		)
-	}
-	params := StagehandActParams{PageID: page.PageID(), Instruction: actInstruction}
+	params := StagehandActParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
 		params.Options = &options.ActOptions
 	}
@@ -220,23 +233,33 @@ func (s *Stagehand) Extract(
 	return result, nil
 }
 
-// ExtractAs decodes an Extract result into a caller-selected Go type.
+// TypedExtractResult contains caller-decoded extract data and its protocol metadata.
+type TypedExtractResult[T any] struct {
+	Data     T                       `json:"data"`
+	Metadata StagehandResultMetadata `json:"metadata"`
+}
+
+// ExtractAs decodes an Extract result into a caller-selected Go type while
+// preserving the full result envelope.
 func ExtractAs[T any](
 	ctx context.Context,
 	client *Stagehand,
 	instruction string,
 	schema json.RawMessage,
 	options *StagehandClientExtractOptions,
-) (T, error) {
+) (TypedExtractResult[T], error) {
+	var typedResult TypedExtractResult[T]
 	var value T
 	result, err := client.Extract(ctx, instruction, schema, options)
 	if err != nil {
-		return value, err
+		return typedResult, err
 	}
+	typedResult.Metadata = result.Metadata
 	if err := json.Unmarshal(result.Data, &value); err != nil {
-		return value, fmt.Errorf("decode stagehand.extract result: %w", err)
+		return typedResult, fmt.Errorf("decode stagehand.extract result: %w", err)
 	}
-	return value, nil
+	typedResult.Data = value
+	return typedResult, nil
 }
 
 // Close releases the remote Stagehand context without touching the Browser handle.

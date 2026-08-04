@@ -980,7 +980,6 @@ export const LocalBrowserLaunchOptionsSchema = z
     deviceScaleFactor: z.number().optional(),
     hasTouch: z.boolean().optional(),
     ignoreHTTPSErrors: z.boolean().optional(),
-    connectTimeoutMs: z.number().optional(),
     downloadsPath: z.string().optional(),
     acceptDownloads: z.boolean().optional(),
     keepAlive: z.boolean().optional(),
@@ -1099,7 +1098,7 @@ export const ActOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1161,7 +1160,7 @@ export const ExtractOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     timeout: z.number().optional().meta({
       description: "Timeout in ms for the extraction",
@@ -1209,7 +1208,7 @@ export const ObserveOptionsSchema = z
   .strictObject({
     model: ModelConfigSchema.optional().meta({
       description:
-        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used",
+        "Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists",
     }),
     variables: VariablesSchema.optional().meta({
       description:
@@ -1528,7 +1527,10 @@ export const StagehandInitParamsSchema = z
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     browser: BrowserSessionMetadataSchema.optional(),
-    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional(),
+    model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
+      description:
+        "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
+    }),
     telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),

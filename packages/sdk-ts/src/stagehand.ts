@@ -1,5 +1,6 @@
 import { RPCClient } from "./rpcClient.js";
 import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
+import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
@@ -30,6 +31,7 @@ import {
   type ClaimedStagehandBrowser,
   type StagehandBrowser,
 } from "./browser/factories.js";
+import { withStagehandInitDeadline } from "./timeouts.js";
 
 type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
 
@@ -44,6 +46,7 @@ export class Stagehand {
   removeNotificationListener: (() => void) | undefined;
   removeClientLLMHandler: (() => void) | undefined;
   closePromise: Promise<void> | undefined;
+  initRequestStarted = false;
 
   private constructor(
     private readonly browserHandle: StagehandBrowser,
@@ -54,11 +57,30 @@ export class Stagehand {
     const { browser, ...createConfig } = StagehandCreateOptionsSchema.parse(input);
     const claimedBrowser = claimStagehandBrowser(browser);
     const stagehand = new Stagehand(browser, createConfig);
+    let lifecycleSignal: AbortSignal | undefined;
     try {
-      await stagehand.initialize(claimedBrowser);
+      await withStagehandInitDeadline((signal) => {
+        lifecycleSignal = signal;
+        return stagehand.initialize(claimedBrowser, signal);
+      });
       return stagehand;
     } catch (error) {
-      releaseStagehandBrowser(browser);
+      const initFailureIsAmbiguous =
+        lifecycleSignal?.aborted ||
+        (stagehand.initRequestStarted && !isDefinitiveRPCErrorResponse(error));
+      if (initFailureIsAmbiguous) {
+        try {
+          await browser.close();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            "Stagehand initialization failed ambiguously and browser invalidation also failed",
+            { cause: error },
+          );
+        }
+      } else {
+        releaseStagehandBrowser(browser);
+      }
       throw error;
     }
   }
@@ -84,9 +106,9 @@ export class Stagehand {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
-  private async initialize(browser: ClaimedStagehandBrowser): Promise<void> {
+  private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
     const createConfig = this.createConfig;
-    const rpcClient = new RPCClient(browser.cdpClient, browser.commandTimeoutMs);
+    const rpcClient = new RPCClient(browser.cdpClient);
     this.rpcClient = rpcClient;
 
     try {
@@ -100,9 +122,10 @@ export class Stagehand {
         );
       }
 
-      await rpcClient.send(
-        StagehandMethods.stagehandInit,
+      this.initRequestStarted = true;
+      await rpcClient.sendStagehandInit(
         stagehandCreateParamsForWorker(createConfig, browser),
+        signal,
       );
       this.browserContext = new BrowserContext(rpcClient);
     } catch (error) {
@@ -207,6 +230,10 @@ export class Stagehand {
     }
     return this.rpcClient;
   }
+}
+
+function isDefinitiveRPCErrorResponse(error: unknown): boolean {
+  return error instanceof Error && JSONRPCErrorObjectSchema.safeParse(error.cause).success;
 }
 
 function stagehandCreateParamsForWorker(

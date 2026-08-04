@@ -522,6 +522,47 @@ describe("All language SDK operations remain in sync", () => {
       ).toEqual([]);
     }
   });
+
+  it("keeps Go act input typed and typed extract metadata intact", async () => {
+    const root = parse("go", await readFile(new URL("stagehand.go", goSource), "utf8")).root();
+    const stagehand = findClass(root, "go", "Stagehand");
+
+    expect(stagehand, "Go Stagehand must exist").toBeDefined();
+    if (!stagehand) return;
+
+    const act = directClassMethods(stagehand, "go", "Stagehand").find(
+      (candidate) => methodName(candidate.node, "go")?.text() === "Act",
+    )?.node;
+    expect(act, "Go Stagehand.Act must exist").toBeDefined();
+    expect(
+      act ? publicParameterTypes(act, "go").get("instruction") : undefined,
+      "Go Stagehand.Act must accept the generated instruction union",
+    ).toBe("ActInstructionValue");
+
+    const extractAs = root
+      .findAll({ rule: { kind: "function_declaration" } })
+      .find((function_) =>
+        namedChildren(function_).some(
+          (child) => child.kind() === "identifier" && child.text() === "ExtractAs",
+        ),
+      );
+    expect(extractAs, "Go ExtractAs must exist").toBeDefined();
+    expect(extractAs?.field("result")?.text(), "Go ExtractAs result type").toBe(
+      "(TypedExtractResult[T], error)",
+    );
+    expect(
+      extractAs
+        ?.findAll({ rule: { kind: "return_statement" } })
+        .some((statement) => /\btypedResult\b/u.test(statement.text())),
+      "Go ExtractAs must return its typed result envelope",
+    ).toBe(true);
+    expect(
+      extractAs
+        ?.findAll({ rule: { kind: "assignment_statement" } })
+        .some((assignment) => assignment.text() === "typedResult.Metadata = result.Metadata"),
+      "Go ExtractAs must preserve protocol result metadata",
+    ).toBe(true);
+  });
 });
 
 async function publicOperations(

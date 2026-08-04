@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
 )
@@ -28,7 +27,6 @@ type LocalBrowserLaunchOptions struct {
 	DeviceScaleFactor   *float64
 	HasTouch            bool
 	IgnoreHTTPSErrors   bool
-	ConnectTimeoutMs    int
 	DownloadsPath       string
 	AcceptDownloads     *bool
 	// KeepAlive transfers ownership of the launched browser lifetime to the caller.
@@ -39,9 +37,8 @@ type LocalBrowserLaunchOptions struct {
 
 // LocalBrowserConnectOptions configures a connection to an existing local browser.
 type LocalBrowserConnectOptions struct {
-	CDPURL           string
-	ConnectTimeoutMs int
-	ExtensionID      string
+	CDPURL      string
+	ExtensionID string
 }
 
 // BrowserbaseLaunchOptions configures a newly launched Browserbase session.
@@ -58,10 +55,9 @@ type BrowserbaseLaunchOptions struct {
 
 // BrowserbaseConnectOptions configures a connection to an existing Browserbase session.
 type BrowserbaseConnectOptions struct {
-	APIKey           string
-	SessionID        string
-	ConnectTimeoutMs int
-	ExtensionID      string
+	APIKey      string
+	SessionID   string
+	ExtensionID string
 }
 
 type browserbaseFactoryClient interface {
@@ -74,7 +70,7 @@ type browserFactoryDependencies struct {
 	createBrowserbaseClient func(string) (browserbaseFactoryClient, error)
 	connectCDP              func(context.Context, cdpClientOptions) (*cdpClient, error)
 	materializeExtension    func() (string, func() error, error)
-	commandSender           func(*cdpClient, time.Duration) browserCommandSender
+	commandSender           func(*cdpClient) browserCommandSender
 }
 
 type browserCommandSender interface {
@@ -82,12 +78,11 @@ type browserCommandSender interface {
 }
 
 type cdpBrowserCommandSender struct {
-	cdp     *cdpClient
-	timeout time.Duration
+	cdp *cdpClient
 }
 
 func (sender cdpBrowserCommandSender) sendCommand(ctx context.Context, method string, params any) error {
-	return sender.cdp.sendCommand(ctx, method, params, "", sender.timeout, &struct{}{})
+	return sender.cdp.sendCommand(ctx, method, params, "", &struct{}{})
 }
 
 type browserConnectionSource struct {
@@ -104,7 +99,6 @@ type connectBrowserOptions struct {
 	extensionDir       string
 	extensionID        string
 	preloadedExtension bool
-	connectTimeoutMs   int
 	afterConnect       func(context.Context, browserCommandSender) error
 	workerAPIKey       *string
 	workerBrowser      *BrowserSessionMetadata
@@ -116,6 +110,12 @@ func LaunchLocalBrowser(ctx context.Context, options *LocalBrowserLaunchOptions)
 }
 
 func launchLocalBrowserWithDependencies(ctx context.Context, options *LocalBrowserLaunchOptions, dependencies browserFactoryDependencies) (*Browser, error) {
+	lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cancelLifecycle()
+
 	resolvedOptions := LocalBrowserLaunchOptions{}
 	if options != nil {
 		resolvedOptions = *options
@@ -131,7 +131,7 @@ func launchLocalBrowserWithDependencies(ctx context.Context, options *LocalBrows
 	if launch == nil {
 		launch = launchLocalBrowser
 	}
-	source, err := launch(ctx, resolvedOptions)
+	source, err := launch(lifecycleCtx, resolvedOptions)
 	if err != nil {
 		return nil, errors.Join(err, cleanup())
 	}
@@ -149,10 +149,10 @@ func launchLocalBrowserWithDependencies(ctx context.Context, options *LocalBrows
 			return sender.sendCommand(ctx, "Browser.setDownloadBehavior", params)
 		}
 	}
-	return connectBrowser(ctx, connectBrowserOptions{
+	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginLaunched,
 		source:       browserConnectionSource{cdpURL: source.cdpURL, keepAlive: resolvedOptions.KeepAlive, close: source.close, cleanup: cleanup},
-		extensionDir: extensionDir, connectTimeoutMs: resolvedOptions.ConnectTimeoutMs,
+		extensionDir: extensionDir,
 		afterConnect: afterConnect,
 	}, dependencies)
 }
@@ -163,9 +163,12 @@ func ConnectLocalBrowser(ctx context.Context, options LocalBrowserConnectOptions
 }
 
 func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrowserConnectOptions, dependencies browserFactoryDependencies) (*Browser, error) {
-	if err := validateBrowserConnectTimeout(options.ConnectTimeoutMs); err != nil {
+	lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(ctx)
+	if err != nil {
 		return nil, err
 	}
+	defer cancelLifecycle()
+
 	extensionDir := ""
 	var cleanup func() error
 	if options.ExtensionID == "" {
@@ -175,10 +178,10 @@ func connectLocalBrowserWithDependencies(ctx context.Context, options LocalBrows
 			return nil, err
 		}
 	}
-	return connectBrowser(ctx, connectBrowserOptions{
+	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderLocal, origin: BrowserOriginConnected,
 		source:       browserConnectionSource{cdpURL: options.CDPURL, keepAlive: true, cleanup: cleanup},
-		extensionDir: extensionDir, extensionID: options.ExtensionID, connectTimeoutMs: options.ConnectTimeoutMs,
+		extensionDir: extensionDir, extensionID: options.ExtensionID,
 	}, dependencies)
 }
 
@@ -188,11 +191,17 @@ func LaunchBrowserbase(ctx context.Context, options BrowserbaseLaunchOptions) (*
 }
 
 func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseLaunchOptions, dependencies browserFactoryDependencies) (*Browser, error) {
+	lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cancelLifecycle()
+
 	client, err := browserbaseClientForFactory(options.APIKey, dependencies)
 	if err != nil {
 		return nil, err
 	}
-	source, err := client.createSession(ctx, options)
+	source, err := client.createSession(lifecycleCtx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +211,7 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 		region := *options.Region
 		workerRegion = &region
 	}
-	return connectBrowser(ctx, connectBrowserOptions{
+	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginLaunched,
 		source:             browserConnectionSource{cdpURL: source.cdpURL, keepAlive: keepAlive, close: source.close},
 		preloadedExtension: true, workerAPIKey: &options.APIKey,
@@ -216,31 +225,27 @@ func ConnectBrowserbase(ctx context.Context, options BrowserbaseConnectOptions) 
 }
 
 func connectBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseConnectOptions, dependencies browserFactoryDependencies) (*Browser, error) {
-	if err := validateBrowserConnectTimeout(options.ConnectTimeoutMs); err != nil {
+	lifecycleCtx, cancelLifecycle, err := browserLifecycleContext(ctx)
+	if err != nil {
 		return nil, err
 	}
+	defer cancelLifecycle()
+
 	client, err := browserbaseClientForFactory(options.APIKey, dependencies)
 	if err != nil {
 		return nil, err
 	}
-	session, err := client.connectSession(ctx, options.SessionID)
+	session, err := client.connectSession(lifecycleCtx, options.SessionID)
 	if err != nil {
 		return nil, err
 	}
-	return connectBrowser(ctx, connectBrowserOptions{
+	return connectBrowser(lifecycleCtx, connectBrowserOptions{
 		provider: BrowserProviderBrowserbase, origin: BrowserOriginConnected,
 		source:      browserConnectionSource{cdpURL: session.cdpURL, keepAlive: true},
 		extensionID: options.ExtensionID, preloadedExtension: options.ExtensionID == "",
-		connectTimeoutMs: options.ConnectTimeoutMs, workerAPIKey: &options.APIKey,
+		workerAPIKey:  &options.APIKey,
 		workerBrowser: &BrowserSessionMetadata{SessionID: session.sessionID, Region: session.region},
 	}, dependencies)
-}
-
-func validateBrowserConnectTimeout(connectTimeoutMs int) error {
-	if connectTimeoutMs < 0 {
-		return errors.New("stagehand browser connect timeout cannot be negative")
-	}
-	return nil
 }
 
 func browserbaseClientForFactory(apiKey string, dependencies browserFactoryDependencies) (browserbaseFactoryClient, error) {
@@ -282,27 +287,28 @@ func materializeStagehandExtension(dependencies browserFactoryDependencies) (str
 }
 
 func connectBrowser(ctx context.Context, options connectBrowserOptions, dependencies browserFactoryDependencies) (*Browser, error) {
-	commandTimeout := defaultCDPCommandTimeout
+	if ctx == nil {
+		return nil, errors.New("stagehand browser initialization context is required")
+	}
+
 	ownsSource := options.origin == BrowserOriginLaunched && !options.source.keepAlive
 	connect := dependencies.connectCDP
 	if connect == nil {
 		connect = connectCDPClient
 	}
-	timeout := time.Duration(options.connectTimeoutMs) * time.Millisecond
 	cdp, err := connect(ctx, cdpClientOptions{
 		cdpURL: options.source.cdpURL, extensionDir: options.extensionDir,
 		extensionID: options.extensionID, preloadedExtension: options.preloadedExtension,
-		serviceWorkerURLIncludes: "service-worker.js", connectTimeout: timeout,
-		discoveryTimeout: timeout, commandTimeout: commandTimeout,
+		serviceWorkerURLIncludes: "service-worker.js",
 	})
 	if err == nil && options.afterConnect != nil {
 		commandSender := dependencies.commandSender
 		if commandSender == nil {
-			commandSender = func(cdp *cdpClient, timeout time.Duration) browserCommandSender {
-				return cdpBrowserCommandSender{cdp: cdp, timeout: timeout}
+			commandSender = func(cdp *cdpClient) browserCommandSender {
+				return cdpBrowserCommandSender{cdp: cdp}
 			}
 		}
-		err = options.afterConnect(ctx, commandSender(cdp, commandTimeout))
+		err = options.afterConnect(ctx, commandSender(cdp))
 	}
 	if err != nil {
 		var cdpErr error
@@ -311,11 +317,12 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		}
 		var sourceErr error
 		if ownsSource && options.source.close != nil {
-			closeCtx := context.Background()
-			if ctx != nil {
-				closeCtx = context.WithoutCancel(ctx)
-			}
+			closeCtx, cancelClose := context.WithTimeout(
+				context.WithoutCancel(ctx),
+				stagehandFailureCleanupTimeout,
+			)
 			sourceErr = options.source.close(closeCtx)
+			cancelClose()
 		}
 		var cleanupErr error
 		if options.source.cleanup != nil {
@@ -329,4 +336,12 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, cleanup: options.source.cleanup,
 	}, nil
+}
+
+func browserLifecycleContext(ctx context.Context) (context.Context, context.CancelFunc, error) {
+	if ctx == nil {
+		return nil, nil, errors.New("stagehand browser initialization context is required")
+	}
+	lifecycleCtx, cancel := context.WithTimeout(ctx, stagehandInitTimeout)
+	return lifecycleCtx, cancel, nil
 }

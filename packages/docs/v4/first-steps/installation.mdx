@@ -42,25 +42,22 @@ If you plan to run locally, you need to have [Chrome](https://www.google.com/chr
 
 ### Configure environment
 
-Set environment variables for your Browserbase API key and your model provider key:
+Set your Browserbase API key. When no model is configured, Model Gateway selects one automatically, so no model provider key is required:
 
 <View title="TypeScript" icon="js">
 ```bash
-export OPENAI_API_KEY=your_api_key
 export BROWSERBASE_API_KEY=your_api_key
 ```
 </View>
 
 <View title="Python" icon="python">
 ```bash
-export OPENAI_API_KEY=your_api_key
 export BROWSERBASE_API_KEY=your_api_key
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```bash
-export OPENAI_API_KEY=your_api_key
 export BROWSERBASE_API_KEY=your_api_key
 ```
 </View>
@@ -77,10 +74,6 @@ import "dotenv/config";
 
 const stagehand = new Stagehand({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: process.env.OPENAI_API_KEY,
-  },
 });
 ```
 </View>
@@ -91,26 +84,17 @@ import os
 
 stagehand = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    model="openai/gpt-5.4-mini",
-    model_api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-// Every optional field is a pointer, so read your keys into variables first
+// Every optional field is a pointer, so read your key into a variable first
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-modelAPIKey := os.Getenv("OPENAI_API_KEY")
-
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
-	ModelName: "openai/gpt-5.4-mini",
-	APIKey:    &modelAPIKey,
-})
 
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	APIKey: &apiKey,
-	Model:  &model,
 })
 ```
 </View>
@@ -129,10 +113,6 @@ async function main() {
   const stagehand = new Stagehand({
     apiKey: process.env.BROWSERBASE_API_KEY,
     browser: { type: "browserbase" },
-    model: {
-      modelName: "openai/gpt-5.4-mini",
-      apiKey: process.env.OPENAI_API_KEY,
-    },
   });
 
   await stagehand.init();
@@ -183,8 +163,6 @@ async def main() -> None:
     stagehand = Stagehand(
         api_key=os.environ["BROWSERBASE_API_KEY"],
         browser="browserbase",
-        model="openai/gpt-5.4-mini",
-        model_api_key=os.environ["OPENAI_API_KEY"],
     )
 
     await stagehand.init()
@@ -249,16 +227,10 @@ func main() {
 
 func run(ctx context.Context) (err error) {
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
-	modelAPIKey := os.Getenv("OPENAI_API_KEY")
-	model := stagehand.KnownModel(stagehand.KnownModelConfig{
-		ModelName: "openai/gpt-5.4-mini",
-		APIKey:    &modelAPIKey,
-	})
 
 	client := stagehand.New(stagehand.StagehandClientInitParams{
 		APIKey:  &apiKey,
 		Browser: stagehand.BrowserbaseClientBrowserSource{},
-		Model:   &model,
 	})
 
 	if err := client.Init(ctx); err != nil {
