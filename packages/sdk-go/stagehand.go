@@ -222,6 +222,9 @@ func (s *Stagehand) Extract(
 	}
 	params := StagehandExtractParams{PageID: page.PageID(), Instruction: instruction}
 	if schema != nil {
+		if len(schema) == 0 {
+			schema = json.RawMessage(`{}`)
+		}
 		params.Schema = schema
 	}
 	if options != nil {

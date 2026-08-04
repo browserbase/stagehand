@@ -1,6 +1,7 @@
 package stagehand
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -389,7 +390,14 @@ func TestExtractPreservesExplicitEmptySchema(t *testing.T) {
 	if !ok {
 		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
 	}
-	if len(params.Schema) != 0 {
-		t.Fatalf("Extract() schema = %s, want explicit empty schema", params.Schema)
+	if string(params.Schema) != `{}` {
+		t.Fatalf("Extract() schema = %s, want explicit empty object", params.Schema)
+	}
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("marshal Extract() params: %v", err)
+	}
+	if !bytes.Contains(encoded, []byte(`"schema":{}`)) {
+		t.Fatalf("Extract() params = %s, want explicit schema on wire", encoded)
 	}
 }
