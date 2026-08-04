@@ -374,6 +374,21 @@ describe("Stagehand object-model protocol", () => {
     ]);
   });
 
+  it("registers response methods", () => {
+    expect(
+      Object.values(StagehandMethods)
+        .map((method) => method.name)
+        .filter((name) => name.startsWith("response.")),
+    ).toStrictEqual([
+      "response.body",
+      "response.all_headers",
+      "response.headers_array",
+      "response.security_details",
+      "response.server_addr",
+      "response.finished",
+    ]);
+  });
+
   it("keeps locators as page-scoped descriptors", () => {
     expect(
       StagehandMethods.locatorTextContent.params.parse({

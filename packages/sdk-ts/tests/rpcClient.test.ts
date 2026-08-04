@@ -142,8 +142,11 @@ describe("RPCClient", () => {
 
   it("registers the pending request before CDP can return its response", async () => {
     const cdp = new FakeCDPTransport({
-      page_id: "page-1",
-      url: "https://example.com",
+      page: {
+        page_id: "page-1",
+        url: "https://example.com",
+      },
+      response: null,
     });
     const client = new RPCClient(cdp);
 
@@ -153,8 +156,11 @@ describe("RPCClient", () => {
         url: "https://example.com",
       }),
     ).resolves.toStrictEqual({
-      pageId: "page-1",
-      url: "https://example.com",
+      page: {
+        pageId: "page-1",
+        url: "https://example.com",
+      },
+      response: null,
     });
 
     expect(cdp.sent).toContainEqual({

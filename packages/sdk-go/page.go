@@ -32,44 +32,44 @@ func (p *Page) Ref() PageRef {
 // Goto navigates the page and refreshes its protocol reference.
 func (p *Page) Goto(ctx context.Context, url string, options *PageNavigationOptions) error {
 	params := PageGotoParams{PageID: p.PageID(), URL: url, Options: options}
-	var result PageRef
+	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.goto", params, &result); err != nil {
 		return err
 	}
-	p.setRef(result)
+	p.setRef(result.Page)
 	return nil
 }
 
 // Reload reloads the page and refreshes its protocol reference.
 func (p *Page) Reload(ctx context.Context, options *PageReloadOptions) error {
 	params := PageReloadParams{PageID: p.PageID(), Options: options}
-	var result PageRef
+	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.reload", params, &result); err != nil {
 		return err
 	}
-	p.setRef(result)
+	p.setRef(result.Page)
 	return nil
 }
 
 // GoBack navigates backward and refreshes the page reference.
 func (p *Page) GoBack(ctx context.Context, options *PageNavigationOptions) error {
 	params := PageGoBackParams{PageID: p.PageID(), Options: options}
-	var result PageRef
+	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.go_back", params, &result); err != nil {
 		return err
 	}
-	p.setRef(result)
+	p.setRef(result.Page)
 	return nil
 }
 
 // GoForward navigates forward and refreshes the page reference.
 func (p *Page) GoForward(ctx context.Context, options *PageNavigationOptions) error {
 	params := PageGoForwardParams{PageID: p.PageID(), Options: options}
-	var result PageRef
+	var result PageNavigationResult
 	if err := p.rpc.call(ctx, "page.go_forward", params, &result); err != nil {
 		return err
 	}
-	p.setRef(result)
+	p.setRef(result.Page)
 	return nil
 }
 

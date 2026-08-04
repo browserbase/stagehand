@@ -14,6 +14,7 @@ from stagehand._generated.models import (
     PageGotoParams,
     PageHoverParams,
     PageIdParams,
+    PageNavigationResult,
     PageRef,
     PageScrollParams,
     PageUrlResult,
@@ -46,7 +47,10 @@ class EvaluationResult(BaseModel):
 @pytest.mark.asyncio
 async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_reference() -> None:
     recording = RecordingRPCClient({
-        "page.goto": PageRef(page_id="page-2", url="https://example.com"),
+        "page.goto": PageNavigationResult(
+            page=PageRef(page_id="page-2", url="https://example.com"),
+            response=None,
+        ),
         "page.title": "Example Domain",
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
@@ -68,7 +72,7 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
         "url": "https://example.com",
         "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
-    assert result_model is PageRef
+    assert result_model is PageNavigationResult
 
 
 @pytest.mark.asyncio

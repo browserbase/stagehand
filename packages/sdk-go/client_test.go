@@ -95,7 +95,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
-		"page.goto":           PageRef{PageID: "page-1"},
+		"page.goto":           PageNavigationResult{Page: PageRef{PageID: "page-1"}},
 		"stagehand.act": ActResult{Data: ActResultData{
 			Success: true, Message: "clicked", ActionDescription: "click", Actions: []Action{},
 		}},
