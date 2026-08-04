@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, Self
 
+from ._generated.input_types import RgbaColor
 from ._generated.models import (
     LocatorCentroidResult,
     LocatorClickOptions,
@@ -33,7 +34,6 @@ from ._generated.models import (
     LocatorTypeParams,
     LocatorTypeResult,
     MouseButton,
-    RgbaColor,
 )
 from .rpc_client import RPCClient
 

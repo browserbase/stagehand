@@ -12,6 +12,7 @@ from stagehand import (
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
+    ModelConfig,
     Page,
     ProtocolLocator,
     Stagehand,
@@ -30,7 +31,6 @@ from stagehand._generated.models import (
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     LLMTextContent,
-    ModelConfig,
     ObserveResult,
     PageRef,
     RuntimeLoopbackStatusResult,
@@ -45,14 +45,18 @@ from stagehand._generated.models import (
     StagehandPingResult,
     StagehandResultMetadata,
 )
+from stagehand._generated.models import (
+    Locator as ProtocolLocatorModel,
+)
+from stagehand._generated.models import (
+    ModelConfig as ModelConfigModel,
+)
 from stagehand.browser_source import ResolvedBrowserSource
 from stagehand.cdp_client import CDPConnectionClosedError
 from stagehand.client_models import (
-    CacheOptions,
     CdpBrowserSource,
     LocalBrowserSource,
     StagehandClientInitParams,
-    StagehandClientLoggingConfig,
 )
 from stagehand.rpc_client import RPCClient
 
@@ -88,7 +92,7 @@ def test_stagehand_constructor_builds_private_browser_and_model_models() -> None
     assert local.init_params.browser.headless is True
     assert local.init_params.browser.viewport is not None
     assert local.init_params.browser.viewport.width == 1280
-    assert isinstance(local.init_params.model, ModelConfig)
+    assert isinstance(local.init_params.model, ModelConfigModel)
     assert isinstance(local.init_params.model.root, KnownModelConfig)
     assert local.init_params.cache is not None
     assert local.init_params.cache.root is True
@@ -174,11 +178,11 @@ async def test_stagehand_writes_one_json_object_and_calls_on_log_with_the_struct
     stagehand = Stagehand(
         browser="cdp",
         cdp_url="test://browser",
-        logging=StagehandClientLoggingConfig(
-            level="debug",
-            format="json",
-            on_log=on_log,
-        ),
+        logging={
+            "level": "debug",
+            "format": "json",
+            "on_log": on_log,
+        },
     )
     await stagehand.init()
     _, listener = recording.notifications["stagehand.log"]
@@ -277,7 +281,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
             "metadata": StagehandResultMetadata(cache_status=CacheStatus.hit),
         },
     })
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
     locator = ProtocolLocator(selector="main")
 
     async def resolve(_: StagehandClientInitParams) -> ResolvedBrowserSource:
@@ -298,7 +302,7 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
         model=model,
         timeout=30_000,
         locator=locator,
-        cache=CacheOptions(threshold=1),
+        cache={"threshold": 1},
     )
     actions = await stagehand.observe(instruction="Find the link", model=model, locator=locator)
     replay_result = await stagehand.act(actions.data[0], page=page)
@@ -332,9 +336,9 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert isinstance(act_params, StagehandActParams)
     assert act_params.page_id == "explicit-page"
     assert act_params.options is not None
-    assert act_params.options.model == model
+    assert act_params.options.model == ModelConfigModel.model_validate(model)
     assert act_params.options.timeout == 30_000
-    assert act_params.options.locator == locator
+    assert act_params.options.locator == ProtocolLocatorModel.model_validate(locator)
     assert act_params.options.cache is not None
     assert act_params.options.cache.model_dump() == {"threshold": 1}
     observe_params = recording.calls[3][1]
@@ -342,8 +346,8 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert observe_params.page_id == "active-page"
     assert observe_params.instruction == "Find the link"
     assert observe_params.options is not None
-    assert observe_params.options.model == model
-    assert observe_params.options.locator == locator
+    assert observe_params.options.model == ModelConfigModel.model_validate(model)
+    assert observe_params.options.locator == ProtocolLocatorModel.model_validate(locator)
     replay_params = recording.calls[4][1]
     assert isinstance(replay_params, StagehandActParams)
     assert replay_params.model_dump(by_alias=True)["input"] == action.model_dump(by_alias=True)
@@ -351,9 +355,9 @@ async def test_stagehand_ai_methods_resolve_pages_and_validate_results(
     assert isinstance(extract_params, StagehandExtractParams)
     assert extract_params.page_id == "explicit-page"
     assert extract_params.options is not None
-    assert extract_params.options.model == model
+    assert extract_params.options.model == ModelConfigModel.model_validate(model)
     assert extract_params.options.screenshot is True
-    assert extract_params.options.locator == locator
+    assert extract_params.options.locator == ProtocolLocatorModel.model_validate(locator)
     assert extract_params.schema_ is not None
     schema = extract_params.schema_.model_dump()
     assert isinstance(schema, dict)

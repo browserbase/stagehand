@@ -66,15 +66,15 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 
 stagehand = Stagehand(
     # ...
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-    ),
+    logging={
+        "level": "info",
+        "format": "pretty",
+    },
 )
 ```
 
@@ -93,18 +93,18 @@ application logger. The callback is additive: Stagehand continues to write its n
 output.
 
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 
 log_file = open("stagehand.jsonl", "a", encoding="utf-8")
 
 stagehand = Stagehand(
     # ...
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-        on_log=lambda log: print(log.model_dump_json(), file=log_file),
-    ),
+    logging={
+        "level": "info",
+        "format": "pretty",
+        "on_log": lambda log: print(log.model_dump_json(), file=log_file),
+    },
 )
 ```
 

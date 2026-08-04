@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 if not OPENAI_API_KEY:
@@ -15,11 +15,11 @@ async def main() -> None:
             headless=True,
             model="openai/gpt-5.4-mini",
             model_api_key=OPENAI_API_KEY,
-            logging=StagehandClientLoggingConfig(
-                level="info",
-                format="pretty",
-                on_log=lambda log: print(log.model_dump_json(), file=log_file),
-            ),
+            logging={
+                "level": "info",
+                "format": "pretty",
+                "on_log": lambda log: print(log.model_dump_json(), file=log_file),
+            },
         )
 
         try:

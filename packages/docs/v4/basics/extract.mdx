@@ -261,9 +261,6 @@ print(extraction.metadata.cache_status)
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
-
-
 extraction = await stagehand.extract(
     instruction="Extract the article body",
     schema=schema,
@@ -271,7 +268,7 @@ extraction = await stagehand.extract(
     ignore_selectors=["nav", ".cookie-banner"],
     screenshot=True,
     timeout=30_000,
-    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
+    model={"model_name": "openai/gpt-5.4-mini"},
 )
 ```
 

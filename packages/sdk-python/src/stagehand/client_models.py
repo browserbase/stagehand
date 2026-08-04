@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -22,6 +22,7 @@ from ._generated.models import (
     StagehandResultMetadata,
 )
 from ._validation import WireModel
+from .client_types import Cache as CacheInput
 
 ExtractData = TypeVar("ExtractData", bound=BaseModel)
 
@@ -75,10 +76,10 @@ class CacheOptions(WireModel):
 Cache = bool | CacheOptions
 
 
-def _cache_config(cache: Cache) -> bool | dict[str, int]:
-    if isinstance(cache, CacheOptions):
-        return cache.model_dump(exclude_none=True)
-    return cache
+def _cache_config(cache: CacheInput) -> bool | dict[str, int]:
+    if isinstance(cache, bool):
+        return cache
+    return cast(dict[str, int], dict(cache))
 
 
 class LocalViewport(WireModel):

@@ -338,17 +338,12 @@ You can pass additional options to configure `act()` for your exact use case:
 ```python
 import os
 
-from stagehand import ModelConfig
-
-
 await stagehand.act(
     "Choose 'Peach' from the favorite color dropdown",
-    model=ModelConfig.model_validate(
-        {
-            "model_name": "google/gemini-2.5-flash",
-            "api_key": os.environ["GOOGLE_API_KEY"],
-        }
-    ),
+    model={
+        "model_name": "google/gemini-2.5-flash",
+        "api_key": os.environ["GOOGLE_API_KEY"],
+    },
     timeout=10_000,
 )
 ```

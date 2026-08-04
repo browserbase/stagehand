@@ -12,24 +12,33 @@ from typing import Literal, Self, TypeVar, overload
 
 from pydantic import BaseModel
 
+from . import client_models as _client_models
+from ._generated import models as _models
+from ._generated.input_types import Action as ActionInput
+from ._generated.input_types import (
+    BrowserbaseBrowserSettings,
+    BrowserbaseProxyConfig,
+    ExternalProxyConfig,
+    ModelConfig,
+    TelemetryConfig,
+    Variables,
+)
+from ._generated.input_types import (
+    Locator as ProtocolLocator,
+)
 from ._generated.models import (
     Action,
     ActOptions,
     ActResult,
-    BrowserbaseBrowserSettings,
-    BrowserbaseProxyConfig,
     BrowserbaseRegion,
     BrowserGetVersionResult,
     ClientModelReference,
     EmptyParams,
-    ExternalProxyConfig,
     ExtractOptions,
     LLMGenerateParams,
     LLMGenerateResult,
-    ModelConfig,
     ObserveOptions,
     ObserveResult,
-    ProxyConfig,
     RuntimeLoopbackStatusResult,
     StagehandActParams,
     StagehandCloseResult,
@@ -40,31 +49,17 @@ from ._generated.models import (
     StagehandMetrics,
     StagehandObserveParams,
     StagehandPingResult,
-    TelemetryConfig,
-    Variables,
-)
-from ._generated.models import (
-    Locator as ProtocolLocator,
 )
 from .browser_context import BrowserContext
 from .browser_source import ResolvedBrowserSource, resolve_browser_source
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
-    BrowserbaseBrowserSource,
-    Cache,
-    CdpBrowserSource,
-    ClientLLM,
     ExtractResult,
-    LLMGenerateCallback,
-    LocalBrowserSource,
-    LocalProxyConfig,
-    LocalViewport,
-    StagehandClientInitParams,
-    StagehandClientLoggingConfig,
     _cache_config,
     _ExtractWireResult,
     _model_config,
 )
+from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
 from .page import Page
 from .rpc_client import RPCClient, connect_rpc_client
 
@@ -210,7 +205,12 @@ class Stagehand:
         logging: StagehandClientLoggingConfig | None = None,
     ) -> None:
         if browser == "browserbase":
-            browser_source = BrowserbaseBrowserSource.model_validate({
+            resolved_proxies = (
+                proxies
+                if isinstance(proxies, bool) or proxies is None
+                else [_models.ProxyConfig.model_validate(proxy) for proxy in proxies]
+            )
+            browser_source = _client_models.BrowserbaseBrowserSource.model_validate({
                 "type": "browserbase",
                 **{
                     name: value
@@ -218,14 +218,7 @@ class Stagehand:
                         ("browser_settings", browser_settings),
                         ("extension_id", extension_id),
                         ("keep_alive", keep_alive),
-                        (
-                            "proxies",
-                            (
-                                proxies
-                                if isinstance(proxies, bool) or proxies is None
-                                else [ProxyConfig(root=proxy) for proxy in proxies]
-                            ),
-                        ),
+                        ("proxies", resolved_proxies),
                         ("region", region),
                         ("timeout", timeout),
                         (
@@ -243,7 +236,7 @@ class Stagehand:
                 value is not None for value in (proxy_bypass, proxy_username, proxy_password)
             ):
                 raise TypeError("proxy_server is required when configuring a local proxy")
-            browser_source = LocalBrowserSource.model_validate({
+            browser_source = _client_models.LocalBrowserSource.model_validate({
                 "type": "local",
                 **{
                     name: value
@@ -274,7 +267,7 @@ class Stagehand:
                         (
                             "proxy",
                             (
-                                LocalProxyConfig(
+                                _client_models.LocalProxyConfig(
                                     server=proxy_server,
                                     bypass=proxy_bypass,
                                     username=proxy_username,
@@ -288,7 +281,10 @@ class Stagehand:
                         (
                             "viewport",
                             (
-                                LocalViewport(width=viewport_width, height=viewport_height)
+                                _client_models.LocalViewport(
+                                    width=viewport_width,
+                                    height=viewport_height,
+                                )
                                 if viewport_width is not None and viewport_height is not None
                                 else None
                             ),
@@ -310,7 +306,7 @@ class Stagehand:
         elif browser == "cdp":
             if cdp_url is None:
                 raise TypeError("cdp_url is required when browser='cdp'")
-            browser_source = CdpBrowserSource(
+            browser_source = _client_models.CdpBrowserSource(
                 type="cdp",
                 cdp_url=cdp_url,
                 **({"headers": dict(headers)} if headers is not None else {}),
@@ -324,7 +320,7 @@ class Stagehand:
         if callable(model) and any(value is not None for value in model_connection_options):
             raise TypeError("model connection options cannot be used with an LLM callback")
 
-        resolved_model: ModelConfig | ClientLLM | None
+        resolved_model: _models.ModelConfig | _client_models.ClientLLM | None
         if isinstance(model, str):
             resolved_model = _model_config(
                 model,
@@ -333,7 +329,7 @@ class Stagehand:
                 headers=dict(model_headers) if model_headers is not None else None,
             )
         elif model is not None:
-            resolved_model = ClientLLM(generate=model)
+            resolved_model = _client_models.ClientLLM(generate=model)
         else:
             resolved_model = None
 
@@ -354,7 +350,7 @@ class Stagehand:
             values["model"] = resolved_model
         if telemetry is not None:
             values["telemetry"] = telemetry
-        self.init_params = StagehandClientInitParams.model_validate(values)
+        self.init_params = _client_models.StagehandClientInitParams.model_validate(values)
         self._browser_context: BrowserContext | None = None
         self._rpc_client: RPCClient | None = None
         self._remove_notification_listener: Callable[[], None] | None = None
@@ -438,7 +434,7 @@ class Stagehand:
                     self._handle_stagehand_notification,
                 )
                 client_llm = self.init_params.model
-                if isinstance(client_llm, ClientLLM):
+                if isinstance(client_llm, _client_models.ClientLLM):
 
                     async def generate(params: LLMGenerateParams) -> LLMGenerateResult:
                         return LLMGenerateResult(root=await client_llm.generate(params.root))
@@ -464,7 +460,7 @@ class Stagehand:
 
     async def act(
         self,
-        input: str | Action,
+        input: str | ActionInput | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -613,7 +609,7 @@ class Stagehand:
             exclude={"browser", "logging", "model"},
             exclude_unset=True,
         )
-        if isinstance(self.init_params.model, ClientLLM):
+        if isinstance(self.init_params.model, _client_models.ClientLLM):
             values["model"] = ClientModelReference(source="client")
         elif self.init_params.model is not None:
             values["model"] = self.init_params.model

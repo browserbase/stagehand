@@ -1,14 +1,45 @@
 from __future__ import annotations
 
+from typing import is_typeddict
+
 import pytest
 from pydantic import ValidationError
 
+from stagehand import client_models, client_types
 from stagehand.client_models import (
     CdpBrowserSource,
     LocalBrowserSource,
     StagehandClientInitParams,
     StagehandClientLoggingConfig,
 )
+
+
+@pytest.mark.parametrize(
+    ("input_name", "model_name"),
+    [
+        ("BrowserbaseBrowserSource", "BrowserbaseBrowserSource"),
+        ("CacheOptions", "CacheOptions"),
+        ("CdpBrowserSource", "CdpBrowserSource"),
+        ("ClientLLM", "ClientLLM"),
+        ("LocalBrowserSource", "LocalBrowserSource"),
+        ("LocalProxyConfig", "LocalProxyConfig"),
+        ("LocalViewport", "LocalViewport"),
+        ("StagehandClientInitParams", "StagehandClientInitParams"),
+        ("StagehandClientLoggingConfig", "StagehandClientLoggingConfig"),
+    ],
+)
+def test_client_typed_dicts_match_runtime_model_fields(
+    input_name: str,
+    model_name: str,
+) -> None:
+    input_type = getattr(client_types, input_name)
+    model_type = getattr(client_models, model_name)
+
+    assert is_typeddict(input_type)
+    assert set(input_type.__annotations__) == set(model_type.model_fields)
+    assert input_type.__required_keys__ == frozenset(
+        name for name, field in model_type.model_fields.items() if field.is_required()
+    )
 
 
 def test_client_configuration_selects_local_and_cdp_browser_sources() -> None:

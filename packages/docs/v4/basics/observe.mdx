@@ -338,15 +338,12 @@ actions = await stagehand.observe(instruction="Find the learn more button")
 ## Advanced configuration
 
 ```python
-from stagehand import ModelConfig
-
-
 actions = await stagehand.observe(
     instruction="Find form fields",
     selector="form#signup",
     ignore_selectors=[".advertisement"],
     timeout=15_000,
-    model=ModelConfig.model_validate({"model_name": "openai/gpt-5.4-mini"}),
+    model={"model_name": "openai/gpt-5.4-mini"},
 )
 ```
 
