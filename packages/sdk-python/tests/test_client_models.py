@@ -1,15 +1,78 @@
 from __future__ import annotations
 
-from typing import is_typeddict
+from types import UnionType
+from typing import (
+    Annotated,
+    Any,
+    NotRequired,
+    Required,
+    Union,
+    cast,
+    get_args,
+    get_origin,
+    get_type_hints,
+    is_typeddict,
+)
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from stagehand import client_models, client_types
 from stagehand.client_models import (
     StagehandClientCreateConfig,
     StagehandClientLoggingConfig,
+    _cache_config,
 )
+from stagehand.client_types import Cache
+
+
+def _normalized_type(annotation: object) -> object:
+    origin = get_origin(annotation)
+    if origin in (Annotated, NotRequired, Required):
+        return _normalized_type(get_args(annotation)[0])
+    if origin in (Union, UnionType):
+        members = frozenset(
+            _normalized_type(member) for member in get_args(annotation) if member is not type(None)
+        )
+        return next(iter(members)) if len(members) == 1 else ("union", members)
+    module = getattr(annotation, "__module__", "")
+    name = getattr(annotation, "__name__", "")
+    if is_typeddict(annotation) and module == "stagehand._generated.input_types":
+        return ("protocol", name)
+    if is_typeddict(annotation):
+        typed_dict = cast(Any, annotation)
+        hints = get_type_hints(typed_dict, include_extras=True)
+        return (
+            "mapping",
+            frozenset(
+                (
+                    name,
+                    name in typed_dict.__required_keys__,
+                    _normalized_type(field_type),
+                )
+                for name, field_type in hints.items()
+            ),
+        )
+    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+        if module == "stagehand._generated.models" and name not in {
+            "Caching",
+            "Caching1",
+        }:
+            return ("protocol", name)
+        if annotation.__pydantic_root_model__:
+            return _normalized_type(annotation.model_fields["root"].annotation)
+        return (
+            "mapping",
+            frozenset(
+                (name, field.is_required(), _normalized_type(field.annotation))
+                for name, field in annotation.model_fields.items()
+            ),
+        )
+    if origin is not None:
+        return (origin, tuple(_normalized_type(member) for member in get_args(annotation)))
+    if isinstance(annotation, (list, tuple)):
+        return tuple(_normalized_type(member) for member in annotation)
+    return annotation
 
 
 @pytest.mark.parametrize(
@@ -30,14 +93,29 @@ def test_client_typed_dicts_match_runtime_model_fields(
     input_name: str,
     model_name: str,
 ) -> None:
-    input_type = getattr(client_types, input_name)
-    model_type = getattr(client_models, model_name)
+    input_type = getattr(client_types, input_name, None)
+    model_type = getattr(client_models, model_name, None)
 
-    assert is_typeddict(input_type)
-    assert set(input_type.__annotations__) == set(model_type.model_fields)
-    assert input_type.__required_keys__ == frozenset(
+    assert is_typeddict(input_type), f"missing client TypedDict {input_name}"
+    assert isinstance(model_type, type) and issubclass(model_type, BaseModel), (
+        f"missing client runtime model {model_name}"
+    )
+    input_typed_dict = cast(Any, input_type)
+    assert set(input_typed_dict.__annotations__) == set(model_type.model_fields)
+    assert input_typed_dict.__required_keys__ == frozenset(
         name for name, field in model_type.model_fields.items() if field.is_required()
     )
+    input_hints = get_type_hints(input_typed_dict, include_extras=True)
+    for field_name, model_field in model_type.model_fields.items():
+        assert _normalized_type(input_hints[field_name]) == _normalized_type(
+            model_field.annotation
+        ), f"{input_name}.{field_name} does not match {model_name}.{field_name}"
+
+
+def test_cache_config_omits_an_explicit_none_threshold() -> None:
+    cache = cast(Cache, {"threshold": None})
+
+    assert _cache_config(cache) == {}
 
 
 def test_create_configuration_rejects_unknown_options() -> None:

@@ -79,6 +79,13 @@ TYPED_DICT_CONFIG = GenerateConfig(
 )
 
 
+def _generate_module(protocol: dict[str, object], config: GenerateConfig) -> str:
+    module = generate(deepcopy(protocol), config=config)
+    if not isinstance(module, str):
+        raise TypeError("expected datamodel-code-generator to return one Python module")
+    return f"{module.rstrip()}\n"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Python wire models from the protocol")
     parser.add_argument("--check", action="store_true", help="fail when generated models differ")
@@ -115,15 +122,8 @@ def main() -> None:
 
     wire_protocol = deepcopy(protocol)
     use_wire_urls(wire_protocol)
-    models = generate(wire_protocol, config=PYDANTIC_CONFIG)
-    if not isinstance(models, str):
-        raise TypeError("expected datamodel-code-generator to return one Python module")
-    models = f"{models.rstrip()}\n"
-
-    input_types = generate(deepcopy(protocol), config=TYPED_DICT_CONFIG)
-    if not isinstance(input_types, str):
-        raise TypeError("expected datamodel-code-generator to return one Python module")
-    input_types = f"{input_types.rstrip()}\n"
+    models = _generate_module(wire_protocol, PYDANTIC_CONFIG)
+    input_types = _generate_module(protocol, TYPED_DICT_CONFIG)
 
     protocol_version_module = generate_protocol_version_module()
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, Generic, Literal, TypeVar, cast
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -59,7 +59,7 @@ Cache = bool | CacheOptions
 def _cache_config(cache: CacheInput) -> bool | dict[str, int]:
     if isinstance(cache, bool):
         return cache
-    return cast(dict[str, int], dict(cache))
+    return CacheOptions.model_validate(cache).model_dump(exclude_none=True)
 
 
 class LocalViewport(WireModel):
