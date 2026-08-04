@@ -124,6 +124,11 @@ import type {
   LLMUsageSchema,
   LocalBrowserLaunchOptionsSchema,
   MouseButtonSchema,
+  NavigationFinishedErrorSchema,
+  NavigationHeaderSchema,
+  NavigationResponseDescriptorSchema,
+  NavigationSecurityDetailsSchema,
+  NavigationServerAddrSchema,
   ModelAuthSchema,
   ModelConfigSchema,
   ModelNameSchema,
@@ -146,6 +151,7 @@ import type {
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
   PageLocatorSchema,
+  PageNavigationResultSchema,
   PageNavigationOptionsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
@@ -172,6 +178,13 @@ import type {
   PageWebMCPToolsParamsSchema,
   PageWebMCPToolsResultSchema,
   ProxyConfigSchema,
+  ResponseAllHeadersResultSchema,
+  ResponseBodyResultSchema,
+  ResponseFinishedResultSchema,
+  ResponseHeadersArrayResultSchema,
+  ResponseIdParamsSchema,
+  ResponseSecurityDetailsResultSchema,
+  ResponseServerAddrResultSchema,
   RuntimeDescriptorSchema,
   RgbaColorSchema,
   StagehandActParamsSchema,
@@ -271,6 +284,19 @@ export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
 export type PageNavigationOptions = z.infer<typeof PageNavigationOptionsSchema>;
+export type NavigationHeader = z.infer<typeof NavigationHeaderSchema>;
+export type NavigationSecurityDetails = z.infer<typeof NavigationSecurityDetailsSchema>;
+export type NavigationServerAddr = z.infer<typeof NavigationServerAddrSchema>;
+export type NavigationFinishedError = z.infer<typeof NavigationFinishedErrorSchema>;
+export type NavigationResponseDescriptor = z.infer<typeof NavigationResponseDescriptorSchema>;
+export type PageNavigationResult = z.infer<typeof PageNavigationResultSchema>;
+export type ResponseIdParams = z.infer<typeof ResponseIdParamsSchema>;
+export type ResponseBodyResult = z.infer<typeof ResponseBodyResultSchema>;
+export type ResponseAllHeadersResult = z.infer<typeof ResponseAllHeadersResultSchema>;
+export type ResponseHeadersArrayResult = z.infer<typeof ResponseHeadersArrayResultSchema>;
+export type ResponseSecurityDetailsResult = z.infer<typeof ResponseSecurityDetailsResultSchema>;
+export type ResponseServerAddrResult = z.infer<typeof ResponseServerAddrResultSchema>;
+export type ResponseFinishedResult = z.infer<typeof ResponseFinishedResultSchema>;
 export type PageVoidResult = z.infer<typeof PageVoidResultSchema>;
 export type PageScreenshotClip = z.infer<typeof PageScreenshotClipSchema>;
 export type PageSnapshotOptions = z.infer<typeof PageSnapshotOptionsSchema>;

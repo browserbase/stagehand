@@ -1385,8 +1385,11 @@ describe("Stagehand worker clients", () => {
       jsonrpc: "2.0",
       id: 9,
       result: {
-        page_id: "page-a",
-        url: "https://example.test/next",
+        page: {
+          page_id: "page-a",
+          url: "https://example.test/next",
+        },
+        response: null,
       },
     });
 
@@ -1420,7 +1423,10 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 13,
-      result: { page_id: "page-a", url: "https://example.test/current" },
+      result: {
+        page: { page_id: "page-a", url: "https://example.test/current" },
+        response: null,
+      },
     });
 
     await expect(
@@ -1433,7 +1439,10 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 14,
-      result: { page_id: "page-a", url: "https://example.test/back" },
+      result: {
+        page: { page_id: "page-a", url: "https://example.test/back" },
+        response: null,
+      },
     });
 
     await expect(
@@ -1446,7 +1455,10 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 15,
-      result: { page_id: "page-a", url: "https://example.test/forward" },
+      result: {
+        page: { page_id: "page-a", url: "https://example.test/forward" },
+        response: null,
+      },
     });
 
     expect(page.reloadCalls).toStrictEqual([

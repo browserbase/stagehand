@@ -34,6 +34,8 @@ from ._generated.models import (
     LLMUsage,
     LoadState,
     MouseButton,
+    NavigationSecurityDetails,
+    NavigationServerAddr,
     ObserveResult,
     Scale,
     StagehandMetrics,
@@ -59,6 +61,7 @@ from .client_types import (
 )
 from .locator import Locator
 from .page import Page
+from .response import Response
 from .stagehand import Stagehand
 from .webmcp import (
     WebMCPInvocation,
@@ -102,11 +105,14 @@ __all__ = [
     "Locator",
     "ModelConfig",
     "MouseButton",
+    "NavigationSecurityDetails",
+    "NavigationServerAddr",
     "ObserveResult",
     "Page",
     "PageScreenshotClip",
     "ProtocolLocator",
     "RgbaColor",
+    "Response",
     "Scale",
     "ScreenshotType",
     "Stagehand",

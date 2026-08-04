@@ -576,6 +576,37 @@ class LocatorClickParams(TypedDict):
     options: NotRequired[LocatorClickOptions]
 
 
+class NavigationFinishedError(TypedDict):
+    message: str
+
+
+class NavigationHeader(TypedDict):
+    name: str
+    value: str
+
+
+class NavigationResponseDescriptor(TypedDict):
+    response_id: str
+    url: str
+    status: int
+    status_text: str
+    headers: dict[str, str]
+    from_service_worker: bool
+
+
+class NavigationSecurityDetails(TypedDict):
+    issuer: str
+    protocol: str
+    subject_name: str
+    valid_from: float
+    valid_to: float
+
+
+class NavigationServerAddr(TypedDict):
+    ip_address: str
+    port: int
+
+
 OpenAIModelName: TypeAlias = str
 
 
@@ -694,6 +725,11 @@ ContextActivePageResult: TypeAlias = PageRef | None
 
 
 ContextPagesResult: TypeAlias = list[PageRef]
+
+
+class PageNavigationResult(TypedDict):
+    page: PageRef
+    response: NavigationResponseDescriptor | None
 
 
 class PageReloadOptions(TypedDict):
@@ -836,6 +872,35 @@ class BrowserbaseSessionCreateParams(TypedDict):
     region: NotRequired[BrowserbaseRegion]
     timeout: NotRequired[float]
     user_metadata: NotRequired[dict[str, Any]]
+
+
+class ResponseAllHeadersResult(TypedDict):
+    headers: dict[str, str]
+
+
+class ResponseBodyResult(TypedDict):
+    body: str
+    base64_encoded: Literal[True]
+
+
+class ResponseFinishedResult(TypedDict):
+    error: NavigationFinishedError | None
+
+
+class ResponseHeadersArrayResult(TypedDict):
+    headers: list[NavigationHeader]
+
+
+class ResponseIdParams(TypedDict):
+    response_id: str
+
+
+class ResponseSecurityDetailsResult(TypedDict):
+    value: NavigationSecurityDetails | None
+
+
+class ResponseServerAddrResult(TypedDict):
+    value: NavigationServerAddr | None
 
 
 class RgbaColor(TypedDict):

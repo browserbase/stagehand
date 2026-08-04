@@ -4,7 +4,7 @@ import base64
 import builtins
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Literal, Self, TypeVar, cast, overload
+from typing import Literal, TypeVar, cast, overload
 
 from pydantic import JsonValue, TypeAdapter
 
@@ -30,6 +30,7 @@ from ._generated.models import (
     PageKeyPressOptions,
     PageKeyPressParams,
     PageNavigationOptions,
+    PageNavigationResult,
     PageRef,
     PageReloadOptions,
     PageReloadParams,
@@ -63,6 +64,7 @@ from ._generated.models import (
     Type as ScreenshotType,
 )
 from .locator import Locator
+from .response import Response
 from .rpc_client import RPCClient
 from .webmcp import WebMCPTool
 
@@ -88,7 +90,7 @@ class Page:
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
         timeout: int | None = None,
-    ) -> Self:
+    ) -> Response | None:
         options = {
             name: value
             for name, value in (("wait_until", wait_until), ("timeout", timeout))
@@ -99,8 +101,9 @@ class Page:
             "url": url,
             **({"options": options} if options else {}),
         })
-        self._ref = await self._rpc_client.send("page.goto", params, PageRef)
-        return self
+        result = await self._rpc_client.send("page.goto", params, PageNavigationResult)
+        self._ref = result.page
+        return Response(self._rpc_client, result.response) if result.response is not None else None
 
     async def reload(
         self,
@@ -108,7 +111,7 @@ class Page:
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
         timeout: int | None = None,
         ignore_cache: bool | None = None,
-    ) -> Self:
+    ) -> Response | None:
         params = PageReloadParams(page_id=self.page_id)
         options = PageReloadOptions.model_validate({
             name: value
@@ -121,15 +124,16 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.reload", params, PageRef)
-        return self
+        result = await self._rpc_client.send("page.reload", params, PageNavigationResult)
+        self._ref = result.page
+        return Response(self._rpc_client, result.response) if result.response is not None else None
 
     async def go_back(
         self,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
         timeout: int | None = None,
-    ) -> Self:
+    ) -> Response | None:
         params = PageGoBackParams(page_id=self.page_id)
         options = PageNavigationOptions.model_validate({
             name: value
@@ -138,15 +142,16 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.go_back", params, PageRef)
-        return self
+        result = await self._rpc_client.send("page.go_back", params, PageNavigationResult)
+        self._ref = result.page
+        return Response(self._rpc_client, result.response) if result.response is not None else None
 
     async def go_forward(
         self,
         *,
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
         timeout: int | None = None,
-    ) -> Self:
+    ) -> Response | None:
         params = PageGoForwardParams(page_id=self.page_id)
         options = PageNavigationOptions.model_validate({
             name: value
@@ -155,8 +160,9 @@ class Page:
         })
         if options.model_fields_set:
             params.options = options
-        self._ref = await self._rpc_client.send("page.go_forward", params, PageRef)
-        return self
+        result = await self._rpc_client.send("page.go_forward", params, PageNavigationResult)
+        self._ref = result.page
+        return Response(self._rpc_client, result.response) if result.response is not None else None
 
     async def click(
         self,
