@@ -245,7 +245,6 @@ func TestValidateLocalBrowserOptions(t *testing.T) {
 	}{
 		{name: "negative port", options: LocalBrowserLaunchOptions{Port: -1}},
 		{name: "large port", options: LocalBrowserLaunchOptions{Port: 65_536}},
-		{name: "negative timeout", options: LocalBrowserLaunchOptions{ConnectTimeoutMs: -1}},
 		{name: "empty viewport", options: LocalBrowserLaunchOptions{Viewport: &LocalViewport{}}},
 		{
 			name: "negative scale",
@@ -313,7 +312,9 @@ func TestWaitForChromeRequiresCDPVersionEndpoint(t *testing.T) {
 	defer server.Close()
 
 	process := &chromeProcess{done: make(chan struct{})}
-	err := waitForChrome(context.Background(), server.URL, process, 250*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	err := waitForChrome(ctx, server.URL, process)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("waitForChrome() error = %v, want context deadline exceeded", err)
 	}
@@ -335,7 +336,9 @@ func TestWaitForChromeAcceptsValidCDPVersionEndpoint(t *testing.T) {
 	defer server.Close()
 
 	process := &chromeProcess{done: make(chan struct{})}
-	if err := waitForChrome(context.Background(), server.URL, process, time.Second); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := waitForChrome(ctx, server.URL, process); err != nil {
 		t.Fatalf("waitForChrome() error = %v", err)
 	}
 }
@@ -356,7 +359,7 @@ func TestWaitForChromePrioritizesCancellationAndProcessExit(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		process := &chromeProcess{done: make(chan struct{})}
-		err := waitForChrome(ctx, server.URL, process, time.Second)
+		err := waitForChrome(ctx, server.URL, process)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("waitForChrome() error = %v, want context.Canceled", err)
 		}
@@ -365,7 +368,7 @@ func TestWaitForChromePrioritizesCancellationAndProcessExit(t *testing.T) {
 	t.Run("exited process", func(t *testing.T) {
 		process := &chromeProcess{done: make(chan struct{}), err: errors.New("exit status 1")}
 		close(process.done)
-		err := waitForChrome(context.Background(), server.URL, process, time.Second)
+		err := waitForChrome(context.Background(), server.URL, process)
 		if err == nil || !strings.Contains(err.Error(), "exited before") {
 			t.Fatalf("waitForChrome() error = %v, want exited-before-ready error", err)
 		}
@@ -381,9 +384,8 @@ func TestLaunchLocalBrowserAgainstInstalledChrome(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	launched, err := launchChrome(ctx, LocalBrowserLaunchOptions{
-		ExecutablePath:   chromePath,
-		Headless:         true,
-		ConnectTimeoutMs: 15_000,
+		ExecutablePath: chromePath,
+		Headless:       true,
 	})
 	if err != nil {
 		t.Fatalf("launchLocalBrowser() error = %v", err)

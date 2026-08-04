@@ -570,7 +570,6 @@ const stagehand = new Stagehand({
     },
     downloadsPath: "./downloads", // Download directory
     acceptDownloads: true, // Allow downloads
-    connectTimeoutMs: 30000, // Connection timeout
   },
 });
 
@@ -607,7 +606,6 @@ stagehand = Stagehand(
     proxy_password="pass",
     downloads_path="./downloads",  # Download directory
     accept_downloads=True,  # Allow downloads
-    connect_timeout_ms=30000,  # Connection timeout
 )
 
 await stagehand.init()
@@ -648,7 +646,6 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 		DownloadsPath:    "./downloads", // Download directory
 		AcceptDownloads:  &acceptDownloads,
-		ConnectTimeoutMs: 30000, // Connection timeout
 	},
 })
 
@@ -659,7 +656,7 @@ if err := client.Init(ctx); err != nil {
 </View>
 
 {/* TODO: the three languages diverge on this example.
-TypeScript: launches, but silently ignores most of these options. sdk-ts/src/browserSource.ts:88-106 forwards only userDataDir and port to chrome-launcher, and localBrowserChromeFlags (browserSource.ts:108-131) only translates ignoreDefaultArgs, headless, devtools, and args. Dropped: viewport (--window-size is hardcoded to 1280,800 at browserSource.ts:22), executablePath (getChromePath() is called instead at browserSource.ts:93), chromiumSandbox (--no-sandbox only when CI is set, browserSource.ts:128), ignoreHTTPSErrors, locale, deviceScaleFactor, hasTouch, proxy, downloadsPath, acceptDownloads, preserveUserDataDir, and connectTimeoutMs. All validate against LocalBrowserLaunchOptionsSchema (protocol/schemas.ts:972), so there is no error, just no effect.
+TypeScript: launches, but silently ignores most of these options. sdk-ts/src/browserSource.ts:88-106 forwards only userDataDir and port to chrome-launcher, and localBrowserChromeFlags (browserSource.ts:108-131) only translates ignoreDefaultArgs, headless, devtools, and args. Dropped: viewport (--window-size is hardcoded to 1280,800 at browserSource.ts:22), executablePath (getChromePath() is called instead at browserSource.ts:93), chromiumSandbox (--no-sandbox only when CI is set, browserSource.ts:128), ignoreHTTPSErrors, locale, deviceScaleFactor, hasTouch, proxy, downloadsPath, acceptDownloads, and preserveUserDataDir. All validate against LocalBrowserLaunchOptionsSchema (protocol/schemas.ts:972), so there is no error, just no effect.
 Python: fails at init(). sdk-python/src/stagehand/browser_source.py:84 raises NotImplementedError for proxy_username / proxy_password, and :86 raises for downloads_path / accept_downloads. Everything else in this View is honored.
 Go: fails at Init(). sdk-go/chrome_launcher.go:200 rejects authenticated proxies and :204 rejects DownloadsPath / AcceptDownloads in validateLocalBrowserOptions, before Chrome launches. Everything else in this View is honored by buildChromeArgs (chrome_launcher.go:209).
 Verify before publishing. */}

@@ -347,12 +347,11 @@ export class StagehandRuntime {
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
-    if (!model) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
-
     const gateway =
       state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+    if (!model && !gateway) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
+    }
     return await llmService.generate(model, input, this.adapters.clientLLMGenerate, gateway);
   }
 

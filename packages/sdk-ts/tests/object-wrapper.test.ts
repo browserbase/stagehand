@@ -24,20 +24,17 @@ class FakeProtocolClient extends RPCClient {
   responses = new Map<string, unknown[]>();
 
   constructor() {
-    super(
-      {
-        webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
-        serviceWorker: {
-          targetId: "worker-target",
-          url: "chrome-extension://stagehand/service-worker.js",
-          title: "Stagehand",
-          extensionId: "stagehand",
-        },
-        send: async () => {},
-        close: () => {},
+    super({
+      webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/browser/test",
+      serviceWorker: {
+        targetId: "worker-target",
+        url: "chrome-extension://stagehand/service-worker.js",
+        title: "Stagehand",
+        extensionId: "stagehand",
       },
-      1_000,
-    );
+      send: async () => {},
+      close: () => {},
+    });
   }
 
   queueResponse<Method extends RPCMethod>(

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-from collections.abc import Awaitable, Callable, Coroutine
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
@@ -19,6 +19,7 @@ from pydantic import (
 
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
+_RPC_RESPONSE_GRACE_MS = 10_000
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -88,12 +89,8 @@ class RPCError(RuntimeError):
 
 
 class RPCClient:
-    def __init__(self, transport: _Transport, *, request_timeout_ms: int = 10_000) -> None:
-        if request_timeout_ms <= 0:
-            raise ValueError("request_timeout_ms must be positive")
-
+    def __init__(self, transport: _Transport) -> None:
         self._transport = transport
-        self._request_timeout_seconds = request_timeout_ms / 1_000
         self._next_request_id = 1
         self._pending: dict[
             int,
@@ -169,18 +166,21 @@ class RPCClient:
             ),
         )
 
+        response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))
         try:
-            async with asyncio.timeout(self._request_timeout_seconds):
-                await self._transport.send(
-                    cast(
-                        dict[str, object],
-                        request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+            try:
+                async with response_timeout:
+                    await self._transport.send(
+                        cast(
+                            dict[str, object],
+                            request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
+                        )
                     )
-                )
-                result = await response
-                return result
-        except TimeoutError as error:
-            raise TimeoutError(f"RPC request timed out: {method}") from error
+                    return await response
+            except TimeoutError as error:
+                if response_timeout.expired():
+                    raise TimeoutError(f"RPC response timed out: {method}") from error
+                raise
         finally:
             self._pending.pop(request_id, None)
             if not response.done():
@@ -370,7 +370,8 @@ class RPCClient:
             return
 
         if isinstance(response, _JSONRPCErrorResponse):
-            future.set_exception(RPCError(response.error))
+            error = RPCError(response.error)
+            future.set_exception(error)
             return
 
         try:
@@ -487,3 +488,45 @@ class RPCClient:
         self._inbound_tasks.discard(task)
         if not task.cancelled() and (error := task.exception()) is not None:
             asyncio.create_task(self.close(error))
+
+
+def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
+    if method == "stagehand.init":
+        return None
+
+    operation_timeout_ms: float | int | None = None
+    if method in {
+        "stagehand.act",
+        "stagehand.extract",
+        "stagehand.observe",
+        "page.goto",
+        "page.reload",
+        "page.go_back",
+        "page.go_forward",
+        "page.screenshot",
+        "page.wait_for_selector",
+        "page.webmcp_tools",
+        "page.webmcp_invocation_result",
+    }:
+        operation_timeout_ms = _numeric_property(_property(params, "options"), "timeout")
+    elif method == "page.wait_for_load_state":
+        operation_timeout_ms = _numeric_property(params, "timeout")
+    elif method == "page.wait_for_timeout":
+        operation_timeout_ms = _numeric_property(params, "ms")
+
+    return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms or 0)) / 1_000
+
+
+def _property(value: object, name: str) -> object:
+    if isinstance(value, BaseModel):
+        return getattr(value, name, None)
+    if isinstance(value, Mapping):
+        return value.get(name)
+    return None
+
+
+def _numeric_property(value: object, name: str) -> float | int | None:
+    candidate = _property(value, name)
+    if isinstance(candidate, (float, int)) and not isinstance(candidate, bool):
+        return candidate
+    return None

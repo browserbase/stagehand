@@ -37,16 +37,15 @@ func run(ctx context.Context) (err error) {
 	if apiKey == "" {
 		return errors.New("BROWSERBASE_API_KEY is required")
 	}
-	model := stagehand.ModelConfig{ModelName: "openai/gpt-4.1"}
-	// No model API key: inference routes through the Browserbase Model Gateway,
-	// authenticated by the Browserbase API key and session.
+	// With no model, Browserbase Model Gateway selects one automatically for
+	// each inference call. The Browserbase API key and session authenticate it.
 	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 	if err != nil {
 		return err
 	}

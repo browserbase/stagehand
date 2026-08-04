@@ -51,7 +51,9 @@ func run(ctx context.Context) (err error) {
 
 	result, err := client.Act(
 		ctx,
-		"Click the link that provides more information about Example Domain",
+		stagehand.ActInstruction(
+			"Click the link that provides more information about Example Domain",
+		),
 		nil,
 	)
 	if err != nil {
