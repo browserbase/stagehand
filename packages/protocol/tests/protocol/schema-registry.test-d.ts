@@ -53,6 +53,21 @@ expectTypeOf<z.input<typeof StagehandMethods.pageGoto.params>>().toEqualTypeOf<{
     timeout?: number;
   };
 }>();
+expectTypeOf<z.output<typeof StagehandMethods.pageGoto.result>>().toEqualTypeOf<{
+  page: {
+    pageId: string;
+    url?: string;
+    title?: string;
+  };
+  response: {
+    responseId: string;
+    url: string;
+    status: number;
+    statusText: string;
+    headers: Record<string, string>;
+    fromServiceWorker: boolean;
+  } | null;
+}>();
 expectTypeOf(StagehandMethods.pageReload.name).toEqualTypeOf<"page.reload">();
 expectTypeOf<z.input<typeof StagehandMethods.pageReload.params>>().toEqualTypeOf<{
   pageId: string;
@@ -61,6 +76,14 @@ expectTypeOf<z.input<typeof StagehandMethods.pageReload.params>>().toEqualTypeOf
     timeout?: number;
     ignoreCache?: boolean;
   };
+}>();
+expectTypeOf(StagehandMethods.responseBody.name).toEqualTypeOf<"response.body">();
+expectTypeOf<z.input<typeof StagehandMethods.responseBody.params>>().toEqualTypeOf<{
+  responseId: string;
+}>();
+expectTypeOf<z.output<typeof StagehandMethods.responseBody.result>>().toEqualTypeOf<{
+  body: string;
+  base64Encoded: true;
 }>();
 expectTypeOf(StagehandMethods.pageDragAndDrop.name).toEqualTypeOf<"page.drag_and_drop">();
 expectTypeOf<z.output<typeof StagehandMethods.pageDragAndDrop.result>>().toEqualTypeOf<{

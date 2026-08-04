@@ -55,7 +55,7 @@ func run(ctx context.Context) (err error) {
 	if page == nil {
 		return errors.New("Stagehand initialized without an active page")
 	}
-	if err := page.Goto(ctx, `data:text/html,<input id="upload" type="file">`, nil); err != nil {
+	if _, err := page.Goto(ctx, `data:text/html,<input id="upload" type="file">`, nil); err != nil {
 		return err
 	}
 	if err := page.Locator("#upload").SetInputFiles(ctx, stagehand.FilePath(filePath)); err != nil {

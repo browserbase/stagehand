@@ -10,7 +10,6 @@ from pydantic import ValidationError
 from stagehand import browser
 from stagehand import timeouts as timeout_settings
 from stagehand._generated.models import (
-    BrowserbaseBrowserSettings,
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
 )
@@ -611,7 +610,7 @@ async def test_browserbase_validation_precedes_api_calls(
     ):
         await browserbase.launch(
             api_key="api-key",
-            browser_settings=BrowserbaseBrowserSettings(extension_id="  "),
+            browser_settings={"extension_id": "  "},
         )
     with pytest.raises(ValidationError):
         await browserbase.connect(api_key="", session_id="session")

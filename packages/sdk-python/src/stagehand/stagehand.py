@@ -11,6 +11,11 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from . import client_models as _client_models
+from ._generated import models as _models
+from ._generated.input_types import Action as ActionInput
+from ._generated.input_types import Locator as ProtocolLocator
+from ._generated.input_types import ModelConfig, TelemetryConfig, Variables
 from ._generated.models import (
     Action,
     ActOptions,
@@ -21,7 +26,6 @@ from ._generated.models import (
     ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
-    ModelConfig,
     ObserveOptions,
     ObserveResult,
     StagehandActParams,
@@ -32,27 +36,18 @@ from ._generated.models import (
     StagehandLog,
     StagehandMetrics,
     StagehandObserveParams,
-    TelemetryConfig,
-    Variables,
-)
-from ._generated.models import (
-    Locator as ProtocolLocator,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release_browser
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
-    Cache,
-    ClientLLM,
     ExtractResult,
-    LLMGenerateCallback,
-    StagehandClientCreateConfig,
-    StagehandClientLoggingConfig,
     _cache_config,
     _ExtractWireResult,
     _model_config,
 )
+from .client_types import Cache, LLMGenerateCallback, StagehandClientLoggingConfig
 from .page import Page
 from .rpc_client import RPCClient, RPCError
 from .timeouts import with_stagehand_init_deadline
@@ -70,7 +65,7 @@ class Stagehand:
         *,
         _token: object | None = None,
         browser: StagehandBrowser | None = None,
-        create_config: StagehandClientCreateConfig | None = None,
+        create_config: _client_models.StagehandClientCreateConfig | None = None,
     ) -> None:
         if _token is not _CONSTRUCTION_TOKEN or browser is None or create_config is None:
             raise TypeError(
@@ -110,7 +105,7 @@ class Stagehand:
         if callable(model) and any(value is not None for value in model_connection_options):
             raise TypeError("model connection options cannot be used with an LLM callback")
 
-        resolved_model: ModelConfig | ClientLLM | None
+        resolved_model: _models.ModelConfig | _client_models.ClientLLM | None
         if isinstance(model, str):
             resolved_model = _model_config(
                 model,
@@ -118,7 +113,7 @@ class Stagehand:
                 headers=dict(model_headers) if model_headers is not None else None,
             )
         elif model is not None:
-            resolved_model = ClientLLM(generate=model)
+            resolved_model = _client_models.ClientLLM(generate=model)
         else:
             resolved_model = None
 
@@ -138,7 +133,7 @@ class Stagehand:
             values["model"] = resolved_model
         if telemetry is not None:
             values["telemetry"] = telemetry
-        create_config = StagehandClientCreateConfig.model_validate(values)
+        create_config = _client_models.StagehandClientCreateConfig.model_validate(values)
         claimed = _claim_browser(browser)
         stagehand = cls(
             _token=_CONSTRUCTION_TOKEN,
@@ -183,7 +178,7 @@ class Stagehand:
             self._handle_stagehand_notification,
         )
         client_llm = self._create_config.model
-        if isinstance(client_llm, ClientLLM):
+        if isinstance(client_llm, _client_models.ClientLLM):
 
             async def generate(params: LLMGenerateParams) -> LLMGenerateResult:
                 return LLMGenerateResult(root=await client_llm.generate(params.root))
@@ -207,7 +202,7 @@ class Stagehand:
 
     async def act(
         self,
-        instruction: str | Action,
+        instruction: str | ActionInput | Action,
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -355,7 +350,7 @@ class Stagehand:
             exclude={"logging", "model"},
             exclude_unset=True,
         )
-        if isinstance(self._create_config.model, ClientLLM):
+        if isinstance(self._create_config.model, _client_models.ClientLLM):
             values["model"] = ClientModelReference(source="client")
         elif self._create_config.model is not None:
             values["model"] = self._create_config.model

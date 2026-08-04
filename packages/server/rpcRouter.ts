@@ -19,6 +19,7 @@ import { z } from "zod/v4";
 import { createContextController } from "./controllers/contextController.js";
 import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
+import { createResponseController } from "./controllers/responseController.js";
 import { createStagehandController } from "./controllers/stagehandController.js";
 import type { StagehandLogger } from "./logger.js";
 import type { StagehandRuntime } from "./runtime.js";
@@ -39,6 +40,7 @@ export class RPCRouter {
   readonly contextController;
   readonly pageController;
   readonly locatorController;
+  readonly responseController;
 
   constructor(
     readonly runtime: StagehandRuntime,
@@ -51,6 +53,7 @@ export class RPCRouter {
     this.contextController = createContextController(runtime);
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
+    this.responseController = createResponseController(runtime);
   }
 
   async handle(request: StagehandRpcRequest): Promise<unknown> {
@@ -341,6 +344,36 @@ export class RPCRouter {
       case "page.close":
         return this.pageController.close(
           parseParams(StagehandMethods.pageClose, request.params),
+          context,
+        );
+      case "response.body":
+        return this.responseController.body(
+          parseParams(StagehandMethods.responseBody, request.params),
+          context,
+        );
+      case "response.all_headers":
+        return this.responseController.allHeaders(
+          parseParams(StagehandMethods.responseAllHeaders, request.params),
+          context,
+        );
+      case "response.headers_array":
+        return this.responseController.headersArray(
+          parseParams(StagehandMethods.responseHeadersArray, request.params),
+          context,
+        );
+      case "response.security_details":
+        return this.responseController.securityDetails(
+          parseParams(StagehandMethods.responseSecurityDetails, request.params),
+          context,
+        );
+      case "response.server_addr":
+        return this.responseController.serverAddr(
+          parseParams(StagehandMethods.responseServerAddr, request.params),
+          context,
+        );
+      case "response.finished":
+        return this.responseController.finished(
+          parseParams(StagehandMethods.responseFinished, request.params),
           context,
         );
       case "locator.click":

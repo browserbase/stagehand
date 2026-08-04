@@ -338,7 +338,7 @@
               "$ref": "#/$defs/PageGotoParams"
             },
             "result": {
-              "$ref": "#/$defs/PageRef"
+              "$ref": "#/$defs/PageNavigationResult"
             }
           },
           "required": ["params", "result"],
@@ -390,7 +390,7 @@
               "$ref": "#/$defs/PageReloadParams"
             },
             "result": {
-              "$ref": "#/$defs/PageRef"
+              "$ref": "#/$defs/PageNavigationResult"
             }
           },
           "required": ["params", "result"],
@@ -403,7 +403,7 @@
               "$ref": "#/$defs/PageGoBackParams"
             },
             "result": {
-              "$ref": "#/$defs/PageRef"
+              "$ref": "#/$defs/PageNavigationResult"
             }
           },
           "required": ["params", "result"],
@@ -416,7 +416,7 @@
               "$ref": "#/$defs/PageGoForwardParams"
             },
             "result": {
-              "$ref": "#/$defs/PageRef"
+              "$ref": "#/$defs/PageNavigationResult"
             }
           },
           "required": ["params", "result"],
@@ -889,6 +889,84 @@
           },
           "required": ["params", "result"],
           "additionalProperties": false
+        },
+        "response.body": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseBodyResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "response.all_headers": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseAllHeadersResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "response.headers_array": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseHeadersArrayResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "response.security_details": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseSecurityDetailsResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "response.server_addr": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseServerAddrResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "response.finished": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "result": {
+              "$ref": "#/$defs/ResponseFinishedResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
         }
       },
       "required": [
@@ -959,7 +1037,13 @@
         "locator.send_click_event",
         "locator.type",
         "locator.select_option",
-        "locator.set_input_files"
+        "locator.set_input_files",
+        "response.body",
+        "response.all_headers",
+        "response.headers_array",
+        "response.security_details",
+        "response.server_addr",
+        "response.finished"
       ],
       "additionalProperties": false
     },
@@ -2947,6 +3031,60 @@
       "type": "string",
       "enum": ["load", "domcontentloaded", "networkidle"]
     },
+    "PageNavigationResult": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "$ref": "#/$defs/PageRef"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NavigationResponseDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["page", "response"],
+      "additionalProperties": false
+    },
+    "NavigationResponseDescriptor": {
+      "type": "object",
+      "properties": {
+        "response_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "status_text": {
+          "type": "string"
+        },
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "from_service_worker": {
+          "type": "boolean"
+        }
+      },
+      "required": ["response_id", "url", "status", "status_text", "headers", "from_service_worker"],
+      "additionalProperties": false
+    },
     "PageIdParams": {
       "type": "object",
       "properties": {
@@ -4270,6 +4408,171 @@
         }
       },
       "required": ["set"],
+      "additionalProperties": false
+    },
+    "ResponseIdParams": {
+      "type": "object",
+      "properties": {
+        "response_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["response_id"],
+      "additionalProperties": false
+    },
+    "ResponseBodyResult": {
+      "type": "object",
+      "properties": {
+        "body": {
+          "type": "string"
+        },
+        "base64_encoded": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": ["body", "base64_encoded"],
+      "additionalProperties": false
+    },
+    "ResponseAllHeadersResult": {
+      "type": "object",
+      "properties": {
+        "headers": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["headers"],
+      "additionalProperties": false
+    },
+    "ResponseHeadersArrayResult": {
+      "type": "object",
+      "properties": {
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NavigationHeader"
+          }
+        }
+      },
+      "required": ["headers"],
+      "additionalProperties": false
+    },
+    "NavigationHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      },
+      "required": ["name", "value"],
+      "additionalProperties": false
+    },
+    "ResponseSecurityDetailsResult": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NavigationSecurityDetails"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["value"],
+      "additionalProperties": false
+    },
+    "NavigationSecurityDetails": {
+      "type": "object",
+      "properties": {
+        "issuer": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "subject_name": {
+          "type": "string"
+        },
+        "valid_from": {
+          "type": "number"
+        },
+        "valid_to": {
+          "type": "number"
+        }
+      },
+      "required": ["issuer", "protocol", "subject_name", "valid_from", "valid_to"],
+      "additionalProperties": false
+    },
+    "ResponseServerAddrResult": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NavigationServerAddr"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["value"],
+      "additionalProperties": false
+    },
+    "NavigationServerAddr": {
+      "type": "object",
+      "properties": {
+        "ip_address": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      },
+      "required": ["ip_address", "port"],
+      "additionalProperties": false
+    },
+    "ResponseFinishedResult": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NavigationFinishedError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["error"],
+      "additionalProperties": false
+    },
+    "NavigationFinishedError": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": ["message"],
       "additionalProperties": false
     },
     "StagehandLog": {
@@ -6396,6 +6699,168 @@
             },
             "params": {
               "$ref": "#/$defs/LocatorSetInputFilesParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.body"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.all_headers"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.headers_array"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.security_details"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.server_addr"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "response.finished"
+            },
+            "params": {
+              "$ref": "#/$defs/ResponseIdParams"
             },
             "traceparent": {
               "type": "string"

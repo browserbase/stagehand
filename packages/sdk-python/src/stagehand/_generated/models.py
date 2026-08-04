@@ -1284,6 +1284,57 @@ class MouseButton(StrEnum):
     middle = "middle"
 
 
+class NavigationFinishedError(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    message: StrictStr
+
+
+class NavigationHeader(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: StrictStr
+    value: StrictStr
+
+
+class NavigationResponseDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    response_id: Annotated[StrictStr, Field(min_length=1)]
+    url: StrictStr
+    status: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    status_text: StrictStr
+    headers: dict[StrictStr, StrictStr]
+    from_service_worker: StrictBool
+
+
+class NavigationSecurityDetails(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    issuer: StrictStr
+    protocol: StrictStr
+    subject_name: StrictStr
+    valid_from: StrictFloat
+    valid_to: StrictFloat
+
+
+class NavigationServerAddr(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    ip_address: StrictStr
+    port: Annotated[StrictInt, Field(ge=0, le=65535)]
+
+
 class ObserveOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1518,6 +1569,15 @@ class PageNavigationOptions(WireModel):
     )
     wait_until: Optional[LoadState] = None
     timeout: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+
+
+class PageNavigationResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page: PageRef
+    response: Optional[NavigationResponseDescriptor]
 
 
 class PageRef(WireModel):
@@ -1801,6 +1861,63 @@ class PageWebMCPToolsResult(WireModel):
 
 class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]]):
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
+
+
+class ResponseAllHeadersResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    headers: dict[StrictStr, StrictStr]
+
+
+class ResponseBodyResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    body: StrictStr
+    base64_encoded: Literal[True]
+
+
+class ResponseFinishedResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    error: Optional[NavigationFinishedError]
+
+
+class ResponseHeadersArrayResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    headers: list[NavigationHeader]
+
+
+class ResponseIdParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    response_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class ResponseSecurityDetailsResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[NavigationSecurityDetails]
+
+
+class ResponseServerAddrResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[NavigationServerAddr]
 
 
 class RgbaColor(WireModel):

@@ -14,9 +14,11 @@ from stagehand import (
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
+    ModelConfig,
     Page,
     ProtocolLocator,
     Stagehand,
+    TelemetryConfig,
 )
 from stagehand import timeouts as timeout_settings
 from stagehand._generated.models import (
@@ -34,7 +36,6 @@ from stagehand._generated.models import (
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     LLMTextContent,
-    ModelConfig,
     ObserveResult,
     PageRef,
     StagehandActParams,
@@ -47,7 +48,6 @@ from stagehand._generated.models import (
     StagehandObserveParams,
     StagehandResultMetadata,
     StagehandResultUsage,
-    TelemetryConfig,
 )
 from stagehand.browser import (
     _BROWSER_TOKEN,
@@ -57,7 +57,6 @@ from stagehand.browser import (
     _WorkerInitMetadata,
 )
 from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
-from stagehand.client_models import CacheOptions, StagehandClientLoggingConfig
 from stagehand.rpc_client import RPCClient, RPCError, _JSONRPCError
 
 from ._support import RecordingRPCClient
@@ -170,7 +169,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
         browser=browser,
         api_key="caller-key",
         model=generate,
-        logging=StagehandClientLoggingConfig(level="debug"),
+        logging={"level": "debug"},
     )
 
     assert stagehand.browser is browser
@@ -211,12 +210,12 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
     recording = _recording()
     _install_rpc_client(monkeypatch, recording)
     browser, _ = _browser_handle()
-    telemetry = TelemetryConfig.model_validate({
+    telemetry: TelemetryConfig = {
         "traces": {
             "endpoint": "https://telemetry.example/v1/traces",
             "headers": {"authorization": "secret"},
         }
-    })
+    }
 
     await Stagehand.create(
         browser=browser,
@@ -227,13 +226,14 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
         system_prompt="Use the test policy",
         self_heal=True,
         dom_settle_timeout_ms=2_500,
-        cache=CacheOptions(threshold=3),
+        cache={"threshold": 3},
     )
 
     params = cast(StagehandInitParams, recording.calls[0][1])
     assert params.api_key == "caller-key"
     assert "browser" not in params.model_fields_set
-    assert params.telemetry == telemetry
+    assert params.telemetry is not None
+    assert params.telemetry.model_dump(mode="json") == telemetry
     assert params.system_prompt == "Use the test policy"
     assert params.self_heal is True
     assert params.dom_settle_timeout_ms == 2_500
@@ -523,7 +523,7 @@ async def test_stagehand_prints_logs_and_calls_structured_callback(
 
     await Stagehand.create(
         browser=browser,
-        logging=StagehandClientLoggingConfig(level="info", on_log=on_log),
+        logging={"level": "info", "on_log": on_log},
     )
     _, listener = recording.notifications["stagehand.log"]
     notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
@@ -631,7 +631,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
     locator = ProtocolLocator(selector="main")
 
     assert await stagehand.metrics() == metrics
@@ -641,7 +641,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         model=model,
         timeout=30_000,
         locator=locator,
-        cache=CacheOptions(threshold=1),
+        cache={"threshold": 1},
     )
     observed = await stagehand.observe("Find the link", model=model, locator=locator)
     extracted = await stagehand.extract(
