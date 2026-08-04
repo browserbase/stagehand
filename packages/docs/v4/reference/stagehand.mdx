@@ -784,7 +784,7 @@ Perform an action described in natural language.
 result = await stagehand.act("Click the sign in button")
 ```
 
-<ParamField path="instruction" type="Action | str">
+<ParamField path="instruction" type="Action | ActionInput | str">
   A natural-language action to perform, or an action returned by `observe()`.
 
   <ParamField path="instruction.selector" type="str">
