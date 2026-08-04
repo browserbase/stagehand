@@ -238,6 +238,19 @@ await page.dragAndDrop(100, 100, 400, 400);
   <ParamField path="options.steps" type="number" optional>
     The number of intermediate pointer moves.
   </ParamField>
+
+  <ParamField path="options.route" type="PageDragAndDropRoutePoint[]" optional>
+    An ordered mouse route to follow instead of generating linear intermediate moves. The explicit
+    `toX` and `toY` coordinates remain the final point.
+
+    <ParamField path="options.route.x" type="number">
+      A route point's horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="options.route.y" type="number">
+      A route point's vertical coordinate.
+    </ParamField>
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
@@ -888,6 +901,23 @@ await page.drag_and_drop(100, 100, 400, 400)
 
 <ParamField path="delay" type="float | None" optional>
   An optional input delay in milliseconds.
+</ParamField>
+
+<ParamField
+  path="route"
+  type="Sequence[PageDragAndDropRoutePoint | Mapping[str, float]] | None"
+  optional
+>
+  An ordered mouse route to follow instead of generating linear intermediate moves. The explicit
+  `to_x` and `to_y` coordinates remain the final point.
+
+  <ParamField path="route.x" type="float">
+    A route point's horizontal coordinate.
+  </ParamField>
+
+  <ParamField path="route.y" type="float">
+    A route point's vertical coordinate.
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="None">

@@ -3304,8 +3304,27 @@
         "delay": {
           "type": "number",
           "minimum": 0
+        },
+        "route": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PageDragAndDropRoutePoint"
+          }
         }
       },
+      "additionalProperties": false
+    },
+    "PageDragAndDropRoutePoint": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": ["x", "y"],
       "additionalProperties": false
     },
     "PageTypeParams": {

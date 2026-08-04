@@ -16,6 +16,11 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	button := MouseButtonRight
 	steps := 5
 	delay := 10.0
+	route := []PageDragAndDropRoutePoint{
+		{X: 1, Y: 2},
+		{X: 2, Y: 5},
+		{X: 3, Y: 4},
+	}
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"page.click":         PageVoidResult{Ok: true},
 		"page.hover":         PageVoidResult{Ok: true},
@@ -41,6 +46,7 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 		Button: &button,
 		Steps:  &steps,
 		Delay:  &delay,
+		Route:  route,
 	}); err != nil {
 		t.Fatalf("DragAndDrop() error = %v", err)
 	}
@@ -84,6 +90,7 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 					Button: &button,
 					Steps:  &steps,
 					Delay:  &delay,
+					Route:  route,
 				},
 			},
 		},

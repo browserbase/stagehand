@@ -668,10 +668,16 @@ class PageCloseResult(TypedDict):
     closed: Literal[True]
 
 
+class PageDragAndDropRoutePoint(TypedDict):
+    x: float
+    y: float
+
+
 class PageDragAndDropOptions(TypedDict):
     button: NotRequired[MouseButton]
     steps: NotRequired[int]
     delay: NotRequired[float]
+    route: NotRequired[list[PageDragAndDropRoutePoint]]
 
 
 class PageDragAndDropParams(TypedDict):

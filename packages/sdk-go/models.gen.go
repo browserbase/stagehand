@@ -1217,6 +1217,9 @@ type PageDragAndDropOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
 
+	// Route corresponds to the JSON schema field "route".
+	Route []PageDragAndDropRoutePoint `json:"route,omitempty,omitzero"`
+
 	// Steps corresponds to the JSON schema field "steps".
 	Steps *int `json:"steps,omitempty,omitzero"`
 }
@@ -1239,6 +1242,14 @@ type PageDragAndDropParams struct {
 
 	// ToY corresponds to the JSON schema field "to_y".
 	ToY float64 `json:"to_y"`
+}
+
+type PageDragAndDropRoutePoint struct {
+	// X corresponds to the JSON schema field "x".
+	X float64 `json:"x"`
+
+	// Y corresponds to the JSON schema field "y".
+	Y float64 `json:"y"`
 }
 
 type PageEvaluateParams struct {
@@ -2476,6 +2487,10 @@ type generatedModelCatalog struct {
 	// PageDragAndDropParams corresponds to the JSON schema field
 	// "PageDragAndDropParams".
 	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty,omitzero"`
+
+	// PageDragAndDropRoutePoint corresponds to the JSON schema field
+	// "PageDragAndDropRoutePoint".
+	PageDragAndDropRoutePoint *PageDragAndDropRoutePoint `json:"PageDragAndDropRoutePoint,omitempty,omitzero"`
 
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
 	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
