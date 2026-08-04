@@ -1513,6 +1513,7 @@ export function waitForCdpEvent(
       cleanup();
       reject(new Error(`Timed out waiting for CDP event "${method}"`));
     }, timeoutMs);
+    timeout.unref();
   });
 
   // Claude-generated snippets often assign an event wait promise before a CDP
