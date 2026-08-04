@@ -81,6 +81,13 @@ type PublicInputField = {
   type: string;
 };
 
+type ResponseReferenceMember = {
+  isProperty: boolean;
+  name: string;
+  parameters: string[];
+  returnType: string;
+};
+
 type JsonSchema = {
   $ref?: string;
   additionalProperties?: boolean | JsonSchema;
@@ -204,6 +211,32 @@ describe("SDK reference surface", () => {
     expect(pageSlugs, "Add one reference/<object>.mdx page for every SDK object").toStrictEqual(
       SDK_OBJECTS.map(({ classSlug }) => classSlug).sort(),
     );
+  });
+
+  it("keeps the supplemental Response reference in sync with its public SDK surfaces", async () => {
+    const pagePath = resolve(REFERENCE_ROOT, "response.mdx");
+    const tree = createProcessor({ format: "mdx" }).parse(
+      await readFile(pagePath, "utf8"),
+    ) as MdxNode;
+    const views = new Map(
+      findElements(tree, "View").map((view) => [stringAttribute(view, "title"), view]),
+    );
+    const [typescriptMembers, pythonMembers] = await Promise.all([
+      readTypescriptResponseMembers(),
+      readPythonResponseMembers(),
+    ]);
+
+    for (const [language, expected] of [
+      ["TypeScript", typescriptMembers],
+      ["Python", pythonMembers],
+    ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
+      const view = views.get(language);
+      expect(view, `response.mdx must contain one ${language} View`).toBeDefined();
+      expect(
+        responseMemberSignatures(readDocumentedResponseMembers(view as MdxNode, language)),
+        `response.mdx ${language} signatures must match the public Response surface`,
+      ).toStrictEqual(responseMemberSignatures(expected));
+    }
   });
 
   it("uses the exact language-specific public method names as headings", async () => {
@@ -1025,6 +1058,135 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
   );
 
   return deduplicateMethods(methods.flat(), "Python").filter(participatesInReferenceParity);
+}
+
+async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[]> {
+  const filePath = resolve(TYPESCRIPT_ROOT, "response.ts");
+  const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
+  const classNode = findClass(root, "class_declaration", "Response", filePath);
+  const classBody = classNode.field("body");
+  if (!classBody) throw new Error(`Response has no class body in ${filePath}`);
+
+  return namedChildren(classBody).flatMap((method): ResponseReferenceMember[] => {
+    if (method.kind() !== "method_definition") return [];
+    const nameNode = method.field("name");
+    const name = nameNode?.text();
+    const access = namedChildren(method).find((child) => child.kind() === "accessibility_modifier");
+    if (
+      !name ||
+      name === "constructor" ||
+      nameNode?.kind() === "private_property_identifier" ||
+      access?.text() === "private" ||
+      access?.text() === "protected"
+    ) {
+      return [];
+    }
+    const returnType = method.field("return_type")?.text().replace(/^:\s*/u, "");
+    if (!returnType) throw new Error(`Response.${name} has no return type in ${filePath}`);
+    return [
+      {
+        isProperty: false,
+        name,
+        parameters: readParameterNames(method, typescriptParameterName, filePath),
+        returnType,
+      },
+    ];
+  });
+}
+
+async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
+  const filePath = resolve(PYTHON_ROOT, "response.py");
+  const root = parse("python", await readFile(filePath, "utf8")).root();
+  const classNode = findClass(root, "class_definition", "Response", filePath);
+  const classBody = classNode.field("body");
+  if (!classBody) throw new Error(`Response has no class body in ${filePath}`);
+
+  return namedChildren(classBody).flatMap((member): ResponseReferenceMember[] => {
+    const decorators =
+      member.kind() === "decorated_definition"
+        ? namedChildren(member).filter((child) => child.kind() === "decorator")
+        : [];
+    const method = member.kind() === "decorated_definition" ? member.field("definition") : member;
+    if (!method || method.kind() !== "function_definition") return [];
+    const name = method.field("name")?.text();
+    if (!name || name.startsWith("_")) return [];
+    const decoratorNames = decorators.map((decorator) =>
+      decorator.text().slice(1).split("(", 1)[0]?.split(".").at(-1),
+    );
+    if (decoratorNames.includes("overload")) return [];
+    const returnType = method.field("return_type")?.text();
+    if (!returnType) throw new Error(`Response.${name} has no return type in ${filePath}`);
+    return [
+      {
+        isProperty: decoratorNames.includes("property"),
+        name,
+        parameters: readParameterNames(method, pythonParameterName, filePath).filter(
+          (parameter) => parameter !== "self" && parameter !== "cls",
+        ),
+        returnType,
+      },
+    ];
+  });
+}
+
+function readDocumentedResponseMembers(
+  view: MdxNode,
+  language: Language,
+): ResponseReferenceMember[] {
+  const members: ResponseReferenceMember[] = [];
+  for (const line of findNodeValues(view, "code").flatMap((value) => value.split("\n"))) {
+    const trimmed = line.trim();
+    if (language === "TypeScript") {
+      const match = trimmed.match(
+        /^response\.([A-Za-z_$][A-Za-z\d_$]*)(?:<[^>]+>)?\(([^)]*)\):\s*(.+)$/u,
+      );
+      if (!match) continue;
+      members.push({
+        isProperty: false,
+        name: match[1] as string,
+        parameters: responseSignatureParameters(match[2] as string),
+        returnType: match[3] as string,
+      });
+      continue;
+    }
+
+    const property = trimmed.match(/^response\.([A-Za-z_][A-Za-z\d_]*):\s*(.+)$/u);
+    if (property) {
+      members.push({
+        isProperty: true,
+        name: property[1] as string,
+        parameters: [],
+        returnType: property[2] as string,
+      });
+      continue;
+    }
+    const method = trimmed.match(
+      /^await response\.([A-Za-z_][A-Za-z\d_]*)\(([^)]*)\)\s*->\s*(.+)$/u,
+    );
+    if (method) {
+      members.push({
+        isProperty: false,
+        name: method[1] as string,
+        parameters: responseSignatureParameters(method[2] as string),
+        returnType: method[3] as string,
+      });
+    }
+  }
+  return members;
+}
+
+function responseSignatureParameters(value: string): string[] {
+  if (!value.trim()) return [];
+  return value.split(",").map((parameter) => parameter.trim().split(/[:=]/u, 1)[0] as string);
+}
+
+function responseMemberSignatures(members: ResponseReferenceMember[]): string[] {
+  return members
+    .map(
+      ({ isProperty, name, parameters, returnType }) =>
+        `${isProperty ? "property" : "method"}:${name}(${parameters.join(",")}):${returnType.replaceAll(/\s/g, "")}`,
+    )
+    .sort();
 }
 
 function findClass(
