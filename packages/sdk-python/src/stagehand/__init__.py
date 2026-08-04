@@ -1,21 +1,29 @@
 """Stagehand Python SDK."""
 
+from ._generated.input_types import (
+    BrowserbaseBrowserSettings,
+    BrowserbaseProxyConfig,
+    CookieParam,
+    ExternalProxyConfig,
+    ModelConfig,
+    PageScreenshotClip,
+    RgbaColor,
+    TelemetryConfig,
+    Variables,
+)
+from ._generated.input_types import Locator as ProtocolLocator
 from ._generated.models import (
     Action,
     ActResult,
     ActResultData,
     Animations,
-    BrowserbaseBrowserSettings,
-    BrowserbaseProxyConfig,
     BrowserbaseRegion,
     CacheMetadata,
     CacheStatus,
     CacheTokenSavings,
     Caret,
     Cookie,
-    CookieParam,
     DomainPolicy,
-    ExternalProxyConfig,
     LLMImageContent,
     LLMMessageGenerateParams,
     LLMMessageGenerateResult,
@@ -25,23 +33,15 @@ from ._generated.models import (
     LLMTextContent,
     LLMUsage,
     LoadState,
-    ModelConfig,
     MouseButton,
     NavigationSecurityDetails,
     NavigationServerAddr,
     ObserveResult,
-    PageScreenshotClip,
-    RgbaColor,
     Scale,
     StagehandMetrics,
     StagehandResultMetadata,
     State,
-    TelemetryConfig,
-    Variables,
     WebMCPAnnotation,
-)
-from ._generated.models import (
-    Locator as ProtocolLocator,
 )
 from ._generated.models import (
     Type as ScreenshotType,
@@ -50,8 +50,10 @@ from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
-    CacheOptions,
     ExtractResult,
+)
+from .client_types import (
+    CacheOptions,
     LLMGenerateCallback,
     LLMGenerateInput,
     LLMGenerateOutput,

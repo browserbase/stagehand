@@ -8,6 +8,7 @@ from typing import Literal, TypeVar, cast, overload
 
 from pydantic import JsonValue, TypeAdapter
 
+from ._generated.input_types import PageScreenshotClip
 from ._generated.models import (
     Animations,
     Caret,
@@ -33,7 +34,6 @@ from ._generated.models import (
     PageRef,
     PageReloadOptions,
     PageReloadParams,
-    PageScreenshotClip,
     PageScreenshotOptions,
     PageScreenshotParams,
     PageScreenshotResult,
@@ -91,14 +91,16 @@ class Page:
         wait_until: LoadState | Literal["load", "domcontentloaded", "networkidle"] | None = None,
         timeout: int | None = None,
     ) -> Response | None:
-        params = PageGotoParams(page_id=self.page_id, url=url)
-        options = PageNavigationOptions.model_validate({
+        options = {
             name: value
             for name, value in (("wait_until", wait_until), ("timeout", timeout))
             if value is not None
+        }
+        params = PageGotoParams.model_validate({
+            "page_id": self.page_id,
+            "url": url,
+            **({"options": options} if options else {}),
         })
-        if options.model_fields_set:
-            params.options = options
         result = await self._rpc_client.send("page.goto", params, PageNavigationResult)
         self._ref = result.page
         return Response(self._rpc_client, result.response) if result.response is not None else None

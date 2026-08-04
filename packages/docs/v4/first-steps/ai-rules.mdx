@@ -407,7 +407,7 @@ All Stagehand methods are async. `act`, `observe`, and `extract` take `instructi
 ```python
 import os
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand
 
 stagehand = Stagehand(
     # Browser source: "browserbase" (default), "local", or "cdp"
@@ -415,7 +415,7 @@ stagehand = Stagehand(
     headless=True,
     model="openai/gpt-5.4-mini",
     model_api_key=os.environ["OPENAI_API_KEY"],
-    logging=StagehandClientLoggingConfig(level="info", format="pretty"),
+    logging={"level": "info", "format": "pretty"},
 )
 
 await stagehand.init()
@@ -684,7 +684,7 @@ async with Stagehand(browser="local", headless=True) as stagehand:
 
 - Never hard-code API keys. Read them from `os.environ` and pass them explicitly; Stagehand reads no environment variables for you
 - Pass secrets through `variables` so they are substituted locally and never sent to the model provider
-- Set `logging=StagehandClientLoggingConfig(level="off")` when handling sensitive data so nothing sensitive reaches your logs
+- Set `logging={"level": "off"}` when handling sensitive data so nothing sensitive reaches your logs
 - Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
 
 ## Resources/References
