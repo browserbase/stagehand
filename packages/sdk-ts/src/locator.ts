@@ -11,6 +11,7 @@ import type {
   LocatorTypeParams,
 } from "../../protocol/types.js";
 import type { RPCClient } from "./rpcClient.js";
+import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
 export class Locator {
   constructor(
@@ -101,6 +102,13 @@ export class Locator {
     return await this.rpcClient.send(StagehandMethods.locatorSelectOption, {
       ...this.descriptor,
       values,
+    });
+  }
+
+  async setInputFiles(files: FileInput): Promise<void> {
+    await this.rpcClient.send(StagehandMethods.locatorSetInputFiles, {
+      ...this.descriptor,
+      files: await normalizeFileInput(files),
     });
   }
 

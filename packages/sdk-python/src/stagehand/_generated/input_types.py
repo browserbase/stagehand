@@ -278,6 +278,13 @@ class ImplementationInfo(TypedDict):
     version: str
 
 
+class InputFilePayload(TypedDict):
+    name: str
+    mime_type: NotRequired[str]
+    data: str
+    last_modified: NotRequired[int]
+
+
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
@@ -540,6 +547,17 @@ class LocatorSendClickEventParams(TypedDict):
 
 class LocatorSendClickEventResult(TypedDict):
     clicked: Literal[True]
+
+
+class LocatorSetInputFilesParams(TypedDict):
+    page_id: str
+    selector: str
+    nth: NotRequired[int]
+    files: list[InputFilePayload]
+
+
+class LocatorSetInputFilesResult(TypedDict):
+    set: Literal[True]
 
 
 LocatorTextContentResult: TypeAlias = str

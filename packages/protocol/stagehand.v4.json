@@ -877,6 +877,19 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "locator.set_input_files": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/LocatorSetInputFilesParams"
+            },
+            "result": {
+              "$ref": "#/$defs/LocatorSetInputFilesResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "response.body": {
           "type": "object",
           "properties": {
@@ -1024,6 +1037,7 @@
         "locator.send_click_event",
         "locator.type",
         "locator.select_option",
+        "locator.set_input_files",
         "response.body",
         "response.all_headers",
         "response.headers_array",
@@ -4333,6 +4347,69 @@
         "type": "string"
       }
     },
+    "LocatorSetInputFilesParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/InputFilePayload"
+          }
+        }
+      },
+      "required": ["page_id", "selector", "files"],
+      "additionalProperties": false
+    },
+    "InputFilePayload": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mime_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "string",
+          "maxLength": 69905068,
+          "format": "byte",
+          "contentEncoding": "base64",
+          "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
+        },
+        "last_modified": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["name", "data"],
+      "additionalProperties": false
+    },
+    "LocatorSetInputFilesResult": {
+      "type": "object",
+      "properties": {
+        "set": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": ["set"],
+      "additionalProperties": false
+    },
     "ResponseIdParams": {
       "type": "object",
       "properties": {
@@ -6595,6 +6672,33 @@
             },
             "params": {
               "$ref": "#/$defs/LocatorSelectOptionParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "locator.set_input_files"
+            },
+            "params": {
+              "$ref": "#/$defs/LocatorSetInputFilesParams"
             },
             "traceparent": {
               "type": "string"

@@ -458,6 +458,7 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
   readonly sendClickEventCalls: Array<LocatorSendClickEventParams["options"]> = [];
   readonly typeCalls: Array<{ text: string; options?: LocatorTypeParams["options"] }> = [];
   readonly selectOptionCalls: Array<LocatorSelectOptionParams["values"]> = [];
+  readonly setInputFilesCalls: Array<Parameters<UnderstudyRuntimeLocator["setInputFiles"]>[0]> = [];
   readonly nthCalls: number[] = [];
 
   constructor(
@@ -538,11 +539,15 @@ class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
     return this.values.selectedValues ?? (Array.isArray(values) ? values : [values]);
   }
 
+  async setInputFiles(
+    files: Parameters<UnderstudyRuntimeLocator["setInputFiles"]>[0],
+  ): Promise<void> {
+    this.setInputFilesCalls.push(files);
+  }
+
   nth(index: number): UnderstudyRuntimeLocator {
     this.nthCalls.push(index);
-    return new FakeUnderstudyRuntimeLocator(this.selector, this.visible, this.text, {
-      ...this.values,
-    });
+    return this;
   }
 }
 
@@ -2193,6 +2198,12 @@ describe("Stagehand worker clients", () => {
     await expect(
       runtime.locatorSelectOption({ ...descriptor, values: ["a", "b"] }),
     ).resolves.toStrictEqual(["b"]);
+    await expect(
+      runtime.locatorSetInputFiles({
+        ...descriptor,
+        files: [{ name: "hello.txt", data: "aGVsbG8=", mimeType: "text/plain" }],
+      }),
+    ).resolves.toStrictEqual({ set: true });
 
     expect(locator.scrollToCalls).toStrictEqual([50]);
     expect(locator.highlightCalls).toStrictEqual([
@@ -2201,6 +2212,15 @@ describe("Stagehand worker clients", () => {
     expect(locator.sendClickEventCalls).toStrictEqual([{ detail: 2 }]);
     expect(locator.typeCalls).toStrictEqual([{ text: "hello", options: { delay: 1 } }]);
     expect(locator.selectOptionCalls).toStrictEqual([["a", "b"]]);
+    expect(locator.setInputFilesCalls).toHaveLength(1);
+    expect(locator.setInputFilesCalls[0]).toStrictEqual([
+      {
+        name: "hello.txt",
+        mimeType: "text/plain",
+        buffer: new Uint8Array([104, 101, 108, 108, 111]),
+        lastModified: undefined,
+      },
+    ]);
   });
 
   it("returns a clear error when locator page id cannot be resolved", async () => {
@@ -2382,8 +2402,54 @@ describe("Stagehand worker clients", () => {
       result: ["pro"],
     });
 
-    expect(locator.nthCalls).toStrictEqual([0]);
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 19,
+        method: "locator.set_input_files",
+        params: {
+          page_id: "page-a",
+          selector: "select.plan",
+          nth: 1,
+          files: [{ name: "hello.txt", data: "aGVsbG8=", mime_type: "text/plain" }],
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 19,
+      result: { set: true },
+    });
+
+    await expect(
+      handle({
+        jsonrpc: "2.0",
+        id: 20,
+        method: "locator.set_input_files",
+        params: {
+          page_id: "page-a",
+          selector: "select.plan",
+          files: [],
+        },
+      }),
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 20,
+      result: { set: true },
+    });
+
+    expect(locator.nthCalls).toStrictEqual([0, 1]);
     expect(locator.selectOptionCalls).toStrictEqual(["pro"]);
+    expect(locator.setInputFilesCalls).toStrictEqual([
+      [
+        {
+          name: "hello.txt",
+          mimeType: "text/plain",
+          buffer: new Uint8Array([104, 101, 108, 108, 111]),
+          lastModified: undefined,
+        },
+      ],
+      [],
+    ]);
   });
 
   it("returns page resolution errors for locator RPC commands", async () => {

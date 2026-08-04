@@ -1908,6 +1908,33 @@ export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
+const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_INPUT_FILE_BASE64_LENGTH = Math.ceil(MAX_INPUT_FILE_BYTES / 3) * 4;
+
+export function decodedBase64ByteLength(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return (data.length / 4) * 3 - padding;
+}
+
+export const InputFilePayloadSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    mimeType: z.string().min(1).optional(),
+    data: z
+      .base64()
+      .max(MAX_INPUT_FILE_BASE64_LENGTH)
+      .refine((value) => decodedBase64ByteLength(value) <= MAX_INPUT_FILE_BYTES, {
+        message: "File data must decode to 50 MiB or less",
+      })
+      .meta({ format: "byte" }),
+    lastModified: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "InputFilePayload" });
+
+export const LocatorSetInputFilesParamsSchema = LocatorDescriptorSchema.extend({
+  files: z.array(InputFilePayloadSchema),
+}).meta({ id: "LocatorSetInputFilesParams" });
+
 export const StagehandInitResultSchema = z
   .strictObject({
     initialized: z.literal(true),
@@ -2040,6 +2067,12 @@ export const LocatorTypeResultSchema = z
 export const LocatorSelectOptionResultSchema = z
   .array(z.string())
   .meta({ id: "LocatorSelectOptionResult" });
+
+export const LocatorSetInputFilesResultSchema = z
+  .strictObject({
+    set: z.literal(true),
+  })
+  .meta({ id: "LocatorSetInputFilesResult" });
 
 export const StagehandLogLevelSchema = z
   .enum(["debug", "info", "warn", "error"])

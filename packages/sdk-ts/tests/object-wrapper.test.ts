@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
@@ -1184,6 +1184,106 @@ describe("Stagehand TS object wrapper", () => {
         values: ["starter", "pro"],
       }),
     ]);
+  });
+
+  it("normalizes files and payloads and routes locator.setInputFiles", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-test-"));
+    const filePath = path.join(directory, "hello.txt");
+    const historicalPath = path.join(directory, "historical.txt");
+    await writeFile(filePath, "hello");
+    await writeFile(historicalPath, "old");
+    await utimes(historicalPath, new Date(0), new Date(-1_000));
+    try {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const locator = page.locator("#upload");
+
+      await locator.setInputFiles(filePath);
+      await locator.setInputFiles([
+        {
+          name: "bytes.bin",
+          mimeType: "application/octet-stream",
+          buffer: new Uint8Array([0, 127, 255]),
+          lastModified: 42,
+        },
+        { name: "message.txt", buffer: "hello" },
+      ]);
+      await locator.setInputFiles([]);
+      await locator.setInputFiles(historicalPath);
+
+      expect(client.calls[0]).toMatchObject({
+        method: "locator.set_input_files",
+        params: {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "hello.txt", data: "aGVsbG8=" }],
+        },
+      });
+      expect(client.calls[1]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [
+            {
+              name: "bytes.bin",
+              mimeType: "application/octet-stream",
+              data: "AH//",
+              lastModified: 42,
+            },
+            { name: "message.txt", data: "aGVsbG8=" },
+          ],
+        }),
+      );
+      expect(client.calls[2]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [],
+        }),
+      );
+      expect(client.calls[3]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "historical.txt", data: "b2xk" }],
+        }),
+      );
+
+      const missingPath = path.join(directory, "private", "missing.txt");
+      const missingError = await locator
+        .setInputFiles(missingPath)
+        .catch((error: unknown) => error);
+      expect(missingError).toBeInstanceOf(TypeError);
+      expect((missingError as Error).message).toBe("setInputFiles(): could not read file");
+      expect((missingError as Error).message).not.toContain(directory);
+      await expect(
+        locator.setInputFiles({ name: "historical.txt", buffer: "old", lastModified: -1 }),
+      ).rejects.toThrow("lastModified must be a non-negative integer");
+
+      const oversizedPath = path.join(directory, "oversized.bin");
+      await writeFile(oversizedPath, "");
+      await truncate(oversizedPath, 50 * 1024 * 1024 + 1);
+      await expect(locator.setInputFiles(oversizedPath)).rejects.toThrow(
+        "file is larger than the 50 MiB upload limit",
+      );
+
+      const oversizedMemoryPayload = new Uint8Array(50 * 1024 * 1024 + 1);
+      const bufferFrom = vi.spyOn(Buffer, "from");
+      try {
+        await expect(
+          locator.setInputFiles({ name: "oversized.bin", buffer: oversizedMemoryPayload }),
+        ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+        expect(bufferFrom).not.toHaveBeenCalled();
+      } finally {
+        bufferFrom.mockRestore();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {

@@ -456,6 +456,11 @@ export class RPCRouter {
           parseParams(StagehandMethods.locatorSelectOption, request.params),
           context,
         );
+      case "locator.set_input_files":
+        return this.locatorController.setInputFiles(
+          parseParams(StagehandMethods.locatorSetInputFiles, request.params),
+          context,
+        );
     }
   }
 }
