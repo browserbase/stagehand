@@ -203,6 +203,87 @@ describe("claude code runner helpers", () => {
     expect(metrics.claude_code_total_tokens.value).toBe(140);
   });
 
+  it("collects tool metrics before the harness cleans up the adapter", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield {
+          type: "result",
+          subtype: "success",
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+        };
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+      toolAdapter: {
+        toolSurface: "v4_code",
+        startupProfile: "tool_launch_local",
+        cwd: "/tmp/stagehand-evals-test",
+        env: {},
+        allowedTools: ["Bash", "mcp__stagehand_browser__run"],
+        settingSources: [],
+        promptInstructions: "Use run.",
+        collectMetrics: async () => ({
+          v4_stagehand_metrics_available: { count: 1, value: 1 },
+          v4_total_prompt_tokens: { count: 1, value: 42 },
+        }),
+        cleanup: async () => {},
+      },
+    });
+    const metrics = result.metrics as Record<string, { value: number }>;
+
+    expect(metrics.v4_stagehand_metrics_available.value).toBe(1);
+    expect(metrics.v4_total_prompt_tokens.value).toBe(42);
+  });
+
+  it("keeps the harness result when tool metrics collection fails", async () => {
+    const logger = new EvalLogger(false);
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield {
+          type: "result",
+          subtype: "success",
+          result: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"ok"}',
+        };
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger,
+      sdk,
+      toolAdapter: {
+        toolSurface: "v4_code",
+        startupProfile: "tool_launch_local",
+        cwd: "/tmp/stagehand-evals-test",
+        env: {},
+        allowedTools: ["Bash", "mcp__stagehand_browser__run"],
+        settingSources: [],
+        promptInstructions: "Use run.",
+        collectMetrics: async () => {
+          throw new Error("metrics unavailable");
+        },
+        cleanup: async () => {},
+      },
+    });
+
+    expect(result._success).toBe(true);
+    expect(result.metrics).not.toHaveProperty("v4_stagehand_metrics_available");
+    expect(logger.getLogs()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: "claude_code",
+          message: "Tool metrics collection failed: metrics unavailable",
+        }),
+      ]),
+    );
+  });
+
   it("forwards adapter MCP servers into the Claude Code SDK query", async () => {
     let capturedOptions: Record<string, unknown> | undefined;
     const mcpServers = {

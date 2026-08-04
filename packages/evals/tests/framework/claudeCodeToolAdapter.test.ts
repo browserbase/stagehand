@@ -1,8 +1,11 @@
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type { StagehandMetrics } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  buildV4StagehandMetrics,
+  collectV4StagehandMetrics,
   executeV4AiSnippet,
   executeV4DeterministicSnippet,
   getBrowseCliAllowedTools,
@@ -20,6 +23,29 @@ import {
 } from "../../framework/codexToolAdapter.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
 import { EvalLogger } from "../../logger.js";
+
+const zeroStagehandMetrics: StagehandMetrics = {
+  actPromptTokens: 0,
+  actCompletionTokens: 0,
+  actReasoningTokens: 0,
+  actCachedInputTokens: 0,
+  actInferenceTimeMs: 0,
+  extractPromptTokens: 0,
+  extractCompletionTokens: 0,
+  extractReasoningTokens: 0,
+  extractCachedInputTokens: 0,
+  extractInferenceTimeMs: 0,
+  observePromptTokens: 0,
+  observeCompletionTokens: 0,
+  observeReasoningTokens: 0,
+  observeCachedInputTokens: 0,
+  observeInferenceTimeMs: 0,
+  totalPromptTokens: 0,
+  totalCompletionTokens: 0,
+  totalReasoningTokens: 0,
+  totalCachedInputTokens: 0,
+  totalInferenceTimeMs: 0,
+};
 
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
@@ -171,6 +197,44 @@ describe("claude code tool adapter resolution", () => {
       action: { instruction: "click the link", success: true },
       parsed: { heading: "Example Domain" },
     });
+  });
+
+  it("maps Stagehand metrics into prefixed eval metrics", () => {
+    const metrics = buildV4StagehandMetrics({
+      ...zeroStagehandMetrics,
+      actPromptTokens: 12,
+      totalInferenceTimeMs: 340,
+    });
+
+    expect(metrics).toMatchObject({
+      v4_stagehand_metrics_available: { count: 1, value: 1 },
+      v4_act_prompt_tokens: { count: 1, value: 12 },
+      v4_total_inference_time_ms: { count: 1, value: 340 },
+    });
+    expect(Object.keys(metrics)).toHaveLength(21);
+  });
+
+  it("collects the deterministic zero snapshot as available metrics", async () => {
+    const metrics = async () => zeroStagehandMetrics;
+
+    const collected = await collectV4StagehandMetrics({ metrics });
+
+    expect(collected).toMatchObject({
+      v4_stagehand_metrics_available: { count: 1, value: 1 },
+      v4_act_prompt_tokens: { count: 1, value: 0 },
+      v4_total_inference_time_ms: { count: 1, value: 0 },
+    });
+    expect(Object.keys(collected)).toHaveLength(21);
+  });
+
+  it("does not hide unexpected Stagehand metrics failures", async () => {
+    const metrics = async () => {
+      throw new Error("metrics transport failed");
+    };
+
+    await expect(collectV4StagehandMetrics({ metrics })).rejects.toThrow(
+      "metrics transport failed",
+    );
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {
