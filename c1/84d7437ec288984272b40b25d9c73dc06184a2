@@ -1,0 +1,19 @@
+packages/server/llm/aiSdkClient.ts
+  s_d039eb5c1662ee::t_f056b5f34e518e 148-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c184d7437ec288984272b40b25d9c73dc06184a2",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
