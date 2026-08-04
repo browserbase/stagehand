@@ -1,0 +1,21 @@
+packages/sdk-ts/src/rpcClient.ts
+  s_d039eb5c1662ee::t_10e4449fbbed91 491-494,496
+  s_d039eb5c1662ee::t_a877865d0fb5ac 495
+  s_d039eb5c1662ee::t_8153f2f871ebe1 61-66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "862a5eec0a8f9111da8da2eb97a23aba43aad69c",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
