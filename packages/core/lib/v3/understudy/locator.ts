@@ -404,39 +404,32 @@ export class Locator {
       if (!box.model) throw new ElementNotVisibleError(this.selector);
       const { cx, cy } = this.centerFromBoxContent(box.model.content);
 
-      // Dispatch click events in a pipelined burst to reduce inter-click delay
-      // from network/CPU jitter between round trips.
-      const dispatches: Array<Promise<unknown>> = [];
-      dispatches.push(
-        session.send<never>("Input.dispatchMouseEvent", {
-          type: "mouseMoved",
-          x: cx,
-          y: cy,
-          button: "none",
-        } as Protocol.Input.DispatchMouseEventRequest),
-      );
+      // Keep the CDP input sequence ordered. Starting the press and release
+      // before the preceding command resolves can race hover/pointer state in
+      // reactive UIs and make a successful click a no-op.
+      await session.send<never>("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: cx,
+        y: cy,
+        button: "none",
+      } as Protocol.Input.DispatchMouseEventRequest);
 
       for (let i = 1; i <= clickCount; i++) {
-        dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
-            type: "mousePressed",
-            x: cx,
-            y: cy,
-            button,
-            clickCount: i,
-          } as Protocol.Input.DispatchMouseEventRequest),
-        );
-        dispatches.push(
-          session.send<never>("Input.dispatchMouseEvent", {
-            type: "mouseReleased",
-            x: cx,
-            y: cy,
-            button,
-            clickCount: i,
-          } as Protocol.Input.DispatchMouseEventRequest),
-        );
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
+        await session.send<never>("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          x: cx,
+          y: cy,
+          button,
+          clickCount: i,
+        } as Protocol.Input.DispatchMouseEventRequest);
       }
-      await Promise.all(dispatches);
     } finally {
       // release the element handle
       try {
