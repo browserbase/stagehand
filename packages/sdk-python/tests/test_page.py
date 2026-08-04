@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import inspect
+from collections.abc import Awaitable, Callable
 from typing import cast
 
 import pytest
 from pydantic import BaseModel
 
-from stagehand import WebMCPInvocation, WebMCPTool, WebMCPToolResponse
+from stagehand import Response, WebMCPInvocation, WebMCPTool, WebMCPToolResponse
 from stagehand._generated.models import (
+    NavigationResponseDescriptor,
     PageClickParams,
     PageDragAndDropParams,
     PageEvaluateResult,
@@ -49,7 +51,14 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
     recording = RecordingRPCClient({
         "page.goto": PageNavigationResult(
             page=PageRef(page_id="page-2", url="https://example.com"),
-            response=None,
+            response=NavigationResponseDescriptor(
+                response_id="response-1",
+                url="https://example.com",
+                status=200,
+                status_text="OK",
+                headers={"content-type": "text/html"},
+                from_service_worker=False,
+            ),
         ),
         "page.title": "Example Domain",
     })
@@ -62,7 +71,8 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
     )
     title = await page.title()
 
-    assert returned is page
+    assert isinstance(returned, Response)
+    assert returned.url == "https://example.com"
     assert page.page_id == "page-2"
     assert title == "Example Domain"
     method, params, result_model = recording.calls[0]
@@ -73,6 +83,79 @@ async def test_page_navigation_uses_generated_wire_models_and_updates_the_page_r
         "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
     })
     assert result_model is PageNavigationResult
+
+
+@pytest.mark.parametrize(
+    ("rpc_method", "navigate"),
+    [
+        ("page.reload", lambda page: page.reload()),
+        ("page.go_back", lambda page: page.go_back()),
+        ("page.go_forward", lambda page: page.go_forward()),
+    ],
+)
+@pytest.mark.asyncio
+async def test_page_navigation_methods_wrap_non_null_responses(
+    rpc_method: str,
+    navigate: Callable[[Page], Awaitable[Response | None]],
+) -> None:
+    recording = RecordingRPCClient({
+        rpc_method: PageNavigationResult(
+            page=PageRef(page_id="page-2", url="https://example.com/final"),
+            response=NavigationResponseDescriptor(
+                response_id="response-1",
+                url="https://example.com/final",
+                status=201,
+                status_text="Created",
+                headers={"content-type": "text/html"},
+                from_service_worker=True,
+            ),
+        )
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    response = await navigate(page)
+
+    assert isinstance(response, Response)
+    assert response.url == "https://example.com/final"
+    assert response.status == 201
+    assert response.from_service_worker is True
+    assert page.page_id == "page-2"
+    assert len(recording.calls) == 1
+    method, _, result_model = recording.calls[0]
+    assert method == rpc_method
+    assert result_model is PageNavigationResult
+
+
+@pytest.mark.asyncio
+async def test_page_navigation_methods_return_none_without_a_network_response() -> None:
+    recording = RecordingRPCClient({
+        "page.reload": PageNavigationResult(
+            page=PageRef(page_id="page-2"),
+            response=None,
+        ),
+        "page.go_back": PageNavigationResult(
+            page=PageRef(page_id="page-3"),
+            response=None,
+        ),
+        "page.go_forward": PageNavigationResult(
+            page=PageRef(page_id="page-4"),
+            response=None,
+        ),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    assert await page.reload() is None
+    assert page.page_id == "page-2"
+    assert await page.go_back() is None
+    assert page.page_id == "page-3"
+    assert await page.go_forward() is None
+    assert page.page_id == "page-4"
+
+    assert [method for method, _, _ in recording.calls] == [
+        "page.reload",
+        "page.go_back",
+        "page.go_forward",
+    ]
 
 
 @pytest.mark.asyncio

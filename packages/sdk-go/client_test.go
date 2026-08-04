@@ -117,7 +117,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if page == nil {
 		t.Fatal("ActivePage() = nil")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		t.Fatalf("Goto() error = %v", err)
 	}
 	if _, err := client.Act(ctx, ActInstruction("click the link"), nil); err != nil {

@@ -12,6 +12,12 @@ export {
 } from "./browserClipboard.js";
 export { Locator } from "./locator.js";
 export { Page, type ScreenshotOptions } from "./page.js";
+export {
+  Response,
+  type ResponseHeader,
+  type ResponseSecurityDetails,
+  type ResponseServerAddr,
+} from "./response.js";
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
