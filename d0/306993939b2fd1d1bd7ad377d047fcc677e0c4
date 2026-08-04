@@ -1,0 +1,19 @@
+packages/evals/framework/observeSelectors.ts
+  s_d039eb5c1662ee::t_97542af1c9feee 11-17,27-34,36-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d0306993939b2fd1d1bd7ad377d047fcc677e0c4",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
