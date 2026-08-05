@@ -1,0 +1,19 @@
+packages/evals/core/tools/stagehand_code.ts
+  s_a619aee37aaacb::t_9f79f9b7f10929 126-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3c8333df3c399ed9e67a968d554584d0f1380fc5",
+  "prompts": {},
+  "sessions": {
+    "s_a619aee37aaacb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2a77c7e-979f-4c12-be81-a23658f6866b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
