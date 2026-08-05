@@ -309,6 +309,7 @@ export async function runCommand(
       }
 
       const arms = summarizeArmVerifiability(result.results, options.harness);
+      const unverifiableLimit = resolveUnverifiableCriteriaLimit();
       if (arms.length > 0) {
         for (const arm of arms) {
           console.log(
@@ -317,18 +318,27 @@ export async function runCommand(
             ),
           );
         }
-        const limit = resolveUnverifiableCriteriaLimit();
-        if (limit !== undefined) {
-          const over = armsOverLimit(arms, limit);
+        if (unverifiableLimit !== undefined) {
+          const over = armsOverLimit(arms, unverifiableLimit);
           for (const arm of over) {
             console.error(
-              `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${limit})`,
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
             );
           }
           if (over.length > 0) {
             process.exitCode = 1;
           }
         }
+      } else if (
+        unverifiableLimit !== undefined &&
+        result.results.some((row) => row.output.verifierError !== undefined)
+      ) {
+        // A configured gate must never be silently bypassed: verifier-backed
+        // runs happened, but none produced a graded arm to measure.
+        console.error(
+          `  ✗ verifiability gate: EVAL_MAX_UNVERIFIABLE_CRITERIA=${unverifiableLimit} is set but no runs were graded`,
+        );
+        process.exitCode = 1;
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));

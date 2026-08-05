@@ -102,6 +102,46 @@ describe("per-step observations in trajectories", () => {
       "https://example.com/second",
     ]);
   });
+
+  it("maps the Nth codex observation to the Nth bridge run", () => {
+    const events = [
+      commandExecution("node browser_run.mjs a.js"),
+      commandExecution("ls"),
+      commandExecution("node browser_run.mjs b.js"),
+    ];
+    const trajectory = codexAdapter.fromHarnessResult(
+      {
+        events,
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/a" } },
+          { runIndex: 1, evidence: { url: "https://example.com/b" } },
+        ],
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps.map((s) => s.probeEvidence.url)).toEqual([
+      "https://example.com/a",
+      undefined,
+      "https://example.com/b",
+    ]);
+  });
+
+  it("attaches no codex observations when bridge runs outnumber matched steps", () => {
+    // Two recorded bridge runs but only one command matches the filter —
+    // ordinals could be shifted, so misattribution must be refused.
+    const events = [commandExecution("node browser_run.mjs a.js"), commandExecution("ls")];
+    const trajectory = codexAdapter.fromHarnessResult(
+      {
+        events,
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/a" } },
+          { runIndex: 1, evidence: { url: "https://example.com/b" } },
+        ],
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps.every((s) => s.probeEvidence.url === undefined)).toBe(true);
+  });
 });
 
 describe("verifiability gate", () => {
@@ -147,6 +187,15 @@ describe("verifiability gate", () => {
       { arm: "b", gradedRuns: 1, unverifiableCriteria: 2, totalCriteria: 4 },
     ];
     expect(armsOverLimit(arms, 1).map((a) => a.arm)).toEqual(["b"]);
+  });
+
+  it("treats malformed limit values as report-only", () => {
+    for (const raw of ["1.5", "10foo", "-2", "", " "]) {
+      process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = raw;
+      expect(resolveUnverifiableCriteriaLimit()).toBeUndefined();
+    }
+    process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = " 3 ";
+    expect(resolveUnverifiableCriteriaLimit()).toBe(3);
   });
 });
 

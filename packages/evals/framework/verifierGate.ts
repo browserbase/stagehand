@@ -45,10 +45,15 @@ export function summarizeArmVerifiability(
   return [...arms.values()];
 }
 
-/** Per-arm ceiling on unverifiable criteria. Unset or invalid = report only. */
+/**
+ * Per-arm ceiling on unverifiable criteria. Unset or invalid = report only.
+ * Strict integer parsing: a malformed value ("1.5", "10foo") must not be
+ * coerced into an unintended gate.
+ */
 export function resolveUnverifiableCriteriaLimit(): number | undefined {
-  const parsed = Number.parseInt(process.env[GATE_ENV] ?? "", 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  const raw = process.env[GATE_ENV]?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  return Number(raw);
 }
 
 /** Arms whose unverifiable-criteria count exceeds the limit. */
