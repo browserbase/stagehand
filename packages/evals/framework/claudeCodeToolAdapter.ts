@@ -2,10 +2,16 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import type * as StagehandSdk from "@browserbasehq/stagehand";
+import {
+  executeStagehandSnippet,
+  STAGEHAND_CODEMODE_SKILL,
+} from "@browserbasehq/stagehand-integrations/codemode";
 import matter from "gray-matter";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
+import { initStagehand } from "../initStagehand.js";
 import type { EvalLogger } from "../logger.js";
 import {
   BROWSE_CLI_BUILD_ARTIFACTS,
@@ -189,20 +195,31 @@ export async function prepareClaudeCodeToolAdapter(
         toolSurface,
         startupProfile,
       });
+    case "v4_code_deterministic":
+      return prepareV4CodeDeterministicAdapter({
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code_deterministic for execution right now; received "${toolSurface}".`,
       );
   }
 }
 
 export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurface {
   if (!requested) return "browse_cli";
-  if (requested === "browse_cli" || requested === "playwright_code" || requested === "cdp_code") {
+  if (
+    requested === "browse_cli" ||
+    requested === "playwright_code" ||
+    requested === "cdp_code" ||
+    requested === "v4_code_deterministic"
+  ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or v4_code_deterministic for execution right now; received "${requested}".`,
   );
 }
 
@@ -211,6 +228,18 @@ export function resolveClaudeCodeStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
   requested?: StartupProfile,
 ): StartupProfile {
+  if (toolSurface === "v4_code_deterministic") {
+    if (environment !== "LOCAL") {
+      throw new EvalsError("v4_code_deterministic currently supports only the LOCAL environment.");
+    }
+    if (requested && requested !== "tool_launch_local") {
+      throw new EvalsError(
+        `v4_code_deterministic requires startup profile "tool_launch_local"; received "${requested}".`,
+      );
+    }
+    return "tool_launch_local";
+  }
+
   if (requested) return requested;
 
   if (toolSurface === "browse_cli") {
@@ -572,6 +601,119 @@ async function prepareCdpCodeAdapter(
   }
 }
 
+async function prepareV4CodeDeterministicAdapter(
+  input: ClaudeCodeToolAdapterInput & {
+    toolSurface: "v4_code_deterministic";
+    startupProfile: StartupProfile;
+  },
+): Promise<PreparedClaudeCodeToolAdapter> {
+  if (input.environment !== "LOCAL" || input.startupProfile !== "tool_launch_local") {
+    throw new EvalsError(
+      "v4_code_deterministic requires LOCAL with startup profile tool_launch_local.",
+    );
+  }
+
+  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-v4-deterministic-"));
+  const env = { ...process.env } as Record<string, string>;
+  let stagehand: StagehandSdk.Stagehand | undefined;
+
+  try {
+    const initialized = await initStagehand({
+      environment: "LOCAL",
+      logger: input.logger,
+    });
+    stagehand = initialized.stagehand;
+    const mcpServers = await buildV4DeterministicRunMcpServers({
+      context: stagehand.browser.context,
+      page: initialized.page,
+      plan: input.plan,
+      logger: input.logger,
+    });
+
+    input.logger.log({
+      category: "claude_code",
+      message: "Initialized local v4_code_deterministic runtime for Claude Code run tool.",
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: input.startupProfile,
+          type: "string",
+        },
+        environment: {
+          value: input.environment,
+          type: "string",
+        },
+      },
+    });
+
+    return {
+      toolSurface: "v4_code_deterministic",
+      startupProfile: input.startupProfile,
+      cwd,
+      env,
+      allowedTools: ["Bash", RUN_TOOL_NAME],
+      settingSources: [],
+      mcpServers,
+      canUseTool: async (toolName, commandInput) => {
+        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
+          return { behavior: "allow", updatedInput: commandInput };
+        }
+        return {
+          behavior: "deny",
+          message: `Use Bash for inspection and ${RUN_TOOL_NAME} for deterministic V4 browser automation.`,
+        };
+      },
+      promptInstructions: buildV4CodeDeterministicPromptInstructions(input.plan),
+      cleanup: async () => {
+        try {
+          await closeV4CodeStagehand(stagehand, input.logger, input.toolSurface);
+        } finally {
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await closeV4CodeStagehand(stagehand, input.logger, input.toolSurface);
+    } finally {
+      await fsp.rm(cwd, { recursive: true, force: true });
+    }
+    throw error;
+  }
+}
+
+async function closeV4CodeStagehand(
+  stagehand: StagehandSdk.Stagehand | undefined,
+  logger: EvalLogger,
+  toolSurface: ToolSurface,
+): Promise<void> {
+  if (!stagehand) return;
+
+  try {
+    await stagehand.close();
+  } catch (cleanupError) {
+    logger.warn({
+      category: "claude_code",
+      message: `${toolSurface} Stagehand cleanup failed: ${
+        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+      }`,
+      level: 1,
+    });
+  }
+
+  try {
+    await stagehand.browser.close();
+  } catch (cleanupError) {
+    logger.warn({
+      category: "claude_code",
+      message: `${toolSurface} browser cleanup failed: ${
+        cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+      }`,
+      level: 1,
+    });
+  }
+}
+
 async function buildPlaywrightRunMcpServers(input: {
   browser: Browser;
   context: BrowserContext;
@@ -619,6 +761,112 @@ async function buildPlaywrightRunMcpServers(input: {
       alwaysLoad: true,
     }),
   };
+}
+
+async function buildV4DeterministicRunMcpServers(input: {
+  context: StagehandSdk.BrowserContext;
+  page: StagehandSdk.Page;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<Record<string, unknown>> {
+  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
+    createSdkMcpServer: SdkMcpServerFactory;
+    tool: SdkToolFactory;
+  };
+
+  const runTool = sdk.tool(
+    "run",
+    [
+      "Execute JavaScript against the initialized deterministic Stagehand V4 browser.",
+      "The snippet runs inside an async function with page, context, startUrl, task, and console in scope.",
+      "Stagehand AI methods are intentionally unavailable. Use await directly and return a JSON-serializable value when useful.",
+    ].join(" "),
+    {
+      code: z
+        .string()
+        .describe(
+          "JavaScript function body to execute. page/context/startUrl/task are already in scope.",
+        ),
+    },
+    async ({ code }) => {
+      return executeV4DeterministicRunTool({
+        code,
+        context: input.context,
+        page: input.page,
+        plan: input.plan,
+        logger: input.logger,
+      });
+    },
+    { alwaysLoad: true },
+  );
+
+  return {
+    [RUN_TOOL_SERVER]: sdk.createSdkMcpServer({
+      name: RUN_TOOL_SERVER,
+      version: "1.0.0",
+      tools: [runTool],
+      alwaysLoad: true,
+    }),
+  };
+}
+
+async function executeV4DeterministicRunTool(input: {
+  code: string;
+  context: StagehandSdk.BrowserContext;
+  page: StagehandSdk.Page;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<ClaudeToolResult> {
+  try {
+    const result = await withTimeout(
+      executeV4DeterministicSnippet(input),
+      readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
+    );
+    const text = stringifyToolResult(result);
+    input.logger.log({
+      category: "claude_code",
+      message: `run tool completed: ${clip(text, 500)}`,
+      level: 1,
+    });
+    return {
+      content: [{ type: "text", text }],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.logger.warn({
+      category: "claude_code",
+      message: `run tool failed: ${message}`,
+      level: 1,
+    });
+    return {
+      isError: true,
+      content: [{ type: "text", text: message }],
+    };
+  }
+}
+
+export async function executeV4DeterministicSnippet(input: {
+  code: string;
+  context: StagehandSdk.BrowserContext;
+  page: StagehandSdk.Page;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<unknown> {
+  return executeStagehandSnippet({
+    code: input.code,
+    page: input.page,
+    context: input.context,
+    bindings: {
+      startUrl: input.plan.startUrl,
+      task: {
+        dataset: input.plan.dataset,
+        id: input.plan.taskId,
+        startUrl: input.plan.startUrl,
+        instruction: input.plan.instruction,
+      },
+    },
+    console: buildRunToolConsole(input.logger),
+  });
 }
 
 async function executePlaywrightRunTool(input: {
@@ -1008,6 +1256,23 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildV4CodeDeterministicPromptInstructions(plan: ExternalHarnessTaskPlan): string {
+  void plan;
+  return [
+    "Browser tool surface: v4_code_deterministic.",
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes initialized Stagehand V4 page and context objects, plus startUrl and task.`,
+    "Use page and context for deterministic browser operations such as navigation, locators, DOM evaluation, screenshots, tabs, cookies, and clipboard access.",
+    "Stagehand AI methods act, observe, and extract are intentionally unavailable in this experimental arm.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+    "",
+    "Canonical Stagehand V4 code-mode guide:",
+    STAGEHAND_CODEMODE_SKILL,
   ].join("\n");
 }
 
