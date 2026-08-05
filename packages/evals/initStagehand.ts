@@ -123,7 +123,7 @@ export async function initStagehand({
   // tears down the RPC client without closing the browser.
   let page: Page | null;
   try {
-    page = await stagehand.context.activePage();
+    page = await stagehand.browser.context.activePage();
     if (!page) {
       throw new Error("Stagehand init: Stagehand initialized without an active page");
     }
