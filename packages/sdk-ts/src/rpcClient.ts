@@ -58,6 +58,12 @@ const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
 const RPC_RESPONSE_GRACE_MS = 10_000;
+/**
+ * Default budget for LLM-backed operations when the caller sets no timeout.
+ * act/extract/observe are LLM round trips over full-page context — routinely
+ * longer than the grace window alone, which is sized for transport stalls.
+ */
+const RPC_LLM_DEFAULT_TIMEOUT_MS = 180_000;
 
 const RPCClientOptionsBaseSchema = z
   .object({
@@ -482,6 +488,12 @@ function rpcResponseTimeoutMs(method: string, params: unknown): number | undefin
     case StagehandMethods.stagehandAct.name:
     case StagehandMethods.stagehandExtract.name:
     case StagehandMethods.stagehandObserve.name:
+      // Without a caller timeout the deadline would be the grace window alone
+      // (10s) — an LLM round trip rarely fits, so bare calls fail with
+      // "RPC request timed out" on any slow page or remote browser.
+      operationTimeoutMs =
+        numericProperty(recordProperty(params, "options"), "timeout") ?? RPC_LLM_DEFAULT_TIMEOUT_MS;
+      break;
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:
     case StagehandMethods.pageGoBack.name:
