@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  executeV4DeterministicSnippet,
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   insertAfterFrontmatter,
@@ -17,6 +18,7 @@ import {
   resolveCodexToolSurface,
 } from "../../framework/codexToolAdapter.js";
 import type { CdpEventMessage } from "../../core/tools/cdp_code.js";
+import { EvalLogger } from "../../logger.js";
 
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
@@ -49,10 +51,76 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
+  it("supports deterministic V4 only as a local tool-launched surface", () => {
+    expect(resolveClaudeCodeToolSurface("v4_code_deterministic")).toBe("v4_code_deterministic");
+    expect(resolveClaudeCodeStartupProfile("v4_code_deterministic", "LOCAL")).toBe(
+      "tool_launch_local",
+    );
+    expect(() =>
+      resolveClaudeCodeStartupProfile(
+        "v4_code_deterministic",
+        "LOCAL",
+        "runner_provided_local_cdp",
+      ),
+    ).toThrow(/requires startup profile "tool_launch_local"/);
+    expect(() => resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE")).toThrow(
+      /supports only the LOCAL environment/,
+    );
+  });
+
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool .*v4_code_deterministic/,
     );
+  });
+
+  it("executes deterministic V4 snippets with native page and context bindings", async () => {
+    const logger = new EvalLogger(false);
+    const page = { marker: "page" };
+    const context = { marker: "context" };
+
+    const result = await executeV4DeterministicSnippet({
+      code: `
+        console.log("binding check");
+        return {
+          page: page.marker,
+          context: context.marker,
+          startUrl,
+          task,
+          stagehandType: typeof stagehand,
+          zType: typeof z,
+        };
+      `,
+      page: page as never,
+      context: context as never,
+      plan: {
+        dataset: "webvoyager",
+        taskId: "task-1",
+        startUrl: "https://example.com",
+        instruction: "Inspect the example page",
+      },
+      logger,
+    });
+
+    expect(result).toEqual({
+      page: "page",
+      context: "context",
+      startUrl: "https://example.com",
+      task: {
+        dataset: "webvoyager",
+        id: "task-1",
+        startUrl: "https://example.com",
+        instruction: "Inspect the example page",
+      },
+      stagehandType: "undefined",
+      zType: "undefined",
+    });
+    expect(logger.getLogs()).toEqual([
+      expect.objectContaining({
+        category: "claude_code",
+        message: "run console.log: binding check",
+      }),
+    ]);
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {
