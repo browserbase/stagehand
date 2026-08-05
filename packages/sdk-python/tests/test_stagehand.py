@@ -5,18 +5,22 @@ import importlib
 import inspect
 import json
 from collections.abc import Awaitable, Callable
-from typing import TypeVar, cast, overload
+from typing import TypeVar, assert_type, cast, overload
 
 import pytest
 from pydantic import BaseModel, RootModel, StrictInt
 
 from stagehand import (
+    DefaultExtract,
+    ExtractResult,
     LLMGenerateInput,
     LLMGenerateOutput,
     LLMImageContent,
+    ModelConfig,
     Page,
     ProtocolLocator,
     Stagehand,
+    TelemetryConfig,
 )
 from stagehand import timeouts as timeout_settings
 from stagehand._generated.models import (
@@ -34,7 +38,6 @@ from stagehand._generated.models import (
     LLMStructuredGenerateParams,
     LLMStructuredGenerateResult,
     LLMTextContent,
-    ModelConfig,
     ObserveResult,
     PageRef,
     StagehandActParams,
@@ -47,7 +50,6 @@ from stagehand._generated.models import (
     StagehandObserveParams,
     StagehandResultMetadata,
     StagehandResultUsage,
-    TelemetryConfig,
 )
 from stagehand.browser import (
     _BROWSER_TOKEN,
@@ -57,7 +59,6 @@ from stagehand.browser import (
     _WorkerInitMetadata,
 )
 from stagehand.cdp_client import CDPClient, CDPConnectionClosedError
-from stagehand.client_models import CacheOptions, StagehandClientLoggingConfig
 from stagehand.rpc_client import RPCClient, RPCError, _JSONRPCError
 
 from ._support import RecordingRPCClient
@@ -134,6 +135,10 @@ def test_stagehand_constructor_is_private() -> None:
         Stagehand()
 
 
+def test_stagehand_does_not_expose_context() -> None:
+    assert not hasattr(Stagehand, "context")
+
+
 @pytest.mark.asyncio
 async def test_create_requires_a_factory_browser_before_validating_config() -> None:
     with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):
@@ -170,7 +175,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
         browser=browser,
         api_key="caller-key",
         model=generate,
-        logging=StagehandClientLoggingConfig(level="debug"),
+        logging={"level": "debug"},
     )
 
     assert stagehand.browser is browser
@@ -211,12 +216,12 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
     recording = _recording()
     _install_rpc_client(monkeypatch, recording)
     browser, _ = _browser_handle()
-    telemetry = TelemetryConfig.model_validate({
+    telemetry: TelemetryConfig = {
         "traces": {
             "endpoint": "https://telemetry.example/v1/traces",
             "headers": {"authorization": "secret"},
         }
-    })
+    }
 
     await Stagehand.create(
         browser=browser,
@@ -227,13 +232,14 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
         system_prompt="Use the test policy",
         self_heal=True,
         dom_settle_timeout_ms=2_500,
-        cache=CacheOptions(threshold=3),
+        cache={"threshold": 3},
     )
 
     params = cast(StagehandInitParams, recording.calls[0][1])
     assert params.api_key == "caller-key"
     assert "browser" not in params.model_fields_set
-    assert params.telemetry == telemetry
+    assert params.telemetry is not None
+    assert params.telemetry.model_dump(mode="json") == telemetry
     assert params.system_prompt == "Use the test policy"
     assert params.self_heal is True
     assert params.dom_settle_timeout_ms == 2_500
@@ -460,8 +466,8 @@ async def test_close_is_memoized_and_never_closes_browser_or_transport(
     assert recording.close_transport_flags == [False]
     assert browser.closed is False
     assert transport.close_calls == 0
-    with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
-        _ = stagehand.context
+    with pytest.raises(RuntimeError, match="Browser context is unavailable.*Stagehand.create"):
+        _ = stagehand.browser.context
     with pytest.raises(RuntimeError, match="Stagehand is unavailable.*Stagehand.create"):
         await stagehand.metrics()
 
@@ -523,7 +529,7 @@ async def test_stagehand_prints_logs_and_calls_structured_callback(
 
     await Stagehand.create(
         browser=browser,
-        logging=StagehandClientLoggingConfig(level="info", on_log=on_log),
+        logging={"level": "info", "on_log": on_log},
     )
     _, listener = recording.notifications["stagehand.log"]
     notification_listener = cast(Callable[[StagehandLog], Awaitable[None]], listener)
@@ -631,7 +637,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
-    model = ModelConfig.model_validate({"model_name": "openai/gpt-4.1-mini"})
+    model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
     locator = ProtocolLocator(selector="main")
 
     assert await stagehand.metrics() == metrics
@@ -641,7 +647,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         model=model,
         timeout=30_000,
         locator=locator,
-        cache=CacheOptions(threshold=1),
+        cache={"threshold": 1},
     )
     observed = await stagehand.observe("Find the link", model=model, locator=locator)
     extracted = await stagehand.extract(
@@ -681,6 +687,51 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         if method == "stagehand.extract"
     )
     assert extract_params.page_id == "explicit-page"
+
+
+@pytest.mark.asyncio
+async def test_stagehand_extract_uses_default_schema(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({
+        "stagehand.extract": {
+            "data": {"extraction": "Example Domain"},
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.disabled),
+                usage=StagehandResultUsage(
+                    input_tokens=0,
+                    output_tokens=0,
+                    reasoning_tokens=0,
+                ),
+            ),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
+
+    try:
+        extracted = await stagehand.extract(instruction="Extract the page text", page=page)
+
+        assert_type(extracted, ExtractResult[DefaultExtract])
+        assert extracted.data.extraction == "Example Domain"
+        extract_params = next(
+            cast(StagehandExtractParams, params)
+            for method, params, _ in recording.calls
+            if method == "stagehand.extract"
+        )
+        assert extract_params.schema_ is not None
+        schema = extract_params.schema_.model_dump()
+        assert schema["type"] == "object"
+        assert schema["properties"] == {"extraction": {"type": "string"}}
+        assert schema["required"] == ["extraction"]
+        assert schema["additionalProperties"] is False
+    finally:
+        try:
+            await stagehand.close()
+        finally:
+            await browser.close()
 
 
 @pytest.mark.asyncio

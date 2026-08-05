@@ -46,7 +46,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -60,7 +61,7 @@ export function createStagehandController(
       selfHeal: state.initParams.selfHeal,
       domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
       cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
+      gateway,
     });
     runtime.metrics.record("act", result.metadata.usage);
     return result;
@@ -74,7 +75,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -86,7 +88,7 @@ export function createStagehandController(
       logger,
       systemPrompt: state.initParams.systemPrompt,
       cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
+      gateway,
     });
     runtime.metrics.record("observe", result.metadata.usage);
     return result;
@@ -100,7 +102,8 @@ export function createStagehandController(
     }
 
     const model = params.options?.model ?? state.initParams.model;
-    if (!model) {
+    const gateway = buildGatewayContext(state.initParams);
+    if (!model && !gateway) {
       throw new Error("An LLM was not configured during Stagehand initialization");
     }
 
@@ -112,7 +115,7 @@ export function createStagehandController(
       logger,
       systemPrompt: state.initParams.systemPrompt,
       cache: cacheService.buildCacheContext(state.initParams),
-      gateway: buildGatewayContext(state.initParams),
+      gateway,
     });
     runtime.metrics.record("extract", result.metadata.usage);
     return result;

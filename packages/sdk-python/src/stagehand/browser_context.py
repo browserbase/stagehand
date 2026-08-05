@@ -4,6 +4,8 @@ import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from ._generated.input_types import CookieParam
+from ._generated.input_types import DomainPolicy as DomainPolicyInput
 from ._generated.models import (
     ClearCookieOptions,
     ContextActivePageResult,
@@ -22,7 +24,6 @@ from ._generated.models import (
     ContextVoidResult,
     Cookie,
     CookieFilter,
-    CookieParam,
     CookieRegex,
     DomainPolicy,
     EmptyParams,
@@ -108,10 +109,13 @@ class BrowserContext:
             ContextGetDomainPolicyResult,
         )
 
-    async def set_domain_policy(self, policy: DomainPolicy | None) -> None:
+    async def set_domain_policy(
+        self,
+        policy: DomainPolicyInput | DomainPolicy | None,
+    ) -> None:
         await self._rpc_client.send(
             "context.set_domain_policy",
-            ContextSetDomainPolicyParams(policy=policy),
+            ContextSetDomainPolicyParams.model_validate({"policy": policy}),
             ContextVoidResult,
         )
 
@@ -128,7 +132,7 @@ class BrowserContext:
     async def add_cookies(self, cookies: Sequence[CookieParam]) -> None:
         await self._rpc_client.send(
             "context.add_cookies",
-            ContextAddCookiesParams(cookies=list(cookies)),
+            ContextAddCookiesParams.model_validate({"cookies": list(cookies)}),
             ContextVoidResult,
         )
 

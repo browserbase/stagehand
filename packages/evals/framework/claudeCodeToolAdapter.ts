@@ -3,6 +3,10 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type * as StagehandSdk from "@browserbasehq/stagehand";
+import {
+  executeStagehandSnippet,
+  STAGEHAND_CODEMODE_SKILL,
+} from "@browserbasehq/stagehand-integrations/codemode";
 import matter from "gray-matter";
 import type { Browser, BrowserContext, Page } from "playwright";
 import type { AvailableModel } from "stagehand-v3";
@@ -633,7 +637,7 @@ async function prepareV4CodeAdapter(
     stagehand = initialized.stagehand;
     const mcpServers = await buildV4RunMcpServers({
       stagehand: aiEnabled ? stagehand : undefined,
-      context: stagehand.context,
+      context: stagehand.browser.context,
       page: initialized.page,
       plan: input.plan,
       logger: input.logger,
@@ -893,31 +897,22 @@ async function executeV4Snippet(input: {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-    ...args: string[]
-  ) => (...values: unknown[]) => Promise<unknown>;
-  const argumentNames = [
-    "page",
-    "context",
-    ...(input.stagehand ? ["stagehand", "z"] : []),
-    "startUrl",
-    "task",
-    "console",
-  ];
-  const fn = new AsyncFunction(...argumentNames, input.code);
-  return fn(
-    input.page,
-    input.context,
-    ...(input.stagehand ? [input.stagehand, z] : []),
-    input.plan.startUrl,
-    {
-      dataset: input.plan.dataset,
-      id: input.plan.taskId,
+  return executeStagehandSnippet({
+    code: input.code,
+    page: input.page,
+    context: input.context,
+    ...(input.stagehand ? { stagehand: input.stagehand } : {}),
+    bindings: {
       startUrl: input.plan.startUrl,
-      instruction: input.plan.instruction,
+      task: {
+        dataset: input.plan.dataset,
+        id: input.plan.taskId,
+        startUrl: input.plan.startUrl,
+        instruction: input.plan.instruction,
+      },
     },
-    buildRunToolConsole(input.logger),
-  );
+    console: buildRunToolConsole(input.logger),
+  });
 }
 
 async function executePlaywrightRunTool(input: {
@@ -1330,6 +1325,9 @@ function buildV4CodePromptInstructions(
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+    "",
+    "Canonical Stagehand V4 code-mode guide:",
+    STAGEHAND_CODEMODE_SKILL,
   ].join("\n");
 }
 

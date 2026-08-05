@@ -47,6 +47,8 @@ import type {
   LocatorScrollToResult,
   LocatorSelectOptionParams,
   LocatorSelectOptionResult,
+  LocatorSetInputFilesParams,
+  LocatorSetInputFilesResult,
   LocatorSendClickEventParams,
   LocatorSendClickEventResult,
   LocatorTextContentResult,
@@ -65,6 +67,7 @@ import type {
   PageIdParams,
   PageKeyPressParams,
   PageNavigationOptions,
+  PageNavigationResult,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -88,6 +91,13 @@ import type {
   PageWebMCPInvokeToolParams,
   PageWebMCPToolsParams,
   PageWebMCPToolsResult,
+  ResponseAllHeadersResult,
+  ResponseBodyResult,
+  ResponseFinishedResult,
+  ResponseHeadersArrayResult,
+  ResponseIdParams,
+  ResponseSecurityDetailsResult,
+  ResponseServerAddrResult,
   StagehandInitParams,
   StagehandInitResult,
   SnapshotResult,
@@ -107,8 +117,11 @@ import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
+import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
 import { Page } from "./understudy/page.js";
+import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
+import { ResponseHandleTable } from "./responseHandleTable.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -206,6 +219,7 @@ export type UnderstudyRuntimeLocator = {
   sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
   type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
   selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
+  setInputFiles(files: SetInputFilesArgument): Promise<void>;
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
@@ -265,6 +279,7 @@ export function createStagehandRuntime(
 export class StagehandRuntime {
   readonly logger: StagehandLogger;
   readonly metrics = new StagehandMetricsAccumulator();
+  readonly responseHandles = new ResponseHandleTable();
   readonly state = createStore<StagehandRuntimeState>()(() =>
     StagehandRuntimeStateSchema.parse({ status: "created" }),
   );
@@ -284,6 +299,7 @@ export class StagehandRuntime {
     const previousSession = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
+    this.responseHandles.clear();
     await previousSession?.close();
 
     try {
@@ -335,12 +351,11 @@ export class StagehandRuntime {
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {
     const state = this.state.getState();
     const model = state.status === "initialized" ? state.initParams.model : undefined;
-    if (!model) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
-
     const gateway =
       state.status === "initialized" ? buildGatewayContext(state.initParams) : undefined;
+    if (!model && !gateway) {
+      throw new Error("An LLM was not configured during Stagehand initialization");
+    }
     return await llmService.generate(model, input, this.adapters.clientLLMGenerate, gateway);
   }
 
@@ -456,28 +471,66 @@ export class StagehandRuntime {
     return { ok: true };
   }
 
-  async pageGoto(params: PageGotoParams): Promise<PageRef> {
+  async pageGoto(params: PageGotoParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goto(params.url, params.options);
-    return pageRefFromUnderstudyPage(page);
+    const response = await page.goto(params.url, params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
-  async pageReload(params: PageReloadParams): Promise<PageRef> {
+  async pageReload(params: PageReloadParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.reload(params.options);
-    return pageRefFromUnderstudyPage(page);
+    const response = await page.reload(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
-  async pageGoBack(params: PageGoBackParams): Promise<PageRef> {
+  async pageGoBack(params: PageGoBackParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goBack(params.options);
-    return pageRefFromUnderstudyPage(page);
+    const response = await page.goBack(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
   }
 
-  async pageGoForward(params: PageGoForwardParams): Promise<PageRef> {
+  async pageGoForward(params: PageGoForwardParams): Promise<PageNavigationResult> {
     const page = this.resolvePage(params.pageId);
-    await page.goForward(params.options);
-    return pageRefFromUnderstudyPage(page);
+    const response = await page.goForward(params.options);
+    return this.pageNavigationResult(params.pageId, page, response);
+  }
+
+  async responseBody(params: ResponseIdParams): Promise<ResponseBodyResult> {
+    const body = await this.responseHandles.resolve(params.responseId).body();
+    return { body: bytesToBase64(body), base64Encoded: true };
+  }
+
+  async responseAllHeaders(params: ResponseIdParams): Promise<ResponseAllHeadersResult> {
+    return { headers: await this.responseHandles.resolve(params.responseId).allHeaders() };
+  }
+
+  async responseHeadersArray(params: ResponseIdParams): Promise<ResponseHeadersArrayResult> {
+    return { headers: await this.responseHandles.resolve(params.responseId).headersArray() };
+  }
+
+  async responseSecurityDetails(params: ResponseIdParams): Promise<ResponseSecurityDetailsResult> {
+    const details = await this.responseHandles.resolve(params.responseId).securityDetails();
+    return {
+      value:
+        details === null
+          ? null
+          : {
+              issuer: details.issuer,
+              protocol: details.protocol,
+              subjectName: details.subjectName,
+              validFrom: details.validFrom,
+              validTo: details.validTo,
+            },
+    };
+  }
+
+  async responseServerAddr(params: ResponseIdParams): Promise<ResponseServerAddrResult> {
+    return { value: await this.responseHandles.resolve(params.responseId).serverAddr() };
+  }
+
+  async responseFinished(params: ResponseIdParams): Promise<ResponseFinishedResult> {
+    const error = await this.responseHandles.resolve(params.responseId).finished();
+    return { error: error === null ? null : { message: error.message } };
   }
 
   async pageClick(params: PageClickParams): Promise<PageVoidResult> {
@@ -629,6 +682,7 @@ export class StagehandRuntime {
     const page = this.resolvePage(params.pageId);
     await page.close();
     this.pagesById.delete(params.pageId);
+    this.responseHandles.deleteForPage(params.pageId);
     return { closed: true };
   }
 
@@ -705,10 +759,32 @@ export class StagehandRuntime {
     return await this.resolveLocator(params).selectOption(params.values);
   }
 
+  async locatorSetInputFiles(
+    params: LocatorSetInputFilesParams,
+  ): Promise<LocatorSetInputFilesResult> {
+    await this.resolveLocator(params).setInputFiles(
+      params.files.map((file) => {
+        const binary = globalThis.atob(file.data);
+        const buffer = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+          buffer[index] = binary.charCodeAt(index);
+        }
+        return {
+          name: file.name,
+          mimeType: file.mimeType,
+          buffer,
+          lastModified: file.lastModified,
+        };
+      }),
+    );
+    return { set: true };
+  }
+
   async close(): Promise<void> {
     const session = this.browserSession;
     this.browserSession = undefined;
     this.pagesById.clear();
+    this.responseHandles.clear();
     try {
       await session?.close();
     } finally {
@@ -757,7 +833,10 @@ export class StagehandRuntime {
     }
 
     for (const pageId of this.pagesById.keys()) {
-      if (!currentPageIds.has(pageId)) this.pagesById.delete(pageId);
+      if (!currentPageIds.has(pageId)) {
+        this.pagesById.delete(pageId);
+        this.responseHandles.deleteForPage(pageId);
+      }
     }
   }
 
@@ -765,6 +844,28 @@ export class StagehandRuntime {
     const pageId = page.targetId();
     this.pagesById.set(pageId, page);
     return pageId;
+  }
+
+  private pageNavigationResult(
+    pageId: string,
+    page: UnderstudyRuntimePage,
+    response: unknown,
+  ): PageNavigationResult {
+    const pageRef = pageRefFromUnderstudyPage(page);
+    if (!(response instanceof Response)) return { page: pageRef, response: null };
+
+    const responseId = this.responseHandles.register(pageId, response);
+    return {
+      page: pageRef,
+      response: {
+        responseId,
+        url: response.url(),
+        status: response.status(),
+        statusText: response.statusText(),
+        headers: response.headers(),
+        fromServiceWorker: response.fromServiceWorker(),
+      },
+    };
   }
 
   requireBrowserSession(): StagehandBrowserSession {

@@ -14,7 +14,8 @@ type ActOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// Timeout in ms for the action
@@ -512,7 +513,8 @@ type ExtractOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// When true, include a screenshot of the current viewport in the extraction LLM
@@ -544,6 +546,20 @@ type ImplementationInfo struct {
 
 	// Version corresponds to the JSON schema field "version".
 	Version string `json:"version"`
+}
+
+type InputFilePayload struct {
+	// Data corresponds to the JSON schema field "data".
+	Data string `json:"data"`
+
+	// LastModified corresponds to the JSON schema field "last_modified".
+	LastModified *int64 `json:"last_modified,omitempty,omitzero"`
+
+	// MIMEType corresponds to the JSON schema field "mime_type".
+	MIMEType *string `json:"mime_type,omitempty,omitzero"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
 }
 
 type LLMAnnotations struct {
@@ -994,6 +1010,25 @@ type LocatorSendClickEventResult struct {
 	Clicked bool `json:"clicked"`
 }
 
+type LocatorSetInputFilesParams struct {
+	// Files corresponds to the JSON schema field "files".
+	Files []InputFilePayload `json:"files"`
+
+	// Nth corresponds to the JSON schema field "nth".
+	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Selector corresponds to the JSON schema field "selector".
+	Selector string `json:"selector"`
+}
+
+type LocatorSetInputFilesResult struct {
+	// Set corresponds to the JSON schema field "set".
+	Set bool `json:"set"`
+}
+
 type LocatorTextContentResult string
 
 type LocatorTypeOptions struct {
@@ -1043,6 +1078,66 @@ const MouseButtonLeft MouseButton = "left"
 const MouseButtonMiddle MouseButton = "middle"
 const MouseButtonRight MouseButton = "right"
 
+type NavigationFinishedError struct {
+	// Message corresponds to the JSON schema field "message".
+	Message string `json:"message"`
+}
+
+type NavigationHeader struct {
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+
+	// Value corresponds to the JSON schema field "value".
+	Value string `json:"value"`
+}
+
+type NavigationResponseDescriptor struct {
+	// FromServiceWorker corresponds to the JSON schema field "from_service_worker".
+	FromServiceWorker bool `json:"from_service_worker"`
+
+	// Headers corresponds to the JSON schema field "headers".
+	Headers NavigationResponseDescriptorHeaders `json:"headers"`
+
+	// ResponseID corresponds to the JSON schema field "response_id".
+	ResponseID string `json:"response_id"`
+
+	// Status corresponds to the JSON schema field "status".
+	Status int `json:"status"`
+
+	// StatusText corresponds to the JSON schema field "status_text".
+	StatusText string `json:"status_text"`
+
+	// URL corresponds to the JSON schema field "url".
+	URL string `json:"url"`
+}
+
+type NavigationResponseDescriptorHeaders map[string]string
+
+type NavigationSecurityDetails struct {
+	// Issuer corresponds to the JSON schema field "issuer".
+	Issuer string `json:"issuer"`
+
+	// Protocol corresponds to the JSON schema field "protocol".
+	Protocol string `json:"protocol"`
+
+	// SubjectName corresponds to the JSON schema field "subject_name".
+	SubjectName string `json:"subject_name"`
+
+	// ValidFrom corresponds to the JSON schema field "valid_from".
+	ValidFrom float64 `json:"valid_from"`
+
+	// ValidTo corresponds to the JSON schema field "valid_to".
+	ValidTo float64 `json:"valid_to"`
+}
+
+type NavigationServerAddr struct {
+	// IPAddress corresponds to the JSON schema field "ip_address".
+	IPAddress string `json:"ip_address"`
+
+	// Port corresponds to the JSON schema field "port".
+	Port int `json:"port"`
+}
+
 type ObserveOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
@@ -1054,7 +1149,8 @@ type ObserveOptions struct {
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
-	// Stagehand model is used
+	// Stagehand model is used, or Browserbase selects one automatically when no
+	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
 
 	// CSS selector to scope observation to a specific element
@@ -1223,6 +1319,14 @@ type PageNavigationOptions struct {
 
 	// WaitUntil corresponds to the JSON schema field "wait_until".
 	WaitUntil *LoadState `json:"wait_until,omitempty,omitzero"`
+}
+
+type PageNavigationResult struct {
+	// Page corresponds to the JSON schema field "page".
+	Page PageRef `json:"page"`
+
+	// Response corresponds to the JSON schema field "response".
+	Response *NavigationResponseDescriptor `json:"response"`
 }
 
 type PageRef struct {
@@ -1536,6 +1640,46 @@ type PageWebMCPToolsResult struct {
 	Tools []WebMCPToolDescriptor `json:"tools"`
 }
 
+type ResponseAllHeadersResult struct {
+	// Headers corresponds to the JSON schema field "headers".
+	Headers ResponseAllHeadersResultHeaders `json:"headers"`
+}
+
+type ResponseAllHeadersResultHeaders map[string]string
+
+type ResponseBodyResult struct {
+	// Base64Encoded corresponds to the JSON schema field "base64_encoded".
+	Base64Encoded bool `json:"base64_encoded"`
+
+	// Body corresponds to the JSON schema field "body".
+	Body string `json:"body"`
+}
+
+type ResponseFinishedResult struct {
+	// Error corresponds to the JSON schema field "error".
+	Error *NavigationFinishedError `json:"error"`
+}
+
+type ResponseHeadersArrayResult struct {
+	// Headers corresponds to the JSON schema field "headers".
+	Headers []NavigationHeader `json:"headers"`
+}
+
+type ResponseIDParams struct {
+	// ResponseID corresponds to the JSON schema field "response_id".
+	ResponseID string `json:"response_id"`
+}
+
+type ResponseSecurityDetailsResult struct {
+	// Value corresponds to the JSON schema field "value".
+	Value *NavigationSecurityDetails `json:"value"`
+}
+
+type ResponseServerAddrResult struct {
+	// Value corresponds to the JSON schema field "value".
+	Value *NavigationServerAddr `json:"value"`
+}
+
 type RgbaColor struct {
 	// A corresponds to the JSON schema field "a".
 	A *float64 `json:"a,omitempty,omitzero"`
@@ -1592,7 +1736,7 @@ type StagehandExtractParams struct {
 	PageID string `json:"page_id"`
 
 	// Schema corresponds to the JSON schema field "schema".
-	Schema json.RawMessage `json:"schema"`
+	Schema json.RawMessage `json:"schema,omitempty,omitzero"`
 }
 
 type StagehandInitParams struct {
@@ -2076,6 +2220,9 @@ type generatedModelCatalog struct {
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
 
+	// InputFilePayload corresponds to the JSON schema field "InputFilePayload".
+	InputFilePayload *InputFilePayload `json:"InputFilePayload,omitempty,omitzero"`
+
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
 	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`
 
@@ -2251,6 +2398,14 @@ type generatedModelCatalog struct {
 	// "LocatorSendClickEventResult".
 	LocatorSendClickEventResult *LocatorSendClickEventResult `json:"LocatorSendClickEventResult,omitempty,omitzero"`
 
+	// LocatorSetInputFilesParams corresponds to the JSON schema field
+	// "LocatorSetInputFilesParams".
+	LocatorSetInputFilesParams *LocatorSetInputFilesParams `json:"LocatorSetInputFilesParams,omitempty,omitzero"`
+
+	// LocatorSetInputFilesResult corresponds to the JSON schema field
+	// "LocatorSetInputFilesResult".
+	LocatorSetInputFilesResult *LocatorSetInputFilesResult `json:"LocatorSetInputFilesResult,omitempty,omitzero"`
+
 	// LocatorTextContentResult corresponds to the JSON schema field
 	// "LocatorTextContentResult".
 	LocatorTextContentResult *LocatorTextContentResult `json:"LocatorTextContentResult,omitempty,omitzero"`
@@ -2272,6 +2427,25 @@ type generatedModelCatalog struct {
 
 	// MouseButton corresponds to the JSON schema field "MouseButton".
 	MouseButton *MouseButton `json:"MouseButton,omitempty,omitzero"`
+
+	// NavigationFinishedError corresponds to the JSON schema field
+	// "NavigationFinishedError".
+	NavigationFinishedError *NavigationFinishedError `json:"NavigationFinishedError,omitempty,omitzero"`
+
+	// NavigationHeader corresponds to the JSON schema field "NavigationHeader".
+	NavigationHeader *NavigationHeader `json:"NavigationHeader,omitempty,omitzero"`
+
+	// NavigationResponseDescriptor corresponds to the JSON schema field
+	// "NavigationResponseDescriptor".
+	NavigationResponseDescriptor *NavigationResponseDescriptor `json:"NavigationResponseDescriptor,omitempty,omitzero"`
+
+	// NavigationSecurityDetails corresponds to the JSON schema field
+	// "NavigationSecurityDetails".
+	NavigationSecurityDetails *NavigationSecurityDetails `json:"NavigationSecurityDetails,omitempty,omitzero"`
+
+	// NavigationServerAddr corresponds to the JSON schema field
+	// "NavigationServerAddr".
+	NavigationServerAddr *NavigationServerAddr `json:"NavigationServerAddr,omitempty,omitzero"`
 
 	// ObserveOptions corresponds to the JSON schema field "ObserveOptions".
 	ObserveOptions *ObserveOptions `json:"ObserveOptions,omitempty,omitzero"`
@@ -2333,6 +2507,10 @@ type generatedModelCatalog struct {
 	// PageNavigationOptions corresponds to the JSON schema field
 	// "PageNavigationOptions".
 	PageNavigationOptions *PageNavigationOptions `json:"PageNavigationOptions,omitempty,omitzero"`
+
+	// PageNavigationResult corresponds to the JSON schema field
+	// "PageNavigationResult".
+	PageNavigationResult *PageNavigationResult `json:"PageNavigationResult,omitempty,omitzero"`
 
 	// PageRef corresponds to the JSON schema field "PageRef".
 	PageRef *PageRef `json:"PageRef,omitempty,omitzero"`
@@ -2436,6 +2614,32 @@ type generatedModelCatalog struct {
 
 	// ProxyConfig corresponds to the JSON schema field "ProxyConfig".
 	ProxyConfig *ProxyConfig `json:"ProxyConfig,omitempty,omitzero"`
+
+	// ResponseAllHeadersResult corresponds to the JSON schema field
+	// "ResponseAllHeadersResult".
+	ResponseAllHeadersResult *ResponseAllHeadersResult `json:"ResponseAllHeadersResult,omitempty,omitzero"`
+
+	// ResponseBodyResult corresponds to the JSON schema field "ResponseBodyResult".
+	ResponseBodyResult *ResponseBodyResult `json:"ResponseBodyResult,omitempty,omitzero"`
+
+	// ResponseFinishedResult corresponds to the JSON schema field
+	// "ResponseFinishedResult".
+	ResponseFinishedResult *ResponseFinishedResult `json:"ResponseFinishedResult,omitempty,omitzero"`
+
+	// ResponseHeadersArrayResult corresponds to the JSON schema field
+	// "ResponseHeadersArrayResult".
+	ResponseHeadersArrayResult *ResponseHeadersArrayResult `json:"ResponseHeadersArrayResult,omitempty,omitzero"`
+
+	// ResponseIDParams corresponds to the JSON schema field "ResponseIdParams".
+	ResponseIDParams *ResponseIDParams `json:"ResponseIdParams,omitempty,omitzero"`
+
+	// ResponseSecurityDetailsResult corresponds to the JSON schema field
+	// "ResponseSecurityDetailsResult".
+	ResponseSecurityDetailsResult *ResponseSecurityDetailsResult `json:"ResponseSecurityDetailsResult,omitempty,omitzero"`
+
+	// ResponseServerAddrResult corresponds to the JSON schema field
+	// "ResponseServerAddrResult".
+	ResponseServerAddrResult *ResponseServerAddrResult `json:"ResponseServerAddrResult,omitempty,omitzero"`
 
 	// RgbaColor corresponds to the JSON schema field "RgbaColor".
 	RgbaColor *RgbaColor `json:"RgbaColor,omitempty,omitzero"`
