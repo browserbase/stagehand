@@ -14,7 +14,7 @@ export default defineBenchTask(
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
       await stagehand.act("click the button to open the other page");
-      let activePage = await stagehand.context.activePage();
+      let activePage = await stagehand.browser.context.activePage();
       if (!activePage) throw new Error("no active page after opening tabs");
 
       let currentPageUrl = await activePage.url();
@@ -32,11 +32,11 @@ export default defineBenchTask(
       }
 
       // try acting on the first page again
-      const pages = await stagehand.context.pages();
+      const pages = await stagehand.browser.context.pages();
       const page1 = pages[0];
       await stagehand.act("click the button to open the other page", { page: page1 });
 
-      activePage = await stagehand.context.activePage();
+      activePage = await stagehand.browser.context.activePage();
       if (!activePage) throw new Error("no active page after acting on page 1");
       currentPageUrl = await activePage.url();
       expectedUrl = "https://browserbase.github.io/stagehand-eval-sites/sites/five-tab/page2.html";

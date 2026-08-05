@@ -11,9 +11,9 @@ export default defineBenchTask(
 
       // activePage() polls until the popup registers (stagehand#2458), so
       // the page list is complete after this settles.
-      await stagehand.context.activePage();
+      await stagehand.browser.context.activePage();
 
-      const pages = await stagehand.context.pages();
+      const pages = await stagehand.browser.context.pages();
       const page1 = pages[0];
       const page2 = pages[1];
 
