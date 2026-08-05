@@ -67,9 +67,9 @@ func assertNavigationResponse(
 	fixtureBody []byte,
 ) {
 	t.Helper()
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {
@@ -249,9 +249,9 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 		t.Fatalf("Create() with screenshot LLM error = %v", err)
 	}
 	closeStagehandAfterTest(t, client, browser)
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {
@@ -360,9 +360,9 @@ func assertLiveStagehand(
 	if !client.Initialized() {
 		t.Fatal("Stagehand.Initialized() = false after Create")
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {

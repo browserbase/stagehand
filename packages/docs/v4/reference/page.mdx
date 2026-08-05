@@ -11,7 +11,7 @@ A `Page` combines deterministic browser controls with Stagehand's natural-langua
 ## Quick start
 
 ```typescript
-const page = await stagehand.context.newPage();
+const page = await browser.context.newPage();
 const response = await page.goto("https://example.com");
 ```
 
@@ -670,7 +670,7 @@ const locator = page.locator("button[type=submit]");
 ## Quick start
 
 ```python
-page = await stagehand.context.new_page()
+page = await browser.context.new_page()
 response = await page.goto("https://example.com")
 ```
 

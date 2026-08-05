@@ -538,6 +538,52 @@ describe("SDK reference surface", () => {
     for (const method of pythonMethods) {
       const reference = pythonDocumented.get(methodKey(method));
       if (!reference) continue;
+      const publicFields = method.localInputFields.filter(({ complete }) => complete);
+      if (publicFields.length > 0) {
+        const documented = new Map(
+          reference.method.paramFields
+            .filter(({ key }) => key !== undefined)
+            .map((field) => [field.key as string, field]),
+        );
+        const localRoots = new Set(publicFields.map(({ key }) => key.split(".", 1)[0] as string));
+        const actualPaths = reference.method.paramPaths
+          .filter(
+            (path): path is string =>
+              path !== undefined &&
+              path.includes(".") &&
+              localRoots.has(path.split(".", 1)[0] as string),
+          )
+          .sort();
+        const expectedPaths = publicFields.map(({ key }) => key).sort();
+        if (!arraysEqual(actualPaths, expectedPaths)) {
+          differences.push(
+            `${reference.filePath} Python ${method.methodName}: expected public wrapper fields [${expectedPaths.join(", ")}], received [${actualPaths.join(", ")}]`,
+          );
+        }
+        for (const field of publicFields) {
+          const actual = documented.get(field.key);
+          if (!actual) continue;
+          const normalized = normalizePublicType(
+            actual.type,
+            "Python",
+            actual.optional,
+            pythonAliases,
+          );
+          const expected = publicTypeCandidates(
+            field.type,
+            "Python",
+            field.optional,
+            protocol,
+            pythonAliases,
+            method,
+          );
+          if (!expected.has(normalized)) {
+            differences.push(
+              `${methodKey(method)} Python ${field.key}: expected one of [${[...expected].join(", ")}], received ${normalized || "<missing>"}`,
+            );
+          }
+        }
+      }
       for (const [parameter, type] of Object.entries(method.parameterTypes)) {
         if (!isScalarPublicType(type, "Python")) continue;
         const nestedPaths = reference.method.paramPaths.filter(
@@ -640,8 +686,14 @@ describe("SDK reference surface", () => {
         const result = reference.method.responseFields.find(({ key }) => key === "result");
         if (!result) continue;
         const actual = normalizePublicType(result.type, language, false, pythonAliases);
+        // extract's implementation accepts either a schema or options so it can support both
+        // public overloads; the documented return type reflects the schema-bearing overload.
+        const returnType =
+          language === "TypeScript" && method.operationName === "stagehand.extract"
+            ? "Promise<ExtractResult<Schema>>"
+            : method.returnType;
         const expected = publicTypeCandidates(
-          method.returnType,
+          returnType,
           language,
           false,
           protocol,
@@ -909,10 +961,17 @@ describe("Mintlify customization boundary", () => {
 
 async function readTypescriptMethods(): Promise<SdkMethod[]> {
   const registry = await readRegistryMethodNames();
+  const localAliases = await readTypescriptLocalTypeAliases();
   const methods = await Promise.all(
     SDK_OBJECTS.map(async ({ className, classSlug, typescriptFile }) => {
       const filePath = resolve(TYPESCRIPT_ROOT, typescriptFile);
       const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
+      const aliases = new Map(localAliases);
+      for (const alias of root.findAll({ rule: { kind: "type_alias_declaration" } })) {
+        const name = alias.field("name")?.text();
+        const value = alias.field("value");
+        if (name && value) aliases.set(name, value);
+      }
       const classNode = findClass(root, "class_declaration", className, filePath);
       const classBody = classNode.field("body");
       if (!classBody) throw new Error(`${className} has no class body in ${filePath}`);
@@ -947,7 +1006,7 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
               extractOperationName(method, "TypeScript", registry, filePath),
               method.field("return_type")?.text().replace(/^:\s*/u, ""),
               readParameterTypes(method, typescriptParameterName),
-              localTypescriptInputFields(method, root),
+              localTypescriptInputFields(method, aliases),
             ),
           ];
         });
@@ -955,6 +1014,18 @@ async function readTypescriptMethods(): Promise<SdkMethod[]> {
   );
 
   return deduplicateMethods(methods.flat(), "TypeScript").filter(participatesInReferenceParity);
+}
+
+async function readTypescriptLocalTypeAliases(): Promise<Map<string, SgNode>> {
+  const aliases = new Map<string, SgNode>();
+  const filePath = resolve(TYPESCRIPT_ROOT, "fileUpload.ts");
+  const root = parse(Lang.TypeScript, await readFile(filePath, "utf8")).root();
+  for (const alias of root.findAll({ rule: { kind: "type_alias_declaration" } })) {
+    const name = alias.field("name")?.text();
+    const value = alias.field("value");
+    if (name && value) aliases.set(name, value);
+  }
+  return aliases;
 }
 
 async function readRegistryMethodNames(): Promise<Map<string, string>> {
@@ -1017,6 +1088,7 @@ function callArguments(call: SgNode): SgNode[] {
 }
 
 async function readPythonMethods(): Promise<SdkMethod[]> {
+  const localTypes = await readPythonLocalTypeFields();
   const methods = await Promise.all(
     SDK_OBJECTS.map(async ({ className, classSlug, pythonFile }) => {
       const filePath = resolve(PYTHON_ROOT, pythonFile);
@@ -1051,6 +1123,7 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
             extractOperationName(method, "Python", undefined, filePath),
             method.field("return_type")?.text(),
             readParameterTypes(method, pythonParameterName),
+            localPythonInputFields(method, localTypes),
           ),
         ];
       });
@@ -1058,6 +1131,83 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
   );
 
   return deduplicateMethods(methods.flat(), "Python").filter(participatesInReferenceParity);
+}
+
+async function readPythonLocalTypeFields(): Promise<{
+  aliases: Map<string, string>;
+  classes: Map<string, PublicInputField[]>;
+}> {
+  const aliases = await readPythonTypeAliases();
+  const classes = new Map<string, PublicInputField[]>();
+  for (const filePath of await listFiles(PYTHON_ROOT)) {
+    if (extname(filePath) !== ".py") continue;
+    const root = parse("python", await readFile(filePath, "utf8")).root();
+    for (const classNode of root.findAll({ rule: { kind: "class_definition" } })) {
+      const decorated = classNode
+        .ancestors()
+        .find((ancestor) => ancestor.kind() === "decorated_definition");
+      const isDataclass = decorated
+        ?.findAll({ rule: { kind: "decorator" } })
+        .some((decorator) => decorator.text().startsWith("@dataclass"));
+      const className = classNode.field("name")?.text();
+      const body = classNode.field("body");
+      if (!isDataclass || !className || !body) continue;
+      const fields = namedChildren(body).flatMap((statement): PublicInputField[] => {
+        const assignment =
+          statement.kind() === "assignment" || statement.kind() === "annotated_assignment"
+            ? statement
+            : namedChildren(statement).find(
+                (child) => child.kind() === "assignment" || child.kind() === "annotated_assignment",
+              );
+        const name = assignment?.field("left")?.text();
+        const type = assignment?.field("type")?.text();
+        if (!name || !type || name.startsWith("_")) return [];
+        return [
+          {
+            complete: true,
+            key: name,
+            optional: splitTopLevelUnion(type.replace(/\s+/gu, "")).includes("None"),
+            type,
+          },
+        ];
+      });
+      if (fields.length > 0) classes.set(className, fields);
+    }
+  }
+  return { aliases, classes };
+}
+
+function localPythonInputFields(
+  method: SgNode,
+  localTypes: {
+    aliases: ReadonlyMap<string, string>;
+    classes: ReadonlyMap<string, PublicInputField[]>;
+  },
+): PublicInputField[] {
+  const fields = Object.entries(readParameterTypes(method, pythonParameterName)).flatMap(
+    ([parameter, type]) =>
+      pythonTypeReferences(type, localTypes.aliases).flatMap((reference) =>
+        (localTypes.classes.get(reference) ?? []).map((field) => ({
+          ...field,
+          key: `${parameter}.${field.key}`,
+        })),
+      ),
+  );
+  return uniquePublicInputFields(fields);
+}
+
+function pythonTypeReferences(
+  type: string,
+  aliases: ReadonlyMap<string, string>,
+  seen = new Set<string>(),
+): string[] {
+  const references = type.match(/\b[A-Za-z_][A-Za-z0-9_]*\b/gu) ?? [];
+  const expanded = references.flatMap((reference): string[] => {
+    const alias = aliases.get(reference);
+    if (!alias || seen.has(reference)) return [reference];
+    return pythonTypeReferences(alias, aliases, new Set([...seen, reference]));
+  });
+  return [...new Set(expanded)];
 }
 
 async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[]> {
@@ -1267,14 +1417,10 @@ function firstIdentifier(node: SgNode): SgNode | undefined {
   return node.find({ rule: { kind: "identifier" } }) ?? undefined;
 }
 
-function localTypescriptInputFields(method: SgNode, module: SgNode): PublicInputField[] {
-  const aliases = new Map(
-    module.findAll({ rule: { kind: "type_alias_declaration" } }).flatMap((alias) => {
-      const name = alias.field("name")?.text();
-      const value = alias.field("value");
-      return name && value ? [[name, value] as const] : [];
-    }),
-  );
+function localTypescriptInputFields(
+  method: SgNode,
+  aliases: ReadonlyMap<string, SgNode>,
+): PublicInputField[] {
   const parameters = method.field("parameters");
   if (!parameters) return [];
 
@@ -1823,14 +1969,13 @@ function projectedInputPaths(
       )
     : [];
   const localInputPaths = method.localInputFields.map(({ key }) => key);
-  const completeLocalInputPaths = method.localInputFields
-    .filter(({ complete }) => complete)
-    .map(({ key }) => key);
+  const completeLocalInputRoots = new Set(
+    method.localInputFields
+      .filter(({ complete }) => complete)
+      .map(({ key }) => key.split(".", 1)[0] as string),
+  );
   const publicProjection = projected.filter(
-    (path) =>
-      !completeLocalInputPaths.some(
-        (localPath) => path === localPath || path.startsWith(`${localPath}.`),
-      ),
+    (path) => !completeLocalInputRoots.has(path.split(".", 1)[0] as string),
   );
   return [...new Set([...publicProjection, ...wrappedParams, ...localInputPaths])]
     .filter((path) => path.includes("."))
@@ -1881,15 +2026,14 @@ function projectedInputFields(
           : [],
       )
     : [];
-  const completeLocalInputPaths = method.localInputFields
-    .filter(({ complete }) => complete)
-    .map(({ key }) => key);
+  const completeLocalInputRoots = new Set(
+    method.localInputFields
+      .filter(({ complete }) => complete)
+      .map(({ key }) => key.split(".", 1)[0] as string),
+  );
   return uniqueProjectedFields(
     [...projected, ...wrapped].filter(
-      ({ key }) =>
-        !completeLocalInputPaths.some(
-          (localPath) => key === localPath || key.startsWith(`${localPath}.`),
-        ),
+      ({ key }) => !completeLocalInputRoots.has(key.split(".", 1)[0] as string),
     ),
   );
 }

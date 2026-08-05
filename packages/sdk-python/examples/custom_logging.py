@@ -23,7 +23,7 @@ async def main() -> None:
                 },
             )
             try:
-                page = await stagehand.context.active_page()
+                page = (await browser.context.pages())[0]
                 if page is None:
                     raise RuntimeError
 

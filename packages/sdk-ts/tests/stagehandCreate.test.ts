@@ -1,11 +1,16 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import type {
   LLMGenerateParams,
   LLMGenerateResult,
   StagehandMetrics,
 } from "../../protocol/types.js";
-import { Stagehand, StagehandCreateOptionsSchema, type StagehandBrowser } from "../src/index.js";
+import {
+  BrowserContext,
+  Stagehand,
+  StagehandCreateOptionsSchema,
+  type StagehandBrowser,
+} from "../src/index.js";
 import { createBrowserFactoriesForTest } from "../src/browser/factories.js";
 import { CDPConnectionClosedError, type CDPClient } from "../src/cdpClient.js";
 
@@ -61,6 +66,11 @@ class FakeCDPClient {
 }
 
 describe("Stagehand.create", () => {
+  it("does not expose context directly on Stagehand", () => {
+    expectTypeOf<"context" extends keyof Stagehand ? true : false>().toEqualTypeOf<false>();
+    expect("context" in Stagehand.prototype).toBe(false);
+  });
+
   afterEach(() => vi.restoreAllMocks());
 
   it("attaches to a ready browser without taking transport ownership", async () => {
@@ -70,10 +80,15 @@ describe("Stagehand.create", () => {
     });
     const browser = await localBrowser.connect({ cdpUrl: cdp.webSocketDebuggerUrl });
 
+    expect(() => browser.context).toThrow(
+      "Browser context is unavailable. Attach the browser with await Stagehand.create({ browser }).",
+    );
+
     const stagehand = await Stagehand.create({ browser, apiKey: "bb_worker_key" });
 
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.browser).toBe(browser);
+    expect(browser.context).toBeInstanceOf(BrowserContext);
     expect("init" in stagehand).toBe(false);
     expect(cdp.requests[0]).toMatchObject({
       method: "stagehand.init",
@@ -421,8 +436,8 @@ describe("Stagehand.create", () => {
     expect(stagehand.initialized).toBe(false);
     expect(cdp.requestsFor("stagehand.close")).toHaveLength(1);
     expect(cdp.close).not.toHaveBeenCalled();
-    expect(() => stagehand.context).toThrow(
-      "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
+    expect(() => browser.context).toThrow(
+      "Browser context is unavailable. Attach the browser with await Stagehand.create({ browser }).",
     );
     await expect(stagehand.metrics()).rejects.toThrow(
       "Stagehand is unavailable. Create a new instance with await Stagehand.create().",

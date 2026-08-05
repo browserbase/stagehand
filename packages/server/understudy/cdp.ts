@@ -177,6 +177,11 @@ export class CdpConnection implements CDPSessionLike {
   }
 
   private telemetryLogger(): CdpTelemetryLogger {
+    // Request and operation scopes for one RPC reuse the same symbol, so nesting
+    // selects the innermost logger. Distinct active symbols mean independent RPCs
+    // overlap; without async-local context the connection cannot safely infer
+    // which one caused a call or unsolicited event, so use the neutral fallback
+    // instead of attaching telemetry to an arbitrary request.
     if (this.telemetryScopes.size !== 1) return this.logger;
     const stack = this.telemetryScopes.values().next().value;
     return stack?.[stack.length - 1] ?? this.logger;

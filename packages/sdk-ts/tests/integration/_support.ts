@@ -73,8 +73,8 @@ export function closeStagehand(stagehand?: Stagehand | null): Promise<void> {
  * truthy Promise and a silently passing test rather than a type error.
  */
 export async function firstPage(stagehand: Stagehand) {
-  const pages = await stagehand.context.pages();
-  return pages[0] ?? (await stagehand.context.newPage());
+  const pages = await stagehand.browser.context.pages();
+  return pages[0] ?? (await stagehand.browser.context.newPage());
 }
 
 export async function startFixtureServer(

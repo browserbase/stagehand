@@ -58,9 +58,11 @@ export class RPCRouter {
   }
 
   async handle(request: StagehandRpcRequest): Promise<unknown> {
-    const initParams =
+    // The RPC client validates the complete request before routing; the generated
+    // request union does not currently narrow params from the method name.
+    const initParams: StagehandInitParams | undefined =
       request.method === StagehandMethods.stagehandInit.name
-        ? parseParams(StagehandMethods.stagehandInit, request.params)
+        ? (request.params as StagehandInitParams)
         : undefined;
     if (initParams) {
       this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
@@ -475,6 +477,11 @@ export class RPCRouter {
       case "locator.select_option":
         return this.locatorController.selectOption(
           parseParams(StagehandMethods.locatorSelectOption, request.params),
+          context,
+        );
+      case "locator.set_input_files":
+        return this.locatorController.setInputFiles(
+          parseParams(StagehandMethods.locatorSetInputFiles, request.params),
           context,
         );
     }

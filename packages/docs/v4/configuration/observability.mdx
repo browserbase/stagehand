@@ -30,22 +30,24 @@ Browserbase provides real-time visibility into your automation sessions:
 <View title="TypeScript" icon="js">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase as stagehandBrowserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const browserbase = new Browserbase({
+const bb = new Browserbase({
   apiKey: process.env.BROWSERBASE_API_KEY,
 });
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+// Create the session yourself so you hold the session ID
+const session = await bb.sessions.create({
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
 });
 
-await stagehand.init();
+const browser = await stagehandBrowserbase.connect({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  sessionId: session.id,
+});
+const stagehand = await Stagehand.create({ browser });
 
-// The resolved browser source carries the Browserbase session ID
-const sessionId = stagehand.browser.browserbaseSessionId;
-const sessionInfo = await browserbase.sessions.retrieve(sessionId);
+const sessionInfo = await bb.sessions.retrieve(session.id);
 
 console.log("Session status:", sessionInfo.status);
 console.log("Session region:", sessionInfo.region);
@@ -62,19 +64,22 @@ import os
 from browserbase import Browserbase
 
 from stagehand import Stagehand
+from stagehand import browserbase as stagehand_browserbase
 
-browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
+bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 # Create the session yourself so you hold the session ID
-session = browserbase.sessions.create(
+session = bb.sessions.create(
     project_id=os.environ["BROWSERBASE_PROJECT_ID"],
 )
 
-stagehand = Stagehand(browser="cdp", cdp_url=session.connect_url)
+browser = await stagehand_browserbase.connect(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    session_id=session.id,
+)
+stagehand = await Stagehand.create(browser=browser)
 
-await stagehand.init()
-
-session_info = browserbase.sessions.retrieve(session.id)
+session_info = bb.sessions.retrieve(session.id)
 
 print("Session status:", session_info.status)
 print("Session region:", session_info.region)
@@ -87,19 +92,27 @@ print("Proxy bytes:", session_info.proxy_bytes)
 <View title="Go" icon="golang">
 ```go
 // Create the session with your Browserbase client of choice so you hold the
-// session ID, then attach Stagehand over CDP.
+// session ID, then attach Stagehand to it.
 session, err := createBrowserbaseSession(ctx)
 if err != nil {
 	return err
 }
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{CDPURL: session.ConnectURL},
+browser, err := stagehand.ConnectBrowserbase(ctx, stagehand.BrowserbaseConnectOptions{
+	APIKey:    os.Getenv("BROWSERBASE_API_KEY"),
+	SessionID: session.ID,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 info, err := retrieveBrowserbaseSession(ctx, session.ID)
 if err != nil {
@@ -192,10 +205,11 @@ async function querySessionsByMetadata(query: string) {
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from browserbase import Browserbase
 
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
-
 
 # List sessions with filtering
 def get_filtered_sessions():
@@ -215,7 +229,6 @@ def get_filtered_sessions():
         }
         for session in sessions
     ]
-
 
 # Query sessions by metadata
 def query_sessions_by_metadata(query: str):
@@ -269,7 +282,7 @@ func querySessionsByMetadata(ctx context.Context, query string) ([]browserbaseSe
 </View>
 
 <Tip>
-Tag every session with `userMetadata` on the Browserbase browser source so you can slice these queries by workflow, customer, or deployment.
+Tag every session with `userMetadata` on `browserbase.launch()` so you can slice these queries by workflow, customer, or deployment.
 </Tip>
 
 ## Local environment monitoring
@@ -282,27 +295,23 @@ For local development, Stagehand provides performance monitoring and resource tr
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 const DataSchema = z.object({ title: z.string() });
 
-const stagehand = new Stagehand({
-  browser: { type: "local" },
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "info" }, // Monitor performance without debug noise
 });
-
-await stagehand.init();
 
 // Track local automation metrics
 const startTime = Date.now();
 const initialMetrics = await stagehand.metrics();
 
 // ... perform automation tasks
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 await stagehand.act("click button");
 await stagehand.extract("get data", DataSchema);
@@ -330,28 +339,23 @@ from time import perf_counter
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand
-
+from stagehand import Stagehand, local_browser
 
 class Data(BaseModel):
     title: str
 
-
-stagehand = Stagehand(
-    browser="local",
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
     logging={"level": "info"},  # Monitor without debug noise
 )
-
-await stagehand.init()
 
 # Track local automation metrics
 start_time = perf_counter()
 initial_metrics = await stagehand.metrics()
 
 # ... perform automation tasks
-page = await stagehand.context.active_page()
-if page is None:
-    raise RuntimeError("Stagehand initialized without an active page")
+page = (await browser.context.pages())[0]
 await page.goto("https://example.com")
 await stagehand.act("click button")
 await stagehand.extract("get data", Data)
@@ -388,19 +392,17 @@ var dataSchema = json.RawMessage(`{
   "additionalProperties": false
 }`)
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelDebug {
-				return // Monitor performance without debug noise
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s\n", entry.Level, entry.Message)
-		},
+		Level: stagehand.StagehandClientLogLevelInfo, // Monitor without debug noise
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 
@@ -412,18 +414,19 @@ if err != nil {
 }
 
 // ... perform automation tasks
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+page := pages[0]
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click button", nil); err != nil {
@@ -460,7 +463,7 @@ When running locally, monitor system resource usage and browser performance:
 <View title="TypeScript" icon="js">
 ```typescript
 import * as os from "node:os";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 class LocalResourceMonitor {
   private cpuUsage: number[] = [];
@@ -493,7 +496,8 @@ class LocalResourceMonitor {
 const monitor = new LocalResourceMonitor();
 const interval = monitor.startMonitoring();
 
-const stagehand = new Stagehand({ browser: { type: "local" } });
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
 
 // ... run automation
 
@@ -508,8 +512,7 @@ import asyncio
 import os
 import resource
 
-from stagehand import Stagehand
-
+from stagehand import Stagehand, local_browser
 
 class LocalResourceMonitor:
     def __init__(self) -> None:
@@ -539,11 +542,11 @@ class LocalResourceMonitor:
             "total_data_points": len(self.cpu_usage),
         }
 
-
 monitor = LocalResourceMonitor()
 task = monitor.start_monitoring()
 
-stagehand = Stagehand(browser="local")
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
 
 # ... run automation
 
@@ -599,9 +602,11 @@ monitorCtx, stopMonitor := context.WithCancel(ctx)
 monitor := &localResourceMonitor{}
 monitor.startMonitoring(monitorCtx)
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 
 // ... run automation
 
@@ -611,7 +616,7 @@ fmt.Println("Resource Usage:", monitor.getResourceSummary())
 </View>
 
 
-  <Card title="Speed and cost tuning" icon="chart-line" href="/v3/best-practices/cost-optimization">
+  <Card title="Speed and cost tuning" icon="chart-line" href="/v4/best-practices/cost-optimization">
     Monitor token usage, costs, and speed. Set up automated alerting for critical failures. Implement cost tracking across different environments. Use session analytics to optimize automation workflows.
   </Card>
 
@@ -626,16 +631,15 @@ Monitor your automation's resource usage in real-time by calling the metrics met
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 const UserSchema = z.object({ name: z.string(), email: z.string() });
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Metrics are fetched from the runtime, so the call is awaited
 const metrics = await stagehand.metrics();
@@ -646,10 +650,7 @@ const startTime = Date.now();
 const initialMetrics = await stagehand.metrics();
 
 // ... perform automation tasks
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 await stagehand.act("click the login button");
 const { data } = await stagehand.extract("extract user info", UserSchema);
@@ -673,21 +674,21 @@ console.log("Automation Summary:", {
 
 <View title="Python" icon="python">
 ```python
+import os
 from time import perf_counter
 
-from stagehand import Stagehand
+from pydantic import BaseModel
 
+from stagehand import Stagehand, browserbase
 
 class User(BaseModel):
     name: str
     email: str
 
-
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Metrics are fetched from the runtime, so the call is awaited
 metrics = await stagehand.metrics()
@@ -698,9 +699,7 @@ start_time = perf_counter()
 initial_metrics = await stagehand.metrics()
 
 # ... perform automation tasks
-page = await stagehand.context.active_page()
-if page is None:
-    raise RuntimeError("Stagehand initialized without an active page")
+page = (await browser.context.pages())[0]
 await page.goto("https://example.com")
 await stagehand.act("click the login button")
 data = (await stagehand.extract("extract user info", User)).data
@@ -739,14 +738,17 @@ var userSchema = json.RawMessage(`{
 }`)
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
 	return err
 }
 
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
 // Metrics are fetched from the runtime, so the call takes a context
 metrics, err := client.Metrics(ctx)
 if err != nil {
@@ -762,18 +764,19 @@ if err != nil {
 }
 
 // ... perform automation tasks
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+page := pages[0]
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click the login button", nil); err != nil {
@@ -1005,8 +1008,132 @@ fmt.Printf("%+v\n", metrics)
 </View>
 
 <Note>
-Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v3/best-practices/caching), which avoids the inference call entirely.
+Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v4/best-practices/caching), which avoids the inference call entirely.
 </Note>
+
+### Operation history
+
+Metrics give you the totals. When you want the sequence of what happened, build the timeline yourself from the log callback: every act, observe, and extract emits records with their structured data already attached. There is no history accessor on the `Stagehand` instance.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Record each log entry with the time you receive it
+const history: Array<{
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  data: Record<string, unknown>;
+  timestamp: string;
+}> = [];
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  logging: {
+    level: "debug",
+    format: "json",
+    onLog(log) {
+      history.push({ ...log, timestamp: new Date().toISOString() });
+    },
+  },
+});
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics
+console.log(history.filter((entry) => entry.level === "error"));
+console.log(await stagehand.metrics());
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+
+from datetime import datetime, timezone
+
+from stagehand import Stagehand, StagehandClientLoggingConfig, browserbase
+
+history: list[dict] = []
+
+def record(log) -> None:
+    entry = log.model_dump(mode="json")
+    entry["timestamp"] = datetime.now(timezone.utc).isoformat()
+    history.append(entry)
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging=StagehandClientLoggingConfig(level="debug", format="json", on_log=record),
+)
+
+# ... run your automation
+
+# Inspect what happened, or write it to disk alongside the metrics
+print([entry for entry in history if entry["level"] == "error"])
+print(await stagehand.metrics())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+var history []stagehand.StagehandLog
+var mu sync.Mutex
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelDebug,
+		Format: stagehand.StagehandClientLogFormatJSON,
+		OnLog: func(entry stagehand.StagehandLog) {
+			mu.Lock()
+			history = append(history, entry)
+			mu.Unlock()
+		},
+	},
+})
+if err != nil {
+	return err
+}
+
+// ... run your automation
+
+// Inspect what happened, or write it to disk alongside the metrics.
+// Copy under the mutex: the callback runs on the notification goroutine, so
+// ranging over `history` directly would race with an incoming log.
+mu.Lock()
+captured := make([]stagehand.StagehandLog, len(history))
+copy(captured, history)
+mu.Unlock()
+
+for _, entry := range captured {
+	if entry.Level == stagehand.StagehandLogLevelError {
+		fmt.Printf("%+v\n", entry)
+	}
+}
+
+metrics, err := client.Metrics(ctx)
+if err != nil {
+	return err
+}
+fmt.Printf("%+v\n", metrics)
+```
+</View>
+
+<Note>
+The records you capture depend on the level. Raise it to `debug` for the fullest timeline; the default is `info` and above.
+</Note>
+
+<Tip>
+On Browserbase, the session replay dashboard gives you the same timeline visually, including the network and console activity that never reaches a log callback.
+</Tip>
 
 ### Tracing
 
@@ -1014,8 +1141,11 @@ Stagehand emits OpenTelemetry spans for every operation and for every log record
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
+});
+const stagehand = await Stagehand.create({
+  browser,
   telemetry: {
     traces: {
       endpoint: "https://otlp.example.com/v1/traces",
@@ -1028,10 +1158,15 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand, TelemetryConfig
+import os
 
-stagehand = Stagehand(
+from stagehand import Stagehand, TelemetryConfig, browserbase
+
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     telemetry=TelemetryConfig.model_validate({
         "traces": {
             "endpoint": "https://otlp.example.com/v1/traces",
@@ -1046,8 +1181,12 @@ stagehand = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Telemetry: stagehand.TelemetryConfig{
 		Traces: stagehand.TelemetryTraces{
 			Endpoint: "https://otlp.example.com/v1/traces",
@@ -1057,10 +1196,10 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -1115,7 +1254,7 @@ Spans are tagged with a span type: `operation` spans wrap act, observe, and extr
 ## Next steps
 
 <CardGroup cols={2}>
-<Card title="Caching" icon="database" href="/v3/best-practices/caching">
+<Card title="Caching" icon="database" href="/v4/best-practices/caching">
   Cut token spend and latency by serving repeated act, observe, and extract calls from the server-side cache.
 </Card>
 <Card title="Logging" icon="file-lines" href="/v4/configuration/logging">

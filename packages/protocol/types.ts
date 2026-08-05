@@ -62,6 +62,7 @@ import type {
   CookieParamSchema,
   CookieRegexSchema,
   CookieSchema,
+  DefaultExtractDataSchema,
   DomainPolicySchema,
   EmptyParamsSchema,
   ExternalProxyConfigSchema,
@@ -72,6 +73,7 @@ import type {
   GoogleServiceAccountAuthSchema,
   GoogleServiceAccountCredentialsSchema,
   ImplementationInfoSchema,
+  InputFilePayloadSchema,
   LocatorClickParamsSchema,
   LocatorClickResultSchema,
   LocatorCentroidResultSchema,
@@ -92,6 +94,8 @@ import type {
   LocatorScrollToResultSchema,
   LocatorSelectOptionParamsSchema,
   LocatorSelectOptionResultSchema,
+  LocatorSetInputFilesParamsSchema,
+  LocatorSetInputFilesResultSchema,
   LocatorSendClickEventParamsSchema,
   LocatorSendClickEventResultSchema,
   LocatorTextContentResultSchema,
@@ -277,6 +281,7 @@ export type ActResultData = z.infer<typeof ActResultDataSchema>;
 export type ActResult = z.infer<typeof ActResultSchema>;
 export type ExtractOptions = z.infer<typeof ExtractOptionsSchema>;
 export type ExtractResult = z.infer<typeof ExtractResultSchema>;
+export type DefaultExtractData = z.infer<typeof DefaultExtractDataSchema>;
 export type ObserveOptions = z.infer<typeof ObserveOptionsSchema>;
 export type ObserveResult = z.infer<typeof ObserveResultSchema>;
 export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
@@ -373,6 +378,8 @@ export type LocatorHighlightParams = z.infer<typeof LocatorHighlightParamsSchema
 export type LocatorSendClickEventParams = z.infer<typeof LocatorSendClickEventParamsSchema>;
 export type LocatorTypeParams = z.infer<typeof LocatorTypeParamsSchema>;
 export type LocatorSelectOptionParams = z.infer<typeof LocatorSelectOptionParamsSchema>;
+export type InputFilePayload = z.infer<typeof InputFilePayloadSchema>;
+export type LocatorSetInputFilesParams = z.infer<typeof LocatorSetInputFilesParamsSchema>;
 export type CacheStatus = z.infer<typeof CacheStatusSchema>;
 export type CacheTokenSavings = z.infer<typeof CacheTokenSavingsSchema>;
 export type CacheMetadata = z.infer<typeof CacheMetadataSchema>;
@@ -407,6 +414,7 @@ export type LocatorHighlightResult = z.infer<typeof LocatorHighlightResultSchema
 export type LocatorSendClickEventResult = z.infer<typeof LocatorSendClickEventResultSchema>;
 export type LocatorTypeResult = z.infer<typeof LocatorTypeResultSchema>;
 export type LocatorSelectOptionResult = z.infer<typeof LocatorSelectOptionResultSchema>;
+export type LocatorSetInputFilesResult = z.infer<typeof LocatorSetInputFilesResultSchema>;
 export type StagehandLogData = z.infer<typeof StagehandLogDataSchema>;
 export type StagehandLog = z.infer<typeof StagehandLogSchema>;
 export type StagehandLogLevel = z.infer<typeof StagehandLogLevelSchema>;

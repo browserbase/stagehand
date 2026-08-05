@@ -44,7 +44,7 @@ describe("CdpConnection telemetry context", () => {
     ]);
   });
 
-  it("uses the session logger instead of guessing between concurrent requests", async () => {
+  it("uses the neutral fallback instead of guessing between concurrent requests", async () => {
     const entries: LogEntry[] = [];
     const transport = new TestTransport(true);
     const connection = new CdpConnection(transport, logger("session", entries));

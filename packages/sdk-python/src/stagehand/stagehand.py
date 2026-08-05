@@ -7,7 +7,7 @@ import json
 import sys
 from collections.abc import Callable, Mapping
 from importlib.metadata import version
-from typing import TypeVar
+from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
 
@@ -23,6 +23,7 @@ from ._generated.models import (
     ClientModelReference,
     EmptyParams,
     ExtractOptions,
+    FieldSchema0,
     ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -38,10 +39,18 @@ from ._generated.models import (
     StagehandObserveParams,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
-from .browser import StagehandBrowser, _claim_browser, _ClaimedBrowser, _release_browser
+from .browser import (
+    StagehandBrowser,
+    _attach_browser_context,
+    _claim_browser,
+    _ClaimedBrowser,
+    _detach_browser_context,
+    _release_browser,
+)
 from .browser_context import BrowserContext
 from .cdp_client import CDPConnectionClosedError
 from .client_models import (
+    DefaultExtract,
     ExtractResult,
     _cache_config,
     _ExtractWireResult,
@@ -73,7 +82,6 @@ class Stagehand:
             )
         self._browser_handle = browser
         self._create_config = create_config
-        self._browser_context: BrowserContext | None = None
         self._rpc_client: RPCClient | None = None
         self._remove_notification_listener: Callable[[], None] | None = None
         self._remove_client_llm_handler: Callable[[], None] | None = None
@@ -149,12 +157,6 @@ class Stagehand:
         return stagehand
 
     @property
-    def context(self) -> BrowserContext:
-        if self._browser_context is None:
-            raise RuntimeError(_UNAVAILABLE_MESSAGE)
-        return self._browser_context
-
-    @property
     def browser(self) -> StagehandBrowser:
         return self._browser_handle
 
@@ -197,7 +199,7 @@ class Stagehand:
             init_params,
             StagehandInitResult,
         )
-        self._browser_context = BrowserContext(rpc_client)
+        _attach_browser_context(self._browser_handle, BrowserContext(rpc_client))
         self._initialized = True
 
     async def act(
@@ -222,7 +224,7 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandActParams.model_validate({
@@ -260,7 +262,7 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandObserveParams(page_id=target_page.page_id, instruction=instruction)
@@ -269,10 +271,42 @@ class Stagehand:
         result = await self._connected_rpc_client.send("stagehand.observe", params, ObserveResult)
         return result
 
+    @overload
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[DefaultExtract] = DefaultExtract,
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[DefaultExtract]: ...
+
+    @overload
     async def extract(
         self,
         instruction: str,
         schema: builtins.type[ResultModel],
+        *,
+        page: Page | None = None,
+        model: ModelConfig | None = None,
+        timeout: float | None = None,
+        selector: str | None = None,
+        ignore_selectors: list[str] | None = None,
+        screenshot: bool | None = None,
+        locator: ProtocolLocator | None = None,
+        cache: Cache | None = None,
+    ) -> ExtractResult[ResultModel]: ...
+
+    async def extract(
+        self,
+        instruction: str,
+        schema: builtins.type[ResultModel] = cast(builtins.type[ResultModel], DefaultExtract),
         *,
         page: Page | None = None,
         model: ModelConfig | None = None,
@@ -296,14 +330,15 @@ class Stagehand:
             )
             if value is not None
         })
-        target_page = page or await self.context.active_page()
+        target_page = page or await self.browser.context.active_page()
         if target_page is None:
             raise RuntimeError("Stagehand has no active page")
         params = StagehandExtractParams(
             page_id=target_page.page_id,
             instruction=instruction,
-            schema_=schema.model_json_schema(),
         )
+        if schema is not DefaultExtract:
+            params.schema_ = FieldSchema0.model_validate(schema.model_json_schema())
         if options.model_fields_set:
             params.options = options
         result = await self._connected_rpc_client.send(
@@ -317,7 +352,7 @@ class Stagehand:
     async def close(self) -> None:
         async def close_impl() -> None:
             try:
-                if self._browser_context is not None and self._rpc_client is not None:
+                if self._initialized and self._rpc_client is not None:
                     try:
                         await self._rpc_client.send(
                             "stagehand.close",
@@ -393,7 +428,7 @@ class Stagehand:
             self._remove_notification_listener = None
         rpc_client = self._rpc_client
         self._rpc_client = None
-        self._browser_context = None
+        _detach_browser_context(self._browser_handle)
         self._initialized = False
         if rpc_client is not None:
             await rpc_client.close(RuntimeError("Stagehand closed"), close_transport=False)

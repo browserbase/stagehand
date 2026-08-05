@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import rpc_client
 from stagehand._generated import models
+from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
@@ -121,6 +122,42 @@ async def test_send_propagates_current_w3c_trace_context() -> None:
         assert await asyncio.wait_for(call, timeout=1) == []
     finally:
         otel_context.detach(token)
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_send_omits_unset_nested_file_metadata() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send(
+            "locator.set_input_files",
+            models.LocatorSetInputFilesParams(
+                page_id="page-1",
+                selector="#upload",
+                files=normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
+            ),
+            models.LocatorSetInputFilesResult,
+        )
+    )
+    request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+
+    assert request["params"] == {
+        "page_id": "page-1",
+        "selector": "#upload",
+        "files": [{"name": "hello.txt", "data": "aGVsbG8="}],
+    }
+    await transport.incoming.put({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {"set": True},
+    })
+
+    try:
+        assert await asyncio.wait_for(call, timeout=1) == models.LocatorSetInputFilesResult(
+            set=True
+        )
+    finally:
         await client.close()
 
 

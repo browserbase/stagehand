@@ -696,6 +696,26 @@ class ImplementationInfo(WireModel):
     version: Annotated[StrictStr, Field(min_length=1)]
 
 
+class InputFilePayload(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    mime_type: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            max_length=69905068,
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+    last_modified: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
+
+
 class Instruction(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(min_length=1)]
 
@@ -1172,6 +1192,25 @@ class LocatorSendClickEventResult(WireModel):
         validate_by_name=True,
     )
     clicked: Literal[True]
+
+
+class LocatorSetInputFilesParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    files: list[InputFilePayload]
+
+
+class LocatorSetInputFilesResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    set: Literal[True]
 
 
 class LocatorTextContentResult(RootModel[StrictStr]):
@@ -1944,7 +1983,13 @@ class StagehandExtractParams(WireModel):
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Annotated[StrictStr, Field(min_length=1)]
-    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"extraction": {"type": "string"}},
+        "required": ["extraction"],
+        "additionalProperties": False,
+    }
     options: Optional[ExtractOptions] = None
 
 

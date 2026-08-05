@@ -50,6 +50,7 @@ from .browser import StagehandBrowser, browserbase, local_browser
 from .browser_clipboard import BrowserClipboard
 from .browser_context import BrowserContext
 from .client_models import (
+    DefaultExtract,
     ExtractResult,
 )
 from .client_types import (
@@ -59,6 +60,7 @@ from .client_types import (
     LLMGenerateOutput,
     StagehandClientLoggingConfig,
 )
+from .file_upload import FileInput, FilePayload
 from .locator import Locator
 from .page import Page
 from .response import Response
@@ -88,8 +90,11 @@ __all__ = [
     "Cookie",
     "CookieParam",
     "DomainPolicy",
+    "DefaultExtract",
     "ExternalProxyConfig",
     "ExtractResult",
+    "FileInput",
+    "FilePayload",
     "LLMGenerateCallback",
     "LLMGenerateInput",
     "LLMGenerateOutput",

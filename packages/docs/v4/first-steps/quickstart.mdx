@@ -41,38 +41,36 @@ Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises al
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 async function main() {
-  const stagehand = new Stagehand({
+  const browser = await browserbase.launch({
     apiKey: process.env.BROWSERBASE_API_KEY,
-    browser: { type: "browserbase" },
   });
-
-  await stagehand.init();
-
-  console.log("Stagehand session started");
-
   try {
-    const page = await stagehand.context.activePage();
-    if (!page) throw new Error("Stagehand initialized without an active page");
+    const stagehand = await Stagehand.create({ browser });
+    console.log("Stagehand session started");
+    try {
+      const [page] = await browser.context.pages();
 
-    await page.goto("https://stagehand.dev");
+      await page.goto("https://stagehand.dev");
 
-    const extractResult = await stagehand.extract(
-      "Extract the value proposition from the page.",
-      z.object({ valueProposition: z.string() }),
-    );
-    console.log("Extract result:\n", extractResult.data);
+      const extractResult = await stagehand.extract(
+        "Extract the value proposition from the page.",
+        z.object({ valueProposition: z.string() }),
+      );
+      console.log("Extract result:\n", extractResult.data);
 
-    await stagehand.act("Click the 'Evals' button.");
+      await stagehand.act("Click the 'Evals' button.");
 
-    const observeResult = await stagehand.observe("What can I click on this page?");
-    console.log("Observe result:\n", observeResult.data);
+      const observeResult = await stagehand.observe("What can I click on this page?");
+      console.log("Observe result:\n", observeResult.data);
+    } finally {
+      await stagehand.close();
+    }
   } finally {
-    // Always release the session, even when a step above throws
-    await stagehand.close();
+    await browser.close();
   }
 }
 
@@ -89,7 +87,7 @@ import asyncio
 import os
 
 from pydantic import BaseModel
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
 
 class ValueProposition(BaseModel):
@@ -97,35 +95,31 @@ class ValueProposition(BaseModel):
 
 
 async def main() -> None:
-    stagehand = Stagehand(
+    browser = await browserbase.launch(
         api_key=os.environ["BROWSERBASE_API_KEY"],
-        browser="browserbase",
     )
-
-    await stagehand.init()
-
-    print("Stagehand session started")
-
     try:
-        page = await stagehand.context.active_page()
-        if page is None:
-            raise RuntimeError("Stagehand initialized without an active page")
+        stagehand = await Stagehand.create(browser=browser)
+        print("Stagehand session started")
+        try:
+            page = (await browser.context.pages())[0]
 
-        await page.goto("https://stagehand.dev")
+            await page.goto("https://stagehand.dev")
 
-        extract_result = await stagehand.extract(
-            "Extract the value proposition from the page.",
-            ValueProposition,
-        )
-        print("Extract result:\n", extract_result.data)
+            extract_result = await stagehand.extract(
+                "Extract the value proposition from the page.",
+                ValueProposition,
+            )
+            print("Extract result:\n", extract_result.data)
 
-        await stagehand.act("Click the 'Evals' button.")
+            await stagehand.act("Click the 'Evals' button.")
 
-        observe_result = await stagehand.observe("What can I click on this page?")
-        print("Observe result:\n", observe_result.data)
+            observe_result = await stagehand.observe("What can I click on this page?")
+            print("Observe result:\n", observe_result.data)
+        finally:
+            await stagehand.close()
     finally:
-        # Always release the session, even when a step above raises
-        await stagehand.close()
+        await browser.close()
 
 
 asyncio.run(main())
@@ -167,29 +161,32 @@ func main() {
 func run(ctx context.Context) (err error) {
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		APIKey:  &apiKey,
-		Browser: stagehand.BrowserbaseClientBrowserSource{},
-	})
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	if err := client.Init(ctx); err != nil {
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 	fmt.Println("Stagehand session started")
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return err
 	}
-	page, err := browserContext.ActivePage(ctx)
+	pages, err := browserContext.Pages(ctx)
 	if err != nil {
 		return err
 	}
-	if page == nil {
+	if len(pages) == 0 {
 		return errors.New("Stagehand initialized without an active page")
 	}
+	page := pages[0]
 
 	if err := page.Goto(ctx, "https://stagehand.dev", nil); err != nil {
 		return err

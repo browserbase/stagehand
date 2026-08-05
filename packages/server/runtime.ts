@@ -47,6 +47,8 @@ import type {
   LocatorScrollToResult,
   LocatorSelectOptionParams,
   LocatorSelectOptionResult,
+  LocatorSetInputFilesParams,
+  LocatorSetInputFilesResult,
   LocatorSendClickEventParams,
   LocatorSendClickEventResult,
   LocatorTextContentResult,
@@ -115,6 +117,7 @@ import * as llmService from "./services/llmService.js";
 import { StagehandRuntimeStateSchema, type StagehandRuntimeState } from "./runtimeState.js";
 import { createStagehandTracing, type StagehandTracing } from "./tracing.js";
 import type { HybridSnapshot, SnapshotOptions } from "./types/private/snapshot.js";
+import type { SetInputFilesArgument } from "./types/private/fileUpload.js";
 import { Page } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
@@ -216,6 +219,7 @@ export type UnderstudyRuntimeLocator = {
   sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> | void;
   type(text: string, options?: LocatorTypeParams["options"]): Promise<void> | void;
   selectOption(values: LocatorSelectOptionParams["values"]): Promise<string[]>;
+  setInputFiles(files: SetInputFilesArgument): Promise<void>;
   nth(index: number): UnderstudyRuntimeLocator;
 };
 
@@ -245,6 +249,7 @@ export type StagehandBrowserSession = {
 export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
+  bootstrapLogger?: StagehandLogger,
 ) => Promise<StagehandBrowserSession>;
 
 export type StagehandRuntimeAdapters = {
@@ -297,7 +302,7 @@ export class StagehandRuntime {
 
   async replaceBrowserConnection(
     params: { cdpUrl: string },
-    logger: StagehandLogger = this.logger,
+    bootstrapLogger?: StagehandLogger,
   ): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
@@ -307,7 +312,11 @@ export class StagehandRuntime {
     await previousSession?.close();
 
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, logger);
+      this.browserSession = await this.adapters.browserSessionFactory(
+        cdpUrl,
+        this.logger,
+        bootstrapLogger,
+      );
     } catch (error) {
       await this.browserSession?.close();
       this.browserSession = undefined;
@@ -335,8 +344,14 @@ export class StagehandRuntime {
         }
         await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
       }
-      await this.browserSession?.prepareForInitialization?.();
-      const pages = await this.contextPages();
+      const pages = await this.runWithTelemetryContext(
+        Symbol("stagehand.init"),
+        logger,
+        async () => {
+          await this.browserSession?.prepareForInitialization?.();
+          return await this.contextPages();
+        },
+      );
       this.tracing.configure(params.telemetry, params.clientInfo);
       this.state.setState(
         StagehandRuntimeStateSchema.parse({
@@ -774,6 +789,27 @@ export class StagehandRuntime {
 
   async locatorSelectOption(params: LocatorSelectOptionParams): Promise<LocatorSelectOptionResult> {
     return await this.resolveLocator(params).selectOption(params.values);
+  }
+
+  async locatorSetInputFiles(
+    params: LocatorSetInputFilesParams,
+  ): Promise<LocatorSetInputFilesResult> {
+    await this.resolveLocator(params).setInputFiles(
+      params.files.map((file) => {
+        const binary = globalThis.atob(file.data);
+        const buffer = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) {
+          buffer[index] = binary.charCodeAt(index);
+        }
+        return {
+          name: file.name,
+          mimeType: file.mimeType,
+          buffer,
+          lastModified: file.lastModified,
+        };
+      }),
+    );
+    return { set: true };
   }
 
   async close(): Promise<void> {

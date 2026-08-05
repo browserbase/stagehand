@@ -548,6 +548,20 @@ type ImplementationInfo struct {
 	Version string `json:"version"`
 }
 
+type InputFilePayload struct {
+	// Data corresponds to the JSON schema field "data".
+	Data string `json:"data"`
+
+	// LastModified corresponds to the JSON schema field "last_modified".
+	LastModified *int64 `json:"last_modified,omitempty,omitzero"`
+
+	// MIMEType corresponds to the JSON schema field "mime_type".
+	MIMEType *string `json:"mime_type,omitempty,omitzero"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
+
 type LLMAnnotations struct {
 	// Audience corresponds to the JSON schema field "audience".
 	Audience []LLMRole `json:"audience,omitempty,omitzero"`
@@ -994,6 +1008,25 @@ type LocatorSendClickEventParams struct {
 type LocatorSendClickEventResult struct {
 	// Clicked corresponds to the JSON schema field "clicked".
 	Clicked bool `json:"clicked"`
+}
+
+type LocatorSetInputFilesParams struct {
+	// Files corresponds to the JSON schema field "files".
+	Files []InputFilePayload `json:"files"`
+
+	// Nth corresponds to the JSON schema field "nth".
+	Nth *int `json:"nth,omitempty,omitzero"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Selector corresponds to the JSON schema field "selector".
+	Selector string `json:"selector"`
+}
+
+type LocatorSetInputFilesResult struct {
+	// Set corresponds to the JSON schema field "set".
+	Set bool `json:"set"`
 }
 
 type LocatorTextContentResult string
@@ -1703,7 +1736,7 @@ type StagehandExtractParams struct {
 	PageID string `json:"page_id"`
 
 	// Schema corresponds to the JSON schema field "schema".
-	Schema json.RawMessage `json:"schema"`
+	Schema json.RawMessage `json:"schema,omitempty,omitzero"`
 }
 
 type StagehandInitParams struct {
@@ -2187,6 +2220,9 @@ type generatedModelCatalog struct {
 	// ImplementationInfo corresponds to the JSON schema field "ImplementationInfo".
 	ImplementationInfo *ImplementationInfo `json:"ImplementationInfo,omitempty,omitzero"`
 
+	// InputFilePayload corresponds to the JSON schema field "InputFilePayload".
+	InputFilePayload *InputFilePayload `json:"InputFilePayload,omitempty,omitzero"`
+
 	// LLMAnnotations corresponds to the JSON schema field "LLMAnnotations".
 	LLMAnnotations *LLMAnnotations `json:"LLMAnnotations,omitempty,omitzero"`
 
@@ -2361,6 +2397,14 @@ type generatedModelCatalog struct {
 	// LocatorSendClickEventResult corresponds to the JSON schema field
 	// "LocatorSendClickEventResult".
 	LocatorSendClickEventResult *LocatorSendClickEventResult `json:"LocatorSendClickEventResult,omitempty,omitzero"`
+
+	// LocatorSetInputFilesParams corresponds to the JSON schema field
+	// "LocatorSetInputFilesParams".
+	LocatorSetInputFilesParams *LocatorSetInputFilesParams `json:"LocatorSetInputFilesParams,omitempty,omitzero"`
+
+	// LocatorSetInputFilesResult corresponds to the JSON schema field
+	// "LocatorSetInputFilesResult".
+	LocatorSetInputFilesResult *LocatorSetInputFilesResult `json:"LocatorSetInputFilesResult,omitempty,omitzero"`
 
 	// LocatorTextContentResult corresponds to the JSON schema field
 	// "LocatorTextContentResult".

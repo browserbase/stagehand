@@ -10,7 +10,10 @@ import tempfile
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Literal, Protocol
+
+if TYPE_CHECKING:
+    from .browser_context import BrowserContext
 
 from ._generated.input_types import BrowserbaseBrowserSettings, ProxyConfig
 from ._generated.models import (
@@ -96,6 +99,7 @@ class StagehandBrowser:
         "_claimed",
         "_close_callback",
         "_close_task",
+        "_context",
         "_origin",
         "_provider",
     )
@@ -117,6 +121,7 @@ class StagehandBrowser:
         self._close_callback = close
         self._claimed = False
         self._close_task: asyncio.Task[None] | None = None
+        self._context: BrowserContext | None = None
 
     @property
     def provider(self) -> Literal["local", "browserbase"]:
@@ -129,6 +134,15 @@ class StagehandBrowser:
     @property
     def closed(self) -> bool:
         return self._close_task is not None
+
+    @property
+    def context(self) -> BrowserContext:
+        if self._context is None:
+            raise RuntimeError(
+                "Browser context is unavailable. Attach the browser with "
+                "await Stagehand.create(browser=browser)."
+            )
+        return self._context
 
     def close(self) -> Awaitable[None]:
         if self._close_task is None:
@@ -157,6 +171,21 @@ def _release_browser(browser: StagehandBrowser) -> None:
     if not isinstance(browser, StagehandBrowser):
         raise TypeError("browser must be created by local_browser or browserbase")
     browser._claimed = False
+
+
+def _attach_browser_context(
+    browser: StagehandBrowser,
+    context: BrowserContext,
+) -> None:
+    if not browser._claimed:
+        raise RuntimeError("Cannot attach a browser context before Stagehand claims the browser")
+    if browser._context is not None:
+        raise RuntimeError("This browser already has a Stagehand context")
+    browser._context = context
+
+
+def _detach_browser_context(browser: StagehandBrowser) -> None:
+    browser._context = None
 
 
 def _browser_session_metadata(

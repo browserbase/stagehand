@@ -89,6 +89,13 @@ func (c *recordingProtocolClient) close() error {
 	return nil
 }
 
+func TestStagehandDoesNotExposeContext(t *testing.T) {
+	t.Parallel()
+	if _, ok := reflect.TypeOf((*Stagehand)(nil)).MethodByName("Context"); ok {
+		t.Fatal("Stagehand.Context() remains in the public API")
+	}
+}
+
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 
@@ -106,7 +113,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
 		t.Fatalf("Context() error = %v", err)
 	}

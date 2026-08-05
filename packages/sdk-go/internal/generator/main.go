@@ -68,6 +68,7 @@ var customProperties = map[string]string{
 	"$defs/BrowserbaseSessionCreateParams/properties/user_metadata": "map[string]json.RawMessage",
 	"$defs/ContextCookiesParams/properties/urls":                    "StringList",
 	"$defs/ExtractResult/properties/result":                         "json.RawMessage",
+	"$defs/InputFilePayload/properties/last_modified":               "int64",
 	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
 	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
 	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",

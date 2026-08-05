@@ -22,9 +22,9 @@ describe("Page.waitForSelector tests", () => {
   });
 
   beforeEach(async () => {
-    const pages = await stagehand.context.pages();
+    const pages = await stagehand.browser.context.pages();
     if (pages.length === 0) {
-      await stagehand.context.newPage({ url: "about:blank" });
+      await stagehand.browser.context.newPage({ url: "about:blank" });
       return;
     }
 
@@ -33,7 +33,7 @@ describe("Page.waitForSelector tests", () => {
       await page.close().catch(() => {});
     }
 
-    await stagehand.context.setActivePage(primary);
+    await stagehand.browser.context.setActivePage(primary);
     await primary.goto("about:blank", {
       waitUntil: "load",
       timeout: 15_000,

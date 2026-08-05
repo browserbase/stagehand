@@ -169,6 +169,7 @@ export class BrowserContext {
       fallbackLocatorScriptSource: string;
       chromeTabs: ChromeTabTargetController;
       logger: StagehandLogger;
+      bootstrapLogger?: StagehandLogger;
     },
   ): Promise<BrowserContext> {
     const connectTask = async () => {
@@ -183,9 +184,20 @@ export class BrowserContext {
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
       );
-      await ctx.bootstrap();
-      if (!ctx.hasTopLevelPage()) {
-        await ctx.newPage();
+      const bootstrap = async () => {
+        await ctx.bootstrap();
+        if (!ctx.hasTopLevelPage()) {
+          await ctx.newPage();
+        }
+      };
+      if (opts.bootstrapLogger) {
+        await conn.runWithTelemetryContext(
+          Symbol("browser.bootstrap"),
+          opts.bootstrapLogger,
+          bootstrap,
+        );
+      } else {
+        await bootstrap();
       }
       return ctx;
     };

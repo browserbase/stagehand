@@ -37,8 +37,8 @@ describe("default page tracking", () => {
   });
 
   it("activePage points to the initial page", async () => {
-    const pages = await stagehand.context.pages();
-    const active = await stagehand.context.activePage();
+    const pages = await stagehand.browser.context.pages();
+    const active = await stagehand.browser.context.activePage();
 
     expect(pages.length).toBeGreaterThanOrEqual(1);
     expect(active?.pageId).toBe(pages[0]?.pageId);
@@ -46,8 +46,8 @@ describe("default page tracking", () => {
 
   it("activePage switches to the most recently created page", async () => {
     const initial = await firstPage(stagehand);
-    const created = await stagehand.context.newPage({ url: fixture.url });
-    const active = await waitForActivePage(stagehand.context, initial.pageId);
+    const created = await stagehand.browser.context.newPage({ url: fixture.url });
+    const active = await waitForActivePage(stagehand.browser.context, initial.pageId);
 
     expect(active.pageId).toBe(created.pageId);
   });
@@ -57,16 +57,16 @@ describe("default page tracking", () => {
     await root.goto(fixture.url);
     await root.locator("#open").click();
 
-    const page2 = await waitForActivePage(stagehand.context, root.pageId);
+    const page2 = await waitForActivePage(stagehand.browser.context, root.pageId);
     await expect.poll(() => page2.url()).toBe(new URL("/page2", fixture.url).href);
     await page2.locator("#open").click();
 
-    const page3 = await waitForActivePage(stagehand.context, page2.pageId);
+    const page3 = await waitForActivePage(stagehand.browser.context, page2.pageId);
     await expect.poll(() => page3.url()).toBe(new URL("/page3", fixture.url).href);
     await page3.close();
 
     await expect
-      .poll(async () => (await stagehand.context.activePage())?.pageId, {
+      .poll(async () => (await stagehand.browser.context.activePage())?.pageId, {
         timeout: 5_000,
         interval: 25,
       })

@@ -28,10 +28,7 @@ const stagehand = await Stagehand.create({
   },
 });
 
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://aigrant.com");
 
 // With a threshold of 1, a single identical result is enough for the cache

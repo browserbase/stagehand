@@ -4,15 +4,21 @@ import {
   SimpleSpanProcessor,
   type SpanProcessor,
 } from "@opentelemetry/sdk-trace-web";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { DEFAULT_EXTRACT_JSON_SCHEMA, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import { StagehandMetricsAccumulator } from "../metrics.ts";
-import { createStagehandRuntime } from "../runtime.ts";
+import { createStagehandRuntime, type StagehandBrowserSession } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
+import * as actService from "../services/actService.ts";
 import { createStagehandTracingRuntime, type StagehandTracing } from "../tracing.ts";
+import { CdpConnection } from "../understudy/cdp.ts";
+import type { CdpWebSocketCloseEvent, CdpWebSocketTransport } from "../understudy/cdp.ts";
+import type { Page } from "../understudy/page.ts";
 
 const EMPTY_METRICS = new StagehandMetricsAccumulator().snapshot();
+
+afterEach(() => vi.restoreAllMocks());
 
 describe("Stagehand RPC router", () => {
   it("creates one server span for every valid JSON-RPC request", async () => {
@@ -183,6 +189,86 @@ describe("Stagehand RPC router", () => {
     await tracing.shutdown();
   });
 
+  it("parents successful AI operation and CDP spans under the caller trace", async () => {
+    const spans = new InMemorySpanExporter();
+    const tracing = configuredTracing(
+      createStagehandTracingRuntime(
+        { registerGlobals: false },
+        { spanProcessors: [new SimpleSpanProcessor(spans)] },
+      ),
+    );
+    let connection!: CdpConnection;
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_cdpUrl, logger) => {
+          connection = new CdpConnection(new ImmediateResponseTransport(), logger);
+          return browserSessionFor(connection);
+        },
+      },
+      tracing,
+    );
+    await runtime.initialize({
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+      browserCdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+      logLevel: "info",
+      model: { modelName: "openai/gpt-5.4-mini", apiKey: "test" },
+      telemetry: { traces: { endpoint: "https://collector.test/v1/traces", headers: {} } },
+    });
+    vi.spyOn(runtime, "resolveUnderstudyPage").mockReturnValue({} as Page);
+    vi.spyOn(actService, "act").mockImplementation(async () => {
+      await connection.send("Runtime.evaluate");
+      return {
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata: {
+          cache: { status: "DISABLED" },
+          usage: {
+            inputTokens: 0,
+            outputTokens: 0,
+            reasoningTokens: 0,
+            cachedInputTokens: 0,
+            inferenceTimeMs: 0,
+          },
+        },
+      };
+    });
+    const router = new RPCRouter(runtime);
+
+    await expect(
+      router.handle(
+        request({
+          id: 16,
+          method: "stagehand.act",
+          params: { page_id: "page-1", instruction: "click the link" },
+          traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+        }),
+      ),
+    ).resolves.toMatchObject({ data: { success: true } });
+    await tracing.forceFlush();
+
+    const requestSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.name === "stagehand.act" && span.kind === SpanKind.SERVER);
+    const operationSpan = spans
+      .getFinishedSpans()
+      .find((span) => span.attributes["stagehand.span.type"] === "operation");
+    const cdpSpans = spans
+      .getFinishedSpans()
+      .filter((span) => String(span.attributes["stagehand.log.message"]).startsWith("CDP "));
+    expect(requestSpan?.spanContext().traceId).toBe("4bf92f3577b34da6a3ce929d0e0e4736");
+    expect(requestSpan?.parentSpanContext?.spanId).toBe("00f067aa0ba902b7");
+    expect(operationSpan?.spanContext().traceId).toBe(requestSpan?.spanContext().traceId);
+    expect(operationSpan?.parentSpanContext?.spanId).toBe(requestSpan?.spanContext().spanId);
+    expect(cdpSpans.map((span) => span.name)).toStrictEqual(["CDP call", "CDP response"]);
+    for (const span of cdpSpans) {
+      expect(span.spanContext().traceId).toBe(operationSpan?.spanContext().traceId);
+      expect(span.parentSpanContext?.spanId).toBe(operationSpan?.spanContext().spanId);
+    }
+
+    await runtime.close();
+    await tracing.shutdown();
+  });
+
   it("applies the init log level before logging and delegates lifecycle overrides", async () => {
     const configureTracing = vi.fn();
     const tracing = {
@@ -229,6 +315,42 @@ describe("Stagehand RPC router", () => {
     ).resolves.toStrictEqual({ closed: true });
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
+
+  it("applies the default schema to extract requests that omit it", async () => {
+    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const router = createRouter(tracing);
+    const extract = vi.spyOn(router.stagehandController, "extract").mockResolvedValue({
+      data: { extraction: "Example" },
+      metadata: {
+        cache: { status: "DISABLED" },
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0,
+          inferenceTimeMs: 0,
+        },
+      },
+    });
+
+    await router.handle(
+      request({
+        id: 17,
+        method: "stagehand.extract",
+        params: { page_id: "page-1", instruction: "Extract the page text" },
+      }),
+    );
+
+    expect(extract).toHaveBeenCalledWith(
+      {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+        schema: DEFAULT_EXTRACT_JSON_SCHEMA,
+      },
+      expect.anything(),
+    );
+    await tracing.shutdown();
+  });
 });
 
 function createRouter(tracing: StagehandTracing): RPCRouter {
@@ -258,4 +380,54 @@ function configuredTracing(
   runtime: ReturnType<typeof createStagehandTracingRuntime>,
 ): StagehandTracing {
   return { ...runtime, configure: vi.fn() };
+}
+
+function browserSessionFor(connection: CdpConnection): StagehandBrowserSession {
+  return {
+    connected: true,
+    pages: () => [],
+    newPage: async () => {
+      throw new Error("Not used by this test");
+    },
+    activePage: async () => undefined,
+    setActivePage: async () => {},
+    addInitScript: async () => {},
+    setExtraHTTPHeaders: async () => {},
+    getDomainPolicy: () => null,
+    setDomainPolicy: async () => {},
+    cookies: async () => [],
+    addCookies: async () => {},
+    clearCookies: async () => {},
+    clipboard: {
+      readText: async () => "",
+      writeText: async () => {},
+      clear: async () => {},
+      paste: async () => {},
+      copy: async () => {},
+      cut: async () => {},
+    },
+    runWithTelemetryContext: (scope, logger, run) =>
+      connection.runWithTelemetryContext(scope, logger, run),
+    close: () => connection.close(),
+  };
+}
+
+class ImmediateResponseTransport implements CdpWebSocketTransport {
+  readonly connected = true;
+  private messageHandler?: (data: string) => void;
+
+  send(payload: string): void {
+    const { id } = JSON.parse(payload) as { id: number };
+    this.messageHandler?.(JSON.stringify({ id, result: {} }));
+  }
+
+  async close(): Promise<void> {}
+
+  onMessage(handler: (data: string) => void): void {
+    this.messageHandler = handler;
+  }
+
+  onClose(_handler: (event: CdpWebSocketCloseEvent) => void): void {}
+
+  onError(_handler: (error: Error) => void): void {}
 }
