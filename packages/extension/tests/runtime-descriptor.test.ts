@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RuntimeDescriptorSchema } from "../../protocol/schemas.ts";
-import serverPackageJson from "../package.json" with { type: "json" };
+import extensionPackageJson from "../package.json" with { type: "json" };
 import {
   startStagehandServiceWorker,
   type StagehandServiceWorkerScope,
@@ -19,13 +19,13 @@ describe("runtime descriptor", () => {
       protocolVersion: 1,
       serverInfo: {
         name: "stagehand",
-        version: serverPackageJson.version,
+        version: extensionPackageJson.version,
       },
     });
   });
 
-  it("matches the server package version", () => {
-    expect(STAGEHAND_RUNTIME_VERSION).toBe(serverPackageJson.version);
+  it("matches the extension package version", () => {
+    expect(STAGEHAND_RUNTIME_VERSION).toBe(extensionPackageJson.version);
   });
 
   it("rejects unknown descriptor fields", () => {
@@ -33,7 +33,7 @@ describe("runtime descriptor", () => {
       protocolVersion: 1,
       serverInfo: {
         name: "stagehand",
-        version: serverPackageJson.version,
+        version: extensionPackageJson.version,
       },
       status: "ready",
     };

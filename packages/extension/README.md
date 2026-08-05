@@ -1,4 +1,4 @@
-# Server
+# Extension
 
 Stagehand application code and Chrome extension service-worker runtime.
 

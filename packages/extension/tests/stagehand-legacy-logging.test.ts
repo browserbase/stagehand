@@ -12,16 +12,18 @@ import type { Page } from "../understudy/page.js";
 const PACKAGES_ROOT = path.resolve(import.meta.dirname, "../..");
 
 describe("Stagehand legacy logging migration", () => {
-  it("does not call the legacy V3 logger anywhere in the server", async () => {
-    expect(await findServerSourceMatches(/\bv3Logger\b/)).toEqual([]);
+  it("does not call the legacy V3 logger anywhere in the extension", async () => {
+    expect(await findExtensionSourceMatches(/\bv3Logger\b/)).toEqual([]);
   });
 
-  it("does not call FlowLogger anywhere in the server", async () => {
-    expect(await findServerSourceMatches(/\bFlowLogger\b/)).toEqual([]);
+  it("does not call FlowLogger anywhere in the extension", async () => {
+    expect(await findExtensionSourceMatches(/\bFlowLogger\b/)).toEqual([]);
   });
 
   it("does not expose the legacy LogLine schema or type", async () => {
-    expect(await findSourceMatches(/\bLogLine(?:Schema)?\b/, ["protocol", "server"])).toEqual([]);
+    expect(await findSourceMatches(/\bLogLine(?:Schema)?\b/, ["protocol", "extension"])).toEqual(
+      [],
+    );
   });
 
   it("still throws an understudy method error after recording it", async () => {
@@ -70,8 +72,8 @@ describe("Stagehand legacy logging migration", () => {
   });
 });
 
-async function findServerSourceMatches(pattern: RegExp): Promise<string[]> {
-  return await findSourceMatches(pattern, ["server"]);
+async function findExtensionSourceMatches(pattern: RegExp): Promise<string[]> {
+  return await findSourceMatches(pattern, ["extension"]);
 }
 
 async function findSourceMatches(pattern: RegExp, directories: string[]): Promise<string[]> {
