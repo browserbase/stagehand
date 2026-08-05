@@ -2,9 +2,11 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type * as StagehandSdk from "@browserbasehq/stagehand";
 import {
   executeStagehandSnippet,
+  STAGEHAND_CODEMODE_REFERENCE,
   STAGEHAND_CODEMODE_SKILL,
 } from "@browserbasehq/stagehand-integrations/codemode";
 import matter from "gray-matter";
@@ -104,6 +106,9 @@ const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
 const V4_CODE_STAGEHAND_MODEL_ENV = "EVAL_V4_CODE_STAGEHAND_MODEL";
 const RUN_TOOL_SERVER = "stagehand_browser";
 const RUN_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__run`;
+const V4_CODE_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__code_execute`;
+const V4_CODE_STDIO_EXPORT = "@browserbasehq/stagehand-integrations/codemode/stdio-server";
+const V4_CODE_SKILL_NAME = "stagehand-v4-code";
 
 type ClaudeToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -206,8 +211,13 @@ export async function prepareClaudeCodeToolAdapter(
         startupProfile,
       });
     case "v4_code_deterministic":
-    case "v4_code":
       return prepareV4CodeAdapter({
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
+    case "v4_code":
+      return prepareV4CodeMcpAdapter({
         ...input,
         toolSurface,
         startupProfile,
@@ -240,7 +250,18 @@ export function resolveClaudeCodeStartupProfile(
   environment: "LOCAL" | "BROWSERBASE",
   requested?: StartupProfile,
 ): StartupProfile {
-  if (toolSurface === "v4_code_deterministic" || toolSurface === "v4_code") {
+  if (toolSurface === "v4_code") {
+    const expected =
+      environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
+    if (requested && requested !== expected) {
+      throw new EvalsError(
+        `${toolSurface} requires startup profile "${expected}" in ${environment}; received "${requested}".`,
+      );
+    }
+    return expected;
+  }
+
+  if (toolSurface === "v4_code_deterministic") {
     if (environment !== "LOCAL") {
       throw new EvalsError(`${toolSurface} currently supports only the LOCAL environment.`);
     }
@@ -265,6 +286,38 @@ export function resolveClaudeCodeStartupProfile(
 
   throw new EvalsError(
     `No Claude Code startup profile default for tool "${toolSurface}" in ${environment}.`,
+  );
+}
+
+export function resolveV4CodeStdioEntrypoint(): string {
+  return fileURLToPath(import.meta.resolve(V4_CODE_STDIO_EXPORT));
+}
+
+export function buildV4CodeMcpServerConfig(
+  environment: "LOCAL" | "BROWSERBASE",
+  agentModel: AvailableModel | undefined,
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+): Record<string, unknown> {
+  const childEnv = copyStringEnvironment(sourceEnv);
+  childEnv.STAGEHAND_BROWSER = environment === "BROWSERBASE" ? "browserbase" : "local";
+
+  const stagehandModel = resolveV4CodeStagehandModel(agentModel, sourceEnv);
+  if (stagehandModel) childEnv.STAGEHAND_MODEL_NAME = stagehandModel;
+
+  return {
+    type: "stdio",
+    command: process.execPath,
+    args: [resolveV4CodeStdioEntrypoint()],
+    env: childEnv,
+    alwaysLoad: true,
+  };
+}
+
+function copyStringEnvironment(sourceEnv: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(sourceEnv).filter((entry): entry is [string, string] => {
+      return typeof entry[1] === "string";
+    }),
   );
 }
 
@@ -611,6 +664,73 @@ async function prepareCdpCodeAdapter(
     await fsp.rm(cwd, { recursive: true, force: true });
     throw error;
   }
+}
+
+async function prepareV4CodeMcpAdapter(
+  input: ClaudeCodeToolAdapterInput & {
+    toolSurface: "v4_code";
+    startupProfile: StartupProfile;
+  },
+): Promise<PreparedClaudeCodeToolAdapter> {
+  if (!input.model) {
+    throw new EvalsError("v4_code requires the selected harness model.");
+  }
+
+  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-v4-code-"));
+  const env = copyStringEnvironment(process.env);
+  const stagehandModel = resolveV4CodeStagehandModel(input.model);
+  const mcpServers = {
+    [RUN_TOOL_SERVER]: buildV4CodeMcpServerConfig(input.environment, input.model),
+  };
+
+  await installV4CodeSkill(cwd);
+
+  input.logger.log({
+    category: "claude_code",
+    message: `Configured ${input.environment.toLowerCase()} v4_code through the shared Stagehand code-mode stdio MCP.`,
+    level: 1,
+    auxiliary: {
+      startupProfile: {
+        value: input.startupProfile,
+        type: "string",
+      },
+      environment: {
+        value: input.environment,
+        type: "string",
+      },
+      ...(stagehandModel
+        ? {
+            stagehandModel: {
+              value: stagehandModel,
+              type: "string" as const,
+            },
+          }
+        : {}),
+    },
+  });
+
+  return {
+    toolSurface: input.toolSurface,
+    startupProfile: input.startupProfile,
+    cwd,
+    env,
+    allowedTools: ["Skill", "Bash", V4_CODE_TOOL_NAME],
+    settingSources: ["project"],
+    mcpServers,
+    canUseTool: async (toolName, commandInput) => {
+      if (toolName === "Skill" || toolName === V4_CODE_TOOL_NAME || toolName === "Bash") {
+        return { behavior: "allow", updatedInput: commandInput };
+      }
+      return {
+        behavior: "deny",
+        message: `Use Bash for inspection and ${V4_CODE_TOOL_NAME} for V4 browser automation.`,
+      };
+    },
+    promptInstructions: buildV4CodeMcpPromptInstructions(),
+    cleanup: async () => {
+      await fsp.rm(cwd, { recursive: true, force: true });
+    },
+  };
 }
 
 async function prepareV4CodeAdapter(
@@ -1319,6 +1439,45 @@ function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
   ].join("\n");
+}
+
+function buildV4CodeMcpPromptInstructions(): string {
+  return [
+    "Browser tool surface: v4_code.",
+    `A project skill named ${V4_CODE_SKILL_NAME} is available. Use the Skill tool to load it before writing Stagehand code; consult its REFERENCE.md when you need the exact API surface.`,
+    `Use the ${V4_CODE_TOOL_NAME} tool for browser automation. It is the shared Stagehand code-mode MCP tool.`,
+    "The tool exposes one long-lived Stagehand V4 page, context, Stagehand instance, Zod as z, and console across code calls.",
+    "Use page and context for deterministic browser operations. Use stagehand.act(), stagehand.observe(), and stagehand.extract() for AI-assisted browser operations.",
+    "The benchmark Start URL is written in this task prompt; it is not injected as a startUrl variable. Navigate to that literal URL when the task requires it.",
+    "Do not initialize or close Stagehand or its browser. The MCP process owns browser provisioning and cleanup.",
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from code snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+async function installV4CodeSkill(cwd: string): Promise<void> {
+  const targetDir = path.join(cwd, ".claude", "skills", V4_CODE_SKILL_NAME);
+  await fsp.mkdir(targetDir, { recursive: true });
+  await Promise.all([
+    fsp.writeFile(
+      path.join(targetDir, "SKILL.md"),
+      [
+        "---",
+        `name: ${V4_CODE_SKILL_NAME}`,
+        "description: Write correct Stagehand V4 code for the shared code_execute MCP tool.",
+        "---",
+        "",
+        STAGEHAND_CODEMODE_SKILL,
+        "",
+        "## Detailed API reference",
+        "",
+        "Read `REFERENCE.md` in this skill directory when the short guide does not answer an API question.",
+        "",
+      ].join("\n"),
+    ),
+    fsp.writeFile(path.join(targetDir, "REFERENCE.md"), `${STAGEHAND_CODEMODE_REFERENCE}\n`),
+  ]);
 }
 
 function buildV4CodePromptInstructions(

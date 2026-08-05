@@ -4,13 +4,14 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AvailableModel } from "stagehand-v3";
 import {
-  executeV4AiSnippet,
+  buildV4CodeMcpServerConfig,
   executeV4DeterministicSnippet,
   getBrowseCliAllowedTools,
   getBrowseCliToolMetadata,
   insertAfterFrontmatter,
   isAllowedBrowseCommand,
   installBrowseSkill,
+  prepareClaudeCodeToolAdapter,
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
   resolveV4CodeStagehandModel,
@@ -72,15 +73,108 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
-  it("supports AI-enabled V4 only as a local tool-launched surface", () => {
+  it("maps v4_code startup to the shared MCP browser environment", () => {
     expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
     expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe("tool_launch_local");
+    expect(resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
     expect(() =>
       resolveClaudeCodeStartupProfile("v4_code", "LOCAL", "runner_provided_local_cdp"),
-    ).toThrow(/requires startup profile "tool_launch_local"/);
-    expect(() => resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toThrow(
-      /supports only the LOCAL environment/,
+    ).toThrow(/requires startup profile "tool_launch_local" in LOCAL/);
+    expect(() =>
+      resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE", "tool_launch_local"),
+    ).toThrow(/requires startup profile "tool_create_browserbase" in BROWSERBASE/);
+  });
+
+  it("configures the shared stdio MCP explicitly for local and Browserbase runs", () => {
+    const local = buildV4CodeMcpServerConfig(
+      "LOCAL",
+      "anthropic/claude-sonnet-5" as AvailableModel,
+      {
+        PATH: "/test/bin",
+        BROWSERBASE_API_KEY: "test-browserbase-key",
+        EVAL_V4_CODE_STAGEHAND_MODEL: "groq/openai/gpt-oss-120b",
+      },
     );
+    const remote = buildV4CodeMcpServerConfig(
+      "BROWSERBASE",
+      "anthropic/claude-sonnet-5" as AvailableModel,
+      {
+        PATH: "/test/bin",
+        BROWSERBASE_API_KEY: "test-browserbase-key",
+      },
+    );
+
+    expect(local).toMatchObject({
+      type: "stdio",
+      command: process.execPath,
+      args: [expect.stringMatching(/integrations[/\\]dist[/\\]codemode[/\\]stdio-server\.mjs$/u)],
+      alwaysLoad: true,
+      env: {
+        PATH: "/test/bin",
+        BROWSERBASE_API_KEY: "test-browserbase-key",
+        STAGEHAND_BROWSER: "local",
+        STAGEHAND_MODEL_NAME: "groq/openai/gpt-oss-120b",
+      },
+    });
+    expect(remote).toMatchObject({
+      env: {
+        STAGEHAND_BROWSER: "browserbase",
+        STAGEHAND_MODEL_NAME: "anthropic/claude-sonnet-5",
+      },
+    });
+  });
+
+  it("prepares v4_code as one shared MCP tool without initializing Stagehand in evals", async () => {
+    const adapter = await prepareClaudeCodeToolAdapter({
+      toolSurface: "v4_code",
+      startupProfile: "tool_create_browserbase",
+      environment: "BROWSERBASE",
+      plan: {
+        dataset: "webvoyager",
+        taskId: "task-1",
+        startUrl: "https://example.com",
+        instruction: "Inspect the example page",
+      },
+      logger: new EvalLogger(false),
+      model: "anthropic/claude-sonnet-5" as AvailableModel,
+    });
+
+    try {
+      expect(adapter.allowedTools).toEqual([
+        "Skill",
+        "Bash",
+        "mcp__stagehand_browser__code_execute",
+      ]);
+      expect(adapter.settingSources).toEqual(["project"]);
+      expect(adapter.mcpServers).toMatchObject({
+        stagehand_browser: {
+          type: "stdio",
+          command: process.execPath,
+          alwaysLoad: true,
+          env: { STAGEHAND_BROWSER: "browserbase" },
+        },
+      });
+      expect(adapter.promptInstructions).toContain("shared Stagehand code-mode MCP tool");
+      expect(adapter.promptInstructions).toContain("project skill named stagehand-v4-code");
+      expect(adapter.promptInstructions).toContain("not injected as a startUrl variable");
+      await expect(adapter.canUseTool?.("Skill", { skill: "stagehand-v4-code" })).resolves.toEqual({
+        behavior: "allow",
+        updatedInput: { skill: "stagehand-v4-code" },
+      });
+      await expect(
+        fsp.readFile(path.join(adapter.cwd, ".claude/skills/stagehand-v4-code/SKILL.md"), "utf8"),
+      ).resolves.toContain("# Stagehand V4 code-mode syntax");
+      await expect(
+        fsp.readFile(
+          path.join(adapter.cwd, ".claude/skills/stagehand-v4-code/REFERENCE.md"),
+          "utf8",
+        ),
+      ).resolves.toContain("# Stagehand V4 code-mode reference");
+    } finally {
+      await adapter.cleanup();
+    }
   });
 
   it("allows the Stagehand operation model to differ from the Claude Code model", () => {
@@ -147,37 +241,6 @@ describe("claude code tool adapter resolution", () => {
         message: "run console.log: binding check",
       }),
     ]);
-  });
-
-  it("adds native Stagehand and Zod bindings only for the AI-enabled V4 surface", async () => {
-    const logger = new EvalLogger(false);
-    const stagehand = {
-      act: async (instruction: string) => ({ instruction, success: true }),
-    };
-
-    const result = await executeV4AiSnippet({
-      code: `
-        const schema = z.object({ heading: z.string() });
-        return {
-          action: await stagehand.act("click the link"),
-          parsed: schema.parse({ heading: "Example Domain" }),
-        };
-      `,
-      stagehand: stagehand as never,
-      page: {} as never,
-      context: {} as never,
-      plan: {
-        dataset: "webvoyager",
-        startUrl: "https://example.com",
-        instruction: "Inspect the example page",
-      },
-      logger,
-    });
-
-    expect(result).toEqual({
-      action: { instruction: "click the link", success: true },
-      parsed: { heading: "Example Domain" },
-    });
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {
