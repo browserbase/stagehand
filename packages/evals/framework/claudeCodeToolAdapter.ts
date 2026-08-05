@@ -47,7 +47,13 @@ export interface PreparedClaudeCodeToolAdapter {
     toolName: string,
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown>>;
+  collectMetrics?: () => Promise<Record<string, ClaudeCodeMetricValue>>;
   cleanup: () => Promise<void>;
+}
+
+export interface ClaudeCodeMetricValue {
+  count: number;
+  value: number;
 }
 
 export interface PreparedBrowseCliHarnessAdapter {
@@ -675,6 +681,7 @@ async function prepareV4CodeAdapter(
           : {}),
       },
     });
+    const initializedStagehand = stagehand;
 
     return {
       toolSurface: input.toolSurface,
@@ -694,6 +701,7 @@ async function prepareV4CodeAdapter(
         };
       },
       promptInstructions: buildV4CodePromptInstructions(input.toolSurface, input.plan),
+      collectMetrics: () => collectV4StagehandMetrics(initializedStagehand),
       cleanup: async () => {
         try {
           await closeV4CodeStagehand(stagehand, input.logger, input.toolSurface);
@@ -742,6 +750,38 @@ async function closeV4CodeStagehand(
       level: 1,
     });
   }
+}
+
+export async function collectV4StagehandMetrics(
+  stagehand: Pick<StagehandSdk.Stagehand, "metrics">,
+): Promise<Record<string, ClaudeCodeMetricValue>> {
+  return buildV4StagehandMetrics(await stagehand.metrics());
+}
+
+export function buildV4StagehandMetrics(
+  values: StagehandSdk.StagehandMetrics,
+): Record<string, ClaudeCodeMetricValue> {
+  const metrics: Record<string, ClaudeCodeMetricValue> = {
+    v4_stagehand_metrics_available: {
+      count: 1,
+      value: 1,
+    },
+  };
+
+  for (const [name, value] of Object.entries(values)) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new EvalsError(`V4 Stagehand metric "${name}" is not a finite number.`);
+    }
+    metrics[`v4_${camelCaseToSnakeCase(name)}`] = {
+      count: 1,
+      value,
+    };
+  }
+  return metrics;
+}
+
+function camelCaseToSnakeCase(value: string): string {
+  return value.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
 }
 
 async function buildPlaywrightRunMcpServers(input: {
