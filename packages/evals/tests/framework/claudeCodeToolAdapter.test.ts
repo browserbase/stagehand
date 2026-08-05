@@ -55,7 +55,7 @@ describe("claude code tool adapter resolution", () => {
     );
   });
 
-  it("supports deterministic V4 only as a local tool-launched surface", () => {
+  it("uses tool-owned startup profiles for deterministic V4", () => {
     expect(resolveClaudeCodeToolSurface("v4_code_deterministic")).toBe("v4_code_deterministic");
     expect(resolveClaudeCodeStartupProfile("v4_code_deterministic", "LOCAL")).toBe(
       "tool_launch_local",
@@ -67,19 +67,26 @@ describe("claude code tool adapter resolution", () => {
         "runner_provided_local_cdp",
       ),
     ).toThrow(/requires startup profile "tool_launch_local"/);
-    expect(() => resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE")).toThrow(
-      /supports only the LOCAL environment/,
+    expect(resolveClaudeCodeStartupProfile("v4_code_deterministic", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
     );
+    expect(() =>
+      resolveClaudeCodeStartupProfile(
+        "v4_code_deterministic",
+        "BROWSERBASE",
+        "runner_provided_browserbase_cdp",
+      ),
+    ).toThrow(/requires startup profile "tool_create_browserbase"/);
   });
 
-  it("supports AI-enabled V4 only as a local tool-launched surface", () => {
+  it("uses tool-owned startup profiles for AI-enabled V4", () => {
     expect(resolveClaudeCodeToolSurface("v4_code")).toBe("v4_code");
     expect(resolveClaudeCodeStartupProfile("v4_code", "LOCAL")).toBe("tool_launch_local");
     expect(() =>
       resolveClaudeCodeStartupProfile("v4_code", "LOCAL", "runner_provided_local_cdp"),
     ).toThrow(/requires startup profile "tool_launch_local"/);
-    expect(() => resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toThrow(
-      /supports only the LOCAL environment/,
+    expect(resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
     );
   });
 
