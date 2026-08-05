@@ -1,0 +1,147 @@
+---
+title: User data directory
+sidebarTitle: User data
+description: Persist browser data between sessions
+---
+
+## User data directory
+
+Persist browser data between sessions.
+
+### Local sessions
+
+For local sessions, point `localBrowser.launch()` at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch({
+    userDataDir: "./browser-data",
+  }),
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from stagehand import Stagehand, local_browser
+
+browser = await local_browser.launch(user_data_dir="./browser-data")
+
+stagehand = await Stagehand.create(browser=browser)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
+	UserDataDir: "./browser-data",
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+<Note>
+When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. A directory you pass yourself is kept either way, so nothing extra is required for the setup above.
+</Note>
+
+The preserve flag governs only that generated temporary profile, never a directory you passed yourself:
+
+<View title="TypeScript" icon="js">
+`preserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
+</View>
+
+<View title="Python" icon="python">
+`preserve_user_data_dir` keeps the generated temporary directory after shutdown when you turn it on.
+</View>
+
+<View title="Go" icon="golang">
+`PreserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
+</View>
+
+
+### Browserbase sessions
+
+For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    browserSettings: {
+      context: {
+        id: "my-context-id",
+        persist: true,
+      },
+    },
+  }),
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+
+from stagehand import BrowserbaseBrowserSettings, Stagehand, browserbase
+
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    browser_settings=BrowserbaseBrowserSettings.model_validate({
+        "context": {
+            "id": "my-context-id",
+            "persist": True,
+        }
+    }),
+)
+
+stagehand = await Stagehand.create(browser=browser)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+persist := true
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+	BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
+		Context: &stagehand.BrowserbaseContext{
+			ID:      "my-context-id",
+			Persist: &persist,
+		},
+	},
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+<Warning>
+A persisted profile carries cookies, tokens, and site data across runs. Treat the directory or context ID as a credential: keep it out of version control and scope it to a single automation.
+</Warning>

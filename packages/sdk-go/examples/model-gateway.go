@@ -37,33 +37,33 @@ func run(ctx context.Context) (err error) {
 	if apiKey == "" {
 		return errors.New("BROWSERBASE_API_KEY is required")
 	}
-	model := stagehand.ModelConfig{ModelName: "openai/gpt-4.1"}
-	// No model API key: inference routes through the Browserbase Model Gateway,
-	// authenticated by the Browserbase API key and session.
+	// With no model, Browserbase Model Gateway selects one automatically for
+	// each inference call. The Browserbase API key and session authenticate it.
 	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return err
 	}
-	page, err := browserContext.ActivePage(ctx)
+	pages, err := browserContext.Pages(ctx)
 	if err != nil {
 		return err
 	}
-	if page == nil {
+	if len(pages) == 0 {
 		return errors.New("Stagehand initialized without an active page")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	page := pages[0]
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		return err
 	}
 

@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { browserbase, Stagehand, type StagehandBrowser } from "../../src/index.js";
 
@@ -36,7 +39,8 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
       throw new Error("Stagehand was not initialized");
     }
 
-    const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+    const page =
+      (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
 
     await page.goto("https://example.com", { waitUntil: "load" });
 
@@ -50,7 +54,8 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
       throw new Error("Stagehand was not initialized");
     }
 
-    const page = (await stagehand.context.pages())[0] ?? (await stagehand.context.newPage());
+    const page =
+      (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
 
     await page.goto(webMCPTestSite, { waitUntil: "load" });
 
@@ -71,5 +76,36 @@ describe.runIf(shouldRun)("Stagehand TS SDK Browserbase smoke", () => {
     });
     await expect(page.locator("#last-tool").textContent()).resolves.toBe("calculateSum");
     await expect(page.locator("#invocation-count").textContent()).resolves.toBe("1");
+  }, 30_000);
+
+  it("uploads a local file to a Browserbase browser", async () => {
+    if (!stagehand) {
+      throw new Error("Stagehand was not initialized");
+    }
+
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-browserbase-upload-"));
+    const filePath = path.join(directory, "hello.txt");
+    await writeFile(filePath, "hello from Browserbase");
+    try {
+      const page =
+        (await stagehand.browser.context.pages())[0] ?? (await stagehand.browser.context.newPage());
+      await page.goto(`data:text/html,${encodeURIComponent('<input id="upload" type="file">')}`);
+      const input = page.locator("#upload");
+
+      await input.setInputFiles(filePath);
+      await expect(
+        page.evaluate(`(async () => {
+          const file = document.querySelector('#upload').files[0];
+          return file ? { name: file.name, text: await file.text() } : null;
+        })()`),
+      ).resolves.toStrictEqual({ name: "hello.txt", text: "hello from Browserbase" });
+
+      await input.setInputFiles([]);
+      await expect(page.evaluate(`document.querySelector('#upload').files.length`)).resolves.toBe(
+        0,
+      );
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   }, 30_000);
 });

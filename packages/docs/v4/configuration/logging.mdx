@@ -5,7 +5,7 @@ description: "Control terminal output and forward structured Stagehand logs."
 
 Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
 
-All logging is configured through a single `logging` option on the constructor. Use the language selector to see the exact shape your SDK accepts: some expose a level and an output format alongside the record callback, others hand you the record stream and let you filter and format it yourself.
+All logging is configured through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record. Use the language selector to see the exact shape your SDK accepts.
 
 ## Quick start
 
@@ -13,30 +13,25 @@ Choose your logging setup based on your environment:
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 // Development: full debug output, human-readable
-const development = new Stagehand({
-  browser: { type: "local" },
-  logging: { level: "debug", format: "pretty" },
-  // restOfYourConfiguration...
-});
+const development = { level: "debug", format: "pretty" } as const;
 
 // Production: standard logging, machine-readable, forwarded to your platform
-const production = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  logging: {
-    level: "info",
-    format: "json",
-    onLog: yourProductionLogger, // Send to Sentry, DataDog, or similar
-  },
-  // restOfYourConfiguration...
-});
+const production = {
+  level: "info",
+  format: "json",
+  onLog: yourProductionLogger, // Send to Sentry, DataDog, or similar
+} as const;
 
 // Testing: warnings and errors only, no console noise
-const testing = new Stagehand({
-  browser: { type: "local" },
-  logging: { level: "warn", onLog: yourTestLogger },
+const testing = { level: "warn", onLog: yourTestLogger } as const;
+
+// Create one instance with the configuration for this environment
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
+  logging: development,
   // restOfYourConfiguration...
 });
 ```
@@ -44,32 +39,27 @@ const testing = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-import os
-
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand, local_browser
 
 # Development: full debug output, human-readable
-development = Stagehand(
-    browser="local",
-    logging=StagehandClientLoggingConfig(level="debug", format="pretty"),
-    # rest_of_your_configuration...
-)
+development = {"level": "debug", "format": "pretty"}
 
 # Production: standard logging, machine-readable, forwarded to your platform
-production = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="json",
-        on_log=your_production_logger,  # Send to Sentry, DataDog, or similar
-    ),
-    # rest_of_your_configuration...
-)
+production = {
+    "level": "info",
+    "format": "json",
+    "on_log": your_production_logger,  # Send to Sentry, DataDog, or similar
+}
 
 # Testing: warnings and errors only, no console noise
-testing = Stagehand(
-    browser="local",
-    logging=StagehandClientLoggingConfig(level="warn", on_log=your_test_logger),
+testing = {"level": "warn", "on_log": your_test_logger}
+
+# Create one instance with the configuration for this environment
+browser = await local_browser.launch()
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging=development,
     # rest_of_your_configuration...
 )
 ```
@@ -77,50 +67,46 @@ testing = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// The Go SDK exposes a single OnLog callback: you own filtering and formatting.
-// Development: print everything, human-readable
-development := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s %v\n", entry.Level, entry.Message, entry.Data)
-		},
-	},
-	// restOfYourConfiguration...
-})
-
-// Production: machine-readable, forwarded to your platform
-production := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: yourProductionLogger, // Send to Sentry, DataDog, or similar
-	},
-	// restOfYourConfiguration...
-})
-
-// Testing: warnings and errors only, no console noise
-testing := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelWarn || entry.Level == stagehand.StagehandLogLevelError {
-				yourTestLogger(entry)
-			}
-		},
-	},
-	// restOfYourConfiguration...
-})
-
-// Pick the client that matches the environment you are running in
-client := development
-switch os.Getenv("APP_ENV") {
-case "production":
-	client = production
-case "test":
-	client = testing
+// Development: full debug output, human-readable
+development := &stagehand.StagehandClientLoggingConfig{
+	Level:  stagehand.StagehandClientLogLevelDebug,
+	Format: stagehand.StagehandClientLogFormatPretty,
 }
 
-if err := client.Init(ctx); err != nil {
+// Production: standard logging, machine-readable, forwarded to your platform
+production := &stagehand.StagehandClientLoggingConfig{
+	Level:  stagehand.StagehandClientLogLevelInfo,
+	Format: stagehand.StagehandClientLogFormatJSON,
+	OnLog:  yourProductionLogger, // Send to Sentry, DataDog, or similar
+}
+
+// Testing: warnings and errors only, no console noise
+testing := &stagehand.StagehandClientLoggingConfig{
+	Level: stagehand.StagehandClientLogLevelWarn,
+	OnLog: yourTestLogger,
+}
+
+// Pick the configuration that matches the environment you are running in
+logging := development
+switch os.Getenv("APP_ENV") {
+case "production":
+	logging = production
+case "test":
+	logging = testing
+}
+
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Logging: logging,
+	// restOfYourConfiguration...
+})
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -135,7 +121,7 @@ Real-time event logging during automation execution.
 
 ### Verbosity level
 
-Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold. TypeScript and Python set that threshold; Go does not expose one and receives the default of `info` and above.
+Control how much detail you see in logs. The level is always applied at the source, so the Stagehand runtime never generates or sends a record below your threshold. Every SDK sets that threshold the same way, and the default is `info`.
 
 <Tabs>
 <Tab title="Level: debug">
@@ -143,7 +129,8 @@ Control how much detail you see in logs. The level is always applied at the sour
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "debug" }, // Maximum detail
   // restOfYourConfiguration...
 });
@@ -152,8 +139,9 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="debug"),  # Maximum detail
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "debug"},  # Maximum detail
     # rest_of_your_configuration...
 )
 ```
@@ -161,19 +149,17 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go has no level to raise: OnLog receives every record the runtime emits
-client := stagehand.New(stagehand.StagehandClientInitParams{
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s %v\n", entry.Level, entry.Message, entry.Data)
-		},
+		Level: stagehand.StagehandClientLogLevelDebug, // Maximum detail
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -196,7 +182,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "info" }, // Default level
   // restOfYourConfiguration...
 });
@@ -205,8 +192,9 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info"),  # Default level
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info"},  # Default level
     # rest_of_your_configuration...
 )
 ```
@@ -214,22 +202,17 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go filters in OnLog: this keeps info and above, the default of the other SDKs
-client := stagehand.New(stagehand.StagehandClientInitParams{
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level == stagehand.StagehandLogLevelDebug {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s\n", entry.Level, entry.Message)
-		},
+		Level: stagehand.StagehandClientLogLevelInfo, // Default level
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -252,13 +235,12 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  logging: { level: "error" }, // Errors only
-  // restOfYourConfiguration...
-});
+const errorsOnly = { level: "error" } as const; // Errors only
+const silent = { level: "off" } as const; // Nothing at all
 
-const silent = new Stagehand({
-  logging: { level: "off" }, // Nothing at all
+const stagehand = await Stagehand.create({
+  browser,
+  logging: errorsOnly,
   // restOfYourConfiguration...
 });
 ```
@@ -266,13 +248,12 @@ const silent = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="error"),  # Errors only
-    # rest_of_your_configuration...
-)
+errors_only = {"level": "error"}  # Errors only
+silent = {"level": "off"}  # Nothing at all
 
-silent = Stagehand(
-    logging=StagehandClientLoggingConfig(level="off"),  # Nothing at all
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging=errors_only,
     # rest_of_your_configuration...
 )
 ```
@@ -281,29 +262,27 @@ silent = Stagehand(
 <View title="Go" icon="golang">
 ```go
 // Errors only
-errorsOnly := stagehand.New(stagehand.StagehandClientInitParams{
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			if entry.Level != stagehand.StagehandLogLevelError {
-				return
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] ERROR %s\n", entry.Message)
-		},
-	},
-	// restOfYourConfiguration...
-})
-
-// Nothing at all: omit Logging entirely, and Go writes no output
-silent := stagehand.New(stagehand.StagehandClientInitParams{
-	// restOfYourConfiguration...
-})
-
-// Pick the client that matches how much output you want
-client := errorsOnly
-if os.Getenv("STAGEHAND_SILENT") == "1" {
-	client = silent
+errorsOnly := &stagehand.StagehandClientLoggingConfig{
+	Level: stagehand.StagehandClientLogLevelError,
 }
-if err := client.Init(ctx); err != nil {
+
+// Nothing at all
+silent := &stagehand.StagehandClientLoggingConfig{
+	Level: stagehand.StagehandClientLogLevelOff,
+}
+
+// Pick the configuration that matches how much output you want
+logging := errorsOnly
+if os.Getenv("STAGEHAND_SILENT") == "1" {
+	logging = silent
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Logging: logging,
+	// restOfYourConfiguration...
+})
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -322,7 +301,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Warning>
-In TypeScript and Python, turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets. Go has no level, so the runtime keeps generating records: leave `OnLog` unset to keep them out of your own sinks.
+Turning logging off suppresses the record callback as well as console output. Do this when handling passwords or other secrets.
 </Warning>
 
 ---
@@ -333,14 +312,15 @@ Logs can be sent to different destinations, including your console and external 
 
 <Tabs>
 <Tab title="Pretty (default)">
-Human-readable, single-line console output written to standard error. TypeScript and Python render this format for you; in Go you produce it in the callback.
+Human-readable, single-line console output written to standard error.
 
 **When to use:** Development and interactive debugging
 
 <View title="TypeScript" icon="js">
 ```typescript
 // Enabled by default: level "info", format "pretty"
-const stagehand = new Stagehand({
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "info", format: "pretty" },
   // restOfYourConfiguration...
 });
@@ -350,8 +330,9 @@ const stagehand = new Stagehand({
 <View title="Python" icon="python">
 ```python
 # Enabled by default: level "info", format "pretty"
-stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info", format="pretty"),
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info", "format": "pretty"},
     # rest_of_your_configuration...
 )
 ```
@@ -359,31 +340,24 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-// Go prints nothing unless you ask it to. This reproduces the pretty format.
-client := stagehand.New(stagehand.StagehandClientInitParams{
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			suffix := ""
-			if len(entry.Data) > 0 {
-				if encoded, err := json.Marshal(entry.Data); err == nil {
-					suffix = " " + string(encoded)
-				}
-			}
-			fmt.Fprintf(os.Stderr, "[stagehand] %s %s%s\n", strings.ToUpper(string(entry.Level)), entry.Message, suffix)
-		},
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
 <Accordion title="Output shape">
-Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. TypeScript and Python write it to standard error so it never mixes with your program's own standard output.
+Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. Stagehand writes it to standard error so it never mixes with your program's own standard output.
 </Accordion>
 </Tab>
 
@@ -394,7 +368,8 @@ One JSON object per line, ready for log shippers and structured search.
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "info", format: "json" },
   // restOfYourConfiguration...
 });
@@ -403,8 +378,9 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    logging=StagehandClientLoggingConfig(level="info", format="json"),
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info", "format": "json"},
     # rest_of_your_configuration...
 )
 ```
@@ -412,18 +388,18 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {
-			_ = json.NewEncoder(os.Stderr).Encode(entry)
-		},
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatJSON,
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -435,7 +411,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 </Tab>
 <Tab title="Custom logger">
-Your own callback receives every log record that passes the level filter, alongside the console output in TypeScript and Python.
+Your own callback receives every log record that passes the level filter, alongside the console output.
 
 **When to use:** Development, debugging, or when you don't need querying
 capabilities.
@@ -466,7 +442,6 @@ const simpleLogger = (log: {
 
 <View title="Python" icon="python">
 ```python
-
 
 # Simple logger without parsing (for basic console output)
 def simple_logger(log) -> None:
@@ -499,8 +474,8 @@ Then pass the logger in your Stagehand instance:
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
   logging: {
     level: "info",
     onLog: simpleLogger,
@@ -512,12 +487,11 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        on_log=simple_logger,
-    ),
+browser = await local_browser.launch()
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info", "on_log": simple_logger},
     # rest_of_your_configuration...
 )
 ```
@@ -525,17 +499,22 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: simpleLogger,
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -544,7 +523,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-The callback receives every record that passes the level gate, so do any finer filtering inside it. In TypeScript and Python the callback runs in addition to the console output rather than instead of it: the level gates both and `off` silences both, so keep the level at the lowest severity you want to receive and redirect standard error if the console itself needs to stay quiet. Go exposes no level and writes nothing to the console, so the callback is the only sink and always receives the runtime default of `info` and above.
+The callback receives every record that passes the level gate, so do any finer filtering inside it. It runs in addition to the console output rather than instead of it: the level gates both and `off` silences both. Keep the level at the lowest severity you want to receive, and redirect standard error if the console itself needs to stay quiet.
 </Note>
 </Tab>
 
@@ -584,8 +563,6 @@ const productionLogger = (log: {
 <View title="Python" icon="python">
 ```python
 import sentry_sdk
-
-
 
 def production_logger(log) -> None:
     # Send errors to Sentry
@@ -647,7 +624,6 @@ from datadog_api_client.v2.api.logs_api import LogsApi
 
 logs_api = LogsApi(ApiClient(Configuration()))
 
-
 def production_logger(log) -> None:
     # Send all logs to DataDog
     logs_api.submit_log(body=[{
@@ -690,8 +666,8 @@ func productionLogger(entry stagehand.StagehandLog) {
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
   logging: {
     level: "info",
     format: "json",
@@ -704,13 +680,15 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="json",
-        on_log=production_logger,
-    ),
+browser = await local_browser.launch()
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={
+        "level": "info",
+        "format": "json",
+        "on_log": production_logger,
+    },
     # rest_of_your_configuration...
 )
 ```
@@ -718,17 +696,22 @@ stagehand = Stagehand(
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: productionLogger,
 	},
 	// restOfYourConfiguration...
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -737,7 +720,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Steps>
 
 <Note>
-In TypeScript and Python, exceptions thrown by your callback, including rejected promises, are caught and reported on standard error, so a failing logger will not take down your automation. Go does not recover from a panic in `OnLog`, so handle failures inside the callback.
+Failures inside your callback are caught and reported on standard error, so a failing logger will not take down your automation. That covers exceptions and rejected promises in TypeScript and Python, and a panic in Go.
 </Note>
 
 </Tab>
@@ -801,10 +784,10 @@ Write each record as one JSON line, then run your Stagehand script as normal:
 <View title="TypeScript" icon="js">
 ```typescript
 import { finished } from "node:stream/promises";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  browser: { type: "local" },
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
   logging: {
     level: "debug",
     format: "pretty",
@@ -815,7 +798,6 @@ const stagehand = new Stagehand({
 });
 
 try {
-  await stagehand.init();
   // ... your automation
 } finally {
   await stagehand.close();
@@ -827,14 +809,13 @@ try {
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(
-    browser="local",
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-    ),
+browser = await local_browser.launch()
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info", "format": "pretty"},
 )
 ```
 
@@ -852,23 +833,22 @@ Use `on_log` to send each displayed log to a file or your application logger. Th
 additive: Stagehand continues to write its normal terminal output.
 
 ```python
-from stagehand import Stagehand, StagehandClientLoggingConfig
-
+from stagehand import Stagehand
 
 log_file = open("stagehand.jsonl", "a", encoding="utf-8")
 
-stagehand = Stagehand(
+stagehand = await Stagehand.create(
+    browser=browser,
     # ...
-    logging=StagehandClientLoggingConfig(
-        level="info",
-        format="pretty",
-        on_log=lambda log: print(log.model_dump_json(), file=log_file),
-    ),
+    logging={
+        "level": "info",
+        "format": "pretty",
+        "on_log": lambda log: print(log.model_dump_json(), file=log_file),
+    },
 )
 
 try:
-    await stagehand.init()
-    # ... your automation
+    ...  # your automation
 finally:
     await stagehand.close()
     log_file.close()
@@ -878,13 +858,18 @@ finally:
 <View title="Go" icon="golang">
 
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	// ...
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		Level:  stagehand.StagehandClientLogLevelInfo,
 		Format: stagehand.StagehandClientLogFormatPretty,
 	},
+	// ...
 })
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 
 | Option   | Default  | Values                                  |
@@ -921,8 +906,8 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, logFile.Close()) }()
 
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		// ...
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
 		Logging: &stagehand.StagehandClientLoggingConfig{
 			Level:  stagehand.StagehandClientLogLevelInfo,
 			Format: stagehand.StagehandClientLogFormatPretty,
@@ -930,8 +915,9 @@ func run(ctx context.Context) (err error) {
 				_ = json.NewEncoder(logFile).Encode(log)
 			},
 		},
+		// ...
 	})
-	if err := client.Init(ctx); err != nil {
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
@@ -1006,12 +992,12 @@ This is especially useful for debugging long workflows where you need to trace t
 **Development only** - Produces large volumes of output and contains page content. Do not use in production.
 </Warning>
 
-Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call. TypeScript and Python can raise the level to `debug`; Go cannot, so debug records never reach a Go callback.
+Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call.
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  browser: { type: "local" },
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
   logging: {
     level: "debug",
     format: "json",
@@ -1034,14 +1020,15 @@ def capture_inference(log) -> None:
     if data.get("category") == "llm":
         print(log.model_dump_json(), file=inference_file)
 
+browser = await local_browser.launch()
 
-stagehand = Stagehand(
-    browser="local",
-    logging=StagehandClientLoggingConfig(
-        level="debug",
-        format="json",
-        on_log=capture_inference,
-    ),
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={
+        "level": "debug",
+        "format": "json",
+        "on_log": capture_inference,
+    },
 )
 ```
 </View>
@@ -1057,16 +1044,22 @@ func captureInference(inferenceFile *os.File) func(stagehand.StagehandLog) {
 	}
 }
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level: stagehand.StagehandClientLogLevelDebug,
 		OnLog: captureInference(inferenceFile),
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -1135,11 +1128,11 @@ Token counters are also aggregated across the whole session. See [Observability]
 
 ### Logging configuration
 
-All logging options are passed as a single object to the Stagehand constructor:
+All logging options are passed as a single object to `Stagehand.create()`:
 
 <View title="TypeScript" icon="js">
 ```typescript
-// The shape of the `logging` value on the Stagehand constructor options.
+// The shape of the `logging` value in the Stagehand.create() options.
 type StagehandClientLoggingConfig = {
   level?: "off" | "error" | "warn" | "info" | "debug"; // default: "info"
   format?: "pretty" | "json"; // default: "pretty"
@@ -1150,31 +1143,34 @@ type StagehandClientLoggingConfig = {
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+stagehand = await Stagehand.create(
+    browser=browser,
     # ... your other configurations (browser, model, etc.)
-    logging=StagehandClientLoggingConfig(
-        level="info",   # "off" | "error" | "warn" | "info" | "debug"
-        format="pretty",  # "pretty" | "json"
-        on_log=None,      # Callable[[StagehandLog], None | Awaitable[None]]
-    ),
+    logging={
+        "level": "info",  # "off" | "error" | "warn" | "info" | "debug"
+        "format": "pretty",  # "pretty" | "json"
+        "on_log": None,  # Callable[[StagehandLog], None | Awaitable[None]]
+    },
 )
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-client := stagehand.New(stagehand.StagehandClientInitParams{
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatPretty,
+		OnLog:  func(entry stagehand.StagehandLog) {},
+	},
 	// ... your other configurations (Browser, Model, etc.)
 
-	// Go exposes only the callback. Filtering and formatting are yours.
-	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: func(entry stagehand.StagehandLog) {},
-	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -1183,10 +1179,10 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 |--------|---------|-------------|
 | level | `info` | Minimum level to emit: `off`, `error`, `warn`, `info`, or `debug` |
 | format | `pretty` | Console rendering: human-readable lines or one JSON object per line |
-| log callback | none | Receives every record that passes the level filter, alongside the console output in TypeScript and Python |
+| log callback | none | Receives every record that passes the level filter, alongside the console output |
 
 <Note>
-The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic. Go sends no level, so its runtime stays at `info`.
+The level is also forwarded to the Stagehand runtime, so suppressed records are never generated or sent over the wire. Raising it to `debug` increases both log volume and message traffic.
 </Note>
 
 ### Log structure

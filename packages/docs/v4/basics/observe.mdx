@@ -37,7 +37,7 @@ if _, err := client.Observe(ctx, &instruction, nil); err != nil {
   <Card title="Plan" icon="map" href="#plan-then-execute">
     Map out multi-step workflows by discovering all required actions upfront
   </Card>
-  <Card title="Cache" icon="database" href="/v3/best-practices/caching">
+  <Card title="Cache" icon="database" href="/v4/best-practices/caching">
     Store discovered actions to skip LLM calls and speed up repeated workflows
   </Card>
   <Card title="Validate" icon="check" href="#validate-before-acting">
@@ -51,7 +51,7 @@ Use `observe()` to discover actionable elements on a page. Here's how to find a 
 
 <View title="TypeScript" icon="js">
 ```typescript
-const page = await stagehand.context.activePage();
+const [page] = await browser.context.pages();
 if (!page) {
   throw new Error("Stagehand initialized without an active page");
 }
@@ -62,7 +62,7 @@ const { data: actions } = await stagehand.observe("find the learn more button");
 
 <View title="Python" icon="python">
 ```python
-page = await stagehand.context.active_page()
+page = (await browser.context.pages())[0]
 if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.goto("https://example.com")
@@ -79,7 +79,7 @@ if err != nil {
 if page == nil {
 	return errors.New("Stagehand initialized without an active page")
 }
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
@@ -262,15 +262,17 @@ const { data: actions } = await stagehand.observe("find navigation links", {
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import ModelConfig
 
 # Custom model configuration
 result = await stagehand.observe(
     "find navigation links",
-    model=ModelConfig.model_validate({
-        "model_name": "openai/gpt-5.4-mini",
-        "api_key": os.environ["OPENAI_API_KEY"],
-    }),
+    model=ModelConfig(
+        model_name="openai/gpt-5.4-mini",
+        api_key=os.environ["OPENAI_API_KEY"],
+    ),
     timeout=30000,
     selector="//header",  # Focus on specific area
 )
@@ -281,10 +283,10 @@ result = await stagehand.observe(
 ```go
 // Custom model configuration
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "openai/gpt-5.4-mini",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 30000.0
 selector := "//header" // Focus on specific area
 
@@ -398,8 +400,8 @@ password_field = next(
 )
 
 if email_field is not None and password_field is not None:
-# Replay the observed actions, resolving placeholders locally
-await stagehand.act(email_field, variables={"username": "user@example.com"})
+    # Replay the observed actions, resolving placeholders locally
+    await stagehand.act(email_field, variables={"username": "user@example.com"})
     await stagehand.act(
         password_field, variables={"password": os.environ["USER_PASSWORD"]}
     )
@@ -472,17 +474,21 @@ if emailField != nil && passwordField != nil {
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
 When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -493,12 +499,16 @@ const { data: actions } = await stagehand.observe("find the login button", { cac
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+import os
+
+from stagehand import Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -512,9 +522,12 @@ result = await stagehand.observe("find the login button", cache=False)
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
 
@@ -542,14 +555,13 @@ Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so t
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const productsPage = await stagehand.context.newPage();
+const productsPage = await browser.context.newPage();
 await productsPage.goto("https://www.example.com/products");
 
 // Use observe with that specific page
@@ -561,14 +573,13 @@ const { data: actions } = await stagehand.observe("find all product cards", {
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-products_page = await stagehand.context.new_page()
+products_page = await browser.context.new_page()
 await products_page.goto("https://www.example.com/products")
 
 # Use observe with that specific page
@@ -582,25 +593,26 @@ result = await stagehand.observe(
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
 
 // Open a second page in the same browser context
-productsPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+productsPage, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
+if _, err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
 	return err
 }
 
@@ -620,9 +632,9 @@ This works with:
 - **Active page:** omit `page` and Stagehand uses the active page (default)
 - **Existing pages:** index into the list of context pages
 - **New pages:** create one on the context
-- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+- **Existing browsers:** attach to a browser you already run with `localBrowser.connect()`
 
-<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -670,7 +682,7 @@ for _, field := range observed.Data {
 ```
 </View>
 
-<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v3/references/stagehand">
+<Card title="Analyze pages with observe()" icon="magnifying-glass" href="/v4/reference/stagehand">
   Complete guide to planning actions with `observe()`.
 </Card>
 
@@ -775,7 +787,7 @@ pricing, err := stagehand.ExtractAs[pricingTiers](
 	"extract all pricing tiers",
 	pricingSchema,
 	&stagehand.StagehandClientExtractOptions{
-	ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
 	},
 )
 if err != nil {
@@ -897,7 +909,7 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 ```
 </View>
 
-<Card title="Complete caching guide" icon="database" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" href="/v4/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -917,7 +929,7 @@ cachedObserve := func(ctx context.Context, instruction string) ([]stagehand.Acti
 <View title="TypeScript" icon="js">
 ```typescript
 // Check page state before observing
-const page = await stagehand.context.activePage();
+const [page] = await browser.context.pages();
 if (!page) {
   throw new Error("Stagehand initialized without an active page");
 }
@@ -935,7 +947,7 @@ if (actions.length === 0) {
 <View title="Python" icon="python">
 ```python
 # Check page state before observing
-page = await stagehand.context.active_page()
+page = (await browser.context.pages())[0]
 if page is None:
     raise RuntimeError("Stagehand initialized without an active page")
 await page.wait_for_load_state("domcontentloaded")
@@ -1037,7 +1049,7 @@ if _, err := client.Observe(ctx, &specific, nil); err != nil {
 **Solutions**:
 - Validate the method before using it
 - Check [supported actions](/v4/basics/act) for valid method names
-- Reach for a [locator](/v3/references/stagehand) when you want to call a specific method instead of trusting the suggestion
+- Reach for a [locator](/v4/reference/stagehand) when you want to call a specific method instead of trusting the suggestion
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -1112,11 +1124,11 @@ if action != nil && slices.Contains(validMethods, method) {
     Combine `observe()` with `extract()` for precise data extraction.
   </Card>
 
-  <Card title="Caching actions" icon="bolt" href="/v3/best-practices/caching">
+  <Card title="Caching actions" icon="bolt" href="/v4/best-practices/caching">
     Build action caches to eliminate redundant LLM calls.
   </Card>
 
-  <Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+  <Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
     Full `Stagehand` reference with detailed parameter documentation.
   </Card>
 </CardGroup>

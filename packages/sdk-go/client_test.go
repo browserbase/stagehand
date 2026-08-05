@@ -89,13 +89,20 @@ func (c *recordingProtocolClient) close() error {
 	return nil
 }
 
+func TestStagehandDoesNotExposeContext(t *testing.T) {
+	t.Parallel()
+	if _, ok := reflect.TypeOf((*Stagehand)(nil)).MethodByName("Context"); ok {
+		t.Fatal("Stagehand.Context() remains in the public API")
+	}
+}
+
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":      StagehandInitResult{Initialized: true},
 		"context.active_page": PageRef{PageID: "page-1"},
-		"page.goto":           PageRef{PageID: "page-1"},
+		"page.goto":           PageNavigationResult{Page: PageRef{PageID: "page-1"}},
 		"stagehand.act": ActResult{Data: ActResultData{
 			Success: true, Message: "clicked", ActionDescription: "click", Actions: []Action{},
 		}},
@@ -106,7 +113,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
 		t.Fatalf("Context() error = %v", err)
 	}
@@ -117,7 +124,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if page == nil {
 		t.Fatal("ActivePage() = nil")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		t.Fatalf("Goto() error = %v", err)
 	}
 	if _, err := client.Act(ctx, ActInstruction("click the link"), nil); err != nil {

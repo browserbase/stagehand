@@ -50,12 +50,27 @@
             ]
           },
           {
+            "group": "Best practices",
+            "pages": [
+              "v4/best-practices/prompting-best-practices",
+              "v4/best-practices/usecase-observe",
+              "v4/best-practices/caching",
+              "v4/best-practices/using-multiple-tabs",
+              "v4/best-practices/user-data",
+              "v4/best-practices/speed-optimization",
+              "v4/best-practices/cost-optimization",
+              "v4/best-practices/deployments",
+              "v4/best-practices/mcp-integrations"
+            ]
+          },
+          {
             "group": "SDK reference",
             "pages": [
               "v4/reference/stagehand",
               "v4/reference/context",
               "v4/reference/clipboard",
               "v4/reference/page",
+              "v4/reference/response",
               "v4/reference/locator"
             ]
           }
