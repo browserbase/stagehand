@@ -16,6 +16,11 @@ import {
   WebMCPTool,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
+import {
+  attachStagehandBrowserContext,
+  claimStagehandBrowserHandle,
+  createStagehandBrowserHandle,
+} from "../src/browser/index.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -68,10 +73,17 @@ class FakeProtocolClient extends RPCClient {
 }
 
 function createStagehandWithClientForTest(client: RPCClient): Stagehand {
-  // This lightweight wrapper intentionally has no browser handle; these tests must not use .browser.
+  const browser = createStagehandBrowserHandle({
+    provider: "local",
+    origin: "connected",
+    attachment: {},
+    close: () => {},
+  });
+  claimStagehandBrowserHandle(browser);
+  attachStagehandBrowserContext(browser, new BrowserContext(client));
   const stagehand = Object.create(Stagehand.prototype) as Stagehand;
+  Object.assign(stagehand, { browserHandle: browser });
   stagehand.rpcClient = client;
-  stagehand.browserContext = new BrowserContext(client);
   stagehand.isInitialized = true;
   return stagehand;
 }
