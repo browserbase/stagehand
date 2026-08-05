@@ -10,8 +10,8 @@ async function shutdown(code: number): Promise<void> {
   if (closing) return;
   closing = true;
   await server.close().catch(() => undefined);
-  await executor.close().catch((error) => {
-    process.stderr.write(`Failed to close Stagehand code mode: ${String(error)}\n`);
+  await executor.close().catch(() => {
+    process.stderr.write("Failed to close Stagehand code mode cleanly.\n");
   });
   process.exit(code);
 }

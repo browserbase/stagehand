@@ -29,6 +29,7 @@ page.goBack(options?): Promise<Response | null>
 page.goForward(options?): Promise<Response | null>
 page.url(): Promise<string>
 page.title(): Promise<string>
+page.pageId: string
 page.close(): Promise<void>
 ```
 
@@ -155,10 +156,11 @@ close a tab. Use `context.setActivePage(page)` when later operations should targ
 
 ```js
 const before = await context.pages();
+const beforePageIds = new Set(before.map((page) => page.pageId));
 await before[0].locator('a[target="_blank"]').first().click();
 await before[0].waitForTimeout(500);
 const after = await context.pages();
-const opened = after.find((candidate) => !before.includes(candidate));
+const opened = after.find((candidate) => !beforePageIds.has(candidate.pageId));
 if (!opened) throw new Error("Expected a new page");
 await context.setActivePage(opened);
 return await opened.url();
