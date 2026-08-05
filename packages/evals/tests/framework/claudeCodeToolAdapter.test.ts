@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import type { StagehandMetrics } from "@browserbasehq/stagehand";
 import { afterEach, describe, expect, it } from "vitest";
+import type { AvailableModel } from "stagehand-v3";
 import {
   buildV4StagehandMetrics,
   collectV4StagehandMetrics,
@@ -15,6 +16,7 @@ import {
   installBrowseSkill,
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
+  resolveV4CodeStagehandModel,
   waitForCdpEvent,
 } from "../../framework/claudeCodeToolAdapter.js";
 import {
@@ -50,6 +52,7 @@ const zeroStagehandMetrics: StagehandMetrics = {
 describe("claude code tool adapter resolution", () => {
   afterEach(() => {
     delete process.env.EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL;
+    delete process.env.EVAL_V4_CODE_STAGEHAND_MODEL;
   });
 
   it("defaults Claude Code to browse_cli", () => {
@@ -110,6 +113,17 @@ describe("claude code tool adapter resolution", () => {
     ).toThrow(/requires startup profile "tool_launch_local"/);
     expect(resolveClaudeCodeStartupProfile("v4_code", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
+    );
+  });
+
+  it("allows the Stagehand operation model to differ from the Claude Code model", () => {
+    expect(resolveV4CodeStagehandModel("anthropic/claude-sonnet-4-6" as AvailableModel)).toBe(
+      "anthropic/claude-sonnet-4-6",
+    );
+
+    process.env.EVAL_V4_CODE_STAGEHAND_MODEL = " openai/gpt-4.1-mini ";
+    expect(resolveV4CodeStagehandModel("anthropic/claude-sonnet-4-6" as AvailableModel)).toBe(
+      "openai/gpt-4.1-mini",
     );
   });
 
