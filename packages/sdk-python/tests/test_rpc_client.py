@@ -110,9 +110,7 @@ async def test_send_propagates_current_w3c_trace_context() -> None:
             client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
         )
         request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
-        assert request["traceparent"] == (
-            "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-        )
+        assert request["traceparent"] == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
         assert request["tracestate"] == "vendor=value"
         await transport.incoming.put({
             "jsonrpc": "2.0",
