@@ -43,7 +43,10 @@ export function resolveStagehandModel(
   if (!modelName) return undefined;
 
   const provider = modelName.includes("/") ? modelName.split("/")[0].toLowerCase() : undefined;
-  const candidates = provider ? (PROVIDER_API_KEY_ENV[provider] ?? []) : [];
+  const candidates =
+    provider && Object.hasOwn(PROVIDER_API_KEY_ENV, provider)
+      ? (PROVIDER_API_KEY_ENV[provider] ?? [])
+      : [];
   const apiKey = candidates.map(lookup).find(Boolean);
   if (!apiKey) {
     throw new Error(
