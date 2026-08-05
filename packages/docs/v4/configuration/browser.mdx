@@ -4,11 +4,13 @@ sidebarTitle: Browser
 description: Configure Stagehand on Browserbase or locally
 ---
 
-Stagehand connects to a browser through a browser source. There are three:
+You get a browser from one of Stagehand's browser factories and hand it to `Stagehand.create()`. There are three ways to get one:
 
-- **Browserbase (default):** Cloud-managed browser infrastructure optimized for production web automation at scale
-- **Local:** Run browsers directly on your machine for development and debugging
-- **CDP:** Attach to any Chromium browser you are already running, by URL
+- **Browserbase (`browserbase.launch`):** Cloud-managed browser infrastructure optimized for production web automation at scale
+- **Local (`localBrowser.launch`):** Run browsers directly on your machine for development and debugging
+- **Attach over CDP (`localBrowser.connect`):** Attach to any Chromium browser you are already running, by URL
+
+Stagehand closes only the browsers it launched, so `browser.close()` is yours to call.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -35,18 +37,19 @@ await Stagehand.create(browser=cloud)
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
 cloud, _ := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
-local, _ := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
-connected, _ := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+stagehand.Create(ctx, stagehand.CreateOptions{Browser: cloud})
+
+// Or start a browser on your machine, or attach to one you already run:
+stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
 	CDPURL: "http://127.0.0.1:9222",
 })
-
-client, _ := stagehand.Create(ctx, stagehand.CreateOptions{Browser: cloud})
 ```
 </View>
 
 ## Browserbase environment
 
-Browserbase provides managed cloud browser infrastructure optimized for web automation at scale. It offers advanced features like stealth mode, proxy support, and persistent contexts. It is also the only browser source that supports [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
+Browserbase provides managed cloud browser infrastructure optimized for web automation at scale. It offers advanced features like stealth mode, proxy support, and persistent contexts. It is also the only browser that supports [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
 
 <Card icon="cloud" title="Browserbase" href="https://docs.browserbase.com" description="Session settings, proxies, stealth mode, and session recordings.">
   Read the Browserbase documentation for the full set of session settings Stagehand passes through.
@@ -54,7 +57,7 @@ Browserbase provides managed cloud browser infrastructure optimized for web auto
 
 ### Multi-region support
 
-Browserbase runs browsers in four regions, so you can cut latency by starting the browser near your users or your target site, and keep session data in a required jurisdiction. Set the region on the browser source; `us-west-2` is the default.
+Browserbase runs browsers in four regions, so you can cut latency by starting the browser near your users or your target site, and keep session data in a required jurisdiction. Set the region on `browserbase.launch()`; `us-west-2` is the default.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -92,10 +95,14 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -128,14 +135,14 @@ export BROWSERBASE_API_KEY=your_api_key_here
 </View>
 
 <Tip>
-Get your API key from the [Browserbase Dashboard](https://browserbase.com/overview). Stagehand does not read this variable for you: read it in your own code and pass it as the top-level `apiKey`.
+Get your API key from the [Browserbase Dashboard](https://browserbase.com/overview). Stagehand does not read this variable for you: read it in your own code and pass it to `browserbase.launch()`.
 </Tip>
 
 ### Using Stagehand with Browserbase
 
 #### Basic setup
 
-The simplest way to get started is with default settings. Browserbase is the default browser source, so a top-level Browserbase API key is all you need:
+The simplest way to get started is with default settings. `browserbase.launch()` needs nothing but your Browserbase API key:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -167,18 +174,20 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
-{/* TODO: every Browserbase Python View on this page fails at init(): sdk-python/src/stagehand/browser_source.py:70 raises NotImplementedError("Browserbase session creation is not implemented yet") for browser="browserbase", which is also the Python default. Affects the multi-region, basic setup, advanced configuration, accordion, and keep-alive Views. TypeScript (sdk-ts/src/browserSource.ts:52) and Go (sdk-go/browser_source.go:86) create sessions normally. Verify before publishing. */}
-
 #### Advanced configuration
 
-Configure browser settings, proxy support, and other session parameters directly on the browser source:
+Configure browser settings, proxy support, and other session parameters directly on `browserbase.launch()`:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -234,10 +243,14 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -290,6 +303,8 @@ browser = await browserbase.launch(
         "environment": "production",
     },
 )
+
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -329,22 +344,26 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 </Accordion>
 
 <Note>
-Stagehand provisions its own browser extension on every Browserbase session, so the `extensionId` session setting is not available on the Browserbase browser source.
+Stagehand provisions its own browser extension on every Browserbase session, so the `extensionId` session setting is not available on `browserbase.launch()`.
 </Note>
 
 ### Alternative: Browserbase SDK
 
-If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting connect URL through the `cdp` browser source:
+If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting session through `browserbase.connect()`:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -400,16 +419,20 @@ browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnect
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
 #### Connecting to an existing session
 
-The `cdp` browser source attaches to any Chromium browser that is already running and exposing a DevTools endpoint, whether that is a Browserbase session you created earlier or a browser on your own machine:
+`localBrowser.connect()` attaches to any Chromium browser that is already running and exposing a DevTools endpoint, whether that is a Browserbase session you created earlier or a browser on your own machine:
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -441,15 +464,18 @@ browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnect
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
 <Note>
-Stagehand never closes a browser it did not launch. With the `cdp` source, `close()` tears down the Stagehand connection and leaves the browser running.
+Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
 </Note>
 
 ## Local environment
@@ -498,10 +524,14 @@ browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchO
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -615,18 +645,20 @@ browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchO
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
-{/* TODO: the three languages diverge on this example.
-TypeScript: launches, but silently ignores most of these options. sdk-ts/src/browserSource.ts:88-106 forwards only userDataDir and port to chrome-launcher, and localBrowserChromeFlags (browserSource.ts:108-131) only translates ignoreDefaultArgs, headless, devtools, and args. Dropped: viewport (--window-size is hardcoded to 1280,800 at browserSource.ts:22), executablePath (getChromePath() is called instead at browserSource.ts:93), chromiumSandbox (--no-sandbox only when CI is set, browserSource.ts:128), ignoreHTTPSErrors, locale, deviceScaleFactor, hasTouch, proxy, downloadsPath, acceptDownloads, and preserveUserDataDir. All validate against LocalBrowserLaunchOptionsSchema (protocol/schemas.ts:972), so there is no error, just no effect.
-Python: fails at init(). sdk-python/src/stagehand/browser_source.py:84 raises NotImplementedError for proxy_username / proxy_password, and :86 raises for downloads_path / accept_downloads. Everything else in this View is honored.
-Go: fails at Init(). sdk-go/chrome_launcher.go:200 rejects authenticated proxies and :204 rejects DownloadsPath / AcceptDownloads in validateLocalBrowserOptions, before Chrome launches. Everything else in this View is honored by buildChromeArgs (chrome_launcher.go:209).
-Verify before publishing. */}
+<Note>
+Authenticated local proxies are not supported yet. Setting a proxy `username` or `password` raises in all three SDKs; a proxy `server` and `bypass` list work everywhere.
+</Note>
 
 #### Default local launch arguments
 
@@ -638,6 +670,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-unsafe-extension-debugging",
   "--remote-allow-origins=*",
   "--window-size=1280,800",
+  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </View>
@@ -648,6 +681,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
     "--enable-unsafe-extension-debugging",
     "--remote-allow-origins=*",
     "--window-size=1280,800",
+    "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
 </View>
@@ -658,15 +692,14 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-unsafe-extension-debugging",
 	"--remote-allow-origins=*",
 	"--window-size=1280,800",
+	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
 </View>
 
 <Note>
-`--enable-unsafe-extension-debugging` is required: Stagehand runs as a browser extension and needs the debugger to reach its service worker.
+`--enable-unsafe-extension-debugging` is required: Stagehand runs as a browser extension and needs the debugger to reach its service worker. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
-
-{/* TODO: all three lists omit a fourth flag that every SDK also prepends unconditionally: --enable-features=WebMCPTesting,DevToolsWebMCPSupport (sdk-ts/src/browserSource.ts:17-24, sdk-python/src/stagehand/browser_source.py:16 and :156, sdk-go/chrome_launcher.go:219). Also note --window-size is only 1280,800 when no viewport is set in Python and Go; in TypeScript it is hardcoded. Decide whether to surface the WebMCP flag here or cross-reference the WebMCP page. Verify before publishing. */}
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
 
@@ -691,6 +724,8 @@ browser = await local_browser.launch(
         "--renderer-process-limit=6",
     ],
 )
+
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -708,6 +743,8 @@ browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchO
 if err != nil {
 	return err
 }
+
+stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
 </View>
 
@@ -793,10 +830,14 @@ browser2, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnec
 if err != nil {
 	return err
 }
-client2, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser2})
+
+client2, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser2,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client2.Close(ctx)) }()
 ```
 </View>
 
@@ -806,11 +847,11 @@ if err != nil {
 | --- | --- | --- |
 | **Browserbase** | Session stays active after `close()` | Session is terminated via API |
 | **Local** | Chrome process continues running | Chrome process is killed and temp profile is removed |
-| **CDP** | Always left running | Always left running (Stagehand never owns the browser) |
+| **Attached over CDP** | Always left running | Always left running (Stagehand never owns the browser) |
 
 #### Local environment
 
-When running locally with keep-alive on, Stagehand leaves the Chrome process running when your script exits. This is useful for debugging or for handing off a browser session to another process. Combine it with a fixed `port` so you can reattach with the `cdp` source.
+When running locally with keep-alive on, Stagehand leaves the Chrome process running when your script exits. This is useful for debugging or for handing off a browser session to another process. Combine it with a fixed `port` so you can reattach with `localBrowser.connect()`.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -888,7 +929,7 @@ A temporary user data directory is deleted when a local browser shuts down. Set 
 
 #### Browserbase environment
 
-On Browserbase, keep-alive keeps the cloud session active so you can reconnect later with the `cdp` browser source. This is useful for long-running workflows that span multiple script executions.
+On Browserbase, keep-alive keeps the cloud session active so you can reconnect later with `browserbase.connect()`. This is useful for long-running workflows that span multiple script executions.
 
 <Note>
 Keeping sessions alive is available on the Browserbase Startup plan and above.
@@ -922,10 +963,14 @@ browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchO
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -973,6 +1018,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -1064,10 +1110,10 @@ Setting the DOM settle timeout too low may cause actions to fail on elements tha
 
 <AccordionGroup>
 <Accordion title="Browserbase authentication errors">
-- Verify your `BROWSERBASE_API_KEY` is read and passed as the top-level `apiKey`
+- Verify your `BROWSERBASE_API_KEY` is read and passed to `browserbase.launch()`
 - Check that your API key has the necessary permissions
 - Ensure your Browserbase account has sufficient credits
-- Remember that the Browserbase browser source requires an API key: initialization fails without one
+- Remember that `browserbase.launch()` requires an API key: it fails without one
 </Accordion>
 
 <Accordion title="Local browser launch failures">
@@ -1078,7 +1124,7 @@ Setting the DOM settle timeout too low may cause actions to fail on elements tha
 </Accordion>
 
 <Accordion title="Session timeout issues">
-- Increase the session timeout on the Browserbase browser source
+- Increase the session timeout on `browserbase.launch()`
 - Turn on keep-alive for long-running sessions
 - Monitor session usage to avoid unexpected terminations
 </Accordion>

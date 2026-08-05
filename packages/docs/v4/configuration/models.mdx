@@ -16,14 +16,11 @@ Model Gateway lets you use Stagehand without wiring up model providers yourself.
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -31,14 +28,11 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
-)
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -46,21 +40,28 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+// No model configured: requests route through Model Gateway
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
 When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. An explicit model without a provider-specific API key still routes through Model Gateway, but pins that model instead.
 
 <Note>
-  Model Gateway requires Browserbase-hosted browsers. It does not work with the local or CDP browser sources, because those have no Browserbase session to bill and authorize against.
+  Model Gateway requires Browserbase-hosted browsers. It does not work with local browsers, because those have no Browserbase session to bill and authorize against.
 </Note>
 
 ### Switching models
@@ -72,8 +73,8 @@ With Model Gateway, switching between providers is a config change: no new accou
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "openai/gpt-5" },
 });
 ```
@@ -81,8 +82,10 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="openai/gpt-5",
 )
 ```
@@ -92,17 +95,23 @@ stagehand = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
-model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "openai/gpt-5"})
+model := stagehand.ModelConfig{ModelName: "openai/gpt-5"}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -111,8 +120,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "anthropic/claude-sonnet-4-6" },
 });
 ```
@@ -120,8 +129,10 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="anthropic/claude-sonnet-4-6",
 )
 ```
@@ -131,17 +142,23 @@ stagehand = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
-model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "anthropic/claude-sonnet-4-6"})
+model := stagehand.ModelConfig{ModelName: "anthropic/claude-sonnet-4-6"}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -150,8 +167,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "google/gemini-3-flash-preview" },
 });
 ```
@@ -159,8 +176,10 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="google/gemini-3-flash-preview",
 )
 ```
@@ -170,17 +189,23 @@ stagehand = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
-model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "google/gemini-3-flash-preview"})
+model := stagehand.ModelConfig{ModelName: "google/gemini-3-flash-preview"}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
@@ -221,17 +246,14 @@ Get started with Google Gemini (recommended for speed and cost):
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "google/gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -239,15 +261,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="google/gemini-2.5-flash",
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -255,20 +277,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -288,17 +316,14 @@ Use any model from the following supported providers.
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "google/gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -306,15 +331,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="google/gemini-2.5-flash",
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -322,20 +347,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -348,17 +379,14 @@ Commonly used: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`,
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "anthropic/claude-haiku-4-5",
-    apiKey: process.env.ANTHROPIC_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -366,15 +394,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="anthropic/claude-haiku-4-5",
     model_api_key=os.environ["ANTHROPIC_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -382,20 +410,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "anthropic/claude-haiku-4-5",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -408,17 +442,14 @@ Commonly used: `anthropic/claude-sonnet-5`, `anthropic/claude-fable-5`, `anthrop
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "openai/gpt-5",
-    apiKey: process.env.OPENAI_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -426,15 +457,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="openai/gpt-5",
     model_api_key=os.environ["OPENAI_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -442,20 +473,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "openai/gpt-5",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -472,17 +509,14 @@ OpenAI models are called through the Responses API.
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "groq/llama-3.3-70b-versatile",
-    apiKey: process.env.GROQ_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -490,15 +524,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="groq/llama-3.3-70b-versatile",
     model_api_key=os.environ["GROQ_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -506,20 +540,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GROQ_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "groq/llama-3.3-70b-versatile",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -532,17 +572,14 @@ Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "cerebras/gpt-oss-120b",
-    apiKey: process.env.CEREBRAS_API_KEY,
   },
 });
-
-await stagehand.init();
 ```
 </View>
 
@@ -550,15 +587,15 @@ await stagehand.init();
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model="cerebras/gpt-oss-120b",
     model_api_key=os.environ["CEREBRAS_API_KEY"],
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -566,20 +603,26 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("CEREBRAS_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "cerebras/gpt-oss-120b",
 	APIKey:    &modelAPIKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -707,7 +750,6 @@ import boto3
 
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 
-
 def content_block(block):
     # Each block is a LLMTextContent or LLMImageContent under `.root`. Converse
     # takes its own content blocks, so map text to a text block and images
@@ -721,13 +763,11 @@ def content_block(block):
         }
     }
 
-
 def message_content(message):
     # A message's content is one block or a list of them.
     content = message.content
     blocks = content if isinstance(content, list) else [content]
     return [content_block(block) for block in blocks]
-
 
 async def generate_with_bedrock(params):
     response = bedrock.converse(
@@ -820,23 +860,21 @@ func generateWithBedrock(
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithBedrock },
 });
-
-await stagehand.init();
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model=generate_with_bedrock,
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -844,14 +882,21 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:   &apiKey,
-	Generate: generateWithBedrock,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:  browser,
+	Generate: generateWithBedrock,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -972,7 +1017,6 @@ from stagehand import LLMStructuredGenerateResult
 
 openai = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-
 def content_part(block):
     # Each block is a LLMTextContent or LLMImageContent under `.root`. The
     # Responses API takes input parts, so map text to an input text part and
@@ -985,13 +1029,11 @@ def content_part(block):
         "detail": "auto",
     }
 
-
 def message_content(message):
     # A message's content is one block or a list of them.
     content = message.content
     blocks = content if isinstance(content, list) else [content]
     return [content_part(block) for block in blocks]
-
 
 async def generate_with_openai(params):
     response_format = params.response_format
@@ -1063,23 +1105,21 @@ Reporting token usage is optional. To report it, add a `usage` field to the resu
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithOpenAI },
 });
-
-await stagehand.init();
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model=generate_with_openai,
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -1087,14 +1127,21 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:   &apiKey,
-	Generate: generateWithOpenAI,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:  browser,
+	Generate: generateWithOpenAI,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -1199,23 +1246,21 @@ A message's content is one content block or an array of them. Text blocks carry 
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithYourProvider },
 });
-
-await stagehand.init();
 ```
 </View>
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     model=generate_with_your_provider,
 )
-
-await stagehand.init()
 ```
 </View>
 
@@ -1223,14 +1268,21 @@ await stagehand.init()
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:   &apiKey,
-	Generate: generateWithYourProvider,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:  browser,
+	Generate: generateWithYourProvider,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
@@ -1277,11 +1329,10 @@ Every primitive accepts a model configuration for a single call, so you can run 
 ```typescript
 const PricingSchema = z.object({ summary: z.string() });
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
     modelName: "google/gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
   },
 });
 
@@ -1304,15 +1355,15 @@ console.log(data.summary);
 ```python
 import os
 
-from stagehand import ModelConfig, Stagehand
-
+from stagehand import ModelConfig, Stagehand, browserbase
 
 class Pricing(BaseModel):
     summary: str
 
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+stagehand = await Stagehand.create(
+    browser=browser,
     model="google/gemini-2.5-flash",
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
@@ -1324,10 +1375,10 @@ await stagehand.act("click the login button")
 data = (await stagehand.extract(
     "summarize the pricing table",
     Pricing,
-    model={
+    model=ModelConfig.model_validate({
         "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],
-    },
+    }),
 )).data
 
 print(data.summary)
@@ -1349,15 +1400,25 @@ var pricingSchema = json.RawMessage(`{
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
-instanceModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+instanceModel := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &googleKey,
-})
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Model:  &instanceModel,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &instanceModel,
+})
+if err != nil {
+	return err
+}
 
 // Uses the instance model
 if _, err := client.Act(ctx, "click the login button", nil); err != nil {
@@ -1366,10 +1427,10 @@ if _, err := client.Act(ctx, "click the login button", nil); err != nil {
 
 // Uses a stronger model for one hard extraction
 anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
-strongModel := stagehand.KnownModel(stagehand.KnownModelConfig{
+strongModel := stagehand.ModelConfig{
 	ModelName: "anthropic/claude-sonnet-4-6",
 	APIKey:    &anthropicKey,
-})
+}
 
 extracted, err := stagehand.ExtractAs[pricing](
 	ctx,
@@ -1394,73 +1455,16 @@ Model configuration is deliberately excluded from the [cache key](/v4/best-pract
 
 ---
 
-### Custom endpoints
+### Custom headers
 
-If you need Azure OpenAI deployments or enterprise deployments, point Stagehand at an OpenAI-compatible base URL. The model name is passed through untouched, so it can be a deployment name rather than a public model ID.
-
-<Tabs>
-<Tab title="OpenAI-compatible endpoint">
+Some enterprise gateways require extra headers on every model request. Attach them to the model configuration:
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: {
-    modelName: "gpt-5",
-    apiKey: process.env.OPENAI_API_KEY,
-    baseURL: "https://custom-openai-endpoint.com/v1",
-  },
-});
-```
-</View>
-
-<View title="Python" icon="python">
-```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    model="gpt-5",
-    model_api_key=os.environ["OPENAI_API_KEY"],
-    model_base_url="https://custom-openai-endpoint.com/v1",
-)
-```
-</View>
-
-<View title="Go" icon="golang">
-```go
-apiKey := os.Getenv("BROWSERBASE_API_KEY")
-modelAPIKey := os.Getenv("OPENAI_API_KEY")
-model := stagehand.CustomModel(stagehand.CustomModelConfig{
-	ModelName: "gpt-5",
-	APIKey:    &modelAPIKey,
-	BaseURL:   "https://custom-openai-endpoint.com/v1",
-})
-
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Model:  &model,
-})
-
-if err := client.Init(ctx); err != nil {
-	return err
-}
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
-</View>
-
-</Tab>
-
-<Tab title="Custom headers">
-
-Some enterprise gateways require extra headers on every request. Attach them to the model configuration:
-
-<View title="TypeScript" icon="js">
-```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  model: {
-    modelName: "my-deployment",
-    apiKey: process.env.GATEWAY_TOKEN,
-    baseURL: "https://models.example.com/v1",
+    modelName: "openai/gpt-5",
     headers: { "x-tenant-id": "acme" },
   },
 });
@@ -1469,11 +1473,16 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    model="my-deployment",
-    model_api_key=os.environ["GATEWAY_TOKEN"],
-    model_base_url="https://models.example.com/v1",
+import os
+
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="openai/gpt-5",
+    model_api_key=os.environ["OPENAI_API_KEY"],
     model_headers={"x-tenant-id": "acme"},
 )
 ```
@@ -1482,69 +1491,35 @@ stagehand = Stagehand(
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-gatewayToken := os.Getenv("GATEWAY_TOKEN")
-model := stagehand.CustomModel(stagehand.CustomModelConfig{
-	ModelName: "my-deployment",
-	APIKey:    &gatewayToken,
-	BaseURL:   "https://models.example.com/v1",
-	Headers:   stagehand.CustomModelConfigHeaders{"x-tenant-id": "acme"},
-})
+modelAPIKey := os.Getenv("OPENAI_API_KEY")
+model := stagehand.ModelConfig{
+	ModelName: "openai/gpt-5",
+	APIKey:    &modelAPIKey,
+	Headers:   stagehand.ModelConfigHeaders{"x-tenant-id": "acme"},
+}
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-	Model:  &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
-</Tab>
-<Tab title="Providers without an OpenAI-compatible API">
-
-For anything that is not OpenAI-compatible, use the [bring-your-own-LLM callback](#custom-models). You keep full control of the client, the transport, and the credentials.
-
-<View title="TypeScript" icon="js">
-```typescript
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  model: { generate: generateWithYourProvider },
-});
-```
-</View>
-
-<View title="Python" icon="python">
-```python
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    model=generate_with_your_provider,
-)
-```
-</View>
-
-<View title="Go" icon="golang">
-```go
-apiKey := os.Getenv("BROWSERBASE_API_KEY")
-
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:   &apiKey,
-	Generate: generateWithYourProvider,
-})
-
-if err := client.Init(ctx); err != nil {
-	return err
-}
-defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
-</View>
-
-</Tab>
-</Tabs>
-
-{/* TODO: baseURL / model_base_url validates but the v4 runtime currently raises "Custom OpenAI-compatible inference is not implemented yet." Verify before publishing. */}
+<Note>
+There is no base URL option. A model configuration always names one of the five supported providers, so Azure OpenAI deployments, self-hosted models, and any other custom endpoint go through the [bring-your-own-LLM callback](#custom-models) instead, where you own the client, the transport, and the credentials.
+</Note>
 
 ---
 
@@ -1573,8 +1548,8 @@ function withRetries<Params, Result>(
   };
 }
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: withRetries(generateWithOpenAI) },
 });
 ```
@@ -1584,7 +1559,6 @@ const stagehand = new Stagehand({
 ```python
 import os
 import asyncio
-
 
 def with_retries(generate, attempts: int = 3):
     async def wrapped(params):
@@ -1598,9 +1572,10 @@ def with_retries(generate, attempts: int = 3):
 
     return wrapped
 
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+stagehand = await Stagehand.create(
+    browser=browser,
     model=with_retries(generate_with_openai),
 )
 ```
@@ -1631,14 +1606,21 @@ func withRetries(generate stagehand.LLMGenerateFunc, attempts int) stagehand.LLM
 }
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:   &apiKey,
-	Generate: withRetries(generateWithOpenAI, 3),
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:  browser,
+	Generate: withRetries(generateWithOpenAI, 3),
+})
+if err != nil {
+	return err
+}
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>

@@ -25,12 +25,14 @@ Pass `cache: true` to enable caching for all requests made by that instance:
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser,
   cache: true,
 });
 
-const page = await stagehand.context.activePage();
+const page = await browser.context.activePage();
 
 await page.goto("https://example.com");
 
@@ -52,7 +54,7 @@ stagehand = await Stagehand.create(
     cache=True,
 )
 
-page = await stagehand.context.active_page()
+page = await browser.context.active_page()
 
 await page.goto("https://example.com")
 
@@ -81,7 +83,7 @@ if err != nil {
 	return err
 }
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
@@ -108,12 +110,14 @@ Override the instance setting for a single call by passing the cache option:
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser,
   cache: true,
 });
 
-const page = await stagehand.context.activePage();
+const page = await browser.context.activePage();
 await page.goto("https://example.com");
 
 // This call skips the cache
@@ -137,7 +141,7 @@ stagehand = await Stagehand.create(
     cache=True,
 )
 
-page = await stagehand.context.active_page()
+page = await browser.context.active_page()
 await page.goto("https://example.com")
 
 # This call skips the cache
@@ -191,8 +195,10 @@ Set it on `Stagehand.create()` to change the default for the instance, or per ca
 
 <View title="TypeScript" icon="js">
 ```typescript
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser,
   cache: { threshold: 2 }, // Serve hits after two identical results
 });
 
@@ -211,6 +217,8 @@ console.log(data.companies);
 <View title="Python" icon="python">
 ```python
 import os
+
+from pydantic import BaseModel
 
 from stagehand import CacheOptions, Stagehand, browserbase
 
@@ -331,7 +339,7 @@ When targeting a specific part of a page, pass a selector to scope the accessibi
 <View title="TypeScript" icon="js">
 ```typescript
 async function example(stagehand: Stagehand) {
-  const page = await stagehand.context.activePage();
+  const page = await browser.context.activePage();
   await page.goto("https://www.google.com/search?q=browserbase");
 
   await page.waitForLoadState("networkidle");
@@ -348,7 +356,7 @@ async function example(stagehand: Stagehand) {
 <View title="Python" icon="python">
 ```python
 async def example(stagehand: Stagehand) -> None:
-    page = await stagehand.context.active_page()
+    page = await browser.context.active_page()
     await page.goto("https://www.google.com/search?q=browserbase")
 
     await page.wait_for_load_state("networkidle")
@@ -402,7 +410,7 @@ Do not assume two runs with different values share a cache entry. The variables 
 <View title="TypeScript" icon="js">
 ```typescript
 async function example(stagehand: Stagehand) {
-  const page = await stagehand.context.activePage();
+  const page = await browser.context.activePage();
   await page.goto("https://example.com/login");
 
   await page.waitForLoadState("networkidle");
@@ -420,7 +428,7 @@ async function example(stagehand: Stagehand) {
 <View title="Python" icon="python">
 ```python
 async def example(stagehand: Stagehand) -> None:
-    page = await stagehand.context.active_page()
+    page = await browser.context.active_page()
     await page.goto("https://example.com/login")
 
     await page.wait_for_load_state("networkidle")
@@ -469,13 +477,13 @@ Small differences in runtime state produce different accessibility trees and the
 
 <View title="TypeScript" icon="js">
 ```typescript
-const page = await stagehand.context.activePage();
+const page = await browser.context.activePage();
 
 // Lock the viewport so the layout is identical across runs
 await page.setViewportSize(1280, 720);
 
 // Block third-party noise that pollutes the accessibility tree
-await stagehand.context.setDomainPolicy({
+await browser.context.setDomainPolicy({
   blockedDomains: ["*.google-analytics.com", "*.doubleclick.net"],
 });
 ```
@@ -483,13 +491,13 @@ await stagehand.context.setDomainPolicy({
 
 <View title="Python" icon="python">
 ```python
-page = await stagehand.context.active_page()
+page = await browser.context.active_page()
 
 # Lock the viewport so the layout is identical across runs
 await page.set_viewport_size(1280, 720)
 
 # Block third-party noise that pollutes the accessibility tree
-await stagehand.context.set_domain_policy(
+await browser.context.set_domain_policy(
     DomainPolicy(blocked_domains=["*.google-analytics.com", "*.doubleclick.net"])
 )
 ```
@@ -497,7 +505,7 @@ await stagehand.context.set_domain_policy(
 
 <View title="Go" icon="golang">
 ```go
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
@@ -570,8 +578,10 @@ Both server-side caching and the [Model Gateway](/v4/configuration/models#model-
 
 <View title="TypeScript" icon="js">
 ```typescript
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser,
   model: { modelName: "openai/gpt-5" }, // Routed through Model Gateway
   cache: true,                          // Served by Browserbase Cache
 });

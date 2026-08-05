@@ -283,10 +283,10 @@ result = await stagehand.observe(
 ```go
 // Custom model configuration
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "openai/gpt-5.4-mini",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 30000.0
 selector := "//header" // Focus on specific area
 
@@ -474,13 +474,15 @@ if emailField != nil && passwordField != nil {
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
 When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -499,7 +501,7 @@ const { data: actions } = await stagehand.observe("find the login button", { cac
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
 browser = await browserbase.launch(
@@ -630,7 +632,7 @@ This works with:
 - **Active page:** omit `page` and Stagehand uses the active page (default)
 - **Existing pages:** index into the list of context pages
 - **New pages:** create one on the context
-- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+- **Existing browsers:** attach to a browser you already run with `localBrowser.connect()`
 
 <Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.

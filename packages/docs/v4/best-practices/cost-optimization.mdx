@@ -468,14 +468,19 @@ func (m *sessionManager) getSession(ctx context.Context, taskType string) (*stag
 		APIKey: apiKey,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 		Browser: browser,
 	})
 	if err != nil {
-		return err
+		// Release the browser, or the session bills until it times out. Close
+		// records its outcome once, so pass a context that outlives ctx:
+		// a canceled ctx would spend that one attempt on a failure.
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		return nil, errors.Join(err, browser.Close(closeCtx))
 	}
 	if m.sessions == nil {
 		m.sessions = map[string]*stagehand.Stagehand{}

@@ -32,18 +32,22 @@ Browserbase provides real-time visibility into your automation sessions:
 import { Browserbase } from "@browserbasehq/sdk";
 import { browserbase as stagehandBrowserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const browserbase = new Browserbase({
+const bb = new Browserbase({
   apiKey: process.env.BROWSERBASE_API_KEY,
 });
 
-const browser = await stagehandBrowserbase.launch({
+// Create the session yourself so you hold the session ID
+const session = await bb.sessions.create({
+  projectId: process.env.BROWSERBASE_PROJECT_ID,
+});
+
+const browser = await stagehandBrowserbase.connect({
   apiKey: process.env.BROWSERBASE_API_KEY,
+  sessionId: session.id,
 });
 const stagehand = await Stagehand.create({ browser });
 
-// The resolved browser source carries the Browserbase session ID
-const sessionId = browser.browserbaseSessionId;
-const sessionInfo = await browserbase.sessions.retrieve(sessionId);
+const sessionInfo = await bb.sessions.retrieve(session.id);
 
 console.log("Session status:", sessionInfo.status);
 console.log("Session region:", sessionInfo.region);
@@ -59,19 +63,23 @@ import os
 
 from browserbase import Browserbase
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand
+from stagehand import browserbase as stagehand_browserbase
 
-browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
+bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 # Create the session yourself so you hold the session ID
-session = browserbase.sessions.create(
+session = bb.sessions.create(
     project_id=os.environ["BROWSERBASE_PROJECT_ID"],
 )
 
-browser = await local_browser.connect(cdp_url=session.connect_url)
+browser = await stagehand_browserbase.connect(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    session_id=session.id,
+)
 stagehand = await Stagehand.create(browser=browser)
 
-session_info = browserbase.sessions.retrieve(session.id)
+session_info = bb.sessions.retrieve(session.id)
 
 print("Session status:", session_info.status)
 print("Session region:", session_info.region)
@@ -84,22 +92,27 @@ print("Proxy bytes:", session_info.proxy_bytes)
 <View title="Go" icon="golang">
 ```go
 // Create the session with your Browserbase client of choice so you hold the
-// session ID, then attach Stagehand over CDP.
+// session ID, then attach Stagehand to it.
 session, err := createBrowserbaseSession(ctx)
 if err != nil {
 	return err
 }
 
-browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
-	CDPURL: session.ConnectURL,
+browser, err := stagehand.ConnectBrowserbase(ctx, stagehand.BrowserbaseConnectOptions{
+	APIKey:    os.Getenv("BROWSERBASE_API_KEY"),
+	SessionID: session.ID,
 })
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 info, err := retrieveBrowserbaseSession(ctx, session.ID)
 if err != nil {
@@ -198,7 +211,6 @@ from browserbase import Browserbase
 
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-
 # List sessions with filtering
 def get_filtered_sessions():
     sessions = browserbase.sessions.list(status="RUNNING")
@@ -217,7 +229,6 @@ def get_filtered_sessions():
         }
         for session in sessions
     ]
-
 
 # Query sessions by metadata
 def query_sessions_by_metadata(query: str):
@@ -271,7 +282,7 @@ func querySessionsByMetadata(ctx context.Context, query string) ([]browserbaseSe
 </View>
 
 <Tip>
-Tag every session with `userMetadata` on the Browserbase browser source so you can slice these queries by workflow, customer, or deployment.
+Tag every session with `userMetadata` on `browserbase.launch()` so you can slice these queries by workflow, customer, or deployment.
 </Tip>
 
 ## Local environment monitoring
@@ -284,7 +295,7 @@ For local development, Stagehand provides performance monitoring and resource tr
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 const DataSchema = z.object({ title: z.string() });
@@ -330,10 +341,10 @@ from pydantic import BaseModel
 
 from stagehand import Stagehand, local_browser
 
-
 class Data(BaseModel):
     title: str
 
+browser = await local_browser.launch()
 
 browser = await local_browser.launch()
 stagehand = await Stagehand.create(
@@ -503,8 +514,7 @@ import asyncio
 import os
 import resource
 
-from stagehand import Stagehand
-
+from stagehand import Stagehand, local_browser
 
 class LocalResourceMonitor:
     def __init__(self) -> None:
@@ -533,7 +543,6 @@ class LocalResourceMonitor:
             "avg_cpu_load": sum(self.cpu_usage) / len(self.cpu_usage),
             "total_data_points": len(self.cpu_usage),
         }
-
 
 monitor = LocalResourceMonitor()
 task = monitor.start_monitoring()
@@ -624,7 +633,7 @@ Monitor your automation's resource usage in real-time by calling the metrics met
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 const UserSchema = z.object({ name: z.string(), email: z.string() });
@@ -672,11 +681,11 @@ from time import perf_counter
 
 from stagehand import Stagehand, browserbase
 
-
 class User(BaseModel):
     name: str
     email: str
 
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
@@ -735,11 +744,13 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
 if err != nil {
 	return err
 }
-
 // Metrics are fetched from the runtime, so the call takes a context
 metrics, err := client.Metrics(ctx)
 if err != nil {
@@ -1008,7 +1019,7 @@ Metrics give you the totals. When you want the sequence of what happened, build 
 
 <View title="TypeScript" icon="js">
 ```typescript
-// Each captured entry is a log record plus the time it was captured
+// Record each log entry with the time you receive it
 const history: Array<{
   level: "debug" | "info" | "warn" | "error";
   message: string;
@@ -1016,8 +1027,8 @@ const history: Array<{
   timestamp: string;
 }> = [];
 
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   logging: {
     level: "debug",
     format: "json",
@@ -1040,19 +1051,19 @@ console.log(await stagehand.metrics());
 import os
 from datetime import datetime, timezone
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand, StagehandClientLoggingConfig, browserbase
 
 history: list[dict] = []
-
 
 def record(log) -> None:
     entry = log.model_dump(mode="json")
     entry["timestamp"] = datetime.now(timezone.utc).isoformat()
     history.append(entry)
 
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
+stagehand = await Stagehand.create(
+    browser=browser,
     logging=StagehandClientLoggingConfig(level="debug", format="json", on_log=record),
 )
 
@@ -1070,8 +1081,15 @@ var history []stagehand.StagehandLog
 var mu sync.Mutex
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		Level:  stagehand.StagehandClientLogLevelDebug,
 		Format: stagehand.StagehandClientLogFormatJSON,
@@ -1082,6 +1100,9 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 	},
 })
+if err != nil {
+	return err
+}
 
 // ... run your automation
 
@@ -1177,6 +1198,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>

@@ -93,14 +93,16 @@ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 async function run(): Promise<string> {
+  const browser = await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY!,
+    region: "us-west-2",
+    browserSettings: {
+      blockAds: true,
+    },
+  });
+
   const stagehand = await Stagehand.create({
-    browser: await browserbase.launch({
-      apiKey: process.env.BROWSERBASE_API_KEY!,
-      region: "us-west-2",
-      browserSettings: {
-        blockAds: true,
-      },
-    }),
+    browser,
     model: {
       modelName: "google/gemini-2.5-flash",
     },
@@ -108,7 +110,7 @@ async function run(): Promise<string> {
   });
 
   try {
-    const page = await stagehand.context.activePage();
+    const page = await browser.context.activePage();
     if (!page) throw new Error("Stagehand initialized without an active page");
 
     await page.goto("https://www.stagehand.dev/");
@@ -168,7 +170,7 @@ async def run() -> str:
     )
 
     try:
-        page = await stagehand.context.active_page()
+        page = await browser.context.active_page()
         if page is None:
             raise RuntimeError("Stagehand initialized without an active page")
 
@@ -293,7 +295,7 @@ func run(ctx context.Context) (result string, err error) {
 
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return "", err
 	}

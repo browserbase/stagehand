@@ -306,10 +306,10 @@ await stagehand.act(
 ```go
 // Custom model configuration
 modelAPIKey := os.Getenv("GOOGLE_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 10000.0
 
 if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
@@ -326,13 +326,15 @@ if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", 
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
 When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -358,7 +360,7 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```python
 import os
 
-from stagehand import CacheOptions, Stagehand
+from stagehand import CacheOptions, Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
 browser = await browserbase.launch(
@@ -499,7 +501,7 @@ This works with:
 - **Active page:** omit `page` and Stagehand uses `context.activePage()` (default)
 - **Existing pages:** receive the list from `context.pages()` first (await it in TypeScript and Python), then index into it
 - **New pages:** create one with `context.newPage()`
-- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+- **Existing browsers:** attach to a browser you already run with `localBrowser.connect()`
 
 <Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
@@ -587,6 +589,8 @@ await stagehand.act("click the login button");
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import CacheOptions, Stagehand, browserbase
 
 browser = await browserbase.launch(

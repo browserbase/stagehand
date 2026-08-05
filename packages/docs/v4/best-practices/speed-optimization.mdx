@@ -163,8 +163,10 @@ Use shorter timeouts for simple operations and longer ones for complex page load
 <View title="TypeScript" icon="js">
 ```typescript
 // Stable pages: shorten the settle wait (default is 5000ms)
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser,
   domSettleTimeoutMs: 1000,
 });
 
@@ -174,7 +176,7 @@ await stagehand.act("Click the login button", {
 });
 
 // Complex page loads: optimize navigation
-const page = await stagehand.context.activePage();
+const page = await browser.context.activePage();
 await page.goto("https://heavy-spa.com", {
   waitUntil: "domcontentloaded", // Don't wait for all resources
   timeout: 15000,
@@ -196,7 +198,7 @@ stagehand = await Stagehand.create(
 await stagehand.act("Click the login button", timeout=5000)
 
 # Complex page loads: optimize navigation
-page = await stagehand.context.active_page()
+page = await browser.context.active_page()
 await page.goto(
     "https://heavy-spa.com",
     wait_until="domcontentloaded",  # Don't wait for all resources

@@ -13,7 +13,7 @@ This means you can continue using familiar patterns:
 
 <View title="TypeScript" icon="js">
 ```typescript
-const page = await stagehand.context.activePage();
+const page = await browser.context.activePage();
 await page.goto("https://example.com");
 await stagehand.act("click the button that opens a new tab");
 
@@ -28,7 +28,7 @@ console.log(data.value);
 
 <View title="Python" icon="python">
 ```python
-page = await stagehand.context.active_page()
+page = await browser.context.active_page()
 await page.goto("https://example.com")
 await stagehand.act("click the button that opens a new tab")
 
@@ -91,8 +91,8 @@ For more control or multitab workflows, you can manage multiple tabs explicitly.
 <View title="TypeScript" icon="js">
 ```typescript
 // Create a second page
-await stagehand.context.newPage();
-const pages = await stagehand.context.pages();
+await browser.context.newPage();
+const pages = await browser.context.pages();
 
 const githubPage = pages[0];
 const pythonPage = pages[1];
@@ -112,7 +112,7 @@ console.log(`Stagehand stars: ${stagehandStars.data.stars}`);
 console.log(`Stagehand-Python stars: ${stagehandPythonStars.data.stars}`);
 
 // Make one of them the default target for later calls
-await stagehand.context.setActivePage(githubPage);
+await browser.context.setActivePage(githubPage);
 ```
 </View>
 
@@ -128,8 +128,8 @@ class Stars(BaseModel):
 
 
 # Create a second page
-await stagehand.context.new_page()
-pages = await stagehand.context.pages()
+await browser.context.new_page()
+pages = await browser.context.pages()
 
 github_page = pages[0]
 python_page = pages[1]
@@ -152,7 +152,7 @@ print(f"Stagehand stars: {stagehand_stars.data.stars}")
 print(f"Stagehand-Python stars: {stagehand_python_stars.data.stars}")
 
 # Make one of them the default target for later calls
-await stagehand.context.set_active_page(github_page)
+await browser.context.set_active_page(github_page)
 ```
 </View>
 
