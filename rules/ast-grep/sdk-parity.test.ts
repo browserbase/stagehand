@@ -616,7 +616,11 @@ async function publicCallableMethods(
         .flatMap((method) => {
           const name = methodName(method.node, language);
           if (!name) return [];
-          const normalizedMethod = snakeCase(name.text());
+          const snakeCaseMethod = snakeCase(name.text());
+          const normalizedMethod =
+            className === "Stagehand" && snakeCaseMethod === "experimental_batch"
+              ? "_experimental_batch"
+              : snakeCaseMethod;
           return participatesInSurfaceParity(className, language, normalizedMethod)
             ? [normalizedMethod]
             : [];
@@ -1061,7 +1065,8 @@ function isPublicCallable(method: DirectClassMethod, language: SdkLanguage): boo
 
   if (language === "python") {
     return (
-      !name.text().startsWith("_") && !method.decoratedDefinition?.text().startsWith("@property")
+      (name.text() === "_experimental_batch" || !name.text().startsWith("_")) &&
+      !method.decoratedDefinition?.text().startsWith("@property")
     );
   }
 

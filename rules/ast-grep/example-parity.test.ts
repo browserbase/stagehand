@@ -213,7 +213,10 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
   return goCalls(root)
     .flatMap(({ object, method }) => {
       if (object === stagehand && method !== "Context" && method !== "Close") {
-        return [`stagehand.${snakeCase(method)}`];
+        const normalizedMethod = snakeCase(method);
+        return [
+          `stagehand.${normalizedMethod === "experimental_batch" ? "_experimental_batch" : normalizedMethod}`,
+        ];
       }
       if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];
       if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];

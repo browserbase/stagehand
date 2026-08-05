@@ -80,15 +80,6 @@ class _Transport(Protocol):
 
     async def close(self) -> None: ...
 
-    async def run_callback_batch(
-        self,
-        *,
-        source: str,
-        input: object,
-        page_id: str | None,
-        timeout: int,
-    ) -> object: ...
-
 
 class RPCError(RuntimeError):
     def __init__(self, error: _JSONRPCError) -> None:
