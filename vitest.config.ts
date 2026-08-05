@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { instrumentedDecoratorBuild } from "./packages/server/instrumentedDecoratorBuild.ts";
+import { instrumentedDecoratorBuild } from "./packages/extension/instrumentedDecoratorBuild.ts";
 
 export default defineConfig({
   plugins: [instrumentedDecoratorBuild()],
@@ -9,9 +9,9 @@ export default defineConfig({
       "packages/protocol/json-rpc/tests/**/*.test.ts",
       "packages/docs/tests/**/*.test.ts",
       "packages/evals/tests/**/*.test.ts",
-      "packages/server/tests/**/*.test.ts",
+      "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
-      "packages/server/understudy/**/*.test.ts",
+      "packages/extension/understudy/**/*.test.ts",
       "rules/ast-grep/**/*.test.ts",
       "scripts/**/*.test.ts",
     ],

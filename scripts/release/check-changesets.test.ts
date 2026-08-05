@@ -9,7 +9,7 @@ describe("validateChangeset", () => {
 "@browserbasehq/stagehand": minor # public TypeScript SDK
 "@browserbasehq/stagehand-python": patch
 "@browserbasehq/stagehand-go": patch
-"@browserbasehq/stagehand-server": patch
+"@browserbasehq/stagehand-extension": patch
 ---
 
 Release the SDKs.

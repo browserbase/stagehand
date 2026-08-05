@@ -46,7 +46,7 @@ function previewManifest() {
         install: "uv add ./stagehand-python.whl",
       },
       extension: {
-        package: "@browserbasehq/stagehand-server",
+        package: "@browserbasehq/stagehand-extension",
         version: "4.0.0",
         file: "stagehand-extension.zip",
         sha256: sha256(files["stagehand-extension.zip"]),

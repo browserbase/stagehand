@@ -11,7 +11,7 @@ eval-summary.json
 node_modules
 dist
 dist-ssr
-packages/server/artifacts
+packages/extension/artifacts
 .pnpm-store
 *.local
 *.tgz

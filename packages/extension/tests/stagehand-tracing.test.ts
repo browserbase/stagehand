@@ -7,7 +7,7 @@ import {
 } from "@opentelemetry/sdk-trace-web";
 import { ATTR_SERVICE_VERSION } from "@opentelemetry/semantic-conventions";
 import { afterEach, describe, expect, it } from "vitest";
-import serverPackageJson from "../package.json" with { type: "json" };
+import extensionPackageJson from "../package.json" with { type: "json" };
 import { createStagehandTracing, createStagehandTracingRuntime } from "../tracing.ts";
 
 const runtimes: Array<{ shutdown(): Promise<void> }> = [];
@@ -41,7 +41,7 @@ describe("Stagehand tracing", () => {
       "stagehand.test.fan_out",
     ]);
     expect(firstExporter.getFinishedSpans()[0]?.resource.attributes[ATTR_SERVICE_VERSION]).toBe(
-      serverPackageJson.version,
+      extensionPackageJson.version,
     );
   });
 
