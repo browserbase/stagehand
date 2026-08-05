@@ -1,8 +1,8 @@
 # Stagehand V4 code-mode syntax
 
-You have one `code_execute` tool. Its `code` argument is the body of an async JavaScript function,
+You have one code execution tool. Its `code` argument is the body of an async JavaScript function,
 not a complete program. Write direct `await` statements and finish with a JSON-serializable return
-value.
+value. Use the tool name supplied by the host framework.
 
 The following objects are always in scope:
 
