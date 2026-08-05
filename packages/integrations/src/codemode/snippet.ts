@@ -13,7 +13,7 @@ export async function executeStagehandSnippet(
 ): Promise<unknown> {
   const bindings = Object.entries(input.bindings ?? {});
   for (const [name] of bindings) {
-    if (!IDENTIFIER.test(name)) {
+    if (!isAsyncFunctionParameter(name)) {
       throw new TypeError(`Code-mode binding "${name}" is not a valid JavaScript identifier.`);
     }
     if (RESERVED_BINDINGS.has(name)) {
@@ -35,4 +35,14 @@ export async function executeStagehandSnippet(
   ];
   const fn = new AsyncFunction(...parameters.map(([name]) => name), input.code);
   return await fn(...parameters.map(([, value]) => value));
+}
+
+function isAsyncFunctionParameter(name: string): boolean {
+  if (!IDENTIFIER.test(name)) return false;
+  try {
+    new AsyncFunction(name, "");
+    return true;
+  } catch {
+    return false;
+  }
 }

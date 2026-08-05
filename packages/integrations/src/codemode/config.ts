@@ -27,7 +27,11 @@ export function stagehandCodeConfigFromEnv(
     nonEmpty(env.GOOGLE_GENERATIVE_AI_API_KEY);
   const modelName =
     explicitModelName ?? (inferredGoogleKey ? "google/gemini-2.5-flash-lite" : undefined);
-  const modelApiKey = explicitModelApiKey ?? inferredGoogleKey;
+  const modelApiKey =
+    explicitModelApiKey ??
+    (explicitModelName === undefined || explicitModelName.startsWith("google/")
+      ? inferredGoogleKey
+      : undefined);
 
   const stagehand = StagehandClientCreateConfigSchema.parse({
     logging: { level: "off" },

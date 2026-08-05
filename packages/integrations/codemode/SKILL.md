@@ -113,18 +113,20 @@ other than the active page.
 
 ```js
 const before = await context.pages();
+const beforePageIds = new Set(before.map((page) => page.pageId));
 const current = before[before.length - 1];
 await current.locator("button").first().click();
 await current.waitForTimeout(500);
 const after = await context.pages();
-const opened = after[after.length - 1];
+const opened = after.find((candidate) => !beforePageIds.has(candidate.pageId));
+if (!opened) throw new Error("Expected a new page");
 await context.setActivePage(opened);
 return { pageCount: after.length, activeUrl: await opened.url() };
 ```
 
-There is no `context.waitForEvent`. Detect a newly opened tab by comparing the awaited arrays from
-`context.pages()` before and after the click. A click does not necessarily make the new tab active;
-call `context.setActivePage(opened)` explicitly.
+There is no `context.waitForEvent`. `context.pages()` returns fresh Page wrappers, so detect a newly
+opened tab by comparing the stable `page.pageId` values before and after the click. A click does not
+necessarily make the new tab active; call `context.setActivePage(opened)` explicitly.
 
 The same browser, pages, cookies, and navigation state persist across successful tool calls. Local
 JavaScript variables do not persist, so rediscover pages and elements each call. If a call stops
