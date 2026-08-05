@@ -1,7 +1,7 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { matchingSelector } from "../../../framework/observeSelectors.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "observe_github" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {

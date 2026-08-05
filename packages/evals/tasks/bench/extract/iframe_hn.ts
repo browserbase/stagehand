@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "iframe_hn" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
 
-      // NOTE: the target content lives inside an iframe, but the v3 task
-      // relies entirely on extract() to see into it (no frames() API usage),
-      // so this ports 1:1 — iframe handling is the SDK's responsibility.
+      // NOTE: the target content lives inside an iframe, but the task relies
+      // entirely on extract() to see into it (no frame API usage in v3 or
+      // v4), so this ported 1:1 — iframe handling is the SDK's responsibility.
       const { data: result } = await stagehand.extract(
         "extract the title of the first hackernews story",
         z.object({

@@ -5,13 +5,13 @@
  * the file lives in during auto-discovery.
  */
 import type {
+  AgentBenchTaskContext,
   BenchTaskContext,
   BenchTaskMeta,
   CoreTaskContext,
   TaskDefinition,
   TaskMeta,
   TaskResult,
-  BenchV4TaskContext,
 } from "./types.js";
 
 /**
@@ -30,8 +30,8 @@ export function defineCoreTask(
 }
 
 /**
- * Define a bench tier task (with LLM and evaluator).
- * Bench tasks receive { v3, agent, page, logger, input, ... } and return TaskResult.
+ * Define a bench tier a/e/o task (v4 SDK).
+ * Bench tasks receive { stagehand, page, logger, input, ... } and return TaskResult.
  */
 export function defineBenchTask(
   meta: BenchTaskMeta,
@@ -45,37 +45,29 @@ export function defineBenchTask(
 }
 
 /**
- * Define a bench tier task ported to the Stagehand v4 SDK.
- * v4 bench tasks receive { stagehand, page, logger, input, ... } and return
- * TaskResult. They live under tasks/bench/ and are selected via --sdk v4.
+ * Define a bench agent task using the stagehand-v3 SDK.
+ * Agent bench tasks receive { v3, agent, page, logger, input, ... } and return TaskResult.
  */
-export function defineBenchV4Task(
+export function defineAgentBenchTask(
   meta: BenchTaskMeta,
-  fn: (ctx: BenchV4TaskContext) => Promise<void | TaskResult>,
+  fn: (ctx: AgentBenchTaskContext) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,
     meta,
-    // Fail fast with a clear message if a v3-context runner invokes a v4
-    // task — the v4 init/dispatch path lands with the harness change.
-    fn: (ctx) => {
-      if (!ctx || !("stagehand" in ctx) || ctx.stagehand === undefined) {
-        throw new Error(
-          `Task "${meta.name}" requires the v4 harness (--sdk v4); it was invoked with a v3 context.`,
-        );
-      }
-      return fn(ctx as unknown as BenchV4TaskContext);
-    },
+    fn,
   };
 }
 
 /**
  * Generic defineTask — for cases where the tier is ambiguous at definition time.
- * Prefer defineCoreTask / defineBenchTask for better type inference.
+ * Prefer defineCoreTask / defineBenchTask / defineAgentBenchTask for better type inference.
  */
 export function defineTask(
   meta: TaskMeta | BenchTaskMeta,
-  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>,
+  fn: (
+    ctx: CoreTaskContext | BenchTaskContext | AgentBenchTaskContext,
+  ) => Promise<void | TaskResult>,
 ): TaskDefinition {
   return {
     __taskDefinition: true,

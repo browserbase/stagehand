@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import { compareStrings } from "../../../framework/stringScoring.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "extract_public_notices" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {

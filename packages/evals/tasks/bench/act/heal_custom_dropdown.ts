@@ -1,6 +1,6 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "heal_custom_dropdown" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     /**

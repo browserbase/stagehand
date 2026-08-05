@@ -2,7 +2,7 @@
  * Context builders for each tier.
  *
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
- * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
+ * - buildAgentBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
 import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
 import { type V3InitResult, initV3 } from "../initV3.js";
@@ -14,7 +14,7 @@ import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import type { BenchTaskContext, CoreTaskContext } from "./types.js";
+import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -122,7 +122,7 @@ export async function buildCoreContext(
   };
 }
 
-export interface BenchContextOptions {
+export interface AgentBenchContextOptions {
   modelName: AvailableModel;
   logger?: EvalLogger;
   llmClient?: LLMClient;
@@ -137,19 +137,21 @@ export interface BenchContextOptions {
   };
 }
 
-export interface BenchContextResult {
-  ctx: BenchTaskContext;
+export interface AgentBenchContextResult {
+  ctx: AgentBenchTaskContext;
   /** The V3 instance — caller is responsible for closing it. */
   v3Result: V3InitResult;
 }
 
 /**
- * Build a BenchTaskContext for agent benchmark (tier 3) tasks.
+ * Build an AgentBenchTaskContext for agent benchmark (tier 3) tasks.
  *
  * Wraps the existing initV3 logic, providing the same shape that
  * legacy EvalFunction tasks expect.
  */
-export async function buildBenchContext(options: BenchContextOptions): Promise<BenchContextResult> {
+export async function buildAgentBenchContext(
+  options: AgentBenchContextOptions,
+): Promise<AgentBenchContextResult> {
   const logger = options.logger ?? new EvalLogger();
   const v3Result = await initV3({
     logger,
@@ -161,7 +163,7 @@ export async function buildBenchContext(options: BenchContextOptions): Promise<B
   });
 
   const page = v3Result.v3.context.pages()[0];
-  const ctx: BenchTaskContext = {
+  const ctx: AgentBenchTaskContext = {
     v3: v3Result.v3,
     agent: v3Result.agent,
     page,

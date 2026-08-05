@@ -1,4 +1,4 @@
-import { defineBenchV4Task } from "../../../framework/defineTask.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 import type { Action } from "@browserbasehq/stagehand";
 
 /**
@@ -11,7 +11,7 @@ import type { Action } from "@browserbasehq/stagehand";
  * pass the actionability check.
  */
 
-export default defineBenchV4Task(
+export default defineBenchTask(
   { name: "google_flights" },
   async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {

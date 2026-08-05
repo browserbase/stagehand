@@ -64,8 +64,34 @@ export interface CoreTaskContext {
   logger: EvalLogger;
 }
 
-/** Context provided to bench (tier 3) tasks — matches existing EvalFunction input. */
+/** Context provided to bench a/e/o tasks using the Stagehand v4 SDK. */
 export interface BenchTaskContext {
+  /** Stagehand v4 client instance. */
+  stagehand: Stagehand;
+  /** v4 page object (RPC-backed — url()/title() are async). */
+  page: Page;
+  /** Eval logger. */
+  logger: EvalLogger;
+  /** Full eval input (name, modelName, params). */
+  input: {
+    name: string;
+    modelName: AvailableModel;
+    params?: Record<string, unknown>;
+  };
+  /** Model used for this run. */
+  modelName: AvailableModel;
+  /** Debug URL (unavailable from the v4 SDK — always empty for now). */
+  debugUrl: string;
+  /** Session URL (Browserbase). */
+  sessionUrl: string;
+}
+
+/**
+ * Context provided to bench agent tasks.
+ *
+ * The agent tier stays on the stagehand-v3 package on this branch.
+ */
+export interface AgentBenchTaskContext {
   /** Stagehand V3 instance. */
   v3: V3;
   /** Agent instance (created when the task lives under agent/). */
@@ -132,7 +158,9 @@ export interface TaskDefinition {
   /** User-provided metadata. */
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
-  fn: (ctx: CoreTaskContext | BenchTaskContext | BenchV4TaskContext) => Promise<void | TaskResult>;
+  fn: (
+    ctx: CoreTaskContext | BenchTaskContext | AgentBenchTaskContext,
+  ) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }
@@ -165,25 +193,4 @@ export interface TaskRegistry {
   byTier: Map<Tier, DiscoveredTask[]>;
   /** Lookup by category. */
   byCategory: Map<string, DiscoveredTask[]>;
-}
-
-/**
- * Context type for bench tasks ported to the Stagehand v4 SDK.
- *
- * Mirrors BenchTaskContext so per-task diffs between the v3 and v4 suites stay
- * 1:1, with the v3 surface swapped for the v4 one: `v3` → `stagehand`,
- * Playwright page → v4 `Page`. Typing `page` as the v4 `Page` makes any
- * Playwright API usage in a ported task a type error.
- */
-export interface BenchV4TaskContext {
-  /** Stagehand v4 client instance. */
-  stagehand: Stagehand;
-  /** v4 page object (RPC-backed — url()/title() are async). */
-  page: Page;
-  /** Eval logger. Note: the v4 SDK itself logs to the console, not here. */
-  logger: EvalLogger;
-  /** Debug URL (unavailable from the v4 SDK — always empty for now). */
-  debugUrl: string;
-  /** Session URL (Browserbase; constructed from the session ID). */
-  sessionUrl: string;
 }

@@ -1,6 +1,6 @@
 import type { TaskSpec } from "stagehand-v3";
 
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineAgentBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
 import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
@@ -15,7 +15,7 @@ import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/v
  * against `expected` when present; otherwise falls back to a generic
  * "did the agent complete this task?" criterion.
  */
-export default defineBenchTask(
+export default defineAgentBenchTask(
   { name: "agent/gaia" },
   async ({ v3, logger, debugUrl, sessionUrl, modelName, input }) => {
     try {
