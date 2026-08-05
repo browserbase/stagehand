@@ -49,13 +49,13 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 
 `evals run` accepts any of these shapes:
 
-| Target                                                  | Meaning                        |
-| ------------------------------------------------------- | ------------------------------ |
-| _(none)_ / `all`                                        | All bench tasks                |
-| `bench`                                                 | Entire bench tier              |
-| `act` / `extract` / `observe` / `agent`                 | A category                     |
-| `extract/extract_text`                                  | A specific task                |
-| `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench`  | Dataset-backed benchmark suite |
+| Target                                                 | Meaning                        |
+| ------------------------------------------------------ | ------------------------------ |
+| _(none)_ / `all`                                       | All bench tasks                |
+| `bench`                                                | Entire bench tier              |
+| `act` / `extract` / `observe` / `agent`                | A category                     |
+| `extract/extract_text`                                 | A specific task                |
+| `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench` | Dataset-backed benchmark suite |
 
 `evals list` shows everything that's been discovered:
 

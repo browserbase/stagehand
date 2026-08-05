@@ -56,10 +56,7 @@ describe("defineAgentBenchTask", () => {
   });
 
   it("preserves models override in meta", () => {
-    const result = defineAgentBenchTask(
-      { name: "x", models: ["openai/gpt-4o"] },
-      vi.fn() as any,
-    );
+    const result = defineAgentBenchTask({ name: "x", models: ["openai/gpt-4o"] }, vi.fn() as any);
 
     expect((result.meta as any).models).toEqual(["openai/gpt-4o"]);
   });
