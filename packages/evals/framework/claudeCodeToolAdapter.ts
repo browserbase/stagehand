@@ -3,6 +3,10 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type * as StagehandSdk from "@browserbasehq/stagehand";
+import {
+  executeStagehandSnippet,
+  STAGEHAND_CODEMODE_SKILL,
+} from "@browserbasehq/stagehand-integrations/codemode";
 import matter from "gray-matter";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
@@ -620,7 +624,7 @@ async function prepareV4CodeDeterministicAdapter(
     });
     stagehand = initialized.stagehand;
     const mcpServers = await buildV4DeterministicRunMcpServers({
-      context: stagehand.context,
+      context: stagehand.browser.context,
       page: initialized.page,
       plan: input.plan,
       logger: input.logger,
@@ -848,22 +852,21 @@ export async function executeV4DeterministicSnippet(input: {
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
-    ...args: string[]
-  ) => (...values: unknown[]) => Promise<unknown>;
-  const fn = new AsyncFunction("page", "context", "startUrl", "task", "console", input.code);
-  return fn(
-    input.page,
-    input.context,
-    input.plan.startUrl,
-    {
-      dataset: input.plan.dataset,
-      id: input.plan.taskId,
+  return executeStagehandSnippet({
+    code: input.code,
+    page: input.page,
+    context: input.context,
+    bindings: {
       startUrl: input.plan.startUrl,
-      instruction: input.plan.instruction,
+      task: {
+        dataset: input.plan.dataset,
+        id: input.plan.taskId,
+        startUrl: input.plan.startUrl,
+        instruction: input.plan.instruction,
+      },
     },
-    buildRunToolConsole(input.logger),
-  );
+    console: buildRunToolConsole(input.logger),
+  });
 }
 
 async function executePlaywrightRunTool(input: {
@@ -1267,6 +1270,9 @@ function buildV4CodeDeterministicPromptInstructions(plan: ExternalHarnessTaskPla
     "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
     "Do not edit repository files.",
     "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+    "",
+    "Canonical Stagehand V4 code-mode guide:",
+    STAGEHAND_CODEMODE_SKILL,
   ].join("\n");
 }
 
