@@ -1,0 +1,21 @@
+packages/evals/core/tools/v4_code.ts
+  s_d039eb5c1662ee::t_78e6aeee8feb0d 16,18
+  s_d039eb5c1662ee::t_bf0e2bbcff135b 1-15,17,19-20,22-124
+  s_d039eb5c1662ee::t_babfda5e2a9237 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "16762373e6b704ee1c5f007870551142962dc3f2",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
