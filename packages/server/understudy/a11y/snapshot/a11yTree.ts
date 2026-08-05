@@ -33,7 +33,7 @@ export async function a11yForFrame(
       msg.includes("Frame with the given") ||
       msg.includes("does not belong to the target") ||
       msg.includes("is not found");
-    if (!isFrameScopeError || !frameId) throw e;
+    if (!isFrameScopeError || !frameId || !opts.allowUnscopedFrameFallback?.()) throw e;
     ({ nodes } = await session.send<{
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree"));

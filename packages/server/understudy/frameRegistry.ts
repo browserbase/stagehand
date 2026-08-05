@@ -241,6 +241,10 @@ export class FrameRegistry {
     return this.rootFrameId;
   }
 
+  hasFrame(frameId: FrameId): boolean {
+    return this.frames.has(frameId);
+  }
+
   /**
    * Return the owner session id for this frame. If unknown, returns `undefined`.
    */

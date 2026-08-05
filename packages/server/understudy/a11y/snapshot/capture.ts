@@ -65,10 +65,11 @@ export async function captureHybridSnapshot(
   const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
-  const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
+  let framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
     framesInScope.unshift(context.rootId);
   }
+  framesInScope = await retainLiveFrames(page, framesInScope, context.rootId);
 
   if (!hasIgnoreSelectors) {
     const scopedSnapshot = await tryScopedSnapshot(
@@ -109,20 +110,22 @@ export async function captureHybridSnapshot(
     if (scopedSnapshot) return scopedSnapshot;
   }
 
+  const framesToCapture = await retainLiveFrames(page, framesInScope, context.rootId);
   const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
     page,
     context,
     sessionToIndex,
     options,
     pierce,
-    framesInScope,
+    framesToCapture,
     exclusionIntervalsByFrame,
   );
+  const capturedFrameIds = framesToCapture.filter((frameId) => perFrameMaps.has(frameId));
   const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
     page,
     context,
     perFrameMaps,
-    framesInScope,
+    capturedFrameIds,
   );
 
   return mergeFramesIntoSnapshot(
@@ -131,7 +134,7 @@ export async function captureHybridSnapshot(
     perFrameOutlines,
     absPrefix,
     iframeHostEncByChild,
-    framesInScope,
+    capturedFrameIds,
   );
 }
 
@@ -150,6 +153,22 @@ export function buildFrameContext(page: Page): FrameContext {
   })(frameTree, null);
   const frames = page.listAllFrameIds();
   return { rootId, parentByFrame, frames };
+}
+
+async function retainLiveFrames(page: Page, frameIds: string[], rootId: string): Promise<string[]> {
+  try {
+    const { frameTree } =
+      await page.sendInternalCDP<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
+    const liveFrameIds = new Set<string>();
+    const visit = (node: Protocol.Page.FrameTree) => {
+      liveFrameIds.add(node.frame.id);
+      for (const child of node.childFrames ?? []) visit(child);
+    };
+    visit(frameTree);
+    return frameIds.filter((frameId) => frameId === rootId || liveFrameIds.has(frameId));
+  } catch {
+    return frameIds.filter((frameId) => frameId === rootId || page.hasFrame(frameId));
+  }
 }
 
 /**
@@ -221,6 +240,8 @@ export async function tryScopedSnapshot(
     );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(owningSess, targetFrameId, {
+      allowUnscopedFrameFallback: () =>
+        !sameSessionAsParent && (targetFrameId === context.rootId || page.hasFrame(targetFrameId)),
       focusSelector: tailSelector || undefined,
       isIgnoredBackendNode: makeIsIgnoredBackendNode(
         targetFrameId,
@@ -335,49 +356,65 @@ export async function collectPerFrameMaps(
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
 
   for (const frameId of frameIds) {
-    const sess = ownerSession(page, frameId);
-    const sid = sess.id ?? "root";
-    let idx = sessionToIndex.get(sid);
-    if (!idx) {
-      idx = await buildSessionDomIndex(sess, pierce);
-      sessionToIndex.set(sid, idx);
+    const isRoot = frameId === context.rootId;
+    if (!isRoot && !page.hasFrame(frameId)) continue;
+
+    try {
+      const sess = ownerSession(page, frameId);
+      const sid = sess.id ?? "root";
+      let idx = sessionToIndex.get(sid);
+      if (!idx) {
+        idx = await buildSessionDomIndex(sess, pierce);
+        sessionToIndex.set(sid, idx);
+      }
+
+      const parentId = context.parentByFrame.get(frameId);
+      const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
+
+      const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
+      if (!isRoot && !page.hasFrame(frameId)) continue;
+
+      const tagNameMap: Record<string, string> = {};
+      const xpathMap: Record<string, string> = {};
+      const scrollableMap: Record<string, boolean> = {};
+      const isIgnoredBackendNode = makeIsIgnoredBackendNode(
+        frameId,
+        idx,
+        exclusionIntervalsByFrame,
+      );
+      const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
+      const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
+
+      for (const [be, nodeAbs] of idx.absByBe.entries()) {
+        const nodeDocRoot = idx.docRootOf.get(be);
+        if (nodeDocRoot !== docRootBe) continue;
+        if (isIgnoredBackendNode?.(be)) continue;
+
+        // Translate absolute XPaths into document-relative ones for this frame.
+        const rel = relativizeXPath(baseAbs, nodeAbs);
+        const key = enc(be);
+        xpathMap[key] = rel;
+        const tag = idx.tagByBe.get(be);
+        if (tag) tagNameMap[key] = tag;
+        if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      }
+
+      const { outline, urlMap } = await a11yForFrame(sess, frameId, {
+        allowUnscopedFrameFallback: () =>
+          !sameSessionAsParent && (isRoot || page.hasFrame(frameId)),
+        isIgnoredBackendNode,
+        tagNameMap,
+        scrollableMap,
+        encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      });
+      if (!isRoot && !page.hasFrame(frameId)) continue;
+
+      perFrameOutlines.push({ frameId, outline });
+      perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    } catch (error) {
+      if (!isRoot && (!page.hasFrame(frameId) || isFrameScopeError(error))) continue;
+      throw error;
     }
-
-    const parentId = context.parentByFrame.get(frameId);
-    const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
-
-    const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
-
-    const tagNameMap: Record<string, string> = {};
-    const xpathMap: Record<string, string> = {};
-    const scrollableMap: Record<string, boolean> = {};
-    const isIgnoredBackendNode = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
-    const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
-    const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
-
-    for (const [be, nodeAbs] of idx.absByBe.entries()) {
-      const nodeDocRoot = idx.docRootOf.get(be);
-      if (nodeDocRoot !== docRootBe) continue;
-      if (isIgnoredBackendNode?.(be)) continue;
-
-      // Translate absolute XPaths into document-relative ones for this frame.
-      const rel = relativizeXPath(baseAbs, nodeAbs);
-      const key = enc(be);
-      xpathMap[key] = rel;
-      const tag = idx.tagByBe.get(be);
-      if (tag) tagNameMap[key] = tag;
-      if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
-    }
-
-    const { outline, urlMap } = await a11yForFrame(sess, frameId, {
-      isIgnoredBackendNode,
-      tagNameMap,
-      scrollableMap,
-      encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
-    });
-
-    perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -676,6 +713,7 @@ async function resolveFrameDocRootBackendId(
       frameId,
     });
     if (typeof backendNodeId === "number") {
+      page.setOwnerBackendNodeId(frameId, backendNodeId);
       const docRootBe = idx.contentDocRootByIframe.get(backendNodeId);
       if (typeof docRootBe === "number") return docRootBe;
     }
@@ -716,20 +754,26 @@ export async function computeFramePrefixes(
     for (const child of context.frames) {
       if (!included.has(child)) continue;
       if (context.parentByFrame.get(child) !== parent) continue;
+      if (!page.hasFrame(child)) continue;
       queue.push(child);
 
       const parentSess = parentSession(page, context.parentByFrame, child);
 
-      const ownerBackendNodeId = await (async () => {
-        try {
-          const { backendNodeId } = await parentSess.send<{
-            backendNodeId?: number;
-          }>("DOM.getFrameOwner", { frameId: child });
-          return backendNodeId;
-        } catch {
-          return undefined;
-        }
-      })();
+      const ownerBackendNodeId =
+        page.getOwnerBackendNodeId(child) ??
+        (await (async () => {
+          try {
+            const { backendNodeId } = await parentSess.send<{
+              backendNodeId?: number;
+            }>("DOM.getFrameOwner", { frameId: child });
+            if (typeof backendNodeId === "number") {
+              page.setOwnerBackendNodeId(child, backendNodeId);
+            }
+            return backendNodeId;
+          } catch {
+            return undefined;
+          }
+        })());
 
       if (!ownerBackendNodeId) {
         // OOPIFs resolved via a different session inherit the parent prefix.
@@ -749,6 +793,17 @@ export async function computeFramePrefixes(
   }
 
   return { absPrefix, iframeHostEncByChild };
+}
+
+function isFrameScopeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Frame with the given") ||
+    message.includes("Frame with given") ||
+    message.includes("does not belong to the target") ||
+    message.includes("is not found") ||
+    message.includes("was not found")
+  );
 }
 
 /**

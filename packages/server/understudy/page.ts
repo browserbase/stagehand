@@ -796,6 +796,20 @@ export class Page {
     return this.registry.listAllFrames();
   }
 
+  public hasFrame(frameId: string): boolean {
+    return this.registry.hasFrame(frameId);
+  }
+
+  public getOwnerBackendNodeId(frameId: string): number | undefined {
+    return this.registry.getOwnerBackendNodeId(frameId);
+  }
+
+  public setOwnerBackendNodeId(frameId: string, backendNodeId: number): void {
+    if (this.hasFrame(frameId)) {
+      this.registry.setOwnerBackendNodeId(frameId, backendNodeId);
+    }
+  }
+
   // -------- Convenience APIs delegated to the current main frame --------
 
   /**
