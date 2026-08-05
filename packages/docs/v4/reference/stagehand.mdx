@@ -24,9 +24,9 @@ Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is
 const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
 ```
 
-<ResponseField name="browser" type="StagehandBrowser" required>
+<ParamField path="browser" type="StagehandBrowser" required>
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `localBrowser.launch()`, or `localBrowser.connect()`. Each handle can back only one Stagehand instance.
-</ResponseField>
+</ParamField>
 
 <ResponseField name="result" type="Promise<Stagehand>">
   An initialized Stagehand instance.
@@ -670,9 +670,9 @@ Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is
 stagehand = await Stagehand.create(browser=await local_browser.launch())
 ```
 
-<ResponseField name="browser" type="StagehandBrowser" required>
+<ParamField path="browser" type="StagehandBrowser" required>
   A browser handle from `browserbase.launch()`, `browserbase.connect()`, `local_browser.launch()`, or `local_browser.connect()`. Each handle can back only one Stagehand instance.
-</ResponseField>
+</ParamField>
 
 <ResponseField name="result" type="Stagehand">
   An initialized Stagehand instance.

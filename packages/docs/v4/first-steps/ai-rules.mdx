@@ -413,7 +413,7 @@ All Stagehand methods are async. `act`, `observe`, and `extract` take `instructi
 ```python
 import os
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand, browserbase, local_browser
 
 browser = await local_browser.launch(headless=True)
 stagehand = await Stagehand.create(

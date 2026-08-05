@@ -217,7 +217,6 @@ func run(ctx context.Context) (err error) {
 
 	return nil
 }
-	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
