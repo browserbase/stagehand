@@ -9,11 +9,15 @@ const mockState = vi.hoisted(() => ({
     outcomeSuccess: true,
     processScore: 0.92,
   } as Record<string, unknown>,
+  evaluatorOptions: undefined as unknown,
 }));
 
 vi.mock("stagehand-v3", async (importOriginal) => {
   const mod = await importOriginal<typeof import("stagehand-v3")>();
   class FakeV3Evaluator {
+    constructor(_v3: unknown, options: unknown) {
+      mockState.evaluatorOptions = options;
+    }
     async verify() {
       return mockState.evaluationResult;
     }
@@ -62,14 +66,20 @@ describe("gradeExternalTrajectory", () => {
 
   let savedSuccessMode: string | undefined;
   let savedPersist: string | undefined;
+  let savedVerifierModel: string | undefined;
+  let savedGroqApiKey: string | undefined;
 
   beforeEach(() => {
     savedSuccessMode = process.env.EVAL_SUCCESS_MODE;
     savedPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
+    savedVerifierModel = process.env.EVAL_VERIFIER_MODEL;
+    savedGroqApiKey = process.env.GROQ_API_KEY;
     delete process.env.EVAL_SUCCESS_MODE;
+    delete process.env.EVAL_VERIFIER_MODEL;
     // Keep persistAdapterTrajectory on its no-write path (it defaults to
     // persisting outside CI).
     process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
+    mockState.evaluatorOptions = undefined;
   });
 
   afterEach(() => {
@@ -77,6 +87,10 @@ describe("gradeExternalTrajectory", () => {
     else process.env.EVAL_SUCCESS_MODE = savedSuccessMode;
     if (savedPersist === undefined) delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
     else process.env.VERIFIER_PERSIST_TRAJECTORIES = savedPersist;
+    if (savedVerifierModel === undefined) delete process.env.EVAL_VERIFIER_MODEL;
+    else process.env.EVAL_VERIFIER_MODEL = savedVerifierModel;
+    if (savedGroqApiKey === undefined) delete process.env.GROQ_API_KEY;
+    else process.env.GROQ_API_KEY = savedGroqApiKey;
     mockState.evaluationResult = { outcomeSuccess: true, processScore: 0.92 };
   });
 
@@ -112,5 +126,18 @@ describe("gradeExternalTrajectory", () => {
 
     expect(result._success).toBe(true);
     expect(result.processScore).toBe(0.95);
+  });
+
+  it("selects the verifier model independently from the harness model", async () => {
+    process.env.EVAL_VERIFIER_MODEL = " groq/llama-3.3-70b-versatile ";
+    process.env.GROQ_API_KEY = "test-groq-key";
+
+    await grade({});
+
+    expect(mockState.evaluatorOptions).toEqual({
+      backend: "verifier",
+      modelName: "groq/llama-3.3-70b-versatile",
+      modelClientOptions: { apiKey: "test-groq-key" },
+    });
   });
 });

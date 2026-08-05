@@ -426,13 +426,17 @@ const result = await stagehand.extract(
 
 <View title="Python" icon="python">
 ```python
+import os
+
+from stagehand import ModelConfig
+
 result = await stagehand.extract(
     "extract the repository name",
     Repository,
-    model={
-        "model_name": "anthropic/claude-sonnet-4-6",
-        "api_key": os.environ["ANTHROPIC_API_KEY"],
-    },
+    model=ModelConfig(
+        model_name="anthropic/claude-sonnet-4-6",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    ),
     timeout=30000,
     selector="//header",  # Focus on specific area
 )
@@ -449,10 +453,10 @@ var repositorySchema = json.RawMessage(`{
 }`)
 
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "anthropic/claude-sonnet-4-6",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 30000.0
 selector := "//header" // Focus on specific area
 
@@ -475,17 +479,20 @@ fmt.Println(string(result.Data))
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on `Stagehand.create()` and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -503,12 +510,15 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+import os
+
+from stagehand import Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -536,11 +546,21 @@ var repositorySchema = json.RawMessage(`{
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
+if err != nil {
+	return err
+}
 
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)

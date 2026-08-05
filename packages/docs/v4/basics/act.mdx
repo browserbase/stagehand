@@ -67,7 +67,7 @@ await stagehand.act("click the add to cart button")
 
 <View title="Go" icon="golang">
 ```go
-if err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
@@ -286,12 +286,17 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
 
 <View title="Python" icon="python">
 ```python
+# Custom model configuration
+import os
+
+from stagehand import ModelConfig
+
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
-    model={
-        "model_name": "google/gemini-2.5-flash",
-        "api_key": os.environ["GOOGLE_API_KEY"],
-    },
+    model=ModelConfig(
+        model_name="google/gemini-2.5-flash",
+        api_key=os.environ["GOOGLE_API_KEY"],
+    ),
     timeout=10000,
 )
 ```
@@ -301,10 +306,10 @@ await stagehand.act(
 ```go
 // Custom model configuration
 modelAPIKey := os.Getenv("GOOGLE_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 10000.0
 
 if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
@@ -321,13 +326,15 @@ if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", 
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
 When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -351,7 +358,9 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 
 <View title="Python" icon="python">
 ```python
-from stagehand import CacheOptions, Stagehand
+import os
+
+from stagehand import CacheOptions, Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
 browser = await browserbase.launch(
@@ -413,7 +422,7 @@ fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v4/best-practices/caching">
   Learn how the cache key is built, what the threshold does, and when results are invalidated.
 </Card>
 
@@ -473,11 +482,11 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-blogPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+blogPage, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
+if _, err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
 	return err
 }
 
@@ -492,9 +501,9 @@ This works with:
 - **Active page:** omit `page` and Stagehand uses `context.activePage()` (default)
 - **Existing pages:** receive the list from `context.pages()` first (await it in TypeScript and Python), then index into it
 - **New pages:** create one with `context.newPage()`
-- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+- **Existing browsers:** attach to a browser you already run with `localBrowser.connect()`
 
-<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -580,6 +589,8 @@ await stagehand.act("click the login button");
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import CacheOptions, Stagehand, browserbase
 
 browser = await browserbase.launch(
@@ -628,7 +639,7 @@ if _, err := client.Act(ctx, "click the login button", nil); err != nil {
 The cache lives on Browserbase, keyed on the instruction, page content, and call options, so it persists across script executions and across machines. The model configuration is deliberately excluded from the key, so switching models does not invalidate your cache.
 </Note>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v4/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -706,7 +717,7 @@ if _, err := client.Act(ctx, "click the login button", nil); err != nil {
 When handling sensitive data, turn logging off in your Stagehand configuration to prevent secrets from appearing in logs. See the [logging guide](/v4/configuration/logging) for more details.
 </Warning>
 
-<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v3/best-practices/user-data">
+<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v4/best-practices/user-data">
   Complete guide to persisting and securing browser state across sessions.
 </Card>
 
@@ -1056,7 +1067,7 @@ if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "che
     Use `observe()` to plan actions before executing them.
   </Card>
 
-   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/caching">
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v4/best-practices/caching">
     Speed up repeated automations by caching actions.
   </Card>
 
@@ -1064,7 +1075,7 @@ if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "che
     Use `extract` with a data schema to pull clean, typed data from any page.
   </Card>
 
-  <Card title="Work across multiple tabs" icon="clone" iconType="sharp-solid" href="/v3/best-practices/using-multiple-tabs">
+  <Card title="Work across multiple tabs" icon="clone" iconType="sharp-solid" href="/v4/best-practices/using-multiple-tabs">
     Target a specific page with the `page` option.
   </Card>
 </CardGroup>
