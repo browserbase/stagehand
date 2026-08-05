@@ -1,0 +1,423 @@
+---
+title: Migrate TypeScript v3 to v4
+sidebarTitle: Migrate v3 to v4
+icon: 'arrow-up-right-dots'
+---
+
+v4 removes `agent()` and reshapes how you construct Stagehand, reach pages, and read results. The rest of the surface is recognizable: `act()`, `extract()`, and `observe()` still take natural-language instructions and still do the same jobs.
+
+Start with the section below. Replacing `agent()` is the only change that asks you to write new logic rather than rename something, so it is the one worth understanding before you touch anything else.
+
+## Replace agent() with your own loop
+
+### What agent() did
+
+In v3 you handed Stagehand a goal and it decided the steps:
+
+```diff
+- const agent = stagehand.agent({
+-   mode: "cua",
+-   model: "anthropic/claude-sonnet-4-6",
+-   systemPrompt: "You are a helpful assistant...",
+- });
+-
+- await agent.execute({
+-   instruction: "Find the most controversial post from today and summarize the debate",
+-   maxSteps: 20,
+- });
+```
+
+`agent()` owned the loop: it looked at the page, chose an action, ran it, looked again, and stopped when it judged the task complete or hit `maxSteps`. v4 has no equivalent call. Stagehand is the SDK for browser agents, so you should own that loop now.
+
+### The three jobs the loop has to do
+
+Any replacement needs the same three moves `agent()` made internally:
+
+1. **Decide whether you are done:** `extract()` reads the page and never touches it, so it is safe to call on every pass.
+2. **Choose one next action:** `observe()` proposes actions without performing them. It returns `Action` objects, each with a `selector` and a `description`.
+3. **Perform exactly one action:** Pass an `Action` straight to `act()`. Replaying an observed action skips inference entirely.
+
+### A working loop
+
+This is an example replacement for a single `agent.execute()` call. It returns the same three things v3's `AgentResult` gave you: whether it succeeded, a message, and how many steps it took.
+
+<View title="TypeScript" icon="js">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+const goalSchema = z.object({
+  status: z.enum(["done", "not_done"]),
+  reason: z.string(),
+});
+
+async function runGoal(stagehand: Stagehand, goal: string, maxSteps = 20) {
+  for (let step = 0; step < maxSteps; step += 1) {
+    // 1. extract() only reads, so asking on every pass is safe
+    const { data: check } = await stagehand.extract(
+      `Has this goal been accomplished: ${goal}? Answer done or not_done, and say why.`,
+      goalSchema,
+    );
+    if (check.status === "done") {
+      return { success: true, message: check.reason, steps: step };
+    }
+
+    // 2. observe() proposes without touching the page
+    const { data: candidates } = await stagehand.observe(
+      `What is the single next action that makes progress toward: ${goal}`,
+    );
+    if (candidates.length === 0) {
+      return { success: false, message: "No action found on this page", steps: step };
+    }
+
+    // 3. Replaying an observed Action costs no inference
+    const result = await stagehand.act(candidates[0]);
+    if (!result.data.success) {
+      return { success: false, message: result.data.message, steps: step };
+    }
+  }
+
+  return { success: false, message: `Gave up after ${maxSteps} steps`, steps: maxSteps };
+}
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const stagehand = await Stagehand.create({ browser });
+
+try {
+  const page = await browser.context.activePage();
+  await page.goto("https://news.ycombinator.com");
+
+  const outcome = await runGoal(stagehand, "open the top story's comments");
+  console.log(outcome);
+} finally {
+  await stagehand.close();
+  await browser.close();
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+from typing import Literal
+
+from pydantic import BaseModel
+
+from stagehand import Stagehand, browserbase
+
+
+class GoalCheck(BaseModel):
+    status: Literal["done", "not_done"]
+    reason: str
+
+
+async def run_goal(stagehand: Stagehand, goal: str, max_steps: int = 20):
+    for step in range(max_steps):
+        # 1. extract() only reads, so asking on every pass is safe
+        check = (await stagehand.extract(
+            f"Has this goal been accomplished: {goal}? Answer done or not_done, and say why.",
+            GoalCheck,
+        )).data
+        if check.status == "done":
+            return {"success": True, "message": check.reason, "steps": step}
+
+        # 2. observe() proposes without touching the page
+        candidates = (await stagehand.observe(
+            f"What is the single next action that makes progress toward: {goal}"
+        )).data
+        if not candidates:
+            return {"success": False, "message": "No action found on this page", "steps": step}
+
+        # 3. Replaying an observed Action costs no inference
+        result = await stagehand.act(candidates[0])
+        if not result.data.success:
+            return {"success": False, "message": result.data.message, "steps": step}
+
+    return {"success": False, "message": f"Gave up after {max_steps} steps", "steps": max_steps}
+
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+stagehand = await Stagehand.create(browser=browser)
+
+try:
+    page = await browser.context.active_page()
+    await page.goto("https://news.ycombinator.com")
+
+    outcome = await run_goal(stagehand, "open the top story's comments")
+    print(outcome)
+finally:
+    await stagehand.close()
+    await browser.close()
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type goalCheck struct {
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+}
+
+var goalCheckSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "status": {"type": "string", "enum": ["done", "not_done"]},
+    "reason": {"type": "string"}
+  },
+  "required": ["status", "reason"],
+  "additionalProperties": false
+}`)
+
+type goalOutcome struct {
+	Success bool
+	Message string
+	Steps   int
+}
+
+func runGoal(
+	ctx context.Context,
+	client *stagehand.Stagehand,
+	goal string,
+	maxSteps int,
+) (goalOutcome, error) {
+	for step := 0; step < maxSteps; step++ {
+		// 1. Extract only reads, so asking on every pass is safe
+		check, err := stagehand.ExtractAs[goalCheck](
+			ctx,
+			client,
+			fmt.Sprintf("Has this goal been accomplished: %s? Answer done or not_done, and say why.", goal),
+			goalCheckSchema,
+			nil,
+		)
+		if err != nil {
+			return goalOutcome{}, err
+		}
+		if check.Data.Status == "done" {
+			return goalOutcome{Success: true, Message: check.Data.Reason, Steps: step}, nil
+		}
+
+		// 2. Observe proposes without touching the page
+		instruction := fmt.Sprintf("What is the single next action that makes progress toward: %s", goal)
+		observed, err := client.Observe(ctx, &instruction, nil)
+		if err != nil {
+			return goalOutcome{}, err
+		}
+		if len(observed.Data) == 0 {
+			return goalOutcome{Message: "No action found on this page", Steps: step}, nil
+		}
+
+		// 3. Replaying an observed Action costs no inference
+		result, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil)
+		if err != nil {
+			return goalOutcome{}, err
+		}
+		if !result.Data.Success {
+			return goalOutcome{Message: result.Data.Message, Steps: step}, nil
+		}
+	}
+
+	return goalOutcome{Message: fmt.Sprintf("Gave up after %d steps", maxSteps), Steps: maxSteps}, nil
+}
+```
+</View>
+
+<Tip>
+Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) shows the same idea applied to model escalation.
+</Tip>
+
+### Feature mapping
+
+| v3 `agent()` feature | v4 |
+| --- | --- |
+| `agent.execute(instruction)` | The loop above |
+| `maxSteps` | Your loop bound |
+| Stopping when the task is done | An `extract()` goal check each pass |
+| Step-by-step action selection | `observe()`, one action per pass |
+| `systemPrompt` | `systemPrompt` on `Stagehand.create()` |
+| Variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
+| Structured output | `extract()` with a schema |
+| MCP integrations | [MCP server](/v4/integrations/mcp/introduction) |
+| Custom tools | Page-declared tools via [WebMCP](/v4/basics/webmcp), or wire the primitives into a framework agent |
+| Computer Use mode, `highlightCursor` | No equivalent |
+| Streaming, callbacks, abort signal, message continuation | No equivalent. Your loop already sits between steps, so log, cancel, or persist there |
+
+<Note>
+If you want a framework to own the loop instead of writing it yourself, the [LangChain](/v4/integrations/langchain/introduction) and [CrewAI](/v4/integrations/crew-ai/introduction) integrations expose the primitives as agent tools.
+</Note>
+
+## Recommended migration order
+
+1. Get one script constructing and closing cleanly on v4, before changing any instructions.
+2. Replace page and context access, since it moved.
+3. Unwrap results: every primitive now returns `{ data, metadata }`.
+4. Replace `agent()` calls with the loop above.
+5. Turn on server-side caching once the flow is stable.
+
+## Breaking changes
+
+### Initialization
+
+The constructor is private and `init()` is gone. Get a browser from a factory, then hand it to `Stagehand.create()`:
+
+```diff
+- const stagehand = new Stagehand({ env: "BROWSERBASE" });
+- await stagehand.init();
++ const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
++ const stagehand = await Stagehand.create({ browser });
+```
+
+Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that is already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+
+### Pages and the browser context
+
+The context moved off the Stagehand instance and onto the browser handle, and page lookups are now async:
+
+```diff
+- const page = stagehand.context.pages()[0];
+- const page = stagehand.page;
++ const page = await browser.context.activePage();
++ const [page] = await browser.context.pages();
+```
+
+If you only hold the instance, reach the handle through it: `stagehand.browser.context`.
+
+### Every primitive returns data and metadata
+
+`act()`, `extract()`, and `observe()` return `{ data, metadata }`. Your value is on `data`; `metadata` carries the action ID, cache status, and token usage.
+
+```diff
+- const actions = await stagehand.observe("find the login button");
+- if (actions.length > 0) { /* ... */ }
++ const { data: actions } = await stagehand.observe("find the login button");
++ if (actions.length > 0) { /* ... */ }
+```
+
+### extract() takes positional arguments
+
+```diff
+- const result = await stagehand.extract({
+-   instruction: "extract the product name",
+-   schema: z.object({ name: z.string() }),
+- });
++ const { data } = await stagehand.extract(
++   "extract the product name",
++   z.object({ name: z.string() }),
++ );
+```
+
+Calling `extract()` with no schema returns `{ extraction: string }`.
+
+### Model configuration
+
+`modelName` and `modelClientOptions` collapse into one `model` object:
+
+```diff
+- const stagehand = new Stagehand({
+-   modelName: "openai/gpt-4.1-mini",
+-   modelClientOptions: { apiKey: process.env.OPENAI_API_KEY },
+- });
++ const stagehand = await Stagehand.create({
++   browser,
++   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
++ });
+```
+
+Model names always carry a provider prefix. Omit `model` entirely on a Browserbase browser and the Model Gateway picks one for you. Pass the same shape to a single call to override it there. See [models](/v4/configuration/models).
+
+### Caching
+
+`enableCaching` is gone. v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers instead, keyed on the instruction, page content, and options:
+
+```diff
+- const stagehand = new Stagehand({ enableCaching: true });
++ const stagehand = await Stagehand.create({ browser, cache: true });
+```
+
+Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
+
+### Logging
+
+`verbose` and `logger` become one `logging` object with a level, a format, and a callback:
+
+```diff
+- const stagehand = new Stagehand({ verbose: 1, logger: myLogger });
++ const stagehand = await Stagehand.create({
++   browser,
++   logging: { level: "info", format: "json", onLog: myLogger },
++ });
+```
+
+Levels are `debug`, `info`, `warn`, `error`, and `off`. See [logging](/v4/configuration/logging).
+
+### Metrics
+
+Metrics became a method:
+
+```diff
+- const metrics = await stagehand.metrics;
++ const metrics = await stagehand.metrics();
+```
+
+### The Browserbase session ID
+
+`stagehand.browserbaseSessionID` is gone. Create the session yourself when you need its ID, then attach:
+
+```diff
+- const stagehand = new Stagehand({ env: "BROWSERBASE" });
+- await stagehand.init();
+- console.log(stagehand.browserbaseSessionID);
++ const session = await bb.sessions.create({ projectId: process.env.BROWSERBASE_PROJECT_ID });
++ const browser = await browserbase.connect({
++   apiKey: process.env.BROWSERBASE_API_KEY,
++   sessionId: session.id,
++ });
++ console.log(session.id);
+```
+
+[Observability](/v4/configuration/observability) shows the full version, including reading session metrics back.
+
+## Quick reference
+
+| v3 | v4 |
+| --- | --- |
+| `new Stagehand({ env })` then `init()` | `browserbase.launch()` or `localBrowser.launch()`, then `Stagehand.create({ browser })` |
+| `stagehand.page` | `await browser.context.activePage()` |
+| `stagehand.context` | `browser.context` |
+| `stagehand.context.pages()` | `await browser.context.pages()` |
+| `stagehand.agent()` | Your own loop |
+| `await stagehand.observe(...)` returns an array | `.data` holds the array |
+| `extract({ instruction, schema })` | `extract(instruction, schema)` |
+| `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
+| `enableCaching` | `cache` |
+| `verbose`, `logger` | `logging: { level, format, onLog }` |
+| `await stagehand.metrics` | `await stagehand.metrics()` |
+| `stagehand.browserbaseSessionID` | Hold the ID from `sessions.create()` |
+
+## Troubleshooting
+
+**`Constructor of class 'Stagehand' is private`.** Use `await Stagehand.create({ browser })`.
+
+**`Property 'context' does not exist on type 'Stagehand'`.** The context lives on the browser handle: `browser.context`, or `stagehand.browser.context`.
+
+**`Property 'length' does not exist`** on an `observe()` result. Read `.data` first.
+
+**Your loop never stops.** The goal check is too permissive. Ask for a strict enum, as the example does, and keep the step cap.
+
+**A retried step repeats a side effect.** You are retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
+    Perform one action, or replay an observed one
+  </Card>
+  <Card title="Observe" icon="eye" href="/v4/basics/observe">
+    Plan actions without performing them
+  </Card>
+  <Card title="Prompting best practices" icon="comment" href="/v4/best-practices/prompting-best-practices">
+    Sequence multi-step work you own
+  </Card>
+  <Card title="Caching" icon="database" href="/v4/best-practices/caching">
+    Cut inference out of a stable flow
+  </Card>
+</CardGroup>
