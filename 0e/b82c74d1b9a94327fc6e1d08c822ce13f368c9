@@ -1,0 +1,11 @@
+packages/evals/tests/framework/claudeCodeToolAdapter.test.ts
+  ai_agent 54,58-63
+packages/evals/framework/claudeCodeToolAdapter.ts
+  ai_agent 15-26,29-30,52-56,111-112,175-188,193,196,203-208,212,223-225,295,361-380,382,386,388,390,393-394,396,400-406,412,425,428-440,442-443,445-448,452,456-458,464-466,477,479,482,484-485,503,505-506,512,538,540-541,548-550,552,559,561-562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0eb82c74d1b9a94327fc6e1d08c822ce13f368c9",
+  "prompts": {}
+}
