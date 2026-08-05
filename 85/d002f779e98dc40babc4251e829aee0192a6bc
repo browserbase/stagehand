@@ -1,0 +1,19 @@
+packages/evals/framework/claudeCodeToolAdapter.ts
+  s_d039eb5c1662ee::t_829a16c1ef1127 24-26,29-30,52-56,111-112,175-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "85d002f779e98dc40babc4251e829aee0192a6bc",
+  "prompts": {},
+  "sessions": {
+    "s_d039eb5c1662ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc8deda1-6798-4618-8fce-e331845d9ac5",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
