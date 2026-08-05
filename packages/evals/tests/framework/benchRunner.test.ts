@@ -76,11 +76,13 @@ describe("bench runner", () => {
       `,
     );
 
+    // A non-deterministic category: act/extract/observe route to the v4
+    // client, and legacy tasks with v3 session URLs only exist outside them.
     const task: DiscoveredTask = {
-      name: "act/session_url_task",
+      name: "combination/session_url_task",
       tier: "bench",
-      primaryCategory: "act",
-      categories: ["act"],
+      primaryCategory: "combination",
+      categories: ["combination"],
       tags: [],
       filePath: taskFile,
       isLegacy: true,
@@ -105,6 +107,50 @@ describe("bench runner", () => {
       _success: true,
       sessionUrl: "https://www.browserbase.com/sessions/session-123",
       debugUrl: "https://debug.browserbase.test/session-123",
+    });
+    expect(closeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves task error messages", async () => {
+    const taskDir = makeTempDir();
+    const taskFile = path.join(taskDir, "thrown_task.mjs");
+    fs.writeFileSync(
+      taskFile,
+      `
+      export const thrown_task = async () => {
+        throw new Error("diagnostic failure");
+      };
+      `,
+    );
+
+    const task: DiscoveredTask = {
+      name: "combination/thrown_task",
+      tier: "bench",
+      primaryCategory: "combination",
+      categories: ["combination"],
+      tags: [],
+      filePath: taskFile,
+      isLegacy: true,
+    };
+
+    const result = await executeBenchTask(
+      {
+        name: task.name,
+        modelName: "gpt-4o-mini" as AvailableModel,
+      },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "LOCAL",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result).toMatchObject({
+      _success: false,
+      error: "diagnostic failure",
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
   });

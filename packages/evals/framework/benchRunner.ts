@@ -70,7 +70,11 @@ export async function executeBenchTask(
       const ctx = {
         v3: harnessCtx.v3,
         agent: harnessCtx.agent,
-        page: harnessCtx.page,
+        // Deterministic (act/extract/observe) tasks run on the v4 SDK: they
+        // receive the v4 client and its RPC-backed page in place of the
+        // Playwright page the v3 harness provides.
+        stagehand: harnessCtx.stagehand,
+        page: harnessCtx.v4Page ?? harnessCtx.page,
         logger,
         input,
         modelName: input.modelName,
@@ -114,7 +118,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error: error instanceof Error ? JSON.parse(JSON.stringify(error, null, 2)) : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

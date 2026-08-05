@@ -1,9 +1,11 @@
 import {
   V3Evaluator,
+  loadApiKeyFromEnv,
   normalizeRubric,
   type AgentInstance,
   type AgentExecuteOptions,
   type AgentResult,
+  type AvailableModel,
   type EvaluationResult,
   type Rubric,
   type TaskSpec,
@@ -17,6 +19,35 @@ import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
 import { RubricCache } from "./rubricCache.js";
 import { TrajectoryRecorder } from "./trajectoryRecorder.js";
 import type { TaskResult } from "./types.js";
+
+const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
+const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
+
+/**
+ * Build the shared rubric verifier. By default V3Evaluator keeps its existing
+ * model selection; EVAL_VERIFIER_MODEL makes the verifier independently
+ * selectable for external harnesses and normal Stagehand runs alike.
+ */
+export function createVerifierEvaluator(v3: V3): V3Evaluator {
+  const modelName = process.env[VERIFIER_MODEL_ENV]?.trim();
+  if (!modelName) {
+    return new V3Evaluator(v3, { backend: "verifier" });
+  }
+
+  const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
+  const apiKey = loadApiKeyFromEnv(provider, () => {});
+  if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
+    throw new Error(
+      `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
+    );
+  }
+
+  return new V3Evaluator(v3, {
+    backend: "verifier",
+    modelName: modelName as AvailableModel,
+    ...(apiKey ? { modelClientOptions: { apiKey } } : {}),
+  });
+}
 
 export interface RunWithVerifierOptions {
   v3: V3;
@@ -219,7 +250,7 @@ export async function gradeExternalTrajectory({
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
   try {
     const trajectory = buildTrajectory();
-    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
+    const evaluator = createVerifierEvaluator(verifier.v3);
 
     // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
     const { rubric } = await resolveRubricTraced(evaluator, {
@@ -305,7 +336,7 @@ export async function runWithVerifier(
   opts: RunWithVerifierOptions,
 ): Promise<RunWithVerifierResult> {
   const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } = opts;
-  const evaluator = new V3Evaluator(v3, { backend: "verifier" });
+  const evaluator = createVerifierEvaluator(v3);
 
   // ── Resolve rubric ──────────────────────────────────────────────────────
   const { rubric: resolvedRubric } = await resolveRubricTraced(evaluator, {

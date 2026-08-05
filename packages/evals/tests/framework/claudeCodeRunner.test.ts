@@ -70,6 +70,18 @@ describe("claude code runner helpers", () => {
     });
   });
 
+  it("parses result JSON wrapped in Markdown emphasis", () => {
+    expect(
+      parseClaudeCodeResult(
+        '**EVAL_RESULT: {"success":true,"summary":"found {the result}","finalAnswer":"done"}**',
+      ),
+    ).toMatchObject({
+      success: true,
+      summary: "found {the result}",
+      finalAnswer: "done",
+    });
+  });
+
   it("identifies max-turn SDK errors", () => {
     expect(isClaudeCodeMaxTurnsError(new Error("Reached maximum number of turns (20)"))).toBe(true);
     expect(isClaudeCodeMaxTurnsError("network failed")).toBe(false);

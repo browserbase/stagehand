@@ -15,6 +15,7 @@ import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
+import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -48,6 +49,10 @@ export interface BenchHarnessContext {
   v3?: V3;
   agent?: AgentInstance;
   page?: Page;
+  /** Stagehand v4 client (set for act/extract/observe tasks). */
+  stagehand?: StagehandInitResult["stagehand"];
+  /** v4 page object (set for act/extract/observe tasks). */
+  v4Page?: StagehandInitResult["page"];
   debugUrl: string;
   sessionUrl: string;
 }
@@ -143,6 +148,58 @@ export const stagehandHarness: BenchHarness = {
     const config = row.config;
     const agentMode = config.agentMode ?? input.agentMode;
     const isCUA = config.isCUA ?? input.isCUA;
+
+    // The deterministic suite (act/extract/observe, ported to the v4 SDK in
+    // place) runs on a v4 client. Dispatch is by category — the directory a
+    // task lives in — so tasks carry no marker and the runner stays v4-only.
+    const isDeterministicTask = ["act", "extract", "observe"].includes(task.primaryCategory);
+
+    if (isDeterministicTask) {
+      // The v4 SDK has no agent surface, and agent tasks are deliberately not
+      // ported. Fail loudly rather than silently fall back to v3 behavior.
+      if (createAgent || agentMode || isCUA) {
+        throw new EvalsError("The v4 SDK does not support agent tasks or agent modes.");
+      }
+      if (config.useApi) {
+        throw new EvalsError("--api is not supported with the v4 SDK.");
+      }
+      const { initStagehand } = await import("../initStagehand.js");
+      const v4Result = await initStagehand({
+        logger,
+        modelName: input.modelName,
+        environment: config.environment,
+      });
+      return {
+        ctx: {
+          harness: "stagehand",
+          row,
+          logger,
+          stagehand: v4Result.stagehand,
+          v4Page: v4Result.page,
+          debugUrl: "",
+          // Neither is reachable from the v4 client: StagehandBrowser is an
+          // opaque handle with no browserbaseSessionId (#2517).
+          sessionUrl: "",
+        },
+        cleanup: async () => {
+          try {
+            await v4Result.stagehand.close();
+          } catch (closeError) {
+            console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
+          }
+          // `stagehand.close()` tears down the RPC client and context but leaves
+          // the browser it was handed running. initStagehand launched that
+          // browser, so this harness owns closing it — without this every task
+          // leaks a Chrome process (LOCAL) or a live Browserbase session, and
+          // the run never exits once the suite finishes.
+          try {
+            await v4Result.stagehand.browser.close();
+          } catch (closeError) {
+            console.error(`Warning: Error closing v4 browser for ${input.name}:`, closeError);
+          }
+        },
+      };
+    }
 
     if (config.useApi) {
       const provider = resolveProvider(input.modelName);
