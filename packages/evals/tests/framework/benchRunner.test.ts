@@ -110,4 +110,48 @@ describe("bench runner", () => {
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
   });
+
+  it("preserves task error messages", async () => {
+    const taskDir = makeTempDir();
+    const taskFile = path.join(taskDir, "thrown_task.mjs");
+    fs.writeFileSync(
+      taskFile,
+      `
+      export const thrown_task = async () => {
+        throw new Error("diagnostic failure");
+      };
+      `,
+    );
+
+    const task: DiscoveredTask = {
+      name: "combination/thrown_task",
+      tier: "bench",
+      primaryCategory: "combination",
+      categories: ["combination"],
+      tags: [],
+      filePath: taskFile,
+      isLegacy: true,
+    };
+
+    const result = await executeBenchTask(
+      {
+        name: task.name,
+        modelName: "gpt-4o-mini" as AvailableModel,
+      },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "LOCAL",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result).toMatchObject({
+      _success: false,
+      error: "diagnostic failure",
+    });
+    expect(closeMock).toHaveBeenCalledTimes(1);
+  });
 });
