@@ -40,7 +40,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(browser=browser, model=generate_with_openai)
         try:
-            page = await stagehand.context.active_page()
+            page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")

@@ -25,7 +25,7 @@ describe("context.setExtraHTTPHeaders", () => {
   });
 
   it("applies headers to navigation requests", async () => {
-    await stagehand.context.setExtraHTTPHeaders({ "x-stagehand-test": "yes" });
+    await stagehand.browser.context.setExtraHTTPHeaders({ "x-stagehand-test": "yes" });
     const page = await firstPage(stagehand);
     await page.goto(fixture.url);
 

@@ -50,14 +50,14 @@ describe("context.setDomainPolicy", () => {
 
   it("blocks matching requests on existing pages", async () => {
     const page = await firstPage(stagehand);
-    await stagehand.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
 
     await expect(imageLoads(page, allowedUrl)).resolves.toBe(false);
   });
 
   it("applies to pages created after setting the policy", async () => {
-    await stagehand.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
-    const page = await stagehand.context.newPage();
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
+    const page = await stagehand.browser.context.newPage();
 
     await expect(imageLoads(page, allowedUrl)).resolves.toBe(false);
   });
@@ -68,18 +68,18 @@ describe("context.setDomainPolicy", () => {
     // so the later chrome-error can only be attributed to domain policy.
     const initialResponse = await page.goto(alternateHostUrl);
     expect(initialResponse?.ok()).toBe(true);
-    await stagehand.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
+    await stagehand.browser.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
 
     const allowedResponse = await page.goto(allowedUrl);
     expect(allowedResponse?.ok()).toBe(true);
-    const blockedPage = await stagehand.context.newPage();
+    const blockedPage = await stagehand.browser.context.newPage();
     await blockedPage.goto(alternateHostUrl);
     await expect(blockedPage.url()).resolves.toMatch(/^chrome-error:/);
   });
 
   it("blocked domains take precedence over allowed domains", async () => {
     const page = await firstPage(stagehand);
-    await stagehand.context.setDomainPolicy({
+    await stagehand.browser.context.setDomainPolicy({
       allowedDomains: ["127.0.0.1"],
       blockedDomains: ["127.0.0.1"],
     });
@@ -88,8 +88,8 @@ describe("context.setDomainPolicy", () => {
   });
 
   it("allowed domains apply to pages created afterward", async () => {
-    await stagehand.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
-    const page = await stagehand.context.newPage();
+    await stagehand.browser.context.setDomainPolicy({ allowedDomains: ["127.0.0.1"] });
+    const page = await stagehand.browser.context.newPage();
 
     const response = await page.goto(allowedUrl);
     expect(response?.ok()).toBe(true);
@@ -98,12 +98,12 @@ describe("context.setDomainPolicy", () => {
   it("does not retain a popup targeting a blocked domain", async () => {
     const page = await firstPage(stagehand);
     const popupUrl = new URL("/popup", fixture.url).href;
-    await stagehand.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
+    await stagehand.browser.context.setDomainPolicy({ blockedDomains: ["127.0.0.1"] });
     await page.goto(
       `data:text/html,${encodeURIComponent(`<button id="open" onclick="window.__blockedPopup = window.open('${popupUrl}')">open</button>`)}`,
     );
     const knownPageIds = new Set(
-      (await stagehand.context.pages()).map((candidate) => candidate.pageId),
+      (await stagehand.browser.context.pages()).map((candidate) => candidate.pageId),
     );
     await page.locator("#open").click();
 
@@ -121,7 +121,7 @@ describe("context.setDomainPolicy", () => {
     await expect
       .poll(
         async () =>
-          (await stagehand.context.pages()).every((candidate) =>
+          (await stagehand.browser.context.pages()).every((candidate) =>
             knownPageIds.has(candidate.pageId),
           ),
         { timeout: 5_000, interval: 50 },

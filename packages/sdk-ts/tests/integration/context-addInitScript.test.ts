@@ -76,7 +76,7 @@ describe("context.addInitScript", () => {
   beforeEach(async () => {
     fixture = await startFixtureServer("<!doctype html><body>fixture</body>");
     stagehand = await createStagehand();
-    ctx = stagehand.context;
+    ctx = stagehand.browser.context;
   });
 
   afterEach(async () => {

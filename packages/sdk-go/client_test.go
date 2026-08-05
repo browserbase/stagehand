@@ -106,7 +106,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
 		t.Fatalf("Context() error = %v", err)
 	}

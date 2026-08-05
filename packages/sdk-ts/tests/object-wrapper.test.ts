@@ -108,7 +108,7 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
 
     expect(stagehand.initialized).toBe(true);
-    expect(stagehand.context).toBeInstanceOf(BrowserContext);
+    expect(stagehand.browser.context).toBeInstanceOf(BrowserContext);
     expect(client.calls).toStrictEqual([]);
   });
 
@@ -131,7 +131,7 @@ describe("Stagehand TS object wrapper", () => {
     ]);
     const stagehand = createStagehandWithClientForTest(client);
 
-    const pages = await stagehand.context.pages();
+    const pages = await stagehand.browser.context.pages();
 
     expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextPages, {})]);
     expect(pages).toHaveLength(2);
@@ -153,7 +153,7 @@ describe("Stagehand TS object wrapper", () => {
     });
     const stagehand = createStagehandWithClientForTest(client);
 
-    const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
+    const page = await stagehand.browser.context.newPage({ url: "https://browserbase.com" });
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
@@ -175,8 +175,8 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextActivePage, null);
     const stagehand = createStagehandWithClientForTest(client);
 
-    const activePage = await stagehand.context.activePage();
-    const missingActivePage = await stagehand.context.activePage();
+    const activePage = await stagehand.browser.context.activePage();
+    const missingActivePage = await stagehand.browser.context.activePage();
 
     expect(activePage).toBeInstanceOf(Page);
     expect(activePage?.ref).toStrictEqual({
@@ -197,8 +197,8 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
-    await stagehand.context.setActivePage(page);
-    await stagehand.context.close();
+    await stagehand.browser.context.setActivePage(page);
+    await stagehand.browser.context.close();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
@@ -215,8 +215,8 @@ describe("Stagehand TS object wrapper", () => {
       globalThis.document.title = String(arg.ready);
     };
 
-    await stagehand.context.addInitScript({ content: "globalThis.fromContent = true" });
-    await stagehand.context.addInitScript(script, { ready: true });
+    await stagehand.browser.context.addInitScript({ content: "globalThis.fromContent = true" });
+    await stagehand.browser.context.addInitScript(script, { ready: true });
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextAddInitScript, {
@@ -240,17 +240,17 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
 
-    await stagehand.context.setExtraHTTPHeaders({
+    await stagehand.browser.context.setExtraHTTPHeaders({
       "X-Request-ID": "request-1",
       doNotRenameMe: "value",
     });
-    await expect(stagehand.context.getDomainPolicy()).resolves.toStrictEqual({
+    await expect(stagehand.browser.context.getDomainPolicy()).resolves.toStrictEqual({
       allowedDomains: ["example.com"],
       blockedDomains: ["blocked.example.com"],
     });
-    await expect(stagehand.context.getDomainPolicy()).resolves.toBeNull();
-    await stagehand.context.setDomainPolicy({ allowedDomains: ["example.test"] });
-    await stagehand.context.setDomainPolicy(null);
+    await expect(stagehand.browser.context.getDomainPolicy()).resolves.toBeNull();
+    await stagehand.browser.context.setDomainPolicy({ allowedDomains: ["example.test"] });
+    await stagehand.browser.context.setDomainPolicy(null);
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetExtraHTTPHeaders, {
@@ -291,17 +291,17 @@ describe("Stagehand TS object wrapper", () => {
       sameSite: "Lax" as const,
     };
 
-    await expect(stagehand.context.cookies("https://example.test/account")).resolves.toStrictEqual([
-      cookie,
-    ]);
-    await expect(stagehand.context.cookies()).resolves.toStrictEqual([]);
-    await stagehand.context.addCookies([cookieParam]);
-    await stagehand.context.clearCookies({
+    await expect(
+      stagehand.browser.context.cookies("https://example.test/account"),
+    ).resolves.toStrictEqual([cookie]);
+    await expect(stagehand.browser.context.cookies()).resolves.toStrictEqual([]);
+    await stagehand.browser.context.addCookies([cookieParam]);
+    await stagehand.browser.context.clearCookies({
       name: /^session-/gi,
       domain: "example.test",
       path: /^\/account/,
     });
-    await stagehand.context.clearCookies();
+    await stagehand.browser.context.clearCookies();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextCookies, {
@@ -331,9 +331,9 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
-    const clipboard = stagehand.context.clipboard;
+    const clipboard = stagehand.browser.context.clipboard;
     expect(clipboard).toBeInstanceOf(BrowserClipboard);
-    expect(stagehand.context.clipboard).toBe(clipboard);
+    expect(stagehand.browser.context.clipboard).toBe(clipboard);
     expect(client.calls).toStrictEqual([]);
 
     await expect(clipboard.readText({ page })).resolves.toBe("clipboard text");

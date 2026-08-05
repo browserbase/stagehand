@@ -98,19 +98,19 @@ The main class can be imported as `Stagehand` from `@browserbasehq/stagehand`.
 **Key Classes:**
 
 - `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
-- `stagehand.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
-- `page`: Individual page objects accessed via `stagehand.context.activePage()`, `stagehand.context.pages()`, or created with `stagehand.context.newPage()`
+- `browser.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
+- `page`: Individual page objects accessed via `browser.context.activePage()`, `browser.context.pages()`, or created with `browser.context.newPage()`
 
 There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
 
 ## Initialize
 
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
-  // Browser source: "browserbase" (default), "local", or "cdp"
-  browser: { type: "local", headless: true },
+const browser = await localBrowser.launch({ headless: true });
+const stagehand = await Stagehand.create({
+  browser,
   model: {
     modelName: "openai/gpt-5.4-mini",
     apiKey: process.env.OPENAI_API_KEY,
@@ -118,22 +118,22 @@ const stagehand = new Stagehand({
   logging: { level: "info", format: "pretty" },
 });
 
-await stagehand.init();
-
 // Access the browser context and pages
-const page = await stagehand.context.activePage();
-const context = stagehand.context;
+const [page] = await browser.context.pages();
+const context = browser.context;
 
 // Create new pages if needed
-const page2 = await stagehand.context.newPage();
+const page2 = await browser.context.newPage();
 ```
 
 For Browserbase cloud browsers, pass a Browserbase API key at the top level:
 
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
 });
 ```
@@ -318,10 +318,10 @@ const count = await page.locator("li.result").count();
 ### Multi-Page Workflows
 
 ```typescript
-const page1 = await stagehand.context.newPage();
+const page1 = await browser.context.newPage();
 await page1.goto("https://example.com");
 
-const page2 = await stagehand.context.newPage();
+const page2 = await browser.context.newPage();
 await page2.goto("https://example2.com");
 
 // Act/extract/observe operate on the current active page by default
@@ -335,31 +335,37 @@ await stagehand.extract("get title", z.object({ title: z.string() }), { page: pa
 Server-side caching requires a Browserbase browser source and a Browserbase API key:
 
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: true, // or { threshold: 1 }
 });
 ```
 
 ## Cleanup
 
-Always close Stagehand in a `finally` block:
+Close Stagehand before closing its browser:
 
 ```typescript
 try {
-  await stagehand.init();
-  // ...
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    // ...
+  } finally {
+    await stagehand.close();
+  }
 } finally {
-  await stagehand.close();
+  await browser.close();
 }
 ```
 
 ## Project Structure Best Practices
 
 - Read configuration from environment variables and pass it explicitly to the `Stagehand` constructor
-- Construct and initialize `Stagehand` in one place, then pass the instance into your automation functions
-- Use `async`/`await` consistently; `init`, `act`, `extract`, `observe`, and `close` all return promises
+- Create the browser first, pass it to `Stagehand.create()`, then pass the instance into your automation functions
+- Use `async`/`await` consistently; `create`, `act`, `extract`, `observe`, and `close` all return promises
 - Keep Zod schemas next to the code that consumes them and reuse `z.infer` for the decoded type
 - Wrap every workflow in `try`/`finally` so `close` runs even when a step throws
 - Prefer narrow, atomic instructions over one instruction that describes a whole workflow
@@ -394,8 +400,8 @@ The main class can be imported as `Stagehand` from `stagehand`.
 **Key Classes:**
 
 - `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
-- `stagehand.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
-- `page`: Individual page objects accessed via `stagehand.context.active_page()`, `stagehand.context.pages()`, or created with `stagehand.context.new_page()`
+- `browser.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
+- `page`: Individual page objects accessed via `browser.context.active_page()`, `browser.context.pages()`, or created with `browser.context.new_page()`
 
 There is no `agent` API in v4. Compose `observe`, `act`, and `extract` in your own control flow instead.
 
@@ -407,34 +413,31 @@ All Stagehand methods are async. `act`, `observe`, and `extract` take `instructi
 ```python
 import os
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase, local_browser
 
-stagehand = Stagehand(
-    # Browser source: "browserbase" (default), "local", or "cdp"
-    browser="local",
-    headless=True,
+browser = await local_browser.launch(headless=True)
+stagehand = await Stagehand.create(
+    browser=browser,
     model="openai/gpt-5.4-mini",
     model_api_key=os.environ["OPENAI_API_KEY"],
     logging={"level": "info", "format": "pretty"},
 )
 
-await stagehand.init()
-
 # Access the browser context and pages
-page = await stagehand.context.active_page()
-context = stagehand.context
+page = (await browser.context.pages())[0]
+context = browser.context
 
 # Create new pages if needed
-page2 = await stagehand.context.new_page()
+page2 = await browser.context.new_page()
 ```
 
 For Browserbase cloud browsers, pass a Browserbase API key:
 
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
+stagehand = await Stagehand.create(browser=browser)
 ```
 
 With no model configured, Browserbase Model Gateway selects one automatically for each inference call.
@@ -638,10 +641,10 @@ count = await page.locator("li.result").count()
 ### Multi-Page Workflows
 
 ```python
-page1 = await stagehand.context.new_page()
+page1 = await browser.context.new_page()
 await page1.goto("https://example.com")
 
-page2 = await stagehand.context.new_page()
+page2 = await browser.context.new_page()
 await page2.goto("https://example2.com")
 
 # Act/extract/observe operate on the current active page by default
@@ -655,20 +658,29 @@ await stagehand.extract("get title", Title, page=page2)
 Server-side caching requires a Browserbase browser source and a Browserbase API key:
 
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,  # or CacheOptions(threshold=1)
 )
 ```
 
 ## Cleanup
 
-Use the async context manager, or always close in a `finally` block:
+Close Stagehand before closing its browser:
 
 ```python
-async with Stagehand(browser="local", headless=True) as stagehand:
-    ...
+browser = await local_browser.launch(headless=True)
+try:
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        ...
+    finally:
+        await stagehand.close()
+finally:
+    await browser.close()
 ```
 
 ## Project Structure Best Practices
@@ -709,8 +721,8 @@ Import the package as `stagehand "github.com/browserbase/stagehand/packages/sdk-
 
 **Key Types:**
 
-- `*stagehand.Stagehand`: Main client, constructed with `stagehand.New`, providing `Act`, `Extract`, and `Observe`
-- `*stagehand.BrowserContext`: Returned by `client.Context()`, manages pages, cookies, and the clipboard
+- `*stagehand.Stagehand`: Main client, constructed with `stagehand.Create`, providing `Act`, `Extract`, and `Observe`
+- `*stagehand.BrowserContext`: Returned by `browser.Context()`, manages pages, cookies, and the clipboard
 - `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, params)`
 
 There is no agent API in v4. Compose `Observe`, `Act`, and `Extract` in your own control flow instead.
@@ -721,34 +733,35 @@ Every method takes a `context.Context` as its first argument and returns an `err
 
 ```go
 apiKey := os.Getenv("OPENAI_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "openai/gpt-5.4-mini",
 	APIKey:    &apiKey,
-})
+}
 
-// Browser source: BrowserbaseClientBrowserSource (default), LocalBrowserSource, or CDPBrowserSource
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{Headless: true},
-	Model:   &model,
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 // Access the browser context and pages
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
+page := pages[0]
 
 // Create new pages if needed
 page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
@@ -764,12 +777,14 @@ For Browserbase cloud browsers, pass a Browserbase API key at the top level:
 
 ```go
 browserbaseAPIKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &browserbaseAPIKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: browserbaseAPIKey,
 })
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+if err != nil {
 	return err
 }
 ```
@@ -1102,12 +1117,17 @@ Server-side caching requires a Browserbase browser source and a Browserbase API 
 
 ```go
 cache := stagehand.CacheEnabled(true) // or stagehand.CacheWithThreshold(1)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &browserbaseAPIKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: browserbaseAPIKey,
+})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &cache,
 })
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 ```
@@ -1118,10 +1138,13 @@ Always close the client. The idiomatic pattern is a named error return plus a de
 
 ```go
 func run(ctx context.Context) (err error) {
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		Browser: stagehand.LocalBrowserSource{Headless: true},
-	})
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()

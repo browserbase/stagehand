@@ -179,7 +179,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
 
     await page.goto(activeFixtureServer.url);
     await page.locator("#locator-input").fill("user@example.com");
@@ -207,7 +208,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("navigates and runs scripts through the page wrapper", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.context.newPage();
+    const page = await activeStagehand.browser.context.newPage();
     const secondUrl = new URL("/second", activeFixtureServer.url).href;
 
     await page.addInitScript({
@@ -244,7 +245,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("uses page-level interactions and waits", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
 
     await page.waitForLoadState("load");
     await expect(
@@ -268,7 +269,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("applies page configuration and captures browser state", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.context.newPage();
+    const page = await activeStagehand.browser.context.newPage();
     const headersUrl = new URL("/headers", activeFixtureServer.url).href;
 
     await page.setExtraHTTPHeaders({ "X-Stagehand-Smoke": "header-value" });
@@ -295,7 +296,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
     await page.goto(activeFixtureServer.url);
     extractionScreenshots.length = 0;
     rawOperationUsages.length = 0;
@@ -347,7 +349,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
     await page.goto(activeFixtureServer.url);
     rawOperationUsages.length = 0;
 
@@ -379,7 +382,9 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     try {
       for (const marker of ["one", "two", "three", "four"]) {
-        const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+        const page = await activeStagehand.browser.context.newPage({
+          url: activeFixtureServer.url,
+        });
         createdPages.push(page);
         await page.evaluate((value: string) => {
           (
@@ -388,7 +393,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
             }
           ).__stagehandActivePageMarker = value;
         }, marker);
-        await waitForActivePageId(activeStagehand.context, page.pageId);
+        await waitForActivePageId(activeStagehand.browser.context, page.pageId);
       }
 
       expect(new Set(createdPages.map((page) => page.pageId)).size).toBe(4);
@@ -406,11 +411,11 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         createdPages[1]!,
       ];
       for (const page of selectionOrder) {
-        await activeStagehand.context.setActivePage(page);
+        await activeStagehand.browser.context.setActivePage(page);
       }
 
       const selectedPage = await waitForActivePageId(
-        activeStagehand.context,
+        activeStagehand.browser.context,
         createdPages[1]!.pageId,
       );
       await expect(selectedPage.evaluate("globalThis.__stagehandActivePageMarker")).resolves.toBe(
@@ -418,18 +423,18 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       );
 
       await createdPages[0]!.close();
-      await waitForPageRemoval(activeStagehand.context, createdPages[0]!.pageId);
-      await waitForActivePageId(activeStagehand.context, createdPages[1]!.pageId);
+      await waitForPageRemoval(activeStagehand.browser.context, createdPages[0]!.pageId);
+      await waitForActivePageId(activeStagehand.browser.context, createdPages[1]!.pageId);
 
       const closedActivePageId = createdPages[1]!.pageId;
       await createdPages[1]!.close();
-      await waitForPageRemoval(activeStagehand.context, closedActivePageId);
+      await waitForPageRemoval(activeStagehand.browser.context, closedActivePageId);
       const replacement = await waitForActivePageOtherThan(
-        activeStagehand.context,
+        activeStagehand.browser.context,
         closedActivePageId,
       );
       const livePageIds = new Set(
-        (await activeStagehand.context.pages()).map((page) => page.pageId),
+        (await activeStagehand.browser.context.pages()).map((page) => page.pageId),
       );
       expect(livePageIds.has(replacement.pageId)).toBe(true);
     } finally {
@@ -443,17 +448,19 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const createdPages: Page[] = [];
 
     try {
-      const opener = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+      const opener = await activeStagehand.browser.context.newPage({
+        url: activeFixtureServer.url,
+      });
       createdPages.push(opener);
-      await activeStagehand.context.setActivePage(opener);
-      await waitForActivePageId(activeStagehand.context, opener.pageId);
+      await activeStagehand.browser.context.setActivePage(opener);
+      await waitForActivePageId(activeStagehand.browser.context, opener.pageId);
 
       const pageIdsBeforePopup = new Set(
-        (await activeStagehand.context.pages()).map((page) => page.pageId),
+        (await activeStagehand.browser.context.pages()).map((page) => page.pageId),
       );
       await opener.locator("#popup-button").click();
 
-      const popup = await activeStagehand.context.activePage();
+      const popup = await activeStagehand.browser.context.activePage();
       if (!popup) {
         throw new Error("Stagehand did not resolve the active popup");
       }
@@ -466,15 +473,18 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       await expect(popup.title()).resolves.toBe("Stagehand SDK Smoke");
 
       await popup.close();
-      await waitForPageRemoval(activeStagehand.context, popup.pageId);
-      const replacement = await waitForActivePageOtherThan(activeStagehand.context, popup.pageId);
+      await waitForPageRemoval(activeStagehand.browser.context, popup.pageId);
+      const replacement = await waitForActivePageOtherThan(
+        activeStagehand.browser.context,
+        popup.pageId,
+      );
       const livePageIds = new Set(
-        (await activeStagehand.context.pages()).map((page) => page.pageId),
+        (await activeStagehand.browser.context.pages()).map((page) => page.pageId),
       );
       expect(livePageIds.has(replacement.pageId)).toBe(true);
 
-      await activeStagehand.context.setActivePage(opener);
-      await waitForActivePageId(activeStagehand.context, opener.pageId);
+      await activeStagehand.browser.context.setActivePage(opener);
+      await waitForActivePageId(activeStagehand.browser.context, opener.pageId);
     } finally {
       await closePages(createdPages);
     }
@@ -485,13 +495,13 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const headersUrl = new URL("/headers", activeFixtureServer.url).href;
 
-    await activeStagehand.context.addInitScript({
+    await activeStagehand.browser.context.addInitScript({
       content: "globalThis.__stagehandContextSmokeInit = 'context-ready';",
     });
-    await activeStagehand.context.setExtraHTTPHeaders({
+    await activeStagehand.browser.context.setExtraHTTPHeaders({
       "X-Stagehand-Context-Smoke": "context-header-value",
     });
-    const page = await activeStagehand.context.newPage();
+    const page = await activeStagehand.browser.context.newPage();
     await page.goto(headersUrl, { waitUntil: "load" });
 
     await expect(page.evaluate("globalThis.__stagehandContextSmokeInit")).resolves.toBe(
@@ -509,7 +519,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const removeCookieName = "stagehand-context-remove";
     const cookieNames = [keepCookieName, removeCookieName];
 
-    await activeStagehand.context.addCookies([
+    await activeStagehand.browser.context.addCookies([
       {
         name: keepCookieName,
         value: "keep",
@@ -524,7 +534,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
       },
     ]);
 
-    const addedCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    const addedCookies = await activeStagehand.browser.context.cookies(activeFixtureServer.url);
     expect(
       addedCookies
         .filter((cookie) => cookieNames.includes(cookie.name))
@@ -532,34 +542,37 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
         .sort(),
     ).toStrictEqual([...cookieNames].sort());
 
-    await activeStagehand.context.clearCookies({ name: /-remove$/ });
-    const filteredCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    await activeStagehand.browser.context.clearCookies({ name: /-remove$/ });
+    const filteredCookies = await activeStagehand.browser.context.cookies(activeFixtureServer.url);
     expect(filteredCookies.find((cookie) => cookie.name === keepCookieName)?.value).toBe("keep");
     expect(filteredCookies.some((cookie) => cookie.name === removeCookieName)).toBe(false);
 
-    await activeStagehand.context.clearCookies({ name: /^stagehand-context-/ });
-    const clearedCookies = await activeStagehand.context.cookies(activeFixtureServer.url);
+    await activeStagehand.browser.context.clearCookies({ name: /^stagehand-context-/ });
+    const clearedCookies = await activeStagehand.browser.context.cookies(activeFixtureServer.url);
     expect(clearedCookies.some((cookie) => cookieNames.includes(cookie.name))).toBe(false);
   });
 
   it("reads, writes, and clears clipboard text against an explicit page", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
 
-    await activeStagehand.context.clipboard.writeText("stagehand clipboard smoke", { page });
-    await expect(activeStagehand.context.clipboard.readText({ page })).resolves.toBe(
+    await activeStagehand.browser.context.clipboard.writeText("stagehand clipboard smoke", {
+      page,
+    });
+    await expect(activeStagehand.browser.context.clipboard.readText({ page })).resolves.toBe(
       "stagehand clipboard smoke",
     );
-    await activeStagehand.context.clipboard.clear({ page });
-    await expect(activeStagehand.context.clipboard.readText({ page })).resolves.toBe("");
+    await activeStagehand.browser.context.clipboard.clear({ page });
+    await expect(activeStagehand.browser.context.clipboard.readText({ page })).resolves.toBe("");
   });
 
   it("acts on a real page through the connected SDK", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
     await page.goto(activeFixtureServer.url);
     rawOperationUsages.length = 0;
 
@@ -606,7 +619,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
     await page.goto(activeFixtureServer.url);
     rawOperationUsages.length = 0;
 
@@ -638,7 +652,8 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
     const page =
-      (await activeStagehand.context.pages())[0] ?? (await activeStagehand.context.newPage());
+      (await activeStagehand.browser.context.pages())[0] ??
+      (await activeStagehand.browser.context.newPage());
     await page.goto(activeFixtureServer.url);
     rawMetricsSnapshots.length = 0;
 

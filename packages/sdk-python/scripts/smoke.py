@@ -53,7 +53,7 @@ async def main() -> None:
         try:
             stagehand = await Stagehand.create(browser=browser)
             try:
-                page = await stagehand.context.new_page()
+                page = await browser.context.new_page()
                 response = await page.goto(fixture_url)
                 if response is None:
                     raise RuntimeError("HTTP navigation did not return a response")
