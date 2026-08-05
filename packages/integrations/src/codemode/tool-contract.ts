@@ -14,11 +14,40 @@ export const CODE_EXECUTE_DESCRIPTION = [
 export const codeExecuteSchema = z.object({
   code: z
     .string()
-    .min(1)
-    .max(100_000)
+    .refine((code) => code.trim().length > 0, "code must contain JavaScript source")
+    .refine(
+      (code) => new TextEncoder().encode(code).byteLength <= 100_000,
+      "code must be at most 100000 UTF-8 bytes",
+    )
     .describe(
       "Async JavaScript function body. page, context, stagehand, z, and console are in scope.",
     ),
+});
+
+export const codeExecuteOutputSchema = z.object({
+  ok: z.boolean(),
+  page: z
+    .object({
+      url: z.string(),
+      title: z.string(),
+    })
+    .optional(),
+  value: z.unknown().optional(),
+  logs: z
+    .array(
+      z.object({
+        level: z.enum(["log", "warn", "error"]),
+        text: z.string(),
+      }),
+    )
+    .optional(),
+  error: z
+    .object({
+      kind: z.enum(["validation", "runtime", "aborted", "closed"]),
+      name: z.string(),
+      message: z.string(),
+    })
+    .optional(),
 });
 
 export function codeExecuteResultText(result: CodeExecuteResult): string {

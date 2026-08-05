@@ -21,6 +21,12 @@ export type StagehandCodeExecutorOptions = StagehandCodeConfig;
 const MAX_CODE_BYTES = 100_000;
 const MAX_LOG_BYTES = 64 * 1024;
 const MAX_RESULT_BYTES = 256 * 1024;
+const MAX_ERROR_MESSAGE_LENGTH = 4_000;
+const SECRET_FIELD = /(?:api.?key|authorization|cookie|password|secret|token)/i;
+const URL = /\b(?:https?|wss?):\/\/[^\s"'<>]+/gi;
+const CREDENTIAL =
+  /\b(authorization|api[_-]?key|password|secret|token)\s*[:=]\s*(?:bearer\s+)?[^\s,;]+/gi;
+const BEARER_TOKEN = /\bbearer\s+[^\s,;]+/gi;
 
 export class StagehandCodeExecutor {
   private stagehand?: Stagehand;
@@ -28,8 +34,11 @@ export class StagehandCodeExecutor {
   private queue = Promise.resolve();
   private closed = false;
   private closePromise?: Promise<void>;
+  private readonly sensitiveValues: string[];
 
-  constructor(private readonly options: StagehandCodeExecutorOptions) {}
+  constructor(private readonly options: StagehandCodeExecutorOptions) {
+    this.sensitiveValues = collectSensitiveValues(options);
+  }
 
   execute(input: CodeExecuteInput, signal?: AbortSignal): Promise<CodeExecuteResult> {
     const validation = validate(input);
@@ -109,7 +118,7 @@ export class StagehandCodeExecutor {
         ...(logs.length === 0 ? {} : { logs }),
       };
     } catch (error) {
-      const normalized = error instanceof Error ? error : new Error(String(error));
+      const normalized = normalizeError(error, this.sensitiveValues);
       const currentPage = (await this.activePage().catch(() => undefined)) ?? page;
       return failure("runtime", normalized.message, normalized.name, {
         ...(currentPage ? { page: await readPageState(currentPage).catch(() => undefined) } : {}),
@@ -210,10 +219,61 @@ function formatLog(values: unknown[]): string {
   return values
     .map((value) => {
       if (typeof value === "string") return value;
-      const safe = jsonSafe(value);
-      return safe === undefined ? String(value) : JSON.stringify(safe);
+      try {
+        const safe = jsonSafe(value);
+        return safe === undefined ? String(value) : JSON.stringify(safe);
+      } catch {
+        return "[Unserializable value]";
+      }
     })
     .join(" ");
+}
+
+function normalizeError(
+  error: unknown,
+  sensitiveValues: string[],
+): { name: string; message: string } {
+  if (!(error instanceof Error)) {
+    return { name: "Error", message: "Code execution failed with a non-Error value." };
+  }
+
+  const safeName = /^[A-Za-z_$][A-Za-z0-9_$.-]{0,99}$/.test(error.name) ? error.name : "Error";
+  return {
+    name: safeName,
+    message: sanitizeErrorMessage(error.message, sensitiveValues),
+  };
+}
+
+function sanitizeErrorMessage(message: string, sensitiveValues: string[]): string {
+  let sanitized = message;
+  for (const sensitiveValue of sensitiveValues) {
+    sanitized = sanitized.replaceAll(sensitiveValue, "[REDACTED]");
+  }
+  sanitized = sanitized
+    .replace(URL, "[REDACTED_URL]")
+    .replace(CREDENTIAL, "$1=[REDACTED]")
+    .replace(BEARER_TOKEN, "Bearer [REDACTED]");
+  return sanitized.slice(0, MAX_ERROR_MESSAGE_LENGTH) || "Code execution failed.";
+}
+
+function collectSensitiveValues(value: unknown): string[] {
+  const values = new Set<string>();
+  const seen = new WeakSet<object>();
+
+  const visit = (current: unknown, key = "") => {
+    if (typeof current === "string") {
+      if (SECRET_FIELD.test(key) && current.length > 0) values.add(current);
+      return;
+    }
+    if (!current || typeof current !== "object" || seen.has(current)) return;
+    seen.add(current);
+    for (const [nestedKey, nestedValue] of Object.entries(current)) {
+      visit(nestedValue, nestedKey);
+    }
+  };
+
+  visit(value);
+  return [...values].sort((left, right) => right.length - left.length);
 }
 
 function failure(
