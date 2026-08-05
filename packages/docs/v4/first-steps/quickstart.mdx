@@ -188,7 +188,7 @@ func run(ctx context.Context) (err error) {
 	}
 	page := pages[0]
 
-	if err := page.Goto(ctx, "https://stagehand.dev", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://stagehand.dev", nil); err != nil {
 		return err
 	}
 
@@ -204,7 +204,7 @@ func run(ctx context.Context) (err error) {
 	}
 	fmt.Printf("Extract result:\n%+v\n", extracted)
 
-	if _, err := client.Act(ctx, "Click the 'Evals' button.", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("Click the 'Evals' button."), nil); err != nil {
 		return err
 	}
 
@@ -221,7 +221,7 @@ func run(ctx context.Context) (err error) {
 </View>
 
 <Note>
-Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the constructor, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
+Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the browser factory, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
 </Note>
 
 ## 3) Run it
@@ -250,7 +250,7 @@ go run .                                 # Run the example script
 </View>
 
 <Tip>
-Prefer to run against a browser on your own machine while you develop? Swap the browser source for a local one and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
+Prefer to run against a browser on your own machine while you develop? Swap `browserbase.launch()` for `localBrowser.launch()` and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
 </Tip>
 
 ## Next steps

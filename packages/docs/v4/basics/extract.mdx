@@ -928,7 +928,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println("the link to the contact us page is: ", extracted.ContactLink)
+fmt.Println("the link to the contact us page is: ", extracted.Data.ContactLink)
 ```
 </View>
 
@@ -1047,7 +1047,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println("extracted", len(extracted.Products), "products")
+fmt.Println("extracted", len(extracted.Data.Products), "products")
 ```
 </View>
 </Accordion>
@@ -1210,7 +1210,7 @@ if err != nil {
 	return err
 }
 
-for _, item := range extracted.Products {
+for _, item := range extracted.Data.Products {
 	fmt.Println(item.Name, item.Price)
 }
 ```
@@ -1308,7 +1308,7 @@ var allData []product
 timeout := 60000.0 // 60 second timeout
 
 for pageNum := 1; pageNum <= 5; pageNum++ {
-	if _, err := client.Act(ctx, fmt.Sprintf("navigate to page %d", pageNum), nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction(fmt.Sprintf("navigate to page %d", pageNum)), nil); err != nil {
 		return err
 	}
 
@@ -1325,7 +1325,7 @@ for pageNum := 1; pageNum <= 5; pageNum++ {
 		return err
 	}
 
-	allData = append(allData, extracted.Products...)
+	allData = append(allData, extracted.Data.Products...)
 }
 ```
 </View>

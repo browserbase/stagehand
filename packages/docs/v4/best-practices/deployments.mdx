@@ -310,7 +310,7 @@ func run(ctx context.Context) (result string, err error) {
 	if _, err := page.Goto(ctx, "https://www.stagehand.dev/", nil); err != nil {
 		return "", err
 	}
-	if _, err := client.Act(ctx, "click the evals button", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("click the evals button"), nil); err != nil {
 		return "", err
 	}
 
@@ -325,7 +325,7 @@ func run(ctx context.Context) (result string, err error) {
 		return "", err
 	}
 
-	return extracted.FastestModel, nil
+	return extracted.Data.FastestModel, nil
 }
 
 func main() {
