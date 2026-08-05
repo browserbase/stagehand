@@ -5,7 +5,7 @@ import type {
   NavigationServerAddr,
 } from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 
 export type ResponseHeader = NavigationHeader;
 export type ResponseSecurityDetails = NavigationSecurityDetails;
@@ -14,10 +14,10 @@ export type ResponseServerAddr = NavigationServerAddr;
 const BASE64_PATTERN = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/;
 
 export class Response {
-  readonly #rpcClient: RPCClient;
+  readonly #rpcClient: StagehandCommandClient;
   readonly #descriptor: NavigationResponseDescriptor;
 
-  constructor(rpcClient: RPCClient, descriptor: NavigationResponseDescriptor) {
+  constructor(rpcClient: StagehandCommandClient, descriptor: NavigationResponseDescriptor) {
     this.#rpcClient = rpcClient;
     this.#descriptor = {
       ...descriptor,

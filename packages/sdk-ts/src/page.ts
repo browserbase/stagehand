@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import type {
   LoadState,
   PageClickParams,
@@ -23,7 +22,7 @@ import {
   normalizeEvaluationExpression,
   normalizeInitScriptSource,
 } from "./pageScripts.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
 import type { WebMCPToolsOptions } from "./clientSchemas.js";
@@ -37,7 +36,7 @@ export class Page {
   currentRef: PageRef;
 
   constructor(
-    readonly rpcClient: RPCClient,
+    readonly rpcClient: StagehandCommandClient,
     ref: PageRef,
   ) {
     this.currentRef = ref;
@@ -223,9 +222,15 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    const bytes = Buffer.from(result.data, "base64");
-    if (path) await writeFile(path, bytes);
-    return bytes;
+    const bytes = decodeBase64(result.data);
+    if (path) {
+      const moduleName = "node:" + "fs/promises";
+      const { writeFile } = (await import(
+        /* @vite-ignore */ moduleName
+      )) as typeof import("node:fs/promises");
+      await writeFile(path, bytes);
+    }
+    return bytes as Buffer;
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
@@ -267,4 +272,11 @@ export class Page {
       selector,
     });
   }
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const nodeBuffer = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
+  if (nodeBuffer) return nodeBuffer.from(value, "base64");
+  const decoded = atob(value);
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }

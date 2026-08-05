@@ -422,6 +422,97 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 	return nil
 }
 
+func (c *cdpClient) runCallbackBatch(
+	ctx context.Context,
+	source string,
+	input any,
+	pageID string,
+	timeout time.Duration,
+	result any,
+) error {
+	c.mu.Lock()
+	sessionID := c.sessionID
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		return ErrCDPClientClosed
+	}
+	if sessionID == "" {
+		return errors.New("Stagehand service worker is not attached")
+	}
+	inputJSON, err := json.Marshal(input)
+	if err != nil {
+		return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
+	}
+	options := map[string]any{"timeout": timeout.Milliseconds()}
+	if pageID != "" {
+		options["pageId"] = pageID
+	}
+	optionsJSON, err := json.Marshal(options)
+	if err != nil {
+		return fmt.Errorf("encode stagehand callback batch options: %w", err)
+	}
+	expression := fmt.Sprintf(
+		`(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((%s), %s, %s); })((fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; })`,
+		source,
+		inputJSON,
+		optionsJSON,
+	)
+	evaluationContext, cancel := context.WithTimeout(ctx, timeout+time.Second)
+	defer cancel()
+	var evaluated cdpRuntimeEvaluateResult
+	if err := c.sendCommand(
+		evaluationContext,
+		"Runtime.evaluate",
+		map[string]any{
+			"expression":    expression,
+			"awaitPromise":  true,
+			"returnByValue": true,
+		},
+		sessionID,
+		&evaluated,
+	); err != nil {
+		return err
+	}
+	if evaluated.ExceptionDetails != nil {
+		return errors.New(runtimeExceptionMessage(
+			evaluated.ExceptionDetails,
+			"Stagehand callback batch evaluation failed",
+		))
+	}
+	if evaluated.Result == nil || len(evaluated.Result.Value) == 0 {
+		return errors.New("Stagehand callback batch returned an invalid result")
+	}
+	var envelope struct {
+		OK               bool            `json:"ok"`
+		Value            json.RawMessage `json:"value"`
+		ValueIsUndefined bool            `json:"valueIsUndefined"`
+		Error            *struct {
+			Name    string `json:"name"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(evaluated.Result.Value, &envelope); err != nil {
+		return fmt.Errorf("decode stagehand callback batch envelope: %w", err)
+	}
+	if !envelope.OK {
+		if envelope.Error == nil {
+			return errors.New("Stagehand callback batch failed")
+		}
+		return fmt.Errorf("%s: %s", envelope.Error.Name, envelope.Error.Message)
+	}
+	if envelope.ValueIsUndefined {
+		envelope.Value = json.RawMessage("null")
+	}
+	if len(envelope.Value) == 0 {
+		envelope.Value = json.RawMessage("null")
+	}
+	if err := json.Unmarshal(envelope.Value, result); err != nil {
+		return fmt.Errorf("decode stagehand callback batch result: %w", err)
+	}
+	return nil
+}
+
 func (c *cdpClient) Receive(ctx context.Context) (json.RawMessage, error) {
 	if ctx == nil {
 		return nil, errors.New("stagehand CDP receive context is required")

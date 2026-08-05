@@ -14,10 +14,21 @@ import { browserWebSocketFactory } from "./understudy/browserWebSocketTransport.
 import { ChromeTabTargetAdapter } from "./understudy/chromeTabs.js";
 import { BrowserContext } from "./understudy/context.js";
 import { STAGEHAND_RUNTIME_VERSION } from "./version.js";
+import {
+  installCallbackBatchRunner,
+  type CallbackBatchEnvelope,
+  type CallbackBatchFunction,
+  type CallbackBatchOptions,
+} from "./callbackBatch.js";
 
 export type StagehandServiceWorkerScope = {
   __stagehand_runtime?: RuntimeDescriptor;
   __stagehandReceiveFromHost?: (raw: unknown) => Promise<void>;
+  __stagehandRunCallbackBatch?: (
+    callback: CallbackBatchFunction,
+    input: unknown,
+    options: CallbackBatchOptions,
+  ) => Promise<CallbackBatchEnvelope>;
 };
 
 export function startStagehandServiceWorker(
@@ -58,7 +69,8 @@ export function startStagehandServiceWorker(
       },
     });
 
-  rpcClient = new RPCClient(chromeRuntimeClient, new RPCRouter(activeRuntime));
+  const router = new RPCRouter(activeRuntime);
+  rpcClient = new RPCClient(chromeRuntimeClient, router);
   scope.__stagehand_runtime = {
     protocolVersion: STAGEHAND_PROTOCOL_VERSION,
     serverInfo: {
@@ -67,6 +79,7 @@ export function startStagehandServiceWorker(
     },
   };
   scope.__stagehandReceiveFromHost = (raw) => chromeRuntimeClient.receive(raw);
+  installCallbackBatchRunner(scope, router);
 
   return rpcClient;
 }

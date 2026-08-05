@@ -24,6 +24,38 @@ _RUNTIME_READINESS_EXPRESSION = """(() => ({
 }))()"""
 
 
+def _callback_batch_expression(
+    *,
+    source: str,
+    input: object,
+    page_id: str | None,
+    timeout: int,
+) -> str:
+    if not isinstance(source, str) or not source.strip():
+        raise TypeError("stagehand._experimental_batch() source must be JavaScript")
+    if "[native code]" in source:
+        raise TypeError("stagehand._experimental_batch() source must be serializable JavaScript")
+    serialized_input = json.dumps(
+        input,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    options: dict[str, object] = {"timeout": timeout}
+    if page_id is not None:
+        options["pageId"] = page_id
+    serialized_options = json.dumps(options, separators=(",", ":"))
+    return (
+        "(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "
+        "'function') return { ok: false, error: { name: "
+        "'StagehandRuntimeIncompatibleError', message: "
+        "'The connected Stagehand runtime does not support callback batches' } }; "
+        "return await globalThis.__stagehandRunCallbackBatch("
+        f"({source}), {serialized_input}, {serialized_options}); }})"
+        "((fn, name) => { try { Object.defineProperty(fn, 'name', "
+        "{ value: name, configurable: true }); } catch {} return fn; })"
+    )
+
+
 def _negotiate_runtime(marker: object) -> tuple[bool, str]:
     """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
     if not isinstance(marker, Mapping):
@@ -192,6 +224,57 @@ class CDPClient:
                     or "Stagehand service worker rejected an RPC message"
                 )
             )
+
+    async def run_callback_batch(
+        self,
+        *,
+        source: str,
+        input: object,
+        page_id: str | None,
+        timeout: int,
+    ) -> object:
+        if self._closed:
+            raise RuntimeError("CDP client is closed")
+        if self._session_id is None:
+            raise RuntimeError("Stagehand service worker is not attached")
+        expression = _callback_batch_expression(
+            source=source,
+            input=input,
+            page_id=page_id,
+            timeout=timeout,
+        )
+        async with asyncio.timeout((timeout + 1_000) / 1_000):
+            evaluated = await self.send_command(
+                "Runtime.evaluate",
+                {
+                    "expression": expression,
+                    "awaitPromise": True,
+                    "returnByValue": True,
+                },
+                session_id=self._session_id,
+            )
+        exception_details = evaluated.get("exceptionDetails")
+        if isinstance(exception_details, Mapping):
+            exception = exception_details.get("exception")
+            description = exception.get("description") if isinstance(exception, Mapping) else None
+            raise RuntimeError(
+                str(
+                    description
+                    or exception_details.get("text")
+                    or "Stagehand callback batch evaluation failed"
+                )
+            )
+        result = evaluated.get("result")
+        envelope = result.get("value") if isinstance(result, Mapping) else None
+        if not isinstance(envelope, Mapping) or not isinstance(envelope.get("ok"), bool):
+            raise RuntimeError("Stagehand callback batch returned an invalid result")
+        if envelope.get("ok") is False:
+            error = envelope.get("error")
+            message = error.get("message") if isinstance(error, Mapping) else None
+            raise RuntimeError(str(message or "Stagehand callback batch failed"))
+        if envelope.get("valueIsUndefined") is True:
+            return None
+        return envelope.get("value")
 
     async def receive(self) -> object:
         message = await self._incoming.get()

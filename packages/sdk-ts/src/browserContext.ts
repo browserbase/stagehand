@@ -11,7 +11,7 @@ import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { BrowserClipboard } from "./browserClipboard.js";
 import { Page } from "./page.js";
 import { normalizeInitScriptSource, type InitScriptSource } from "./pageScripts.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 export type { Cookie, CookieParam, DomainPolicy } from "../../protocol/types.js";
 
 export type ClearCookieOptions = {
@@ -23,7 +23,7 @@ export type ClearCookieOptions = {
 export class BrowserContext {
   clipboardRef?: BrowserClipboard;
 
-  constructor(readonly rpcClient: RPCClient) {}
+  constructor(readonly rpcClient: StagehandCommandClient) {}
 
   get clipboard(): BrowserClipboard {
     return (this.clipboardRef ??= new BrowserClipboard(this.rpcClient));

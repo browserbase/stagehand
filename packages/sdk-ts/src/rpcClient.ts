@@ -94,6 +94,13 @@ export type CDPTransport = {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void>;
+  runCallbackBatch?(input: {
+    callbackSource: string;
+    input: unknown;
+    pageId?: string;
+    timeout: number;
+    signal?: AbortSignal;
+  }): Promise<unknown>;
   close(): void;
 };
 
@@ -115,6 +122,20 @@ export class RPCClient {
     this.cdp.onmessage = (message) => this.receive(message);
     this.cdp.onclose = (reason) => this.close(reason);
     this.cdp.onerror = (error) => this.close(error);
+  }
+
+  async runCallbackBatch(input: {
+    callbackSource: string;
+    input: unknown;
+    pageId?: string;
+    timeout: number;
+    signal?: AbortSignal;
+  }): Promise<unknown> {
+    if (this.closed) throw new Error("RPC client is closed");
+    if (!this.cdp.runCallbackBatch) {
+      throw new Error("The connected Stagehand runtime does not support callback batches");
+    }
+    return await this.cdp.runCallbackBatch(input);
   }
 
   async send<Method extends RPCMethod>(

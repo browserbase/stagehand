@@ -524,6 +524,63 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	assertJSONEqual(t, received, incoming)
 }
 
+func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	socket.writeHook = responseHook(t, socket, nil, func(
+		method string,
+		_ map[string]json.RawMessage,
+	) map[string]any {
+		if method != "Runtime.evaluate" {
+			t.Errorf("CDP method = %q, want Runtime.evaluate", method)
+		}
+		return map[string]any{"result": map[string]any{
+			"result": map[string]any{"value": map[string]any{
+				"ok": true, "value": map[string]any{"title": "Example"},
+			}},
+		}}
+	})
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+	client.mu.Lock()
+	client.sessionID = "worker-session"
+	client.mu.Unlock()
+
+	var result struct {
+		Title string `json:"title"`
+	}
+	err := client.runCallbackBatch(
+		context.Background(),
+		`async ({ page }) => ({ title: await page.title() })`,
+		map[string]any{"value": 1},
+		"page-1",
+		2*time.Second,
+		&result,
+	)
+	if err != nil {
+		t.Fatalf("runCallbackBatch() error = %v", err)
+	}
+	if result.Title != "Example" {
+		t.Fatalf("runCallbackBatch() result = %+v", result)
+	}
+	written := receiveCDPWrite(t, socket)
+	var command struct {
+		Params struct {
+			Expression    string `json:"expression"`
+			AwaitPromise  bool   `json:"awaitPromise"`
+			ReturnByValue bool   `json:"returnByValue"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(written, &command); err != nil {
+		t.Fatalf("decode Runtime.evaluate command: %v", err)
+	}
+	if !command.Params.AwaitPromise || !command.Params.ReturnByValue ||
+		!strings.Contains(command.Params.Expression, "__stagehandRunCallbackBatch") ||
+		!strings.Contains(command.Params.Expression, `"pageId":"page-1"`) {
+		t.Fatalf("Runtime.evaluate callback params = %#v", command.Params)
+	}
+}
+
 func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 

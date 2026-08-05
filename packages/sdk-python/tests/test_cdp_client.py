@@ -205,6 +205,39 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
 
 
 @pytest.mark.asyncio
+async def test_callback_batch_evaluates_in_the_attached_service_worker() -> None:
+    socket = FakeWebSocket(
+        lambda _: {
+            "result": {
+                "result": {
+                    "value": {"ok": True, "value": {"title": "Example"}},
+                }
+            }
+        }
+    )
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+
+    try:
+        result = await client.run_callback_batch(
+            source="async ({ page }, input) => ({ title: await page.title(), input })",
+            input={"quote": "'); globalThis.pwned = true; ('"},
+            page_id="page-1",
+            timeout=2_000,
+        )
+        assert result == {"title": "Example"}
+        params = cast(dict[str, object], socket.sent[0]["params"])
+        assert params["awaitPromise"] is True
+        assert params["returnByValue"] is True
+        expression = cast(str, params["expression"])
+        assert "__stagehandRunCallbackBatch" in expression
+        assert '"pageId":"page-1"' in expression
+        assert "globalThis.pwned = true" in expression
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_commands_inherit_caller_cancellation_and_are_removed() -> None:
     socket = FakeWebSocket(lambda _: None)
     client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")

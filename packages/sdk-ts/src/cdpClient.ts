@@ -73,6 +73,20 @@ type ResolveBrowserWebSocketUrlOptions = {
   signal: AbortSignal;
 };
 
+export function callbackBatchExpression(input: {
+  callbackSource: string;
+  input: unknown;
+  pageId?: string;
+  timeout: number;
+}): string {
+  const serializedInput = input.input === undefined ? "undefined" : JSON.stringify(input.input);
+  const serializedOptions = JSON.stringify({
+    ...(input.pageId === undefined ? {} : { pageId: input.pageId }),
+    timeout: input.timeout,
+  });
+  return `(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((${input.callbackSource}), ${serializedInput}, ${serializedOptions}); })((fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; })`;
+}
+
 export class StagehandRuntimeIncompatibleError extends Error {
   readonly reason;
   constructor(readonly compatibility: Extract<RuntimeCompatibility, { kind: "incompatible" }>) {
@@ -128,6 +142,22 @@ const RuntimeReadinessEnvelopeSchema = z.looseObject({
   marker: z.unknown(),
   hasReceiver: z.boolean(),
 });
+
+const CallbackBatchEnvelopeSchema = z.discriminatedUnion("ok", [
+  z.strictObject({
+    ok: z.literal(true),
+    value: z.unknown().optional(),
+    valueIsUndefined: z.boolean().optional(),
+  }),
+  z.strictObject({
+    ok: z.literal(false),
+    error: z.strictObject({
+      name: z.string(),
+      message: z.string(),
+      stack: z.string().optional(),
+    }),
+  }),
+]);
 
 export class CDPConnectionClosedError extends Error {
   constructor() {
@@ -278,6 +308,42 @@ export class CDPClient {
           "Stagehand service worker rejected an RPC message",
       );
     }
+  }
+
+  async runCallbackBatch(input: {
+    callbackSource: string;
+    input: unknown;
+    pageId?: string;
+    timeout: number;
+    signal?: AbortSignal;
+  }): Promise<unknown> {
+    if (this.closed) throw new Error("CDP client is closed");
+    if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
+    const evaluated = await this.sendCommand<RuntimeEvaluateResult>(
+      "Runtime.evaluate",
+      {
+        expression: callbackBatchExpression(input),
+        awaitPromise: true,
+        returnByValue: true,
+      },
+      this.sessionId,
+      input.signal,
+    );
+    if (evaluated.exceptionDetails) {
+      throw new Error(
+        evaluated.exceptionDetails.exception?.description ??
+          evaluated.exceptionDetails.text ??
+          "Stagehand callback batch evaluation failed",
+      );
+    }
+    const envelope = CallbackBatchEnvelopeSchema.parse(evaluated.result?.value);
+    if (envelope.ok === false) {
+      const error = new Error(envelope.error.message);
+      error.name = envelope.error.name;
+      if (envelope.error.stack) error.stack = envelope.error.stack;
+      throw error;
+    }
+    return envelope.valueIsUndefined ? undefined : envelope.value;
   }
 
   async sendCommand<Result = JsonObject>(

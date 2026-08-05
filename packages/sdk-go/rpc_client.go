@@ -83,6 +83,23 @@ func (client *rpcClient) browserWebSocketDebuggerURL() string {
 	return client.browserWebSocketURL
 }
 
+func (client *rpcClient) experimentalBatch(
+	ctx context.Context,
+	source string,
+	input any,
+	pageID string,
+	timeout time.Duration,
+	result any,
+) error {
+	transport, ok := client.transport.(interface {
+		runCallbackBatch(context.Context, string, any, string, time.Duration, any) error
+	})
+	if !ok {
+		return errors.New("the connected Stagehand runtime does not support callback batches")
+	}
+	return transport.runCallbackBatch(ctx, source, input, pageID, timeout, result)
+}
+
 type pendingRPCRequest struct {
 	method   string
 	response chan rpcCallResponse

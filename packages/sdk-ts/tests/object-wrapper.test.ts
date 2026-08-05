@@ -26,6 +26,7 @@ type ProtocolCall = { method: string; params: unknown };
 
 class FakeProtocolClient extends RPCClient {
   readonly calls: ProtocolCall[] = [];
+  readonly batchCalls: Array<Record<string, unknown>> = [];
   responses = new Map<string, unknown[]>();
 
   constructor() {
@@ -38,6 +39,10 @@ class FakeProtocolClient extends RPCClient {
         extensionId: "stagehand",
       },
       send: async () => {},
+      runCallbackBatch: async (input) => {
+        this.batchCalls.push(input);
+        return { title: "Example" };
+      },
       close: () => {},
     });
   }
@@ -103,6 +108,22 @@ const zeroUsage = {
   inferenceTimeMs: 0,
 };
 describe("Stagehand TS object wrapper", () => {
+  it("exposes an async callback-first experimental batch API", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const callback = async ({ page }: { page: Page }, input: { id: number }) => ({
+      title: await page.title(),
+      id: input.id,
+    });
+
+    const pending = stagehand._experimental_batch(callback, { id: 7 }, { timeout: 2_000 });
+    expect(pending).toBeInstanceOf(Promise);
+    await expect(pending).resolves.toEqual({ title: "Example" });
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.callbackSource).toContain("async");
+    expect(client.batchCalls[0]?.input).toEqual({ id: 7 });
+    expect(client.batchCalls[0]?.timeout).toBe(2_000);
+  });
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);

@@ -1,5 +1,3 @@
-import { open } from "node:fs/promises";
-import { basename, resolve } from "node:path";
 import type { InputFilePayload } from "../../protocol/types.js";
 
 const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
@@ -22,8 +20,14 @@ export async function normalizeFileInput(files: FileInput): Promise<InputFilePay
 
 async function normalizeFile(file: string | FilePayload): Promise<InputFilePayload> {
   if (typeof file === "string") {
-    const absolutePath = resolve(file);
-    const handle = await open(absolutePath, "r").catch(() => {
+    const fsModuleName = "node:" + "fs/promises";
+    const pathModuleName = "node:" + "path";
+    const [fs, path] = await Promise.all([
+      import(/* @vite-ignore */ fsModuleName) as Promise<typeof import("node:fs/promises")>,
+      import(/* @vite-ignore */ pathModuleName) as Promise<typeof import("node:path")>,
+    ]);
+    const absolutePath = path.resolve(file);
+    const handle = await fs.open(absolutePath, "r").catch(() => {
       throw new TypeError("setInputFiles(): could not read file");
     });
     try {
@@ -58,7 +62,7 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
 
       const lastModified = Math.trunc(fileStat.mtimeMs);
       return {
-        name: basename(absolutePath),
+        name: path.basename(absolutePath),
         data: Buffer.concat(chunks, bytesRead).toString("base64"),
         ...(lastModified < 0 ? {} : { lastModified }),
       };
@@ -69,13 +73,18 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
 
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
   const byteLength =
-    typeof file.buffer === "string" ? Buffer.byteLength(file.buffer) : file.buffer.byteLength;
+    typeof file.buffer === "string"
+      ? new TextEncoder().encode(file.buffer).byteLength
+      : file.buffer.byteLength;
   if (byteLength > MAX_INPUT_FILE_BYTES) {
     throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
   }
   const normalizedBuffer =
     file.buffer instanceof ArrayBuffer ? new Uint8Array(file.buffer) : file.buffer;
-  const bytes = Buffer.from(normalizedBuffer);
+  const bytes =
+    typeof normalizedBuffer === "string"
+      ? new TextEncoder().encode(normalizedBuffer)
+      : new Uint8Array(normalizedBuffer);
   if (
     file.lastModified !== undefined &&
     (!Number.isInteger(file.lastModified) || file.lastModified < 0)
@@ -85,7 +94,15 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
   return {
     name: file.name,
     ...(file.mimeType ? { mimeType: file.mimeType } : {}),
-    data: bytes.toString("base64"),
+    data: encodeBase64(bytes),
     ...(file.lastModified === undefined ? {} : { lastModified: file.lastModified }),
   };
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  const nodeBuffer = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
+  if (nodeBuffer) return nodeBuffer.from(bytes).toString("base64");
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
 }

@@ -80,6 +80,15 @@ class _Transport(Protocol):
 
     async def close(self) -> None: ...
 
+    async def run_callback_batch(
+        self,
+        *,
+        source: str,
+        input: object,
+        page_id: str | None,
+        timeout: int,
+    ) -> object: ...
+
 
 class RPCError(RuntimeError):
     def __init__(self, error: _JSONRPCError) -> None:
@@ -114,6 +123,24 @@ class RPCClient:
     def browser_web_socket_debugger_url(self) -> str | None:
         value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
         return value if isinstance(value, str) else None
+
+    async def run_callback_batch(
+        self,
+        *,
+        source: str,
+        input: object,
+        page_id: str | None,
+        timeout: int,
+    ) -> object:
+        runner = getattr(self._transport, "run_callback_batch", None)
+        if not callable(runner):
+            raise RuntimeError("The connected Stagehand runtime does not support callback batches")
+        return await runner(
+            source=source,
+            input=input,
+            page_id=page_id,
+            timeout=timeout,
+        )
 
     @overload
     async def send(

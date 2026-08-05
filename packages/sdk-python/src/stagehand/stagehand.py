@@ -171,6 +171,30 @@ class Stagehand:
             StagehandMetrics,
         )
 
+    async def _experimental_batch(
+        self,
+        source: str,
+        input: object = None,
+        *,
+        timeout: int = 30_000,
+        page: Page | None = None,
+    ) -> object:
+        """Run trusted JavaScript against the worker-local Stagehand object model."""
+        if not isinstance(source, str) or not source.strip():
+            raise TypeError("source must be a non-empty JavaScript string")
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+            raise ValueError("timeout must be a positive number of milliseconds")
+        try:
+            json.dumps(input, allow_nan=False)
+        except (TypeError, ValueError) as error:
+            raise TypeError("input must be JSON-serializable") from error
+        return await self._connected_rpc_client.run_callback_batch(
+            source=source,
+            input=input,
+            page_id=page.page_id if page is not None else None,
+            timeout=timeout,
+        )
+
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:
         rpc_client = RPCClient(claimed.cdp_client)
         self._rpc_client = rpc_client

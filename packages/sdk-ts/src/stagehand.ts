@@ -38,6 +38,7 @@ import {
 } from "./browser/factories.js";
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
+import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
 
 type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
 
@@ -108,6 +109,52 @@ export class Stagehand {
 
   async metrics(): Promise<StagehandMetrics> {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
+  }
+
+  async _experimental_batch<Result>(
+    callback: ExperimentalBatchCallback<undefined, Result>,
+  ): Promise<Awaited<Result>>;
+  async _experimental_batch<Input, Result>(
+    callback: ExperimentalBatchCallback<Input, Result>,
+    input: Input,
+    options?: ExperimentalBatchOptions,
+  ): Promise<Awaited<Result>>;
+  async _experimental_batch<Input, Result>(
+    callback: ExperimentalBatchCallback<Input, Result>,
+    input?: Input,
+    options: ExperimentalBatchOptions = {},
+  ): Promise<Awaited<Result>> {
+    if (typeof callback !== "function") {
+      throw new TypeError("stagehand._experimental_batch() requires a callback function");
+    }
+    if (input !== undefined) z.json().parse(input);
+    const timeout = options.timeout ?? 30_000;
+    if (!Number.isFinite(timeout) || timeout <= 0) {
+      throw new RangeError("stagehand._experimental_batch() timeout must be greater than zero");
+    }
+    const callbackSource = Function.prototype.toString.call(callback);
+    if (callbackSource.includes("[native code]")) {
+      throw new TypeError(
+        "stagehand._experimental_batch() callback must be serializable JavaScript",
+      );
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(new Error(`Stagehand callback batch timed out after ${timeout}ms`)),
+      timeout + 1_000,
+    );
+    try {
+      return (await this.connectedRpcClient.runCallbackBatch({
+        callbackSource,
+        input,
+        ...(options.page ? { pageId: options.page.pageId } : {}),
+        timeout,
+        signal: controller.signal,
+      })) as Awaited<Result>;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
