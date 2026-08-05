@@ -33,8 +33,7 @@ import type { HybridSnapshot, SnapshotOptions } from "../types/private/snapshot.
 import { NetworkManager } from "./networkManager.js";
 import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
-import { Response, isSerializableResponse } from "./response.js";
-import type { StagehandAPIClient } from "../api.js";
+import { Response } from "./response.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
@@ -160,8 +159,6 @@ export class Page {
   latestNavigationCommandId = 0;
 
   readonly networkManager: NetworkManager;
-  /** Optional API client for routing page operations to the API */
-  readonly apiClient: StagehandAPIClient | null = null;
   /** Document-start scripts installed across every session this page owns. */
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
@@ -189,11 +186,9 @@ export class Page {
     readonly _targetId: string,
     mainFrameId: string,
     public readonly logger: StagehandLogger,
-    apiClient?: StagehandAPIClient | null,
     browserIsRemote = false,
   ) {
     this.pageId = _targetId;
-    this.apiClient = apiClient ?? null;
     this.browserIsRemote = browserIsRemote;
 
     // own the main session
@@ -288,7 +283,6 @@ export class Page {
     session: CDPSessionLike,
     targetId: string,
     logger: StagehandLogger,
-    apiClient?: StagehandAPIClient | null,
     localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null,
     browserIsRemote = false,
   ): Promise<Page> {
@@ -303,7 +297,7 @@ export class Page {
     }>("Page.getFrameTree");
     const mainFrameId = frameTree.frame.id;
 
-    const page = new Page(conn, session, targetId, mainFrameId, logger, apiClient, browserIsRemote);
+    const page = new Page(conn, session, targetId, mainFrameId, logger, browserIsRemote);
     // Seed current URL from initial frame tree
     try {
       page._currentUrl = String(frameTree?.frame?.url ?? page._currentUrl);
@@ -826,23 +820,6 @@ export class Page {
     });
 
     try {
-      // Route to API if available
-      if (this.apiClient) {
-        const result = await this.apiClient.goto(
-          url,
-          { waitUntil: options?.waitUntil, timeout: options?.timeout },
-          this.mainFrameId(),
-        );
-        this._currentUrl = url;
-
-        if (isSerializableResponse(result)) {
-          return Response.fromSerializable(result, {
-            page: this,
-            session: this.mainSession,
-          });
-        }
-        return result;
-      }
       const response = await this.mainSession.send<Protocol.Page.NavigateResponse>(
         "Page.navigate",
         { url },
