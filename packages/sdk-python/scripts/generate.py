@@ -190,11 +190,7 @@ def prune_unreachable_definitions(protocol: dict[str, object]) -> None:
 
 def _local_definition_references(value: object) -> set[str]:
     if isinstance(value, list):
-        return {
-            reference
-            for entry in value
-            for reference in _local_definition_references(entry)
-        }
+        return {reference for entry in value for reference in _local_definition_references(entry)}
     if not isinstance(value, dict):
         return set()
     mapping = cast(dict[str, object], value)
