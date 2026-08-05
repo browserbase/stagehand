@@ -98,6 +98,14 @@ const result = await stagehand.extract(
 return result.data;
 ```
 
+Keep every `z.object` property required. Strict structured-output providers reject extraction
+schemas containing `.optional()`. When the page may omit a value, keep the key required and make
+its value nullable:
+
+```js
+z.object({ title: z.string(), rating: z.string().nullable() });
+```
+
 Pass `{ page: anotherPage }` as the final options object when an AI method should target a page
 other than the active page.
 
