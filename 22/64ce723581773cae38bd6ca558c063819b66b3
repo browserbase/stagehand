@@ -1,0 +1,9 @@
+packages/evals/core/tools/cdp_code.ts
+  ai_agent 1-15,1174-1537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2264ce723581773cae38bd6ca558c063819b66b3",
+  "prompts": {}
+}
