@@ -22,6 +22,7 @@ import {
 import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 
 export { waitForCdpEvent } from "../core/tools/cdp_code.js";
 
@@ -48,6 +49,7 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  drainStepObservations?: () => StepObservation[];
   cleanup: () => Promise<void>;
 }
 
@@ -390,11 +392,15 @@ async function prepareAgentMountAdapter(
     cwd = await fsp.mkdtemp(path.join(os.tmpdir(), `stagehand-evals-claude-${input.toolSurface}-`));
     const cleanupCwd = cwd;
     const env = { ...process.env } as Record<string, string>;
+    const recorder = running.captureEvidence
+      ? new ObservationRecorder(running.captureEvidence)
+      : undefined;
     const mcpServers = await buildCodeExposureRunMcpServers({
       handles: mount.handles,
       runToolSpec: mount.runTool,
       plan: input.plan,
       logger: input.logger,
+      recordObservation: recorder ? () => recorder.record() : undefined,
     });
     let cleanupPromise: Promise<void> | undefined;
 
@@ -428,6 +434,7 @@ async function prepareAgentMountAdapter(
           }
         },
       }),
+      ...(recorder && { drainStepObservations: () => recorder.drain() }),
       cleanup: async () => {
         cleanupPromise ??= (async () => {
           try {
@@ -457,6 +464,7 @@ async function buildCodeExposureRunMcpServers(input: {
   runToolSpec: AgentRunToolSpec;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
+  recordObservation?: () => Promise<void>;
 }): Promise<Record<string, unknown>> {
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
     createSdkMcpServer: SdkMcpServerFactory;
@@ -470,13 +478,15 @@ async function buildCodeExposureRunMcpServers(input: {
       code: z.string().describe(input.runToolSpec.codeParamDescription),
     },
     async ({ code }) => {
-      return executeCodeExposureRunTool({
+      const result = await executeCodeExposureRunTool({
         code,
         handles: input.handles,
         runToolSpec: input.runToolSpec,
         plan: input.plan,
         logger: input.logger,
       });
+      await input.recordObservation?.();
+      return result;
     },
     { alwaysLoad: true },
   );

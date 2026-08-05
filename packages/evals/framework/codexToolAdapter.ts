@@ -12,6 +12,7 @@ import type { ProbeEvidence } from "stagehand-v3";
 import { startAgentToolRuntime } from "./agentToolRuntime.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { buildBridgeClientScript, startCodeBridge } from "./codexCodeBridge.js";
+import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
 import {
   prepareBrowseCliHarnessAdapter,
   type PreparedBrowseCliHarnessAdapter,
@@ -34,6 +35,7 @@ export interface PreparedCodexCodeAdapter {
   promptInstructions: string;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
+  drainStepObservations?: () => StepObservation[];
   cleanup: () => Promise<void>;
 }
 
@@ -78,10 +80,14 @@ export async function prepareCodexToolAdapter(
     if (mount.via !== "handles") {
       throw new EvalsError(`Codex does not support agent mounts delivered via "${mount.via}" yet.`);
     }
+    const recorder = runtime.running.captureEvidence
+      ? new ObservationRecorder(runtime.running.captureEvidence)
+      : undefined;
     bridge = await startCodeBridge({
       mount,
       plan: input.plan,
       logger: input.logger,
+      onRunExecuted: recorder ? () => recorder.record() : undefined,
     });
     cwd = await fsp.mkdtemp(
       path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
@@ -109,6 +115,7 @@ export async function prepareCodexToolAdapter(
       ...(runtime.running.captureEvidence && {
         captureEvidence: runtime.running.captureEvidence,
       }),
+      ...(recorder && { drainStepObservations: () => recorder.drain() }),
       cleanup: async () => {
         try {
           await capturedBridge.close();

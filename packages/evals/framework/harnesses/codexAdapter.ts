@@ -27,6 +27,7 @@
  *   - todo_list items → not surfaced as tool calls (they aren't actions).
  */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -47,6 +48,8 @@ export interface CodexRunResult {
    * after the agent finished) — anchors the verifier's final observation.
    */
   finalObservation?: ProbeEvidence;
+  /** Per-step probe observations, indexed by bridge-run execution order. */
+  stepObservations?: StepObservation[];
 }
 
 export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
@@ -82,6 +85,22 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
     }
 
     const finalAnswer = result.finalAnswer ?? latestAgentMessage;
+
+    const observationsByRunIndex = new Map(
+      (result.stepObservations ?? []).map((o) => [o.runIndex, o.evidence]),
+    );
+    if (observationsByRunIndex.size > 0) {
+      let runOrdinal = 0;
+      for (const call of toolCalls) {
+        if (
+          typeof call.args.command === "string" &&
+          call.args.command.includes("browser_run.mjs")
+        ) {
+          const observation = observationsByRunIndex.get(runOrdinal++);
+          if (observation) call.probeEvidence = observation;
+        }
+      }
+    }
 
     return buildTrajectory({
       taskSpec,
