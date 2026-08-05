@@ -113,7 +113,7 @@ describe("Locator.fill()", () => {
 });
 
 async function poisonLocatorWorld(stagehand: Stagehand, selector: string): Promise<void> {
-  const sdkPage = (await stagehand.context.pages())[0];
+  const sdkPage = (await stagehand.browser.context.pages())[0];
   if (!sdkPage) throw new Error("Stagehand did not expose its initial page");
 
   await sdkPage.locator(selector).count();

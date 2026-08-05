@@ -34,7 +34,7 @@ type ActInferenceElement = NonNullable<ActInferenceResponse["element"]>;
 
 type ActContext = {
   page: Page;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt: string;
@@ -59,7 +59,7 @@ export async function act({
 }: {
   params: StagehandActParams;
   page: Page;
-  model: ModelConfig | ClientModelReference;
+  model: ModelConfig | ClientModelReference | undefined;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;

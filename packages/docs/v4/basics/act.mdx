@@ -286,15 +286,12 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
 
 <View title="Python" icon="python">
 ```python
-# Custom model configuration
-from stagehand import ModelConfig
-
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
-    model=ModelConfig.model_validate({
+    model={
         "model_name": "google/gemini-2.5-flash",
         "api_key": os.environ["GOOGLE_API_KEY"],
-    }),
+    },
     timeout=10000,
 )
 ```
@@ -332,9 +329,11 @@ When running on Browserbase, Stagehand can cache `act()` results server-side. Re
 <View title="TypeScript" icon="js">
 ```typescript
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -355,9 +354,11 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 from stagehand import CacheOptions, Stagehand
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -378,9 +379,12 @@ print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
 
@@ -419,14 +423,13 @@ Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so t
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const blogPage = await stagehand.context.newPage();
+const blogPage = await browser.context.newPage();
 await blogPage.goto("https://www.example.com/blog");
 
 // Use act with that specific page
@@ -438,14 +441,13 @@ await stagehand.act("click the next page button", {
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-blog_page = await stagehand.context.new_page()
+blog_page = await browser.context.new_page()
 await blog_page.goto("https://www.example.com/blog")
 
 # Use act with that specific page
@@ -456,15 +458,16 @@ await stagehand.act("click the next page button", page=blog_page)
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
@@ -557,15 +560,15 @@ Enable server-side caching with `cache` when running on Browserbase. The first t
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: { threshold: 1 }, // Actions are cached after one identical result
 });
-
-await stagehand.init();
 
 // First run makes an LLM call and records the action
 await stagehand.act("click the login button");
@@ -577,15 +580,15 @@ await stagehand.act("click the login button");
 
 <View title="Python" icon="python">
 ```python
-from stagehand import CacheOptions, Stagehand
+from stagehand import CacheOptions, Stagehand, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=CacheOptions(threshold=1),  # Actions are cached after one identical result
 )
-
-await stagehand.init()
 
 # First run makes an LLM call and records the action
 await stagehand.act("click the login button")
@@ -600,13 +603,12 @@ await stagehand.act("click the login button")
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 cache := stagehand.CacheWithThreshold(1) // Actions are cached after one identical result
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Cache:   &cache,
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Cache: &cache})
+if err != nil {
 	return err
 }
 

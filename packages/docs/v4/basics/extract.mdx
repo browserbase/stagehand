@@ -426,15 +426,13 @@ const result = await stagehand.extract(
 
 <View title="Python" icon="python">
 ```python
-from stagehand import ModelConfig
-
 result = await stagehand.extract(
     "extract the repository name",
     Repository,
-    model=ModelConfig.model_validate({
+    model={
         "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],
-    }),
+    },
     timeout=30000,
     selector="//header",  # Focus on specific area
 )

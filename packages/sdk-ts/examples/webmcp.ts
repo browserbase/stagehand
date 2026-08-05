@@ -5,10 +5,7 @@ const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites
 const browser = await localBrowser.launch({ headless: false });
 const stagehand = await Stagehand.create({ browser });
 
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto(webMCPTestSite);
 
 const tools = await page.tools({ timeout: 5_000 });

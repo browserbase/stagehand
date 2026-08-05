@@ -14,10 +14,7 @@ const stagehand = await Stagehand.create({
   },
 });
 
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 
 const pageInfo = await stagehand.extract(

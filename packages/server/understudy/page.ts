@@ -35,7 +35,6 @@ import { LifecycleWatcher } from "./lifecycleWatcher.js";
 import { NavigationResponseTracker } from "./navigationResponseTracker.js";
 import { Response, isSerializableResponse } from "./response.js";
 import type { StagehandAPIClient } from "../api.js";
-import type { Locator } from "./locator.js";
 import { normalizeInitScriptSource } from "./initScripts.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 import type { UnderstudyScreenshotOptions } from "../types/private/screenshot.js";
@@ -852,6 +851,8 @@ export class Page {
       if (response?.loaderId) {
         watcher.setExpectedLoaderId(response.loaderId);
         tracker.setExpectedLoaderId(response.loaderId);
+      } else {
+        tracker.expectNavigationWithoutKnownLoader();
       }
       await watcher.wait();
       return await tracker.navigationCompleted();
@@ -869,7 +870,7 @@ export class Page {
     timeout?: number;
     ignoreCache?: boolean;
   }): Promise<Response | null> {
-    const waitUntil = options?.waitUntil;
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
@@ -881,28 +882,24 @@ export class Page {
     });
     tracker.expectNavigationWithoutKnownLoader();
 
-    const watcher = waitUntil
-      ? new LifecycleWatcher({
-          page: this,
-          mainSession: this.mainSession,
-          networkManager: this.networkManager,
-          waitUntil,
-          timeout,
-          navigationCommandId,
-        })
-      : null;
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeout,
+      navigationCommandId,
+    });
 
     try {
       await this.mainSession.send("Page.reload", {
         ignoreCache: options?.ignoreCache ?? false,
       });
 
-      if (watcher) {
-        await watcher.wait();
-      }
+      await watcher.wait();
       return await tracker.navigationCompleted();
     } finally {
-      watcher?.dispose();
+      watcher.dispose();
       tracker.dispose();
     }
   }
@@ -917,7 +914,7 @@ export class Page {
       );
     const prev = entries[currentIndex - 1];
     if (!prev) return null; // nothing to do
-    const waitUntil = options?.waitUntil;
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
@@ -929,16 +926,14 @@ export class Page {
     });
     tracker.expectNavigationWithoutKnownLoader();
 
-    const watcher = waitUntil
-      ? new LifecycleWatcher({
-          page: this,
-          mainSession: this.mainSession,
-          networkManager: this.networkManager,
-          waitUntil,
-          timeout,
-          navigationCommandId,
-        })
-      : null;
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeout,
+      navigationCommandId,
+    });
 
     try {
       await this.mainSession.send("Page.navigateToHistoryEntry", {
@@ -946,12 +941,10 @@ export class Page {
       });
       this._currentUrl = prev.url ?? this._currentUrl;
 
-      if (watcher) {
-        await watcher.wait();
-      }
+      await watcher.wait();
       return await tracker.navigationCompleted();
     } finally {
-      watcher?.dispose();
+      watcher.dispose();
       tracker.dispose();
     }
   }
@@ -966,7 +959,7 @@ export class Page {
       );
     const next = entries[currentIndex + 1];
     if (!next) return null; // nothing to do
-    const waitUntil = options?.waitUntil;
+    const waitUntil: LoadState = options?.waitUntil ?? "domcontentloaded";
     const timeout = options?.timeout ?? 15000;
 
     const navigationCommandId = this.beginNavigationCommand();
@@ -978,16 +971,14 @@ export class Page {
     });
     tracker.expectNavigationWithoutKnownLoader();
 
-    const watcher = waitUntil
-      ? new LifecycleWatcher({
-          page: this,
-          mainSession: this.mainSession,
-          networkManager: this.networkManager,
-          waitUntil,
-          timeout,
-          navigationCommandId,
-        })
-      : null;
+    const watcher = new LifecycleWatcher({
+      page: this,
+      mainSession: this.mainSession,
+      networkManager: this.networkManager,
+      waitUntil,
+      timeout,
+      navigationCommandId,
+    });
 
     try {
       await this.mainSession.send("Page.navigateToHistoryEntry", {
@@ -995,12 +986,10 @@ export class Page {
       });
       this._currentUrl = next.url ?? this._currentUrl;
 
-      if (watcher) {
-        await watcher.wait();
-      }
+      await watcher.wait();
       return await tracker.navigationCompleted();
     } finally {
-      watcher?.dispose();
+      watcher.dispose();
       tracker.dispose();
     }
   }
@@ -1105,9 +1094,7 @@ export class Page {
     const frames = collectFramesForScreenshot(this);
     const clip = opts.clip ? normalizeScreenshotClip(opts.clip) : undefined;
     const captureScale = await computeScreenshotScale(this, scaleMode);
-    const maskLocators = (opts.mask ?? []).filter((locator): locator is Locator =>
-      Boolean(locator),
-    );
+    const maskLocators = opts.mask ?? [];
 
     const cleanupTasks: ScreenshotCleanup[] = [];
 

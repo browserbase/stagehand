@@ -20,6 +20,37 @@ func newBrowserTestCDP(t *testing.T) *cdpClient {
 }
 
 func TestBrowserClaimAndCloseSemantics(t *testing.T) {
+	t.Run("context requires a Stagehand attachment", func(t *testing.T) {
+		browser := &Browser{}
+		if _, err := browser.Context(); !errors.Is(err, ErrNotInitialized) {
+			t.Fatalf("Context() error = %v, want ErrNotInitialized", err)
+		}
+		if err := attachBrowserContext(browser, nil); err == nil || err.Error() != "browser context is required" {
+			t.Fatalf("attachBrowserContext(nil) error = %v", err)
+		}
+		if err := attachBrowserContext(browser, &BrowserContext{}); err == nil {
+			t.Fatal("attachBrowserContext() before claim error = nil")
+		}
+		if _, err := claimBrowser(browser); err != nil {
+			t.Fatalf("claimBrowser() error = %v", err)
+		}
+		browserContext := &BrowserContext{}
+		if err := attachBrowserContext(browser, browserContext); err != nil {
+			t.Fatalf("attachBrowserContext() error = %v", err)
+		}
+		got, err := browser.Context()
+		if err != nil || got != browserContext {
+			t.Fatalf("Context() = %p, %v; want %p, nil", got, err, browserContext)
+		}
+		if err := attachBrowserContext(browser, &BrowserContext{}); err == nil {
+			t.Fatal("second attachBrowserContext() error = nil")
+		}
+		detachBrowserContext(browser)
+		if _, err := browser.Context(); !errors.Is(err, ErrNotInitialized) {
+			t.Fatalf("Context() after detach error = %v, want ErrNotInitialized", err)
+		}
+	})
+
 	t.Run("claim release and reclaim", func(t *testing.T) {
 		browser := &Browser{}
 		if _, err := claimBrowser(browser); err != nil {

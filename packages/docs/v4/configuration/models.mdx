@@ -5,12 +5,12 @@ description: Use any LLM with Stagehand
 ---
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **(NEW) Model Gateway**: Use your Browserbase API key to access top models from OpenAI, Anthropic, and Google. One key, one bill, no provider accounts needed. [Read the blog](https://www.browserbase.com/blog/model-gateway)
+  **(NEW) Automatic Model Router**: Omit `model` and let Browserbase select a model for every `act`, `extract`, and `observe` call. One key, one bill, no provider accounts needed.
 </Callout>
 
 ## Model Gateway
 
-Model Gateway lets you use Stagehand without wiring up model providers yourself. Instead of managing separate API keys for each provider, pass your Browserbase API key and pick a model. Browserbase routes the request to the upstream provider for you.
+Model Gateway lets you use Stagehand without wiring up model providers yourself. When you omit `model`, Browserbase automatically selects a model for each `act`, `extract`, and `observe` call. You can still provide a model explicitly when you want to pin one.
 
 ### Setup
 
@@ -21,7 +21,6 @@ import { Stagehand } from "@browserbasehq/stagehand";
 const stagehand = new Stagehand({
   apiKey: process.env.BROWSERBASE_API_KEY,
   browser: { type: "browserbase" },
-  model: { modelName: "openai/gpt-5" },
 });
 
 await stagehand.init();
@@ -35,7 +34,6 @@ from stagehand import Stagehand
 stagehand = Stagehand(
     api_key=os.environ["BROWSERBASE_API_KEY"],
     browser="browserbase",
-    model="openai/gpt-5",
 )
 
 await stagehand.init()
@@ -45,13 +43,10 @@ await stagehand.init()
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-// No model API key: requests route through Model Gateway
-model := stagehand.KnownModel(stagehand.KnownModelConfig{ModelName: "openai/gpt-5"})
 
 client := stagehand.New(stagehand.StagehandClientInitParams{
 	APIKey:  &apiKey,
 	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Model:   &model,
 })
 
 if err := client.Init(ctx); err != nil {
@@ -60,13 +55,11 @@ if err := client.Init(ctx); err != nil {
 ```
 </View>
 
-When only a Browserbase API key is provided (without a provider-specific API key), Stagehand automatically routes model requests through Model Gateway. No additional configuration is needed: omit the model API key and the gateway takes over.
+When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. An explicit model without a provider-specific API key still routes through Model Gateway, but pins that model instead.
 
 <Note>
   Model Gateway requires Browserbase-hosted browsers. It does not work with the local or CDP browser sources, because those have no Browserbase session to bill and authorize against.
 </Note>
-
-{/* TODO: Model Gateway routing is not yet wired up in the v4 runtime, which currently raises "Direct model inference requires an API key" when no provider key is present. Verify before publishing. */}
 
 ### Switching models
 
@@ -1294,7 +1287,7 @@ console.log(data.summary);
 
 <View title="Python" icon="python">
 ```python
-from stagehand import ModelConfig, Stagehand
+from stagehand import Stagehand
 
 
 class Pricing(BaseModel):
@@ -1314,10 +1307,10 @@ await stagehand.act("click the login button")
 data = (await stagehand.extract(
     "summarize the pricing table",
     Pricing,
-    model=ModelConfig.model_validate({
+    model={
         "model_name": "anthropic/claude-sonnet-4-6",
         "api_key": os.environ["ANTHROPIC_API_KEY"],
-    }),
+    },
 )).data
 
 print(data.summary)
@@ -1649,7 +1642,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - Read the provider key from the environment and pass it on the model configuration; Stagehand never reads it for you
 - Confirm you are reading the variable name your provider expects
-- If you intended to use Model Gateway, omit the model API key entirely and pass only your Browserbase key
+- If you intended to use automatic Model Gateway routing, omit `model` entirely and pass only your Browserbase key
+- To pin a Gateway model, provide its name but omit the model provider API key
 
 | Provider   | Conventional Environment Variable |
 | ---------- | ------------------------------ |

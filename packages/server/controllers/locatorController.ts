@@ -5,6 +5,7 @@ import type {
   LocatorHighlightParams,
   LocatorScrollToParams,
   LocatorSelectOptionParams,
+  LocatorSetInputFilesParams,
   LocatorSendClickEventParams,
   LocatorTypeParams,
 } from "../../protocol/types.js";
@@ -92,6 +93,11 @@ export function createLocatorController(runtime: StagehandRuntime) {
     return runtime.locatorSelectOption(params);
   }
 
+  async function setInputFiles(params: LocatorSetInputFilesParams, { logger }: HandlerContext) {
+    logger.debug("locator.set_input_files", { fileCount: params.files.length });
+    return runtime.locatorSetInputFiles(params);
+  }
+
   return {
     click,
     fill,
@@ -109,5 +115,6 @@ export function createLocatorController(runtime: StagehandRuntime) {
     sendClickEvent,
     type,
     selectOption,
+    setInputFiles,
   };
 }
