@@ -75,11 +75,7 @@ export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   const resultText = markerIndex >= 0 ? raw.slice(markerIndex + marker.length).trim() : raw.trim();
   const candidates =
     markerIndex >= 0
-      ? [
-          resultText,
-          resultText.split(/\r?\n/, 1)[0]?.trim(),
-          extractFirstJsonObject(resultText),
-        ]
+      ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
       : [resultText];
 
   for (const candidate of candidates) {
