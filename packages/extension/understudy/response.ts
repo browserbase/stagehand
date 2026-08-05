@@ -14,7 +14,6 @@
  */
 
 import type { Protocol } from "devtools-protocol";
-import type { SerializableResponse } from "../types/private/index.js";
 import type { CDPSessionLike } from "./cdp.js";
 import type { Frame } from "./frame.js";
 import type { Page } from "./page.js";
@@ -28,16 +27,6 @@ function base64ToBytes(base64: string): Uint8Array {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes;
-}
-
-export function isSerializableResponse(value: unknown): value is SerializableResponse {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<SerializableResponse>;
-  if (typeof candidate.requestId !== "string") return false;
-  if (!candidate.response || typeof candidate.response !== "object") {
-    return false;
-  }
-  return true;
 }
 
 /**
@@ -371,39 +360,6 @@ export class Response {
       this.headerValuesMap.set(lower, segments);
       this.headersObject[lower] = segments.join(", ");
     }
-  }
-
-  /**
-   * Internal helper for creating a Response object from a Serializable
-   * goto response from the Stagehand API
-   */
-  public static fromSerializable(
-    serialized: SerializableResponse,
-    context: { page: Page; session: CDPSessionLike },
-  ): Response {
-    const reconstructed = new Response({
-      page: context.page,
-      session: context.session,
-      requestId: serialized.requestId,
-      frameId: serialized.frameId,
-      loaderId: serialized.loaderId,
-      response: serialized.response as Protocol.Network.Response,
-      fromServiceWorker: serialized.fromServiceWorkerFlag ?? false,
-    });
-
-    if (serialized.extraInfoHeaders) {
-      reconstructed.applyExtraInfo({
-        requestId: serialized.requestId,
-        headers: serialized.extraInfoHeaders,
-        headersText: serialized.extraInfoHeadersText,
-      } as Protocol.Network.ResponseReceivedExtraInfoEvent);
-    }
-
-    if (serialized.finishedSettled) {
-      reconstructed.markFinished(null);
-    }
-
-    return reconstructed;
   }
 
   /** Marks the response as finished and resolves the `finished()` promise. */

@@ -4,7 +4,7 @@ import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schem
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
-import { RPCClient, type CDPTransport } from "../src/rpcClient.js";
+import { RPCClient, rpcResponseTimeoutMs, type CDPTransport } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
   name: "test.uppercase",
@@ -343,6 +343,55 @@ describe("RPCClient", () => {
     } finally {
       client.close();
       vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    [StagehandMethods.pageGoto.name, 25_000],
+    [StagehandMethods.pageReload.name, 25_000],
+    [StagehandMethods.pageGoBack.name, 25_000],
+    [StagehandMethods.pageGoForward.name, 25_000],
+    [StagehandMethods.pageWaitForLoadState.name, 25_000],
+    [StagehandMethods.pageWaitForSelector.name, 40_000],
+    [StagehandMethods.pageWebMCPTools.name, 11_000],
+  ])("uses the v3 operation default plus transport grace for %s", (method, timeout) => {
+    expect(rpcResponseTimeoutMs(method, {})).toBe(timeout);
+  });
+
+  it("does not impose response deadlines on operations that were unbounded in v3", () => {
+    const methods = [
+      StagehandMethods.stagehandInit.name,
+      StagehandMethods.stagehandClose.name,
+      StagehandMethods.stagehandAct.name,
+      StagehandMethods.stagehandExtract.name,
+      StagehandMethods.stagehandObserve.name,
+      StagehandMethods.contextNewPage.name,
+      StagehandMethods.contextClose.name,
+      StagehandMethods.contextAddInitScript.name,
+      StagehandMethods.contextSetExtraHTTPHeaders.name,
+      StagehandMethods.contextGetDomainPolicy.name,
+      StagehandMethods.contextSetDomainPolicy.name,
+      StagehandMethods.contextCookies.name,
+      StagehandMethods.contextAddCookies.name,
+      StagehandMethods.contextClearCookies.name,
+      StagehandMethods.contextClipboardReadText.name,
+      StagehandMethods.contextClipboardWriteText.name,
+      StagehandMethods.contextClipboardClear.name,
+      StagehandMethods.contextClipboardPaste.name,
+      StagehandMethods.contextClipboardCopy.name,
+      StagehandMethods.contextClipboardCut.name,
+      StagehandMethods.pageClose.name,
+      StagehandMethods.pageEvaluate.name,
+      StagehandMethods.pageScreenshot.name,
+      StagehandMethods.pageSnapshot.name,
+      StagehandMethods.pageWebMCPInvocationResult.name,
+      ...Object.values(StagehandMethods)
+        .map(({ name }) => name)
+        .filter((name) => name.startsWith("locator.")),
+    ];
+
+    for (const method of methods) {
+      expect(rpcResponseTimeoutMs(method, {}), method).toBeUndefined();
     }
   });
 

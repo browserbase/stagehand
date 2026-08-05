@@ -17,7 +17,6 @@
     "../extension/service-worker.ts",
     "../extension/tests/**/*.ts",
     "../extension/services/**/*.ts",
-    "../extension/transports/**/*.ts",
     "../extension/types/**/*.ts",
     "../extension/understudy/**/*.ts",
     "../extension/version.ts",
