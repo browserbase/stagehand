@@ -1377,10 +1377,10 @@ await stagehand.act("click the login button")
 data = (await stagehand.extract(
     "summarize the pricing table",
     Pricing,
-    model=ModelConfig.model_validate({
-        "model_name": "anthropic/claude-sonnet-4-6",
-        "api_key": os.environ["ANTHROPIC_API_KEY"],
-    }),
+    model=ModelConfig(
+        model_name="anthropic/claude-sonnet-4-6",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    ),
 )).data
 
 print(data.summary)

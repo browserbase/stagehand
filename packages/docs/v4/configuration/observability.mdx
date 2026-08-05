@@ -209,8 +209,6 @@ import os
 
 from browserbase import Browserbase
 
-from stagehand import browserbase
-
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 # List sessions with filtering
@@ -1048,7 +1046,6 @@ console.log(await stagehand.metrics());
 
 <View title="Python" icon="python">
 ```python
-import json
 import os
 
 from datetime import datetime, timezone

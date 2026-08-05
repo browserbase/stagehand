@@ -58,10 +58,10 @@ class Terms(BaseModel):
 await stagehand.extract(
     instruction="summarize the contract terms",
     schema=Terms,
-    model=ModelConfig.model_validate({
-        "model_name": "anthropic/claude-sonnet-4-6",
-        "api_key": os.environ["ANTHROPIC_API_KEY"],
-    }),
+    model=ModelConfig(
+        model_name="anthropic/claude-sonnet-4-6",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    ),
 )
 ```
 </View>
@@ -301,11 +301,9 @@ async def smart_act(stagehand: Stagehand, prompt: str):
     ]
 
     for model in models:
-        config = ModelConfig.model_validate(model)
-
         # Planning is side-effect free, so escalating here is safe to repeat
         try:
-            plan = await stagehand.observe(instruction=prompt, model=config)
+            plan = await stagehand.observe(instruction=prompt, model=model)
         except Exception:
             plan = None
 
@@ -315,7 +313,7 @@ async def smart_act(stagehand: Stagehand, prompt: str):
             continue
 
         # The page is touched once, by the first model that produced a plan
-        return await stagehand.act(plan.data[0], model=config)
+        return await stagehand.act(plan.data[0], model=model)
 
     raise RuntimeError(f"No model could complete: {prompt}")
 ```

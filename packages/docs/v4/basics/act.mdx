@@ -293,10 +293,10 @@ from stagehand import ModelConfig
 
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
-    model=ModelConfig.model_validate({
-        "model_name": "google/gemini-2.5-flash",
-        "api_key": os.environ["GOOGLE_API_KEY"],
-    }),
+    model=ModelConfig(
+        model_name="google/gemini-2.5-flash",
+        api_key=os.environ["GOOGLE_API_KEY"],
+    ),
     timeout=10000,
 )
 ```

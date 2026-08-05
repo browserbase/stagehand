@@ -52,6 +52,9 @@ page, err := browserContext.ActivePage(ctx)
 if err != nil {
 	return err
 }
+if page == nil {
+	return errors.New("Stagehand has no active page")
+}
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
@@ -121,8 +124,6 @@ await browser.context.setActivePage(githubPage);
 import asyncio
 
 from pydantic import BaseModel
-
-from stagehand import Stagehand, browserbase
 
 class Stars(BaseModel):
     stars: int

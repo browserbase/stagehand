@@ -269,10 +269,10 @@ from stagehand import ModelConfig
 # Custom model configuration
 result = await stagehand.observe(
     "find navigation links",
-    model={
-        "model_name": "openai/gpt-5.4-mini",
-        "api_key": os.environ["OPENAI_API_KEY"],
-    },
+    model=ModelConfig(
+        model_name="openai/gpt-5.4-mini",
+        api_key=os.environ["OPENAI_API_KEY"],
+    ),
     timeout=30000,
     selector="//header",  # Focus on specific area
 )
