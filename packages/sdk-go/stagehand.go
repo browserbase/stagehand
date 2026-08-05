@@ -22,7 +22,6 @@ type Stagehand struct {
 	mu                        sync.RWMutex
 	rpc                       protocolClient
 	browser                   *Browser
-	context                   *BrowserContext
 	initialized               bool
 	closed                    bool
 	closeResult               error
@@ -114,19 +113,17 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		cancelCleanup()
 		return nil, errors.Join(err, closeErr, browserErr)
 	}
-	client.context = &BrowserContext{rpc: rpc}
+	if err := attachBrowserContext(client.browser, &BrowserContext{rpc: rpc}); err != nil {
+		if client.removeLLMHandler != nil {
+			client.removeLLMHandler()
+		}
+		client.removeNotificationHandler()
+		rpcErr := rpc.close()
+		releaseBrowserClaim(options.Browser)
+		return nil, errors.Join(err, rpcErr)
+	}
 	client.initialized = true
 	return client, nil
-}
-
-// Context returns the initialized browser context.
-func (s *Stagehand) Context() (*BrowserContext, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.context == nil {
-		return nil, ErrNotInitialized
-	}
-	return s.context, nil
 }
 
 // Browser returns the factory-created browser handle attached to Stagehand.
@@ -220,8 +217,12 @@ func (s *Stagehand) Extract(
 	if err != nil {
 		return ExtractResult{}, err
 	}
-	params := StagehandExtractParams{
-		PageID: page.PageID(), Instruction: instruction, Schema: schema,
+	params := StagehandExtractParams{PageID: page.PageID(), Instruction: instruction}
+	if schema != nil {
+		if len(schema) == 0 {
+			schema = json.RawMessage(`{}`)
+		}
+		params.Schema = schema
 	}
 	if options != nil {
 		params.Options = &options.ExtractOptions
@@ -271,7 +272,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 	}
 
 	var closeErr error
-	if s.context != nil && s.rpc != nil {
+	if s.initialized && s.rpc != nil {
 		var result StagehandCloseResult
 		closeErr = s.rpc.call(ctx, "stagehand.close", EmptyParams{}, &result)
 		if errors.Is(closeErr, ErrCDPConnectionClosed) {
@@ -291,7 +292,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 		rpcErr = s.rpc.close()
 		s.rpc = nil
 	}
-	s.context = nil
+	detachBrowserContext(s.browser)
 	s.initialized = false
 	s.closed = true
 	s.closeResult = errors.Join(closeErr, rpcErr)
@@ -352,7 +353,7 @@ func (s *Stagehand) targetPage(ctx context.Context, page *Page) (*Page, error) {
 	if page != nil {
 		return page, nil
 	}
-	browserContext, err := s.Context()
+	browserContext, err := s.browser.Context()
 	if err != nil {
 		return nil, err
 	}

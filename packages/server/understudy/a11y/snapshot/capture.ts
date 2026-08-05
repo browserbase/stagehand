@@ -32,6 +32,10 @@ type Interval = { start: number; end: number };
 type ExclusionIntervalsByFrame = Map<string, Interval[]>;
 type ChildFrameHost = { childFrameId: string; hostBackendNodeId: number };
 type ChildFramesByParent = Map<string, ChildFrameHost[]>;
+// String.prototype.toWellFormed is available at runtime, but not in our current TS lib target.
+type StringWithToWellFormed = string & { toWellFormed(): string };
+
+const toWellFormed = (value: string): string => (value as StringWithToWellFormed).toWellFormed();
 
 /**
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
@@ -257,14 +261,15 @@ export async function tryScopedSnapshot(
 
     const scopedUrlMap: Record<string, string> = { ...urlMap };
 
+    const wellFormedOutline = toWellFormed(outline);
     const snapshot: HybridSnapshot = {
-      combinedTree: outline,
+      combinedTree: wellFormedOutline,
       combinedXpathMap: scopedXpathMap,
       combinedUrlMap: scopedUrlMap,
       perFrame: [
         {
           frameId: targetFrameId,
-          outline,
+          outline: wellFormedOutline,
           xpathMap,
           urlMap,
         },
@@ -793,7 +798,7 @@ export function mergeFramesIntoSnapshot(
     perFrameOutlines.find((o) => o.frameId === context.rootId)?.outline ??
     perFrameOutlines[0]?.outline ??
     "";
-  const combinedTree = injectSubtrees(rootOutline, idToTree);
+  const combinedTree = toWellFormed(injectSubtrees(rootOutline, idToTree));
 
   return {
     combinedTree,
@@ -803,7 +808,7 @@ export function mergeFramesIntoSnapshot(
       const maps = perFrameMaps.get(frameId);
       return {
         frameId,
-        outline,
+        outline: toWellFormed(outline),
         xpathMap: maps?.xpathMap ?? {},
         urlMap: maps?.urlMap ?? {},
       };

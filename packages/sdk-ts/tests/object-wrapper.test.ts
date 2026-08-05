@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
@@ -10,11 +10,17 @@ import {
   BrowserContext,
   Locator,
   Page,
+  Response,
   Stagehand,
   WebMCPInvocation,
   WebMCPTool,
 } from "../src/index.js";
 import { RPCClient } from "../src/rpcClient.js";
+import {
+  attachStagehandBrowserContext,
+  claimStagehandBrowserHandle,
+  createStagehandBrowserHandle,
+} from "../src/browser/index.js";
 
 type ProtocolCall = { method: string; params: unknown };
 
@@ -67,10 +73,17 @@ class FakeProtocolClient extends RPCClient {
 }
 
 function createStagehandWithClientForTest(client: RPCClient): Stagehand {
-  // This lightweight wrapper intentionally has no browser handle; these tests must not use .browser.
+  const browser = createStagehandBrowserHandle({
+    provider: "local",
+    origin: "connected",
+    attachment: {},
+    close: () => {},
+  });
+  claimStagehandBrowserHandle(browser);
+  attachStagehandBrowserContext(browser, new BrowserContext(client));
   const stagehand = Object.create(Stagehand.prototype) as Stagehand;
+  Object.assign(stagehand, { browserHandle: browser });
   stagehand.rpcClient = client;
-  stagehand.browserContext = new BrowserContext(client);
   stagehand.isInitialized = true;
   return stagehand;
 }
@@ -95,7 +108,7 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
 
     expect(stagehand.initialized).toBe(true);
-    expect(stagehand.context).toBeInstanceOf(BrowserContext);
+    expect(stagehand.browser.context).toBeInstanceOf(BrowserContext);
     expect(client.calls).toStrictEqual([]);
   });
 
@@ -118,7 +131,7 @@ describe("Stagehand TS object wrapper", () => {
     ]);
     const stagehand = createStagehandWithClientForTest(client);
 
-    const pages = await stagehand.context.pages();
+    const pages = await stagehand.browser.context.pages();
 
     expect(client.calls).toStrictEqual([requestCall(StagehandMethods.contextPages, {})]);
     expect(pages).toHaveLength(2);
@@ -140,7 +153,7 @@ describe("Stagehand TS object wrapper", () => {
     });
     const stagehand = createStagehandWithClientForTest(client);
 
-    const page = await stagehand.context.newPage({ url: "https://browserbase.com" });
+    const page = await stagehand.browser.context.newPage({ url: "https://browserbase.com" });
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
@@ -162,8 +175,8 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextActivePage, null);
     const stagehand = createStagehandWithClientForTest(client);
 
-    const activePage = await stagehand.context.activePage();
-    const missingActivePage = await stagehand.context.activePage();
+    const activePage = await stagehand.browser.context.activePage();
+    const missingActivePage = await stagehand.browser.context.activePage();
 
     expect(activePage).toBeInstanceOf(Page);
     expect(activePage?.ref).toStrictEqual({
@@ -184,8 +197,8 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
-    await stagehand.context.setActivePage(page);
-    await stagehand.context.close();
+    await stagehand.browser.context.setActivePage(page);
+    await stagehand.browser.context.close();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetActivePage, { pageId: "page-1" }),
@@ -202,8 +215,8 @@ describe("Stagehand TS object wrapper", () => {
       globalThis.document.title = String(arg.ready);
     };
 
-    await stagehand.context.addInitScript({ content: "globalThis.fromContent = true" });
-    await stagehand.context.addInitScript(script, { ready: true });
+    await stagehand.browser.context.addInitScript({ content: "globalThis.fromContent = true" });
+    await stagehand.browser.context.addInitScript(script, { ready: true });
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextAddInitScript, {
@@ -227,17 +240,17 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.contextSetDomainPolicy, { ok: true });
     const stagehand = createStagehandWithClientForTest(client);
 
-    await stagehand.context.setExtraHTTPHeaders({
+    await stagehand.browser.context.setExtraHTTPHeaders({
       "X-Request-ID": "request-1",
       doNotRenameMe: "value",
     });
-    await expect(stagehand.context.getDomainPolicy()).resolves.toStrictEqual({
+    await expect(stagehand.browser.context.getDomainPolicy()).resolves.toStrictEqual({
       allowedDomains: ["example.com"],
       blockedDomains: ["blocked.example.com"],
     });
-    await expect(stagehand.context.getDomainPolicy()).resolves.toBeNull();
-    await stagehand.context.setDomainPolicy({ allowedDomains: ["example.test"] });
-    await stagehand.context.setDomainPolicy(null);
+    await expect(stagehand.browser.context.getDomainPolicy()).resolves.toBeNull();
+    await stagehand.browser.context.setDomainPolicy({ allowedDomains: ["example.test"] });
+    await stagehand.browser.context.setDomainPolicy(null);
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextSetExtraHTTPHeaders, {
@@ -278,17 +291,17 @@ describe("Stagehand TS object wrapper", () => {
       sameSite: "Lax" as const,
     };
 
-    await expect(stagehand.context.cookies("https://example.test/account")).resolves.toStrictEqual([
-      cookie,
-    ]);
-    await expect(stagehand.context.cookies()).resolves.toStrictEqual([]);
-    await stagehand.context.addCookies([cookieParam]);
-    await stagehand.context.clearCookies({
+    await expect(
+      stagehand.browser.context.cookies("https://example.test/account"),
+    ).resolves.toStrictEqual([cookie]);
+    await expect(stagehand.browser.context.cookies()).resolves.toStrictEqual([]);
+    await stagehand.browser.context.addCookies([cookieParam]);
+    await stagehand.browser.context.clearCookies({
       name: /^session-/gi,
       domain: "example.test",
       path: /^\/account/,
     });
-    await stagehand.context.clearCookies();
+    await stagehand.browser.context.clearCookies();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextCookies, {
@@ -318,9 +331,9 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
 
-    const clipboard = stagehand.context.clipboard;
+    const clipboard = stagehand.browser.context.clipboard;
     expect(clipboard).toBeInstanceOf(BrowserClipboard);
-    expect(stagehand.context.clipboard).toBe(clipboard);
+    expect(stagehand.browser.context.clipboard).toBe(clipboard);
     expect(client.calls).toStrictEqual([]);
 
     await expect(clipboard.readText({ page })).resolves.toBe("clipboard text");
@@ -346,18 +359,29 @@ describe("Stagehand TS object wrapper", () => {
   it("routes page.goto and updates the page ref", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageGoto, {
-      pageId: "page-1",
-      url: "https://example.com/next",
-      title: "Next",
+      page: {
+        pageId: "page-1",
+        url: "https://example.com/next",
+        title: "Next",
+      },
+      response: {
+        responseId: "response-1",
+        url: "https://example.com/next",
+        status: 200,
+        statusText: "OK",
+        headers: { "content-type": "text/html" },
+        fromServiceWorker: false,
+      },
     });
     const page = new Page(client, { pageId: "page-1", url: "about:blank" });
 
-    const returnedPage = await page.goto("https://example.com/next", {
+    const response = await page.goto("https://example.com/next", {
       waitUntil: "load",
       timeout: 5000,
     });
 
-    expect(returnedPage).toBe(page);
+    expect(response).toBeInstanceOf(Response);
+    expect(response?.url()).toBe("https://example.com/next");
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.pageGoto, {
         pageId: "page-1",
@@ -378,28 +402,28 @@ describe("Stagehand TS object wrapper", () => {
   it("routes page navigation methods and updates the page ref", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageReload, {
-      pageId: "page-1",
-      url: "https://example.com/reloaded",
+      page: { pageId: "page-1", url: "https://example.com/reloaded" },
+      response: null,
     });
     client.queueResponse(StagehandMethods.pageGoBack, {
-      pageId: "page-1",
-      url: "https://example.com/back",
+      page: { pageId: "page-1", url: "https://example.com/back" },
+      response: null,
     });
     client.queueResponse(StagehandMethods.pageGoForward, {
-      pageId: "page-1",
-      url: "https://example.com/forward",
+      page: { pageId: "page-1", url: "https://example.com/forward" },
+      response: null,
     });
     const page = new Page(client, { pageId: "page-1", url: "https://example.com/current" });
 
     await expect(
       page.reload({ waitUntil: "load", timeout: 5_000, ignoreCache: true }),
-    ).resolves.toBe(page);
+    ).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/reloaded");
 
-    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBe(page);
+    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/back");
 
-    await expect(page.goForward()).resolves.toBe(page);
+    await expect(page.goForward()).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/forward");
 
     expect(client.calls).toStrictEqual([
@@ -998,6 +1022,62 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
+  it("uses the default extraction schema when stagehand.extract omits a schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "HIT" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+
+    const result = await stagehand.extract("Extract the page text");
+
+    expect(result.data.extraction).toBe("Example Domain");
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.contextActivePage, {}),
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+      }),
+    ]);
+  });
+
+  it("accepts extract options as the second argument with the default schema", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.stagehandExtract, {
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(
+      stagehand.extract("Extract the page text", { page, selector: "main" }),
+    ).resolves.toStrictEqual({
+      data: { extraction: "Example Domain" },
+      metadata: { cache: { status: "MISS" }, usage: zeroUsage },
+    });
+    expect(client.calls).toStrictEqual([
+      requestCall(StagehandMethods.stagehandExtract, {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+        options: { selector: "main" },
+      }),
+    ]);
+  });
+
+  it("requires a runtime schema when selecting a custom extract type", () => {
+    const stagehand = createStagehandWithClientForTest(new FakeProtocolClient());
+    const customSchema = z.object({ heading: z.string() });
+    const typecheck = (): void => {
+      // @ts-expect-error A custom schema generic requires the matching runtime schema.
+      void stagehand.extract<typeof customSchema>("Extract the heading", undefined);
+    };
+
+    expect(typecheck).toBeTypeOf("function");
+  });
+
   it("validates stagehand.extract data with the caller's original Zod schema", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.stagehandExtract, {
@@ -1172,6 +1252,106 @@ describe("Stagehand TS object wrapper", () => {
         values: ["starter", "pro"],
       }),
     ]);
+  });
+
+  it("normalizes files and payloads and routes locator.setInputFiles", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "stagehand-upload-test-"));
+    const filePath = path.join(directory, "hello.txt");
+    const historicalPath = path.join(directory, "historical.txt");
+    await writeFile(filePath, "hello");
+    await writeFile(historicalPath, "old");
+    await utimes(historicalPath, new Date(0), new Date(-1_000));
+    try {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+      const page = new Page(client, { pageId: "page-1" });
+      const locator = page.locator("#upload");
+
+      await locator.setInputFiles(filePath);
+      await locator.setInputFiles([
+        {
+          name: "bytes.bin",
+          mimeType: "application/octet-stream",
+          buffer: new Uint8Array([0, 127, 255]),
+          lastModified: 42,
+        },
+        { name: "message.txt", buffer: "hello" },
+      ]);
+      await locator.setInputFiles([]);
+      await locator.setInputFiles(historicalPath);
+
+      expect(client.calls[0]).toMatchObject({
+        method: "locator.set_input_files",
+        params: {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "hello.txt", data: "aGVsbG8=" }],
+        },
+      });
+      expect(client.calls[1]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [
+            {
+              name: "bytes.bin",
+              mimeType: "application/octet-stream",
+              data: "AH//",
+              lastModified: 42,
+            },
+            { name: "message.txt", data: "aGVsbG8=" },
+          ],
+        }),
+      );
+      expect(client.calls[2]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [],
+        }),
+      );
+      expect(client.calls[3]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "historical.txt", data: "b2xk" }],
+        }),
+      );
+
+      const missingPath = path.join(directory, "private", "missing.txt");
+      const missingError = await locator
+        .setInputFiles(missingPath)
+        .catch((error: unknown) => error);
+      expect(missingError).toBeInstanceOf(TypeError);
+      expect((missingError as Error).message).toBe("setInputFiles(): could not read file");
+      expect((missingError as Error).message).not.toContain(directory);
+      await expect(
+        locator.setInputFiles({ name: "historical.txt", buffer: "old", lastModified: -1 }),
+      ).rejects.toThrow("lastModified must be a non-negative integer");
+
+      const oversizedPath = path.join(directory, "oversized.bin");
+      await writeFile(oversizedPath, "");
+      await truncate(oversizedPath, 50 * 1024 * 1024 + 1);
+      await expect(locator.setInputFiles(oversizedPath)).rejects.toThrow(
+        "file is larger than the 50 MiB upload limit",
+      );
+
+      const oversizedMemoryPayload = new Uint8Array(50 * 1024 * 1024 + 1);
+      const bufferFrom = vi.spyOn(Buffer, "from");
+      try {
+        await expect(
+          locator.setInputFiles({ name: "oversized.bin", buffer: oversizedMemoryPayload }),
+        ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+        expect(bufferFrom).not.toHaveBeenCalled();
+      } finally {
+        bufferFrom.mockRestore();
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {

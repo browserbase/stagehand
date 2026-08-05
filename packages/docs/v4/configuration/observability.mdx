@@ -30,21 +30,19 @@ Browserbase provides real-time visibility into your automation sessions:
 <View title="TypeScript" icon="js">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase as stagehandBrowserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const browserbase = new Browserbase({
   apiKey: process.env.BROWSERBASE_API_KEY,
 });
 
-const stagehand = new Stagehand({
+const browser = await stagehandBrowserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // The resolved browser source carries the Browserbase session ID
-const sessionId = stagehand.browser.browserbaseSessionId;
+const sessionId = browser.browserbaseSessionId;
 const sessionInfo = await browserbase.sessions.retrieve(sessionId);
 
 console.log("Session status:", sessionInfo.status);
@@ -61,7 +59,7 @@ import os
 
 from browserbase import Browserbase
 
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -70,9 +68,8 @@ session = browserbase.sessions.create(
     project_id=os.environ["BROWSERBASE_PROJECT_ID"],
 )
 
-stagehand = Stagehand(browser="cdp", cdp_url=session.connect_url)
-
-await stagehand.init()
+browser = await local_browser.connect(cdp_url=session.connect_url)
+stagehand = await Stagehand.create(browser=browser)
 
 session_info = browserbase.sessions.retrieve(session.id)
 
@@ -93,11 +90,14 @@ if err != nil {
 	return err
 }
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.CDPBrowserSource{CDPURL: session.ConnectURL},
+browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
+	CDPURL: session.ConnectURL,
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
@@ -287,22 +287,18 @@ import { z } from "zod/v4";
 
 const DataSchema = z.object({ title: z.string() });
 
-const stagehand = new Stagehand({
-  browser: { type: "local" },
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({
+  browser,
   logging: { level: "info" }, // Monitor performance without debug noise
 });
-
-await stagehand.init();
 
 // Track local automation metrics
 const startTime = Date.now();
 const initialMetrics = await stagehand.metrics();
 
 // ... perform automation tasks
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 await stagehand.act("click button");
 await stagehand.extract("get data", DataSchema);
@@ -330,28 +326,25 @@ from time import perf_counter
 
 from pydantic import BaseModel
 
-from stagehand import Stagehand, StagehandClientLoggingConfig
+from stagehand import Stagehand, local_browser
 
 
 class Data(BaseModel):
     title: str
 
 
-stagehand = Stagehand(
-    browser="local",
-    logging=StagehandClientLoggingConfig(level="info"),  # Monitor without debug noise
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={"level": "info"},  # Monitor without debug noise
 )
-
-await stagehand.init()
 
 # Track local automation metrics
 start_time = perf_counter()
 initial_metrics = await stagehand.metrics()
 
 # ... perform automation tasks
-page = await stagehand.context.active_page()
-if page is None:
-    raise RuntimeError("Stagehand initialized without an active page")
+page = (await browser.context.pages())[0]
 await page.goto("https://example.com")
 await stagehand.act("click button")
 await stagehand.extract("get data", Data)
@@ -388,8 +381,12 @@ var dataSchema = json.RawMessage(`{
   "additionalProperties": false
 }`)
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
 		OnLog: func(entry stagehand.StagehandLog) {
 			if entry.Level == stagehand.StagehandLogLevelDebug {
@@ -399,8 +396,7 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 
@@ -412,17 +408,18 @@ if err != nil {
 }
 
 // ... perform automation tasks
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
+page := pages[0]
 if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
@@ -460,7 +457,7 @@ When running locally, monitor system resource usage and browser performance:
 <View title="TypeScript" icon="js">
 ```typescript
 import * as os from "node:os";
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 class LocalResourceMonitor {
   private cpuUsage: number[] = [];
@@ -493,7 +490,8 @@ class LocalResourceMonitor {
 const monitor = new LocalResourceMonitor();
 const interval = monitor.startMonitoring();
 
-const stagehand = new Stagehand({ browser: { type: "local" } });
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
 
 // ... run automation
 
@@ -543,7 +541,8 @@ class LocalResourceMonitor:
 monitor = LocalResourceMonitor()
 task = monitor.start_monitoring()
 
-stagehand = Stagehand(browser="local")
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
 
 # ... run automation
 
@@ -599,9 +598,11 @@ monitorCtx, stopMonitor := context.WithCancel(ctx)
 monitor := &localResourceMonitor{}
 monitor.startMonitoring(monitorCtx)
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	Browser: stagehand.LocalBrowserSource{},
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 
 // ... run automation
 
@@ -631,11 +632,10 @@ import { z } from "zod/v4";
 
 const UserSchema = z.object({ name: z.string(), email: z.string() });
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Metrics are fetched from the runtime, so the call is awaited
 const metrics = await stagehand.metrics();
@@ -646,10 +646,7 @@ const startTime = Date.now();
 const initialMetrics = await stagehand.metrics();
 
 // ... perform automation tasks
-const page = await stagehand.context.activePage();
-if (!page) {
-  throw new Error("Stagehand initialized without an active page");
-}
+const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 await stagehand.act("click the login button");
 const { data } = await stagehand.extract("extract user info", UserSchema);
@@ -675,7 +672,7 @@ console.log("Automation Summary:", {
 ```python
 from time import perf_counter
 
-from stagehand import Stagehand
+from stagehand import Stagehand, browserbase
 
 
 class User(BaseModel):
@@ -683,11 +680,10 @@ class User(BaseModel):
     email: str
 
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Metrics are fetched from the runtime, so the call is awaited
 metrics = await stagehand.metrics()
@@ -698,9 +694,7 @@ start_time = perf_counter()
 initial_metrics = await stagehand.metrics()
 
 # ... perform automation tasks
-page = await stagehand.context.active_page()
-if page is None:
-    raise RuntimeError("Stagehand initialized without an active page")
+page = (await browser.context.pages())[0]
 await page.goto("https://example.com")
 await stagehand.act("click the login button")
 data = (await stagehand.extract("extract user info", User)).data
@@ -739,11 +733,12 @@ var userSchema = json.RawMessage(`{
 }`)
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
@@ -762,17 +757,18 @@ if err != nil {
 }
 
 // ... perform automation tasks
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
+page := pages[0]
 if err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
@@ -1014,8 +1010,11 @@ Stagehand emits OpenTelemetry spans for every operation and for every log record
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
+});
+const stagehand = await Stagehand.create({
+  browser,
   telemetry: {
     traces: {
       endpoint: "https://otlp.example.com/v1/traces",
@@ -1028,10 +1027,13 @@ const stagehand = new Stagehand({
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand, TelemetryConfig
+from stagehand import Stagehand, TelemetryConfig, browserbase
 
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     telemetry=TelemetryConfig.model_validate({
         "traces": {
             "endpoint": "https://otlp.example.com/v1/traces",
@@ -1046,8 +1048,12 @@ stagehand = Stagehand(
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Telemetry: stagehand.TelemetryConfig{
 		Traces: stagehand.TelemetryTraces{
 			Endpoint: "https://otlp.example.com/v1/traces",
@@ -1057,8 +1063,7 @@ client := stagehand.New(stagehand.StagehandClientInitParams{
 		},
 	},
 })
-
-if err := client.Init(ctx); err != nil {
+if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()

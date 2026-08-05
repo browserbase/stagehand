@@ -17,6 +17,7 @@ import type {
   StagehandBrowserOrigin,
   StagehandBrowserProvider,
 } from "../../src/browser/index.js";
+import type { BrowserContext } from "../../src/browserContext.js";
 
 describe("browser API contracts", () => {
   it("defines nominal, provider-independent browser handles", () => {
@@ -24,6 +25,7 @@ describe("browser API contracts", () => {
     expectTypeOf<StagehandBrowserProvider>().toEqualTypeOf<"local" | "browserbase">();
     expectTypeOf<StagehandBrowser["origin"]>().toEqualTypeOf<StagehandBrowserOrigin>();
     expectTypeOf<StagehandBrowserOrigin>().toEqualTypeOf<"launched" | "connected">();
+    expectTypeOf<StagehandBrowser["context"]>().toEqualTypeOf<BrowserContext>();
     expectTypeOf<StagehandBrowser["close"]>().returns.toEqualTypeOf<Promise<void>>();
     expectTypeOf<{
       provider: "local";

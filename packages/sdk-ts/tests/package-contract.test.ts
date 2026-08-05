@@ -49,6 +49,7 @@ describe("published TypeScript SDK", () => {
               BrowserbaseConnectOptionsSchema,
               localBrowser,
               LocalBrowserConnectOptionsSchema,
+              Response,
               Stagehand,
               WebMCPInvocation,
               WebMCPTool,
@@ -56,8 +57,12 @@ describe("published TypeScript SDK", () => {
             } from "@browserbasehq/stagehand";
 
             if (typeof Stagehand !== "function") throw new Error("Stagehand export is unavailable");
+            if (typeof Response !== "function") throw new Error("Response export is unavailable");
             if ("init" in Stagehand.prototype) {
               throw new Error("legacy Stagehand.init is still published");
+            }
+            if ("context" in Stagehand.prototype) {
+              throw new Error("legacy Stagehand.context is still published");
             }
             if (typeof localBrowser?.launch !== "function") {
               throw new Error("localBrowser export is unavailable");

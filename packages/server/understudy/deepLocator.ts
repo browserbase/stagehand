@@ -113,12 +113,14 @@ export class DeepLocatorDelegate {
     readonly page: Page,
     readonly root: Frame,
     readonly selector: string,
-    readonly nthIndex: number = 0,
+    // -1 preserves every match for operations such as screenshot masking while
+    // ordinary single-element operations still resolve their first match.
+    readonly nthIndex: number = -1,
   ) {}
 
   async real(): Promise<Locator> {
     const base = await resolveLocatorWithHops(this.page, this.root, this.selector);
-    return base.nth(this.nthIndex);
+    return this.nthIndex < 0 ? base : base.nth(this.nthIndex);
   }
 
   // Locator API delegates

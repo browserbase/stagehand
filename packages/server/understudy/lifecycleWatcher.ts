@@ -45,6 +45,10 @@ export class LifecycleWatcher {
   expectedLoaderId: string | undefined;
   initialLoaderId: string | undefined;
   pendingFollowupNavigation = false;
+  navigationStarted = false;
+  sameDocumentNavigation = false;
+  resolveNavigationStart!: (sameDocument: boolean) => void;
+  navigationStartPromise: Promise<boolean>;
 
   /**
    * Create a watcher; callers should subsequently invoke {@link wait}.
@@ -69,6 +73,14 @@ export class LifecycleWatcher {
     this.abortPromise = new Promise<never>((_, reject) => {
       this.abortReject = reject;
     });
+    this.navigationStartPromise = new Promise<boolean>((resolve) => {
+      this.resolveNavigationStart = (sameDocument) => {
+        if (this.navigationStarted) return;
+        this.navigationStarted = true;
+        this.sameDocumentNavigation = sameDocument;
+        resolve(sameDocument);
+      };
+    });
 
     this.installSessionListeners();
   }
@@ -87,6 +99,9 @@ export class LifecycleWatcher {
     const deadline = Date.now() + this.timeout;
 
     try {
+      const sameDocument = await this.awaitNavigationStart(deadline);
+      if (sameDocument) return;
+
       if (this.waitUntil === "domcontentloaded") {
         await this.awaitWithAbort(
           this.page.waitForMainLoadState("domcontentloaded", this.timeRemaining(deadline)),
@@ -150,6 +165,11 @@ export class LifecycleWatcher {
 
       const loaderId = evt.frame.loaderId;
       if (!loaderId) return;
+      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+        this.triggerAbort(new Error("Navigation was superseded by a new request"));
+        return;
+      }
+      this.resolveNavigationStart(false);
 
       if (!this.initialLoaderId) {
         this.initialLoaderId = loaderId;
@@ -165,11 +185,6 @@ export class LifecycleWatcher {
       }
 
       if (loaderId !== this.expectedLoaderId) {
-        if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
-          this.triggerAbort(new Error("Navigation was superseded by a new request"));
-          return;
-        }
-
         this.adoptNewMainLoader(loaderId);
       }
     };
@@ -182,6 +197,15 @@ export class LifecycleWatcher {
       this.triggerAbort(new Error("Main frame was detached"));
     };
 
+    const onNavigatedWithinDocument = (evt: Protocol.Page.NavigatedWithinDocumentEvent) => {
+      if (evt?.frameId !== this.page.mainFrameId()) return;
+      if (!this.page.isCurrentNavigationCommand(this.navigationCommandId)) {
+        this.triggerAbort(new Error("Navigation was superseded by a new request"));
+        return;
+      }
+      this.resolveNavigationStart(true);
+    };
+
     this.mainSession.on("Page.frameNavigated", onFrameNavigated);
     this.cleanupCallbacks.push(() => {
       this.mainSession.off("Page.frameNavigated", onFrameNavigated);
@@ -191,6 +215,30 @@ export class LifecycleWatcher {
     this.cleanupCallbacks.push(() => {
       this.mainSession.off("Page.frameDetached", onFrameDetached);
     });
+
+    this.mainSession.on("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+    this.cleanupCallbacks.push(() => {
+      this.mainSession.off("Page.navigatedWithinDocument", onNavigatedWithinDocument);
+    });
+  }
+
+  /** Wait for a new-document or same-document main-frame navigation to begin. */
+  async awaitNavigationStart(deadline: number): Promise<boolean> {
+    if (this.navigationStarted) return this.sameDocumentNavigation;
+
+    const remaining = this.timeRemaining(deadline);
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new TimeoutError("Navigation start", this.timeout));
+      }, remaining);
+    });
+
+    try {
+      return await this.awaitWithAbort(Promise.race([this.navigationStartPromise, timeoutPromise]));
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /** Compute remaining time until the shared deadline elapses. */

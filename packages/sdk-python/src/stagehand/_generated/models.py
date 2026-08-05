@@ -29,7 +29,7 @@ class ActOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -548,7 +548,7 @@ class ExtractOptions(WireModel):
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     timeout: Annotated[Optional[StrictFloat], Field(examples=[30000])] = None
     """
     Timeout in ms for the extraction
@@ -694,6 +694,26 @@ class ImplementationInfo(WireModel):
     )
     name: Annotated[StrictStr, Field(min_length=1)]
     version: Annotated[StrictStr, Field(min_length=1)]
+
+
+class InputFilePayload(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: Annotated[StrictStr, Field(min_length=1)]
+    mime_type: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    data: Annotated[
+        StrictStr,
+        Field(
+            json_schema_extra={"contentEncoding": "base64"},
+            max_length=69905068,
+            pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
+        ),
+    ]
+    last_modified: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = (
+        None
+    )
 
 
 class Instruction(RootModel[StrictStr]):
@@ -1174,6 +1194,25 @@ class LocatorSendClickEventResult(WireModel):
     clicked: Literal[True]
 
 
+class LocatorSetInputFilesParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    selector: Annotated[StrictStr, Field(min_length=1)]
+    nth: Annotated[Optional[StrictInt], Field(ge=0, le=9007199254740991)] = None
+    files: list[InputFilePayload]
+
+
+class LocatorSetInputFilesResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    set: Literal[True]
+
+
 class LocatorTextContentResult(RootModel[StrictStr]):
     root: StrictStr
 
@@ -1245,13 +1284,64 @@ class MouseButton(StrEnum):
     middle = "middle"
 
 
+class NavigationFinishedError(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    message: StrictStr
+
+
+class NavigationHeader(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    name: StrictStr
+    value: StrictStr
+
+
+class NavigationResponseDescriptor(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    response_id: Annotated[StrictStr, Field(min_length=1)]
+    url: StrictStr
+    status: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
+    status_text: StrictStr
+    headers: dict[StrictStr, StrictStr]
+    from_service_worker: StrictBool
+
+
+class NavigationSecurityDetails(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    issuer: StrictStr
+    protocol: StrictStr
+    subject_name: StrictStr
+    valid_from: StrictFloat
+    valid_to: StrictFloat
+
+
+class NavigationServerAddr(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    ip_address: StrictStr
+    port: Annotated[StrictInt, Field(ge=0, le=65535)]
+
+
 class ObserveOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
     )
     model: Optional[ModelConfig] = None
-    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used"""
+    """Complete model configuration for this call; when omitted, the initialized Stagehand model is used, or Browserbase selects one automatically when no initialized model exists"""
     variables: Annotated[
         Optional[Variables],
         Field(
@@ -1479,6 +1569,15 @@ class PageNavigationOptions(WireModel):
     )
     wait_until: Optional[LoadState] = None
     timeout: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
+
+
+class PageNavigationResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page: PageRef
+    response: Optional[NavigationResponseDescriptor]
 
 
 class PageRef(WireModel):
@@ -1764,6 +1863,63 @@ class ProxyConfig(RootModel[Union[BrowserbaseProxyConfig, ExternalProxyConfig]])
     root: Union[BrowserbaseProxyConfig, ExternalProxyConfig]
 
 
+class ResponseAllHeadersResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    headers: dict[StrictStr, StrictStr]
+
+
+class ResponseBodyResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    body: StrictStr
+    base64_encoded: Literal[True]
+
+
+class ResponseFinishedResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    error: Optional[NavigationFinishedError]
+
+
+class ResponseHeadersArrayResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    headers: list[NavigationHeader]
+
+
+class ResponseIdParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    response_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class ResponseSecurityDetailsResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[NavigationSecurityDetails]
+
+
+class ResponseServerAddrResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[NavigationServerAddr]
+
+
 class RgbaColor(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1827,7 +1983,13 @@ class StagehandExtractParams(WireModel):
     )
     page_id: Annotated[StrictStr, Field(min_length=1)]
     instruction: Annotated[StrictStr, Field(min_length=1)]
-    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema0], Field(alias="schema", validate_default=True)] = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"extraction": {"type": "string"}},
+        "required": ["extraction"],
+        "additionalProperties": False,
+    }
     options: Optional[ExtractOptions] = None
 
 
@@ -1842,6 +2004,7 @@ class StagehandInitParams(WireModel):
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
+    """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
     telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
         "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
     }

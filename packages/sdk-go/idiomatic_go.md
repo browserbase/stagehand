@@ -53,14 +53,20 @@ type Page struct {
 - Preserve the same conceptual object graph as TypeScript and Python even when access syntax differs. A Go `Context()` method may correspond to a TypeScript/Python property.
 
 ```go
-client, err := stagehand.NewLocal(stagehand.LocalOptions{
-	Headless: stagehand.Bool(true),
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
 if err != nil {
 	return err
 }
+defer func() {
+	closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := browser.Close(closeCtx); err != nil {
+		logger.Printf("close browser: %v", err)
+	}
+}()
 
-if err := client.Init(ctx); err != nil {
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 defer func() {
@@ -71,17 +77,18 @@ defer func() {
 	}
 }()
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("stagehand: initialized without an active page")
 }
+page := pages[0]
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
