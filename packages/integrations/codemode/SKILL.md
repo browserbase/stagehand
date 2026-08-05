@@ -50,9 +50,18 @@ Supported context methods include `pages`, `newPage`, `activePage`, `setActivePa
 `setExtraHTTPHeaders`, `getDomainPolicy`, `setDomainPolicy`, `cookies`, `addCookies`, and
 `clearCookies`.
 
+To submit a filled field with Enter, call `page.keyPress` with the key first. It does not take a
+selector, and V4 does not expose `page.keyboard`:
+
+```js
+await page.locator('input[name="q"]').fill("vegetarian lasagna");
+await page.keyPress("Enter");
+```
+
 Do not use Playwright-only methods such as locator `all`, `allTextContents`, `evaluate`,
 `evaluateAll`, `filter`, `getAttribute`, `contentFrame`, or `innerHTML`; page `content`,
-`frameLocator`, or `frames`; or context `waitForEvent`. Use `innerHtml` with a lowercase `l`.
+`frameLocator`, `frames`, or `keyboard`; or context `waitForEvent`. Use `innerHtml` with a lowercase
+`l`.
 
 For DOM collection reads, attributes, or custom traversal, use `page.evaluate`:
 
