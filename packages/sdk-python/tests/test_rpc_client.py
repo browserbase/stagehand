@@ -523,6 +523,73 @@ def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() 
     assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
 
 
+def test_response_deadline_uses_v3_operation_defaults() -> None:
+    params = models.EmptyParams()
+    expected = {
+        "page.goto": 25,
+        "page.reload": 25,
+        "page.go_back": 25,
+        "page.go_forward": 25,
+        "page.wait_for_load_state": 25,
+        "page.wait_for_selector": 40,
+        "page.webmcp_tools": 11,
+    }
+
+    for method, timeout in expected.items():
+        assert rpc_client._rpc_response_timeout_seconds(method, params) == timeout
+
+
+def test_response_deadline_preserves_v3_unbounded_operations() -> None:
+    params = models.EmptyParams()
+    methods = {
+        "stagehand.init",
+        "stagehand.close",
+        "stagehand.act",
+        "stagehand.extract",
+        "stagehand.observe",
+        "context.new_page",
+        "context.close",
+        "context.add_init_script",
+        "context.set_extra_http_headers",
+        "context.get_domain_policy",
+        "context.set_domain_policy",
+        "context.cookies",
+        "context.add_cookies",
+        "context.clear_cookies",
+        "context.clipboard_read_text",
+        "context.clipboard_write_text",
+        "context.clipboard_clear",
+        "context.clipboard_paste",
+        "context.clipboard_copy",
+        "context.clipboard_cut",
+        "page.close",
+        "page.evaluate",
+        "page.screenshot",
+        "page.snapshot",
+        "page.webmcp_invocation_result",
+        "locator.click",
+        "locator.fill",
+        "locator.hover",
+        "locator.count",
+        "locator.is_checked",
+        "locator.input_value",
+        "locator.is_visible",
+        "locator.inner_text",
+        "locator.inner_html",
+        "locator.text_content",
+        "locator.scroll_to",
+        "locator.centroid",
+        "locator.highlight",
+        "locator.send_click_event",
+        "locator.type",
+        "locator.select_option",
+        "locator.set_input_files",
+    }
+
+    for method in methods:
+        assert rpc_client._rpc_response_timeout_seconds(method, params) is None
+
+
 @pytest.mark.asyncio
 async def test_invalid_response_closes_client_and_rejects_pending_request() -> None:
     transport = QueueTransport()

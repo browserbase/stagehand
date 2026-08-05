@@ -31,8 +31,44 @@ const (
 )
 
 var (
-	ErrRPCClientClosed = errors.New("stagehand RPC client is closed")
-	rpcTracePropagator = propagation.TraceContext{}
+	ErrRPCClientClosed       = errors.New("stagehand RPC client is closed")
+	rpcTracePropagator       = propagation.TraceContext{}
+	defaultOperationTimeouts = map[string]time.Duration{
+		"page.goto":                15 * time.Second,
+		"page.reload":              15 * time.Second,
+		"page.go_back":             15 * time.Second,
+		"page.go_forward":          15 * time.Second,
+		"page.wait_for_load_state": 15 * time.Second,
+		"page.wait_for_selector":   30 * time.Second,
+		"page.webmcp_tools":        time.Second,
+	}
+	unboundedByDefaultMethods = map[string]struct{}{
+		"stagehand.init":                 {},
+		"stagehand.close":                {},
+		"stagehand.act":                  {},
+		"stagehand.extract":              {},
+		"stagehand.observe":              {},
+		"context.new_page":               {},
+		"context.close":                  {},
+		"context.add_init_script":        {},
+		"context.set_extra_http_headers": {},
+		"context.get_domain_policy":      {},
+		"context.set_domain_policy":      {},
+		"context.cookies":                {},
+		"context.add_cookies":            {},
+		"context.clear_cookies":          {},
+		"context.clipboard_read_text":    {},
+		"context.clipboard_write_text":   {},
+		"context.clipboard_clear":        {},
+		"context.clipboard_paste":        {},
+		"context.clipboard_copy":         {},
+		"context.clipboard_cut":          {},
+		"page.close":                     {},
+		"page.evaluate":                  {},
+		"page.screenshot":                {},
+		"page.snapshot":                  {},
+		"page.webmcp_invocation_result":  {},
+	}
 )
 
 // RPCError is a JSON-RPC error returned by the Stagehand worker.
@@ -237,10 +273,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 }
 
 func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
-	if method == "stagehand.init" {
-		return 0, false
-	}
-
 	var path []string
 	switch method {
 	case "stagehand.act",
@@ -259,11 +291,23 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		path = []string{"timeout"}
 	case "page.wait_for_timeout":
 		path = []string{"ms"}
-	default:
-		return rpcResponseGrace, true
 	}
 
-	durationMilliseconds := jsonNumberAtPath(params, path...)
+	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
+		return rpcResponseTimeoutForDuration(durationMilliseconds), true
+	}
+	if defaultTimeout, found := defaultOperationTimeouts[method]; found {
+		return rpcResponseGrace + defaultTimeout, true
+	}
+	// These operations had no v3 deadline. Keep the server as the owner of their
+	// lifetime instead of turning the transport grace period into a 10s ceiling.
+	if _, found := unboundedByDefaultMethods[method]; found || strings.HasPrefix(method, "locator.") {
+		return 0, false
+	}
+	return rpcResponseGrace, true
+}
+
+func rpcResponseTimeoutForDuration(durationMilliseconds float64) time.Duration {
 	if durationMilliseconds < 0 {
 		durationMilliseconds = 0
 	}
@@ -271,40 +315,43 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	operationNanoseconds := durationMilliseconds * float64(time.Millisecond)
 	if math.IsInf(operationNanoseconds, 1) ||
 		operationNanoseconds >= float64(maxOperationDuration) {
-		return maxRPCResponseTimeout, true
+		return maxRPCResponseTimeout
 	}
-	return rpcResponseGrace + time.Duration(operationNanoseconds), true
+	return rpcResponseGrace + time.Duration(operationNanoseconds)
 }
 
-func jsonNumberAtPath(encoded json.RawMessage, path ...string) float64 {
+func jsonNumberAtPath(encoded json.RawMessage, path ...string) (float64, bool) {
+	if len(path) == 0 {
+		return 0, false
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.UseNumber()
 	var current any
 	if err := decoder.Decode(&current); err != nil {
-		return 0
+		return 0, false
 	}
 	for _, property := range path {
 		object, ok := current.(map[string]any)
 		if !ok {
-			return 0
+			return 0, false
 		}
 		current, ok = object[property]
 		if !ok {
-			return 0
+			return 0, false
 		}
 	}
 	number, ok := current.(json.Number)
 	if !ok {
-		return 0
+		return 0, false
 	}
 	value, err := number.Float64()
 	if err != nil {
 		if math.IsInf(value, 1) {
-			return value
+			return value, true
 		}
-		return 0
+		return 0, false
 	}
-	return value
+	return value, true
 }
 
 func (c *rpcClient) onRequest(method string, handler requestHandler) func() {

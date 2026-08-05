@@ -51,12 +51,12 @@ try {
   const typescriptManifestPath = path.join(checkout, "packages/sdk-ts/package.json");
   const pythonProxyManifestPath = path.join(checkout, "packages/sdk-python/package.json");
   const pythonProjectPath = path.join(checkout, "packages/sdk-python/pyproject.toml");
-  const serverManifestPath = path.join(checkout, "packages/server/package.json");
+  const extensionManifestPath = path.join(checkout, "packages/extension/package.json");
   const protocolManifestPath = path.join(checkout, "packages/protocol/package.json");
 
   const typescriptManifest = await readPackageManifest(typescriptManifestPath);
   const pythonProxyManifest = await readPackageManifest(pythonProxyManifestPath);
-  const serverManifest = await readPackageManifest(serverManifestPath);
+  const extensionManifest = await readPackageManifest(extensionManifestPath);
   const protocolManifest = await readPackageManifest(protocolManifestPath);
   const pythonProjectContents = await readFile(pythonProjectPath, "utf8");
   const pythonProject = parsePreviewPythonProject(pythonProjectContents);
@@ -97,7 +97,10 @@ try {
 
   const extensionFile = "stagehand-extension.zip";
   const extensionPath = path.join(outputDirectory, extensionFile);
-  await cp(path.join(checkout, "packages/server/artifacts/stagehand-extension.zip"), extensionPath);
+  await cp(
+    path.join(checkout, "packages/extension/artifacts/stagehand-extension.zip"),
+    extensionPath,
+  );
 
   const manifest = parsePreviewManifest({
     schemaVersion: 1,
@@ -123,8 +126,8 @@ try {
         install: `uv add ./${pythonFile}`,
       },
       extension: {
-        package: serverManifest.name,
-        version: serverManifest.version,
+        package: extensionManifest.name,
+        version: extensionManifest.version,
         file: extensionFile,
         sha256: sha256(await readFile(extensionPath)),
       },

@@ -15,13 +15,13 @@ import {
 } from "@opentelemetry/semantic-conventions";
 import { z } from "zod/v4";
 import type { ImplementationInfo, TelemetryConfig } from "../protocol/types.js";
-import serverPackageJson from "./package.json" with { type: "json" };
+import extensionPackageJson from "./package.json" with { type: "json" };
 
 const STAGEHAND_TRACER_NAME = "@browserbasehq/stagehand";
 
 export const StagehandTracingRuntimeOptionsSchema = z.strictObject({
   serviceName: z.string().min(1).default("stagehand-service-worker"),
-  serviceVersion: z.string().min(1).default(serverPackageJson.version),
+  serviceVersion: z.string().min(1).default(extensionPackageJson.version),
   clientName: z.string().min(1).optional(),
   clientVersion: z.string().min(1).optional(),
   registerGlobals: z.boolean().default(true),

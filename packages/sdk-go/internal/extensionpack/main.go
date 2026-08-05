@@ -1,5 +1,5 @@
-// Command extensionpack synchronizes the deterministic extension built by the
-// server into the Go module, where go:embed can include it for consumers.
+// Command extensionpack synchronizes the deterministic extension build into the
+// Go module, where go:embed can include it for consumers.
 package main
 
 import (
@@ -36,7 +36,7 @@ func run(check bool) error {
 		filepath.Join(
 			sdkRoot,
 			"..",
-			"server",
+			"extension",
 			"artifacts",
 			"stagehand-extension.zip",
 		),
@@ -46,7 +46,7 @@ func run(check bool) error {
 			"extensionassets",
 			"stagehand-extension.zip",
 		),
-		filepath.Join(sdkRoot, "..", "server", "package.json"),
+		filepath.Join(sdkRoot, "..", "extension", "package.json"),
 		check,
 	)
 }
@@ -108,22 +108,22 @@ func syncArchive(sourcePath, targetPath, packagePath string, check bool) error {
 }
 
 func validateArchiveVersion(archive []byte, packagePath string) error {
-	var serverPackage struct {
+	var extensionPackage struct {
 		Version string `json:"version"`
 	}
 	packageData, err := os.ReadFile(packagePath)
 	if err != nil {
-		return fmt.Errorf("read server package version: %w", err)
+		return fmt.Errorf("read extension package version: %w", err)
 	}
-	if err := json.Unmarshal(packageData, &serverPackage); err != nil {
-		return fmt.Errorf("decode server package version: %w", err)
+	if err := json.Unmarshal(packageData, &extensionPackage); err != nil {
+		return fmt.Errorf("decode extension package version: %w", err)
 	}
-	expectedVersion := serverPackage.Version
+	expectedVersion := extensionPackage.Version
 	if separator := strings.IndexAny(expectedVersion, "+-"); separator >= 0 {
 		expectedVersion = expectedVersion[:separator]
 	}
 	if expectedVersion == "" {
-		return errors.New("server package version is empty")
+		return errors.New("extension package version is empty")
 	}
 
 	reader, err := zip.NewReader(bytes.NewReader(archive), int64(len(archive)))
@@ -151,7 +151,7 @@ func validateArchiveVersion(archive []byte, packagePath string) error {
 		}
 		if manifest.Version != expectedVersion {
 			return fmt.Errorf(
-				"Stagehand extension version %q does not match server package version %q",
+				"Stagehand extension version %q does not match extension package version %q",
 				manifest.Version,
 				expectedVersion,
 			)

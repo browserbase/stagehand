@@ -5,7 +5,6 @@ import { CdpConnection } from "./cdp.js";
 import type { CDPSessionLike, CdpWebSocketFactory } from "./cdp.js";
 import { Page } from "./page.js";
 import { executionContexts } from "./executionContextRegistry.js";
-import type { StagehandAPIClient } from "../api.js";
 import type {
   Cookie,
   CookieParam,
@@ -90,7 +89,6 @@ export class BrowserContext {
     readonly logger: StagehandLogger,
     readonly chromeTabs: ChromeTabTargetController,
     readonly env: "LOCAL" | "BROWSERBASE" = "LOCAL",
-    readonly apiClient: StagehandAPIClient | null = null,
     readonly localBrowserLaunchOptions: LocalBrowserLaunchOptions | null = null,
     readonly blankPageUrl: string = "about:blank",
     readonly fallbackLocatorScriptSource: string | null = null,
@@ -163,7 +161,6 @@ export class BrowserContext {
     opts: {
       websocketFactory: CdpWebSocketFactory;
       env?: "LOCAL" | "BROWSERBASE";
-      apiClient?: StagehandAPIClient | null;
       localBrowserLaunchOptions?: LocalBrowserLaunchOptions | null;
       blankPageUrl: string;
       fallbackLocatorScriptSource: string;
@@ -179,7 +176,6 @@ export class BrowserContext {
         opts.logger,
         opts.chromeTabs,
         opts?.env ?? "LOCAL",
-        opts?.apiClient ?? null,
         opts?.localBrowserLaunchOptions ?? null,
         opts.blankPageUrl,
         opts.fallbackLocatorScriptSource,
@@ -898,7 +894,6 @@ export class BrowserContext {
             session,
             info.targetId,
             this.logger,
-            this.apiClient,
             this.localBrowserLaunchOptions,
             this.env === "BROWSERBASE",
           );

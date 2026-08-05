@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const serverRoot = fileURLToPath(new URL("..", import.meta.url));
+const extensionRoot = fileURLToPath(new URL("..", import.meta.url));
 
 const forbiddenPatterns = [
   {
@@ -29,8 +29,8 @@ const forbiddenPatterns = [
 ] as const;
 
 describe("service-worker source compatibility", () => {
-  it("keeps production server modules free of Node-only runtime APIs", async () => {
-    const files = (await readdir(serverRoot, { recursive: true }))
+  it("keeps production extension modules free of Node-only runtime APIs", async () => {
+    const files = (await readdir(extensionRoot, { recursive: true }))
       .filter(
         (file) =>
           file.endsWith(".ts") &&
@@ -43,7 +43,7 @@ describe("service-worker source compatibility", () => {
     const violations: string[] = [];
 
     for (const relativePath of files) {
-      const source = await readFile(path.join(serverRoot, relativePath), "utf8");
+      const source = await readFile(path.join(extensionRoot, relativePath), "utf8");
       for (const { label, pattern } of forbiddenPatterns) {
         if (pattern.test(source)) violations.push(`${relativePath}: ${label}`);
       }

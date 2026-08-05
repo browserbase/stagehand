@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync, type Zippable } from "fflate";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
-import serverPackageJson from "../package.json" with { type: "json" };
+import extensionPackageJson from "../package.json" with { type: "json" };
 
 const stagehandExtensionDistDir = fileURLToPath(new URL("../dist", import.meta.url));
 const stagehandExtensionArchive = fileURLToPath(
@@ -14,7 +14,7 @@ const stagehandExtensionArchive = fileURLToPath(
 const stagehandExtensionSourceManifest = fileURLToPath(
   new URL("../manifest.json", import.meta.url),
 );
-const expectedManifestVersion = serverPackageJson.version.replace(/[+-].*$/u, "");
+const expectedManifestVersion = extensionPackageJson.version.replace(/[+-].*$/u, "");
 
 const ManifestSchema = z.looseObject({
   manifest_version: z.literal(3),
@@ -42,7 +42,7 @@ const ManifestSchema = z.looseObject({
 });
 
 describe("extension build", () => {
-  it("injects the server package version instead of storing a manifest placeholder", async () => {
+  it("injects the extension package version instead of storing a manifest placeholder", async () => {
     const sourceManifest = JSON.parse(
       await readFile(stagehandExtensionSourceManifest, "utf8"),
     ) as Record<string, unknown>;
