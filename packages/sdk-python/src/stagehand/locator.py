@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal, Self
 
+from ._generated.input_types import RgbaColor
 from ._generated.models import (
     LocatorCentroidResult,
     LocatorClickOptions,
@@ -28,13 +29,15 @@ from ._generated.models import (
     LocatorSendClickEventOptions,
     LocatorSendClickEventParams,
     LocatorSendClickEventResult,
+    LocatorSetInputFilesParams,
+    LocatorSetInputFilesResult,
     LocatorTextContentResult,
     LocatorTypeOptions,
     LocatorTypeParams,
     LocatorTypeResult,
     MouseButton,
-    RgbaColor,
 )
+from .file_upload import FileInput, normalize_file_input
 from .rpc_client import RPCClient
 
 
@@ -241,6 +244,19 @@ class Locator:
                 "values": list(values) if not isinstance(values, str) else values,
             }),
             LocatorSelectOptionResult,
+        )
+
+    async def set_input_files(
+        self,
+        files: FileInput | Sequence[FileInput],
+    ) -> None:
+        await self._rpc_client.send(
+            "locator.set_input_files",
+            LocatorSetInputFilesParams.model_validate({
+                **self._descriptor.model_dump(exclude_unset=True),
+                "files": normalize_file_input(files),
+            }),
+            LocatorSetInputFilesResult,
         )
 
     def first(self) -> Self:

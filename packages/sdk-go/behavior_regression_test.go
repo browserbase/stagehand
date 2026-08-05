@@ -1,6 +1,7 @@
 package stagehand
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"reflect"
@@ -329,5 +330,74 @@ func TestExtractAsPreservesMetadataOnDecodeError(t *testing.T) {
 	}
 	if !reflect.DeepEqual(result.Metadata, metadata) {
 		t.Fatalf("ExtractAs() metadata = %#v, want %#v", result.Metadata, metadata)
+	}
+}
+
+func TestExtractUsesDefaultSchema(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.extract": ExtractResult{Data: json.RawMessage(`{"extraction":"Example"}`)},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	result, err := client.Extract(
+		context.Background(),
+		"extract page text",
+		nil,
+		&StagehandClientExtractOptions{Page: page},
+	)
+	if err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if string(result.Data) != `{"extraction":"Example"}` {
+		t.Fatalf("Extract() data = %s", result.Data)
+	}
+	if len(rpc.calls) != 1 {
+		t.Fatalf("Extract() RPC calls = %#v", rpc.calls)
+	}
+	params, ok := rpc.calls[0].params.(StagehandExtractParams)
+	if !ok {
+		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
+	}
+	if params.Schema != nil {
+		t.Fatalf("default extract schema = %s, want protocol default", params.Schema)
+	}
+}
+
+func TestExtractPreservesExplicitEmptySchema(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.extract": ExtractResult{Data: json.RawMessage(`{}`)},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	if _, err := client.Extract(
+		context.Background(),
+		"extract page text",
+		json.RawMessage{},
+		&StagehandClientExtractOptions{Page: page},
+	); err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+	if len(rpc.calls) != 1 {
+		t.Fatalf("Extract() RPC calls = %#v", rpc.calls)
+	}
+	params, ok := rpc.calls[0].params.(StagehandExtractParams)
+	if !ok {
+		t.Fatalf("Extract() params = %#v", rpc.calls[0].params)
+	}
+	if string(params.Schema) != `{}` {
+		t.Fatalf("Extract() schema = %s, want explicit empty object", params.Schema)
+	}
+	encoded, err := json.Marshal(params)
+	if err != nil {
+		t.Fatalf("marshal Extract() params: %v", err)
+	}
+	if !bytes.Contains(encoded, []byte(`"schema":{}`)) {
+		t.Fatalf("Extract() params = %s, want explicit schema on wire", encoded)
 	}
 }

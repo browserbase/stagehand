@@ -188,7 +188,7 @@ const result = await stagehand.act("Click the sign in button");
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -367,7 +367,7 @@ const actions = await stagehand.observe("Find the sign in button");
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -504,8 +504,9 @@ console.log(product.data, product.metadata.cache.status);
   The natural-language instruction.
 </ParamField>
 
-<ParamField path="schema" type="Schema">
-  The schema used to validate extracted data.
+<ParamField path="schema" type="Schema" optional>
+  The schema used to validate extracted data. Defaults to an object with a string `extraction` field
+  when omitted; when selecting a custom schema generic, provide the matching runtime schema.
 </ParamField>
 
 <ParamField path="options" type="StagehandClientExtractOptions" optional>
@@ -538,7 +539,7 @@ console.log(product.data, product.metadata.cache.status);
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
-    Model configuration for this call.
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
     <ParamField path="options.model.apiKey" type="string" optional>
       The model provider API key.
@@ -784,7 +785,7 @@ Perform an action described in natural language.
 result = await stagehand.act("Click the sign in button")
 ```
 
-<ParamField path="instruction" type="Action | str">
+<ParamField path="instruction" type="Action | ActionInput | str">
   A natural-language action to perform, or an action returned by `observe()`.
 
   <ParamField path="instruction.selector" type="str">
@@ -809,7 +810,7 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
@@ -981,7 +982,7 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.
@@ -1140,8 +1141,8 @@ print(product.data, product.metadata.cache.status)
   The natural-language instruction.
 </ParamField>
 
-<ParamField path="schema" type="type[ResultModel]">
-  The schema used to validate extracted data.
+<ParamField path="schema" type="type[ResultModel]" optional>
+  The schema used to validate extracted data. Defaults to a model with a string `extraction` field.
 </ParamField>
 
 <ParamField path="page" type="Page | None" optional>
@@ -1149,7 +1150,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="model" type="ModelConfig" optional>
-  Model configuration for this call.
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
 
 <ParamField path="model.api_key" type="str" optional>
   The model provider API key.

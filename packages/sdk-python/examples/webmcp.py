@@ -10,7 +10,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(browser=browser)
         try:
-            page = await stagehand.context.active_page()
+            page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto(WEBMCP_TEST_SITE)

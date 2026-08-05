@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from stagehand import Stagehand, StagehandClientLoggingConfig, local_browser
+from stagehand import Stagehand, local_browser
 
 OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 if not OPENAI_API_KEY:
@@ -16,14 +16,14 @@ async def main() -> None:
                 browser=browser,
                 model="openai/gpt-5.4-mini",
                 model_api_key=OPENAI_API_KEY,
-                logging=StagehandClientLoggingConfig(
-                    level="info",
-                    format="pretty",
-                    on_log=lambda log: print(log.model_dump_json(), file=log_file),
-                ),
+                logging={
+                    "level": "info",
+                    "format": "pretty",
+                    "on_log": lambda log: print(log.model_dump_json(), file=log_file),
+                },
             )
             try:
-                page = await stagehand.context.active_page()
+                page = (await browser.context.pages())[0]
                 if page is None:
                     raise RuntimeError
 

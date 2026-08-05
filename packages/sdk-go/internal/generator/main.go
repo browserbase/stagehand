@@ -68,6 +68,7 @@ var customProperties = map[string]string{
 	"$defs/BrowserbaseSessionCreateParams/properties/user_metadata": "map[string]json.RawMessage",
 	"$defs/ContextCookiesParams/properties/urls":                    "StringList",
 	"$defs/ExtractResult/properties/result":                         "json.RawMessage",
+	"$defs/InputFilePayload/properties/last_modified":               "int64",
 	"$defs/LLMMessage/properties/content":                           "LLMMessageContent",
 	"$defs/LocatorScrollToParams/properties/percent":                "ScrollPercent",
 	"$defs/LocatorSelectOptionParams/properties/values":             "StringList",
@@ -144,7 +145,7 @@ func run(check bool) error {
 	gen, err := generator.New(generator.Config{
 		Capitalizations: []string{
 			"AP", "API", "CDP", "CSS", "DOM", "EU", "HTML", "HTTP", "ID", "IOS",
-			"JPEG", "JS", "JSON", "LLM", "MIME", "OS", "PNG", "RPC", "TLS", "URI",
+			"IP", "JPEG", "JS", "JSON", "LLM", "MIME", "OS", "PNG", "RPC", "TLS", "URI",
 			"URL", "US", "UUID", "XML", "XPath",
 		},
 		DefaultOutputName:  generatedFile,

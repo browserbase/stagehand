@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { DeepLocatorDelegate } from "../../understudy/deepLocator.js";
 import { Locator } from "../../understudy/locator.js";
 
 export const ScreenshotClipSchema = z
@@ -16,7 +17,7 @@ export const UnderstudyScreenshotOptionsSchema = z
     caret: z.enum(["hide", "initial"]).optional(),
     clip: ScreenshotClipSchema.optional(),
     fullPage: z.boolean().optional(),
-    mask: z.array(z.instanceof(Locator)).optional(),
+    mask: z.array(z.union([z.instanceof(Locator), z.instanceof(DeepLocatorDelegate)])).optional(),
     maskColor: z.string().optional(),
     omitBackground: z.boolean().optional(),
     quality: z.number().int().min(0).max(100).optional(),

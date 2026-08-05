@@ -6,7 +6,7 @@ import {
 } from "@opentelemetry/sdk-trace-web";
 import { describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
+import { DEFAULT_EXTRACT_JSON_SCHEMA, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import { StagehandMetricsAccumulator } from "../metrics.ts";
 import { createStagehandRuntime } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
@@ -185,6 +185,42 @@ describe("Stagehand RPC router", () => {
       router.handle(request({ id: 16, method: "stagehand.close", params: {} })),
     ).resolves.toStrictEqual({ closed: true });
     expect(closeStagehand).toHaveBeenCalledOnce();
+  });
+
+  it("applies the default schema to extract requests that omit it", async () => {
+    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const router = createRouter(tracing);
+    const extract = vi.spyOn(router.stagehandController, "extract").mockResolvedValue({
+      data: { extraction: "Example" },
+      metadata: {
+        cache: { status: "DISABLED" },
+        usage: {
+          inputTokens: 0,
+          outputTokens: 0,
+          reasoningTokens: 0,
+          cachedInputTokens: 0,
+          inferenceTimeMs: 0,
+        },
+      },
+    });
+
+    await router.handle(
+      request({
+        id: 17,
+        method: "stagehand.extract",
+        params: { page_id: "page-1", instruction: "Extract the page text" },
+      }),
+    );
+
+    expect(extract).toHaveBeenCalledWith(
+      {
+        pageId: "page-1",
+        instruction: "Extract the page text",
+        schema: DEFAULT_EXTRACT_JSON_SCHEMA,
+      },
+      expect.anything(),
+    );
+    await tracing.shutdown();
   });
 });
 

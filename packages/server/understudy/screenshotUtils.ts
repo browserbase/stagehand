@@ -1,5 +1,6 @@
 import { Protocol } from "devtools-protocol";
 import type { CDPSessionLike } from "./cdp.js";
+import type { DeepLocatorDelegate } from "./deepLocator.js";
 import type { Frame } from "./frame.js";
 import type { Locator } from "./locator.js";
 import type { Page } from "./page.js";
@@ -185,17 +186,23 @@ textarea,
 }
 
 export async function applyMaskOverlays(
-  locators: Locator[],
+  locators: Array<Locator | DeepLocatorDelegate>,
   color: string,
 ): Promise<ScreenshotCleanup> {
-  type MaskRectSpec = ScreenshotClip & { rootToken?: string | null };
+  type MaskRectSpec = ScreenshotClip & {
+    rootToken?: string | null;
+    position?: "absolute" | "fixed";
+  };
   const rectsByFrame = new Map<Frame, { rects: MaskRectSpec[]; rootTokens: Set<string> }>();
 
   const token = `__v3_mask_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
   for (const locator of locators) {
     try {
-      const info = await resolveMaskRects(locator, token);
+      const info = await resolveMaskRects(
+        "real" in locator ? await locator.real() : locator,
+        token,
+      );
       if (!info) continue;
       const entry = rectsByFrame.get(info.frame) ?? {
         rects: [],
@@ -250,7 +257,7 @@ export async function applyMaskOverlays(
                 }
                 const el = doc.createElement("div");
                 el.setAttribute("data-stagehand-mask", token);
-                el.style.position = "absolute";
+                el.style.position = rect.position ?? "absolute";
                 el.style.left = `${rect.x}px`;
                 el.style.top = `${rect.y}px`;
                 el.style.width = `${rect.width}px`;
@@ -271,6 +278,10 @@ export async function applyMaskOverlays(
         .catch(() => {}),
     ),
   );
+
+  // Wait outside the page's main world, where application code cannot replace the timer and
+  // prevent masked screenshots from completing. This also gives Chromium a paint opportunity.
+  await new Promise<void>((resolve) => setTimeout(resolve, 100));
 
   return async () => {
     await Promise.all(
@@ -346,7 +357,9 @@ async function resolveMaskRectForObject(
   session: CDPSessionLike,
   objectId: Protocol.Runtime.RemoteObjectId,
   maskToken: string,
-): Promise<(ScreenshotClip & { rootToken?: string | null }) | null> {
+): Promise<
+  (ScreenshotClip & { rootToken?: string | null; position?: "absolute" | "fixed" }) | null
+> {
   const result = await session.send<Protocol.Runtime.CallFunctionOnResponse>(
     "Runtime.callFunctionOn",
     {
@@ -361,7 +374,9 @@ async function resolveMaskRectForObject(
     return null;
   }
 
-  const rect = result.result.value as (ScreenshotClip & { rootToken?: string | null }) | null;
+  const rect = result.result.value as
+    | (ScreenshotClip & { rootToken?: string | null; position?: "absolute" | "fixed" })
+    | null;
   if (!rect) return null;
 
   const { x, y, width, height } = rect;
@@ -382,6 +397,7 @@ async function resolveMaskRectForObject(
     width,
     height,
     rootToken: rect.rootToken && typeof rect.rootToken === "string" ? rect.rootToken : undefined,
+    position: rect.position === "fixed" ? "fixed" : "absolute",
   };
 }
 
