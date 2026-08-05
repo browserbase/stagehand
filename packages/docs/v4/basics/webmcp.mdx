@@ -391,7 +391,7 @@ if addToCart != nil {
 	}
 } else {
 	// The page publishes no tool for this, so drive the UI
-	if _, err := client.Act(ctx, "add the item to the cart", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("add the item to the cart"), nil); err != nil {
 		return err
 	}
 }

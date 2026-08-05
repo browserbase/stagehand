@@ -429,7 +429,7 @@ page := pages[0]
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), nil); err != nil {
 	return err
 }
 if _, err := stagehand.ExtractAs[data](ctx, client, "get data", dataSchema, nil); err != nil {
@@ -779,14 +779,14 @@ page := pages[0]
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 extracted, err := stagehand.ExtractAs[user](ctx, client, "extract user info", userSchema, nil)
 if err != nil {
 	return err
 }
-fmt.Printf("Extracted %s <%s>\n", extracted.Name, extracted.Email)
+fmt.Printf("Extracted %s <%s>\n", extracted.Data.Name, extracted.Data.Email)
 
 finalMetrics, err := client.Metrics(ctx)
 if err != nil {

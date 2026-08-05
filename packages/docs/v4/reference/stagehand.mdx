@@ -11,22 +11,25 @@ icon: "hand-horns"
 ## Quick start
 
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({ browser: { type: "local" } });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
 ```
 
-## init()
+## create()
 
-Initialize Stagehand and connect to the configured browser.
+Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```typescript
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
 ```
 
-<ResponseField name="result" type="Promise<void>">
-  Resolves after the operation completes.
+<ResponseField name="browser" type="StagehandBrowser" required>
+  A browser handle from `browserbase.launch()`, `browserbase.connect()`, `localBrowser.launch()`, or `localBrowser.connect()`. Each handle can back only one Stagehand instance.
+</ResponseField>
+
+<ResponseField name="result" type="Promise<Stagehand>">
+  An initialized Stagehand instance.
 </ResponseField>
 
 ## close()
@@ -654,22 +657,25 @@ console.log(product.data, product.metadata.cache.status);
 ## Quick start
 
 ```python
-from stagehand import Stagehand
+from stagehand import Stagehand, local_browser
 
-stagehand = Stagehand(browser="local")
-await stagehand.init()
+stagehand = await Stagehand.create(browser=await local_browser.launch())
 ```
 
-## init()
+## create()
 
-Initialize Stagehand and connect to the configured browser.
+Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```python
-await stagehand.init()
+stagehand = await Stagehand.create(browser=await local_browser.launch())
 ```
 
-<ResponseField name="result" type="None">
-  Resolves after the operation completes.
+<ResponseField name="browser" type="StagehandBrowser" required>
+  A browser handle from `browserbase.launch()`, `browserbase.connect()`, `local_browser.launch()`, or `local_browser.connect()`. Each handle can back only one Stagehand instance.
+</ResponseField>
+
+<ResponseField name="result" type="Stagehand">
+  An initialized Stagehand instance.
 </ResponseField>
 
 ## close()

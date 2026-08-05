@@ -113,7 +113,7 @@ if err != nil {
 	return err
 }
 
-for _, t := range extracted.Pricing {
+for _, t := range extracted.Data.Pricing {
 	fmt.Println(t.Tier, t.Price)
 }
 ```

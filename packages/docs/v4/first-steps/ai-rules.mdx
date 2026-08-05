@@ -126,7 +126,7 @@ const context = browser.context;
 const page2 = await browser.context.newPage();
 ```
 
-For Browserbase cloud browsers, pass a Browserbase API key at the top level:
+For Browserbase cloud browsers, pass the Browserbase API key to `browserbase.launch()`:
 
 ```typescript
 const browser = await browserbase.launch({
@@ -332,7 +332,7 @@ await stagehand.extract("get title", z.object({ title: z.string() }), { page: pa
 
 ### Caching
 
-Server-side caching requires a Browserbase browser source and a Browserbase API key:
+Server-side caching requires a Browserbase browser and a Browserbase API key:
 
 ```typescript
 const browser = await browserbase.launch({
@@ -413,7 +413,7 @@ All Stagehand methods are async. `act`, `observe`, and `extract` take `instructi
 ```python
 import os
 
-from stagehand import Stagehand, browserbase, local_browser
+from stagehand import Stagehand, local_browser
 
 browser = await local_browser.launch(headless=True)
 stagehand = await Stagehand.create(
@@ -503,15 +503,12 @@ Every primitive returns a result with `data` and `metadata`. Your extracted mode
 ```python
 from pydantic import BaseModel
 
-
 class Listing(BaseModel):
     price: str
     address: str
 
-
 class Listings(BaseModel):
     listings: list[Listing]
-
 
 result = await stagehand.extract(
     "extract all apartment listings with prices and addresses",
@@ -529,7 +526,6 @@ A schema is always required, so wrap single values in a model:
 class ButtonText(BaseModel):
     button_text: str
 
-
 result = await stagehand.extract(
     "extract the sign in button text",
     ButtonText,
@@ -546,7 +542,6 @@ Scope extraction to a specific element with `selector`, and prune noise with `ig
 class Reason(BaseModel):
     reason: str
 
-
 result = await stagehand.extract(
     "extract the reason why script injection fails",
     Reason,
@@ -562,10 +557,8 @@ When extracting links or URLs, type the field as a URL:
 ```python
 from pydantic import AnyUrl, BaseModel
 
-
 class Links(BaseModel):
     links: list[AnyUrl]
-
 
 result = await stagehand.extract(
     "extract all navigation links",
@@ -579,7 +572,6 @@ result = await stagehand.extract(
 class Placeholder(BaseModel):
     placeholder: str
 
-
 result = await stagehand.extract(
     "extract the placeholder text on the name field",
     Placeholder,
@@ -592,7 +584,6 @@ result = await stagehand.extract(
 ```python
 class Title(BaseModel):
     title: str
-
 
 result = await stagehand.extract(
     "extract the page title",
@@ -655,7 +646,7 @@ await stagehand.extract("get title", Title, page=page2)
 
 ### Caching
 
-Server-side caching requires a Browserbase browser source and a Browserbase API key:
+Server-side caching requires a Browserbase browser and a Browserbase API key:
 
 ```python
 browser = await browserbase.launch(
@@ -743,10 +734,14 @@ if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, browser.Close(ctx)) }()
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
 if err != nil {
 	return err
 }
+
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 // Access the browser context and pages
@@ -764,16 +759,23 @@ if len(pages) == 0 {
 page := pages[0]
 
 // Create new pages if needed
-page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+page2, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := page2.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page2.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+
+// Target a specific page by passing it in the options
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the sign in button"), &stagehand.StagehandClientActOptions{
+	Page: page,
+}); err != nil {
 	return err
 }
 ```
 
-For Browserbase cloud browsers, pass a Browserbase API key at the top level:
+For Browserbase cloud browsers, pass the Browserbase API key to `stagehand.LaunchBrowserbase()`:
 
 ```go
 browserbaseAPIKey := os.Getenv("BROWSERBASE_API_KEY")
@@ -783,10 +785,14 @@ browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOpti
 if err != nil {
 	return err
 }
-client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 
 Stagehand never reads environment variables for you. Always pass keys explicitly.
@@ -797,12 +803,12 @@ Actions are called on the client (not the page). Use atomic, specific instructio
 
 ```go
 // Act on the current active page
-if _, err := client.Act(ctx, "click the sign in button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the sign in button"), nil); err != nil {
 	return err
 }
 
 // Act on a specific page (when you need to target a page that isn't currently active)
-if _, err := client.Act(ctx, "click the sign in button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the sign in button"), &stagehand.StagehandClientActOptions{
 	Page: page2,
 }); err != nil {
 	return err
@@ -812,7 +818,7 @@ if _, err := client.Act(ctx, "click the sign in button", &stagehand.StagehandCli
 `Act` takes either a `string` instruction or a `stagehand.Action`. It returns an `ActResult`: the action payload is on `result.Data`, and cache status is on `result.Metadata`:
 
 ```go
-result, err := client.Act(ctx, "click the sign in button", nil)
+result, err := client.Act(ctx, stagehand.ActInstruction("click the sign in button"), nil)
 if err != nil {
 	return err
 }
@@ -831,7 +837,7 @@ Use variables for secrets. Values are substituted locally and never sent to the 
 
 ```go
 password := os.Getenv("USER_PASSWORD")
-if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
@@ -854,7 +860,7 @@ if err != nil {
 }
 
 if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0].Method == "click" {
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 		return err
 	}
 }
@@ -907,7 +913,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println(data.Listings)
+fmt.Println(data.Data.Listings)
 ```
 
 ### Working With the Raw Result
@@ -1059,7 +1065,7 @@ if err != nil {
 	return err
 }
 if len(observed.Data) > 0 {
-	if _, err := client.Act(ctx, observed.Data[0], &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
 		return err
 	}
 }
@@ -1088,32 +1094,32 @@ fmt.Println("results:", count)
 ### Multi-Page Workflows
 
 ```go
-page1, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+page1, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := page1.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page1.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
-page2, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+page2, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
+if _, err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
 	return err
 }
 
 // Act/Extract/Observe operate on the current active page by default
 // Pass Page in the options struct to target a specific page
-if _, err := client.Act(ctx, "click button", &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
 	return err
 }
 ```
 
 ### Caching
 
-Server-side caching requires a Browserbase browser source and a Browserbase API key:
+Server-side caching requires a Browserbase browser and a Browserbase API key:
 
 ```go
 cache := stagehand.CacheEnabled(true) // or stagehand.CacheWithThreshold(1)
@@ -1130,6 +1136,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 if err != nil {
 	return err
 }
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 
 ## Cleanup
