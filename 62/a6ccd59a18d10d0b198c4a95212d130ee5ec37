@@ -1,0 +1,29 @@
+packages/evals/tui/commands/run.ts
+  s_a619aee37aaacb::t_0db11d22959779 332-333
+packages/evals/core/tools/stagehand_code.ts
+  s_a619aee37aaacb::t_e27538d896dcc4 79-89
+  s_a619aee37aaacb::t_e7fb1dc98aee9f 21-23,26
+packages/evals/core/tools/playwright_code.ts
+  s_a619aee37aaacb::t_9d9ea8cd3b5131 674-683
+packages/evals/framework/harnesses/codexAdapter.ts
+  s_a619aee37aaacb::t_4ec309ae32afc4 102-104
+packages/evals/core/tools/cdp_code.ts
+  s_a619aee37aaacb::t_4e6aa37c1d920b 1278
+  s_a619aee37aaacb::t_39f08374a28a29 1276-1277,1279-1299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "62a6ccd59a18d10d0b198c4a95212d130ee5ec37",
+  "prompts": {},
+  "sessions": {
+    "s_a619aee37aaacb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2a77c7e-979f-4c12-be81-a23658f6866b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
