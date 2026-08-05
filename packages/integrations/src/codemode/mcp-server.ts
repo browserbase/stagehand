@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod/v4";
 import { StagehandCodeExecutor, type StagehandCodeExecutorOptions } from "./executor.js";
 import {
   CODE_EXECUTE_DESCRIPTION,
+  codeExecuteOutputSchema,
   codeExecuteResultText,
   codeExecuteSchema,
 } from "./tool-contract.js";
@@ -20,7 +20,7 @@ export function createCodeModeMcpServer(executor: StagehandCodeExecutor): McpSer
       title: "Execute Stagehand V4 code",
       description: CODE_EXECUTE_DESCRIPTION,
       inputSchema: codeExecuteSchema.shape,
-      outputSchema: z.object({ ok: z.boolean() }).loose(),
+      outputSchema: codeExecuteOutputSchema,
     },
     async (input, extra) => {
       const result = await executor.execute(input as CodeExecuteInput, extra.signal);
