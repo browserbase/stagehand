@@ -1,0 +1,42 @@
+{
+  "name": "@browserbasehq/stagehand-integrations",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Shared integration surfaces for Stagehand V4",
+  "files": [
+    "dist",
+    "codemode/SKILL.md",
+    "codemode/REFERENCE.md"
+  ],
+  "type": "module",
+  "exports": {
+    "./codemode": {
+      "types": "./dist/codemode/index.d.mts",
+      "import": "./dist/codemode/index.mjs"
+    },
+    "./codemode/stdio-server": {
+      "import": "./dist/codemode/stdio-server.mjs"
+    },
+    "./codemode/SKILL.md": "./codemode/SKILL.md",
+    "./codemode/REFERENCE.md": "./codemode/REFERENCE.md"
+  },
+  "scripts": {
+    "build": "pnpm run check:generated && tsdown",
+    "check:generated": "node scripts/generate-codemode-content.mjs --check",
+    "generate": "node scripts/generate-codemode-content.mjs",
+    "typecheck": "pnpm run check:generated && tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
