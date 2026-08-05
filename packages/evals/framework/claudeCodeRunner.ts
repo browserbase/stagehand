@@ -72,17 +72,15 @@ export function buildClaudeCodePrompt(
 export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   const marker = "EVAL_RESULT:";
   const markerIndex = raw.lastIndexOf(marker);
+  const resultText = markerIndex >= 0 ? raw.slice(markerIndex + marker.length).trim() : raw.trim();
   const candidates =
     markerIndex >= 0
       ? [
-          raw.slice(markerIndex + marker.length).trim(),
-          raw
-            .slice(markerIndex + marker.length)
-            .trim()
-            .split(/\r?\n/, 1)[0]
-            ?.trim(),
+          resultText,
+          resultText.split(/\r?\n/, 1)[0]?.trim(),
+          extractFirstJsonObject(resultText),
         ]
-      : [raw.trim()];
+      : [resultText];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -96,6 +94,40 @@ export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   }
 
   return { success: false, raw };
+}
+
+function extractFirstJsonObject(value: string): string | undefined {
+  const start = value.indexOf("{");
+  if (start < 0) return undefined;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return value.slice(start, index + 1);
+    }
+  }
+
+  return undefined;
 }
 
 function tryParseClaudeCodeJson(
