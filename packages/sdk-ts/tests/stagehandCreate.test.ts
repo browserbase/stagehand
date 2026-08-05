@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import type {
   LLMGenerateParams,
@@ -66,6 +66,11 @@ class FakeCDPClient {
 }
 
 describe("Stagehand.create", () => {
+  it("does not expose context directly on Stagehand", () => {
+    expectTypeOf<"context" extends keyof Stagehand ? true : false>().toEqualTypeOf<false>();
+    expect("context" in Stagehand.prototype).toBe(false);
+  });
+
   afterEach(() => vi.restoreAllMocks());
 
   it("attaches to a ready browser without taking transport ownership", async () => {

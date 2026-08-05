@@ -98,10 +98,6 @@ export class Stagehand {
     }
   }
 
-  get context(): BrowserContext {
-    return this.browserHandle.context;
-  }
-
   get browser(): StagehandBrowser {
     return this.browserHandle;
   }

@@ -135,6 +135,10 @@ def test_stagehand_constructor_is_private() -> None:
         Stagehand()
 
 
+def test_stagehand_does_not_expose_context() -> None:
+    assert not hasattr(Stagehand, "context")
+
+
 @pytest.mark.asyncio
 async def test_create_requires_a_factory_browser_before_validating_config() -> None:
     with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):

@@ -61,6 +61,9 @@ describe("published TypeScript SDK", () => {
             if ("init" in Stagehand.prototype) {
               throw new Error("legacy Stagehand.init is still published");
             }
+            if ("context" in Stagehand.prototype) {
+              throw new Error("legacy Stagehand.context is still published");
+            }
             if (typeof localBrowser?.launch !== "function") {
               throw new Error("localBrowser export is unavailable");
             }

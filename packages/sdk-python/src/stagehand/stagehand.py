@@ -157,10 +157,6 @@ class Stagehand:
         return stagehand
 
     @property
-    def context(self) -> BrowserContext:
-        return self._browser_handle.context
-
-    @property
     def browser(self) -> StagehandBrowser:
         return self._browser_handle
 
