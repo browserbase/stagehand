@@ -21,6 +21,7 @@ import { TrajectoryRecorder } from "./trajectoryRecorder.js";
 import type { TaskResult } from "./types.js";
 
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
+const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
 
 /**
  * Build the shared rubric verifier. By default V3Evaluator keeps its existing
@@ -35,7 +36,7 @@ export function createVerifierEvaluator(v3: V3): V3Evaluator {
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const apiKey = loadApiKeyFromEnv(provider, () => {});
-  if (!apiKey) {
+  if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
       `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
     );
@@ -44,7 +45,7 @@ export function createVerifierEvaluator(v3: V3): V3Evaluator {
   return new V3Evaluator(v3, {
     backend: "verifier",
     modelName: modelName as AvailableModel,
-    modelClientOptions: { apiKey },
+    ...(apiKey ? { modelClientOptions: { apiKey } } : {}),
   });
 }
 
