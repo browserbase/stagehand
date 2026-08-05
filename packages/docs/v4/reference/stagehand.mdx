@@ -41,6 +41,47 @@ await stagehand.close();
   Resolves after the operation completes.
 </ResponseField>
 
+## _experimental_batch()
+
+Run a trusted, self-contained JavaScript callback inside the Stagehand extension service worker.
+Browser operations made by the callback use the worker-local `page` and `context` objects without
+returning to the SDK process for every command.
+
+```typescript
+const result = await stagehand._experimental_batch(
+  async ({ page }, input) => {
+    await page.goto(input.url);
+    return { title: await page.title() };
+  },
+  { url: "https://example.com" },
+);
+```
+
+<ParamField path="callback" type="ExperimentalBatchCallback&lt;Input, Result&gt;">
+  A self-contained callback to execute in the extension service worker. Values from the caller's
+  lexical scope are not captured.
+</ParamField>
+
+<ParamField path="input" type="Input" optional>
+  JSON-serializable input passed as the callback's second argument.
+</ParamField>
+
+<ParamField path="options" type="ExperimentalBatchOptions" optional>
+  Options controlling the selected page and overall deadline.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page supplied to the callback. The active page is used when omitted.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The overall callback deadline in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise&lt;Awaited&lt;Result&gt;&gt;">
+  The callback's JSON-serializable return value.
+</ResponseField>
+
 ## metrics()
 
 Return token usage and inference timing metrics for this session.
@@ -682,6 +723,44 @@ await stagehand.close()
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## _experimental_batch()
+
+Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
+Browser operations use the worker-local `page` and `context` objects.
+
+```python
+result = await stagehand._experimental_batch(
+    """
+    async ({ page }, input) => {
+      await page.goto(input.url);
+      return { title: await page.title() };
+    }
+    """,
+    {"url": "https://example.com"},
+)
+```
+
+<ParamField path="source" type="str">
+  Self-contained JavaScript callback source. Do not pass source from an untrusted user, webpage,
+  model, or external service.
+</ParamField>
+
+<ParamField path="input" type="object" optional>
+  JSON-serializable input passed as the callback's second argument.
+</ParamField>
+
+<ParamField path="timeout" type="int" optional>
+  The overall callback deadline in milliseconds.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The page supplied to the callback. The active page is used when omitted.
+</ParamField>
+
+<ResponseField name="result" type="object">
+  The callback's decoded JSON return value.
 </ResponseField>
 
 ## metrics()
