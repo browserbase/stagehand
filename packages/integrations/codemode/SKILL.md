@@ -4,14 +4,19 @@ You have one `code_execute` tool. Its `code` argument is the body of an async Ja
 not a complete program. Write direct `await` statements and finish with a JSON-serializable return
 value.
 
-The following objects are already in scope:
+The following objects are always in scope:
 
 - `page`: the active Stagehand `Page`.
 - `context`: the Stagehand `BrowserContext` shared across calls. In host code, this is
   `stagehand.browser.context`, not `stagehand.context`.
+- `console`: captured `log`, `warn`, and `error` methods.
+
+AI-enabled surfaces also inject:
+
 - `stagehand`: the Stagehand AI methods `act`, `observe`, and `extract`.
 - `z`: Zod V4 for `stagehand.extract` schemas.
-- `console`: captured `log`, `warn`, and `error` methods.
+
+If the host labels the surface deterministic, `stagehand` and `z` are intentionally unavailable.
 
 Do not import packages, read environment variables, construct Stagehand, or close Stagehand or the
 browser. The tool owner manages initialization and cleanup.
