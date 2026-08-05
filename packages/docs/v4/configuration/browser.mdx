@@ -73,6 +73,8 @@ const stagehand = await Stagehand.create({ browser });
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand, browserbase
 
 browser = await browserbase.launch(
@@ -157,6 +159,8 @@ const stagehand = await Stagehand.create({ browser });
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand, browserbase
 
 browser = await browserbase.launch(
@@ -208,6 +212,8 @@ const stagehand = await Stagehand.create({ browser });
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import BrowserbaseBrowserSettings, Stagehand, browserbase
 
 browser = await browserbase.launch(
@@ -368,7 +374,7 @@ If you prefer to manage sessions directly, create the session with the Browserba
 <View title="TypeScript" icon="js">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
-import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const bb = new Browserbase({
   apiKey: process.env.BROWSERBASE_API_KEY!,
@@ -379,7 +385,11 @@ const session = await bb.sessions.create({
   // Add configuration options here
 });
 
-const browser = await localBrowser.connect({ cdpUrl: session.connectUrl });
+// Attach by session ID so the browser keeps its Browserbase identity
+const browser = await browserbase.connect({
+  apiKey: process.env.BROWSERBASE_API_KEY!,
+  sessionId: session.id,
+});
 const stagehand = await Stagehand.create({ browser });
 ```
 </View>
@@ -390,7 +400,8 @@ import os
 
 from browserbase import Browserbase
 
-from stagehand import Stagehand, local_browser
+from stagehand import Stagehand
+from stagehand import browserbase as stagehand_browserbase
 
 bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -399,22 +410,27 @@ session = bb.sessions.create(
     # Add configuration options here
 )
 
-browser = await local_browser.connect(cdp_url=session.connect_url)
+# Attach by session ID so the browser keeps its Browserbase identity
+browser = await stagehand_browserbase.connect(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    session_id=session.id,
+)
 stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
 <View title="Go" icon="golang">
 ```go
-// Create the session with your Browserbase client of choice, then hand
-// Stagehand the resulting connect URL.
-connectURL, err := createBrowserbaseSession(ctx)
+// Create the session with your Browserbase client of choice, then attach by
+// session ID so the browser keeps its Browserbase identity.
+session, err := createBrowserbaseSession(ctx)
 if err != nil {
 	return err
 }
 
-browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
-	CDPURL: connectURL,
+browser, err := stagehand.ConnectBrowserbase(ctx, stagehand.BrowserbaseConnectOptions{
+	APIKey:    os.Getenv("BROWSERBASE_API_KEY"),
+	SessionID: session.ID,
 })
 if err != nil {
 	return err
@@ -780,6 +796,8 @@ const stagehand2 = await Stagehand.create({ browser: browser2 });
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand, browserbase, local_browser
 
 browser = await browserbase.launch(
@@ -914,7 +932,7 @@ if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
 page := pages[0]
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 

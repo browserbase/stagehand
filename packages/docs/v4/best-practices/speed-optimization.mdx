@@ -69,7 +69,7 @@ for _, field := range observed.Data {
 </View>
 
 <Note>
-**Performance Tip**: Passing an observed `Action` back to `act()` replays its recorded method and arguments without another inference call. A planned workflow therefore costs one `observe()` inference instead of one per step, which is the recommended pattern for multi-step workflows.
+**Performance tip**: Passing an observed `Action` back to `act()` replays its recorded method and arguments without another inference call. A planned workflow therefore costs one `observe()` inference instead of one per step, which is the recommended pattern for multi-step workflows.
 </Note>
 
 <Card title="Caching guide" icon="database" href="/v4/best-practices/caching">
@@ -236,6 +236,15 @@ if _, err := client.Act(ctx, "Click the login button", &stagehand.StagehandClien
 }
 
 // Complex page loads: optimize navigation
+browserContext, err := browser.Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+
 waitUntil := stagehand.LoadStateDOMContentLoaded // Don't wait for all resources
 navTimeout := 15000
 if _, err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOptions{
@@ -284,6 +293,8 @@ class PerformanceTracker {
 <View title="Python" icon="python">
 ```python
 from time import perf_counter
+
+from stagehand import Stagehand
 
 class PerformanceTracker:
     def __init__(self) -> None:
@@ -438,8 +449,8 @@ fmt.Printf("workflow-optimized: %dms\n", time.Since(start).Milliseconds()) // 50
 
 Example Output:
 ```
-Workflow took 8000ms
-Optimized workflow took 500ms
+workflow: 8000ms
+workflow-optimized: 500ms
 ```
 
 <Tip>

@@ -278,7 +278,7 @@ func run(ctx context.Context) (result string, err error) {
 		},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
@@ -290,7 +290,7 @@ func run(ctx context.Context) (result string, err error) {
 		},
 	})
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()

@@ -67,7 +67,7 @@ await stagehand.act("click the add to cart button")
 
 <View title="Go" icon="golang">
 ```go
-if err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
@@ -293,10 +293,10 @@ from stagehand import ModelConfig
 
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
-    model={
+    model=ModelConfig.model_validate({
         "model_name": "google/gemini-2.5-flash",
         "api_key": os.environ["GOOGLE_API_KEY"],
-    },
+    }),
     timeout=10000,
 )
 ```
@@ -482,11 +482,11 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-blogPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+blogPage, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
+if _, err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
 	return err
 }
 

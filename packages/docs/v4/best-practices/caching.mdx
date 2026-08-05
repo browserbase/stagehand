@@ -3,15 +3,15 @@ title: Caching actions
 description: Cache actions automatically to reduce costs and improve performance
 ---
 
-Stagehand caches `act()`, `observe()`, and `extract()` results server-side to reduce LLM costs and speed up your automations. Caching is managed by Browserbase, so there is nothing to install, no cache files to manage, and no state to keep in sync across machines.
+Stagehand caches `act()`, `observe()`, and `extract()` results server-side to reduce LLM costs and speed up your automations. Browserbase manages the cache, so there is nothing to install, no cache files to manage, and no state to keep in sync across machines.
 
 ---
 
 ## Browserbase cache
 
-Browserbase Cache is a managed, server-side caching layer built into the Stagehand API. Turn it on with the `cache` option and every `act()`, `observe()`, and `extract()` call is cached on Browserbase's servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
+Browserbase Cache is a managed, server-side caching layer inside the Stagehand API. Turn it on with the `cache` option and Browserbase caches every `act()`, `observe()`, and `extract()` call on its servers. Repeated calls with the same inputs return instantly without consuming any LLM tokens.
 
-The cache key is generated from the instruction, page content, and the options you pass. Model configuration is deliberately excluded, so switching models does not invalidate your cache. On a cache hit, the response is returned directly from the server with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
+Browserbase builds the cache key from the instruction, page content, and the options you pass. It deliberately leaves out model configuration, so switching models does not invalidate your cache. On a cache hit, the server returns the response directly with no LLM inference and no token cost. Check out the [Browserbase blog](https://www.browserbase.com/blog/stagehand-caching) for more details on how it works under the hood.
 
 <Note>
 Caching requires a Browserbase browser and the Browserbase API key you passed to `browserbase.launch()`. With a local browser there is no Browserbase session to key against, so the `cache` option has no effect and every call runs inference.
@@ -189,7 +189,7 @@ if _, err := client.Act(ctx, "submit the form", nil); err != nil {
 
 ### Cache threshold
 
-The threshold controls how many times an identical result must be observed before the cache starts serving it. A higher threshold means Stagehand waits until it is confident the result is stable; a threshold of `1` starts serving hits after a single successful run.
+The threshold controls how many times Browserbase must see an identical result before the cache starts serving it. A higher threshold means Stagehand waits until it is confident the result is stable; a threshold of `1` starts serving hits after a single successful run.
 
 Set it on `Stagehand.create()` to change the default for the instance, or per call to tune a single step. It overrides the threshold configured on your Browserbase project.
 
@@ -291,7 +291,7 @@ fmt.Println(string(result.Data))
 
 ### Inspecting cache status
 
-Every result carries `metadata.cache`, so you can verify whether a result was served from cache. The status is always present: `HIT`, `MISS`, or `DISABLED` when no cache lookup ran at all. A miss also carries a `missReason`, and a hit carries the tokens it saved.
+Every result carries `metadata.cache`, so you can verify whether the cache served that result. The status is always present: `HIT`, `MISS`, or `DISABLED` when no cache lookup ran at all. A miss also carries a `missReason`, and a hit carries the tokens it saved.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -324,10 +324,10 @@ Cache behavior is also visible in the [Browserbase session replay dashboard](htt
 
 ### Limitations
 
-- The page URL factors in to the cache key. If the action is being made on a page with a dynamic URL, caching may not work as expected. Browserbase filters out certain query parameters like referral trackers and analytics, but not all of them yet.
-- If the page content or structure changes, the action won't get a cache `HIT` and the LLM will be called. The subsequent actions will attempt to hit the resulting cache entry.
+- The page URL factors into the cache key. If you run the action on a page with a dynamic URL, caching may not work as expected. Browserbase filters out certain query parameters like referral trackers and analytics, but not all of them yet.
+- If the page content or structure changes, the action won't get a cache `HIT` and Stagehand calls the LLM. Subsequent actions will attempt to hit the resulting cache entry.
 - Caching is best-effort. If the cache is unreachable, Stagehand falls back to normal inference rather than failing your run.
-- A cached `act()` result is replayed deterministically with self-healing turned off. If the recorded selector no longer resolves, Stagehand falls back to full inference.
+- Stagehand replays a cached `act()` result deterministically with self-healing turned off. If the recorded selector no longer resolves, Stagehand falls back to full inference.
 
 ### Best practices
 
@@ -339,7 +339,7 @@ When targeting a specific part of a page, pass a selector to scope the accessibi
 <View title="TypeScript" icon="js">
 ```typescript
 async function example(stagehand: Stagehand) {
-  const page = await browser.context.activePage();
+  const page = await stagehand.browser.context.activePage();
   await page.goto("https://www.google.com/search?q=browserbase");
 
   await page.waitForLoadState("networkidle");
@@ -356,7 +356,7 @@ async function example(stagehand: Stagehand) {
 <View title="Python" icon="python">
 ```python
 async def example(stagehand: Stagehand) -> None:
-    page = await browser.context.active_page()
+    page = await stagehand.browser.context.active_page()
     await page.goto("https://www.google.com/search?q=browserbase")
 
     await page.wait_for_load_state("networkidle")
@@ -394,7 +394,7 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 </View>
 
 <Note>
-When a selector is set, Stagehand hashes only that subtree. If the selector fails to resolve, caching is skipped for that call rather than falling back to the whole page.
+When you set a selector, Stagehand hashes only that subtree. If the selector fails to resolve, Stagehand skips caching for that call rather than falling back to the whole page.
 </Note>
 </Accordion>
 
@@ -402,21 +402,19 @@ When a selector is set, Stagehand hashes only that subtree. If the selector fail
 Variables keep a literal value out of the instruction you write. Stagehand sends the model the variable name and substitutes the real value into the resolved action right before it runs, so the value never reaches the model and the logged action keeps its `%placeholder%`.
 
 <Warning>
-Do not assume two runs with different values share a cache entry. The variables you pass travel to the cache service with the rest of the request, so a different value may produce different key data and miss. Because they are transmitted, pass `cache: false` on any call carrying a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
+Do not assume two runs with different values share a cache entry. The variables you pass travel to the cache service with the rest of the request, so a different value may produce different key data and miss. Because Stagehand transmits them, pass `cache: false` on any call carrying a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
 </Warning>
-
-{/* TODO: this accordion previously promised that the cache key is derived from variable keys rather than values, so that {email: alice} and {email: bob} shared one entry ("prime once and hit forever"). That promise was removed because it could not be verified and the available evidence contradicts it: buildActCacheData transmits the whole options.variables record, and the comment in that file says only key-participating fields are sent. If values are in fact excluded from the key, restore the generalization guidance; if they are not, consider whether this accordion belongs on the caching page at all, since variables would then offer no caching benefit. */}
 
 <View title="TypeScript" icon="js">
 ```typescript
 async function example(stagehand: Stagehand) {
-  const page = await browser.context.activePage();
+  const page = await stagehand.browser.context.activePage();
   await page.goto("https://example.com/login");
 
   await page.waitForLoadState("networkidle");
 
-  // First run with alice@example.com is a MISS that primes the cache
-  // Any future run, regardless of email value, is a HIT
+  // The model only ever sees %email%, and the logged action keeps the placeholder
+  // A different email value travels with the request, so expect a MISS
   await stagehand.act(
     "type %email% into the Email address field",
     { variables: { email: "alice@example.com" } },
@@ -428,13 +426,13 @@ async function example(stagehand: Stagehand) {
 <View title="Python" icon="python">
 ```python
 async def example(stagehand: Stagehand) -> None:
-    page = await browser.context.active_page()
+    page = await stagehand.browser.context.active_page()
     await page.goto("https://example.com/login")
 
     await page.wait_for_load_state("networkidle")
 
-    # First run with alice@example.com is a MISS that primes the cache
-    # Any future run, regardless of email value, is a HIT
+    # The model only ever sees %email%, and the logged action keeps the placeholder
+    # A different email value travels with the request, so expect a MISS
     await stagehand.act(
         "type %email% into the Email address field",
         variables={"email": "alice@example.com"},
@@ -453,8 +451,8 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 		return err
 	}
 
-	// First run with alice@example.com is a MISS that primes the cache
-	// Any future run, regardless of email value, is a HIT
+	// The model only ever sees %email%, and the logged action keeps the placeholder
+	// A different email value travels with the request, so expect a MISS
 	_, err := client.Act(ctx, "type %email% into the Email address field", &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
@@ -573,8 +571,6 @@ if _, err := client.Act(ctx, fmt.Sprintf("type %s into the Email address field",
 
 <Accordion title="Pair caching with the Model Gateway">
 Both server-side caching and the [Model Gateway](/v4/configuration/models#model-gateway) run off the same Browserbase session and the same API key. Using them together means one bill for inference, browsers, and cache, and no provider keys to rotate.
-
-{/* TODO: Model Gateway routing is not yet wired up in the v4 runtime, so a model config with no provider key constructs and init()s fine but throws on the first act()/observe()/extract(): packages/server/services/llmService.ts:29 raises "Direct model inference requires an API key" (the throw is only reachable from actService.ts:250, extractService.ts:137 and observeService.ts:86, never from init). Cached calls short-circuit before inference, so only cache misses fail. Same caveat as v4/configuration/models.mdx:69. Verify before publishing. */}
 
 <View title="TypeScript" icon="js">
 ```typescript

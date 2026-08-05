@@ -509,8 +509,6 @@ Track your spending to identify optimization opportunities. See the [observabili
 
 Stagehand reports token counts, not dollars. Keep prompt and completion tokens separate: providers bill them at different rates, so a single blended rate over the total is wrong for every model. Multiply each count by the input and output rates on your provider's pricing page to turn these into currency.
 
-{/* TODO: these samples call stagehand.metrics(), which is typed end to end but currently throws "Method not implemented by the smoke runtime" in packages/server/controllers/stagehandController.ts */}
-
 <View title="TypeScript" icon="js">
 ```typescript
 // Monitor token usage

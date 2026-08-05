@@ -209,6 +209,8 @@ import os
 
 from browserbase import Browserbase
 
+from stagehand import browserbase
+
 browserbase = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 # List sessions with filtering
@@ -345,8 +347,6 @@ class Data(BaseModel):
     title: str
 
 browser = await local_browser.launch()
-
-browser = await local_browser.launch()
 stagehand = await Stagehand.create(
     browser=browser,
     logging={"level": "info"},  # Monitor without debug noise
@@ -428,7 +428,7 @@ if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
 page := pages[0]
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click button", nil); err != nil {
@@ -679,13 +679,13 @@ console.log("Automation Summary:", {
 import os
 from time import perf_counter
 
+from pydantic import BaseModel
+
 from stagehand import Stagehand, browserbase
 
 class User(BaseModel):
     name: str
     email: str
-
-browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
@@ -778,7 +778,7 @@ if len(pages) == 0 {
 	return errors.New("Stagehand initialized without an active page")
 }
 page := pages[0]
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 if _, err := client.Act(ctx, "click the login button", nil); err != nil {
@@ -1048,7 +1048,9 @@ console.log(await stagehand.metrics());
 
 <View title="Python" icon="python">
 ```python
+import json
 import os
+
 from datetime import datetime, timezone
 
 from stagehand import Stagehand, StagehandClientLoggingConfig, browserbase
@@ -1159,6 +1161,8 @@ const stagehand = await Stagehand.create({
 
 <View title="Python" icon="python">
 ```python
+import os
+
 from stagehand import Stagehand, TelemetryConfig, browserbase
 
 browser = await browserbase.launch(

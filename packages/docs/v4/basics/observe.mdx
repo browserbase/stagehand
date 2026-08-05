@@ -79,7 +79,7 @@ if err != nil {
 if page == nil {
 	return errors.New("Stagehand initialized without an active page")
 }
-if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
@@ -608,11 +608,11 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-productsPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+productsPage, err := browserContext.NewPage(ctx, nil)
 if err != nil {
 	return err
 }
-if err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
+if _, err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
 	return err
 }
 

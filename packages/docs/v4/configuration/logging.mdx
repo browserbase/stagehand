@@ -39,6 +39,8 @@ const stagehand = await Stagehand.create({
 
 <View title="Python" icon="python">
 ```python
+import json
+
 from stagehand import Stagehand, local_browser
 
 # Development: full debug output, human-readable
@@ -475,7 +477,7 @@ Then pass the logger in your Stagehand instance:
 <View title="TypeScript" icon="js">
 ```typescript
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser: await localBrowser.launch(),
   logging: {
     level: "info",
     onLog: simpleLogger,
@@ -487,7 +489,7 @@ const stagehand = await Stagehand.create({
 
 <View title="Python" icon="python">
 ```python
-browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+browser = await local_browser.launch()
 
 stagehand = await Stagehand.create(
     browser=browser,
@@ -499,9 +501,7 @@ stagehand = await Stagehand.create(
 
 <View title="Go" icon="golang">
 ```go
-browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
 	return err
 }
@@ -564,6 +564,8 @@ const productionLogger = (log: {
 
 <View title="Python" icon="python">
 ```python
+import json
+
 import sentry_sdk
 
 def production_logger(log) -> None:
@@ -621,6 +623,8 @@ const productionLogger = (log: {
 
 <View title="Python" icon="python">
 ```python
+import json
+
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.logs_api import LogsApi
 
@@ -669,7 +673,7 @@ func productionLogger(entry stagehand.StagehandLog) {
 <View title="TypeScript" icon="js">
 ```typescript
 const stagehand = await Stagehand.create({
-  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  browser: await localBrowser.launch(),
   logging: {
     level: "info",
     format: "json",
@@ -682,7 +686,7 @@ const stagehand = await Stagehand.create({
 
 <View title="Python" icon="python">
 ```python
-browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+browser = await local_browser.launch()
 
 stagehand = await Stagehand.create(
     browser=browser,
@@ -698,9 +702,7 @@ stagehand = await Stagehand.create(
 
 <View title="Go" icon="golang">
 ```go
-browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
 	return err
 }

@@ -301,7 +301,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </View>
 
 <Note>
-Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is dropped when you point at a [custom endpoint](#custom-endpoints), where the name can be a deployment name instead.
+Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
 </Note>
 
 
@@ -1355,6 +1355,8 @@ console.log(data.summary);
 ```python
 import os
 
+from pydantic import BaseModel
+
 from stagehand import ModelConfig, Stagehand, browserbase
 
 class Pricing(BaseModel):
@@ -1557,8 +1559,10 @@ const stagehand = await Stagehand.create({
 
 <View title="Python" icon="python">
 ```python
-import os
 import asyncio
+import os
+
+from stagehand import Stagehand, browserbase
 
 def with_retries(generate, attempts: int = 3):
     async def wrapped(params):
@@ -1653,7 +1657,6 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 | OpenAI     | `OPENAI_API_KEY`               |
 | Groq       | `GROQ_API_KEY`                 |
 | Cerebras   | `CEREBRAS_API_KEY`             |
-| Custom endpoint | Whatever your gateway issues, passed as the model API key |
 | Bring your own LLM | None; your callback owns its credentials |
 
 </Accordion>
@@ -1665,7 +1668,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
 - Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
-- For a provider outside that list, use a [custom endpoint](#custom-endpoints) or a [bring-your-own-LLM callback](#custom-models)
+- For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)
 
 Only the provider prefix is checked. The model ID itself is not validated, so a typo or a model your key cannot reach surfaces as the provider's own error (usually a `400`) on the first inference, not as an `Unsupported model` error. Verify the model name against the provider's documentation and confirm your model API key has access to it.
 </Accordion>
