@@ -1,0 +1,13 @@
+packages/evals/core/tools/v4_code.ts
+  ai_agent 16,18,21-51,57-373,447
+packages/evals/core/tools/registry.ts
+  ai_agent 8,13,26-27
+packages/evals/framework/context.ts
+  ai_agent 36-38,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "75c368d3a93d42cb62669fd4e9140cbc19409801",
+  "prompts": {}
+}
