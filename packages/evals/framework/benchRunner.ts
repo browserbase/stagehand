@@ -118,7 +118,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error: error instanceof Error ? JSON.parse(JSON.stringify(error, null, 2)) : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,
