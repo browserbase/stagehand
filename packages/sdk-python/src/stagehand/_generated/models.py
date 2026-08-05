@@ -850,18 +850,6 @@ class FieldSchema10(
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
-class FieldSchema11(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
-
-
-class FieldSchema12(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
-):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
-
-
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -964,24 +952,6 @@ class InputFilePayload(WireModel):
 
 class Instruction(RootModel[StrictStr]):
     root: Annotated[StrictStr, Field(min_length=1)]
-
-
-class JSONRPCErrorObject(WireModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_by_name=True,
-    )
-    code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
-    message: StrictStr
-    data: Optional[FieldSchema12] = None
-
-
-class JSONRPCRequestId(RootModel[StrictInt]):
-    root: Annotated[StrictInt, Field(ge=0, le=9007199254740991)]
-
-
-class JSONRPCErrorResponseId(RootModel[Optional[JSONRPCRequestId]]):
-    root: Optional[JSONRPCRequestId]
 
 
 class LLMAnnotations(WireModel):
@@ -2781,8 +2751,6 @@ class WebMCPToolsOptions(WireModel):
 FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
-FieldSchema11.model_rebuild()
-FieldSchema12.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

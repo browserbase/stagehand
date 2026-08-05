@@ -251,6 +251,56 @@ func TestGoLoggingRecoversCallbackPanic(t *testing.T) {
 	}
 }
 
+func TestGoLoggingReportsPageEventListenerPanic(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init":      StagehandInitResult{Initialized: true},
+		"context.active_page": PageRef{PageID: "page-1"},
+		"page.on":             PageVoidResult{Ok: true},
+		"page.off":            PageVoidResult{Ok: true},
+	}}
+	var output bytes.Buffer
+	client, err := newStagehandWithClient(CreateOptions{}, rpc, &output)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	defer client.Close(context.Background())
+	browserContext, err := client.Browser().Context()
+	if err != nil {
+		t.Fatalf("Browser.Context() error = %v", err)
+	}
+	page, err := browserContext.ActivePage(context.Background())
+	if err != nil {
+		t.Fatalf("ActivePage() error = %v", err)
+	}
+	if page == nil {
+		t.Fatal("ActivePage() = nil")
+	}
+	subscription, err := page.On(context.Background(), "console", func(PageCDPEvent) {
+		panic("listener exploded")
+	})
+	if err != nil {
+		t.Fatalf("Page.On() error = %v", err)
+	}
+	defer subscription.Close(context.Background())
+	onParams := rpc.calls[2].params.(PageOnParams)
+	rpc.pageEventHandler(PageCDPEventNotification{
+		SubscriptionID: onParams.SubscriptionID,
+		Event: PageCDPEvent{
+			PageID: "page-1",
+			Method: CDPEventNameRuntimeConsoleAPICalled,
+		},
+	})
+
+	if !strings.Contains(
+		output.String(),
+		"[stagehand] ERROR page event listener callback failed: listener exploded\n",
+	) {
+		t.Fatalf("page event listener panic output = %q", output.String())
+	}
+}
+
 func TestGoLoggingRejectsInvalidConfiguration(t *testing.T) {
 	t.Parallel()
 

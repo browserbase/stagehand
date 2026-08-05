@@ -92,24 +92,59 @@ class CDPSubscription:
         self._remove_local_listener = remove_local_listener
         self._on_disposed = on_disposed
         self._unsubscribe_task: asyncio.Task[None] | None = None
+        self._observed_unsubscribe_tasks: set[asyncio.Task[None]] = set()
 
     async def unsubscribe(self) -> None:
-        if self._unsubscribe_task is None:
+        task = self._unsubscribe_task
+        if task is None:
 
             async def run() -> None:
                 await self._unsubscribe_once()
 
-            self._unsubscribe_task = asyncio.create_task(run())
-        await asyncio.shield(self._unsubscribe_task)
+            task = asyncio.create_task(run())
+            self._unsubscribe_task = task
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            self._observe_unsubscribe_after_cancellation(task)
+            raise
+        except BaseException:
+            if self._unsubscribe_task is task:
+                self._unsubscribe_task = None
+            raise
 
     async def _unsubscribe_once(self) -> None:
-        self._remove_local_listener()
-        self._on_disposed()
         await self._rpc_client.send(
             "page.off",
             PageOffParams(subscription_id=self._subscription_id),
             PageVoidResult,
         )
+        self._remove_local_listener()
+        self._on_disposed()
+
+    def _observe_unsubscribe_after_cancellation(self, task: asyncio.Task[None]) -> None:
+        if task in self._observed_unsubscribe_tasks:
+            return
+        self._observed_unsubscribe_tasks.add(task)
+        loop = asyncio.get_running_loop()
+
+        def report_failure(completed: asyncio.Task[None]) -> None:
+            self._observed_unsubscribe_tasks.discard(completed)
+            if completed.cancelled():
+                if self._unsubscribe_task is completed:
+                    self._unsubscribe_task = None
+                return
+            error = completed.exception()
+            if error is None:
+                return
+            if self._unsubscribe_task is completed:
+                self._unsubscribe_task = None
+            loop.call_exception_handler({
+                "message": "Stagehand page event unsubscribe failed after caller cancellation",
+                "exception": error,
+            })
+
+        task.add_done_callback(report_failure)
 
 
 class Page:

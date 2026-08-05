@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"sync"
@@ -154,65 +155,98 @@ func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
 		"page.off": PageVoidResult{Ok: true},
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
-	firstStarted := make(chan struct{})
-	releaseFirst := make(chan struct{})
-	secondStarted := make(chan struct{})
+	sequences := make([]string, 0, 2)
 
 	subscription, err := page.On(context.Background(), "console", func(event PageCDPEvent) {
-		switch string(event.Params["sequence"]) {
-		case "1":
-			close(firstStarted)
-			<-releaseFirst
-		case "2":
-			close(secondStarted)
-		}
+		sequences = append(sequences, string(event.Params["sequence"]))
 	})
 	if err != nil {
 		t.Fatalf("On() error = %v", err)
 	}
 	onParams := rpc.calls[0].params.(PageOnParams)
-	deliveryDone := make(chan struct{})
-	go func() {
-		defer close(deliveryDone)
-		for _, sequence := range []string{"1", "2"} {
-			rpc.pageEventHandler(PageCDPEventNotification{
-				SubscriptionID: onParams.SubscriptionID,
-				Event: PageCDPEvent{
-					PageID: "page-1",
-					Method: CDPEventNameRuntimeConsoleAPICalled,
-					Params: PageCDPEventParams{
-						"sequence": json.RawMessage(sequence),
-					},
+	for _, sequence := range []string{"1", "2"} {
+		rpc.pageEventHandler(PageCDPEventNotification{
+			SubscriptionID: onParams.SubscriptionID,
+			Event: PageCDPEvent{
+				PageID: "page-1",
+				Method: CDPEventNameRuntimeConsoleAPICalled,
+				Params: PageCDPEventParams{
+					"sequence": json.RawMessage(sequence),
 				},
-			})
-		}
-	}()
-
-	select {
-	case <-firstStarted:
-	case <-time.After(time.Second):
-		close(releaseFirst)
-		t.Fatal("timed out waiting for first event")
+			},
+		})
 	}
-	select {
-	case <-secondStarted:
-		close(releaseFirst)
-		t.Fatal("second event listener ran before the first listener returned")
-	case <-time.After(25 * time.Millisecond):
-	}
-	close(releaseFirst)
-	select {
-	case <-secondStarted:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for second event")
-	}
-	select {
-	case <-deliveryDone:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for event delivery")
+	if !reflect.DeepEqual(sequences, []string{"1", "2"}) {
+		t.Fatalf("listener delivery order = %v, want [1 2]", sequences)
 	}
 	if err := subscription.Close(context.Background()); err != nil {
 		t.Fatalf("subscription.Close() error = %v", err)
+	}
+}
+
+func TestPageEventSubscriptionCanRetryFailedClose(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("page.off failed")
+	rpc := &recordingProtocolClient{
+		responses: map[string]any{
+			"page.on":  PageVoidResult{Ok: true},
+			"page.off": PageVoidResult{Ok: true},
+		},
+		callErrors: map[string]error{"page.off": closeErr},
+	}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	subscription, err := page.On(context.Background(), "console", func(PageCDPEvent) {})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+
+	if err := subscription.Close(context.Background()); !errors.Is(err, closeErr) {
+		t.Fatalf("first subscription.Close() error = %v, want %v", err, closeErr)
+	}
+	if rpc.pageEventHandler == nil {
+		t.Fatal("failed page.off removed the local event handler")
+	}
+	page.mu.RLock()
+	_, retained := page.subscriptions[subscription]
+	page.mu.RUnlock()
+	if !retained {
+		t.Fatal("failed page.off removed the subscription from its page")
+	}
+
+	delete(rpc.callErrors, "page.off")
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("retried subscription.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("successful page.off retained the local event handler")
+	}
+	if got := []string{rpc.calls[1].method, rpc.calls[2].method}; !reflect.DeepEqual(got, []string{"page.off", "page.off"}) {
+		t.Fatalf("unsubscribe RPC calls = %v, want [page.off page.off]", got)
+	}
+}
+
+func TestPageCloseCleansUpLiveEventSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":    PageVoidResult{Ok: true},
+		"page.off":   PageVoidResult{Ok: true},
+		"page.close": PageCloseResult{Closed: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	if _, err := page.On(context.Background(), "console", func(PageCDPEvent) {}); err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+
+	if err := page.Close(context.Background()); err != nil {
+		t.Fatalf("Page.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("page event handler remained registered after Page.Close()")
+	}
+	if got := []string{rpc.calls[0].method, rpc.calls[1].method, rpc.calls[2].method}; !reflect.DeepEqual(got, []string{"page.on", "page.off", "page.close"}) {
+		t.Fatalf("page lifecycle RPC calls = %v, want [page.on page.off page.close]", got)
 	}
 }
 

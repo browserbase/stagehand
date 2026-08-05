@@ -29,7 +29,7 @@ async def main() -> None:
         )
         subscription: CDPSubscription | None = None
         try:
-            page = await stagehand.context.active_page()
+            page = await stagehand.browser.context.active_page()
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
 

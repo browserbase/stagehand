@@ -55,7 +55,7 @@ func runPageEvents(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
 		return err
 	}

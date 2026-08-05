@@ -13,52 +13,62 @@ import (
 
 // Page is a thin wrapper around a generated PageRef.
 type Page struct {
-	rpc           protocolClient
-	mu            sync.RWMutex
-	ref           PageRef
-	subscriptions map[*CDPSubscription]struct{}
+	rpc                      protocolClient
+	mu                       sync.RWMutex
+	ref                      PageRef
+	subscriptions            map[*CDPSubscription]struct{}
+	reportEventListenerPanic func(any)
 }
 
 // CDPSubscription is a page-scoped CDP event listener registration.
 type CDPSubscription struct {
-	rpc                  protocolClient
-	page                 *Page
-	subscriptionID       string
-	removeLocalListener  func()
-	mu                   sync.Mutex
-	unsubscribeStarted   bool
-	unsubscribeCompleted chan struct{}
-	unsubscribeErr       error
+	rpc                 protocolClient
+	page                *Page
+	subscriptionID      string
+	removeLocalListener func()
+	mu                  sync.Mutex
+	unsubscribeAttempt  *cdpUnsubscribeAttempt
+	unsubscribed        bool
+}
+
+type cdpUnsubscribeAttempt struct {
+	done chan struct{}
+	err  error
 }
 
 // Close removes the listener locally and from the Stagehand runtime.
 func (s *CDPSubscription) Close(ctx context.Context) error {
 	s.mu.Lock()
-	if s.unsubscribeStarted {
-		completed := s.unsubscribeCompleted
+	if s.unsubscribed {
+		s.mu.Unlock()
+		return nil
+	}
+	if attempt := s.unsubscribeAttempt; attempt != nil {
 		s.mu.Unlock()
 		select {
-		case <-completed:
-			s.mu.Lock()
-			err := s.unsubscribeErr
-			s.mu.Unlock()
-			return err
+		case <-attempt.done:
+			return attempt.err
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
-	s.unsubscribeStarted = true
-	s.removeLocalListener()
-	s.page.removeSubscription(s)
+	attempt := &cdpUnsubscribeAttempt{done: make(chan struct{})}
+	s.unsubscribeAttempt = attempt
 	s.mu.Unlock()
 
 	params := PageOffParams{SubscriptionID: s.subscriptionID}
 	var result PageVoidResult
 	err := s.rpc.call(ctx, "page.off", params, &result)
+	if err == nil {
+		s.removeLocalListener()
+		s.page.removeSubscription(s)
+	}
 
 	s.mu.Lock()
-	s.unsubscribeErr = err
-	close(s.unsubscribeCompleted)
+	attempt.err = err
+	s.unsubscribeAttempt = nil
+	s.unsubscribed = err == nil
+	close(attempt.done)
 	s.mu.Unlock()
 	return err
 }
@@ -250,14 +260,13 @@ func (p *Page) On(
 		if notification.SubscriptionID != subscriptionID {
 			return
 		}
-		invokePageEventListener(listener, notification.Event)
+		invokePageEventListener(listener, notification.Event, p.reportEventListenerPanic)
 	})
 	subscription := &CDPSubscription{
-		rpc:                  p.rpc,
-		page:                 p,
-		subscriptionID:       subscriptionID,
-		removeLocalListener:  removeLocalListener,
-		unsubscribeCompleted: make(chan struct{}),
+		rpc:                 p.rpc,
+		page:                p,
+		subscriptionID:      subscriptionID,
+		removeLocalListener: removeLocalListener,
 	}
 	p.addSubscription(subscription)
 
@@ -431,9 +440,15 @@ func newSubscriptionID() (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func invokePageEventListener(listener func(PageCDPEvent), event PageCDPEvent) {
+func invokePageEventListener(
+	listener func(PageCDPEvent),
+	event PageCDPEvent,
+	reportPanic func(any),
+) {
 	defer func() {
-		_ = recover()
+		if recovered := recover(); recovered != nil && reportPanic != nil {
+			reportPanic(recovered)
+		}
 	}()
 	listener(event)
 }

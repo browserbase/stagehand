@@ -347,6 +347,108 @@ async def test_unsubscribe_continues_after_calling_task_is_cancelled() -> None:
 
 
 @pytest.mark.asyncio
+async def test_unsubscribe_retries_after_page_off_failure() -> None:
+    recording = RecordingRPCClient({
+        "page.on": {"ok": True},
+        "page.off": RuntimeError("temporary page.off failure"),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+
+    with pytest.raises(RuntimeError, match="temporary page.off failure"):
+        await subscription.unsubscribe()
+    assert "page.cdp_event" in recording.notifications
+
+    recording.responses["page.off"] = {"ok": True}
+    await subscription.unsubscribe()
+
+    assert [method for method, _, _ in recording.calls] == [
+        "page.on",
+        "page.off",
+        "page.off",
+    ]
+    assert "page.cdp_event" not in recording.notifications
+
+
+@pytest.mark.asyncio
+async def test_unsubscribe_reports_background_failure_after_caller_cancellation() -> None:
+    class FailingPageOffRPCClient(RecordingRPCClient):
+        def __init__(self) -> None:
+            super().__init__({"page.on": {"ok": True}})
+            self.page_off_started = asyncio.Event()
+            self.release_page_off = asyncio.Event()
+            self.fail_page_off = True
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[RootModel[RootResultT]],
+        ) -> RootResultT: ...
+
+        @overload
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[ResultT],
+        ) -> ResultT: ...
+
+        async def send(
+            self,
+            method: str,
+            params: BaseModel,
+            result_model: type[BaseModel],
+        ) -> object:
+            if method != "page.off":
+                return await super().send(method, params, result_model)
+            self.calls.append((method, params, result_model))
+            self.page_off_started.set()
+            await self.release_page_off.wait()
+            if self.fail_page_off:
+                self.fail_page_off = False
+                raise RuntimeError("background page.off failure")
+            return PageVoidResult(ok=True)
+
+    recording = FailingPageOffRPCClient()
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+    loop = asyncio.get_running_loop()
+    original_handler = loop.get_exception_handler()
+    reported: list[dict[str, object]] = []
+    failure_reported = asyncio.Event()
+
+    def exception_handler(_loop: asyncio.AbstractEventLoop, context: dict[str, object]) -> None:
+        reported.append(context)
+        failure_reported.set()
+
+    loop.set_exception_handler(exception_handler)
+    try:
+        unsubscribe = asyncio.create_task(subscription.unsubscribe())
+        await recording.page_off_started.wait()
+        unsubscribe.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await unsubscribe
+
+        recording.release_page_off.set()
+        await asyncio.wait_for(failure_reported.wait(), timeout=1)
+        assert reported[0]["message"] == (
+            "Stagehand page event unsubscribe failed after caller cancellation"
+        )
+        assert isinstance(reported[0]["exception"], RuntimeError)
+
+        await subscription.unsubscribe()
+        assert [method for method, _, _ in recording.calls] == [
+            "page.on",
+            "page.off",
+            "page.off",
+        ]
+    finally:
+        loop.set_exception_handler(original_handler)
+
+
+@pytest.mark.asyncio
 async def test_page_coordinate_interactions_return_none() -> None:
     void_result = PageVoidResult(ok=True)
     recording = RecordingRPCClient({

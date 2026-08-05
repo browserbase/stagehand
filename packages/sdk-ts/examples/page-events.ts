@@ -2,6 +2,23 @@ import "dotenv/config";
 import { z } from "zod/v4";
 import { browserbase, Stagehand, type CDPSubscription } from "../src/index.js";
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Timed out waiting for the console event")),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
+}
+
 const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
 if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
 if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required");
@@ -14,7 +31,7 @@ try {
   });
   let subscription: CDPSubscription | undefined;
   try {
-    const page = await stagehand.context.activePage();
+    const page = await stagehand.browser.context.activePage();
     if (!page) throw new Error("Stagehand initialized without an active page");
 
     let resolveConsoleEvent!: (method: string) => void;
@@ -27,12 +44,7 @@ try {
 
     await page.goto("https://example.com");
     await page.evaluate(`console.log("stagehand-page-on-example"); "emitted"`);
-    const method = await Promise.race([
-      consoleEvent,
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Timed out waiting for the console event")), 10_000),
-      ),
-    ]);
+    const method = await withTimeout(consoleEvent, 10_000);
 
     const result = await stagehand.extract(
       "Extract the page heading and description",

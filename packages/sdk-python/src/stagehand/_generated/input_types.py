@@ -243,12 +243,6 @@ FieldSchema1: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema1"],
 FieldSchema10: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema10"], dict[str, "FieldSchema10"]]]
 
 
-FieldSchema11: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema11"], dict[str, "FieldSchema11"]]]
-
-
-FieldSchema12: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema12"], dict[str, "FieldSchema12"]]]
-
-
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -289,18 +283,6 @@ class InputFilePayload(TypedDict):
     mime_type: NotRequired[str]
     data: str
     last_modified: NotRequired[int]
-
-
-class JSONRPCErrorObject(TypedDict):
-    code: int
-    message: str
-    data: NotRequired[FieldSchema12]
-
-
-JSONRPCRequestId: TypeAlias = int
-
-
-JSONRPCErrorResponseId: TypeAlias = JSONRPCRequestId | None
 
 
 class LLMJsonSchemaResponseFormat(TypedDict):

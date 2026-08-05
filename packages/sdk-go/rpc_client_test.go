@@ -962,6 +962,26 @@ func TestRPCClientTransportOwnership(t *testing.T) {
 	}
 }
 
+func TestRPCClientCloseDropsLivePageEventListeners(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	remove := client.onPageCDPEvent(func(PageCDPEventNotification) {})
+
+	if err := client.close(); err != nil {
+		t.Fatalf("close() error = %v", err)
+	}
+	client.mu.Lock()
+	handlerCount := len(client.notificationHandlers["page.cdp_event"])
+	client.mu.Unlock()
+	if handlerCount != 0 {
+		t.Fatalf("page event handlers after close = %d, want 0", handlerCount)
+	}
+
+	remove()
+}
+
 func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {
 	t.Parallel()
 
