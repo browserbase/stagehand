@@ -355,6 +355,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
       required:
         - modelName
@@ -1017,6 +1018,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,
@@ -1954,6 +1956,7 @@ components:
             - anthropic
             - google
             - microsoft
+            - yutori
             - bedrock
         model:
           description: Model configuration object or model name string (e.g.,

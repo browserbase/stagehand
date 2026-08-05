@@ -45,10 +45,15 @@ export default defineBenchTask(
 
       const systemPrompt = `You are a helpful assistant that must solve the task by browsing. At the end, produce a single line: "Final Answer: <answer>" summarizing the requested result (e.g., score, list, or text). Current page: ${await page.title()}. ALWAYS OPERATE WITHIN THE PAGE OPENED BY THE USER, WHICHEVER TASK YOU ARE ATTEMPTING TO COMPLETE CAN BE ACCOMPLISHED WITHIN THE PAGE.`;
       const agentMode = input.agentMode ?? (input.isCUA ? "cua" : "hybrid");
+      // Navigator (n1.5) ships its own tuned system prompt; the harness's
+      // generic instructions degrade it, so we let Navigator use its default.
+      // Every other model (including other CUA providers) keeps the harness
+      // prompt.
+      const isNavigator = modelName.startsWith("yutori/");
       const agent = v3.agent({
         mode: agentMode,
         model: modelName,
-        systemPrompt,
+        ...(isNavigator ? {} : { systemPrompt }),
       });
 
       const taskSpec: TaskSpec = {
