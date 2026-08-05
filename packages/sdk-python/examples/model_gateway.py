@@ -17,16 +17,13 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    # No model_api_key: inference routes through the Browserbase Model Gateway,
-    # authenticated by the Browserbase API key and session.
+    # With no model, Browserbase Model Gateway selects one automatically for
+    # each inference call. The Browserbase API key and session authenticate it.
     browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
     try:
-        stagehand = await Stagehand.create(
-            browser=browser,
-            model="openai/gpt-4.1",
-        )
+        stagehand = await Stagehand.create(browser=browser)
         try:
-            page = await stagehand.context.active_page()
+            page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")

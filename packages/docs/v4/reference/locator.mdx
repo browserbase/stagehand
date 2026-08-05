@@ -327,6 +327,38 @@ const values = await locator.selectOption("us");
   The operation result.
 </ResponseField>
 
+## setInputFiles()
+
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Pass an empty array to clear the selection.
+
+```typescript
+await page.locator('input[type="file"]').setInputFiles("./resume.pdf");
+```
+
+<ParamField path="files" type="FileInput">
+  Local file path(s) or in-memory payload(s) to upload. The SDK serializes each file in memory and limits it to 50 MiB.
+
+  <ParamField path="files.name" type="string">
+    The filename exposed to the page.
+  </ParamField>
+
+  <ParamField path="files.mimeType" type="string" optional>
+    The file's MIME type.
+  </ParamField>
+
+  <ParamField path="files.buffer" type="ArrayBuffer | Uint8Array | string">
+    The in-memory file content to upload. The SDK base64-encodes it for transport.
+  </ParamField>
+
+  <ParamField path="files.lastModified" type="number" optional>
+    The file's last-modified time in Unix milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the files are attached.
+</ResponseField>
+
 ## first()
 
 Create a locator for the first matching element.
@@ -652,6 +684,38 @@ values = await locator.select_option("us")
 
 <ResponseField name="result" type="list[str]">
   The operation result.
+</ResponseField>
+
+## set_input_files()
+
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Pass an empty sequence to clear the selection.
+
+```python
+await page.locator('input[type="file"]').set_input_files("./resume.pdf")
+```
+
+<ParamField path="files" type="str | Path | FilePayload | Sequence[str | Path | FilePayload]">
+  Local file path(s) or in-memory payload(s) to upload. The SDK serializes each file in memory and limits it to 50 MiB.
+
+  <ParamField path="files.name" type="str">
+    The filename exposed to the page.
+  </ParamField>
+
+  <ParamField path="files.mime_type" type="str" optional>
+    The file's MIME type.
+  </ParamField>
+
+  <ParamField path="files.buffer" type="bytes | bytearray | memoryview | str">
+    The in-memory file content to upload. The SDK base64-encodes it for transport.
+  </ParamField>
+
+  <ParamField path="files.last_modified" type="int" optional>
+    The file's last-modified time in Unix milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the files are attached.
 </ResponseField>
 
 ## first()

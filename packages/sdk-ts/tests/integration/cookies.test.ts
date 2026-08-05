@@ -25,7 +25,7 @@ describe("cookies", () => {
   });
 
   it("addCookies sets a cookie visible to the page", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0];
     expect(page).toBeDefined();
     await page!.goto(fixtureServer.url);
@@ -41,7 +41,7 @@ describe("cookies", () => {
   });
 
   it("cookies() with no URL returns all cookies", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
 
@@ -53,7 +53,7 @@ describe("cookies", () => {
   });
 
   it("clearCookies() removes all cookies", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
     await ctx.addCookies([
@@ -72,7 +72,7 @@ describe("cookies", () => {
   });
 
   it("clearCookies() with name filter removes only matching cookies", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
     await ctx.addCookies([
@@ -87,7 +87,7 @@ describe("cookies", () => {
   });
 
   it("clearCookies() with regex filter removes matching cookies", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
     await ctx.addCookies([
@@ -104,7 +104,7 @@ describe("cookies", () => {
   });
 
   it("cookies are visible from a second page on the same domain", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page1 = (await ctx.pages())[0]!;
     await page1.goto(fixtureServer.url);
 
@@ -119,7 +119,7 @@ describe("cookies", () => {
   });
 
   it("cookies persist across navigation to a different path", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
 
@@ -140,7 +140,7 @@ describe("cookies", () => {
   });
 
   it("httpOnly cookie is hidden from document.cookie but returned by cookies()", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
 
@@ -158,7 +158,7 @@ describe("cookies", () => {
   });
 
   it("cookies() returns correct shape for a fully-specified cookie", async () => {
-    const ctx = stagehand.context;
+    const ctx = stagehand.browser.context;
     const page = (await ctx.pages())[0]!;
     await page.goto(fixtureServer.url);
 

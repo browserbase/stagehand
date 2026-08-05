@@ -13,10 +13,12 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(browser=browser)
         try:
-            page = await stagehand.context.active_page()
+            page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
-            await page.goto("https://example.com")
+            response = await page.goto("https://example.com")
+            if response is not None:
+                print(response.status, await response.text())
             await stagehand.observe("Find the more information link")
             print(await page.title())
         finally:
@@ -42,6 +44,10 @@ they are deleted out of band. Sessions reached through `browserbase.connect()` a
 
 `Stagehand.act()`, `Stagehand.observe()`, and `Stagehand.extract()` use the active page by
 default. Pass `page=page` to target a specific SDK `Page`.
+
+`Page.goto()`, `reload()`, `go_back()`, and `go_forward()` return the main-document `Response`,
+or `None` when navigation does not produce one. Response bodies and complete headers are retrieved
+lazily while the Stagehand session remains open.
 
 When contributing examples or tests, keep browser ownership explicit: launch or connect a
 browser handle, pass it to `Stagehand.create()`, close Stagehand first, and close the browser in

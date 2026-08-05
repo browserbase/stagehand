@@ -98,6 +98,19 @@ func TestBuildChromeArgsSupportsLocalBrowserOptions(t *testing.T) {
 	}
 }
 
+func TestBuildChromeArgsPutsCallerArgumentsLast(t *testing.T) {
+	t.Setenv("CI", "")
+	got := buildChromeArgs(LocalBrowserLaunchOptions{
+		Locale: "de-CH",
+		Args:   []string{"--lang=fr", "--custom-flag=value"},
+	}, 9_222, "/tmp/profile")
+	wantSuffix := []string{"--lang=fr", "--custom-flag=value", "about:blank"}
+	gotSuffix := got[len(got)-len(wantSuffix):]
+	if !slices.Equal(gotSuffix, wantSuffix) {
+		t.Fatalf("buildChromeArgs() suffix = %#v, want %#v", gotSuffix, wantSuffix)
+	}
+}
+
 func TestBuildChromeArgsCanIgnoreDefaultArgs(t *testing.T) {
 	t.Run("all", func(t *testing.T) {
 		got := buildChromeArgs(

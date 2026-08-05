@@ -17,8 +17,15 @@ from ._generated.models import (
     TelemetryConfig,
 )
 from ._validation import WireModel
+from .client_types import Cache as CacheInput
 
 ExtractData = TypeVar("ExtractData", bound=BaseModel)
+
+
+class DefaultExtract(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    extraction: str
 
 
 class ExtractResult(WireModel, Generic[ExtractData]):
@@ -55,10 +62,10 @@ class CacheOptions(WireModel):
 Cache = bool | CacheOptions
 
 
-def _cache_config(cache: Cache) -> bool | dict[str, int]:
-    if isinstance(cache, CacheOptions):
-        return cache.model_dump(exclude_none=True)
-    return cache
+def _cache_config(cache: CacheInput) -> bool | dict[str, int]:
+    if isinstance(cache, bool):
+        return cache
+    return CacheOptions.model_validate(cache).model_dump(exclude_none=True)
 
 
 class LocalViewport(WireModel):

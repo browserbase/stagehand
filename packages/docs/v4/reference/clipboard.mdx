@@ -11,7 +11,7 @@ Access `BrowserClipboard` from the browser context. Clipboard operations target 
 ## Quick start
 
 ```typescript
-const clipboard = stagehand.context.clipboard;
+const clipboard = browser.context.clipboard;
 await clipboard.writeText("Hello");
 ```
 
@@ -20,7 +20,7 @@ await clipboard.writeText("Hello");
 Read plain text from the browser clipboard.
 
 ```typescript
-const text = await stagehand.context.clipboard.readText();
+const text = await browser.context.clipboard.readText();
 ```
 
 <ParamField path="options" type="ClipboardOptions" optional>
@@ -40,7 +40,7 @@ const text = await stagehand.context.clipboard.readText();
 Write plain text to the browser clipboard.
 
 ```typescript
-await stagehand.context.clipboard.writeText("Hello");
+await browser.context.clipboard.writeText("Hello");
 ```
 
 <ParamField path="text" type="string">
@@ -64,7 +64,7 @@ await stagehand.context.clipboard.writeText("Hello");
 Clear the browser clipboard.
 
 ```typescript
-await stagehand.context.clipboard.clear();
+await browser.context.clipboard.clear();
 ```
 
 <ParamField path="options" type="ClipboardOptions" optional>
@@ -84,7 +84,7 @@ await stagehand.context.clipboard.clear();
 Paste the clipboard contents into the active element.
 
 ```typescript
-await stagehand.context.clipboard.paste();
+await browser.context.clipboard.paste();
 ```
 
 <ParamField path="options" type="ClipboardPasteOptions" optional>
@@ -112,7 +112,7 @@ await stagehand.context.clipboard.paste();
 Copy the current selection to the browser clipboard.
 
 ```typescript
-await stagehand.context.clipboard.copy();
+await browser.context.clipboard.copy();
 ```
 
 <ParamField path="options" type="ClipboardOptions" optional>
@@ -132,7 +132,7 @@ await stagehand.context.clipboard.copy();
 Cut the current selection to the browser clipboard.
 
 ```typescript
-await stagehand.context.clipboard.cut();
+await browser.context.clipboard.cut();
 ```
 
 <ParamField path="options" type="ClipboardOptions" optional>
@@ -154,7 +154,7 @@ await stagehand.context.clipboard.cut();
 ## Quick start
 
 ```python
-clipboard = stagehand.context.clipboard
+clipboard = browser.context.clipboard
 await clipboard.write_text("Hello")
 ```
 
@@ -163,7 +163,7 @@ await clipboard.write_text("Hello")
 Read plain text from the browser clipboard.
 
 ```python
-text = await stagehand.context.clipboard.read_text()
+text = await browser.context.clipboard.read_text()
 ```
 
 <ParamField path="page" type="Page | None" optional>
@@ -179,7 +179,7 @@ text = await stagehand.context.clipboard.read_text()
 Write plain text to the browser clipboard.
 
 ```python
-await stagehand.context.clipboard.write_text("Hello")
+await browser.context.clipboard.write_text("Hello")
 ```
 
 <ParamField path="text" type="str">
@@ -199,7 +199,7 @@ await stagehand.context.clipboard.write_text("Hello")
 Clear the browser clipboard.
 
 ```python
-await stagehand.context.clipboard.clear()
+await browser.context.clipboard.clear()
 ```
 
 <ParamField path="page" type="Page | None" optional>
@@ -215,7 +215,7 @@ await stagehand.context.clipboard.clear()
 Paste the clipboard contents into the active element.
 
 ```python
-await stagehand.context.clipboard.paste()
+await browser.context.clipboard.paste()
 ```
 
 <ParamField path="page" type="Page | None" optional>
@@ -239,7 +239,7 @@ await stagehand.context.clipboard.paste()
 Copy the current selection to the browser clipboard.
 
 ```python
-await stagehand.context.clipboard.copy()
+await browser.context.clipboard.copy()
 ```
 
 <ParamField path="page" type="Page | None" optional>
@@ -255,7 +255,7 @@ await stagehand.context.clipboard.copy()
 Cut the current selection to the browser clipboard.
 
 ```python
-await stagehand.context.clipboard.cut()
+await browser.context.clipboard.cut()
 ```
 
 <ParamField path="page" type="Page | None" optional>
