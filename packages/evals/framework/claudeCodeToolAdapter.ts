@@ -101,6 +101,7 @@ the guidance below:
   requested by the harness prompt.
 `;
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
+const V4_CODE_STAGEHAND_MODEL_ENV = "EVAL_V4_CODE_STAGEHAND_MODEL";
 const RUN_TOOL_SERVER = "stagehand_browser";
 const RUN_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__run`;
 
@@ -162,6 +163,13 @@ export function getBrowseCliToolMetadata(): BrowseCliToolMetadata {
 
 export function allowUnsandboxedLocalClaudeCode(): boolean {
   return process.env[ALLOW_UNSANDBOXED_LOCAL_ENV] === "true";
+}
+
+export function resolveV4CodeStagehandModel(
+  agentModel: AvailableModel | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  return env[V4_CODE_STAGEHAND_MODEL_ENV]?.trim() || agentModel;
 }
 
 export function getBrowseCliAllowedTools(): string[] {
@@ -627,12 +635,13 @@ async function prepareV4CodeAdapter(
   );
   const env = { ...process.env } as Record<string, string>;
   let stagehand: StagehandSdk.Stagehand | undefined;
+  const stagehandModel = resolveV4CodeStagehandModel(input.model);
 
   try {
     const initialized = await initStagehand({
       environment: input.environment,
       logger: input.logger,
-      ...(aiEnabled ? { modelName: input.model } : {}),
+      ...(aiEnabled ? { modelName: stagehandModel } : {}),
     });
     stagehand = initialized.stagehand;
     const mcpServers = await buildV4RunMcpServers({
@@ -656,6 +665,14 @@ async function prepareV4CodeAdapter(
           value: input.environment,
           type: "string",
         },
+        ...(aiEnabled && stagehandModel
+          ? {
+              stagehandModel: {
+                value: stagehandModel,
+                type: "string" as const,
+              },
+            }
+          : {}),
       },
     });
 
