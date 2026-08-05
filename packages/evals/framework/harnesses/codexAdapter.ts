@@ -84,23 +84,31 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       }
     }
 
-    const finalAnswer = result.finalAnswer ?? latestAgentMessage;
-
-    const observationsByRunIndex = new Map(
-      (result.stepObservations ?? []).map((o) => [o.runIndex, o.evidence]),
-    );
-    if (observationsByRunIndex.size > 0) {
-      let runOrdinal = 0;
-      for (const call of toolCalls) {
-        if (
-          typeof call.args.command === "string" &&
-          call.args.command.includes("browser_run.mjs")
-        ) {
-          const observation = observationsByRunIndex.get(runOrdinal++);
+    // The Nth recorded observation pairs with the Nth bridge run — the
+    // command_execution items that invoke browser_run.mjs, in stream order.
+    // If a bridge run is not visible under that filter (the agent reached
+    // the bridge some other way), ordinals would shift and attach evidence
+    // to the wrong steps — misattribution is worse than a gap, so attach
+    // nothing and let the verifier take its evidence_insufficient path.
+    const observations = result.stepObservations ?? [];
+    if (observations.length > 0) {
+      const bridgeCalls = toolCalls.filter(
+        (call) =>
+          typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
+      );
+      // runIndex counts every bridge run (failed captures leave gaps), so
+      // max+1 is the number of runs the recorder actually saw.
+      const totalBridgeRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
+      if (bridgeCalls.length >= totalBridgeRuns) {
+        const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
+        bridgeCalls.forEach((call, ordinal) => {
+          const observation = observationsByRunIndex.get(ordinal);
           if (observation) call.probeEvidence = observation;
-        }
+        });
       }
     }
+
+    const finalAnswer = result.finalAnswer ?? latestAgentMessage;
 
     return buildTrajectory({
       taskSpec,
