@@ -22,6 +22,7 @@ const MAX_CODE_BYTES = 100_000;
 const MAX_LOG_BYTES = 64 * 1024;
 const MAX_RESULT_BYTES = 256 * 1024;
 const MAX_ERROR_MESSAGE_LENGTH = 4_000;
+const MIN_SENSITIVE_VALUE_LENGTH = 8;
 const SECRET_FIELD = /(?:api.?key|authorization|cookie|password|secret|token)/i;
 const URL = /\b(?:https?|wss?):\/\/[^\s"'<>]+/gi;
 const CREDENTIAL =
@@ -246,6 +247,7 @@ function normalizeError(
 
 function sanitizeErrorMessage(message: string, sensitiveValues: string[]): string {
   let sanitized = message;
+  // Remove complete configured secrets before pattern redaction and final truncation.
   for (const sensitiveValue of sensitiveValues) {
     sanitized = sanitized.replaceAll(sensitiveValue, "[REDACTED]");
   }
@@ -260,15 +262,16 @@ function collectSensitiveValues(value: unknown): string[] {
   const values = new Set<string>();
   const seen = new WeakSet<object>();
 
-  const visit = (current: unknown, key = "") => {
+  const visit = (current: unknown, key = "", parentIsSensitive = false) => {
+    const isSensitive = parentIsSensitive || SECRET_FIELD.test(key);
     if (typeof current === "string") {
-      if (SECRET_FIELD.test(key) && current.length > 0) values.add(current);
+      if (isSensitive && current.length >= MIN_SENSITIVE_VALUE_LENGTH) values.add(current);
       return;
     }
     if (!current || typeof current !== "object" || seen.has(current)) return;
     seen.add(current);
     for (const [nestedKey, nestedValue] of Object.entries(current)) {
-      visit(nestedValue, nestedKey);
+      visit(nestedValue, nestedKey, isSensitive);
     }
   };
 
