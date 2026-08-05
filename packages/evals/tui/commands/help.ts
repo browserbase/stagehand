@@ -83,14 +83,6 @@ export function printRunHelp(): void {
       `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
     ),
     row(
-      `${cyan("--agent-mode")} ${dim("<mode>")}`,
-      `Single Stagehand agent mode ${gray("(dom | hybrid | cua)")}`,
-    ),
-    row(
-      `${cyan("--agent-modes")} ${dim("<csv>")}`,
-      `Stagehand mode matrix ${gray("(dom,hybrid,cua)")}`,
-    ),
-    row(
       `${cyan("--success")} ${dim("<mode>")}`,
       `Rubric success mode ${gray("(outcome | process | both)")}`,
     ),
@@ -122,7 +114,7 @@ export function printRunHelp(): void {
     `    ${dim("$")} evals run b:webvoyager -l 10`,
     `    ${dim("$")} evals run b:onlineMind2Web -l 25`,
     `    ${dim("$")} evals run b:webtailbench -l 10`,
-    `    ${dim("$")} evals run agent --preview`,
+    `    ${dim("$")} evals run b:webvoyager --harness claude_code --tool stagehand_code -l 3`,
     "",
   ]);
 }
@@ -175,7 +167,7 @@ export function printConfigHelp(): void {
     row(cyan("path"), "Print the evals.config.json file path"),
     row(
       `${cyan("set")} ${dim("<key> <value>")}`,
-      `Set a default ${gray("(env/trials/concurrency/provider/model/api/verbose/agentModes)")}`,
+      `Set a default ${gray("(env/trials/concurrency/provider/model/api/verbose)")}`,
     ),
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or all defaults"),
     row(`${cyan("core")} ${dim("[...]")}`, "Configure core tier tool + startup defaults"),
@@ -301,7 +293,7 @@ export function printExperimentsHelp(subcommand?: "list" | "show" | "open" | "co
       row(cyan("--headless"), "Write report files and emit machine-readable JSON"),
       "",
       `  ${bold("Project resolution:")} ${gray("If omitted, inferred per experiment across bench/core projects")}`,
-      `  ${bold("Compare modes:")} ${gray("Core compares task/timer rows; bench compares dataset/task/model/agent-mode cases")}`,
+      `  ${bold("Compare modes:")} ${gray("Core compares task/timer rows; bench compares dataset/task/model cases")}`,
       `  ${bold("Mixed modes:")} ${gray("Core + bench comparisons are rejected for now")}`,
       "",
     ]);

@@ -61,8 +61,6 @@ export interface RunEvalsOptions {
   provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
-  agentMode?: AgentToolMode;
-  agentModes?: AgentToolMode[];
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;

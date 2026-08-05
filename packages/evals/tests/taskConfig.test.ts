@@ -182,17 +182,10 @@ describe("cross-cutting categories", () => {
     expect(task.categories).toContain("targeted_extract");
   });
 
-  it("external benchmarks have only external_agent_benchmarks, not agent", async () => {
+  it("has no agent-tier tasks (the v3 agent path was removed)", async () => {
     const { tasksByName } = await loadTaskConfig();
-    const task = tasksByName["agent/gaia"];
-    expect(task).toBeDefined();
-    expect(task.categories).toContain("external_agent_benchmarks");
-    expect(task.categories).not.toContain("agent");
-    // Same for webvoyager
-    const wv = tasksByName["agent/webvoyager"];
-    expect(wv).toBeDefined();
-    expect(wv.categories).toContain("external_agent_benchmarks");
-    expect(wv.categories).not.toContain("agent");
+    const agentTasks = Object.keys(tasksByName).filter((name) => name.startsWith("agent/"));
+    expect(agentTasks).toEqual([]);
   });
 
   it("does not expose core tier tasks", async () => {
