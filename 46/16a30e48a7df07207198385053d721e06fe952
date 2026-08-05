@@ -1,0 +1,399 @@
+packages/sdk-go/rpc_client_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 158,182-186,193,197,212-213,220,234,238-239
+packages/server/understudy/deepLocator.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-31
+packages/server/controllers/responseController.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-44
+packages/server/rpcRouter.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 22,43,56,349-378,459-461
+packages/sdk-python/src/stagehand/browser.py
+  ai_agent 13,15-18,102,124,138-146,176-190,502-507
+packages/sdk-python/src/stagehand/file_upload.py
+  ai_agent 1-88
+packages/docs/v4/best-practices/user-data.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-147
+packages/sdk-go/behavior_regression_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 4,335-401
+packages/sdk-ts/examples/file-upload.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-38
+packages/sdk-python/src/stagehand/client_models.py
+  ai_agent 20,25-30,65-68
+packages/sdk-python/src/stagehand/locator.py
+  ai_agent 6,32-33,40,249-259
+packages/sdk-python/examples/custom_llm.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 43
+packages/sdk-python/examples/custom_logging.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 4,19-23,26
+packages/sdk-ts/tests/integration/file-upload.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-44
+packages/sdk-ts/tests/integration/page-scroll.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-194
+packages/sdk-python/src/stagehand/_generated/models.py
+  ai_agent 32,551,699-718,1197-1215,1287-1337,1344,1574-1582,1866-1922,1986-1992,2007
+packages/sdk-python/src/stagehand/page.py
+  ai_agent 7,11,33,67,93-94,98-102,104-106,114,127-129,136,145-147,154,163-165
+packages/sdk-ts/tests/integration/context-domain-policy.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-131
+packages/sdk-go/README.md
+  s_a619aee37aaacb::t_854c66d5bc19d6 3-22
+packages/sdk-go/examples/observe.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 37,41,45,48-49
+packages/sdk-ts/src/index.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,16-21
+packages/sdk-ts/tests/integration/wait-for-selector.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-873
+rules/ast-grep/sdk-parity.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 89,280-286
+packages/sdk-ts/tests/integration/page-addInitScript.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-115
+packages/sdk-ts/tests/integration/locator-content-methods.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-241
+packages/docs/v4/configuration/logging.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 8,16,19,22-26,29-34,42,45,48-52,55-62,70-74,76-81,84-87,89-90,93,95-100,102,104-109,124,132-133,142-144,152-153,155,159,162,185-186,195-197,205-206,208,212,215,238-239,241-243,251-252,254-256,265-267,269-272,274-275,277,279-285,304,315,322-323,333-335,343-344,346-347,351,354,360,371-372,381-383,391-392,394-395,399,402,414,477-478,490-494,502-508,514,517,526,669-670,683-691,699-705,711,714,723,787,789-790,812-818,836,840-841,843-847,851,861-862,867,869-872,909-910,918,920,995,999-1000,1023,1025-1031,1047-1053,1055,1059,1062,1131,1135,1146-1147,1149-1153,1160-1161,1163-1165,1167,1169-1170,1173,1182,1185
+packages/protocol/tests/protocol/navigation-response-schemas.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-131
+packages/protocol/types.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 65,76,97-98,131-135,158,185-191,284,292-304,381-382,417
+packages/server/responseHandleTable.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-86
+packages/docs/v4/reference/locator.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 330-361,689-718
+packages/sdk-ts/tests/integration/page-drag-and-drop.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-131
+packages/sdk-ts/tests/browser-runtime/stagehand-launch-connect-smoke.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 182-183,211,248,272,299-300,352-353,385-387,396,414,418,426-427,431,433,437,451-453,455-456,459,463,476-480,482,486-487,498,501,504,522,537,545-546,550-551,558,560-563,566-567,574-575,622-623,655-656
+packages/docs/v4/index.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 22,24,26-32,34,53,57,59-64,66
+packages/sdk-go/internal/generator/main.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 71,148
+packages/sdk-ts/examples/act.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 16
+packages/sdk-python/examples/caching.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 37
+packages/sdk-ts/tests/integration/locator-nth.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-239
+packages/sdk-go/locator_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 5-6,8,92-190
+packages/docs/v4/first-steps/introduction.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 130
+packages/sdk-go/examples/caching.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 71,75,79,82-83
+packages/server/tests/response-handle-table.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-124
+packages/server/understudy/deepLocator.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 116-118,123
+packages/server/tests/gateway-e2e.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 78-96
+packages/server/understudy/lifecycleWatcher.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 48-51,76-83,102-104,168-172,200-208,218-241
+packages/sdk-ts/tests/browser/contracts.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 20,28
+packages/sdk-ts/tests/integration/user-data-dir.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-42
+packages/server/controllers/stagehandController.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 49-50,64,78-79,91,105-106,118
+packages/server/controllers/locatorController.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 8,96-100,118
+packages/server/tests/stagehand-clients.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 461,542-547,550,1393-1397,1431-1434,1447-1450,1463-1466,2201-2206,2215-2223,2405-2440,2442-2452
+packages/server/understudy/a11y/snapshot/capture.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-119
+packages/sdk-ts/tests/integration/page-extra-http-headers.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-52
+packages/docs/v4/basics/observe.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 40,54,65,82,265-266,272-275,286,289,403-404,477,484-485,487,489-491,502-504,507,509-511,525-530,558,561,564,576,579,582,596-601,605,611,615,635,637,685,790,912,932,950,1052,1127,1131
+packages/sdk-ts/tests/integration/keyboard.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-330
+packages/server/tests/model-resolution.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1,11-46,132-195
+packages/docs/v4/configuration/observability.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 33,35,39-41,44-48,50,67,69,72,76-80,82,95,101-103,105-107,109-112,115,208-209,285,298,303-305,314,342,347-350,358,395-400,402,405,417,421,425,428-429,466,499-500,515,548-549,605-609,619,634,639,642,653,677,680,682,688,691,702,741-742,746-751,767,771,775,778-779,1011,1014-1137,1144,1146-1148,1161-1163,1165,1167-1169,1184-1189,1199,1202,1257
+packages/sdk-python/src/stagehand/browser_context.py
+  ai_agent 7-8,112-115,118,135
+packages/sdk-python/src/stagehand/stagehand.py
+  ai_agent 10,14-18,26,42-49,53,59,77,116,124,144,183,202,207,227,265,274-290,304-318,333,340-341,355,388,431
+packages/sdk-ts/tests/integration/page-hover.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-175
+packages/sdk-python/examples/file_upload.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-37
+packages/sdk-ts/tests/integration/locator-count.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-99
+packages/docs/v4/best-practices/cost-optimization.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-674
+packages/sdk-python/tests/test_client_models.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 3-16,18,20,24,26-118
+packages/sdk-python/examples/webmcp.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 13
+packages/server/services/observeService.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 37
+scripts/test-integration.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,20-60,80,82-83,86-102,104-105,110-114,116-125,132,134,136,143
+packages/sdk-ts/examples/custom-llm.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 28
+packages/sdk-ts/src/locator.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,108-111
+packages/docs/v4/basics/extract.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 429-430,436-439,456,459,482,485,489-490,492-495,513-515,518-521,549-558,561-563
+packages/docs/v4/reference/context.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,23,35,55,67,83,95,117,133,153,177,225,277,307,316,328,344,356,372,384,400,416,436,439,460,508,560
+packages/sdk-go/client_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 92-98,105,116,127
+packages/docs/v4/reference/page.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 7,14-15,23,42-43,70-71,94-95,118-119,673-674,682,701-702,729-730,753-754,777-778
+packages/sdk-ts/src/page.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 27,54-55,60-61,64-65,69-70,73-74,78-79,82-83,87-88
+packages/docs/v4/best-practices/speed-optimization.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-488
+packages/sdk-go/stagehand_live_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 12,22-31,49,62-122,252,254,266,363,365
+packages/sdk-python/scripts/smoke.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 5-7,9,14-41,48-52,54-82,84
+packages/sdk-python/tests/test_generated_input_types.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-96
+packages/docs/v4/best-practices/caching.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-632
+packages/sdk-ts/src/stagehand.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 2-6,12,39,48-55,134,155,171,182-185,190-202,207-208,213,220,234
+packages/sdk-ts/examples/webmcp.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 8
+packages/sdk-python/tests/test_response.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-151
+packages/sdk-ts/tests/integration/text-selector-innermost.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-47
+packages/sdk-python/examples/act.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 21
+packages/docs/v4/configuration/models.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 8,13,19,21-22,29,31,33-35,43-45,47-49,51-54,57,61,64,76-77,85-88,98,100-101,103-105,107-111,114,123-124,132-135,145,147-148,150-152,154-158,161,170-171,179-182,192,194-195,197-199,201-205,208,221,249,251-252,262-266,268-269,280,283-286,288-290,292-293,296,299,304,319,321-322,332-336,338-339,350,353-356,358-360,362-363,366,369,382,384-385,395,397-402,413,416-419,421-423,425-426,429,432,445,447-448,458,460-465,476,479-482,484-486,488-489,492,495,512,514-515,525,527-532,543,546-549,551-553,555-556,559,562,575,577-578,588,590-595,606,609-612,614-616,618-619,622,625,863-864,872-875,885-886,888-890,892-896,899,1011,1108-1109,1117-1120,1130-1131,1133-1135,1137-1141,1144,1249-1250,1258-1261,1271-1272,1274-1276,1278-1282,1285,1332-1333,1356-1358,1360,1365,1367-1368,1380-1383,1405,1408-1411,1413-1415,1417-1419,1421-1423,1432,1435,1455,1460,1462,1466-1467,1469-1470,1478,1480,1482,1484-1487,1496-1501,1503-1504,1506,1510-1512,1514,1517,1522-1524,1553-1554,1563,1565,1579,1581-1582,1613-1614,1616-1618,1620-1624,1627,1634,1649-1650,1671,1692,1721,1728,1733
+packages/sdk-ts/examples/extract.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 17
+packages/docs/v4/reference/response.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-226
+packages/sdk-go/examples/custom-llm.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 45,49,53,56-57
+packages/server/services/actService.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 37,62
+packages/server/understudy/a11y/snapshot/capture.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 35-38,264,266,272,801,811
+packages/protocol/stagehand.v4.json
+  s_a619aee37aaacb::t_854c66d5bc19d6 341,393,406,419,879-969,1039-1046,1123,1435,1709,1780-1790,1797,1835,3045-3098,4361-4588,6696-6874
+packages/sdk-go/chrome_launcher_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 101-113
+packages/sdk-ts/src/browser/index.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 7,31,49,71-80,121-139
+packages/sdk-go/examples/model-gateway.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 40-41,48,54,58,62,65-66
+packages/sdk-go/chrome_launcher.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 261
+packages/sdk-ts/tests/browser/context.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-51
+packages/sdk-ts/examples/custom_logging.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 27
+packages/sdk-python/src/stagehand/client_types.py
+  ai_agent 1-111
+packages/sdk-go/examples/extract.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 52,56,60,63-64
+packages/sdk-ts/tests/integration/unicode-well-formed.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-44
+packages/server/tests/response-rpc.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-250
+packages/docs/v4/configuration/browser.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 7,9-13,17-21,27-31,39-45,52,60,64,66,68,70,76,78-80,84,93-95,97-99,101-104,107,114,140,147,151,153,156,162-164,166,169,177-180,182-185,188,194,198,200,202-206,209,215,217-219,228,240-246,249-251,253-256,259,267,269-280,283-286,293,312-313,332-347,350-352,354-357,360,367,372,377,388-391,393,399-400,404,413-416,418,424-426,431-433,435-437,439-442,445,451,455,457-458,460,466,468,471,477-478,480-483,485-486,489,494,521,523-524,530,532-533,539-542,544-547,550,560,562-563,590,596,598,623,633,661-663,665-668,671,675-677,689,700,711,717,724-729,736,743-744,750-756,759,762-763,779,781,783,785,789,792-793,799,801-803,807,811,814-815,824-826,828-832,840-842,845-846,848,851-858,868,872,876-879,881-882,887,893,898-899,904,910-913,915-919,923,927,931,934-935,940,950,962,964-965,971,973-974,980-983,985-988,991,1005-1007,1015-1017,1028-1033,1036,1039,1067-1069,1074-1076,1085-1087,1092-1094,1104-1108,1110,1112-1116,1131,1134,1145
+packages/sdk-go/stagehand.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 116-124,220-225,275,295,356
+packages/sdk-ts/tests/integration/default-page-tracking.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-75
+packages/docs/v4/best-practices/usecase-observe.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-393
+packages/docs/tests/sdk-reference.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 84-90,141-142,216-241,541-586,689-694,696,964,969-974,1009,1019-1030,1091,1126,1136-1341,1420-1423,1549-1552,1972-1976,1978,2029-2033,2036
+packages/protocol/schema-registry.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 53-54,75,97-103,257-262,266-277,281-282,462-496
+packages/sdk-python/tests/test_browser.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 5,20,23,31,157-181,641
+packages/docs/v4/basics/act.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 70,290-291,296-299,309,312,329,336-337,339,341-343,361-363,366,368-370,391-396,425,435,438,441,453,456,459,470-475,479,485,489,504,506,572,574,576-578,592,594-596,598-600,617-622,642,720,1070,1078
+packages/sdk-ts/src/response.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-136
+packages/sdk-go/response_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-202
+packages/sdk-ts/tests/integration/coordinate-click.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-49
+packages/sdk-ts/tests/integration/page-screenshot.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-236
+packages/sdk-python/examples/observe.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 21
+packages/sdk-ts/tests/package-contract.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 52,60,64-65
+packages/server/tests/resolve-mask-rect.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-69
+packages/sdk-python/src/stagehand/_generated/input_types.py
+  ai_agent 1-1164
+packages/sdk-go/examples/file-upload.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-84
+packages/sdk-ts/tests/integration/_support.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 3-8,30-53,76-77,81,86-88
+packages/sdk-python/examples/extract.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 28
+packages/sdk-ts/README.md
+  s_a619aee37aaacb::t_854c66d5bc19d6 10,12-15,31,34-38
+packages/sdk-python/tests/test_locator.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 3-4,16-17,19,91-189
+packages/sdk-ts/examples/observe.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 16
+packages/sdk-ts/tests/browser-runtime/stagehand-browserbase-smoke.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-3,42-43,57-58,80-109
+packages/server/llm/gatewayClient.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 23-43,46,55,59,61
+packages/docs/v4/first-steps/ai-rules.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 101-102,109,111-113,122-123,126,132,134-136,321,324,338,340-342,349,353-358,360,367-368,403-404,416,418-420,423,427-428,431,437,440,443-444,644,647,661,663-665,672,675-683,699,724-725,736,739,741-747,753,757,761,764,780-781,783-787,1120-1127,1130,1141-1147
+packages/sdk-go/page.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 32-37,39,41,43-44,47-48,50,52,54-55,58-59,61,63,65-66,69-73,75,77-85,87
+packages/server/tests/page-navigation-response.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-309
+packages/sdk-go/models.gen.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 17-18,516-517,551-564,1013-1031,1081-1140,1152-1153,1324-1331,1643-1682,1739,2223-2225,2401-2408,2431-2449,2511-2514,2618-2642
+packages/docs/v4/best-practices/prompting-best-practices.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-841
+packages/sdk-python/src/stagehand/response.py
+  ai_agent 1-127
+packages/server/tests/response-body.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-170
+packages/docs/v4/first-steps/installation.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 45,68,75,78,86,89,95,98-102,113,117,121-123,125,127-128,130-134,136-139,141,158,166,170-172,174,176-177,179-183,185-187,189,230-238,243,247,251,254
+packages/sdk-go/locator.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 5,7-9,12-33,207-284
+packages/sdk-python/tests/test_public_input_types.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-75
+packages/server/dom/screenshotScripts/resolveMaskRect.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 7,45-46,48-145,161,163
+packages/server/runtime.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 50-51,70,94-100,120,122,124,222,282,302,356-358,474,476-477,480,482-483,486,488-489,492,494-533,685,762-782,787,836-839,849-868
+packages/server/services/extractService.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 54
+packages/sdk-ts/examples/model-gateway.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 8-9,13,16
+packages/sdk-go/examples/custom-logging.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 57,61,65,68-69
+packages/sdk-ts/tests/stagehandCreate.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1,8-13,69-73,83-86,91,439-440
+packages/server/understudy/navigationResponseTracker.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 10-12,94-95,98-105,177
+packages/server/understudy/response.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 123-140,185-186,312-320,356-357,413,420-439
+packages/sdk-ts/tests/integration/locator-input-methods.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-178
+packages/server/tests/rpc-router.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 9,189-223
+scripts/test-integration.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 5-9,44-61,102-103,105-110,112-116,121,125-142
+packages/server/types/private/screenshot.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 2,20
+packages/sdk-ts/tests/rpcClient.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 145-149,159-163
+packages/sdk-ts/tests/integration/locator-select-option.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-298
+packages/docs/v4/basics/webmcp.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 74,407,424
+packages/protocol/tests/browser-runtime/rpc-client-smoke.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 258-262,266-275
+packages/sdk-ts/tests/integration/clipboard.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-160
+packages/docs/v4/reference/clipboard.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,23,43,67,87,115,135,157,166,182,202,218,242,258
+packages/docs/v4/best-practices/using-multiple-tabs.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-245
+packages/docs/v4/first-steps/quickstart.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 44,48,52-71,73,90,98,102-105,107,109-113,115,117-120,122,163-171,178,182,186,189,224,229
+packages/sdk-go/idiomatic_go.md
+  s_a619aee37aaacb::t_854c66d5bc19d6 56,60-66,68-69,80,84,88,91
+packages/sdk-ts/tests/integration/click-count.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-198
+packages/sdk-go/response.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-186
+packages/protocol/tests/protocol/object-model-protocol.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 9-15,18-32,106-118,218,405-419,522-554
+packages/sdk-python/tests/test_rpc_client.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 9,57,71-74,78-116
+packages/sdk-ts/examples/caching.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 31
+packages/sdk-go/examples/act.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 37,41,45,48-49
+packages/protocol/tests/protocol/schema-registry.test-d.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 56-70,80-87,111-125
+packages/sdk-go/examples/webmcp.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 33,37,41,44-45
+packages/sdk-python/examples/model_gateway.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 20-21,24,26
+packages/docs/docs.json
+  s_a619aee37aaacb::t_854c66d5bc19d6 53-65,73
+packages/docs/v4/best-practices/mcp-integrations.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-138
+packages/sdk-go/browser_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 23-53
+packages/sdk-ts/tests/integration/locator-fill.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 116
+packages/sdk-ts/tests/integration/wait-for-timeout.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-162
+packages/sdk-ts/tests/response.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-222
+packages/sdk-python/README.md
+  s_a619aee37aaacb::t_854c66d5bc19d6 16,19-21,48-50
+packages/sdk-go/browser.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 35,78-90,178-203
+packages/sdk-ts/tests/integration/context-extra-http-headers.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-34
+packages/sdk-ts/src/fileUpload.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-91
+packages/sdk-ts/tests/integration/cookies.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 28,44,56,75,90,107,122,143,161
+packages/sdk-ts/tests/object-wrapper.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1,4,13,19-23,76-83,85,111,134,156,178-179,200-201,218-219,243,247,251-253,294-299,304,334,336,362-374,378,383-384,405-406,409-410,413-414,420,423,426,1025-1080,1257-1354
+packages/server/services/llmService.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 14,21,25
+packages/server/understudy/locator.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 99
+packages/sdk-python/src/stagehand/__init__.py
+  ai_agent 3-14,37-38,53,55-57,63,66,93,96-97,113-114,120
+packages/sdk-python/scripts/generate.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 5,15,25,27,57-86,123-127,135,147
+packages/server/understudy/page.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 854-855,873,885-892,899,902,917,929-936,944,947,962,974-981,989,992,1097
+packages/server/understudy/screenshotUtils.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 3,189,192-195,202-205,260,282-285,360-362,377-379,400
+packages/docs/v4/reference/stagehand.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 191,370,507-509,542,788,813,985,1144-1145,1153
+packages/sdk-python/tests/test_page.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 4,10,12,19,52-62,74-75,85-158
+packages/docs/v4/best-practices/deployments.mdx
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-696
+packages/protocol/schemas.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1101,1163,1211,1317-1407,1530-1533,1562-1569,1574,1919-1945,2079-2083
+packages/sdk-python/tests/test_stagehand.py
+  s_a619aee37aaacb::t_854c66d5bc19d6 8,14-15,19,23,138-141,178,219,224,235,241-242,469-470,532,640,650,692-734
+packages/sdk-go/page_test.go
+  s_a619aee37aaacb::t_854c66d5bc19d6 101-111,118-119,122-124,144-170
+packages/sdk-ts/tests/integration/observe-element-id-format.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-93
+packages/server/tests/gateway-client.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 2-7,23-26,64-89,121-144,152-155
+packages/sdk-ts/tests/integration/page-goto-response.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 2,31,35-43,48,54
+packages/sdk-ts/tests/integration/context-addInitScript.test.ts
+  s_a619aee37aaacb::t_854c66d5bc19d6 1-297
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4616a30e48a7df07207198385053d721e06fe952",
+  "prompts": {},
+  "sessions": {
+    "s_a619aee37aaacb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2a77c7e-979f-4c12-be81-a23658f6866b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
