@@ -266,6 +266,13 @@ export async function runClaudeCodeAgent({
     return baseResult;
   }
 
+  // Artifact-grounded grading: capture the terminal page state through the
+  // tool surface (harness-observed, independent of the agent's self-report)
+  // before cleanup, and drain the per-step probe observations collected by
+  // the run tool.
+  const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
+  const stepObservations = toolAdapter?.drainStepObservations?.();
+
   // Build a Trajectory from the SDK message stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
@@ -273,6 +280,8 @@ export async function runClaudeCodeAgent({
       claudeCodeAdapter.fromHarnessResult(
         {
           messages,
+          ...(finalObservation && { finalObservation }),
+          ...(stepObservations?.length && { stepObservations }),
           finalAnswer: parsed.finalAnswer ?? resultText,
           status: status === "completed" ? "complete" : "error",
           usage: {

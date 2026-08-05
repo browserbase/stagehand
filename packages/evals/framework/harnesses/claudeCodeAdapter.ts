@@ -24,6 +24,8 @@
  *     can't ground.
  */
 import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import { AGENT_RUN_TOOL_NAME } from "../../core/contracts/tool.js";
+import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -40,6 +42,13 @@ export interface ClaudeCodeRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (captured through the tool surface
+   * after the agent finished) — anchors the verifier's final observation.
+   */
+  finalObservation?: ProbeEvidence;
+  /** Per-step probe observations, indexed by run-tool execution order. */
+  stepObservations?: StepObservation[];
 }
 
 interface ToolUseBlock {
@@ -141,10 +150,18 @@ export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCode
       }
     }
 
+    const observationsByRunIndex = new Map(
+      (result.stepObservations ?? []).map((o) => [o.runIndex, o.evidence]),
+    );
+    let runOrdinal = 0;
     const toolCalls: NormalizedToolCall[] = toolUses.map((use) => {
       const matched = toolResults.get(use.id);
       const ok = matched ? !matched.isError : true;
       const resultPayload = matched?.raw !== undefined ? matched.raw : (matched?.text ?? "");
+      // The Nth run-tool call pairs with the Nth recorded observation; other
+      // tools (Bash etc.) never consume an index.
+      const observation =
+        use.name === AGENT_RUN_TOOL_NAME ? observationsByRunIndex.get(runOrdinal++) : undefined;
       return {
         name: use.name,
         args: use.input,
@@ -153,6 +170,7 @@ export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCode
         ...(matched?.isError && matched.text && { error: matched.text }),
         reasoning: use.reasoningPrefix.trim() || undefined,
         ...(matched?.images.length && { images: matched.images }),
+        ...(observation && { probeEvidence: observation }),
       };
     });
 
@@ -160,17 +178,18 @@ export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCode
     const finalAnswer =
       result.finalAnswer ?? resultMessageText ?? (trailing.length > 0 ? trailing : undefined);
 
-    // Anchor the closing frame with the most recent screenshot the agent
-    // captured. Claude Code doesn't run a post-task probe, so the last
-    // tool_result image is the best proxy for "terminal observation" — without
-    // it the verifier's final-screenshot anchor (evidence.ts:136-143) is empty.
-    let finalObservation: ProbeEvidence | undefined;
-    for (let i = toolUses.length - 1; i >= 0; i--) {
+    // Anchor the closing frame with the harness-observed terminal artifact
+    // when the runner captured one; otherwise fall back to the most recent
+    // screenshot the agent captured — without either, the verifier's
+    // final-screenshot anchor (evidence.ts:136-143) is empty.
+    let finalObservation: ProbeEvidence | undefined = result.finalObservation?.screenshot
+      ? result.finalObservation
+      : undefined;
+    for (let i = toolUses.length - 1; !finalObservation && i >= 0; i--) {
       const matched = toolResults.get(toolUses[i].id);
       const lastImage = matched?.images[matched.images.length - 1];
       if (lastImage) {
         finalObservation = { screenshot: lastImage.bytes };
-        break;
       }
     }
 

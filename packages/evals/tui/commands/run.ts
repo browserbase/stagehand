@@ -20,6 +20,11 @@ import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
+import {
+  armsOverLimit,
+  resolveUnverifiableCriteriaLimit,
+  summarizeArmVerifiability,
+} from "../../framework/verifierGate.js";
 
 type RunProgressEvent = {
   type: "planned" | "started" | "passed" | "failed" | "error";
@@ -301,6 +306,29 @@ export async function runCommand(
         printResultsTable(result.results);
       } else if (result.results.length > 0) {
         printModelSummary(result.results);
+      }
+
+      const arms = summarizeArmVerifiability(result.results, options.harness);
+      if (arms.length > 0) {
+        for (const arm of arms) {
+          console.log(
+            dim(
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs`,
+            ),
+          );
+        }
+        const limit = resolveUnverifiableCriteriaLimit();
+        if (limit !== undefined) {
+          const over = armsOverLimit(arms, limit);
+          for (const arm of over) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${limit})`,
+            );
+          }
+          if (over.length > 0) {
+            process.exitCode = 1;
+          }
+        }
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));
