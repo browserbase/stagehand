@@ -8,6 +8,7 @@ import type {
 
 describe("tool surface contract", () => {
   it("keeps native surface and agent delivery independent", async () => {
+    const screenshot = Buffer.from("surface screenshot");
     const cliMount = {
       via: "cli",
       promptInstructions: "Use the wrapper command.",
@@ -17,7 +18,11 @@ describe("tool surface contract", () => {
     const runningCodeSurface: ToolStartResult = {
       session: {} as CoreSession,
       agentMount: cliMount,
-      captureEvidence: async () => ({ url: "https://example.com" }),
+      captureEvidence: async () => ({
+        screenshot,
+        url: "https://example.com",
+        ariaTree: "- document\n  - heading: Example",
+      }),
       cleanup: async () => {},
       metadata: {
         environment: "local",
@@ -39,7 +44,9 @@ describe("tool surface contract", () => {
     expect(codeSurface.surface).toBe("code");
     expect(runningCodeSurface.agentMount?.via).toBe("cli");
     await expect(runningCodeSurface.captureEvidence?.()).resolves.toEqual({
+      screenshot,
       url: "https://example.com",
+      ariaTree: "- document\n  - heading: Example",
     });
   });
 

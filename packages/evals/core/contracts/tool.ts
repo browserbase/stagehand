@@ -1,3 +1,4 @@
+import type { ProbeEvidence } from "stagehand-v3";
 import type { EvalLogger } from "../../logger.js";
 import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "./targets.js";
 import type { PageRepresentation, RepresentationOpts } from "./representation.js";
@@ -146,7 +147,7 @@ export interface ToolStartResult {
    * call this after individual actions and once more at the end of a run.
    * Implementations must swallow per-field failures and must not throw.
    */
-  captureEvidence?: () => Promise<SurfaceEvidence>;
+  captureEvidence?: () => Promise<ProbeEvidence>;
   /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
@@ -186,17 +187,6 @@ export interface AgentRunToolSpec {
   codeParamDescription: string;
   /** Message from the harness-owned tool allowlist when access is denied. */
   denyMessage: string;
-}
-
-/**
- * Harness-observed evidence from the surface at a point in time. Harnesses can
- * attach it to an individual action or use it as the run's final observation.
- * It grounds grading in state observed independently of whatever output the
- * agent chose to return.
- */
-export interface SurfaceEvidence {
-  screenshot?: Buffer;
-  url?: string;
 }
 
 /**
