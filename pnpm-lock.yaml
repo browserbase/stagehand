@@ -560,9 +560,15 @@ importers:
 
   packages/integrations:
     dependencies:
+      '@browserbasehq/stagehand':
+        specifier: workspace:*
+        version: link:../sdk-ts
       '@modelcontextprotocol/sdk':
         specifier: 'catalog:'
         version: 1.29.0(zod@4.4.3)
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
