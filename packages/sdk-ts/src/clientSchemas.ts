@@ -80,6 +80,7 @@ export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    apiUrl: z.never().optional(),
     type: z.never().optional(),
   })
   .meta({ id: "BrowserbaseLaunchOptions" }) as z.ZodType<

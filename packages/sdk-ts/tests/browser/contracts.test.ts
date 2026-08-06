@@ -108,6 +108,12 @@ describe("browser API contracts", () => {
     expect(() =>
       BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key", type: "browserbase" }),
     ).toThrow();
+    expect(() =>
+      BrowserbaseLaunchOptionsSchema.parse({
+        apiKey: "bb_key",
+        apiUrl: "https://api.dev.browserbase.com",
+      }),
+    ).toThrow();
     expect(
       BrowserbaseConnectOptionsSchema.parse({
         apiKey: "bb_key",
