@@ -47,6 +47,7 @@ describe("Stagehand tracing", () => {
 
   it("exports spans to the configured OTLP traces endpoint", async () => {
     const requests: Array<{ authorization?: string; method?: string; url?: string }> = [];
+    const spans = new InMemorySpanExporter();
     const server = createServer((request, response) => {
       request.resume();
       request.on("end", () => {
@@ -64,13 +65,19 @@ describe("Stagehand tracing", () => {
       server.listen(0, "127.0.0.1", resolve);
     });
     const address = server.address() as AddressInfo;
-    const runtime = createStagehandTracing({ registerGlobals: false });
-    runtime.configure({
-      traces: {
-        endpoint: `http://127.0.0.1:${address.port}/v1/traces`,
-        headers: { Authorization: "Bearer test" },
+    const runtime = createStagehandTracing(
+      { registerGlobals: false },
+      { spanProcessors: [new SimpleSpanProcessor(spans)] },
+    );
+    runtime.configure(
+      {
+        traces: {
+          endpoint: `http://127.0.0.1:${address.port}/v1/traces`,
+          headers: { Authorization: "Bearer test" },
+        },
       },
-    });
+      { name: "stagehand-sdk-test", version: "4.0.0" },
+    );
     runtimes.push(runtime);
 
     runtime.tracer.startSpan("stagehand.test.export").end();
@@ -86,6 +93,10 @@ describe("Stagehand tracing", () => {
         url: "/v1/traces",
       },
     ]);
+    expect(spans.getFinishedSpans()[0]?.resource.attributes).toMatchObject({
+      "stagehand.client.name": "stagehand-sdk-test",
+      "stagehand.client.version": "4.0.0",
+    });
   });
 
   it("shuts down every processor exactly once", async () => {

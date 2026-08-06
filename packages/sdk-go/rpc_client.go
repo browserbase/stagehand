@@ -843,6 +843,12 @@ func decodeStrictJSON(data json.RawMessage, target any) error {
 }
 
 func validateRequiredJSONFields(data json.RawMessage, valueType reflect.Type) error {
+	jsonUnmarshalerType := reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+	if valueType.Implements(jsonUnmarshalerType) ||
+		(valueType.Kind() != reflect.Pointer && reflect.PointerTo(valueType).Implements(jsonUnmarshalerType)) {
+		return nil
+	}
+
 	for valueType.Kind() == reflect.Pointer {
 		valueType = valueType.Elem()
 	}

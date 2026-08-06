@@ -440,6 +440,22 @@ func TestRPCClientValidatesInboundRequestsAndHandlerResults(t *testing.T) {
 	}`)
 }
 
+func TestMarshalValidatedJSONHonorsCustomUnionUnmarshalers(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := marshalValidatedJSON(StagehandActParams{
+		Instruction: ActInstruction("click the link"),
+		PageID:      "page-1",
+	})
+	if err != nil {
+		t.Fatalf("marshalValidatedJSON() error = %v", err)
+	}
+	assertRPCJSON(t, encoded, `{
+		"instruction": "click the link",
+		"page_id": "page-1"
+	}`)
+}
+
 func TestRPCClientReturnsMethodAndHandlerErrors(t *testing.T) {
 	t.Parallel()
 

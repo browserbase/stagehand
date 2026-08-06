@@ -238,12 +238,18 @@ export type StagehandBrowserSession = {
   addCookies(cookies: CookieParam[]): Promise<void>;
   clearCookies(options?: UnderstudyRuntimeClearCookieOptions): Promise<void>;
   readonly clipboard: UnderstudyRuntimeClipboard;
+  runWithTelemetryContext?<Result>(
+    scope: symbol,
+    logger: StagehandLogger,
+    run: () => Result | Promise<Result>,
+  ): Promise<Result>;
   close(): Promise<void> | void;
 };
 
 export type StagehandBrowserSessionFactory = (
   cdpUrl: string,
   logger: StagehandLogger,
+  bootstrapLogger?: StagehandLogger,
 ) => Promise<StagehandBrowserSession>;
 
 export type StagehandRuntimeAdapters = {
@@ -294,7 +300,10 @@ export class StagehandRuntime {
     this.logger = new StagehandLogger(tracing, adapters.emitLog);
   }
 
-  async replaceBrowserConnection(params: { cdpUrl: string }): Promise<void> {
+  async replaceBrowserConnection(
+    params: { cdpUrl: string },
+    bootstrapLogger?: StagehandLogger,
+  ): Promise<void> {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
@@ -303,7 +312,11 @@ export class StagehandRuntime {
     await previousSession?.close();
 
     try {
-      this.browserSession = await this.adapters.browserSessionFactory(cdpUrl, this.logger);
+      this.browserSession = await this.adapters.browserSessionFactory(
+        cdpUrl,
+        this.logger,
+        bootstrapLogger,
+      );
     } catch (error) {
       await this.browserSession?.close();
       this.browserSession = undefined;
@@ -311,7 +324,10 @@ export class StagehandRuntime {
     }
   }
 
-  async initialize(params: StagehandInitParams): Promise<StagehandInitResult> {
+  async initialize(
+    params: StagehandInitParams,
+    logger: StagehandLogger = this.logger,
+  ): Promise<StagehandInitResult> {
     if (this.state.getState().status !== "created") {
       throw new Error("Stagehand has already been initialized");
     }
@@ -326,11 +342,17 @@ export class StagehandRuntime {
         if (!params.browserCdpUrl) {
           throw new Error("stagehand.init requires browserCdpUrl until resident mode is active");
         }
-        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl });
+        await this.replaceBrowserConnection({ cdpUrl: params.browserCdpUrl }, logger);
       }
-      await this.browserSession?.prepareForInitialization?.();
-      const pages = await this.contextPages();
-      this.tracing.configure(params.telemetry);
+      const pages = await this.runWithTelemetryContext(
+        Symbol("stagehand.init"),
+        logger,
+        async () => {
+          await this.browserSession?.prepareForInitialization?.();
+          return await this.contextPages();
+        },
+      );
+      this.tracing.configure(params.telemetry, params.clientInfo);
       this.state.setState(
         StagehandRuntimeStateSchema.parse({
           status: "initialized",
@@ -346,6 +368,16 @@ export class StagehandRuntime {
     } finally {
       this.initializationInProgress = false;
     }
+  }
+
+  async runWithTelemetryContext<Result>(
+    scope: symbol,
+    logger: StagehandLogger,
+    run: () => Result | Promise<Result>,
+  ): Promise<Result> {
+    const browserSession = this.browserSession;
+    if (!browserSession?.runWithTelemetryContext) return await run();
+    return await browserSession.runWithTelemetryContext(scope, logger, run);
   }
 
   async generateLlm(input: LLMGenerateParams): Promise<LLMGenerateResult> {

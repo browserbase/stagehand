@@ -28,6 +28,7 @@ const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
 export type HandlerContext = {
   logger: StagehandLogger;
+  telemetryScope: symbol;
 };
 
 export type RPCRouterOptions = {
@@ -57,6 +58,15 @@ export class RPCRouter {
   }
 
   async handle(request: StagehandRpcRequest): Promise<unknown> {
+    // The RPC client validates the complete request before routing; the generated
+    // request union does not currently narrow params from the method name.
+    const initParams: StagehandInitParams | undefined =
+      request.method === StagehandMethods.stagehandInit.name
+        ? (request.params as StagehandInitParams)
+        : undefined;
+    if (initParams) {
+      this.runtime.tracing.configure(initParams.telemetry, initParams.clientInfo);
+    }
     const parentContext = W3C_TRACE_CONTEXT_PROPAGATOR.extract(ROOT_CONTEXT, request, {
       get(carrier, key) {
         if (key === "traceparent" || key === "tracestate") return carrier[key];
@@ -79,10 +89,19 @@ export class RPCRouter {
       parentContext,
     );
     const requestContext = trace.setSpan(parentContext, span);
-    const handlerContext = { logger: this.runtime.logger.withContext(requestContext) };
+    const handlerContext = {
+      logger: this.runtime.logger.withContext(requestContext),
+      telemetryScope: Symbol(`rpc:${String(request.id)}`),
+    };
 
     try {
-      return await context.with(requestContext, () => this.route(request, handlerContext));
+      return await context.with(requestContext, () =>
+        this.runtime.runWithTelemetryContext(
+          handlerContext.telemetryScope,
+          handlerContext.logger,
+          () => this.route(request, handlerContext, initParams),
+        ),
+      );
     } catch (error) {
       setRPCErrorOnSpan(span, error);
       throw error;
@@ -94,11 +113,15 @@ export class RPCRouter {
     }
   }
 
-  async route(request: StagehandRpcRequest, context: HandlerContext): Promise<unknown> {
+  async route(
+    request: StagehandRpcRequest,
+    context: HandlerContext,
+    parsedInitParams?: StagehandInitParams,
+  ): Promise<unknown> {
     switch (request.method) {
       case "stagehand.init":
         return this.stagehandController.init(
-          parseParams(StagehandMethods.stagehandInit, request.params),
+          parsedInitParams ?? parseParams(StagehandMethods.stagehandInit, request.params),
           context,
         );
       case "stagehand.close":

@@ -1,4 +1,4 @@
-import { context, SpanStatusCode, trace, type Context } from "@opentelemetry/api";
+import { context, ROOT_CONTEXT, SpanStatusCode, trace, type Context } from "@opentelemetry/api";
 import { z } from "zod/v4";
 import { StagehandLogDataSchema, StagehandLogSchema } from "../protocol/schemas.js";
 import type { StagehandLog, StagehandLogData, StagehandLogLevel } from "../protocol/types.js";
@@ -62,7 +62,7 @@ export class StagehandLogger {
     run: (logger: StagehandLogger) => Result | Promise<Result>,
   ): Promise<Result> {
     const input = StagehandSpanSchema.parse({ name, data });
-    const parentContext = this.parentContext ?? context.active();
+    const parentContext = this.parentContext ?? ROOT_CONTEXT;
     const span = this.tracing.tracer.startSpan(
       input.name,
       {
@@ -99,7 +99,7 @@ export class StagehandLogger {
           "stagehand.log.data": JSON.stringify(log.data),
         },
       },
-      this.parentContext ?? context.active(),
+      this.parentContext ?? ROOT_CONTEXT,
     );
 
     span.end();

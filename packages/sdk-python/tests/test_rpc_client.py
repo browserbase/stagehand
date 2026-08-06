@@ -2,6 +2,14 @@ import asyncio
 from typing import cast
 
 import pytest
+from opentelemetry import context as otel_context
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    SpanContext,
+    TraceFlags,
+    TraceState,
+    set_span_in_context,
+)
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import rpc_client
@@ -80,6 +88,38 @@ async def test_send_validates_and_serializes_params_and_results() -> None:
             response=None,
         )
     finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_send_propagates_current_w3c_trace_context() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    parent = NonRecordingSpan(
+        SpanContext(
+            trace_id=int("4bf92f3577b34da6a3ce929d0e0e4736", 16),
+            span_id=int("00f067aa0ba902b7", 16),
+            is_remote=False,
+            trace_flags=TraceFlags(TraceFlags.SAMPLED),
+            trace_state=TraceState.from_header(["vendor=value"]),
+        )
+    )
+    token = otel_context.attach(set_span_in_context(parent))
+    try:
+        call = asyncio.create_task(
+            client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
+        )
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert request["traceparent"] == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+        assert request["tracestate"] == "vendor=value"
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": [],
+        })
+        assert await asyncio.wait_for(call, timeout=1) == []
+    finally:
+        otel_context.detach(token)
         await client.close()
 
 

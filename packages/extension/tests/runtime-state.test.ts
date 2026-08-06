@@ -1,3 +1,4 @@
+import { ROOT_CONTEXT } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
 import type { StagehandBrowserSession } from "../runtime.js";
@@ -41,6 +42,29 @@ function createBrowserSession(
 }
 
 describe("Stagehand runtime state", () => {
+  it("keeps the persistent browser session on the neutral runtime logger", async () => {
+    const browserSessionFactory = vi.fn(async () => createBrowserSession());
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const initLogger = runtime.logger.withContext(ROOT_CONTEXT);
+
+    await runtime.initialize(
+      {
+        ...runtimeIdentity,
+        browserCdpUrl: "ws://browser.example",
+        telemetry: {
+          traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+        },
+      },
+      initLogger,
+    );
+
+    expect(browserSessionFactory).toHaveBeenCalledWith(
+      "ws://browser.example",
+      runtime.logger,
+      initLogger,
+    );
+  });
+
   it("stores the exact validated Stagehand init params after initialization", async () => {
     const runtime = createStagehandRuntime({
       browserSessionFactory: async () => createBrowserSession(),

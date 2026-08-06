@@ -30,7 +30,7 @@ export function startStagehandServiceWorker(
   const activeRuntime =
     runtime ??
     createStagehandRuntime({
-      browserSessionFactory: async (cdpUrl, logger) => {
+      browserSessionFactory: async (cdpUrl, logger, bootstrapLogger) => {
         const locatorRuntimeResponse = await fetch(chrome.runtime.getURL("content-script.js"));
         if (!locatorRuntimeResponse.ok) {
           throw new Error(
@@ -43,6 +43,7 @@ export function startStagehandServiceWorker(
           blankPageUrl: chrome.runtime.getURL("blank.html"),
           fallbackLocatorScriptSource: await locatorRuntimeResponse.text(),
           chromeTabs: new ChromeTabTargetAdapter(chrome),
+          bootstrapLogger,
         });
       },
       emitLog: (log) => {

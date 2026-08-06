@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -20,6 +21,7 @@ from pydantic import (
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
 _RPC_RESPONSE_GRACE_MS = 10_000
+_TRACE_CONTEXT_PROPAGATOR = TraceContextTextMapPropagator()
 _DEFAULT_OPERATION_TIMEOUT_MS = {
     "page.goto": 15_000,
     "page.reload": 15_000,
@@ -191,6 +193,8 @@ class RPCClient:
             result_model,
             response,
         )
+        trace_context: dict[str, str] = {}
+        _TRACE_CONTEXT_PROPAGATOR.inject(trace_context)
         request = _JSONRPCRequest(
             jsonrpc="2.0",
             id=request_id,
@@ -200,6 +204,8 @@ class RPCClient:
                 by_alias=True,
                 exclude_unset=True,
             ),
+            traceparent=trace_context.get("traceparent"),
+            tracestate=trace_context.get("tracestate"),
         )
 
         response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))

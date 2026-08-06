@@ -31,8 +31,16 @@ const metadata: StagehandResultMetadata = {
   },
 };
 
+const testLogger = {
+  debug: vi.fn(),
+  span: vi.fn(
+    async (_name: string, _data: unknown, run: (logger: unknown) => unknown) =>
+      await run(testLogger),
+  ),
+};
 const handlerContext = {
-  logger: { debug: vi.fn() },
+  logger: testLogger,
+  telemetryScope: Symbol("model-resolution-test"),
 } as unknown as HandlerContext;
 
 function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
@@ -42,6 +50,8 @@ function runtimeWith(initParams: StagehandInitParams): StagehandRuntime {
     resolvePage: vi.fn(() => ({})),
     adapters: { clientLLMGenerate: vi.fn() },
     metrics: { record: vi.fn() },
+    runWithTelemetryContext: async (_scope: symbol, _logger: unknown, run: () => unknown) =>
+      await run(),
   } as unknown as StagehandRuntime;
 }
 

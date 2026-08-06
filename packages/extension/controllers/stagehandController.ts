@@ -23,13 +23,24 @@ export function createStagehandController(
   runtime: StagehandRuntime,
   options: StagehandControllerOptions = {},
 ) {
-  const initialize = options.initialize ?? ((params) => runtime.initialize(params));
   const closeRuntime = options.close ?? (() => runtime.close());
+
+  async function runOperation<Result>(
+    name: string,
+    { logger, telemetryScope }: HandlerContext,
+    run: (logger: HandlerContext["logger"]) => Result | Promise<Result>,
+  ): Promise<Result> {
+    return await logger.span(name, {}, (logger) =>
+      runtime.runWithTelemetryContext(telemetryScope, logger, () => run(logger)),
+    );
+  }
 
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
     logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});
-    return await initialize(params);
+    return options.initialize
+      ? await options.initialize(params)
+      : await runtime.initialize(params, logger);
   }
 
   async function close(_params: EmptyParams, { logger }: HandlerContext) {
@@ -38,87 +49,93 @@ export function createStagehandController(
     return { closed: true as const };
   }
 
-  async function act(params: StagehandActParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.act", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before acting");
-    }
+  async function act(params: StagehandActParams, context: HandlerContext) {
+    return await runOperation("stagehand.act", context, async (logger) => {
+      logger.debug("stagehand.act", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before acting");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await actService.act({
-      params,
-      page: runtime.resolveUnderstudyPage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      selfHeal: state.initParams.selfHeal,
-      domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await actService.act({
+        params,
+        page: runtime.resolveUnderstudyPage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        selfHeal: state.initParams.selfHeal,
+        domSettleTimeoutMs: state.initParams.domSettleTimeoutMs,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("act", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("act", result.metadata.usage);
-    return result;
   }
 
-  async function observe(params: StagehandObserveParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.observe", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before observing");
-    }
+  async function observe(params: StagehandObserveParams, context: HandlerContext) {
+    return await runOperation("stagehand.observe", context, async (logger) => {
+      logger.debug("stagehand.observe", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before observing");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await observeService.observe({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await observeService.observe({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("observe", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("observe", result.metadata.usage);
-    return result;
   }
 
-  async function extract(params: StagehandExtractParams, { logger }: HandlerContext) {
-    logger.debug("stagehand.extract", {});
-    const state = runtime.state.getState();
-    if (state.status !== "initialized") {
-      throw new Error("Stagehand must be initialized before extracting");
-    }
+  async function extract(params: StagehandExtractParams, context: HandlerContext) {
+    return await runOperation("stagehand.extract", context, async (logger) => {
+      logger.debug("stagehand.extract", {});
+      const state = runtime.state.getState();
+      if (state.status !== "initialized") {
+        throw new Error("Stagehand must be initialized before extracting");
+      }
 
-    const model = params.options?.model ?? state.initParams.model;
-    const gateway = buildGatewayContext(state.initParams);
-    if (!model && !gateway) {
-      throw new Error("An LLM was not configured during Stagehand initialization");
-    }
+      const model = params.options?.model ?? state.initParams.model;
+      const gateway = buildGatewayContext(state.initParams);
+      if (!model && !gateway) {
+        throw new Error("An LLM was not configured during Stagehand initialization");
+      }
 
-    const result = await extractService.extract({
-      params,
-      page: runtime.resolvePage(params.pageId),
-      model,
-      clientLLMGenerate: runtime.adapters.clientLLMGenerate,
-      logger,
-      systemPrompt: state.initParams.systemPrompt,
-      cache: cacheService.buildCacheContext(state.initParams),
-      gateway,
+      const result = await extractService.extract({
+        params,
+        page: runtime.resolvePage(params.pageId),
+        model,
+        clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+        logger,
+        systemPrompt: state.initParams.systemPrompt,
+        cache: cacheService.buildCacheContext(state.initParams),
+        gateway,
+      });
+      runtime.metrics.record("extract", result.metadata.usage);
+      return result;
     });
-    runtime.metrics.record("extract", result.metadata.usage);
-    return result;
   }
 
   async function metrics(_params: EmptyParams, { logger }: HandlerContext) {
