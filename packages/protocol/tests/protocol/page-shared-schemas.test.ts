@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  ContextNewPageParamsSchema,
   LoadStateSchema,
+  PageGotoParamsSchema,
   PageNavigationOptionsSchema,
   PageScreenshotClipSchema,
   PageSnapshotOptionsSchema,
@@ -21,6 +23,18 @@ describe("shared page protocol schemas", () => {
     });
     expect(() => LoadStateSchema.parse("commit")).toThrow();
     expect(() => PageNavigationOptionsSchema.parse({ timeout: 0 })).toThrow();
+  });
+
+  it("uses the same non-empty URL constraint for new pages and goto", () => {
+    expect(ContextNewPageParamsSchema.parse({})).toStrictEqual({});
+    expect(ContextNewPageParamsSchema.parse({ url: "https://example.com" })).toStrictEqual({
+      url: "https://example.com",
+    });
+    expect(
+      PageGotoParamsSchema.parse({ pageId: "page-1", url: "https://example.com" }),
+    ).toStrictEqual({ pageId: "page-1", url: "https://example.com" });
+    expect(() => ContextNewPageParamsSchema.parse({ url: "" })).toThrow();
+    expect(() => PageGotoParamsSchema.parse({ pageId: "page-1", url: "" })).toThrow();
   });
 
   it("keeps command result schemas strict", () => {
