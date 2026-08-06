@@ -14,6 +14,7 @@ export type ExperimentalBatchOptions = {
 };
 
 export type ExperimentalBatchBrowserContext = Omit<BrowserContext, "close">;
+export type ExperimentalBatchExtractOptions = Omit<StagehandClientExtractOptions, "page">;
 
 export type ExperimentalBatchContext = {
   page: Page;
@@ -26,10 +27,11 @@ export type ExperimentalBatchContext = {
     instruction?: string,
     options?: Omit<StagehandClientObserveOptions, "page">,
   ): Promise<ObserveResult>;
+  extract(instruction: string, options?: ExperimentalBatchExtractOptions): Promise<unknown>;
   extract(
     instruction: string,
-    schema?: unknown,
-    options?: Omit<StagehandClientExtractOptions, "page">,
+    schema: unknown,
+    options?: ExperimentalBatchExtractOptions,
   ): Promise<unknown>;
   metrics(): Promise<unknown>;
 };

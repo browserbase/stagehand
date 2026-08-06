@@ -26,6 +26,7 @@ export type {
   ExperimentalBatchCallback,
   ExperimentalBatchBrowserContext,
   ExperimentalBatchContext,
+  ExperimentalBatchExtractOptions,
   ExperimentalBatchOptions,
 } from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";

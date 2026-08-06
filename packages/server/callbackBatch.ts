@@ -2,6 +2,7 @@ import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
 import type { Action } from "../protocol/types.js";
+import { ExtractOptionsSchema } from "../protocol/schemas.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
@@ -60,7 +61,7 @@ export type CallbackStagehand = {
   observe(instruction?: string, options?: Record<string, unknown>): Promise<unknown>;
   extract(
     instruction: string,
-    schema?: unknown,
+    schemaOrOptions?: unknown,
     options?: Record<string, unknown>,
   ): Promise<unknown>;
   metrics(): Promise<unknown>;
@@ -124,13 +125,25 @@ export function installCallbackBatchRunner(
             ...(instruction === undefined ? {} : { instruction }),
             ...(operationOptions === undefined ? {} : { options: operationOptions }),
           }),
-        extract: async (instruction, schema, operationOptions) =>
-          await client.send(StagehandMethods.stagehandExtract, {
+        extract: async (...args) => {
+          const [instruction, schemaOrOptions, explicitOptions] = args;
+          const optionsOnly =
+            args.length < 3 &&
+            schemaOrOptions !== undefined &&
+            ExtractOptionsSchema.safeParse(schemaOrOptions).success;
+          const schema = optionsOnly ? undefined : schemaOrOptions;
+          const operationOptions = optionsOnly
+            ? ExtractOptionsSchema.parse(schemaOrOptions)
+            : explicitOptions === undefined
+              ? undefined
+              : ExtractOptionsSchema.parse(explicitOptions);
+          return await client.send(StagehandMethods.stagehandExtract, {
             pageId: page.pageId,
             instruction,
             ...(schema === undefined ? {} : { schema: z.json().parse(schema) }),
             ...(operationOptions === undefined ? {} : { options: operationOptions }),
-          }),
+          });
+        },
         metrics: async () => await client.send(StagehandMethods.stagehandMetrics, {}),
       };
 

@@ -83,4 +83,68 @@ describe("callback batch runner", () => {
       value: { hasClose: false },
     });
   });
+
+  it("normalizes extract schema and options overloads", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") return [{ pageId: "page-1" }];
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        if (request.method === "stagehand.extract") {
+          return {
+            data: { extraction: "Example" },
+            metadata: {
+              cache: { status: "DISABLED" },
+              usage: {
+                inputTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+                cachedInputTokens: 0,
+                inferenceTimeMs: 0,
+              },
+            },
+          };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
+    installCallbackBatchRunner(scope, router);
+
+    const result = await scope.__stagehandRunCallbackBatch?.(
+      async ({ extract }) => {
+        await extract("options only", { timeout: 1_000 });
+        await extract("schema only", { type: "object" });
+        await extract("schema and options", { type: "object" }, { timeout: 2_000 });
+        await extract("empty schema", {}, undefined);
+        return true;
+      },
+      null,
+      { timeout: 10_000 },
+    );
+
+    expect(result).toEqual({ ok: true, value: true });
+    const extractParams = requests
+      .filter((request) => request.method === "stagehand.extract")
+      .map((request) => request.params as Record<string, unknown>);
+    expect(extractParams[0]).toMatchObject({
+      instruction: "options only",
+      options: { timeout: 1_000 },
+    });
+    expect(extractParams[0]?.schema).not.toEqual({ timeout: 1_000 });
+    expect(extractParams[1]).toMatchObject({
+      instruction: "schema only",
+      schema: { type: "object" },
+    });
+    expect(extractParams[2]).toMatchObject({
+      instruction: "schema and options",
+      schema: { type: "object" },
+      options: { timeout: 2_000 },
+    });
+    expect(extractParams[3]).toMatchObject({
+      instruction: "empty schema",
+      schema: {},
+    });
+  });
 });
