@@ -59,7 +59,8 @@ describe("page.snapshot() survives bounded iframe churn", () => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       await expect(page.evaluate("window.snapshotFixture.startChurn()")).resolves.toBe("started");
       const duringChurn = await page.snapshot();
-      expect(duringChurn.formattedTree).toContain("Synthetic iframe churn fixture");
+      expect(countMatches(duringChurn.formattedTree, /Synthetic iframe churn fixture/g)).toBe(1);
+      expect(duringChurn.formattedTree).toContain("volatile action");
       await page.waitForSelector('#frames[data-churning="false"]', {
         state: "attached",
         timeout: 10_000,
@@ -67,12 +68,20 @@ describe("page.snapshot() survives bounded iframe churn", () => {
     }
 
     const settled = await page.snapshot();
-    expect(settled.formattedTree).toContain("Synthetic iframe churn fixture");
-    expect(settled.formattedTree).toContain("volatile action");
+    expect(countMatches(settled.formattedTree, /Synthetic iframe churn fixture/g)).toBe(1);
+    for (let index = 0; index < frameNodeCount; index += 1) {
+      expect(
+        countMatches(settled.formattedTree, new RegExp(`volatile action ${index}\\b`, "g")),
+      ).toBe(frameCount);
+    }
     await expect(page.evaluate("document.title")).resolves.toBe("Snapshot Churn Fixture");
     await expect(stagehand.metrics()).resolves.toBeDefined();
   }, 45_000);
 });
+
+function countMatches(value: string, pattern: RegExp): number {
+  return value.match(pattern)?.length ?? 0;
+}
 
 function fixtureHtml(): string {
   return `<!doctype html>

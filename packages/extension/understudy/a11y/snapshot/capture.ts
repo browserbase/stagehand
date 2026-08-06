@@ -16,7 +16,8 @@ import type {
   SnapshotOptions,
   SessionDomIndex,
 } from "../../../types/private/index.js";
-import { a11yForFrame, isFrameScopeError } from "./a11yTree.js";
+import { isFrameScopeError } from "../frameScopeError.js";
+import { a11yForFrame } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
   resolveFocusFrameAndTail,
@@ -739,7 +740,6 @@ export async function computeFramePrefixes(
       if (!included.has(child)) continue;
       if (context.parentByFrame.get(child) !== parent) continue;
       if (!page.hasFrame(child)) continue;
-      queue.push(child);
 
       const parentSess = parentSession(page, context.parentByFrame, child);
 
@@ -753,10 +753,12 @@ export async function computeFramePrefixes(
           return undefined;
         }
       })();
+      if (!page.hasFrame(child)) continue;
 
       if (!ownerBackendNodeId) {
         // OOPIFs resolved via a different session inherit the parent prefix.
         absPrefix.set(child, parentAbs);
+        queue.push(child);
         continue;
       }
 
@@ -768,6 +770,7 @@ export async function computeFramePrefixes(
 
       absPrefix.set(child, childAbs);
       iframeHostEncByChild.set(child, iframeEnc);
+      queue.push(child);
     }
   }
 

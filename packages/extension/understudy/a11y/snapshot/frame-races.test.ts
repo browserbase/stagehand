@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { CDPSessionLike } from "../../cdp.js";
 import type { Page } from "../../page.js";
 import { FrameRegistry } from "../../frameRegistry.js";
-import { a11yForFrame, isFrameScopeError } from "./a11yTree.js";
+import { isFrameScopeError } from "../frameScopeError.js";
+import { a11yForFrame } from "./a11yTree.js";
 import { captureHybridSnapshot, mergeFramesIntoSnapshot } from "./capture.js";
 
 describe("hybrid snapshot frame races", () => {
@@ -111,6 +112,33 @@ describe("hybrid snapshot frame races", () => {
     expect(snapshot.perFrame?.map(({ frameId }) => frameId)).toStrictEqual(["root"]);
   });
 
+  it("omits a child that detaches while resolving its merge prefix", async () => {
+    const liveFrames = new Set(["root", "child"]);
+    let childCaptured = false;
+    const send = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      if (method === "DOM.getDocument") return { root: sameProcessDom() };
+      if (method === "DOM.getFrameOwner") {
+        if (childCaptured) liveFrames.delete("child");
+        return { backendNodeId: 10 };
+      }
+      if (method === "Accessibility.getFullAXTree") {
+        if (params?.frameId === "root") return { nodes: rootAxNodes() };
+        if (params?.frameId === "child") {
+          childCaptured = true;
+          return { nodes: childAxNodes("Detached before merge") };
+        }
+      }
+      return {};
+    });
+    const mainSession = session("main", send);
+    const page = mockPage({ liveFrames, mainSession });
+
+    const snapshot = await captureHybridSnapshot(page);
+
+    expect(snapshot.combinedTree).not.toContain("Detached before merge");
+    expect(snapshot.perFrame?.map(({ frameId }) => frameId)).toStrictEqual(["root"]);
+  });
+
   it("keeps main-frame fallback and propagates unrelated CDP failures", async () => {
     const fallbackSend = vi.fn(async (method: string, params?: Record<string, unknown>) => {
       if (method === "Accessibility.getFullAXTree" && params?.frameId === "root") {
@@ -145,6 +173,9 @@ describe("hybrid snapshot frame races", () => {
       }),
     ).rejects.toBe(unrelated);
     expect(isFrameScopeError(unrelated)).toBe(false);
+    expect(isFrameScopeError(new Error("Frame with given id not found"))).toBe(true);
+    expect(isFrameScopeError(new Error("Frame with the given id is not found"))).toBe(true);
+    expect(isFrameScopeError(new Error("Node with the given id is not found"))).toBe(false);
   });
 
   it("excludes a detached nested frame from merged output", () => {

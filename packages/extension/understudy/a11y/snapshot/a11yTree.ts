@@ -5,16 +5,9 @@ import type {
   A11yOptions,
   AccessibilityTreeResult,
 } from "../../../types/private/snapshot.js";
+import { isFrameScopeError } from "../frameScopeError.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
-
-export function isFrameScopeError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    /Frame with (?:the )?given id (?:is|was) not found/i.test(message) ||
-    /Frame(?: with (?:the )?given id)? does not belong to the target/i.test(message)
-  );
-}
 
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
