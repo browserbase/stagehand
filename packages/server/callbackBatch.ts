@@ -2,10 +2,17 @@ import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
 import type { Action } from "../protocol/types.js";
-import { ExtractOptionsSchema } from "../protocol/schemas.js";
 import { z } from "zod/v4";
-import { BrowserContext } from "../sdk-ts/src/browserContext.js";
 import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
+import { BrowserContext } from "../sdk-ts/src/browserContext.js";
+import {
+  StagehandClientActOptionsSchema,
+  StagehandClientExtractOptionsSchema,
+  StagehandClientObserveOptionsSchema,
+  type StagehandClientActOptions,
+  type StagehandClientExtractOptions,
+  type StagehandClientObserveOptions,
+} from "../sdk-ts/src/clientSchemas.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
 import { Page } from "../sdk-ts/src/page.js";
 import type { RPCRouter } from "./rpcRouter.js";
@@ -58,12 +65,12 @@ class InProcessCommandClient implements StagehandCommandClient {
 export type CallbackStagehand = {
   page: Page;
   context: ExperimentalBatchBrowserContext;
-  act(instruction: string | Action, options?: Record<string, unknown>): Promise<unknown>;
-  observe(instruction?: string, options?: Record<string, unknown>): Promise<unknown>;
+  act(instruction: string | Action, options?: StagehandClientActOptions): Promise<unknown>;
+  observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<unknown>;
   extract(
     instruction: string,
     schemaOrOptions?: unknown,
-    options?: Record<string, unknown>,
+    options?: StagehandClientExtractOptions,
   ): Promise<unknown>;
   metrics(): Promise<unknown>;
 };
@@ -114,35 +121,43 @@ export function installCallbackBatchRunner(
       const stagehand: CallbackStagehand = {
         page,
         context: createCallbackContextFacade(context),
-        act: async (instruction, operationOptions) =>
-          await client.send(StagehandMethods.stagehandAct, {
-            pageId: page.pageId,
+        act: async (instruction, operationOptions) => {
+          const { page: operationPage, ...protocolOptions } = StagehandClientActOptionsSchema.parse(
+            operationOptions ?? {},
+          );
+          return await client.send(StagehandMethods.stagehandAct, {
+            pageId: (operationPage ?? page).pageId,
             instruction,
-            ...(operationOptions === undefined ? {} : { options: operationOptions }),
-          }),
-        observe: async (instruction, operationOptions) =>
-          await client.send(StagehandMethods.stagehandObserve, {
-            pageId: page.pageId,
+            ...(operationOptions === undefined ? {} : { options: protocolOptions }),
+          });
+        },
+        observe: async (instruction, operationOptions) => {
+          const { page: operationPage, ...protocolOptions } =
+            StagehandClientObserveOptionsSchema.parse(operationOptions ?? {});
+          return await client.send(StagehandMethods.stagehandObserve, {
+            pageId: (operationPage ?? page).pageId,
             ...(instruction === undefined ? {} : { instruction }),
-            ...(operationOptions === undefined ? {} : { options: operationOptions }),
-          }),
+            ...(operationOptions === undefined ? {} : { options: protocolOptions }),
+          });
+        },
         extract: async (...args) => {
           const [instruction, schemaOrOptions, explicitOptions] = args;
           const optionsOnly =
             args.length < 3 &&
             schemaOrOptions !== undefined &&
-            ExtractOptionsSchema.safeParse(schemaOrOptions).success;
+            StagehandClientExtractOptionsSchema.safeParse(schemaOrOptions).success;
           const schema = optionsOnly ? undefined : schemaOrOptions;
-          const operationOptions = optionsOnly
-            ? ExtractOptionsSchema.parse(schemaOrOptions)
+          const clientOptions = optionsOnly
+            ? StagehandClientExtractOptionsSchema.parse(schemaOrOptions)
             : explicitOptions === undefined
               ? undefined
-              : ExtractOptionsSchema.parse(explicitOptions);
+              : StagehandClientExtractOptionsSchema.parse(explicitOptions);
+          const { page: operationPage, ...protocolOptions } = clientOptions ?? {};
           return await client.send(StagehandMethods.stagehandExtract, {
-            pageId: page.pageId,
+            pageId: (operationPage ?? page).pageId,
             instruction,
             ...(schema === undefined ? {} : { schema: z.json().parse(schema) }),
-            ...(operationOptions === undefined ? {} : { options: operationOptions }),
+            ...(clientOptions === undefined ? {} : { options: protocolOptions }),
           });
         },
         metrics: async () => await client.send(StagehandMethods.stagehandMetrics, {}),

@@ -155,4 +155,66 @@ describe("callback batch runner", () => {
       schema: {},
     });
   });
+
+  it("normalizes and strips per-operation page options", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const metadata = {
+      cache: { status: "DISABLED" },
+      usage: {
+        inputTokens: 0,
+        outputTokens: 0,
+        reasoningTokens: 0,
+        cachedInputTokens: 0,
+        inferenceTimeMs: 0,
+      },
+    };
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2" }];
+        }
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        if (request.method === "stagehand.act") {
+          return {
+            data: { success: true, message: "done", actionDescription: "done", actions: [] },
+            metadata,
+          };
+        }
+        if (request.method === "stagehand.observe") return { data: [], metadata };
+        if (request.method === "stagehand.extract") {
+          return { data: { extraction: "done" }, metadata };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
+    installCallbackBatchRunner(scope, router);
+
+    const result = await scope.__stagehandRunCallbackBatch?.(
+      async (stagehand) => {
+        const pages = await stagehand.context.pages();
+        const operationPage = pages[1];
+        if (!operationPage) throw new Error("missing second page");
+        await stagehand.act("act", { page: operationPage, timeout: 1_000 });
+        await stagehand.observe("observe", { page: operationPage, timeout: 2_000 });
+        await stagehand.extract("extract", { page: operationPage, timeout: 3_000 });
+        return true;
+      },
+      null,
+      { timeout: 10_000 },
+    );
+
+    expect(result).toEqual({ ok: true, value: true });
+    const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
+    expect(operationRequests.map((request) => request.params)).toEqual([
+      { pageId: "page-2", instruction: "act", options: { timeout: 1_000 } },
+      { pageId: "page-2", instruction: "observe", options: { timeout: 2_000 } },
+      expect.objectContaining({
+        pageId: "page-2",
+        instruction: "extract",
+        options: { timeout: 3_000 },
+      }),
+    ]);
+  });
 });

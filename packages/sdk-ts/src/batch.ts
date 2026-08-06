@@ -17,19 +17,13 @@ export type ExperimentalBatchBrowserContext = Omit<
   BrowserContext,
   "close" | "rpcClient" | "clipboardRef"
 >;
-export type ExperimentalBatchExtractOptions = Omit<StagehandClientExtractOptions, "page">;
+export type ExperimentalBatchExtractOptions = StagehandClientExtractOptions;
 
 export type ExperimentalBatchContext = {
   page: Page;
   context: ExperimentalBatchBrowserContext;
-  act(
-    instruction: string | Action,
-    options?: Omit<StagehandClientActOptions, "page">,
-  ): Promise<ActResult>;
-  observe(
-    instruction?: string,
-    options?: Omit<StagehandClientObserveOptions, "page">,
-  ): Promise<ObserveResult>;
+  act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult>;
+  observe(instruction?: string, options?: StagehandClientObserveOptions): Promise<ObserveResult>;
   extract(instruction: string, options?: ExperimentalBatchExtractOptions): Promise<unknown>;
   extract(
     instruction: string,
