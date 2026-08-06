@@ -601,7 +601,7 @@ describe("act controller", () => {
             arguments: [],
           },
         },
-        { logger: testLogger() },
+        { logger: testLogger(), telemetryScope: Symbol("act-controller-test") },
       ),
     ).resolves.toMatchObject({ data: { success: true } });
 
@@ -631,7 +631,7 @@ describe("act controller", () => {
           pageId: "page-1",
           instruction: "Click the submit button",
         },
-        { logger: testLogger() },
+        { logger: testLogger(), telemetryScope: Symbol("act-controller-test") },
       ),
     ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
     expect(resolveUnderstudyPage).not.toHaveBeenCalled();

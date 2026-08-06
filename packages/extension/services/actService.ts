@@ -59,7 +59,7 @@ export async function act({
 }: {
   params: StagehandActParams;
   page: Page;
-  model: ModelConfig | ClientModelReference | undefined;
+  model?: ModelConfig | ClientModelReference;
   clientLLMGenerate: ClientLlmRequest;
   logger: StagehandLogger;
   systemPrompt?: string;
