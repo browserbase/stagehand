@@ -60,7 +60,8 @@ describe("page.snapshot() survives bounded iframe churn", () => {
       await expect(page.evaluate("window.snapshotFixture.startChurn()")).resolves.toBe("started");
       const duringChurn = await page.snapshot();
       expect(countMatches(duringChurn.formattedTree, /Synthetic iframe churn fixture/g)).toBe(1);
-      expect(duringChurn.formattedTree).toContain("volatile action");
+      // Every child may be between documents at once. Omitting those transient
+      // frames is valid; duplicating the main document is not.
       await page.waitForSelector('#frames[data-churning="false"]', {
         state: "attached",
         timeout: 10_000,
