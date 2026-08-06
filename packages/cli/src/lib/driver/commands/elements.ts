@@ -5,13 +5,8 @@ import type { DriverCommandHandlers } from "./types.js";
 export const elementsHandlers: DriverCommandHandlers = {
   async click(manager, params) {
     const { selector } = z.object({ selector: z.string().min(1) }).parse(params);
-    const stagehand = await manager.stagehandInstance();
-    await stagehand.act({
-      arguments: [],
-      description: "click element",
-      method: "click",
-      selector: manager.resolveSelector(selector),
-    } as never);
+    const page = await manager.activePage();
+    await page.locator(manager.resolveSelector(selector)).click();
     return { clicked: true };
   },
 
@@ -23,15 +18,9 @@ export const elementsHandlers: DriverCommandHandlers = {
         value: z.string(),
       })
       .parse(params);
-    const stagehand = await manager.stagehandInstance();
-    await stagehand.act({
-      arguments: [value],
-      description: "fill element",
-      method: "fill",
-      selector: manager.resolveSelector(selector),
-    } as never);
+    const page = await manager.activePage();
+    await page.locator(manager.resolveSelector(selector)).fill(value);
     if (pressEnter) {
-      const page = await manager.activePage();
       await page.keyPress("Enter");
     }
     return { filled: true, pressedEnter: pressEnter ?? false };
@@ -45,7 +34,7 @@ export const elementsHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    const selected = await page.deepLocator(manager.resolveSelector(selector)).selectOption(values);
+    const selected = await page.locator(manager.resolveSelector(selector)).selectOption(values);
     return { selected };
   },
 
@@ -57,9 +46,7 @@ export const elementsHandlers: DriverCommandHandlers = {
       })
       .parse(params);
     const page = await manager.activePage();
-    await page
-      .deepLocator(manager.resolveSelector(selector))
-      .setInputFiles(files.length === 1 ? files[0]! : files);
+    await page.locator(manager.resolveSelector(selector)).setInputFiles(files);
     return { files, uploaded: true };
   },
 
@@ -72,7 +59,7 @@ export const elementsHandlers: DriverCommandHandlers = {
       .parse(params);
     const page = await manager.activePage();
     await page
-      .deepLocator(manager.resolveSelector(selector))
+      .locator(manager.resolveSelector(selector))
       .highlight({ durationMs: durationMs ?? 2000 });
     return { highlighted: true };
   },

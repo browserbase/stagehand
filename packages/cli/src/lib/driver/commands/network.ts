@@ -1,9 +1,8 @@
 import type { DriverCommandHandlers } from "./types.js";
 
 export const networkHandlers: DriverCommandHandlers = {
-  async "network.on"(manager) {
-    const page = await manager.activePage();
-    return manager.network.enable(page);
+  async "network.on"() {
+    throw new Error("Network capture is not yet exposed by the Stagehand V4 client.");
   },
 
   async "network.off"(manager) {

@@ -5,7 +5,10 @@ import { join } from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { elementsHandlers } from "../src/lib/driver/commands/elements.js";
+import { mouseHandlers } from "../src/lib/driver/commands/mouse.js";
 import { navigationHandlers } from "../src/lib/driver/commands/navigation.js";
+import { networkHandlers } from "../src/lib/driver/commands/network.js";
 import { resolveSelector } from "../src/lib/driver/commands/selectors.js";
 import { formatSnapshotTree } from "../src/lib/driver/commands/snapshot-format.js";
 import { snapshotHandlers } from "../src/lib/driver/commands/snapshot.js";
@@ -165,6 +168,194 @@ describe("driver commands", () => {
       timeout: 5_000,
       waitUntil: "load",
     });
+  });
+
+  it("routes selector click and fill through V4 locators", async () => {
+    const locator = {
+      click: vi.fn(),
+      fill: vi.fn(),
+    };
+    const page = {
+      keyPress: vi.fn(),
+      locator: vi.fn(() => locator),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) =>
+        selector === "@0-1" ? "/html/body/button" : selector,
+      ),
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["click"]>>[0];
+
+    await expect(elementsHandlers.click!(manager, { selector: "@0-1" })).resolves.toEqual({
+      clicked: true,
+    });
+    await expect(
+      elementsHandlers.fill!(manager, {
+        pressEnter: true,
+        selector: "#email",
+        value: "user@example.com",
+      }),
+    ).resolves.toEqual({ filled: true, pressedEnter: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "/html/body/button");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#email");
+    expect(locator.click).toHaveBeenCalledOnce();
+    expect(locator.fill).toHaveBeenCalledWith("user@example.com");
+    expect(page.keyPress).toHaveBeenCalledWith("Enter");
+  });
+
+  it("keeps select and highlight on V4 locators", async () => {
+    const locator = {
+      highlight: vi.fn(),
+      selectOption: vi.fn().mockResolvedValue(["green", "blue"]),
+    };
+    const page = { locator: vi.fn(() => locator) };
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["select"]>>[0];
+
+    await expect(
+      elementsHandlers.select!(manager, {
+        selector: "#colors",
+        values: ["green", "blue"],
+      }),
+    ).resolves.toEqual({ selected: ["green", "blue"] });
+    await expect(
+      elementsHandlers.highlight!(manager, {
+        durationMs: 750,
+        selector: "#colors",
+      }),
+    ).resolves.toEqual({ highlighted: true });
+
+    expect(page.locator).toHaveBeenNthCalledWith(1, "#colors");
+    expect(page.locator).toHaveBeenNthCalledWith(2, "#colors");
+    expect(locator.selectOption).toHaveBeenCalledWith(["green", "blue"]);
+    expect(locator.highlight).toHaveBeenCalledWith({ durationMs: 750 });
+  });
+
+  it("uploads files through the V4 locator API", async () => {
+    const setInputFiles = vi.fn();
+    const manager = {
+      activePage: vi.fn(async () => ({
+        locator: vi.fn(() => ({ setInputFiles })),
+      })),
+      resolveSelector: vi.fn((selector: string) => selector),
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["upload"]>>[0];
+
+    await expect(
+      elementsHandlers.upload!(manager, {
+        files: ["/tmp/file.txt"],
+        selector: "input[type=file]",
+      }),
+    ).resolves.toEqual({ files: ["/tmp/file.txt"], uploaded: true });
+    expect(setInputFiles).toHaveBeenCalledWith(["/tmp/file.txt"]);
+  });
+
+  it("preserves supported coordinate mouse arguments on V4 pages", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
+
+    await expect(
+      mouseHandlers["mouse.click"]!(manager, {
+        button: "right",
+        clickCount: 2,
+        x: 10,
+        y: 20,
+      }),
+    ).resolves.toEqual({ clicked: true });
+    await expect(mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 })).resolves.toEqual({
+      hovered: true,
+    });
+    await expect(
+      mouseHandlers["mouse.scroll"]!(manager, {
+        deltaX: 5,
+        deltaY: 500,
+        x: 50,
+        y: 60,
+      }),
+    ).resolves.toEqual({ scrolled: true });
+    await expect(
+      mouseHandlers["mouse.drag"]!(manager, {
+        button: "left",
+        delay: 25,
+        fromX: 70,
+        fromY: 80,
+        steps: 4,
+        toX: 90,
+        toY: 100,
+      }),
+    ).resolves.toEqual({ dragged: true });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, { button: "right", clickCount: 2 });
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {
+      button: "left",
+      delay: 25,
+      steps: 4,
+    });
+  });
+
+  it("omits undefined coordinate options from V4 requests", async () => {
+    const page = {
+      click: vi.fn(),
+      dragAndDrop: vi.fn(),
+      hover: vi.fn(),
+      scroll: vi.fn(),
+    };
+    const manager = {
+      activePage: vi.fn(async () => page),
+    } as unknown as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
+
+    await mouseHandlers["mouse.click"]!(manager, { x: 10, y: 20 });
+    await mouseHandlers["mouse.hover"]!(manager, { x: 30, y: 40 });
+    await mouseHandlers["mouse.scroll"]!(manager, {
+      deltaX: 5,
+      deltaY: 500,
+      x: 50,
+      y: 60,
+    });
+    await mouseHandlers["mouse.drag"]!(manager, {
+      fromX: 70,
+      fromY: 80,
+      toX: 90,
+      toY: 100,
+    });
+
+    expect(page.click).toHaveBeenCalledWith(10, 20, {});
+    expect(page.hover).toHaveBeenCalledWith(30, 40);
+    expect(page.scroll).toHaveBeenCalledWith(50, 60, 5, 500);
+    expect(page.dragAndDrop).toHaveBeenCalledWith(70, 80, 90, 100, {});
+  });
+
+  it("fails explicitly for V4 capabilities that are not exposed yet", async () => {
+    const manager = {} as Parameters<NonNullable<(typeof mouseHandlers)["mouse.click"]>>[0];
+
+    for (const [command, params] of [
+      ["mouse.click", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.hover", { returnXPath: true, x: 1, y: 2 }],
+      ["mouse.scroll", { deltaX: 0, deltaY: 1, returnXPath: true, x: 1, y: 2 }],
+      ["mouse.drag", { fromX: 1, fromY: 2, returnXPath: true, toX: 3, toY: 4 }],
+    ] as const) {
+      await expect(mouseHandlers[command]!(manager, params)).rejects.toThrow(
+        "Coordinate XPath lookup is not exposed by Stagehand V4",
+      );
+    }
+
+    await expect(networkHandlers["network.on"]!(manager, {})).rejects.toThrow(
+      "Network capture is not yet exposed by the Stagehand V4 client",
+    );
+    await expect(runtimeHandlers.cursor!(manager, {})).rejects.toThrow(
+      "visible cursor overlay is not yet exposed by the Stagehand V4 client",
+    );
   });
 
   it("selects a remaining tab after closing the active tab", async () => {
