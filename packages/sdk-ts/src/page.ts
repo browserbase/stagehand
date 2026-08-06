@@ -16,6 +16,7 @@ import type {
   PageWaitForTimeoutParams,
 } from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
 import {
   type InitScriptSource,
@@ -222,7 +223,7 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    const bytes = decodeBase64(result.data);
+    const bytes = decodeBase64(result.data, "page.screenshot");
     if (path) {
       const moduleName = "node:" + "fs/promises";
       const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
@@ -274,11 +275,4 @@ export class Page {
       selector,
     });
   }
-}
-
-function decodeBase64(value: string): Uint8Array {
-  const nodeBuffer = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
-  if (nodeBuffer) return nodeBuffer.from(value, "base64");
-  const decoded = atob(value);
-  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }

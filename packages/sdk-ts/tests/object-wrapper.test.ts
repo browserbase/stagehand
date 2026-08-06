@@ -728,8 +728,8 @@ describe("Stagehand TS object wrapper", () => {
         path: screenshotPath,
       });
 
-      expect(bytes).toStrictEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(await readFile(screenshotPath)).toStrictEqual(bytes);
+      expect(bytes).toStrictEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      expect(await readFile(screenshotPath)).toStrictEqual(Buffer.from(bytes));
       expect(client.calls).toStrictEqual([
         requestCall(StagehandMethods.pageScreenshot, {
           pageId: "page-1",
@@ -759,6 +759,28 @@ describe("Stagehand TS object wrapper", () => {
       expect(bytes).toBeInstanceOf(Uint8Array);
       expect(bytes).not.toBeInstanceOf(NodeBuffer);
       expect([...bytes]).toStrictEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rejects malformed screenshot base64 consistently across runtimes", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "Zh==",
+      type: "png",
+    });
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "Zh==",
+      type: "png",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.screenshot()).rejects.toThrow("page.screenshot returned invalid base64");
+
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      await expect(page.screenshot()).rejects.toThrow("page.screenshot returned invalid base64");
     } finally {
       vi.unstubAllGlobals();
     }

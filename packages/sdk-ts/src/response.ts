@@ -5,13 +5,12 @@ import type {
   NavigationServerAddr,
 } from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { decodeBase64 } from "./base64.js";
 import type { StagehandCommandClient } from "./commandClient.js";
 
 export type ResponseHeader = NavigationHeader;
 export type ResponseSecurityDetails = NavigationSecurityDetails;
 export type ResponseServerAddr = NavigationServerAddr;
-
-const BASE64_PATTERN = /^(?:[A-Za-z\d+/]{4})*(?:[A-Za-z\d+/]{2}==|[A-Za-z\d+/]{3}=)?$/;
 
 export class Response {
   readonly #rpcClient: StagehandCommandClient;
@@ -94,7 +93,7 @@ export class Response {
     const result = await this.#rpcClient.send(StagehandMethods.responseBody, {
       responseId: this.#descriptor.responseId,
     });
-    return decodeBase64(result.body);
+    return decodeBase64(result.body, "response.body");
   }
 
   async text(): Promise<string> {
@@ -111,26 +110,4 @@ export class Response {
     });
     return result.error === null ? null : new Error(result.error.message);
   }
-}
-
-function decodeBase64(value: string): Uint8Array {
-  if (value.length % 4 !== 0 || !BASE64_PATTERN.test(value)) {
-    throw new Error("response.body returned invalid base64");
-  }
-
-  let binary: string;
-  try {
-    binary = globalThis.atob(value);
-  } catch {
-    throw new Error("response.body returned invalid base64");
-  }
-  if (globalThis.btoa(binary) !== value) {
-    throw new Error("response.body returned invalid base64");
-  }
-
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
 }
