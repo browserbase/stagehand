@@ -1,0 +1,23 @@
+packages/evals/framework/harnesses/codexAdapter.ts
+  s_a619aee37aaacb::t_f4d8310514b711 89-105,107
+  s_a619aee37aaacb::t_96c66b31a0f33e 119-124
+  s_a619aee37aaacb::t_aefb1e60f93dab 46-50
+  s_a619aee37aaacb::t_4ec309ae32afc4 108-110
+packages/evals/framework/codexCodeBridge.ts
+  s_a619aee37aaacb::t_afa322ce0500c8 58-69,110-119
+  s_a619aee37aaacb::t_87541e58f08fa1 146,158
+packages/evals/tests/framework/harnessObservations.test.ts
+  s_a619aee37aaacb::t_ba489fdd45a533 188-196
+  s_a619aee37aaacb::t_e6fd573e6cafa1 102-141
+packages/evals/framework/verifierGate.ts
+  s_a619aee37aaacb::t_3d88a175d679e7 48-52,54-56
+packages/evals/tui/commands/run.ts
+  s_a619aee37aaacb::t_0db11d22959779 342-343
+  s_a619aee37aaacb::t_fb2abe7e2efdb1 312,321-322,325,332-341
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c922bf189a9187add5868379a422633ab46f0854",
+  "prompts": {}
+}
