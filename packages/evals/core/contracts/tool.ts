@@ -142,11 +142,12 @@ export interface ToolStartResult {
    */
   agentMount?: AgentMount;
   /**
-   * Best-effort terminal state captured before cleanup. Implementations must
-   * swallow per-field failures and must not throw.
+   * Best-effort evidence captured from the current surface state. Harnesses may
+   * call this after individual actions and once more at the end of a run.
+   * Implementations must swallow per-field failures and must not throw.
    */
-  captureFinalState?: () => Promise<TerminalArtifact>;
-  /** Releases the runtime; `captureFinalState` is invalid after this resolves. */
+  captureEvidence?: () => Promise<TerminalArtifact>;
+  /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
     environment: EnvironmentName;

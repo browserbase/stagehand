@@ -7,7 +7,7 @@ import type {
 } from "../../core/contracts/tool.js";
 
 describe("tool surface contract", () => {
-  it("keeps native surface and agent delivery independent", () => {
+  it("keeps native surface and agent delivery independent", async () => {
     const cliMount = {
       via: "cli",
       promptInstructions: "Use the wrapper command.",
@@ -17,6 +17,7 @@ describe("tool surface contract", () => {
     const runningCodeSurface: ToolStartResult = {
       session: {} as CoreSession,
       agentMount: cliMount,
+      captureEvidence: async () => ({ url: "https://example.com" }),
       cleanup: async () => {},
       metadata: {
         environment: "local",
@@ -37,6 +38,9 @@ describe("tool surface contract", () => {
 
     expect(codeSurface.surface).toBe("code");
     expect(runningCodeSurface.agentMount?.via).toBe("cli");
+    await expect(runningCodeSurface.captureEvidence?.()).resolves.toEqual({
+      url: "https://example.com",
+    });
   });
 
   it("describes injected handles without harness-owned task bindings", () => {
