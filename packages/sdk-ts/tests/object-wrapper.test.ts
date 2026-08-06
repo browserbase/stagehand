@@ -1500,6 +1500,27 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
+  it("encodes string file payloads only once", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const encode = vi.spyOn(TextEncoder.prototype, "encode");
+    try {
+      await locator.setInputFiles({ name: "message.txt", buffer: "hello" });
+
+      expect(encode).toHaveBeenCalledTimes(1);
+      expect(client.calls[0]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "message.txt", data: "aGVsbG8=" }],
+        }),
+      );
+    } finally {
+      encode.mockRestore();
+    }
+  });
+
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.locatorClick, { clicked: true });

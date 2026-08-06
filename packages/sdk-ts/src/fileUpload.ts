@@ -76,19 +76,15 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
   }
 
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
-  const byteLength =
+  const bytes =
     typeof file.buffer === "string"
-      ? new TextEncoder().encode(file.buffer).byteLength
-      : file.buffer.byteLength;
-  if (byteLength > MAX_INPUT_FILE_BYTES) {
+      ? new TextEncoder().encode(file.buffer)
+      : file.buffer instanceof ArrayBuffer
+        ? new Uint8Array(file.buffer)
+        : file.buffer;
+  if (bytes.byteLength > MAX_INPUT_FILE_BYTES) {
     throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
   }
-  const normalizedBuffer =
-    file.buffer instanceof ArrayBuffer ? new Uint8Array(file.buffer) : file.buffer;
-  const bytes =
-    typeof normalizedBuffer === "string"
-      ? new TextEncoder().encode(normalizedBuffer)
-      : new Uint8Array(normalizedBuffer);
   if (
     file.lastModified !== undefined &&
     (!Number.isInteger(file.lastModified) || file.lastModified < 0)
