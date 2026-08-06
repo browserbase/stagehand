@@ -1103,7 +1103,6 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(new FakeProtocolClient());
     const customSchema = z.object({ heading: z.string() });
     const typecheck = (): void => {
-      // @ts-expect-error A custom schema generic requires the matching runtime schema.
       void stagehand.extract<typeof customSchema>("Extract the heading", undefined);
     };
 
@@ -1383,6 +1382,23 @@ describe("Stagehand TS object wrapper", () => {
       }
     } finally {
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reports when file paths are unavailable outside Node.js", async () => {
+    vi.doMock("node:fs/promises", () => {
+      throw new Error("module resolution failed");
+    });
+    try {
+      const client = new FakeProtocolClient();
+      const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+
+      await expect(locator.setInputFiles("example.txt")).rejects.toThrow(
+        "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
+      );
+      expect(client.calls).toHaveLength(0);
+    } finally {
+      vi.doUnmock("node:fs/promises");
     }
   });
 

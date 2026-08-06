@@ -25,7 +25,11 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
     const [fs, path] = await Promise.all([
       import(/* @vite-ignore */ fsModuleName) as Promise<typeof import("node:fs/promises")>,
       import(/* @vite-ignore */ pathModuleName) as Promise<typeof import("node:path")>,
-    ]);
+    ]).catch(() => {
+      throw new TypeError(
+        "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
+      );
+    });
     const absolutePath = path.resolve(file);
     const handle = await fs.open(absolutePath, "r").catch(() => {
       throw new TypeError("setInputFiles(): could not read file");
