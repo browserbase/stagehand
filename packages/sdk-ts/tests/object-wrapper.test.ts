@@ -51,10 +51,6 @@ class FakeProtocolClient extends RPCClient {
         extensionId: "stagehand",
       },
       send: async () => {},
-      runCallbackBatch: async (input) => {
-        this.batchCalls.push(input);
-        return await this.batchHandler(input);
-      },
       close: () => {},
     });
   }
@@ -71,8 +67,28 @@ class FakeProtocolClient extends RPCClient {
   async send<Method extends RPCMethod>(
     method: Method,
     params: z.input<Method["params"]>,
+    options: { signal?: AbortSignal; callbackSource?: string } = {},
   ): Promise<z.output<Method["result"]>> {
     this.calls.push({ method: method.name, params });
+    if (method.name === StagehandMethods.stagehandCallbackBatch.name) {
+      const batchParams = params as {
+        callbackSource: string;
+        input?: unknown;
+        options: { pageId?: string; timeout: number };
+      };
+      const call: CallbackBatchCall = {
+        callbackSource: options.callbackSource ?? batchParams.callbackSource,
+        input: batchParams.input,
+        ...(batchParams.options.pageId ? { pageId: batchParams.options.pageId } : {}),
+        timeout: batchParams.options.timeout,
+        ...(options.signal ? { signal: options.signal } : {}),
+      };
+      this.batchCalls.push(call);
+      const value = await this.batchHandler(call);
+      return method.result.parse(value === undefined ? {} : { value }) as z.output<
+        Method["result"]
+      >;
+    }
     const responses = this.responses.get(method.name);
     if (!responses?.length) {
       throw new Error(`No fake response queued for ${method.name}`);
@@ -147,8 +163,11 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-2" });
+    client.batchHandler = async () => undefined;
 
-    await stagehand._experimental_batch(async () => undefined, undefined, { page });
+    await expect(
+      stagehand._experimental_batch(async () => undefined, undefined, { page }),
+    ).resolves.toBeUndefined();
 
     expect(client.batchCalls).toHaveLength(1);
     expect(client.batchCalls[0]?.pageId).toBe("page-2");

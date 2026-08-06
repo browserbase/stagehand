@@ -107,6 +107,11 @@ class Caching1(TypedDict):
 Caching: TypeAlias = bool | Caching1
 
 
+class CallbackBatchOptions(TypedDict):
+    page_id: NotRequired[str]
+    timeout: NotRequired[int]
+
+
 CerebrasModelName: TypeAlias = str
 
 
@@ -243,10 +248,26 @@ FieldSchema10: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema10"
 FieldSchema11: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema11"], dict[str, "FieldSchema11"]]]
 
 
+FieldSchema12: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema12"], dict[str, "FieldSchema12"]]]
+
+
+FieldSchema13: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema13"], dict[str, "FieldSchema13"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
+class CallbackBatchParams(TypedDict):
+    callback_source: str
+    input: NotRequired[FieldSchema2]
+    options: CallbackBatchOptions
+
+
 FieldSchema3: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema3"], dict[str, "FieldSchema3"]]]
+
+
+class CallbackBatchResult(TypedDict):
+    value: NotRequired[FieldSchema3]
 
 
 FieldSchema4: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema4"], dict[str, "FieldSchema4"]]]
@@ -288,7 +309,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema11]
+    data: NotRequired[FieldSchema13]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -301,7 +322,7 @@ class LLMJsonSchemaResponseFormat(TypedDict):
     type: Literal["json_schema"]
     name: str
     description: NotRequired[str]
-    schema: FieldSchema4
+    schema: FieldSchema6
 
 
 LLMRole: TypeAlias = Literal["user", "assistant"]
@@ -358,7 +379,7 @@ LLMToolJson = TypedDict(
     {
         "$schema": NotRequired[str],
         "type": Literal["object"],
-        "properties": NotRequired[dict[str, dict[str, FieldSchema5]]],
+        "properties": NotRequired[dict[str, dict[str, FieldSchema7]]],
         "required": NotRequired[list[str]],
     },
 )
@@ -382,7 +403,7 @@ class LLMToolResultContent(TypedDict):
     type: Literal["tool_result"]
     tool_use_id: str
     content: list[LLMToolResultContentBlock]
-    structured_content: NotRequired[dict[str, FieldSchema3]]
+    structured_content: NotRequired[dict[str, FieldSchema5]]
     is_error: NotRequired[bool]
 
 
@@ -390,7 +411,7 @@ class LLMToolUseContent(TypedDict):
     type: Literal["tool_use"]
     id: str
     name: str
-    input: dict[str, FieldSchema2]
+    input: dict[str, FieldSchema4]
 
 
 LLMMessageContentBlock: TypeAlias = LLMTextContent | LLMImageContent | LLMToolUseContent | LLMToolResultContent
@@ -444,7 +465,7 @@ class LLMStructuredGenerateResult(TypedDict):
     stop_reason: NotRequired[str]
     usage: NotRequired[LLMUsage]
     output_format: Literal["json_schema"]
-    structured_content: FieldSchema6
+    structured_content: FieldSchema8
 
 
 LLMGenerateResult: TypeAlias = LLMMessageGenerateResult | LLMStructuredGenerateResult
@@ -689,7 +710,7 @@ class PageEvaluateParams(TypedDict):
 
 
 class PageEvaluateResult(TypedDict):
-    value: FieldSchema7
+    value: FieldSchema9
 
 
 class PageHoverParams(TypedDict):
@@ -963,7 +984,7 @@ class StagehandInitResult(TypedDict):
     pages: list[PageRef]
 
 
-StagehandLogData: TypeAlias = dict[str, FieldSchema9]
+StagehandLogData: TypeAlias = dict[str, FieldSchema11]
 
 
 StagehandLogLevel: TypeAlias = Literal["debug", "info", "warn", "error"]
@@ -1104,7 +1125,7 @@ class WebMCPAnnotation(TypedDict):
 WebMCPInvocationStatus: TypeAlias = Literal["Completed", "Canceled", "Error"]
 
 
-WebMCPJsonValue: TypeAlias = FieldSchema8
+WebMCPJsonValue: TypeAlias = FieldSchema10
 
 
 class PageWebMCPInvokeToolParams(TypedDict):

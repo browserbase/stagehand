@@ -1,9 +1,41 @@
 import { describe, expect, it, vi } from "vitest";
-import type { StagehandRpcRequest } from "../../protocol/types.js";
-import { installCallbackBatchRunner } from "../callbackBatch.js";
-import type { RPCRouter } from "../rpcRouter.js";
+import type { CallbackBatchOptions, StagehandRpcRequest } from "../../protocol/types.js";
+import { createCallbackBatchController, type CallbackBatchFunction } from "../callbackBatch.js";
+import type { HandlerContext, RPCRouter } from "../rpcRouter.js";
+
+async function runCallbackBatch(
+  router: RPCRouter,
+  callback: CallbackBatchFunction,
+  input: unknown,
+  options: CallbackBatchOptions,
+) {
+  return await createCallbackBatchController(router).run(
+    {
+      callbackSource: Function.prototype.toString.call(callback),
+      input: input as never,
+      options,
+    },
+    {
+      requestId: 1,
+      runtimeAttachments: { callback },
+    } as HandlerContext,
+  );
+}
 
 describe("callback batch runner", () => {
+  it("rejects a registered request without its runtime callback attachment", async () => {
+    const router = {} as RPCRouter;
+    await expect(
+      createCallbackBatchController(router).run(
+        {
+          callbackSource: "async () => undefined",
+          options: { timeout: 1_000 },
+        },
+        { requestId: 8 } as HandlerContext,
+      ),
+    ).rejects.toThrow("runtime callback attachment");
+  });
+
   it("runs the shared Page and Locator wrappers through the in-process router", async () => {
     const requests: StagehandRpcRequest[] = [];
     const router = {
@@ -20,10 +52,8 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
-    const result = await scope.__stagehandRunCallbackBatch?.(
+    const result = await runCallbackBatch(
+      router,
       async ({ page }) => {
         await page.locator("button").click();
         return { title: await page.title() };
@@ -32,7 +62,7 @@ describe("callback batch runner", () => {
       { timeout: 1_000 },
     );
 
-    expect(result).toEqual({ ok: true, value: { title: "Example" } });
+    expect(result).toEqual({ value: { title: "Example" } });
     expect(requests.map((request) => request.method)).toEqual([
       "context.active_page",
       "locator.click",
@@ -53,23 +83,20 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
-    const result = await scope.__stagehandRunCallbackBatch?.(
+    const result = await runCallbackBatch(
+      router,
       async ({ page }) => ({ pageId: page.pageId, title: await page.title() }),
       null,
       { pageId: "page-2", timeout: 1_000 },
     );
 
     expect(result).toEqual({
-      ok: true,
       value: { pageId: "page-2", title: "Selected" },
     });
     expect(requests.map((request) => request.method)).toEqual(["context.pages", "page.title"]);
   });
 
-  it("returns a distinct envelope for undefined", async () => {
+  it("represents undefined by omitting the value", async () => {
     const router = {
       handle: vi.fn(async (request: StagehandRpcRequest) => {
         if (request.method === "context.pages") return [{ pageId: "page-1" }];
@@ -77,12 +104,9 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
     await expect(
-      scope.__stagehandRunCallbackBatch?.(async () => undefined, null, { timeout: 1_000 }),
-    ).resolves.toEqual({ ok: true, valueIsUndefined: true });
+      runCallbackBatch(router, async () => undefined, null, { timeout: 1_000 }),
+    ).resolves.toEqual({});
   });
 
   it("does not expose context lifecycle or internals to callbacks", async () => {
@@ -93,10 +117,8 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
-    const result = await scope.__stagehandRunCallbackBatch?.(
+    const result = await runCallbackBatch(
+      router,
       async ({ context }) => {
         const pages = await context.pages();
         return {
@@ -114,7 +136,6 @@ describe("callback batch runner", () => {
     );
 
     expect(result).toEqual({
-      ok: true,
       value: { hasClose: false, prototype: null, pageCount: 1 },
     });
   });
@@ -144,10 +165,8 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
-    const result = await scope.__stagehandRunCallbackBatch?.(
+    const result = await runCallbackBatch(
+      router,
       async (stagehand) => {
         await stagehand.extract("options only", { timeout: 1_000 });
         await stagehand.extract("schema only", { type: "object" });
@@ -159,7 +178,7 @@ describe("callback batch runner", () => {
       { timeout: 10_000 },
     );
 
-    expect(result).toEqual({ ok: true, value: true });
+    expect(result).toEqual({ value: true });
     const extractParams = requests
       .filter((request) => request.method === "stagehand.extract")
       .map((request) => request.params as Record<string, unknown>);
@@ -215,10 +234,8 @@ describe("callback batch runner", () => {
         throw new Error(`Unexpected method: ${request.method}`);
       }),
     } as unknown as RPCRouter;
-    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
-    installCallbackBatchRunner(scope, router);
-
-    const result = await scope.__stagehandRunCallbackBatch?.(
+    const result = await runCallbackBatch(
+      router,
       async (stagehand) => {
         const pages = await stagehand.context.pages();
         const operationPage = pages[1];
@@ -232,7 +249,7 @@ describe("callback batch runner", () => {
       { timeout: 10_000 },
     );
 
-    expect(result).toEqual({ ok: true, value: true });
+    expect(result).toEqual({ value: true });
     const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
     expect(operationRequests.map((request) => request.params)).toEqual([
       { pageId: "page-2", instruction: "act", options: { timeout: 1_000 } },

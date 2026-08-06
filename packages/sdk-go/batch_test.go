@@ -3,7 +3,6 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"testing"
 	"time"
 )
@@ -17,28 +16,32 @@ type recordingBatchProtocolClient struct {
 	calls   int
 }
 
-func (client *recordingBatchProtocolClient) experimentalBatch(
-	_ context.Context,
-	source string,
-	input any,
-	pageID string,
-	timeout time.Duration,
+func (client *recordingBatchProtocolClient) call(
+	ctx context.Context,
+	method string,
+	params any,
 	result any,
 ) error {
 	client.calls++
-	client.source = source
-	client.input = input
-	client.pageID = pageID
-	client.timeout = timeout
-	encoded, err := json.Marshal(map[string]any{"title": "Example"})
-	if err != nil {
-		return err
+	client.source, _ = callbackSourceFromContext(ctx)
+	if batchParams, ok := params.(CallbackBatchParams); ok {
+		_ = json.Unmarshal(batchParams.Input, &client.input)
+		if batchParams.Options.PageID != nil {
+			client.pageID = *batchParams.Options.PageID
+		}
+		client.timeout = time.Duration(batchParams.Options.Timeout) * time.Millisecond
 	}
-	return json.Unmarshal(encoded, result)
+	return client.recordingProtocolClient.call(ctx, method, params, result)
 }
 
-func TestExperimentalBatchDelegatesToCallbackTransport(t *testing.T) {
-	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{}}
+func TestExperimentalBatchUsesRegisteredRPCMethod(t *testing.T) {
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{
+		responses: map[string]any{
+			"stagehand.callback_batch": map[string]any{
+				"value": map[string]any{"title": "Example"},
+			},
+		},
+	}}
 	client := &Stagehand{rpc: rpc, initialized: true}
 	page := &Page{ref: PageRef{PageID: "page-1"}}
 	var result struct {
@@ -63,13 +66,42 @@ func TestExperimentalBatchDelegatesToCallbackTransport(t *testing.T) {
 	if rpc.source != source {
 		t.Fatalf("callback source = %q, want %q", rpc.source, source)
 	}
-	if !reflect.DeepEqual(rpc.input, input) {
-		t.Fatalf("callback input = %#v, want %#v", rpc.input, input)
+	encodedInput, err := json.Marshal(rpc.input)
+	if err != nil {
+		t.Fatalf("encode callback input: %v", err)
+	}
+	assertJSONEqual(t, encodedInput, `{"value":1}`)
+}
+
+func TestExperimentalBatchMapsAnOmittedValueToNil(t *testing.T) {
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{
+		responses: map[string]any{
+			"stagehand.callback_batch": map[string]any{},
+		},
+	}}
+	client := &Stagehand{rpc: rpc, initialized: true}
+	var result any
+
+	if err := client.ExperimentalBatch(
+		context.Background(),
+		`async () => undefined`,
+		nil,
+		&result,
+		ExperimentalBatchOptions{},
+	); err != nil {
+		t.Fatalf("ExperimentalBatch() error = %v", err)
+	}
+	if result != nil {
+		t.Fatalf("ExperimentalBatch() result = %#v, want nil", result)
 	}
 }
 
 func TestExperimentalBatchAllowsNativeCodeTextInSource(t *testing.T) {
-	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{}}
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{
+		responses: map[string]any{
+			"stagehand.callback_batch": map[string]any{"value": nil},
+		},
+	}}
 	client := &Stagehand{rpc: rpc, initialized: true}
 	const source = `async () => "[native code]"`
 	var result struct {

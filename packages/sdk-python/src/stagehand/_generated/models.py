@@ -306,6 +306,33 @@ class Caching(RootModel[Union[StrictBool, Caching1]]):
     root: Union[StrictBool, Caching1]
 
 
+class CallbackBatchOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    timeout: Annotated[StrictInt, Field(gt=0, le=9007199254740991)] = 30000
+
+
+class CallbackBatchParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    callback_source: Annotated[StrictStr, Field(min_length=1)]
+    input: Optional[FieldSchema2] = None
+    options: CallbackBatchOptions
+
+
+class CallbackBatchResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[FieldSchema3] = None
+
+
 class Caret(StrEnum):
     hide = "hide"
     initial = "initial"
@@ -616,6 +643,18 @@ class FieldSchema11(
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
+class FieldSchema12(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
+
+
+class FieldSchema13(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -727,7 +766,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema11] = None
+    data: Optional[FieldSchema13] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -788,7 +827,7 @@ class LLMJsonSchemaResponseFormat(WireModel):
     type: Literal["json_schema"]
     name: StrictStr
     description: Optional[StrictStr] = None
-    schema_: Annotated[Optional[FieldSchema4], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema6], Field(alias="schema")]
 
 
 class LLMMessage(WireModel):
@@ -859,7 +898,7 @@ class LLMStructuredGenerateResult(WireModel):
     stop_reason: Optional[StrictStr] = None
     usage: Optional[LLMUsage] = None
     output_format: Literal["json_schema"]
-    structured_content: Optional[FieldSchema6]
+    structured_content: Optional[FieldSchema8]
 
 
 class LLMGenerateResult(
@@ -933,7 +972,7 @@ class LLMToolJson(WireModel):
     )
     field_schema: Annotated[Optional[StrictStr], Field(alias="$schema")] = None
     type: Literal["object"]
-    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema5]]]] = (
+    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema7]]]] = (
         None
     )
     required: Optional[list[StrictStr]] = None
@@ -947,7 +986,7 @@ class LLMToolResultContent(WireModel):
     type: Literal["tool_result"]
     tool_use_id: StrictStr
     content: list[LLMToolResultContentBlock]
-    structured_content: Optional[dict[StrictStr, Optional[FieldSchema3]]] = None
+    structured_content: Optional[dict[StrictStr, Optional[FieldSchema5]]] = None
     is_error: Optional[StrictBool] = None
 
 
@@ -963,7 +1002,7 @@ class LLMToolUseContent(WireModel):
     type: Literal["tool_use"]
     id: StrictStr
     name: StrictStr
-    input: dict[StrictStr, Optional[FieldSchema2]]
+    input: dict[StrictStr, Optional[FieldSchema4]]
 
 
 class LLMMessageContentBlock(
@@ -1495,7 +1534,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema7]
+    value: Optional[FieldSchema9]
 
 
 class PageGoBackParams(WireModel):
@@ -2037,8 +2076,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
-    root: dict[StrictStr, Optional[FieldSchema9]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema11]]]):
+    root: dict[StrictStr, Optional[FieldSchema11]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2197,8 +2236,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
-    root: Optional[FieldSchema8]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema10]]):
+    root: Optional[FieldSchema10]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2252,6 +2291,8 @@ FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
 FieldSchema11.model_rebuild()
+FieldSchema12.model_rebuild()
+FieldSchema13.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

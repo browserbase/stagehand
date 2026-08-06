@@ -31,6 +31,7 @@ from stagehand._generated.models import (
     BrowserSessionMetadata,
     CacheMetadata,
     CacheStatus,
+    CallbackBatchParams,
     ClientModelReference,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -170,6 +171,46 @@ async def test_experimental_batch_validates_arguments_before_transport(
                 input_value,
                 timeout=cast(int, timeout),
             )
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_uses_registered_rpc_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "async ({ page }, input) => ({ title: await page.title(), input })"
+    recording = _recording({
+        "stagehand.callback_batch": {
+            "value": {"title": "Example", "input": {"id": 7}},
+        }
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        result = await stagehand._experimental_batch(source, {"id": 7}, timeout=2_000)
+        assert result == {"title": "Example", "input": {"id": 7}}
+        method, params, _ = recording.calls[-1]
+        assert method == "stagehand.callback_batch"
+        assert isinstance(params, CallbackBatchParams)
+        assert params.callback_source == source
+        assert params.options.timeout == 2_000
+        assert recording.callback_sources[-1] == source
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_maps_an_omitted_value_to_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        assert await stagehand._experimental_batch("async () => undefined") is None
     finally:
         await stagehand.close()
 
@@ -373,6 +414,8 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[RootModel[RootResultT]],
+            *,
+            callback_source: str | None = None,
         ) -> RootResultT: ...
 
         @overload
@@ -381,6 +424,8 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[ResultT],
+            *,
+            callback_source: str | None = None,
         ) -> ResultT: ...
 
         async def send(
@@ -388,11 +433,13 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[BaseModel],
+            *,
+            callback_source: str | None = None,
         ) -> object:
             if method == "stagehand.init":
                 started.set()
                 await blocker.wait()
-            return await super().send(method, params, result_model)
+            return await super().send(method, params, result_model, callback_source=callback_source)
 
     blocking = BlockingInitRPCClient()
     _install_rpc_client(monkeypatch, blocking)
@@ -428,6 +475,8 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[RootModel[RootResultT]],
+            *,
+            callback_source: str | None = None,
         ) -> RootResultT: ...
 
         @overload
@@ -436,6 +485,8 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[ResultT],
+            *,
+            callback_source: str | None = None,
         ) -> ResultT: ...
 
         async def send(
@@ -443,11 +494,13 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[BaseModel],
+            *,
+            callback_source: str | None = None,
         ) -> object:
             if method == "stagehand.init":
                 started.set()
                 await asyncio.Event().wait()
-            return await super().send(method, params, result_model)
+            return await super().send(method, params, result_model, callback_source=callback_source)
 
     blocking = BlockingInitRPCClient()
     _install_rpc_client(monkeypatch, blocking)

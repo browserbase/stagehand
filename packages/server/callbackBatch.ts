@@ -1,7 +1,12 @@
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
-import type { Action, StagehandMetrics } from "../protocol/types.js";
+import type {
+  Action,
+  CallbackBatchParams,
+  CallbackBatchResult,
+  StagehandMetrics,
+} from "../protocol/types.js";
 import { z } from "zod/v4";
 import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";
@@ -15,19 +20,13 @@ import {
 } from "../sdk-ts/src/clientSchemas.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
 import { Page } from "../sdk-ts/src/page.js";
-import type { RPCRouter } from "./rpcRouter.js";
-
-export type CallbackBatchOptions = {
-  pageId?: string;
-  timeout: number;
-};
-
-export type CallbackBatchEnvelope =
-  | { ok: true; value: unknown; valueIsUndefined?: false }
-  | { ok: true; valueIsUndefined: true }
-  | { ok: false; error: { name: string; message: string; stack?: string } };
+import type { HandlerContext, RPCRouter } from "./rpcRouter.js";
 
 export type CallbackBatchFunction = (stagehand: CallbackStagehand, input: unknown) => unknown;
+
+export type CallbackBatchRuntimeAttachments = {
+  callback?: unknown;
+};
 
 class InProcessCommandClient implements StagehandCommandClient {
   #nextRequestId = 1;
@@ -75,25 +74,20 @@ export type CallbackStagehand = {
   metrics(): Promise<StagehandMetrics>;
 };
 
-export function installCallbackBatchRunner(
-  scope: {
-    __stagehandRunCallbackBatch?: (
-      callback: CallbackBatchFunction,
-      input: unknown,
-      options: CallbackBatchOptions,
-    ) => Promise<CallbackBatchEnvelope>;
-  },
-  router: RPCRouter,
-): void {
+export function createCallbackBatchController(router: RPCRouter) {
   let active = false;
 
-  scope.__stagehandRunCallbackBatch = async (callback, input, options) => {
-    if (active) return failure(new Error("Another Stagehand callback batch is already running"));
+  async function run(
+    params: CallbackBatchParams,
+    { runtimeAttachments }: HandlerContext,
+  ): Promise<CallbackBatchResult> {
+    const callback = runtimeAttachments?.callback;
+    const { input, options } = params;
+    if (active) throw new Error("Another Stagehand callback batch is already running");
     if (typeof callback !== "function") {
-      return failure(new TypeError("Stagehand callback batch requires a function"));
-    }
-    if (!Number.isFinite(options.timeout) || options.timeout <= 0) {
-      return failure(new RangeError("Stagehand callback batch timeout must be greater than zero"));
+      throw new TypeError(
+        "Stagehand callback batch request is missing its runtime callback attachment",
+      );
     }
 
     active = true;
@@ -162,7 +156,9 @@ export function installCallbackBatchRunner(
         metrics: async () => await client.send(StagehandMethods.stagehandMetrics, {}),
       };
 
-      callbackPromise = Promise.resolve().then(() => callback(stagehand, input));
+      callbackPromise = Promise.resolve().then(() =>
+        (callback as CallbackBatchFunction)(stagehand, input),
+      );
       void callbackPromise
         .finally(() => {
           active = false;
@@ -176,15 +172,15 @@ export function installCallbackBatchRunner(
           });
         }),
       ]);
-      if (result === undefined) return { ok: true, valueIsUndefined: true };
-      return { ok: true, value: jsonRoundTrip(result) };
-    } catch (error) {
-      return failure(error);
+      if (result === undefined) return {};
+      return { value: jsonRoundTrip(result) };
     } finally {
       clearTimeout(timeoutId);
       if (!callbackPromise) active = false;
     }
-  };
+  }
+
+  return { run };
 }
 
 function createCallbackContextFacade(context: BrowserContext): ExperimentalBatchBrowserContext {
@@ -220,7 +216,7 @@ function createCallbackContextFacade(context: BrowserContext): ExperimentalBatch
   return Object.freeze(facade) as ExperimentalBatchBrowserContext;
 }
 
-function jsonRoundTrip(value: unknown): unknown {
+function jsonRoundTrip(value: unknown): z.output<ReturnType<typeof z.json>> {
   let serialized: string | undefined;
   try {
     serialized = JSON.stringify(value);
@@ -232,17 +228,5 @@ function jsonRoundTrip(value: unknown): unknown {
   if (serialized === undefined) {
     throw new TypeError("Stagehand callback batch result must be JSON-serializable");
   }
-  return JSON.parse(serialized) as unknown;
-}
-
-function failure(error: unknown): CallbackBatchEnvelope {
-  const normalized = error instanceof Error ? error : new Error(String(error));
-  return {
-    ok: false,
-    error: {
-      name: normalized.name,
-      message: normalized.message,
-      ...(normalized.stack ? { stack: normalized.stack } : {}),
-    },
-  };
+  return z.json().parse(JSON.parse(serialized));
 }

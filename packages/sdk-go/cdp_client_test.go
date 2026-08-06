@@ -524,7 +524,7 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	assertJSONEqual(t, received, incoming)
 }
 
-func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
+func TestCDPClientDeliversCallbackBatchWithRuntimeAttachment(t *testing.T) {
 	t.Parallel()
 
 	socket := newFakeCDPWebSocket()
@@ -536,9 +536,7 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 			t.Errorf("CDP method = %q, want Runtime.evaluate", method)
 		}
 		return map[string]any{"result": map[string]any{
-			"result": map[string]any{"value": map[string]any{
-				"ok": true, "value": map[string]any{"title": "Example"},
-			}},
+			"result": map[string]any{"value": true},
 		}}
 	})
 	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
@@ -546,22 +544,11 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 	client.sessionID = "worker-session"
 	client.mu.Unlock()
 
-	var result struct {
-		Title string `json:"title"`
-	}
-	err := client.runCallbackBatch(
-		context.Background(),
-		`async ({ page }) => ({ title: await page.title() })`,
-		map[string]any{"value": 1},
-		"page-1",
-		2*time.Second,
-		&result,
-	)
+	const source = `async ({ page }) => ({ title: await page.title() })`
+	message := json.RawMessage(`{"jsonrpc":"2.0","id":8,"method":"stagehand.callback_batch","params":{"callback_source":"callback source is data too","input":{"value":1},"options":{"page_id":"page-1","timeout":2000}}}`)
+	err := client.Send(withCallbackDelivery(context.Background(), source), message)
 	if err != nil {
-		t.Fatalf("runCallbackBatch() error = %v", err)
-	}
-	if result.Title != "Example" {
-		t.Fatalf("runCallbackBatch() result = %+v", result)
+		t.Fatalf("Send() error = %v", err)
 	}
 	written := receiveCDPWrite(t, socket)
 	var command struct {
@@ -574,99 +561,13 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 	if err := json.Unmarshal(written, &command); err != nil {
 		t.Fatalf("decode Runtime.evaluate command: %v", err)
 	}
-	if !command.Params.AwaitPromise || !command.Params.ReturnByValue ||
-		!strings.Contains(command.Params.Expression, "__stagehandRunCallbackBatch") ||
+	if command.Params.AwaitPromise || !command.Params.ReturnByValue ||
+		!strings.Contains(command.Params.Expression, stagehandReceiveFromHostFunction) ||
+		!strings.Contains(command.Params.Expression, `\"method\":\"stagehand.callback_batch\"`) ||
+		!strings.Contains(command.Params.Expression, "callback: (async") ||
 		!strings.Contains(command.Params.Expression, "const __name = (fn, name)") ||
-		!strings.Contains(command.Params.Expression, `"pageId":"page-1"`) {
+		!strings.Contains(command.Params.Expression, `\"page_id\":\"page-1\"`) {
 		t.Fatalf("Runtime.evaluate callback params = %#v", command.Params)
-	}
-}
-
-func TestCDPClientValidatesCallbackBatchSuccessEnvelope(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		envelope map[string]any
-		wantErr  bool
-	}{
-		{name: "missing result", envelope: map[string]any{"ok": true}, wantErr: true},
-		{
-			name: "contradictory result",
-			envelope: map[string]any{
-				"ok": true, "value": nil, "valueIsUndefined": true,
-			},
-			wantErr: true,
-		},
-		{name: "explicit null", envelope: map[string]any{"ok": true, "value": nil}},
-		{
-			name:     "explicit undefined",
-			envelope: map[string]any{"ok": true, "valueIsUndefined": true},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			socket := newFakeCDPWebSocket()
-			socket.writeHook = responseHook(t, socket, nil, func(
-				string,
-				map[string]json.RawMessage,
-			) map[string]any {
-				return map[string]any{"result": map[string]any{
-					"result": map[string]any{"value": test.envelope},
-				}}
-			})
-			client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
-			client.mu.Lock()
-			client.sessionID = "worker-session"
-			client.mu.Unlock()
-
-			var result any = "unchanged"
-			err := client.runCallbackBatch(
-				context.Background(),
-				`async () => undefined`,
-				nil,
-				"",
-				2*time.Second,
-				&result,
-			)
-			if test.wantErr {
-				if err == nil || !strings.Contains(err.Error(), "returned an invalid result") {
-					t.Fatalf("runCallbackBatch() error = %v, want invalid result", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("runCallbackBatch() error = %v", err)
-			}
-			if result != nil {
-				t.Fatalf("runCallbackBatch() result = %#v, want nil", result)
-			}
-		})
-	}
-}
-
-func TestCallbackBatchEvaluationTimeoutSaturates(t *testing.T) {
-	t.Parallel()
-
-	if got := callbackBatchEvaluationTimeout(2 * time.Second); got != 3*time.Second {
-		t.Fatalf("callbackBatchEvaluationTimeout(2s) = %s, want 3s", got)
-	}
-	if got := callbackBatchEvaluationTimeout(maxRPCResponseTimeout); got != maxRPCResponseTimeout {
-		t.Fatalf(
-			"callbackBatchEvaluationTimeout(max) = %s, want %s",
-			got,
-			maxRPCResponseTimeout,
-		)
-	}
-
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		callbackBatchEvaluationTimeout(maxRPCResponseTimeout),
-	)
-	defer cancel()
-	if err := ctx.Err(); err != nil {
-		t.Fatalf("maximum callback batch timeout expired immediately: %v", err)
 	}
 }
 

@@ -74,17 +74,11 @@ type ResolveBrowserWebSocketUrlOptions = {
 };
 
 export function callbackBatchExpression(input: {
+  message: JSONRPCMessage;
   callbackSource: string;
-  input: unknown;
-  pageId?: string;
-  timeout: number;
 }): string {
-  const serializedInput = input.input === undefined ? "undefined" : JSON.stringify(input.input);
-  const serializedOptions = JSON.stringify({
-    ...(input.pageId === undefined ? {} : { pageId: input.pageId }),
-    timeout: input.timeout,
-  });
-  return `(async () => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((${input.callbackSource}), ${serializedInput}, ${serializedOptions}); })()`;
+  const serializedMessage = JSON.stringify(JSON.stringify(input.message));
+  return `(() => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; void globalThis.__stagehandReceiveFromHost(${serializedMessage}, { callback: (${input.callbackSource}) }); return true; })()`;
 }
 
 export class StagehandRuntimeIncompatibleError extends Error {
@@ -142,26 +136,6 @@ const RuntimeReadinessEnvelopeSchema = z.looseObject({
   marker: z.unknown(),
   hasReceiver: z.boolean(),
 });
-
-const CallbackBatchEnvelopeSchema = z.union([
-  z.strictObject({
-    ok: z.literal(true),
-    value: z.unknown(),
-    valueIsUndefined: z.literal(false).optional(),
-  }),
-  z.strictObject({
-    ok: z.literal(true),
-    valueIsUndefined: z.literal(true),
-  }),
-  z.strictObject({
-    ok: z.literal(false),
-    error: z.strictObject({
-      name: z.string(),
-      message: z.string(),
-      stack: z.string().optional(),
-    }),
-  }),
-]);
 
 export class CDPConnectionClosedError extends Error {
   constructor() {
@@ -289,15 +263,21 @@ export class CDPClient {
     return this.attachedServiceWorker;
   }
 
-  async send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void> {
+  async send(
+    message: JSONRPCMessage,
+    signal?: AbortSignal,
+    delivery?: { callbackSource?: string },
+  ): Promise<void> {
     if (this.closed) throw new Error("CDP client is closed");
     if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
 
-    const serializedMessage = JSON.stringify(message);
+    const expression = delivery?.callbackSource
+      ? callbackBatchExpression({ message, callbackSource: delivery.callbackSource })
+      : `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(JSON.stringify(message))}); true`;
     const evaluated = await this.sendCommand<RuntimeEvaluateResult>(
       "Runtime.evaluate",
       {
-        expression: `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(serializedMessage)}); true`,
+        expression,
         awaitPromise: false,
         returnByValue: true,
       },
@@ -312,42 +292,6 @@ export class CDPClient {
           "Stagehand service worker rejected an RPC message",
       );
     }
-  }
-
-  async runCallbackBatch(input: {
-    callbackSource: string;
-    input: unknown;
-    pageId?: string;
-    timeout: number;
-    signal?: AbortSignal;
-  }): Promise<unknown> {
-    if (this.closed) throw new Error("CDP client is closed");
-    if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
-    const evaluated = await this.sendCommand<RuntimeEvaluateResult>(
-      "Runtime.evaluate",
-      {
-        expression: callbackBatchExpression(input),
-        awaitPromise: true,
-        returnByValue: true,
-      },
-      this.sessionId,
-      input.signal,
-    );
-    if (evaluated.exceptionDetails) {
-      throw new Error(
-        evaluated.exceptionDetails.exception?.description ??
-          evaluated.exceptionDetails.text ??
-          "Stagehand callback batch evaluation failed",
-      );
-    }
-    const envelope = CallbackBatchEnvelopeSchema.parse(evaluated.result?.value);
-    if (envelope.ok === false) {
-      const error = new Error(envelope.error.message);
-      error.name = envelope.error.name;
-      if (envelope.error.stack) error.stack = envelope.error.stack;
-      throw error;
-    }
-    return envelope.valueIsUndefined ? undefined : envelope.value;
   }
 
   async sendCommand<Result = JsonObject>(

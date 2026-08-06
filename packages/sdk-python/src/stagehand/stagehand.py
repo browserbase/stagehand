@@ -20,6 +20,9 @@ from ._generated.models import (
     Action,
     ActOptions,
     ActResult,
+    CallbackBatchOptions,
+    CallbackBatchParams,
+    CallbackBatchResult,
     ClientModelReference,
     EmptyParams,
     ExtractOptions,
@@ -188,11 +191,23 @@ class Stagehand:
             json.dumps(input, allow_nan=False)
         except (TypeError, ValueError) as error:
             raise TypeError("input must be JSON-serializable") from error
-        return await self._connected_rpc_client.run_callback_batch(
-            source=source,
-            input=input,
-            page_id=page.page_id if page is not None else None,
-            timeout=timeout,
+        result = await self._connected_rpc_client.send(
+            "stagehand.callback_batch",
+            CallbackBatchParams(
+                callback_source=source,
+                input=_models.FieldSchema2.model_validate(input),
+                options=CallbackBatchOptions(
+                    page_id=page.page_id if page is not None else None,
+                    timeout=timeout,
+                ),
+            ),
+            CallbackBatchResult,
+            callback_source=source,
+        )
+        return (
+            result.value.model_dump(mode="json")
+            if isinstance(result.value, BaseModel)
+            else result.value
         )
 
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:

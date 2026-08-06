@@ -52,6 +52,7 @@ type RegisteredRequestHandler = {
 
 type RPCSendOptions = {
   signal?: AbortSignal;
+  callbackSource?: string;
 };
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
@@ -93,14 +94,11 @@ export type CDPTransport = {
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
-  send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void>;
-  runCallbackBatch?(input: {
-    callbackSource: string;
-    input: unknown;
-    pageId?: string;
-    timeout: number;
-    signal?: AbortSignal;
-  }): Promise<unknown>;
+  send(
+    message: JSONRPCMessage,
+    signal?: AbortSignal,
+    delivery?: { callbackSource?: string },
+  ): Promise<void>;
   close(): void;
 };
 
@@ -122,20 +120,6 @@ export class RPCClient {
     this.cdp.onmessage = (message) => this.receive(message);
     this.cdp.onclose = (reason) => this.close(reason);
     this.cdp.onerror = (error) => this.close(error);
-  }
-
-  async runCallbackBatch(input: {
-    callbackSource: string;
-    input: unknown;
-    pageId?: string;
-    timeout: number;
-    signal?: AbortSignal;
-  }): Promise<unknown> {
-    if (this.closed) throw new Error("RPC client is closed");
-    if (!this.cdp.runCallbackBatch) {
-      throw new Error("The connected Stagehand runtime does not support callback batches");
-    }
-    return await this.cdp.runCallbackBatch(input);
   }
 
   async send<Method extends RPCMethod>(
@@ -195,9 +179,15 @@ export class RPCClient {
         try {
           const response = this.waitForResponse(request.id, method, signal);
           const [, result] = await Promise.all([
-            this.cdp.send(request, signal).catch((error: unknown) => {
-              this.rejectPending(request.id, asError(error));
-            }),
+            this.cdp
+              .send(
+                request,
+                signal,
+                options.callbackSource ? { callbackSource: options.callbackSource } : undefined,
+              )
+              .catch((error: unknown) => {
+                this.rejectPending(request.id, asError(error));
+              }),
             response,
           ]);
           return result as z.output<Method["result"]>;
@@ -503,6 +493,7 @@ function rpcResponseTimeoutMs(method: string, params: unknown): number | undefin
     case StagehandMethods.stagehandAct.name:
     case StagehandMethods.stagehandExtract.name:
     case StagehandMethods.stagehandObserve.name:
+    case StagehandMethods.stagehandCallbackBatch.name:
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:
     case StagehandMethods.pageGoBack.name:

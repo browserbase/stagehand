@@ -74,7 +74,12 @@ _response = TypeAdapter(_JSONRPCSuccessResponse | _JSONRPCErrorResponse)
 
 
 class _Transport(Protocol):
-    async def send(self, message: dict[str, object]) -> None: ...
+    async def send(
+        self,
+        message: dict[str, object],
+        *,
+        callback_source: str | None = None,
+    ) -> None: ...
 
     async def receive(self) -> object: ...
 
@@ -115,33 +120,14 @@ class RPCClient:
         value = getattr(getattr(self, "_transport", None), "web_socket_debugger_url", None)
         return value if isinstance(value, str) else None
 
-    async def run_callback_batch(
-        self,
-        *,
-        source: str,
-        input: object,
-        page_id: str | None,
-        timeout: int,
-    ) -> object:
-        if self._closed:
-            raise RuntimeError("RPC client is closed") from self._close_reason
-
-        runner = getattr(self._transport, "run_callback_batch", None)
-        if not callable(runner):
-            raise RuntimeError("The connected Stagehand runtime does not support callback batches")
-        return await runner(
-            source=source,
-            input=input,
-            page_id=page_id,
-            timeout=timeout,
-        )
-
     @overload
     async def send(
         self,
         method: str,
         params: BaseModel,
         result_model: type[RootModel[RootResultT]],
+        *,
+        callback_source: str | None = None,
     ) -> RootResultT: ...
 
     @overload
@@ -150,6 +136,8 @@ class RPCClient:
         method: str,
         params: BaseModel,
         result_model: type[ResultT],
+        *,
+        callback_source: str | None = None,
     ) -> ResultT: ...
 
     async def send(
@@ -157,6 +145,8 @@ class RPCClient:
         method: str,
         params: BaseModel,
         result_model: type[BaseModel],
+        *,
+        callback_source: str | None = None,
     ) -> object:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
@@ -195,7 +185,8 @@ class RPCClient:
                         cast(
                             dict[str, object],
                             request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
-                        )
+                        ),
+                        callback_source=callback_source,
                     )
                     return await response
             except TimeoutError as error:
@@ -520,6 +511,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "stagehand.act",
         "stagehand.extract",
         "stagehand.observe",
+        "stagehand.callback_batch",
         "page.goto",
         "page.reload",
         "page.go_back",

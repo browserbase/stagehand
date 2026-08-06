@@ -329,11 +329,15 @@ describe("All language SDK operations remain in sync", () => {
 
         for (const optionName of optionNames) {
           const publicName =
-            language === "typescript"
-              ? camelCase(optionName)
-              : language === "python"
-                ? snakeCase(optionName)
-                : exportedGoName(optionName);
+            language === "python" &&
+            binding.wireMethod === "stagehand.callback_batch" &&
+            optionName === "page_id"
+              ? "page"
+              : language === "typescript"
+                ? camelCase(optionName)
+                : language === "python"
+                  ? snakeCase(optionName)
+                  : exportedGoName(optionName);
           const parameterType = parameters.get(publicName);
           if (parameterType === undefined) {
             mismatches.push(`${language} ${binding.wireMethod}: missing ${publicName}`);
@@ -576,7 +580,11 @@ async function publicOperations(
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
       if (!publicMethod) return [];
-      const normalizedMethod = snakeCase(publicMethod.text());
+      const snakeCaseMethod = snakeCase(publicMethod.text());
+      const normalizedMethod =
+        className === "Stagehand" && snakeCaseMethod === "experimental_batch"
+          ? "_experimental_batch"
+          : snakeCaseMethod;
       if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {

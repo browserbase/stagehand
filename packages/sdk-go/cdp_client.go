@@ -394,11 +394,15 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 	if err != nil {
 		return fmt.Errorf("encode Stagehand RPC message: %w", err)
 	}
-	expression := fmt.Sprintf(
-		"void globalThis.%s(%s); true",
-		stagehandReceiveFromHostFunction,
-		serialized,
-	)
+	expression := fmt.Sprintf("void globalThis.%s(%s); true", stagehandReceiveFromHostFunction, serialized)
+	if source, ok := callbackSourceFromContext(ctx); ok {
+		expression = fmt.Sprintf(
+			`(() => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; void globalThis.%s(%s, { callback: (%s) }); return true; })()`,
+			stagehandReceiveFromHostFunction,
+			serialized,
+			source,
+		)
+	}
 	var evaluated cdpRuntimeEvaluateResult
 	if err := c.sendCommand(
 		ctx,
@@ -420,105 +424,6 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 		))
 	}
 	return nil
-}
-
-func (c *cdpClient) runCallbackBatch(
-	ctx context.Context,
-	source string,
-	input any,
-	pageID string,
-	timeout time.Duration,
-	result any,
-) error {
-	c.mu.Lock()
-	sessionID := c.sessionID
-	closed := c.closed
-	c.mu.Unlock()
-	if closed {
-		return ErrCDPClientClosed
-	}
-	if sessionID == "" {
-		return errors.New("Stagehand service worker is not attached")
-	}
-	inputJSON, err := json.Marshal(input)
-	if err != nil {
-		return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
-	}
-	options := map[string]any{"timeout": timeout.Milliseconds()}
-	if pageID != "" {
-		options["pageId"] = pageID
-	}
-	optionsJSON, err := json.Marshal(options)
-	if err != nil {
-		return fmt.Errorf("encode stagehand callback batch options: %w", err)
-	}
-	expression := fmt.Sprintf(
-		`(async () => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((%s), %s, %s); })()`,
-		source,
-		inputJSON,
-		optionsJSON,
-	)
-	evaluationContext, cancel := context.WithTimeout(ctx, callbackBatchEvaluationTimeout(timeout))
-	defer cancel()
-	var evaluated cdpRuntimeEvaluateResult
-	if err := c.sendCommand(
-		evaluationContext,
-		"Runtime.evaluate",
-		map[string]any{
-			"expression":    expression,
-			"awaitPromise":  true,
-			"returnByValue": true,
-		},
-		sessionID,
-		&evaluated,
-	); err != nil {
-		return err
-	}
-	if evaluated.ExceptionDetails != nil {
-		return errors.New(runtimeExceptionMessage(
-			evaluated.ExceptionDetails,
-			"Stagehand callback batch evaluation failed",
-		))
-	}
-	if evaluated.Result == nil || len(evaluated.Result.Value) == 0 {
-		return errors.New("Stagehand callback batch returned an invalid result")
-	}
-	var envelope struct {
-		OK               bool            `json:"ok"`
-		Value            json.RawMessage `json:"value"`
-		ValueIsUndefined *bool           `json:"valueIsUndefined"`
-		Error            *struct {
-			Name    string `json:"name"`
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(evaluated.Result.Value, &envelope); err != nil {
-		return fmt.Errorf("decode stagehand callback batch envelope: %w", err)
-	}
-	if !envelope.OK {
-		if envelope.Error == nil {
-			return errors.New("Stagehand callback batch failed")
-		}
-		return fmt.Errorf("%s: %s", envelope.Error.Name, envelope.Error.Message)
-	}
-	valueIsUndefined := envelope.ValueIsUndefined != nil && *envelope.ValueIsUndefined
-	if valueIsUndefined == (len(envelope.Value) != 0) {
-		return errors.New("Stagehand callback batch returned an invalid result")
-	}
-	if valueIsUndefined {
-		envelope.Value = json.RawMessage("null")
-	}
-	if err := json.Unmarshal(envelope.Value, result); err != nil {
-		return fmt.Errorf("decode stagehand callback batch result: %w", err)
-	}
-	return nil
-}
-
-func callbackBatchEvaluationTimeout(timeout time.Duration) time.Duration {
-	if timeout > maxRPCResponseTimeout-time.Second {
-		return maxRPCResponseTimeout
-	}
-	return timeout + time.Second
 }
 
 func (c *cdpClient) Receive(ctx context.Context) (json.RawMessage, error) {

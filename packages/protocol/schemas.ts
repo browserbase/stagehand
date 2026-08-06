@@ -645,6 +645,27 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
+export const CallbackBatchOptionsSchema = z
+  .strictObject({
+    pageId: z.string().min(1).optional(),
+    timeout: z.number().int().positive().default(30_000),
+  })
+  .meta({ id: "CallbackBatchOptions" });
+
+export const CallbackBatchParamsSchema = z
+  .strictObject({
+    callbackSource: z.string().min(1),
+    input: z.json().optional(),
+    options: CallbackBatchOptionsSchema,
+  })
+  .meta({ id: "CallbackBatchParams" });
+
+export const CallbackBatchResultSchema = z
+  .strictObject({
+    value: z.json().optional(),
+  })
+  .meta({ id: "CallbackBatchResult" });
+
 export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling

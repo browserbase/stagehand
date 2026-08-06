@@ -9,6 +9,7 @@ import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
+  CallbackBatchResult,
   DefaultExtractData,
   ObserveResult,
   StagehandMetrics,
@@ -133,7 +134,7 @@ export class Stagehand {
     if (options === null || typeof options !== "object" || Array.isArray(options)) {
       throw new TypeError("stagehand._experimental_batch() options must be an object");
     }
-    if (input !== undefined) z.json().parse(input);
+    const parsedInput = input === undefined ? undefined : z.json().parse(input);
     const timeout = options.timeout ?? 30_000;
     if (!Number.isFinite(timeout) || timeout <= 0) {
       throw new RangeError("stagehand._experimental_batch() timeout must be greater than zero");
@@ -151,13 +152,19 @@ export class Stagehand {
       timeout + 1_000,
     );
     try {
-      return (await this.connectedRpcClient.runCallbackBatch({
-        callbackSource,
-        input,
-        ...(options.page ? { pageId: options.page.pageId } : {}),
-        timeout,
-        signal: controller.signal,
-      })) as Awaited<Result>;
+      const result: CallbackBatchResult = await this.connectedRpcClient.send(
+        StagehandMethods.stagehandCallbackBatch,
+        {
+          callbackSource,
+          ...(parsedInput === undefined ? {} : { input: parsedInput }),
+          options: {
+            ...(options.page ? { pageId: options.page.pageId } : {}),
+            timeout,
+          },
+        },
+        { signal: controller.signal, callbackSource },
+      );
+      return result.value as Awaited<Result>;
     } finally {
       clearTimeout(timeoutId);
     }

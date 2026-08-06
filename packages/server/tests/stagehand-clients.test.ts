@@ -571,7 +571,10 @@ function createHandle(adapters: StagehandRuntimeAdapters = {}) {
   let resolveResponse: ((response: JSONRPCResponse) => void) | undefined;
   const scope: {
     [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
-    __stagehandReceiveFromHost?: (raw: unknown) => Promise<void>;
+    __stagehandReceiveFromHost?: (
+      raw: unknown,
+      runtimeAttachments?: { callback?: unknown },
+    ) => Promise<void>;
   } = {
     [STAGEHAND_SEND_TO_HOST_BINDING]: (payload) => {
       const response = JSONRPCResponseSchema.safeParse(JSON.parse(payload));
@@ -582,11 +585,16 @@ function createHandle(adapters: StagehandRuntimeAdapters = {}) {
   };
   startStagehandServiceWorker(scope, runtime);
 
-  return async (input: unknown): Promise<JSONRPCResponse> => {
+  return async (
+    input: unknown,
+    runtimeAttachments?: { callback?: unknown },
+  ): Promise<JSONRPCResponse> => {
     const request = JSONRPCRequestSchema.parse(input);
     return await new Promise((resolve, reject) => {
       resolveResponse = resolve;
-      void scope.__stagehandReceiveFromHost?.(JSON.stringify(request)).catch(reject);
+      void scope
+        .__stagehandReceiveFromHost?.(JSON.stringify(request), runtimeAttachments)
+        .catch(reject);
     });
   };
 }
@@ -629,6 +637,66 @@ function configuredInitParams(cdpUrl: string) {
 }
 
 describe("Stagehand worker clients", () => {
+  it("routes callback batches through the registered JSON-RPC method", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-1", "https://example.com", "Example");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+    const callback = async (stagehand: { page: { title(): Promise<string> } }, input: unknown) => ({
+      title: await stagehand.page.title(),
+      input,
+    });
+
+    await expect(
+      handle(
+        {
+          jsonrpc: "2.0",
+          id: 8,
+          method: "stagehand.callback_batch",
+          params: {
+            callback_source: Function.prototype.toString.call(callback),
+            input: { id: 7 },
+            options: { timeout: 2_000 },
+          },
+        },
+        { callback },
+      ),
+    ).resolves.toEqual({
+      jsonrpc: "2.0",
+      id: 8,
+      result: { value: { title: "Example", input: { id: 7 } } },
+    });
+  });
+
+  it("returns callback failures through the standard JSON-RPC error path", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-1", "https://example.com", "Example");
+    const handle = await createConfiguredHandler(new FakeBrowserSession([page]));
+    const callback = async () => {
+      throw new TypeError("callback failed");
+    };
+
+    await expect(
+      handle(
+        {
+          jsonrpc: "2.0",
+          id: 9,
+          method: "stagehand.callback_batch",
+          params: {
+            callback_source: Function.prototype.toString.call(callback),
+            options: { timeout: 2_000 },
+          },
+        },
+        { callback },
+      ),
+    ).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 9,
+      error: {
+        code: -32603,
+        message: "callback failed",
+        data: { name: "TypeError" },
+      },
+    });
+  });
+
   it("accepts only the shared Stagehand Chrome binding name", () => {
     expect(StagehandSendToHostBindingSchema.parse(STAGEHAND_SEND_TO_HOST_BINDING)).toBe(
       STAGEHAND_SEND_TO_HOST_BINDING,

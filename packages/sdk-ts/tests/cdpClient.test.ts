@@ -11,41 +11,62 @@ import {
 
 describe("callback batch expression", () => {
   it("serializes input separately from executable callback source", () => {
+    const message = {
+      jsonrpc: "2.0" as const,
+      id: 8,
+      method: "stagehand.callback_batch",
+      params: {
+        callback_source: "callback source is data too",
+        input: { text: '"); globalThis.__injectionSucceeded = true; ("' },
+        options: { page_id: "page-1", timeout: 2_000 },
+      },
+    };
     const expression = callbackBatchExpression({
+      message,
       callbackSource: "async ({ page }, input) => ({ title: await page.title(), input })",
-      input: { text: '"); globalThis.__injectionSucceeded = true; ("' },
-      pageId: "page-1",
-      timeout: 2_000,
     });
 
-    expect(expression).toContain("__stagehandRunCallbackBatch");
-    expect(expression).toContain('"pageId":"page-1"');
-    expect(expression).toContain(String.raw`\"); globalThis.__injectionSucceeded = true; (\"`);
+    expect(expression).toContain("__stagehandReceiveFromHost");
+    expect(expression).toContain("stagehand.callback_batch");
+    expect(expression).toContain(String.raw`\"page_id\":\"page-1\"`);
     expect(expression).not.toContain('"); globalThis.__injectionSucceeded = true; ("');
     expect(expression).toContain("Object.defineProperty");
-    expect(expression).not.toContain('"callbackSource":');
-    expect(expression).not.toContain('"input":');
+    expect(expression).toContain("callback: (async");
+
+    let receivedRaw: unknown;
+    const workerGlobal = {
+      __stagehandReceiveFromHost: (raw: unknown) => {
+        receivedRaw = raw;
+      },
+    };
+    expect(runInNewContext(expression, { globalThis: workerGlobal })).toBe(true);
+    expect(JSON.parse(receivedRaw as string)).toEqual(message);
+    expect(workerGlobal).not.toHaveProperty("__injectionSucceeded");
   });
 
   it("provides the lexical __name helper used by bundled callback source", async () => {
     const expression = callbackBatchExpression({
+      message: {
+        jsonrpc: "2.0",
+        id: 8,
+        method: "stagehand.callback_batch",
+        params: {},
+      },
       callbackSource: '__name(async () => "ok", "bundledCallback")',
-      input: undefined,
-      timeout: 2_000,
     });
+    let attachment: unknown;
     const evaluated = runInNewContext(expression, {
       globalThis: {
-        __stagehandRunCallbackBatch: async (callback: () => Promise<string>) => ({
-          ok: true,
-          value: { name: callback.name, result: await callback() },
-        }),
+        __stagehandReceiveFromHost: (_raw: unknown, received: unknown) => {
+          attachment = received;
+        },
       },
-    }) as Promise<unknown>;
+    }) as unknown;
 
-    await expect(evaluated).resolves.toEqual({
-      ok: true,
-      value: { name: "bundledCallback", result: "ok" },
-    });
+    expect(evaluated).toBe(true);
+    const callback = (attachment as { callback: () => Promise<string> }).callback;
+    expect(callback.name).toBe("bundledCallback");
+    await expect(callback()).resolves.toBe("ok");
   });
 });
 
@@ -65,38 +86,6 @@ class FakeWebSocket extends EventTarget {
     this.dispatchEvent(event);
   }
 }
-
-async function decodeCallbackBatchEnvelope(envelope: unknown): Promise<unknown> {
-  const socket = new FakeWebSocket();
-  const client = new CDPClient(socket as never, "wss://browser.example/devtools/browser/session");
-  client.sessionId = "worker-session";
-  vi.spyOn(client, "sendCommand").mockResolvedValue({ result: { value: envelope } } as never);
-  try {
-    return await client.runCallbackBatch({
-      callbackSource: "async () => undefined",
-      input: undefined,
-      timeout: 1_000,
-    });
-  } finally {
-    client.close();
-  }
-}
-
-describe("callback batch result envelope", () => {
-  it("requires an explicit value or undefined marker on success", async () => {
-    await expect(decodeCallbackBatchEnvelope({ ok: true })).rejects.toThrow();
-    await expect(
-      decodeCallbackBatchEnvelope({ ok: true, value: null, valueIsUndefined: true }),
-    ).rejects.toThrow();
-  });
-
-  it("accepts explicit null and undefined success results", async () => {
-    await expect(decodeCallbackBatchEnvelope({ ok: true, value: null })).resolves.toBeNull();
-    await expect(
-      decodeCallbackBatchEnvelope({ ok: true, valueIsUndefined: true }),
-    ).resolves.toBeUndefined();
-  });
-});
 
 describe("CDP WebSocket transport", () => {
   it("opens the built-in WebSocket transport", async () => {

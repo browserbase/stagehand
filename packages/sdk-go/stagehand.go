@@ -185,13 +185,36 @@ func (s *Stagehand) ExperimentalBatch(
 	if options.Page != nil {
 		pageID = options.Page.PageID()
 	}
-	runner, ok := rpc.(interface {
-		experimentalBatch(context.Context, string, any, string, time.Duration, any) error
-	})
-	if !ok {
-		return errors.New("the connected Stagehand runtime does not support callback batches")
+	inputJSON, err := json.Marshal(input)
+	if err != nil {
+		return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
 	}
-	return runner.experimentalBatch(ctx, source, input, pageID, timeout, result)
+	params := CallbackBatchParams{
+		CallbackSource: source,
+		Input:          inputJSON,
+		Options: CallbackBatchOptions{
+			Timeout: int(timeout.Milliseconds()),
+		},
+	}
+	if pageID != "" {
+		params.Options.PageID = &pageID
+	}
+	var batchResult CallbackBatchResult
+	if err := rpc.call(
+		withCallbackDelivery(ctx, source),
+		"stagehand.callback_batch",
+		params,
+		&batchResult,
+	); err != nil {
+		return err
+	}
+	if len(batchResult.Value) == 0 {
+		batchResult.Value = json.RawMessage("null")
+	}
+	if err := json.Unmarshal(batchResult.Value, result); err != nil {
+		return fmt.Errorf("decode stagehand callback batch result: %w", err)
+	}
+	return nil
 }
 
 // Act performs an AI-guided action on the selected or active page.

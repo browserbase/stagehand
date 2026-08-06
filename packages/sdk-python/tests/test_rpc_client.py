@@ -24,8 +24,10 @@ class QueueTransport:
         self.incoming: asyncio.Queue[object] = asyncio.Queue()
         self.outgoing: asyncio.Queue[JSON] = asyncio.Queue()
         self.closed = asyncio.Event()
+        self.callback_sources: list[str | None] = []
 
-    async def send(self, message: JSON) -> None:
+    async def send(self, message: JSON, *, callback_source: str | None = None) -> None:
+        self.callback_sources.append(callback_source)
         self.sent.append(message)
         await self.outgoing.put(message)
 
@@ -47,16 +49,34 @@ class FailingReceiveTransport(QueueTransport):
 
 
 @pytest.mark.asyncio
-async def test_callback_batch_requires_a_capable_transport() -> None:
-    client = RPCClient(QueueTransport())
+async def test_callback_batch_uses_the_normal_pending_request_path() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
     try:
-        with pytest.raises(RuntimeError, match="does not support callback batches"):
-            await client.run_callback_batch(
-                source="async () => undefined",
-                input=None,
-                page_id=None,
-                timeout=30_000,
+        source = "async () => undefined"
+        call = asyncio.create_task(
+            client.send(
+                "stagehand.callback_batch",
+                models.CallbackBatchParams(
+                    callback_source=source,
+                    input=models.FieldSchema2.model_validate(None),
+                    options=models.CallbackBatchOptions(timeout=30_000),
+                ),
+                models.CallbackBatchResult,
+                callback_source=source,
             )
+        )
+        request = await transport.outgoing.get()
+        assert request["method"] == "stagehand.callback_batch"
+        assert transport.callback_sources == [source]
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": {},
+        })
+        result = await call
+        assert isinstance(result, models.CallbackBatchResult)
+        assert result.value is None
     finally:
         await client.close()
 
@@ -558,9 +578,13 @@ async def test_close_can_detach_without_closing_transport() -> None:
         await client.send("test.request", models.EmptyParams(), RPCResult)
 
     with pytest.raises(RuntimeError, match="RPC client is closed"):
-        await client.run_callback_batch(
-            source="async ({ page }) => page.title()",
-            input=None,
-            page_id=None,
-            timeout=30_000,
+        await client.send(
+            "stagehand.callback_batch",
+            models.CallbackBatchParams(
+                callback_source="async ({ page }) => page.title()",
+                input=models.FieldSchema2.model_validate(None),
+                options=models.CallbackBatchOptions(timeout=30_000),
+            ),
+            models.CallbackBatchResult,
+            callback_source="async ({ page }) => page.title()",
         )
