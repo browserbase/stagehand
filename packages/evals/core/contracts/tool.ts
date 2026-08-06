@@ -146,7 +146,7 @@ export interface ToolStartResult {
    * call this after individual actions and once more at the end of a run.
    * Implementations must swallow per-field failures and must not throw.
    */
-  captureEvidence?: () => Promise<TerminalArtifact>;
+  captureEvidence?: () => Promise<SurfaceEvidence>;
   /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
@@ -189,14 +189,12 @@ export interface AgentRunToolSpec {
 }
 
 /**
- * Harness-observed terminal state of a run, captured through the surface
- * itself after the agent finishes. This is what grounds grading in the task
- * artifact: the verifier's final-screenshot anchor comes from the harness's
- * own observation of the page, not from whatever image the agent chose to
- * return (code surfaces stringify tool results, so agent-returned images
- * don't exist there at all).
+ * Harness-observed evidence from the surface at a point in time. Harnesses can
+ * attach it to an individual action or use it as the run's final observation.
+ * It grounds grading in state observed independently of whatever output the
+ * agent chose to return.
  */
-export interface TerminalArtifact {
+export interface SurfaceEvidence {
   screenshot?: Buffer;
   url?: string;
 }
