@@ -4,3 +4,10 @@ export class TimeoutError extends Error {
     this.name = "TimeoutError";
   }
 }
+
+export class DuplicatePageEventSubscriptionError extends Error {
+  constructor() {
+    super("A page event subscription with this identifier already exists");
+    this.name = "DuplicatePageEventSubscriptionError";
+  }
+}

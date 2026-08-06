@@ -113,7 +113,13 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		cancelCleanup()
 		return nil, errors.Join(err, closeErr, browserErr)
 	}
-	if err := attachBrowserContext(client.browser, &BrowserContext{rpc: rpc}); err != nil {
+	browserContext := &BrowserContext{
+		rpc: rpc,
+		reportPageEventListenerPanic: func(recovered any) {
+			reportClientCallbackPanic(logging, "page event listener", recovered)
+		},
+	}
+	if err := attachBrowserContext(client.browser, browserContext); err != nil {
 		if client.removeLLMHandler != nil {
 			client.removeLLMHandler()
 		}
@@ -403,14 +409,26 @@ func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLogging
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			fmt.Fprintf(
-				logging.writer,
-				"[stagehand] ERROR onLog callback failed: %v\n",
-				recovered,
-			)
+			reportClientCallbackPanic(logging, "onLog", recovered)
 		}
 	}()
 	logging.onLog(log)
+}
+
+func reportClientCallbackPanic(
+	logging resolvedStagehandClientLoggingConfig,
+	callback string,
+	recovered any,
+) {
+	if !isClientLogLevelEnabled(StagehandLogLevelError, logging.level) {
+		return
+	}
+	fmt.Fprintf(
+		logging.writer,
+		"[stagehand] ERROR %s callback failed: %v\n",
+		callback,
+		recovered,
+	)
 }
 
 func isClientLogLevelEnabled(

@@ -46,6 +46,10 @@ func (client *loggingProtocolClient) onNotification(
 	}
 }
 
+func (*loggingProtocolClient) onPageCDPEvent(func(PageCDPEventNotification)) func() {
+	return func() {}
+}
+
 func (*loggingProtocolClient) browserWebSocketDebuggerURL() string {
 	return "ws://127.0.0.1:9222/devtools/browser/test"
 }
@@ -244,6 +248,56 @@ func TestGoLoggingRecoversCallbackPanic(t *testing.T) {
 		"[stagehand] ERROR onLog callback failed: callback exploded\n",
 	) {
 		t.Fatalf("callback panic output = %q", output.String())
+	}
+}
+
+func TestGoLoggingReportsPageEventListenerPanic(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.init":      StagehandInitResult{Initialized: true},
+		"context.active_page": PageRef{PageID: "page-1"},
+		"page.on":             PageVoidResult{Ok: true},
+		"page.off":            PageVoidResult{Ok: true},
+	}}
+	var output bytes.Buffer
+	client, err := newStagehandWithClient(CreateOptions{}, rpc, &output)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	defer client.Close(context.Background())
+	browserContext, err := client.Browser().Context()
+	if err != nil {
+		t.Fatalf("Browser.Context() error = %v", err)
+	}
+	page, err := browserContext.ActivePage(context.Background())
+	if err != nil {
+		t.Fatalf("ActivePage() error = %v", err)
+	}
+	if page == nil {
+		t.Fatal("ActivePage() = nil")
+	}
+	subscription, err := page.On(context.Background(), "console", func(PageCDPEvent) {
+		panic("listener exploded")
+	})
+	if err != nil {
+		t.Fatalf("Page.On() error = %v", err)
+	}
+	defer subscription.Close(context.Background())
+	onParams := rpc.calls[2].params.(PageOnParams)
+	rpc.pageEventHandler(PageCDPEventNotification{
+		SubscriptionID: onParams.SubscriptionID,
+		Event: PageCDPEvent{
+			PageID: "page-1",
+			Method: "Runtime.consoleAPICalled",
+		},
+	})
+
+	if !strings.Contains(
+		output.String(),
+		"[stagehand] ERROR page event listener callback failed: listener exploded\n",
+	) {
+		t.Fatalf("page event listener panic output = %q", output.String())
 	}
 }
 
