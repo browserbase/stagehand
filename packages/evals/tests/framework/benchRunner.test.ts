@@ -77,12 +77,13 @@ describe("bench runner", () => {
     );
 
     // A non-deterministic category: act/extract/observe route to the v4
-    // client, and legacy tasks with v3 session URLs only exist outside them.
+    // client, and legacy v3 tasks only exist under agent/ now that the
+    // combination and experimental suites are gone.
     const task: DiscoveredTask = {
-      name: "combination/session_url_task",
+      name: "agent/session_url_task",
       tier: "bench",
-      primaryCategory: "combination",
-      categories: ["combination"],
+      primaryCategory: "agent",
+      categories: ["agent"],
       tags: [],
       filePath: taskFile,
       isLegacy: true,
@@ -124,10 +125,10 @@ describe("bench runner", () => {
     );
 
     const task: DiscoveredTask = {
-      name: "combination/thrown_task",
+      name: "agent/thrown_task",
       tier: "bench",
-      primaryCategory: "combination",
-      categories: ["combination"],
+      primaryCategory: "agent",
+      categories: ["agent"],
       tags: [],
       filePath: taskFile,
       isLegacy: true,
