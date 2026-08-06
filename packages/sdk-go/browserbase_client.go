@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,7 +22,6 @@ const (
 	defaultBrowserbaseMaxRetries   = 2
 	maxBrowserbaseRetryDelay       = defaultBrowserbaseHTTPTimeout
 	maxBrowserbaseAPIResponseBytes = 4 << 20
-	stagehandExtensionUploadName   = "stagehand-extension.zip"
 )
 
 // BrowserbaseAPIError is a non-successful response from the Browserbase API.
@@ -68,8 +66,6 @@ type browserbaseHTTPClient struct {
 }
 
 type browserbaseAPI interface {
-	uploadExtension(context.Context, []byte) (browserbaseExtensionResponse, error)
-	deleteExtension(context.Context, string) error
 	createSession(
 		context.Context,
 		browserbaseCreateSessionRequest,
@@ -126,32 +122,6 @@ func newBrowserbaseHTTPClient(
 		maxRetries: maxRetries,
 		sleep:      sleep,
 	}, nil
-}
-
-func (client *browserbaseHTTPClient) uploadExtension(
-	ctx context.Context,
-	archive []byte,
-) (browserbaseExtensionResponse, error) {
-	return sendBrowserbaseRequest[browserbaseExtensionResponse](
-		ctx,
-		client,
-		browserbaseUploadExtensionRequest{
-			Archive:  archive,
-			FileName: stagehandExtensionUploadName,
-		},
-	)
-}
-
-func (client *browserbaseHTTPClient) deleteExtension(
-	ctx context.Context,
-	extensionID string,
-) error {
-	_, err := sendBrowserbaseRequest[browserbaseNoContentResponse](
-		ctx,
-		client,
-		browserbaseDeleteExtensionRequest{ExtensionID: extensionID},
-	)
-	return err
 }
 
 func (client *browserbaseHTTPClient) createSession(
@@ -394,57 +364,6 @@ func browserbaseErrorMessage(body []byte) string {
 		return message
 	}
 	return strings.TrimSpace(string(response.Message))
-}
-
-type browserbaseUploadExtensionRequest struct {
-	Archive  []byte
-	FileName string
-}
-
-func (request browserbaseUploadExtensionRequest) encode() (browserbaseEncodedRequest, error) {
-	encoded := browserbaseEncodedRequest{
-		method: http.MethodPost,
-		path:   "/v1/extensions",
-	}
-	if len(request.Archive) == 0 {
-		return encoded, errors.New("extension archive is required")
-	}
-	if strings.TrimSpace(request.FileName) == "" {
-		return encoded, errors.New("extension filename is required")
-	}
-
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
-	file, err := writer.CreateFormFile("file", request.FileName)
-	if err != nil {
-		return encoded, fmt.Errorf("create extension multipart file: %w", err)
-	}
-	if _, err := file.Write(request.Archive); err != nil {
-		return encoded, fmt.Errorf("write extension multipart file: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return encoded, fmt.Errorf("close extension multipart body: %w", err)
-	}
-	encoded.body = body.Bytes()
-	encoded.contentType = writer.FormDataContentType()
-	return encoded, nil
-}
-
-type browserbaseDeleteExtensionRequest struct {
-	ExtensionID string
-}
-
-func (request browserbaseDeleteExtensionRequest) encode() (browserbaseEncodedRequest, error) {
-	encoded := browserbaseEncodedRequest{
-		method:     http.MethodDelete,
-		path:       "/v1/extensions/" + url.PathEscape(request.ExtensionID),
-		accept:     "*/*",
-		replaySafe: true,
-	}
-	if strings.TrimSpace(request.ExtensionID) == "" {
-		return encoded, errors.New("extension ID is required")
-	}
-	return encoded, nil
 }
 
 type browserbaseReleaseSessionRequest struct {
@@ -699,33 +618,6 @@ func (proxies browserbaseProxiesRequest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(proxies.list)
 }
 
-type browserbaseExtensionResponse struct {
-	ID        *string `json:"id"`
-	CreatedAt *string `json:"createdAt"`
-	FileName  *string `json:"fileName"`
-	ProjectID *string `json:"projectId"`
-	UpdatedAt *string `json:"updatedAt"`
-}
-
-func (response browserbaseExtensionResponse) validate() error {
-	if err := requireBrowserbaseResponseFields(map[string]bool{
-		"id":        response.ID != nil,
-		"createdAt": response.CreatedAt != nil,
-		"fileName":  response.FileName != nil,
-		"projectId": response.ProjectID != nil,
-		"updatedAt": response.UpdatedAt != nil,
-	}); err != nil {
-		return err
-	}
-	if strings.TrimSpace(*response.FileName) == "" {
-		return errors.New("fileName cannot be empty")
-	}
-	if err := validateBrowserbaseDateTime("createdAt", *response.CreatedAt); err != nil {
-		return err
-	}
-	return validateBrowserbaseDateTime("updatedAt", *response.UpdatedAt)
-}
-
 type browserbaseSessionResponseFields struct {
 	ID           *string                    `json:"id"`
 	CreatedAt    *string                    `json:"createdAt"`
@@ -816,12 +708,6 @@ func (response browserbaseCreateSessionResponse) validate() error {
 		"http",
 		"https",
 	)
-}
-
-type browserbaseNoContentResponse struct{}
-
-func (browserbaseNoContentResponse) validate() error {
-	return nil
 }
 
 type browserbaseSessionStatus string

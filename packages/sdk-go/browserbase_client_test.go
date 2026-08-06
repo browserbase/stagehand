@@ -1,11 +1,9 @@
 package stagehand
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,8 +14,7 @@ import (
 )
 
 func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
-	archive := []byte("test-stagehand-extension")
-	calls := make([]string, 0, 4)
+	calls := make([]string, 0, 2)
 	var server *httptest.Server
 	server = httptest.NewServer(http.HandlerFunc(func(
 		writer http.ResponseWriter,
@@ -32,35 +29,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 		}
 
 		switch {
-		case request.Method == http.MethodPost && request.URL.Path == "/v1/extensions":
-			if err := request.ParseMultipartForm(1 << 20); err != nil {
-				t.Errorf("parse extension multipart body: %v", err)
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			file, header, err := request.FormFile("file")
-			if err != nil {
-				t.Errorf("read extension multipart file: %v", err)
-				writer.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			defer file.Close()
-			body, err := io.ReadAll(file)
-			if err != nil {
-				t.Errorf("read extension body: %v", err)
-			}
-			if !bytes.Equal(body, archive) {
-				t.Errorf("extension body = %q, want %q", body, archive)
-			}
-			if header.Filename != stagehandExtensionUploadName {
-				t.Errorf(
-					"extension filename = %q, want %q",
-					header.Filename,
-					stagehandExtensionUploadName,
-				)
-			}
-			writeBrowserbaseTestJSON(writer, browserbaseTestExtensionResponse("ext_stagehand"))
-
 		case request.Method == http.MethodPost && request.URL.Path == "/v1/sessions":
 			var got map[string]any
 			if err := json.NewDecoder(request.Body).Decode(&got); err != nil {
@@ -90,16 +58,6 @@ func TestBrowserbaseHTTPClientUsesTypedEndpointSchemas(t *testing.T) {
 				writer,
 				browserbaseTestSessionResponse("session_123", "COMPLETED"),
 			)
-
-		case request.Method == http.MethodDelete &&
-			request.URL.Path == "/v1/extensions/ext_stagehand":
-			if request.Header.Get("Content-Type") != "" {
-				t.Errorf("extension DELETE Content-Type = %q", request.Header.Get("Content-Type"))
-			}
-			if request.Header.Get("Accept") != "*/*" {
-				t.Errorf("extension DELETE Accept = %q", request.Header.Get("Accept"))
-			}
-			writer.WriteHeader(http.StatusNoContent)
 
 		default:
 			http.Error(writer, "unexpected endpoint", http.StatusNotFound)
@@ -581,16 +539,6 @@ func browserbaseExpectedSessionRequest() map[string]any {
 			"stagehand":              "true",
 			"stagehand_sdk_language": "go",
 		},
-	}
-}
-
-func browserbaseTestExtensionResponse(extensionID string) map[string]any {
-	return map[string]any{
-		"id":        extensionID,
-		"createdAt": "2026-07-23T10:00:00.000Z",
-		"fileName":  stagehandExtensionUploadName,
-		"projectId": "project_123",
-		"updatedAt": "2026-07-23T10:00:00.000Z",
 	}
 }
 

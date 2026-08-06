@@ -1,7 +1,8 @@
 import Browserbase from "@browserbasehq/sdk";
 import type { BrowserbaseExtension, BrowserbaseSessionCreateParams } from "../../protocol/types.js";
-const STAGEHAND_BROWSER_EXTENSION = "stagehand";
 import { STAGEHAND_SESSION_METADATA } from "./sdkIdentity.js";
+
+const STAGEHAND_BROWSER_EXTENSION = "stagehand";
 
 export type BrowserbaseSessionClient = {
   createSession(

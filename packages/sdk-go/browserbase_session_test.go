@@ -10,36 +10,11 @@ import (
 )
 
 type fakeBrowserbaseAPI struct {
-	uploadExtensionFunc func(
-		context.Context,
-		[]byte,
-	) (browserbaseExtensionResponse, error)
-	deleteExtensionFunc func(context.Context, string) error
-	createSessionFunc   func(
+	createSessionFunc func(
 		context.Context,
 		browserbaseCreateSessionRequest,
 	) (browserbaseCreateSessionResponse, error)
 	releaseSessionFunc func(context.Context, string) (browserbaseSessionResponse, error)
-}
-
-func (api *fakeBrowserbaseAPI) uploadExtension(
-	ctx context.Context,
-	archive []byte,
-) (browserbaseExtensionResponse, error) {
-	if api.uploadExtensionFunc != nil {
-		return api.uploadExtensionFunc(ctx, archive)
-	}
-	return validBrowserbaseExtensionResponse("ext_stagehand"), nil
-}
-
-func (api *fakeBrowserbaseAPI) deleteExtension(
-	ctx context.Context,
-	extensionID string,
-) error {
-	if api.deleteExtensionFunc != nil {
-		return api.deleteExtensionFunc(ctx, extensionID)
-	}
-	return nil
 }
 
 func (api *fakeBrowserbaseAPI) createSession(
@@ -60,40 +35,6 @@ func (api *fakeBrowserbaseAPI) releaseSession(
 		return api.releaseSessionFunc(ctx, sessionID)
 	}
 	return validBrowserbaseSessionResponse(sessionID), nil
-}
-
-func TestBrowserbaseSessionClientDoesNotProvisionExtensions(t *testing.T) {
-	createErr := errors.New("concurrency limit reached")
-	uploads := 0
-	deletes := 0
-	api := &fakeBrowserbaseAPI{
-		uploadExtensionFunc: func(
-			context.Context,
-			[]byte,
-		) (browserbaseExtensionResponse, error) {
-			uploads++
-			return validBrowserbaseExtensionResponse("ext_stagehand"), nil
-		},
-		createSessionFunc: func(
-			context.Context,
-			browserbaseCreateSessionRequest,
-		) (browserbaseCreateSessionResponse, error) {
-			return browserbaseCreateSessionResponse{}, createErr
-		},
-		deleteExtensionFunc: func(context.Context, string) error {
-			deletes++
-			return nil
-		},
-	}
-	client := newBrowserbaseTestSessionClient(t, api)
-
-	_, err := client.createSession(context.Background(), BrowserbaseClientBrowserSource{})
-	if !errors.Is(err, createErr) {
-		t.Fatalf("createSession() error = %v, want create error", err)
-	}
-	if uploads != 0 || deletes != 0 {
-		t.Fatalf("extension API calls = upload:%d delete:%d, want zero", uploads, deletes)
-	}
 }
 
 func TestBrowserbaseSessionClientOptsIntoBuiltInStagehandExtension(t *testing.T) {
@@ -288,16 +229,6 @@ func newBrowserbaseTestSessionClient(
 		t.Fatalf("newBrowserbaseSessionClient() error = %v", err)
 	}
 	return client
-}
-
-func validBrowserbaseExtensionResponse(extensionID string) browserbaseExtensionResponse {
-	return browserbaseExtensionResponse{
-		ID:        testPointer(extensionID),
-		CreatedAt: testPointer("2026-07-23T10:00:00.000Z"),
-		FileName:  testPointer(stagehandExtensionUploadName),
-		ProjectID: testPointer("project_123"),
-		UpdatedAt: testPointer("2026-07-23T10:00:00.000Z"),
-	}
 }
 
 func validBrowserbaseSessionResponse(sessionID string) browserbaseSessionResponse {
