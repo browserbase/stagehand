@@ -221,7 +221,7 @@ async def test_callback_batch_evaluates_in_the_attached_service_worker() -> None
     try:
         result = await client.run_callback_batch(
             source="async ({ page }, input) => ({ title: await page.title(), input })",
-            input={"quote": "'); globalThis.pwned = true; ('"},
+            input={"quote": '"); globalThis.__injectionSucceeded = true; ("'},
             page_id="page-1",
             timeout=2_000,
         )
@@ -232,7 +232,8 @@ async def test_callback_batch_evaluates_in_the_attached_service_worker() -> None
         expression = cast(str, params["expression"])
         assert "__stagehandRunCallbackBatch" in expression
         assert '"pageId":"page-1"' in expression
-        assert "globalThis.pwned = true" in expression
+        assert r"\"); globalThis.__injectionSucceeded = true; (\"" in expression
+        assert '"); globalThis.__injectionSucceeded = true; ("' not in expression
     finally:
         await client.close()
 

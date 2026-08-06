@@ -12,14 +12,15 @@ describe("callback batch expression", () => {
   it("serializes input separately from executable callback source", () => {
     const expression = callbackBatchExpression({
       callbackSource: "async ({ page }, input) => ({ title: await page.title(), input })",
-      input: { text: "'); globalThis.pwned = true; ('" },
+      input: { text: '"); globalThis.__injectionSucceeded = true; ("' },
       pageId: "page-1",
       timeout: 2_000,
     });
 
     expect(expression).toContain("__stagehandRunCallbackBatch");
     expect(expression).toContain('"pageId":"page-1"');
-    expect(expression).toContain("globalThis.pwned = true");
+    expect(expression).toContain(String.raw`\"); globalThis.__injectionSucceeded = true; (\"`);
+    expect(expression).not.toContain('"); globalThis.__injectionSucceeded = true; ("');
     expect(expression).toContain("Object.defineProperty");
     expect(expression).not.toContain('"callbackSource":');
     expect(expression).not.toContain('"input":');
