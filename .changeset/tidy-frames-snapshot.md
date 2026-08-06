@@ -2,4 +2,4 @@
 "@browserbasehq/stagehand": patch
 ---
 
-Avoid snapshot timeouts when iframes detach during capture.
+Avoid duplicating the main accessibility tree when iframes detach during snapshots.

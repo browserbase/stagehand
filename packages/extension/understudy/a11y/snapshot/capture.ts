@@ -16,7 +16,7 @@ import type {
   SnapshotOptions,
   SessionDomIndex,
 } from "../../../types/private/index.js";
-import { a11yForFrame } from "./a11yTree.js";
+import { a11yForFrame, isFrameScopeError } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
   resolveFocusFrameAndTail,
@@ -65,11 +65,10 @@ export async function captureHybridSnapshot(
   const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
-  let framesInScope = includeIframes ? [...context.frames] : [context.rootId];
+  const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
   if (!framesInScope.includes(context.rootId)) {
     framesInScope.unshift(context.rootId);
   }
-  framesInScope = await retainLiveFrames(page, framesInScope, context.rootId);
 
   if (!hasIgnoreSelectors) {
     const scopedSnapshot = await tryScopedSnapshot(
@@ -110,22 +109,24 @@ export async function captureHybridSnapshot(
     if (scopedSnapshot) return scopedSnapshot;
   }
 
-  const framesToCapture = await retainLiveFrames(page, framesInScope, context.rootId);
   const { perFrameMaps, perFrameOutlines } = await collectPerFrameMaps(
     page,
     context,
     sessionToIndex,
     options,
     pierce,
-    framesToCapture,
+    framesInScope,
     exclusionIntervalsByFrame,
   );
-  const capturedFrameIds = framesToCapture.filter((frameId) => perFrameMaps.has(frameId));
+  const capturedFrameIds = framesInScope.filter((frameId) => perFrameMaps.has(frameId));
   const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
     page,
     context,
     perFrameMaps,
     capturedFrameIds,
+  );
+  const mergeableFrameIds = capturedFrameIds.filter(
+    (frameId) => frameId === context.rootId || absPrefix.has(frameId),
   );
 
   return mergeFramesIntoSnapshot(
@@ -134,7 +135,7 @@ export async function captureHybridSnapshot(
     perFrameOutlines,
     absPrefix,
     iframeHostEncByChild,
-    capturedFrameIds,
+    mergeableFrameIds,
   );
 }
 
@@ -153,22 +154,6 @@ export function buildFrameContext(page: Page): FrameContext {
   })(frameTree, null);
   const frames = page.listAllFrameIds();
   return { rootId, parentByFrame, frames };
-}
-
-async function retainLiveFrames(page: Page, frameIds: string[], rootId: string): Promise<string[]> {
-  try {
-    const { frameTree } =
-      await page.sendInternalCDP<Protocol.Page.GetFrameTreeResponse>("Page.getFrameTree");
-    const liveFrameIds = new Set<string>();
-    const visit = (node: Protocol.Page.FrameTree) => {
-      liveFrameIds.add(node.frame.id);
-      for (const child of node.childFrames ?? []) visit(child);
-    };
-    visit(frameTree);
-    return frameIds.filter((frameId) => frameId === rootId || liveFrameIds.has(frameId));
-  } catch {
-    return frameIds.filter((frameId) => frameId === rootId || page.hasFrame(frameId));
-  }
 }
 
 /**
@@ -713,7 +698,6 @@ async function resolveFrameDocRootBackendId(
       frameId,
     });
     if (typeof backendNodeId === "number") {
-      page.setOwnerBackendNodeId(frameId, backendNodeId);
       const docRootBe = idx.contentDocRootByIframe.get(backendNodeId);
       if (typeof docRootBe === "number") return docRootBe;
     }
@@ -759,21 +743,16 @@ export async function computeFramePrefixes(
 
       const parentSess = parentSession(page, context.parentByFrame, child);
 
-      const ownerBackendNodeId =
-        page.getOwnerBackendNodeId(child) ??
-        (await (async () => {
-          try {
-            const { backendNodeId } = await parentSess.send<{
-              backendNodeId?: number;
-            }>("DOM.getFrameOwner", { frameId: child });
-            if (typeof backendNodeId === "number") {
-              page.setOwnerBackendNodeId(child, backendNodeId);
-            }
-            return backendNodeId;
-          } catch {
-            return undefined;
-          }
-        })());
+      const ownerBackendNodeId = await (async () => {
+        try {
+          const { backendNodeId } = await parentSess.send<{
+            backendNodeId?: number;
+          }>("DOM.getFrameOwner", { frameId: child });
+          return backendNodeId;
+        } catch {
+          return undefined;
+        }
+      })();
 
       if (!ownerBackendNodeId) {
         // OOPIFs resolved via a different session inherit the parent prefix.
@@ -795,17 +774,6 @@ export async function computeFramePrefixes(
   return { absPrefix, iframeHostEncByChild };
 }
 
-function isFrameScopeError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes("Frame with the given") ||
-    message.includes("Frame with given") ||
-    message.includes("does not belong to the target") ||
-    message.includes("is not found") ||
-    message.includes("was not found")
-  );
-}
-
 /**
  * Step 5 – merge per-frame maps into the combined snapshot payload. We prefix
  * each frame's relative XPaths with the absolute path collected in step 4,
@@ -820,6 +788,7 @@ export function mergeFramesIntoSnapshot(
   iframeHostEncByChild: Map<string, string>,
   frameIds: string[],
 ): HybridSnapshot {
+  const included = new Set(frameIds);
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
 
@@ -844,6 +813,7 @@ export function mergeFramesIntoSnapshot(
 
   const idToTree = new Map<string, string>();
   for (const { frameId, outline } of perFrameOutlines) {
+    if (!included.has(frameId)) continue;
     const parentEnc = iframeHostEncByChild.get(frameId);
     // The key is the parent iframe's encoded id so injectSubtrees can nest lines.
     if (parentEnc) idToTree.set(parentEnc, outline);
@@ -859,14 +829,16 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
-    perFrame: perFrameOutlines.map(({ frameId, outline }) => {
-      const maps = perFrameMaps.get(frameId);
-      return {
-        frameId,
-        outline: toWellFormed(outline),
-        xpathMap: maps?.xpathMap ?? {},
-        urlMap: maps?.urlMap ?? {},
-      };
-    }),
+    perFrame: perFrameOutlines
+      .filter(({ frameId }) => included.has(frameId))
+      .map(({ frameId, outline }) => {
+        const maps = perFrameMaps.get(frameId);
+        return {
+          frameId,
+          outline: toWellFormed(outline),
+          xpathMap: maps?.xpathMap ?? {},
+          urlMap: maps?.urlMap ?? {},
+        };
+      }),
   };
 }

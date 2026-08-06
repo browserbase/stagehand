@@ -8,6 +8,14 @@ import type {
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
+export function isFrameScopeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /Frame with (?:the )?given id (?:is|was) not found/i.test(message) ||
+    /Frame(?: with (?:the )?given id)? does not belong to the target/i.test(message)
+  );
+}
+
 /**
  * Fetch and prune the accessibility tree for a frame, optionally scoping the
  * output to a selector root for faster targeted snapshots.
@@ -28,12 +36,7 @@ export async function a11yForFrame(
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree", params));
   } catch (e) {
-    const msg = String((e as Error)?.message ?? e ?? "");
-    const isFrameScopeError =
-      msg.includes("Frame with the given") ||
-      msg.includes("does not belong to the target") ||
-      msg.includes("is not found");
-    if (!isFrameScopeError || !frameId || !opts.allowUnscopedFrameFallback?.()) throw e;
+    if (!isFrameScopeError(e) || !frameId || !opts.allowUnscopedFrameFallback?.()) throw e;
     ({ nodes } = await session.send<{
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree"));
