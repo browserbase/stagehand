@@ -135,6 +135,72 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		t.Fatalf("stagehand.init timeout = %v, true; want no nested RPC deadline", timeout)
 	}
 
+	defaultTimeouts := map[string]time.Duration{
+		"page.goto":                25 * time.Second,
+		"page.reload":              25 * time.Second,
+		"page.go_back":             25 * time.Second,
+		"page.go_forward":          25 * time.Second,
+		"page.wait_for_load_state": 25 * time.Second,
+		"page.wait_for_selector":   40 * time.Second,
+		"page.webmcp_tools":        11 * time.Second,
+	}
+	for method, expected := range defaultTimeouts {
+		timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`))
+		if !ok || timeout != expected {
+			t.Errorf("%s timeout = %v, %t; want %v, true", method, timeout, ok, expected)
+		}
+	}
+
+	unboundedMethods := []string{
+		"stagehand.init",
+		"stagehand.close",
+		"stagehand.act",
+		"stagehand.extract",
+		"stagehand.observe",
+		"context.new_page",
+		"context.close",
+		"context.add_init_script",
+		"context.set_extra_http_headers",
+		"context.get_domain_policy",
+		"context.set_domain_policy",
+		"context.cookies",
+		"context.add_cookies",
+		"context.clear_cookies",
+		"context.clipboard_read_text",
+		"context.clipboard_write_text",
+		"context.clipboard_clear",
+		"context.clipboard_paste",
+		"context.clipboard_copy",
+		"context.clipboard_cut",
+		"page.close",
+		"page.evaluate",
+		"page.screenshot",
+		"page.snapshot",
+		"page.webmcp_invocation_result",
+		"locator.click",
+		"locator.fill",
+		"locator.hover",
+		"locator.count",
+		"locator.is_checked",
+		"locator.input_value",
+		"locator.is_visible",
+		"locator.inner_text",
+		"locator.inner_html",
+		"locator.text_content",
+		"locator.scroll_to",
+		"locator.centroid",
+		"locator.highlight",
+		"locator.send_click_event",
+		"locator.type",
+		"locator.select_option",
+		"locator.set_input_files",
+	}
+	for _, method := range unboundedMethods {
+		if timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`)); ok {
+			t.Errorf("%s timeout = %v, true; want no response deadline", method, timeout)
+		}
+	}
+
 	hugeTimeout, ok := rpcResponseTimeout(
 		"stagehand.act",
 		json.RawMessage(`{"options":{"timeout":1e1000}}`),
@@ -155,7 +221,7 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport := newQueueRPCTransport()
 	client := newTestRPCClient(t, transport)
 
-	var result PageRef
+	var result PageNavigationResult
 	callDone := make(chan error, 1)
 	go func() {
 		callDone <- client.call(
@@ -179,19 +245,22 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 		"jsonrpc": "2.0",
 		"id": 1,
 		"result": {
-			"page_id": "page-2",
-			"url": "https://example.com"
+			"page": {
+				"page_id": "page-2",
+				"url": "https://example.com"
+			},
+			"response": null
 		}
 	}`)
 
 	if err := receiveCallError(t, callDone); err != nil {
 		t.Fatalf("call() error = %v", err)
 	}
-	if result.PageID != "page-2" || result.URL == nil || *result.URL != "https://example.com" {
+	if result.Page.PageID != "page-2" || result.Page.URL == nil || *result.Page.URL != "https://example.com" {
 		t.Fatalf("call() result = %#v", result)
 	}
 
-	var invalid PageRef
+	var invalid PageNavigationResult
 	invalidDone := make(chan error, 1)
 	go func() {
 		invalidDone <- client.call(
@@ -206,15 +275,15 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 		"jsonrpc": "2.0",
 		"id": 2,
 		"result": {
-			"page_id": "page-2",
-			"unexpected": true
+			"page": {"page_id": "page-2", "unexpected": true},
+			"response": null
 		}
 	}`)
 	if err := receiveCallError(t, invalidDone); err == nil {
 		t.Fatal("call() accepted an unknown result field")
 	}
 
-	var missing PageRef
+	var missing PageNavigationResult
 	missingDone := make(chan error, 1)
 	go func() {
 		missingDone <- client.call(
@@ -228,10 +297,12 @@ func TestRPCClientSerializesParamsAndStrictlyDecodesResults(t *testing.T) {
 	transport.receiveJSON(`{
 		"jsonrpc": "2.0",
 		"id": 3,
-		"result": {"url": "https://example.com"}
+		"result": {"page": {}, "response": null}
 	}`)
 	if err := receiveCallError(t, missingDone); err == nil {
 		t.Fatal("call() accepted a result missing page_id")
+	} else if !strings.Contains(err.Error(), `page: missing required JSON field "page_id"`) {
+		t.Fatalf("call() error = %v, want missing nested page_id error", err)
 	}
 }
 
@@ -366,6 +437,22 @@ func TestRPCClientValidatesInboundRequestsAndHandlerResults(t *testing.T) {
 		"jsonrpc": "2.0",
 		"id": 3,
 		"error": {"code": -32603, "message": "Internal error"}
+	}`)
+}
+
+func TestMarshalValidatedJSONHonorsCustomUnionUnmarshalers(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := marshalValidatedJSON(StagehandActParams{
+		Instruction: ActInstruction("click the link"),
+		PageID:      "page-1",
+	})
+	if err != nil {
+		t.Fatalf("marshalValidatedJSON() error = %v", err)
+	}
+	assertRPCJSON(t, encoded, `{
+		"instruction": "click the link",
+		"page_id": "page-1"
 	}`)
 }
 

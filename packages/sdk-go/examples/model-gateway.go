@@ -51,18 +51,19 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return err
 	}
-	page, err := browserContext.ActivePage(ctx)
+	pages, err := browserContext.Pages(ctx)
 	if err != nil {
 		return err
 	}
-	if page == nil {
+	if len(pages) == 0 {
 		return errors.New("Stagehand initialized without an active page")
 	}
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	page := pages[0]
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		return err
 	}
 

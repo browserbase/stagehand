@@ -1,0 +1,488 @@
+---
+title: Speed optimization
+sidebarTitle: Speed optimization
+description: Optimize Stagehand performance for faster automation and reduced latency
+---
+
+Stagehand performance depends on several factors: DOM processing speed, LLM inference time, browser operations, and network latency. This guide provides proven strategies to maximize automation speed.
+
+## Quick performance wins
+
+### 1. Plan ahead with observe
+
+Use a single `observe()` call to plan multiple actions, then replay each returned `Action` through `act()`:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Instead of sequential operations with multiple LLM calls
+await stagehand.act("Fill name field");         // LLM call #1
+await stagehand.act("Fill email field");        // LLM call #2
+await stagehand.act("Select country dropdown"); // LLM call #3
+
+// Use a single observe to plan all form fields: one LLM call
+const { data: formFields } = await stagehand.observe("Find all form fields to fill");
+
+// Replay each observed action: no further LLM inference
+for (const field of formFields) {
+  await stagehand.act(field);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Instead of sequential operations with multiple LLM calls
+await stagehand.act("Fill name field")          # LLM call #1
+await stagehand.act("Fill email field")         # LLM call #2
+await stagehand.act("Select country dropdown")  # LLM call #3
+
+# Use a single observe to plan all form fields: one LLM call
+form_fields = (await stagehand.observe(instruction="Find all form fields to fill")).data
+
+# Replay each observed action: no further LLM inference
+for field in form_fields:
+    await stagehand.act(field)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Instead of sequential operations with multiple LLM calls
+_, err := client.Act(ctx, stagehand.ActInstruction("Fill name field"), nil)          // LLM call #1
+_, err = client.Act(ctx, stagehand.ActInstruction("Fill email field"), nil)          // LLM call #2
+_, err = client.Act(ctx, stagehand.ActInstruction("Select country dropdown"), nil)    // LLM call #3
+
+// Use a single Observe to plan all form fields: one LLM call
+instruction := "Find all form fields to fill"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+// Replay each observed action: no further LLM inference
+for _, field := range observed.Data {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(field), nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+<Note>
+**Performance tip**: Passing an observed `Action` back to `act()` replays its recorded method and arguments without another inference call. A planned workflow therefore costs one `observe()` inference instead of one per step, which is the recommended pattern for multi-step workflows.
+</Note>
+
+<Card title="Caching guide" icon="database" href="/v4/best-practices/caching">
+  Learn advanced caching patterns and cache invalidation strategies
+</Card>
+
+### 2. Optimize DOM processing
+
+Reduce DOM complexity before Stagehand processes the page. Scoping is usually the biggest win: pass a selector so Stagehand snapshots one container instead of the whole document, and prune known-noisy subtrees.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Scope the snapshot to the region you care about
+await stagehand.observe("Find the checkout actions", {
+  selector: "#checkout",
+  ignoreSelectors: ["nav", ".cookie-banner", "#sidebar-ads"],
+});
+
+// Or strip heavy elements before Stagehand reads the page
+await page.evaluate(`
+  document.querySelectorAll('video, iframe').forEach(el => el.remove());
+  document.querySelectorAll('[style*="animation"]').forEach(el => {
+    el.style.animation = 'none';
+  });
+`);
+
+// Then perform Stagehand operations
+await stagehand.act("Click the submit button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Scope the snapshot to the region you care about
+await stagehand.observe(
+    instruction="Find the checkout actions",
+    selector="#checkout",
+    ignore_selectors=["nav", ".cookie-banner", "#sidebar-ads"],
+)
+
+# Or strip heavy elements before Stagehand reads the page
+await page.evaluate("""
+  document.querySelectorAll('video, iframe').forEach(el => el.remove());
+  document.querySelectorAll('[style*="animation"]').forEach(el => {
+    el.style.animation = 'none';
+  });
+""")
+
+# Then perform Stagehand operations
+await stagehand.act("Click the submit button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Scope the snapshot to the region you care about
+selector := "#checkout"
+instruction := "Find the checkout actions"
+if _, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{
+		Selector:        &selector,
+		IgnoreSelectors: []string{"nav", ".cookie-banner", "#sidebar-ads"},
+	},
+}); err != nil {
+	return err
+}
+
+// Or strip heavy elements before Stagehand reads the page
+if _, err := page.Evaluate(ctx, `
+  document.querySelectorAll('video, iframe').forEach(el => el.remove());
+  document.querySelectorAll('[style*="animation"]').forEach(el => {
+    el.style.animation = 'none';
+  });
+`); err != nil {
+	return err
+}
+
+// Then perform Stagehand operations
+_, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), nil)
+```
+</View>
+
+<Warning>
+Removing iframes speeds up snapshots, but Stagehand traverses iframes by default. Only strip them when you know the content you need lives in the main frame.
+</Warning>
+
+### 3. Set appropriate timeouts
+
+Use shorter timeouts for simple operations and longer ones for complex page loads. Lowering the DOM settle timeout also shaves time off every `act()` call on stable pages.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Stable pages: shorten the settle wait (default is 5000ms)
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
+const stagehand = await Stagehand.create({
+  browser,
+  domSettleTimeoutMs: 1000,
+});
+
+// Simple actions: reduce the action timeout
+await stagehand.act("Click the login button", {
+  timeout: 5000,
+});
+
+// Complex page loads: optimize navigation
+const page = await browser.context.activePage();
+await page.goto("https://heavy-spa.com", {
+  waitUntil: "domcontentloaded", // Don't wait for all resources
+  timeout: 15000,
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Stable pages: shorten the settle wait (default is 5000ms)
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    dom_settle_timeout_ms=1000,
+)
+
+# Simple actions: reduce the action timeout
+await stagehand.act("Click the login button", timeout=5000)
+
+# Complex page loads: optimize navigation
+page = await browser.context.active_page()
+await page.goto(
+    "https://heavy-spa.com",
+    wait_until="domcontentloaded",  # Don't wait for all resources
+    timeout=15000,
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Stable pages: shorten the settle wait (default is 5000ms)
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+domSettleTimeoutMs := 1000
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser:            browser,
+	DOMSettleTimeoutMs: &domSettleTimeoutMs,
+})
+if err != nil {
+	return err
+}
+
+// Simple actions: reduce the action timeout
+timeout := 5000.0
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click the login button"), &stagehand.StagehandClientActOptions{
+	ActOptions: stagehand.ActOptions{Timeout: &timeout},
+}); err != nil {
+	return err
+}
+
+// Complex page loads: optimize navigation
+browserContext, err := browser.Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if page == nil {
+	return errors.New("Stagehand has no active page")
+}
+
+waitUntil := stagehand.LoadStateDOMContentLoaded // Don't wait for all resources
+navTimeout := 15000
+if _, err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOptions{
+	WaitUntil: &waitUntil,
+	Timeout:   &navTimeout,
+}); err != nil {
+	return err
+}
+```
+</View>
+
+## Performance monitoring and benchmarking
+
+Track performance metrics and measure optimization impact:
+
+### Performance tracking
+
+<View title="TypeScript" icon="js">
+```typescript
+class PerformanceTracker {
+  private speedMetrics: Map<string, number[]> = new Map();
+
+  async timedAct(stagehand: Stagehand, prompt: string) {
+    const start = Date.now();
+    const result = await stagehand.act(prompt);
+    const duration = Date.now() - start;
+
+    if (!this.speedMetrics.has(prompt)) {
+      this.speedMetrics.set(prompt, []);
+    }
+    this.speedMetrics.get(prompt)!.push(duration);
+
+    console.log(`Action "${prompt}" took ${duration}ms`);
+    return result;
+  }
+
+  getAverageTime(prompt: string): number {
+    const times = this.speedMetrics.get(prompt) || [];
+    if (times.length === 0) return 0;
+    return times.reduce((a, b) => a + b, 0) / times.length;
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from time import perf_counter
+
+from stagehand import Stagehand
+
+class PerformanceTracker:
+    def __init__(self) -> None:
+        self.speed_metrics: dict[str, list[float]] = {}
+
+    async def timed_act(self, stagehand: Stagehand, prompt: str):
+        start = perf_counter()
+        result = await stagehand.act(prompt)
+        duration = (perf_counter() - start) * 1000
+
+        self.speed_metrics.setdefault(prompt, []).append(duration)
+
+        print(f'Action "{prompt}" took {duration:.0f}ms')
+        return result
+
+    def get_average_time(self, prompt: str) -> float:
+        times = self.speed_metrics.get(prompt, [])
+        return sum(times) / len(times) if times else 0.0
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type performanceTracker struct {
+	mu           sync.Mutex
+	speedMetrics map[string][]time.Duration
+}
+
+func (t *performanceTracker) timedAct(
+	ctx context.Context,
+	client *stagehand.Stagehand,
+	prompt string,
+) (stagehand.ActResult, error) {
+	start := time.Now()
+	result, err := client.Act(ctx, stagehand.ActInstruction(prompt), nil)
+	duration := time.Since(start)
+
+	t.mu.Lock()
+	if t.speedMetrics == nil {
+		t.speedMetrics = map[string][]time.Duration{}
+	}
+	t.speedMetrics[prompt] = append(t.speedMetrics[prompt], duration)
+	t.mu.Unlock()
+
+	fmt.Printf("Action %q took %dms\n", prompt, duration.Milliseconds())
+	return result, err
+}
+
+func (t *performanceTracker) getAverageTime(prompt string) time.Duration {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	times := t.speedMetrics[prompt]
+	if len(times) == 0 {
+		return 0
+	}
+	var total time.Duration
+	for _, d := range times {
+		total += d
+	}
+	return total / time.Duration(len(times))
+}
+```
+</View>
+
+Example Output:
+```
+Action "Fill form" took 1000ms
+Action "Click submit" took 2000ms
+Action "Confirm submission" took 5000ms
+```
+
+### Before vs after benchmarking
+
+<View title="TypeScript" icon="js">
+```typescript
+// Before optimization
+console.time("workflow");
+await stagehand.act("Fill form");
+await stagehand.act("Click submit");
+await stagehand.act("Confirm submission");
+console.timeEnd("workflow"); // 8000ms
+
+// After optimization with observe planning
+console.time("workflow-optimized");
+const { data: workflowActions } = await stagehand.observe("Find form, submit, and confirm elements");
+
+// Replay actions sequentially to avoid conflicts
+for (const action of workflowActions) {
+  await stagehand.act(action);
+}
+console.timeEnd("workflow-optimized"); // 500ms
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from time import perf_counter
+
+# Before optimization
+start = perf_counter()
+await stagehand.act("Fill form")
+await stagehand.act("Click submit")
+await stagehand.act("Confirm submission")
+print(f"workflow: {(perf_counter() - start) * 1000:.0f}ms")  # 8000ms
+
+# After optimization with observe planning
+start = perf_counter()
+workflow_actions = (await stagehand.observe(
+    instruction="Find form, submit, and confirm elements"
+)).data
+
+# Replay actions sequentially to avoid conflicts
+for action in workflow_actions:
+    await stagehand.act(action)
+print(f"workflow-optimized: {(perf_counter() - start) * 1000:.0f}ms")  # 500ms
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Before optimization
+start := time.Now()
+if _, err := client.Act(ctx, stagehand.ActInstruction("Fill form"), nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click submit"), nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("Confirm submission"), nil); err != nil {
+	return err
+}
+fmt.Printf("workflow: %dms\n", time.Since(start).Milliseconds()) // 8000ms
+
+// After optimization with Observe planning
+start = time.Now()
+instruction := "Find form, submit, and confirm elements"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+// Replay actions sequentially to avoid conflicts
+for _, action := range observed.Data {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(action), nil); err != nil {
+		return err
+	}
+}
+fmt.Printf("workflow-optimized: %dms\n", time.Since(start).Milliseconds()) // 500ms
+```
+</View>
+
+Example Output:
+```
+workflow: 8000ms
+workflow-optimized: 500ms
+```
+
+<Tip>
+Server-side caching gets you the same result without restructuring your code: when the replay succeeds, a cached `act()` runs the recorded action with no inference at all. If the recorded selector no longer resolves, Stagehand falls back to the full inference pipeline and caches the new action. See the [caching guide](/v4/best-practices/caching).
+</Tip>
+
+<CardGroup cols={1}>
+<Card title="Observability & metrics" icon="chart-line" href="/v4/configuration/observability">
+  Set up comprehensive performance monitoring
+</Card>
+</CardGroup>
+
+
+## Related resources
+
+<CardGroup cols={2}>
+<Card title="Caching strategies" icon="database" href="/v4/best-practices/caching">
+  Advanced caching patterns for maximum performance
+</Card>
+
+<Card title="Cost optimization" icon="dollar-sign" href="/v4/best-practices/cost-optimization">
+  Balance speed improvements with cost considerations
+</Card>
+
+<Card title="Browser configuration" icon="window-maximize" href="/v4/configuration/browser">
+  Optimize Browserbase settings for speed
+</Card>
+
+<Card title="Model selection" icon="brain" href="/v4/configuration/models">
+  Choose the right model for speed vs accuracy
+</Card>
+</CardGroup>

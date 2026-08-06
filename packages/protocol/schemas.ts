@@ -1302,6 +1302,97 @@ export const PageRefSchema = z
   })
   .meta({ id: "PageRef" });
 
+export const NavigationHeaderSchema = z
+  .strictObject({
+    name: z.string(),
+    value: z.string(),
+  })
+  .meta({ id: "NavigationHeader" });
+
+export const NavigationSecurityDetailsSchema = z
+  .strictObject({
+    issuer: z.string(),
+    protocol: z.string(),
+    subjectName: z.string(),
+    validFrom: z.number(),
+    validTo: z.number(),
+  })
+  .meta({ id: "NavigationSecurityDetails" });
+
+export const NavigationServerAddrSchema = z
+  .strictObject({
+    ipAddress: z.string(),
+    port: z.number().int().min(0).max(65_535),
+  })
+  .meta({ id: "NavigationServerAddr" });
+
+export const NavigationFinishedErrorSchema = z
+  .strictObject({
+    message: z.string(),
+  })
+  .meta({ id: "NavigationFinishedError" });
+
+export const NavigationResponseDescriptorSchema = z
+  .strictObject({
+    responseId: z.string().min(1),
+    url: z.string(),
+    status: z.number().int().nonnegative(),
+    statusText: z.string(),
+    headers: z.record(z.string(), z.string()),
+    fromServiceWorker: z.boolean(),
+  })
+  .meta({ id: "NavigationResponseDescriptor" });
+
+export const PageNavigationResultSchema = z
+  .strictObject({
+    page: PageRefSchema,
+    response: NavigationResponseDescriptorSchema.nullable(),
+  })
+  .meta({ id: "PageNavigationResult" });
+
+export const ResponseIdParamsSchema = z
+  .strictObject({
+    responseId: z.string().min(1),
+  })
+  .meta({ id: "ResponseIdParams" });
+
+export const ResponseBodyResultSchema = z
+  .strictObject({
+    body: z.string(),
+    base64Encoded: z.literal(true),
+  })
+  .meta({ id: "ResponseBodyResult" });
+
+export const ResponseAllHeadersResultSchema = z
+  .strictObject({
+    headers: z.record(z.string(), z.string()),
+  })
+  .meta({ id: "ResponseAllHeadersResult" });
+
+export const ResponseHeadersArrayResultSchema = z
+  .strictObject({
+    headers: z.array(NavigationHeaderSchema),
+  })
+  .meta({ id: "ResponseHeadersArrayResult" });
+
+export const ResponseSecurityDetailsResultSchema = z
+  .strictObject({
+    value: NavigationSecurityDetailsSchema.nullable(),
+  })
+  .meta({ id: "ResponseSecurityDetailsResult" });
+
+export const ResponseServerAddrResultSchema = z
+  .strictObject({
+    value: NavigationServerAddrSchema.nullable(),
+  })
+  .meta({ id: "ResponseServerAddrResult" });
+
+export const ResponseFinishedResultSchema = z
+  .strictObject({
+    error: NavigationFinishedErrorSchema.nullable(),
+  })
+  .meta({ id: "ResponseFinishedResult" });
+
 export const WebMCPAnnotationSchema = z
   .strictObject({
     readOnly: z.boolean().optional(),
@@ -1456,11 +1547,19 @@ export const StagehandObserveParamsSchema = z
   })
   .meta({ id: "StagehandObserveParams" });
 
+export const DefaultExtractDataSchema = z
+  .strictObject({
+    extraction: z.string(),
+  })
+  .meta({ id: "DefaultExtractData" });
+
+export const DEFAULT_EXTRACT_JSON_SCHEMA = z.json().parse(z.toJSONSchema(DefaultExtractDataSchema));
+
 export const StagehandExtractParamsSchema = z
   .strictObject({
     pageId: z.string().min(1),
     instruction: z.string().min(1),
-    schema: z.json(),
+    schema: z.json().default(DEFAULT_EXTRACT_JSON_SCHEMA),
     options: ExtractOptionsSchema.optional(),
   })
   .meta({ id: "StagehandExtractParams" });
@@ -1805,6 +1904,33 @@ export const LocatorSelectOptionParamsSchema = LocatorDescriptorSchema.extend({
   values: z.union([z.string(), z.array(z.string())]),
 }).meta({ id: "LocatorSelectOptionParams" });
 
+const MAX_INPUT_FILE_BYTES = 50 * 1024 * 1024;
+const MAX_INPUT_FILE_BASE64_LENGTH = Math.ceil(MAX_INPUT_FILE_BYTES / 3) * 4;
+
+export function decodedBase64ByteLength(data: string): number {
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  return (data.length / 4) * 3 - padding;
+}
+
+export const InputFilePayloadSchema = z
+  .strictObject({
+    name: z.string().min(1),
+    mimeType: z.string().min(1).optional(),
+    data: z
+      .base64()
+      .max(MAX_INPUT_FILE_BASE64_LENGTH)
+      .refine((value) => decodedBase64ByteLength(value) <= MAX_INPUT_FILE_BYTES, {
+        message: "File data must decode to 50 MiB or less",
+      })
+      .meta({ format: "byte" }),
+    lastModified: z.number().int().nonnegative().optional(),
+  })
+  .meta({ id: "InputFilePayload" });
+
+export const LocatorSetInputFilesParamsSchema = LocatorDescriptorSchema.extend({
+  files: z.array(InputFilePayloadSchema),
+}).meta({ id: "LocatorSetInputFilesParams" });
+
 export const StagehandInitResultSchema = z
   .strictObject({
     initialized: z.literal(true),
@@ -1937,6 +2063,12 @@ export const LocatorTypeResultSchema = z
 export const LocatorSelectOptionResultSchema = z
   .array(z.string())
   .meta({ id: "LocatorSelectOptionResult" });
+
+export const LocatorSetInputFilesResultSchema = z
+  .strictObject({
+    set: z.literal(true),
+  })
+  .meta({ id: "LocatorSetInputFilesResult" });
 
 export const StagehandLogLevelSchema = z
   .enum(["debug", "info", "warn", "error"])

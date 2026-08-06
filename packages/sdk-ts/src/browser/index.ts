@@ -4,6 +4,7 @@ import type {
   LocalBrowserConnectOptions,
   LocalBrowserLaunchOptions,
 } from "../clientSchemas.js";
+import type { BrowserContext } from "../browserContext.js";
 
 export type {
   BrowserbaseConnectOptions,
@@ -27,6 +28,7 @@ export interface StagehandBrowser {
   readonly [stagehandBrowserBrand]: true;
   readonly provider: StagehandBrowserProvider;
   readonly origin: StagehandBrowserOrigin;
+  readonly context: BrowserContext;
   readonly closed: boolean;
   close(): Promise<void>;
 }
@@ -44,6 +46,7 @@ export interface BrowserbaseBrowser {
 type BrowserHandleInternals = {
   claimed: boolean;
   attachment: unknown;
+  context?: BrowserContext;
   close: () => Promise<void> | void;
   closePromise?: Promise<void>;
 };
@@ -63,6 +66,16 @@ class StagehandBrowserHandle implements StagehandBrowser {
 
   get closed(): boolean {
     return browserHandleInternals.get(this)?.closePromise !== undefined;
+  }
+
+  get context(): BrowserContext {
+    const context = requireBrowserHandleInternals(this).context;
+    if (!context) {
+      throw new Error(
+        "Browser context is unavailable. Attach the browser with await Stagehand.create({ browser }).",
+      );
+    }
+    return context;
   }
 
   close(): Promise<void> {
@@ -103,6 +116,27 @@ export function claimStagehandBrowserHandle<Attachment>(browser: StagehandBrowse
 export function releaseStagehandBrowserHandle(browser: StagehandBrowser): void {
   const internals = requireBrowserHandleInternals(browser);
   internals.claimed = false;
+}
+
+/** @internal */
+export function attachStagehandBrowserContext(
+  browser: StagehandBrowser,
+  context: BrowserContext,
+): void {
+  const internals = requireBrowserHandleInternals(browser);
+  if (!internals.claimed) {
+    throw new Error("Cannot attach a browser context before Stagehand claims the browser");
+  }
+  if (internals.context) {
+    throw new Error("This browser already has a Stagehand context");
+  }
+  internals.context = context;
+}
+
+/** @internal */
+export function detachStagehandBrowserContext(browser: StagehandBrowser): void {
+  const internals = requireBrowserHandleInternals(browser);
+  internals.context = undefined;
 }
 
 export function isStagehandBrowser(value: unknown): value is StagehandBrowser {

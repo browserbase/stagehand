@@ -1,0 +1,138 @@
+---
+title: "MCP integrations"
+description: "Call Model Context Protocol (MCP) servers alongside Stagehand's primitives"
+---
+
+{/* TODO: the v3 version of this guide wired MCP tool servers into stagehand.agent(). Agent is not planned for v4, so that guide is not coming back; this page teaches caller-side orchestration instead. Revisit only if the v4 runtime ever ships an MCP client. */}
+
+<Note>
+In v3, MCP integrations attached external tool servers to a Stagehand agent. Stagehand v4 has no autonomous agent and ships no MCP client, so there is no integrations surface to configure. Call your MCP servers from your own code instead, as below.
+</Note>
+
+## Calling MCP servers from your code
+
+Interleave your tool results with Stagehand's primitives. Because v4 has no autonomous loop, you are already writing the orchestration, so a tool call is one more step in the sequence.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Your MCP client, your credentials, your control flow
+const searchResults = await mcpClient.callTool("web_search", {
+  query: "browserbase pricing",
+});
+
+// Hand the result to Stagehand as an ordinary instruction
+await page.goto(searchResults.topUrl);
+
+const { data } = await stagehand.extract(
+  "extract the pricing tiers",
+  z.object({ pricing: z.array(z.object({ tier: z.string(), price: z.string() })) }),
+);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Your MCP client, your credentials, your control flow
+search_results = await mcp_client.call_tool(
+    "web_search", {"query": "browserbase pricing"}
+)
+
+# Hand the result to Stagehand as an ordinary instruction
+await page.goto(search_results["top_url"])
+
+
+class Tier(BaseModel):
+    tier: str
+    price: str
+
+
+class Pricing(BaseModel):
+    pricing: list[Tier]
+
+
+result = await stagehand.extract(
+    instruction="extract the pricing tiers",
+    schema=Pricing,
+)
+pricing = result.data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Your MCP client, your credentials, your control flow
+searchResults, err := mcpClient.CallTool(ctx, "web_search", map[string]any{
+	"query": "browserbase pricing",
+})
+if err != nil {
+	return err
+}
+
+// Hand the result to Stagehand as an ordinary instruction
+if _, err := page.Goto(ctx, searchResults.TopURL, nil); err != nil {
+	return err
+}
+
+type tier struct {
+	Tier  string `json:"tier"`
+	Price string `json:"price"`
+}
+
+type pricing struct {
+	Pricing []tier `json:"pricing"`
+}
+
+var pricingSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "pricing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tier": {"type": "string"},
+          "price": {"type": "string"}
+        },
+        "required": ["tier", "price"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["pricing"],
+  "additionalProperties": false
+}`)
+
+extracted, err := stagehand.ExtractAs[pricing](
+	ctx,
+	client,
+	"extract the pricing tiers",
+	pricingSchema,
+	nil,
+)
+if err != nil {
+	return err
+}
+
+for _, t := range extracted.Data.Pricing {
+	fmt.Println(t.Tier, t.Price)
+}
+```
+</View>
+
+<Tip>
+MCP is still useful on the authoring side: wire the Stagehand docs MCP server into your coding assistant so it generates correct v4 code. See [AI Rules](/v4/first-steps/ai-rules#using-mcp-servers).
+</Tip>
+
+## Next steps
+
+<CardGroup cols={3}>
+  <Card title="Act" icon="play" href="/v4/basics/act">
+    Perform a single action with natural language
+  </Card>
+  <Card title="Extract" icon="table" href="/v4/basics/extract">
+    Pull typed data out of any page
+  </Card>
+  <Card title="AI rules" icon="screwdriver-wrench" href="/v4/first-steps/ai-rules">
+    MCP servers for your coding assistant
+  </Card>
+</CardGroup>

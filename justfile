@@ -11,7 +11,7 @@ install:
 generate:
     pnpm --filter ./packages/protocol build
     uv --directory {{python_dir}} run --locked python scripts/generate.py
-    pnpm --filter ./packages/server build
+    pnpm --filter ./packages/extension build
     go -C {{go_dir}} generate ./...
 
 check: check-go-examples
@@ -25,7 +25,7 @@ check: check-go-examples
     uv --directory {{python_dir}} run --locked ruff check .
     uv --directory {{python_dir}} run --locked ty check
     go -C {{go_generator_dir}} run . --check
-    pnpm --filter ./packages/server build
+    pnpm --filter ./packages/extension build
     go -C {{go_dir}} run ./internal/extensionpack --check
     test -z "$(find {{go_dir}} -name '*.go' -type f -exec gofmt -l {} +)"
     go -C {{go_dir}} vet $(go -C {{go_dir}} list ./... | grep -v '/examples$')
@@ -44,7 +44,7 @@ docs:
     pnpm run docs
 
 example name="act":
-    pnpm --filter ./packages/server build
+    pnpm --filter ./packages/extension build
     pnpm --filter ./packages/sdk-ts build
     pnpm exec tsx "packages/sdk-ts/examples/{{name}}.ts"
 
@@ -77,7 +77,7 @@ _version:
     pnpm exec changeset version
     pnpm exec tsx scripts/release/consolidate-changelogs.ts
     pnpm exec tsx scripts/release/sync-python-version.ts
-    pnpm --filter ./packages/server build
+    pnpm --filter ./packages/extension build
     go -C {{go_dir}} generate ./...
     uv --directory "{{python_dir}}" lock
     pnpm exec tsx scripts/release/sync-python-version.ts --check

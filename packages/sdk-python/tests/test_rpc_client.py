@@ -2,10 +2,19 @@ import asyncio
 from typing import cast
 
 import pytest
+from opentelemetry import context as otel_context
+from opentelemetry.trace import (
+    NonRecordingSpan,
+    SpanContext,
+    TraceFlags,
+    TraceState,
+    set_span_in_context,
+)
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from stagehand import rpc_client
 from stagehand._generated import models
+from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
@@ -53,7 +62,7 @@ async def test_send_validates_and_serializes_params_and_results() -> None:
         client.send(
             "page.goto",
             models.PageGotoParams(page_id="page-1", url="https://example.com"),
-            models.PageRef,
+            models.PageNavigationResult,
         )
     )
     request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
@@ -67,13 +76,84 @@ async def test_send_validates_and_serializes_params_and_results() -> None:
     await transport.incoming.put({
         "jsonrpc": "2.0",
         "id": request["id"],
-        "result": {"page_id": "page-2", "url": "https://example.com"},
+        "result": {
+            "page": {"page_id": "page-2", "url": "https://example.com"},
+            "response": None,
+        },
     })
 
     try:
-        assert await asyncio.wait_for(call, timeout=1) == models.PageRef(
-            page_id="page-2",
-            url="https://example.com",
+        assert await asyncio.wait_for(call, timeout=1) == models.PageNavigationResult(
+            page=models.PageRef(page_id="page-2", url="https://example.com"),
+            response=None,
+        )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_send_propagates_current_w3c_trace_context() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    parent = NonRecordingSpan(
+        SpanContext(
+            trace_id=int("4bf92f3577b34da6a3ce929d0e0e4736", 16),
+            span_id=int("00f067aa0ba902b7", 16),
+            is_remote=False,
+            trace_flags=TraceFlags(TraceFlags.SAMPLED),
+            trace_state=TraceState.from_header(["vendor=value"]),
+        )
+    )
+    token = otel_context.attach(set_span_in_context(parent))
+    try:
+        call = asyncio.create_task(
+            client.send("context.pages", models.EmptyParams(), models.ContextPagesResult)
+        )
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert request["traceparent"] == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+        assert request["tracestate"] == "vendor=value"
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": [],
+        })
+        assert await asyncio.wait_for(call, timeout=1) == []
+    finally:
+        otel_context.detach(token)
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_send_omits_unset_nested_file_metadata() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    call = asyncio.create_task(
+        client.send(
+            "locator.set_input_files",
+            models.LocatorSetInputFilesParams(
+                page_id="page-1",
+                selector="#upload",
+                files=normalize_file_input(FilePayload(name="hello.txt", buffer=b"hello")),
+            ),
+            models.LocatorSetInputFilesResult,
+        )
+    )
+    request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+
+    assert request["params"] == {
+        "page_id": "page-1",
+        "selector": "#upload",
+        "files": [{"name": "hello.txt", "data": "aGVsbG8="}],
+    }
+    await transport.incoming.put({
+        "jsonrpc": "2.0",
+        "id": request["id"],
+        "result": {"set": True},
+    })
+
+    try:
+        assert await asyncio.wait_for(call, timeout=1) == models.LocatorSetInputFilesResult(
+            set=True
         )
     finally:
         await client.close()
@@ -441,6 +521,73 @@ def test_response_deadline_uses_operation_parameters_and_skips_stagehand_init() 
     assert rpc_client._rpc_response_timeout_seconds("stagehand.observe", observe_params) == 30
     assert rpc_client._rpc_response_timeout_seconds("stagehand.extract", extract_params) == 25
     assert rpc_client._rpc_response_timeout_seconds("stagehand.init", models.EmptyParams()) is None
+
+
+def test_response_deadline_uses_v3_operation_defaults() -> None:
+    params = models.EmptyParams()
+    expected = {
+        "page.goto": 25,
+        "page.reload": 25,
+        "page.go_back": 25,
+        "page.go_forward": 25,
+        "page.wait_for_load_state": 25,
+        "page.wait_for_selector": 40,
+        "page.webmcp_tools": 11,
+    }
+
+    for method, timeout in expected.items():
+        assert rpc_client._rpc_response_timeout_seconds(method, params) == timeout
+
+
+def test_response_deadline_preserves_v3_unbounded_operations() -> None:
+    params = models.EmptyParams()
+    methods = {
+        "stagehand.init",
+        "stagehand.close",
+        "stagehand.act",
+        "stagehand.extract",
+        "stagehand.observe",
+        "context.new_page",
+        "context.close",
+        "context.add_init_script",
+        "context.set_extra_http_headers",
+        "context.get_domain_policy",
+        "context.set_domain_policy",
+        "context.cookies",
+        "context.add_cookies",
+        "context.clear_cookies",
+        "context.clipboard_read_text",
+        "context.clipboard_write_text",
+        "context.clipboard_clear",
+        "context.clipboard_paste",
+        "context.clipboard_copy",
+        "context.clipboard_cut",
+        "page.close",
+        "page.evaluate",
+        "page.screenshot",
+        "page.snapshot",
+        "page.webmcp_invocation_result",
+        "locator.click",
+        "locator.fill",
+        "locator.hover",
+        "locator.count",
+        "locator.is_checked",
+        "locator.input_value",
+        "locator.is_visible",
+        "locator.inner_text",
+        "locator.inner_html",
+        "locator.text_content",
+        "locator.scroll_to",
+        "locator.centroid",
+        "locator.highlight",
+        "locator.send_click_event",
+        "locator.type",
+        "locator.select_option",
+        "locator.set_input_files",
+    }
+
+    for method in methods:
+        assert rpc_client._rpc_response_timeout_seconds(method, params) is None
 
 
 @pytest.mark.asyncio

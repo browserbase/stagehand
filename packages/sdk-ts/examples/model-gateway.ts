@@ -13,10 +13,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 try {
-  const page = await stagehand.context.activePage();
-  if (!page) {
-    throw new Error("Stagehand initialized without an active page");
-  }
+  const [page] = await browser.context.pages();
   await page.goto("https://example.com");
 
   const result = await stagehand.extract(

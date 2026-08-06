@@ -1,10 +1,10 @@
 import type { TaskSpec } from "stagehand-v3";
 
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineAgentBenchTask } from "../../../framework/defineTask.js";
 import { adHocRubric } from "../../../framework/adHocRubric.js";
 import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
-export default defineBenchTask(
+export default defineAgentBenchTask(
   { name: "agent/alibaba_supplier_search" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {

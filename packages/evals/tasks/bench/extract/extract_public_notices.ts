@@ -1,17 +1,16 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
-import { compareStrings } from "../../../utils.js";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { compareStrings } from "../../../framework/stringScoring.js";
 
 export default defineBenchTask(
   { name: "extract_public_notices" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/sars/", {
         waitUntil: "load",
       });
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract ALL the public notice descriptions with their corresponding, GG number and publication date. Extract ALL notices from 2024 through 2020. Do not include the Notice number.",
         z.object({
           public_notices: z.array(
@@ -68,6 +67,8 @@ export default defineBenchTask(
           sessionUrl,
         };
       }
+      // NOTE (preserved v3 quirk): compareStrings returns an object, which is
+      // always truthy — these `&&` chains never actually gate on similarity.
       const firstItemMatches =
         compareStrings(
           publicNotices[0].notice_description,
@@ -151,13 +152,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

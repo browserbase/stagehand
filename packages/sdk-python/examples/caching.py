@@ -34,7 +34,7 @@ async def main() -> None:
             model_api_key=OPENAI_API_KEY,
         )
         try:
-            page = await stagehand.context.active_page()
+            page = (await browser.context.pages())[0]
             if page is None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://aigrant.com")

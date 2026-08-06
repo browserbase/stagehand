@@ -1,10 +1,15 @@
 import { RPCClient } from "./rpcClient.js";
-import { STAGEHAND_PROTOCOL_VERSION, StagehandInitParamsSchema } from "../../protocol/schemas.js";
+import {
+  DefaultExtractDataSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+  StagehandInitParamsSchema,
+} from "../../protocol/schemas.js";
 import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
+  DefaultExtractData,
   ObserveResult,
   StagehandMetrics,
   StagehandRpcNotification,
@@ -31,6 +36,7 @@ import {
   type ClaimedStagehandBrowser,
   type StagehandBrowser,
 } from "./browser/factories.js";
+import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
 
 type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
@@ -39,8 +45,15 @@ export type ExtractResult<Schema extends z.ZodType> = Omit<ProtocolExtractResult
   data: z.output<Schema>;
 };
 
+const isZodSchema = (value: unknown): value is z.ZodType =>
+  typeof value === "object" &&
+  value !== null &&
+  "parse" in value &&
+  typeof value.parse === "function" &&
+  "safeParse" in value &&
+  typeof value.safeParse === "function";
+
 export class Stagehand {
-  browserContext: BrowserContext | undefined;
   isInitialized = false;
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
@@ -85,15 +98,6 @@ export class Stagehand {
     }
   }
 
-  get context(): BrowserContext {
-    if (!this.browserContext) {
-      throw new Error(
-        "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
-      );
-    }
-    return this.browserContext;
-  }
-
   get browser(): StagehandBrowser {
     return this.browserHandle;
   }
@@ -127,7 +131,7 @@ export class Stagehand {
         stagehandCreateParamsForWorker(createConfig, browser),
         signal,
       );
-      this.browserContext = new BrowserContext(rpcClient);
+      attachStagehandBrowserContext(this.browserHandle, new BrowserContext(rpcClient));
     } catch (error) {
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
@@ -148,7 +152,7 @@ export class Stagehand {
   async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
   async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
-    const targetPage = page ?? (await this.context.activePage());
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
@@ -164,7 +168,7 @@ export class Stagehand {
     options?: StagehandClientObserveOptions,
   ): Promise<ObserveResult> {
     const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
-    const targetPage = page ?? (await this.context.activePage());
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandObserve, {
       pageId: targetPage.pageId,
@@ -175,33 +179,45 @@ export class Stagehand {
     return response;
   }
 
+  async extract(
+    instruction: string,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<z.ZodType<DefaultExtractData>>>;
   async extract<Schema extends z.ZodType>(
     instruction: string,
     schema: Schema,
     options?: StagehandClientExtractOptions,
-  ): Promise<ExtractResult<Schema>> {
-    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(options ?? {});
-    const targetPage = page ?? (await this.context.activePage());
+  ): Promise<ExtractResult<Schema>>;
+  async extract<Schema extends z.ZodType | StagehandClientExtractOptions>(
+    instruction: string,
+    schema?: Schema,
+    options?: StagehandClientExtractOptions,
+  ): Promise<ExtractResult<z.ZodType>> {
+    const hasCustomSchema = isZodSchema(schema);
+    const resolvedSchema = hasCustomSchema ? schema : DefaultExtractDataSchema;
+    const resolvedOptions = hasCustomSchema ? options : schema;
+    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(
+      resolvedOptions ?? {},
+    );
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
-    const jsonSchema = z.json().parse(z.toJSONSchema(schema));
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
       instruction,
-      schema: jsonSchema,
-      ...(options === undefined ? {} : { options: protocolOptions }),
+      ...(hasCustomSchema ? { schema: z.json().parse(z.toJSONSchema(resolvedSchema)) } : {}),
+      ...(resolvedOptions === undefined ? {} : { options: protocolOptions }),
     });
 
     return {
       ...response,
-      data: schema.parse(response.data),
+      data: resolvedSchema.parse(response.data),
     };
   }
 
   close(): Promise<void> {
     this.closePromise ??= (async () => {
-      const context = this.browserContext;
       try {
-        if (context) {
+        if (this.isInitialized) {
           try {
             await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
           } catch (error) {
@@ -215,7 +231,7 @@ export class Stagehand {
         this.removeNotificationListener = undefined;
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
-        this.browserContext = undefined;
+        detachStagehandBrowserContext(this.browserHandle);
         this.isInitialized = false;
       }
     })();

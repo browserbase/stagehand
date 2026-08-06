@@ -2,7 +2,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { discoverIntegrationTests, shardIntegrationTests } from "./test-integration.js";
+import {
+  discoverIntegrationTests,
+  groupIntegrationTests,
+  parseIntegrationCliArgs,
+} from "./test-integration.js";
 import { toSafeName } from "./test-utils.js";
 
 const fixtureRoots: string[] = [];
@@ -10,7 +14,7 @@ const fixtureRoots: string[] = [];
 const createFixture = (files: string[] = []) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "integration-discovery-"));
   fixtureRoots.push(root);
-  const testsDir = path.join(root, "packages/server/tests/integration");
+  const testsDir = path.join(root, "packages/extension/tests/integration");
   for (const file of files) {
     const fullPath = path.join(testsDir, file);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -37,6 +41,24 @@ describe("toSafeName", () => {
   });
 });
 
+describe("integration CLI arguments", () => {
+  it("recognizes listing modes and removes their flags from forwarded arguments", () => {
+    expect(parseIntegrationCliArgs(["--list", "--list-groups", "--reporter=verbose"])).toEqual({
+      list: true,
+      listGroups: true,
+      args: ["--reporter=verbose"],
+    });
+  });
+
+  it("forwards ordinary Vitest arguments unchanged", () => {
+    expect(parseIntegrationCliArgs(["locator-fill", "--", "--reporter=verbose"])).toEqual({
+      list: false,
+      listGroups: false,
+      args: ["locator-fill", "--", "--reporter=verbose"],
+    });
+  });
+});
+
 describe("integration test discovery", () => {
   it("returns an empty list for empty and missing directories", () => {
     const empty = createFixture();
@@ -56,12 +78,12 @@ describe("integration test discovery", () => {
 
     expect(discoverIntegrationTests(fixture.root, fixture.testsDir)).toEqual([
       {
-        path: "packages/server/tests/integration/a/streaming.test.ts",
+        path: "packages/extension/tests/integration/a/streaming.test.ts",
         name: "a/streaming",
         safe_name: "a-streaming",
       },
       {
-        path: "packages/server/tests/integration/locator-fill.test.ts",
+        path: "packages/extension/tests/integration/locator-fill.test.ts",
         name: "locator-fill",
         safe_name: "locator-fill",
       },
@@ -77,25 +99,46 @@ describe("integration test discovery", () => {
     expect(first.map((entry) => entry.path)).toEqual(first.map((entry) => entry.path).sort());
   });
 
-  it("balances seven files across at most three lossless shards", () => {
-    const fixture = createFixture(Array.from({ length: 7 }, (_, index) => `${index}.test.ts`));
+  it("assigns every file to one stable semantic group", () => {
+    const fixture = createFixture(["cookies.test.ts", "locator-fill.test.ts", "keyboard.test.ts"]);
     const entries = discoverIntegrationTests(fixture.root, fixture.testsDir);
-    const shards = shardIntegrationTests(entries, 3);
-    const paths = shards.flatMap((shard) => shard.paths);
+    const groups = groupIntegrationTests(entries, {
+      "local/browser-lifecycle": ["cookies"],
+      "local/input": ["keyboard"],
+      "local/locators-write": ["locator-fill"],
+    });
+    const paths = groups.flatMap((group) => group.paths);
 
-    expect(shards).toHaveLength(3);
+    expect(groups.map((group) => group.name)).toEqual([
+      "local/browser-lifecycle",
+      "local/input",
+      "local/locators-write",
+    ]);
     expect(new Set(paths)).toEqual(new Set(entries.map((entry) => entry.path)));
     expect(new Set(paths).size).toBe(paths.length);
-    const sizes = shards.map((shard) => shard.paths.length);
-    expect(Math.max(...sizes) - Math.min(...sizes)).toBeLessThanOrEqual(1);
   });
 
-  it("does not create empty shards when files are fewer than requested", () => {
+  it("rejects invalid group ownership", () => {
     const fixture = createFixture(["a.test.ts", "b.test.ts"]);
     const entries = discoverIntegrationTests(fixture.root, fixture.testsDir);
-    const shards = shardIntegrationTests(entries, 5);
 
-    expect(shards).toHaveLength(2);
-    expect(shards.every((shard) => shard.paths.length > 0)).toBe(true);
+    expect(() => groupIntegrationTests(entries, { local: ["a"] })).toThrow(
+      "Integration tests missing a group: b",
+    );
+    expect(() => groupIntegrationTests(entries, { one: ["a"], two: ["a", "b"] })).toThrow(
+      "Integration test a has multiple groups",
+    );
+    expect(() => groupIntegrationTests(entries, { "": ["a"], two: ["a", "b"] })).toThrow(
+      "Integration test a has multiple groups",
+    );
+    expect(() => groupIntegrationTests(entries, { local: ["a", "a", "b"] })).toThrow(
+      "Integration test a is listed multiple times in group local",
+    );
+    expect(() => groupIntegrationTests(entries, { empty: [], local: ["a", "b"] })).toThrow(
+      "Integration group empty has no tests",
+    );
+    expect(() => groupIntegrationTests(entries, { local: ["a", "missing"] })).toThrow(
+      "Integration group local references unknown test missing",
+    );
   });
 });

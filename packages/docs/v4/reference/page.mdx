@@ -4,15 +4,15 @@ description: "Navigate, inspect, and interact with a browser page."
 icon: "page"
 ---
 
-A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods.
+A `Page` combines deterministic browser controls with Stagehand's natural-language `act`, `observe`, and `extract` methods. Navigation methods return the main-document [`Response`](/v4/reference/response), when the navigation produces one.
 
 <View title="TypeScript" icon="js">
 
 ## Quick start
 
 ```typescript
-const page = await stagehand.context.newPage();
-await page.goto("https://example.com");
+const page = await browser.context.newPage();
+const response = await page.goto("https://example.com");
 ```
 
 ## goto()
@@ -20,7 +20,7 @@ await page.goto("https://example.com");
 Navigate the page to a URL.
 
 ```typescript
-await page.goto("https://example.com");
+const response = await page.goto("https://example.com");
 ```
 
 <ParamField path="url" type="string">
@@ -39,8 +39,8 @@ await page.goto("https://example.com");
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="Promise<Page>">
-  The operation result.
+<ResponseField name="result" type="Promise<Response | null>">
+  The final main-document response, or `null` when no network response was produced.
 </ResponseField>
 
 ## reload()
@@ -67,8 +67,8 @@ await page.reload();
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="Promise<Page>">
-  The operation result.
+<ResponseField name="result" type="Promise<Response | null>">
+  The final main-document response, or `null` when no network response was produced.
 </ResponseField>
 
 ## goBack()
@@ -91,8 +91,8 @@ await page.goBack();
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="Promise<Page>">
-  The operation result.
+<ResponseField name="result" type="Promise<Response | null>">
+  The final main-document response, or `null` when no history navigation occurred or no network response was produced.
 </ResponseField>
 
 ## goForward()
@@ -115,8 +115,8 @@ await page.goForward();
   </ParamField>
 </ParamField>
 
-<ResponseField name="result" type="Promise<Page>">
-  The operation result.
+<ResponseField name="result" type="Promise<Response | null>">
+  The final main-document response, or `null` when no history navigation occurred or no network response was produced.
 </ResponseField>
 
 ## click()
@@ -670,8 +670,8 @@ const locator = page.locator("button[type=submit]");
 ## Quick start
 
 ```python
-page = await stagehand.context.new_page()
-await page.goto("https://example.com")
+page = await browser.context.new_page()
+response = await page.goto("https://example.com")
 ```
 
 ## goto()
@@ -679,7 +679,7 @@ await page.goto("https://example.com")
 Navigate the page to a URL.
 
 ```python
-await page.goto("https://example.com")
+response = await page.goto("https://example.com")
 ```
 
 <ParamField path="url" type="str">
@@ -698,8 +698,8 @@ await page.goto("https://example.com")
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ResponseField name="result" type="Self">
-  The operation result.
+<ResponseField name="result" type="Response | None">
+  The final main-document response, or `None` when no network response was produced.
 </ResponseField>
 
 ## reload()
@@ -726,8 +726,8 @@ await page.reload()
   Whether to bypass the browser cache.
 </ParamField>
 
-<ResponseField name="result" type="Self">
-  The operation result.
+<ResponseField name="result" type="Response | None">
+  The final main-document response, or `None` when no network response was produced.
 </ResponseField>
 
 ## go_back()
@@ -750,8 +750,8 @@ await page.go_back()
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ResponseField name="result" type="Self">
-  The operation result.
+<ResponseField name="result" type="Response | None">
+  The final main-document response, or `None` when no history navigation occurred or no network response was produced.
 </ResponseField>
 
 ## go_forward()
@@ -774,8 +774,8 @@ await page.go_forward()
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ResponseField name="result" type="Self">
-  The operation result.
+<ResponseField name="result" type="Response | None">
+  The final main-document response, or `None` when no history navigation occurred or no network response was produced.
 </ResponseField>
 
 ## click()

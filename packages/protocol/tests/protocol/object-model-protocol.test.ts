@@ -6,9 +6,29 @@ import {
   StagehandRpcNotificationSchema,
   StagehandRpcRequestSchema,
 } from "../../schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
+import {
+  DEFAULT_EXTRACT_JSON_SCHEMA,
+  decodedBase64ByteLength,
+  InputFilePayloadSchema,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "../../schemas.js";
 
 describe("Stagehand object-model protocol", () => {
+  it("calculates decoded base64 byte lengths including padding", () => {
+    expect(decodedBase64ByteLength("YQ==")).toBe(1);
+    expect(decodedBase64ByteLength("YWI=")).toBe(2);
+    expect(decodedBase64ByteLength("YWJj")).toBe(3);
+  });
+
+  it("accepts exactly 50 MiB of file data and rejects one additional byte", () => {
+    const encodedLength = Math.ceil((50 * 1024 * 1024) / 3) * 4;
+    let data = `${"A".repeat(encodedLength - 1)}=`;
+    expect(InputFilePayloadSchema.safeParse({ name: "limit.bin", data }).success).toBe(true);
+
+    data = "A".repeat(encodedLength);
+    expect(InputFilePayloadSchema.safeParse({ name: "oversized.bin", data }).success).toBe(false);
+  });
+
   it("derives every Stagehand method name from the RPC definitions", () => {
     expect(StagehandMethodSchema.options).toStrictEqual(
       Object.values(StagehandMethods).map((method) => method.name),
@@ -71,6 +91,19 @@ describe("Stagehand object-model protocol", () => {
         model: { modelName: "gpt-5-mini" },
       }),
     ).toThrow();
+  });
+
+  it("defaults extract requests to the protocol extract schema", () => {
+    expect(
+      StagehandMethods.stagehandExtract.params.parse({
+        pageId: "target-1",
+        instruction: "Extract the page text",
+      }),
+    ).toStrictEqual({
+      pageId: "target-1",
+      instruction: "Extract the page text",
+      schema: DEFAULT_EXTRACT_JSON_SCHEMA,
+    });
   });
 
   it("requires a per-call model override to be a complete model configuration", () => {
@@ -174,7 +207,7 @@ describe("Stagehand object-model protocol", () => {
     });
   });
 
-  it("rejects extraction without a page, instruction, or schema", () => {
+  it("rejects extraction without a page or instruction", () => {
     expect(() =>
       StagehandMethods.stagehandExtract.params.parse({
         instruction: "Extract the page heading",
@@ -185,12 +218,6 @@ describe("Stagehand object-model protocol", () => {
       StagehandMethods.stagehandExtract.params.parse({
         pageId: "target-1",
         schema: { type: "object" },
-      }),
-    ).toThrow();
-    expect(() =>
-      StagehandMethods.stagehandExtract.params.parse({
-        pageId: "target-1",
-        instruction: "Extract the page heading",
       }),
     ).toThrow();
   });
@@ -384,6 +411,21 @@ describe("Stagehand object-model protocol", () => {
     ]);
   });
 
+  it("registers response methods", () => {
+    expect(
+      Object.values(StagehandMethods)
+        .map((method) => method.name)
+        .filter((name) => name.startsWith("response.")),
+    ).toStrictEqual([
+      "response.body",
+      "response.all_headers",
+      "response.headers_array",
+      "response.security_details",
+      "response.server_addr",
+      "response.finished",
+    ]);
+  });
+
   it("keeps locators as page-scoped descriptors", () => {
     expect(
       StagehandMethods.locatorTextContent.params.parse({
@@ -486,6 +528,39 @@ describe("Stagehand object-model protocol", () => {
       values: ["a", "b"],
     });
     expect(StagehandMethods.locatorSelectOption.result.parse(["a"])).toStrictEqual(["a"]);
+
+    expect(
+      StagehandMethods.locatorSetInputFiles.params.parse({
+        ...locatorDescriptor(),
+        files: [
+          {
+            name: "hello.txt",
+            mimeType: "text/plain",
+            data: "aGVsbG8=",
+            lastModified: 1_700_000_000_000,
+          },
+        ],
+      }),
+    ).toStrictEqual({
+      ...locatorDescriptor(),
+      files: [
+        {
+          name: "hello.txt",
+          mimeType: "text/plain",
+          data: "aGVsbG8=",
+          lastModified: 1_700_000_000_000,
+        },
+      ],
+    });
+    expect(StagehandMethods.locatorSetInputFiles.result.parse({ set: true })).toStrictEqual({
+      set: true,
+    });
+    expect(() =>
+      StagehandMethods.locatorSetInputFiles.params.parse({
+        ...locatorDescriptor(),
+        files: [{ name: "hello.txt", data: "not base64" }],
+      }),
+    ).toThrow();
   });
 
   it("exports a JSON-RPC request schema for generated clients", () => {

@@ -27,10 +27,10 @@ Follow these steps to add a method to the protocol:
 1. Define the method's Zod parameter and result schemas in `schemas.ts`, including a stable `.meta({ id: "..." })` on each new schema.
 2. Export their inferred types from `types.ts`.
 3. Add the method definition to `StagehandMethods` in `schema-registry.ts`.
-4. Implement the method in the appropriate server controller.
-5. Route the method to that controller in `../server/rpcRouter.ts`.
+4. Implement the method in the appropriate extension controller.
+5. Route the method to that controller in `../extension/rpcRouter.ts`.
 6. Expose the method from the appropriate TypeScript SDK class using `client.send(StagehandMethods.example, params)`.
-7. Add protocol, server, and SDK tests for the method.
+7. Add protocol, extension, and SDK tests for the method.
 8. Regenerate `stagehand.v4.json` with `just generate`, then run `just check` and `just test` from the repository root.
 
 ## Runtime protocol versions

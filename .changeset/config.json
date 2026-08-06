@@ -6,7 +6,7 @@
       "@browserbasehq/stagehand",
       "@browserbasehq/stagehand-python",
       "@browserbasehq/stagehand-go",
-      "@browserbasehq/stagehand-server"
+      "@browserbasehq/stagehand-extension"
     ]
   ],
   "linked": [],
