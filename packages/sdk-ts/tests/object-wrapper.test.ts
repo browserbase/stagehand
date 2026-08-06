@@ -23,10 +23,20 @@ import {
 } from "../src/browser/index.js";
 
 type ProtocolCall = { method: string; params: unknown };
+type CallbackBatchCall = {
+  callbackSource: string;
+  input: unknown;
+  pageId?: string;
+  timeout: number;
+  signal?: AbortSignal;
+};
 
 class FakeProtocolClient extends RPCClient {
   readonly calls: ProtocolCall[] = [];
-  readonly batchCalls: Array<Record<string, unknown>> = [];
+  readonly batchCalls: CallbackBatchCall[] = [];
+  batchHandler: (input: CallbackBatchCall) => Promise<unknown> = async () => ({
+    title: "Example",
+  });
   responses = new Map<string, unknown[]>();
 
   constructor() {
@@ -41,7 +51,7 @@ class FakeProtocolClient extends RPCClient {
       send: async () => {},
       runCallbackBatch: async (input) => {
         this.batchCalls.push(input);
-        return { title: "Example" };
+        return await this.batchHandler(input);
       },
       close: () => {},
     });
@@ -123,6 +133,43 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.batchCalls[0]?.callbackSource).toContain("async");
     expect(client.batchCalls[0]?.input).toEqual({ id: 7 });
     expect(client.batchCalls[0]?.timeout).toBe(2_000);
+  });
+
+  it("forwards the selected page to the callback batch transport", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-2" });
+
+    await stagehand._experimental_batch(async () => undefined, undefined, { page });
+
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.pageId).toBe("page-2");
+  });
+
+  it("aborts the callback batch transport after the timeout grace period", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new FakeProtocolClient();
+      const stagehand = createStagehandWithClientForTest(client);
+      client.batchHandler = async ({ signal }) =>
+        await new Promise<never>((_, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        });
+
+      const pending = stagehand._experimental_batch(async () => undefined, undefined, {
+        timeout: 25,
+      });
+      const rejected = expect(pending).rejects.toThrow(
+        "Stagehand callback batch timed out after 25ms",
+      );
+      await vi.advanceTimersByTimeAsync(1_025);
+
+      await rejected;
+      expect(client.batchCalls).toHaveLength(1);
+      expect(client.batchCalls[0]?.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rejects null experimental batch options with a controlled error", async () => {
