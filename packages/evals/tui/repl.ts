@@ -115,14 +115,8 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     void abortActiveRun(abortRef.current, "aggressive");
   };
 
-  const onKeypress = (_str: string, key: { name?: string; ctrl?: boolean } | undefined): void => {
-    if (!key) return;
-    if (key.ctrl && key.name === "c") {
-      if (abortRef.current) abortImmediately();
-      else rl.close();
-      return;
-    }
-    if (key.name !== "escape") return;
+  const onKeypress = (_str: string, key: { name?: string } | undefined): void => {
+    if (!key || key.name !== "escape") return;
     if (!abortRef.current) {
       // Idle Esc: pop one level if we're inside a context.
       if (contextPath.length > 0) {

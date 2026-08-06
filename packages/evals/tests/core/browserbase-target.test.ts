@@ -40,7 +40,9 @@ describe("runner-provided Browserbase target", () => {
     updateMock.mockResolvedValue(undefined);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
+    await cleanupActiveRunResources();
+    vi.useRealTimers();
     process.env = { ...originalEnv };
   });
 
@@ -118,7 +120,9 @@ describe("runner-provided Browserbase target", () => {
     const { launchRunnerProvidedBrowserbaseChrome } =
       await import("../../core/targets/browserbase.js");
 
-    await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow("session create failed");
+    await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow(
+      "Browserbase session creation failed.",
+    );
     expect(extensionDeleteMock).toHaveBeenCalledWith("extension-123", {
       headers: { "Content-Type": null },
     });
@@ -191,5 +195,60 @@ describe("runner-provided Browserbase target", () => {
     });
 
     expect(extensionDeleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a transient extension upload failure within the same run", async () => {
+    extensionCreateMock
+      .mockRejectedValueOnce(new Error("temporary upload failure"))
+      .mockResolvedValueOnce({ id: "extension-retry" });
+    createMock.mockResolvedValue({
+      id: "session-retry",
+      connectUrl: "wss://connect.browserbase.test/devtools/browser/session-retry",
+    });
+
+    const { launchRunnerProvidedBrowserbaseChrome, withBrowserbaseExtensionScope } =
+      await import("../../core/targets/browserbase.js");
+
+    await withBrowserbaseExtensionScope(async () => {
+      await expect(launchRunnerProvidedBrowserbaseChrome()).rejects.toThrow(
+        "temporary upload failure",
+      );
+      const target = await launchRunnerProvidedBrowserbaseChrome();
+      expect(target.extensionId).toBe("extension-retry");
+      await target.cleanup();
+    });
+
+    expect(extensionCreateMock).toHaveBeenCalledTimes(2);
+    expect(extensionDeleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not hang scope cleanup when a session lease is not released", async () => {
+    vi.useFakeTimers();
+    createMock.mockResolvedValue({
+      id: "session-leaked",
+      connectUrl: "wss://connect.browserbase.test/devtools/browser/session-leaked",
+    });
+
+    const { launchRunnerProvidedBrowserbaseChrome, withBrowserbaseExtensionScope } =
+      await import("../../core/targets/browserbase.js");
+    let resolveTarget!: (
+      target: Awaited<ReturnType<typeof launchRunnerProvidedBrowserbaseChrome>>,
+    ) => void;
+    const targetReady = new Promise<
+      Awaited<ReturnType<typeof launchRunnerProvidedBrowserbaseChrome>>
+    >((resolve) => {
+      resolveTarget = resolve;
+    });
+    const scopePromise = withBrowserbaseExtensionScope(async () => {
+      resolveTarget(await launchRunnerProvidedBrowserbaseChrome());
+    });
+    const target = await targetReady;
+    await Promise.resolve();
+
+    await vi.runAllTimersAsync();
+    await scopePromise;
+
+    expect(extensionDeleteMock).toHaveBeenCalledTimes(1);
+    await target.cleanup();
   });
 });

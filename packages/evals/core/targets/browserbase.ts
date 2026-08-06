@@ -4,6 +4,7 @@ import { registerActiveRunCleanup } from "../../framework/activeRunCleanup.js";
 import { loadBrowserbaseSdk, resolveStagehandExtensionArchivePath } from "../runtime/coreDeps.js";
 
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
+const EXTENSION_SCOPE_DRAIN_TIMEOUT_MS = 5_000;
 
 type BrowserbaseClient = InstanceType<ReturnType<typeof loadBrowserbaseSdk>>;
 
@@ -48,7 +49,14 @@ async function cleanupExtensionScope(scope: ExtensionScope): Promise<void> {
       scope.drained ??= new Promise<void>((resolve) => {
         scope.resolveDrained = resolve;
       });
-      await scope.drained;
+      let timeout: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        scope.drained,
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(resolve, EXTENSION_SCOPE_DRAIN_TIMEOUT_MS);
+        }),
+      ]);
+      if (timeout) clearTimeout(timeout);
     }
     const provisioned = await scope.provision?.catch((): undefined => undefined);
     await provisioned?.deleteUpload();
@@ -79,8 +87,12 @@ async function acquireStagehandExtension(
   }
 
   if (!scope.provision) {
-    scope.provision = uploadStagehandExtension(bb);
-    scope.unregisterCleanup = registerActiveRunCleanup(() => cleanupExtensionScope(scope));
+    const provision = uploadStagehandExtension(bb);
+    scope.provision = provision;
+    scope.unregisterCleanup ??= registerActiveRunCleanup(() => cleanupExtensionScope(scope));
+    provision.catch(() => {
+      if (scope.provision === provision) scope.provision = undefined;
+    });
   }
   const provisioned = await scope.provision;
   scope.activeSessions += 1;
@@ -90,7 +102,7 @@ async function acquireStagehandExtension(
     release: async () => {
       if (released) return;
       released = true;
-      scope.activeSessions -= 1;
+      scope.activeSessions = Math.max(0, scope.activeSessions - 1);
       if (scope.activeSessions === 0) scope.resolveDrained?.();
     },
   };
@@ -167,9 +179,9 @@ export async function launchRunnerProvidedBrowserbaseChrome(): Promise<{
 
   try {
     created = await sessionPromise;
-  } catch (error) {
+  } catch {
     await cleanup();
-    throw error;
+    throw new Error("Browserbase session creation failed.");
   }
 
   if (!created.id || !created.connectUrl) {

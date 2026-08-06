@@ -15,6 +15,9 @@ describe("active run cleanup", () => {
     expect(controller.signal.reason).toBe("cooperative");
     expect(cleanup).toHaveBeenCalledTimes(1);
 
+    await abortActiveRun(controller, "aggressive");
+    expect(cleanup).toHaveBeenCalledTimes(1);
+
     unregister();
   });
 });
