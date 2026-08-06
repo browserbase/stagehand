@@ -20,7 +20,7 @@ def _ready_marker() -> dict[str, object]:
     return {
         "marker": {
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
             "state": "ready",
         },
         "hasReceiver": True,
@@ -715,7 +715,7 @@ class TestNegotiateRuntime:
     def test_accepts_a_current_marker(self) -> None:
         compatible, detail = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
         })
         assert compatible is True
         assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in detail
@@ -724,7 +724,7 @@ class TestNegotiateRuntime:
         # A newer runtime may publish fields this client has never heard of, e.g. `status`.
         compatible, _ = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
             "status": {"state": "ready"},
         })
         assert compatible is True
@@ -736,17 +736,17 @@ class TestNegotiateRuntime:
             ({}, "serverInfo.name=None"),
             (
                 {
-                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION - 1,
+                    "protocolVersion": "2.0.0",
                     "serverInfo": {"name": "stagehand", "version": "0"},
                 },
-                "below",
+                "major mismatch",
             ),
             (
                 {
-                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION + 1,
+                    "protocolVersion": "not-semver",
                     "serverInfo": {"name": "stagehand", "version": "2"},
                 },
-                "above",
+                "invalid protocol version",
             ),
             (
                 {
@@ -757,10 +757,10 @@ class TestNegotiateRuntime:
             ),
             (
                 {
-                    "protocolVersion": str(STAGEHAND_PROTOCOL_VERSION),
+                    "protocolVersion": 1,
                     "serverInfo": {"name": "stagehand", "version": "1"},
                 },
-                repr(str(STAGEHAND_PROTOCOL_VERSION)),
+                "protocolVersion=1",
             ),
         ],
     )
@@ -772,3 +772,13 @@ class TestNegotiateRuntime:
     def test_never_raises_on_hostile_input(self) -> None:
         for marker in ("string", 42, [], {"serverInfo": "not-a-mapping"}, {"serverInfo": None}):
             assert cdp_client._negotiate_runtime(marker)[0] is False
+
+    def test_protocol_semver_directionality(self) -> None:
+        assert cdp_client._protocol_compatibility("1.2.4", "1.2.0") is None
+        assert cdp_client._protocol_compatibility("1.2.4", "1.9.0") is None
+        assert "older" in (cdp_client._protocol_compatibility("1.2.4", "1.1.99") or "")
+        assert "major mismatch" in (cdp_client._protocol_compatibility("1.2.4", "2.0.0") or "")
+        assert cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.1") is None
+        assert "match exactly" in (
+            cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.2") or ""
+        )

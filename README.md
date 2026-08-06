@@ -40,14 +40,25 @@ just check
 just test
 ```
 
-Package metadata is the source of truth for versions. The private Python
-`package.json` lets Changesets version the public `stagehand` package; CI copies
-that version into `pyproject.toml` and updates `uv.lock`.
+Package metadata is the source of truth for versions. Packages are released independently; there
+are no Changesets fixed groups. The private Python `package.json` lets Changesets version the public
+`stagehand` package; CI copies that version into `pyproject.toml` and updates `uv.lock`.
 
-After the initial v4 release, run `just changeset` when a pull request changes a
-public SDK or the protocol compatibility contract. Select every affected package
-and commit the generated `.changeset/*.md` file with the pull request. Tests,
-documentation, formatting, and internal refactors do not need a Changeset.
+After the initial v4 release, run `just changeset` when a pull request changes a public SDK, the
+extension, or the protocol compatibility contract. Select only the packages intended for release
+and commit the generated `.changeset/*.md` file with the pull request. Tests, documentation,
+formatting, and internal refactors do not need a Changeset.
+
+| Change                                                       | Changeset                                               |
+| ------------------------------------------------------------ | ------------------------------------------------------- |
+| SDK-only fix or feature                                      | Patch or minor for that SDK only                        |
+| Extension-only implementation fix                            | Extension patch; no protocol bump                       |
+| Compatible protocol correction requiring no new capability   | Protocol patch, plus affected implementations as needed |
+| Backward-compatible capability that a new client may require | Protocol minor, plus affected implementations as needed |
+| Breaking wire or transport change                            | Protocol major and a coordinated release                |
+
+See [`packages/protocol/README.md`](packages/protocol/README.md#runtime-protocol-versions) for the
+runtime compatibility rule and protocol SemVer policy.
 
 Merging a normal pull request does not publish anything. Changesets creates or
 updates a release pull request on `main`, where additional Changesets can

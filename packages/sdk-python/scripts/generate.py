@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
@@ -24,6 +25,12 @@ PROTOCOL_PACKAGE_PATH = SDK_ROOT.parent / "protocol" / "package.json"
 MODELS_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "models.py"
 INPUT_TYPES_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "input_types.py"
 PROTOCOL_VERSION_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "protocol_version.py"
+SEMVER_PATTERN = re.compile(
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+)
 PYDANTIC_CONFIG = GenerateConfig(
     preset="practical-py311-20260619",
     input_file_type=InputFileType.JsonSchema,
@@ -154,13 +161,12 @@ def generate_protocol_version_module() -> str:
     if not isinstance(version, str):
         raise TypeError("expected protocol package version to be a string")
 
-    major_text = version.split(".", 1)[0]
-    if not major_text.isdecimal() or int(major_text) <= 0:
+    if SEMVER_PATTERN.fullmatch(version) is None:
         raise ValueError(f"invalid Stagehand protocol package version: {version}")
 
     return (
         '"""Generated from packages/protocol/package.json. Do not edit."""\n\n'
-        f"STAGEHAND_PROTOCOL_VERSION = {int(major_text)}\n"
+        f"STAGEHAND_PROTOCOL_VERSION = {version!r}\n"
     )
 
 

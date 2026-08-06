@@ -2051,7 +2051,12 @@ class StagehandInitParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    protocol_version: Literal[1]
+    protocol_version: Annotated[
+        StrictStr,
+        Field(
+            pattern="^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+        ),
+    ]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None

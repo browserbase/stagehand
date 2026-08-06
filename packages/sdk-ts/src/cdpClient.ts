@@ -79,10 +79,8 @@ export class StagehandRuntimeIncompatibleError extends Error {
     super(
       "Incompatible Stagehand runtime: " +
         compatibility.detail +
-        "; required protocol " +
-        compatibility.required.minimumProtocolVersion +
-        "-" +
-        compatibility.required.maximumProtocolVersion +
+        "; client protocol " +
+        compatibility.required.protocolVersion +
         ", reported protocol " +
         String(compatibility.reported.protocolVersion) +
         ", server " +

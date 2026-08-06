@@ -51,6 +51,7 @@ from stagehand._generated.models import (
     StagehandResultMetadata,
     StagehandResultUsage,
 )
+from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.browser import (
     _BROWSER_TOKEN,
     StagehandBrowser,
@@ -180,7 +181,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
 
     assert stagehand.browser is browser
     params = cast(StagehandInitParams, recording.calls[0][1])
-    assert params.protocol_version == 1
+    assert params.protocol_version == STAGEHAND_PROTOCOL_VERSION
     assert params.client_info.name == "stagehand-sdk-python"
     assert params.client_info.version
     assert params.browser_cdp_url == "ws://browser"

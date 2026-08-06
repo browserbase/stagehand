@@ -316,6 +316,25 @@ describe("Stagehand RPC router", () => {
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 
+  it("rejects a client that requires a newer protocol minor", async () => {
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const router = new RPCRouter(createStagehandRuntime(), { initializeStagehand });
+
+    await expect(
+      router.handle(
+        request({
+          id: 16,
+          method: "stagehand.init",
+          params: {
+            protocol_version: "1.1.0",
+            client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+          },
+        }),
+      ),
+    ).rejects.toThrow("protocol-server-too-old");
+    expect(initializeStagehand).not.toHaveBeenCalled();
+  });
+
   it("applies the default schema to extract requests that omit it", async () => {
     const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
     const router = createRouter(tracing);

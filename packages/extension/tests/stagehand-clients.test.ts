@@ -733,10 +733,10 @@ describe("Stagehand worker clients", () => {
 
     expect(scope).toMatchObject({
       __stagehand_runtime: {
-        protocolVersion: 1,
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         serverInfo: {
           name: "stagehand",
-          version: "4.0.0",
+          version: "1.0.0",
         },
       },
       __stagehandReceiveFromHost: expect.any(Function),

@@ -1140,8 +1140,8 @@
       "type": "object",
       "properties": {
         "protocol_version": {
-          "type": "number",
-          "const": 1
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
         },
         "client_info": {
           "$ref": "#/$defs/ImplementationInfo"

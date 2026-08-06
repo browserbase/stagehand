@@ -1069,7 +1069,7 @@ class TelemetryConfig(TypedDict):
 
 
 class StagehandInitParams(TypedDict):
-    protocol_version: Literal[1]
+    protocol_version: str
     client_info: ImplementationInfo
     browser_cdp_url: NotRequired[str]
     api_key: NotRequired[str]

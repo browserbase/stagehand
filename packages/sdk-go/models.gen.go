@@ -1813,7 +1813,7 @@ type StagehandInitParams struct {
 	Model *StagehandInitModel `json:"model,omitempty,omitzero"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion float64 `json:"protocol_version"`
+	ProtocolVersion string `json:"protocol_version"`
 
 	// SelfHeal corresponds to the JSON schema field "self_heal".
 	SelfHeal *bool `json:"self_heal,omitempty,omitzero"`

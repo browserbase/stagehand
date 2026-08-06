@@ -6,4 +6,5 @@ require (
 	github.com/coder/websocket v1.8.13
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
+	golang.org/x/mod v0.38.0
 )
