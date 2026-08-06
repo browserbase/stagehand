@@ -124,6 +124,17 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.batchCalls[0]?.input).toEqual({ id: 7 });
     expect(client.batchCalls[0]?.timeout).toBe(2_000);
   });
+
+  it("rejects null experimental batch options with a controlled error", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await expect(
+      stagehand._experimental_batch(async () => undefined, undefined, null as never),
+    ).rejects.toThrow(new TypeError("stagehand._experimental_batch() options must be an object"));
+    expect(client.batchCalls).toHaveLength(0);
+  });
+
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);

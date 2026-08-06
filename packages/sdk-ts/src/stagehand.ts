@@ -127,6 +127,9 @@ export class Stagehand {
     if (typeof callback !== "function") {
       throw new TypeError("stagehand._experimental_batch() requires a callback function");
     }
+    if (options === null || typeof options !== "object" || Array.isArray(options)) {
+      throw new TypeError("stagehand._experimental_batch() options must be an object");
+    }
     if (input !== undefined) z.json().parse(input);
     const timeout = options.timeout ?? 30_000;
     if (!Number.isFinite(timeout) || timeout <= 0) {
