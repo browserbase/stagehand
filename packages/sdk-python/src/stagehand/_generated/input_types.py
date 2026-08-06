@@ -243,6 +243,9 @@ FieldSchema10: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema10"
 FieldSchema11: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema11"], dict[str, "FieldSchema11"]]]
 
 
+FieldSchema12: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema12"], dict[str, "FieldSchema12"]]]
+
+
 FieldSchema2: TypeAlias = Optional[Union[str, float, bool, list["FieldSchema2"], dict[str, "FieldSchema2"]]]
 
 
@@ -288,7 +291,7 @@ class InputFilePayload(TypedDict):
 class JSONRPCErrorObject(TypedDict):
     code: int
     message: str
-    data: NotRequired[FieldSchema11]
+    data: NotRequired[FieldSchema12]
 
 
 JSONRPCRequestId: TypeAlias = int
@@ -652,6 +655,22 @@ class PageAddInitScriptParams(TypedDict):
     source: str
 
 
+PageCDPEventParams: TypeAlias = dict[str, FieldSchema10]
+
+
+class PageCDPEvent(TypedDict):
+    page_id: str
+    method: Literal["Runtime.consoleAPICalled"]
+    params: PageCDPEventParams
+    session_id: str
+    target_id: str
+
+
+class PageCDPEventNotification(TypedDict):
+    subscription_id: str
+    event: PageCDPEvent
+
+
 class PageClickOptions(TypedDict):
     button: NotRequired[MouseButton]
     click_count: NotRequired[int]
@@ -690,6 +709,9 @@ class PageEvaluateParams(TypedDict):
 
 class PageEvaluateResult(TypedDict):
     value: FieldSchema7
+
+
+PageEventName: TypeAlias = Literal["console"]
 
 
 class PageHoverParams(TypedDict):
@@ -731,6 +753,16 @@ class PageGotoParams(TypedDict):
     page_id: str
     url: str
     options: NotRequired[PageNavigationOptions]
+
+
+class PageOffParams(TypedDict):
+    subscription_id: str
+
+
+class PageOnParams(TypedDict):
+    page_id: str
+    subscription_id: str
+    event: PageEventName
 
 
 class PageRef(TypedDict):
