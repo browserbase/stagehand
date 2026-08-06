@@ -912,7 +912,6 @@ export const BrowserbaseBrowserSettingsSchema = z
     verified: z.boolean().optional(),
     viewport: BrowserbaseViewportSchema.optional(),
   })
-  .strict()
   .meta({ id: "BrowserbaseBrowserSettings" });
 
 /** Browserbase managed proxy geolocation configuration. */
