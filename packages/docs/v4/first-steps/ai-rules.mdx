@@ -755,7 +755,7 @@ if len(pages) == 0 {
 page := pages[0]
 
 // Create new pages if needed
-page2, err := browserContext.NewPage(ctx, "https://example.com")
+_, err = browserContext.NewPage(ctx, "https://example.com")
 if err != nil {
 	return err
 }
@@ -1092,7 +1092,7 @@ if err != nil {
 	return err
 }
 
-page2, err := browserContext.NewPage(ctx, "https://example2.com")
+_, err = browserContext.NewPage(ctx, "https://example2.com")
 if err != nil {
 	return err
 }

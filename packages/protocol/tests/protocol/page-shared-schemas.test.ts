@@ -26,6 +26,7 @@ describe("shared page protocol schemas", () => {
   });
 
   it("uses the same non-empty URL constraint for new pages and goto", () => {
+    expect(ContextNewPageParamsSchema.parse({})).toStrictEqual({});
     expect(ContextNewPageParamsSchema.parse({ url: "https://example.com" })).toStrictEqual({
       url: "https://example.com",
     });
