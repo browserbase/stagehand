@@ -684,7 +684,8 @@ describe("Stagehand worker clients", () => {
     expect(scope.__stagehand_runtime?.failure).toBeUndefined();
   });
 
-  it("retries resident bootstrap after a bounded resolver failure", async () => {
+  it("keeps a configured resident runtime idle until stagehand.init", async () => {
+    const messages: unknown[] = [];
     const session = new FakeBrowserSession();
     const runtime = createStagehandRuntime(
       {
@@ -695,25 +696,41 @@ describe("Stagehand worker clients", () => {
       },
       testTracing,
     );
-    const resolveResidentWebSocketUrl = vi
-      .fn<() => Promise<string>>()
-      .mockRejectedValueOnce(new Error("resident browser proxy is still starting"))
-      .mockResolvedValueOnce("ws://browser-proxy.test/session");
+    const resolveResidentWebSocketUrl = vi.fn(async () => "ws://browser-proxy.test/session");
     const scope: StagehandServiceWorkerScope & {
       [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
     } = {
-      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+      [STAGEHAND_SEND_TO_HOST_BINDING]: (payload) => messages.push(JSON.parse(payload)),
     };
 
     startStagehandServiceWorker(scope, runtime, {
-      autoBootstrap: true,
       resolveResidentWebSocketUrl,
     });
+    await Promise.resolve();
 
-    await vi.waitFor(() => {
-      expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
+    expect(resolveResidentWebSocketUrl).not.toHaveBeenCalled();
+    expect(scope.__stagehand_runtime).toMatchObject({ state: "idle", connected: false });
+
+    await scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "stagehand.init",
+        params: {
+          protocol_version: STAGEHAND_PROTOCOL_VERSION,
+          client_info: { name: "stagehand-sdk-test", version: "1.0.0" },
+        },
+      }),
+    );
+
+    expect(resolveResidentWebSocketUrl).toHaveBeenCalledOnce();
+    expect(session.prepareForInitializationCalls).toBe(1);
+    expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
+    expect(messages).toContainEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { initialized: true, pages: [] },
     });
-    expect(resolveResidentWebSocketUrl).toHaveBeenCalledTimes(2);
   });
 
   it("does not publish ready while bootstrap is pending even though the receiver is installed", async () => {
@@ -738,15 +755,26 @@ describe("Stagehand worker clients", () => {
     };
 
     startStagehandServiceWorker(scope, runtime, {
-      autoBootstrap: true,
       resolveResidentWebSocketUrl: async () => "ws://browser-proxy.test/session",
     });
+    const initialization = scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "stagehand.init",
+        params: {
+          protocol_version: STAGEHAND_PROTOCOL_VERSION,
+          client_info: { name: "stagehand-sdk-test", version: "1.0.0" },
+        },
+      }),
+    );
     await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("bootstrapping"));
 
     expect(scope.__stagehandReceiveFromHost).toEqual(expect.any(Function));
     expect(scope.__stagehand_runtime?.state).not.toBe("ready");
 
     finishBootstrap?.();
+    await initialization;
     await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("ready"));
   });
 

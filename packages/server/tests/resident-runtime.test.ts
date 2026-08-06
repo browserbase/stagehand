@@ -151,6 +151,34 @@ describe("resident runtime lifecycle", () => {
     });
   });
 
+  it("excludes configured idle time from resident activation timings", async () => {
+    const residentUrl = deferred<string>();
+    const { session } = createSession();
+    let now = 0;
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: connectedFactory(async () => session),
+    });
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({
+        now: () => now,
+        resolveResidentWebSocketUrl: () => residentUrl.promise,
+      }),
+    );
+
+    now = 4_000;
+    const bootstrap = lifecycle.bootstrap();
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("connecting"));
+    now = 4_050;
+    residentUrl.resolve(RESIDENT_TEST_URL);
+    await bootstrap;
+
+    expect(lifecycle.marker.timings).toStrictEqual({
+      connectAndBootstrapMs: 50,
+      totalMs: 50,
+    });
+  });
+
   it("queues the first stagehand.init behind an active resident bootstrap", async () => {
     const created = deferred<StagehandBrowserSession>();
     const { session } = createSession();

@@ -31,10 +31,8 @@ export type StagehandServiceWorkerScope = {
 };
 
 export type StartStagehandServiceWorkerOptions = {
-  autoBootstrap?: boolean;
   browserProxyUrl?: string;
   resolveResidentWebSocketUrl?: () => Promise<string>;
-  startedAt?: number;
 };
 
 export function startStagehandServiceWorker(
@@ -96,7 +94,6 @@ export function startStagehandServiceWorker(
   const residentRuntime = new ResidentRuntimeLifecycle(activeRuntime, {
     ...(resolveResidentWebSocketUrl ? { resolveResidentWebSocketUrl } : {}),
     waitForRpcReceiver: () => receiverReady.promise,
-    ...(options.startedAt === undefined ? {} : { startedAt: options.startedAt }),
   });
   rpcClient = new RPCClient(
     chromeRuntimeClient,
@@ -118,14 +115,6 @@ export function startStagehandServiceWorker(
   scope.__stagehandReceiveFromHost = (raw) => chromeRuntimeClient.receive(raw);
   receiverReady.resolve();
 
-  const autoBootstrap = options.autoBootstrap ?? resolveResidentWebSocketUrl !== undefined;
-  if (autoBootstrap) {
-    void residentRuntime.bootstrap().catch(() => {
-      // oxlint-disable-next-line no-console
-      console.error("[stagehand] Resident runtime bootstrap failed");
-    });
-  }
-
   return rpcClient;
 }
 
@@ -138,6 +127,5 @@ function deferred(): { promise: Promise<void>; resolve(): void } {
 }
 
 if (typeof chrome !== "undefined") {
-  const startedAt = performance.now();
-  startStagehandServiceWorker(undefined, undefined, { startedAt });
+  startStagehandServiceWorker();
 }
