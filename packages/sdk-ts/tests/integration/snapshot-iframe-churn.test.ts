@@ -62,7 +62,7 @@ describe("page.snapshot() survives bounded iframe churn", () => {
       expect(countMatches(duringChurn.formattedTree, /Synthetic iframe churn fixture/g)).toBe(1);
       // Every child may be between documents at once. Omitting those transient
       // frames is valid; duplicating the main document is not.
-      await page.waitForSelector('#frames[data-churning="false"]', {
+      await page.waitForSelector('#frames[data-settled="true"]', {
         state: "attached",
         timeout: 10_000,
       });
@@ -92,7 +92,7 @@ function fixtureHtml(): string {
   </head>
   <body>
     <h1>Synthetic iframe churn fixture</h1>
-    <div id="frames" data-ready="false" data-churning="false"></div>
+    <div id="frames" data-ready="false" data-churning="false" data-settled="false"></div>
     <script>
       const frameCount = ${frameCount};
       const replacementsPerTick = ${replacementsPerTick};
@@ -103,16 +103,28 @@ function fixtureHtml(): string {
       let generation = 0;
       let churnTimer;
 
+      function updateSettledState() {
+        const currentFrames = Array.from(frames.querySelectorAll("iframe"));
+        frames.dataset.settled = String(
+          churnTimer === undefined &&
+          currentFrames.length === frameCount &&
+          currentFrames.every((frame) => frame.dataset.loaded === "true")
+        );
+      }
+
       function makeFrame(slot, frameGeneration) {
         const frame = document.createElement("iframe");
         frame.dataset.slot = String(slot);
+        frame.dataset.loaded = "false";
         frame.src = "/frame?slot=" + slot + "&generation=" + frameGeneration;
-        if (frameGeneration === 0) {
-          frame.addEventListener("load", () => {
+        frame.addEventListener("load", () => {
+          frame.dataset.loaded = "true";
+          if (frameGeneration === 0) {
             initialLoads.add(slot);
             if (initialLoads.size === frameCount) frames.dataset.ready = "true";
-          }, { once: true });
-        }
+          }
+          updateSettledState();
+        }, { once: true });
         return frame;
       }
 
@@ -120,12 +132,14 @@ function fixtureHtml(): string {
         if (churnTimer !== undefined) clearInterval(churnTimer);
         churnTimer = undefined;
         frames.dataset.churning = "false";
+        updateSettledState();
       }
 
       function startChurn() {
         if (churnTimer !== undefined) return "already-running";
         let completedTicks = 0;
         frames.dataset.churning = "true";
+        frames.dataset.settled = "false";
         churnTimer = setInterval(() => {
           generation += 1;
           completedTicks += 1;
