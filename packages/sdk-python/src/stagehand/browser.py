@@ -485,6 +485,8 @@ class BrowserbaseBrowser:
     ) -> StagehandBrowser:
         if not api_key:
             raise ValueError("api_key must not be empty")
+        if not base_url.strip():
+            raise ValueError("base_url must not be empty")
         if extension_id is not None and not extension_id.strip():
             raise ValueError("extension_id must not be empty")
         options = BrowserbaseSessionCreateParams.model_validate({

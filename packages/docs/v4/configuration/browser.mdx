@@ -116,7 +116,7 @@ Supported regions: `us-west-2` (default), `us-east-1`, `eu-central-1`, `ap-south
 
 ### API endpoint overrides
 
-Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service, and neither URL is read from an environment variable. Pass `baseUrl` to Browserbase and `apiUrl` to Stagehand when testing another deployment. Use the service origin without `/v1`.
+Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service. The SDKs do not read either URL from an environment variable. Pass `baseUrl` to Browserbase and `apiUrl` to Stagehand when testing another deployment. Use the service origin without `/v1`.
 
 <View title="TypeScript" icon="js">
 ```typescript
@@ -148,6 +148,7 @@ stagehand = await Stagehand.create(
 
 <View title="Go" icon="golang">
 ```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
 stagehandAPIURL := "https://api.stagehand.dev.browserbase.com"
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
@@ -162,10 +163,14 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
 	APIURL:  &stagehandAPIURL,
 })
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </View>
 
-The Browserbase URL controls extension, session, and connection requests made by `browserbase.launch()` or `browserbase.connect()`. The Stagehand URL controls Model Gateway and managed-cache requests made by the browser runtime.
+The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
 
 ### Environment variables
 

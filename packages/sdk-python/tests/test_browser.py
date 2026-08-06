@@ -640,6 +640,8 @@ async def test_browserbase_validation_precedes_api_calls(
     _, api_keys = _install_browserbase_client(monkeypatch)
     with pytest.raises(ValueError, match="api_key"):
         await browserbase.launch(api_key="")
+    with pytest.raises(ValueError, match="^base_url must not be empty$"):
+        await browserbase.launch(api_key="api-key", base_url="  ")
     with pytest.raises(ValueError, match="^extension_id must not be empty$"):
         await browserbase.launch(api_key="api-key", extension_id="  ")
     with pytest.raises(
