@@ -212,6 +212,14 @@ export async function runCodexAgent({
     return baseResult;
   }
 
+  // Artifact-grounded grading: capture the terminal page state through the
+  // tool surface (harness-observed, independent of the agent's self-report)
+  // before cleanup, mirroring the claude_code runner.
+  const finalObservation =
+    toolAdapter && "captureEvidence" in toolAdapter
+      ? await toolAdapter.captureEvidence?.().catch((): undefined => undefined)
+      : undefined;
+
   // Build a Trajectory from the codex event stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
@@ -219,6 +227,7 @@ export async function runCodexAgent({
       codexAdapter.fromHarnessResult(
         {
           events,
+          ...(finalObservation && { finalObservation }),
           finalAnswer: parsed.finalAnswer ?? finalResponse,
           status: status === "completed" ? "complete" : "error",
           usage: {
