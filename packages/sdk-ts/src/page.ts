@@ -225,9 +225,11 @@ export class Page {
     const bytes = decodeBase64(result.data);
     if (path) {
       const moduleName = "node:" + "fs/promises";
-      const { writeFile } = (await import(
-        /* @vite-ignore */ moduleName
-      )) as typeof import("node:fs/promises");
+      const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+        throw new TypeError(
+          "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
+        );
+      })) as typeof import("node:fs/promises");
       await writeFile(path, bytes);
     }
     return bytes;

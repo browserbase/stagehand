@@ -764,6 +764,26 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
+  it("reports when screenshot paths are unavailable outside Node.js", async () => {
+    vi.doMock("node:fs/promises", () => {
+      throw new Error("module resolution failed");
+    });
+    try {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageScreenshot, {
+        data: "iVBORw0KGgo=",
+        type: "png",
+      });
+      const page = new Page(client, { pageId: "page-1" });
+
+      await expect(page.screenshot({ path: "screenshot.png" })).rejects.toThrow(
+        "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
+      );
+    } finally {
+      vi.doUnmock("node:fs/promises");
+    }
+  });
+
   it("routes page snapshots and preserves opaque map keys", async () => {
     const client = new FakeProtocolClient();
     const snapshot = {
