@@ -1,9 +1,11 @@
 packages:
   - packages/*
+  - packages/integrations/examples/*
 
 catalogMode: prefer
 
 catalog:
+  "@ai-sdk/mcp": 2.0.8
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6

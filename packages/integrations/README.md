@@ -44,6 +44,10 @@ STAGEHAND_BROWSER=browserbase
 
 The process stays alive across calls and closes when its input stream ends. `SIGINT` and `SIGTERM` perform bounded graceful cleanup and preserve signal-style exit codes. If generated JavaScript blocks the JavaScript event loop, the server cannot run its cleanup handlers. The owner must terminate the entire process tree, escalate to `SIGKILL` after its own deadline, and start a new process before accepting more work. Killing only the Node process can leave its local browser child alive.
 
+### Framework examples
+
+- [Vercel AI SDK](./examples/vercel) launches the stdio server through the AI SDK MCP client and keeps one process alive for the complete agent run.
+
 ### Configuration
 
 `stagehandCodeConfigFromEnv()` recognizes:
