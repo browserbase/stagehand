@@ -1,0 +1,22 @@
+packages/evals/framework/codexCodeBridge.ts
+  s_a619aee37aaacb::t_c38ea6c14275df 58-69
+  s_a619aee37aaacb::t_3b0e0d67099465 137-139
+packages/evals/tests/framework/codexCodeBridge.test.ts
+  s_a619aee37aaacb::t_fd921a7ee0744b 102-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6df62023a9780eaae1386a25d9f0bbf8d77f2287",
+  "prompts": {},
+  "sessions": {
+    "s_a619aee37aaacb": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2a77c7e-979f-4c12-be81-a23658f6866b",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
