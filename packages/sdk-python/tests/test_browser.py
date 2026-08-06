@@ -534,25 +534,26 @@ class FakeBrowserbaseClient:
 
 def _install_browserbase_client(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[FakeBrowserbaseClient, list[str]]:
+) -> tuple[FakeBrowserbaseClient, list[tuple[str, str]]]:
     client = FakeBrowserbaseClient()
-    api_keys: list[str] = []
+    configurations: list[tuple[str, str]] = []
 
-    def factory(api_key: str) -> FakeBrowserbaseClient:
-        api_keys.append(api_key)
+    def factory(api_key: str, api_url: str) -> FakeBrowserbaseClient:
+        configurations.append((api_key, api_url))
         return client
 
     monkeypatch.setattr(browser, "_create_browserbase_session_client", factory)
-    return client, api_keys
+    return client, configurations
 
 
 async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
 ) -> None:
-    client, api_keys = _install_browserbase_client(monkeypatch)
+    client, configurations = _install_browserbase_client(monkeypatch)
     handle = await browserbase.launch(
         api_key="api-key",
+        api_url="https://api.dev.browserbase.com",
         region=BrowserbaseRegion.us_east_1,
     )
 
@@ -570,7 +571,7 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     _release_browser(handle)
     await handle.close()
 
-    assert api_keys == ["api-key"]
+    assert configurations == [("api-key", "https://api.dev.browserbase.com")]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
 
@@ -579,9 +580,10 @@ async def test_browserbase_launch_keep_alive_does_not_close_session(
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
 ) -> None:
-    client, _ = _install_browserbase_client(monkeypatch)
+    client, configurations = _install_browserbase_client(monkeypatch)
     handle = await browserbase.launch(api_key="api-key", keep_alive=True)
     await handle.close()
+    assert configurations == [("api-key", "https://api.browserbase.com")]
     assert client.created.close_calls == 0
     assert fake_cdp.instances[-1].close_calls == 1
 
@@ -590,8 +592,12 @@ async def test_browserbase_connect_never_owns_session_and_selects_extension_mode
     monkeypatch: pytest.MonkeyPatch,
     fake_cdp: type[FakeCDPClient],
 ) -> None:
-    client, _ = _install_browserbase_client(monkeypatch)
-    preloaded = await browserbase.connect(api_key="api-key", session_id="session")
+    client, configurations = _install_browserbase_client(monkeypatch)
+    preloaded = await browserbase.connect(
+        api_key="api-key",
+        api_url="https://api.dev.browserbase.com",
+        session_id="session",
+    )
     assert fake_cdp.connect_arguments[-1]["preloaded_extension"] is True
     claimed = _claim_browser(preloaded)
     assert claimed.worker_init_metadata.browser is not None
@@ -610,6 +616,10 @@ async def test_browserbase_connect_never_owns_session_and_selects_extension_mode
     await caller_extension.close()
 
     assert client.connect_calls == ["session", "session"]
+    assert configurations == [
+        ("api-key", "https://api.dev.browserbase.com"),
+        ("api-key", "https://api.browserbase.com"),
+    ]
     assert client.connected.close_calls == 0
 
 

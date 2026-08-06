@@ -82,7 +82,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		apiKey = claimed.workerAPIKey
 	}
 	initParams := workerInitParams(workerInitOptions{
-		apiKey: apiKey, browser: claimed.workerBrowser, cache: options.Cache,
+		apiKey: apiKey, apiURL: options.APIURL, browser: claimed.workerBrowser, cache: options.Cache,
 		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
@@ -316,6 +316,7 @@ func (s *Stagehand) connectedProtocol() (protocolClient, error) {
 
 type workerInitOptions struct {
 	apiKey             *string
+	apiURL             *string
 	browser            *BrowserSessionMetadata
 	cache              *Caching
 	domSettleTimeoutMs *int
@@ -331,6 +332,7 @@ type workerInitOptions struct {
 func workerInitParams(options workerInitOptions) StagehandInitParams {
 	params := StagehandInitParams{
 		APIKey:        options.apiKey,
+		APIURL:        options.apiURL,
 		Browser:       options.browser,
 		BrowserCDPURL: &options.browserCDPURL,
 		Cache:         options.cache,

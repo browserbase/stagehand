@@ -9,6 +9,8 @@ from stagehand import Stagehand, browserbase
 BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
 if not BROWSERBASE_API_KEY:
     raise RuntimeError
+BROWSERBASE_API_URL = "https://api.browserbase.com"
+STAGEHAND_API_URL = "https://api.stagehand.browserbase.com"
 
 
 class PageInfo(BaseModel):
@@ -19,9 +21,12 @@ class PageInfo(BaseModel):
 async def main() -> None:
     # With no model, Browserbase Model Gateway selects one automatically for
     # each inference call. The Browserbase API key and session authenticate it.
-    browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
+    browser = await browserbase.launch(
+        api_key=BROWSERBASE_API_KEY,
+        api_url=BROWSERBASE_API_URL,
+    )
     try:
-        stagehand = await Stagehand.create(browser=browser)
+        stagehand = await Stagehand.create(browser=browser, api_url=STAGEHAND_API_URL)
         try:
             page = (await browser.context.pages())[0]
             if page is None:

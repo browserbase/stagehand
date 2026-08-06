@@ -533,8 +533,12 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
 			}
 			var connected cdpClientOptions
+			var configuredAPIURL string
 			dependencies := browserFactoryDependencies{
-				createBrowserbaseClient: func(string) (browserbaseFactoryClient, error) { return client, nil },
+				createBrowserbaseClient: func(_ string, apiURL string) (browserbaseFactoryClient, error) {
+					configuredAPIURL = apiURL
+					return client, nil
+				},
 				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
 					connected = options
 					return newBrowserTestCDP(t), nil
@@ -543,15 +547,18 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			var browser *Browser
 			var err error
 			if test.connect {
-				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
+				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", APIURL: "https://api.dev.browserbase.com", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
 			} else {
 				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
-					APIKey: "key", ExtensionID: &extensionID, KeepAlive: &keepAlive,
+					APIKey: "key", APIURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
 					Region: &region, UserMetadata: userMetadata,
 				}, dependencies)
 			}
 			if err != nil {
 				t.Fatalf("factory error = %v", err)
+			}
+			if configuredAPIURL != "https://api.dev.browserbase.com" {
+				t.Fatalf("Browserbase API URL = %q", configuredAPIURL)
 			}
 			defer browser.Close(context.Background())
 			if !test.connect {

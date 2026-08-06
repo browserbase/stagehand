@@ -1790,6 +1790,10 @@ type StagehandInitParams struct {
 	// APIKey corresponds to the JSON schema field "api_key".
 	APIKey *string `json:"api_key,omitempty,omitzero"`
 
+	// Stagehand API base URL override for managed services such as Model Gateway and
+	// server-side caching
+	APIURL *string `json:"api_url,omitempty,omitzero"`
+
 	// Browser corresponds to the JSON schema field "browser".
 	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
 

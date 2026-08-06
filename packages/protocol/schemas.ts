@@ -1551,6 +1551,10 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
+    apiUrl: z.url().optional().meta({
+      description:
+        "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+    }),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:

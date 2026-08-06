@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from stagehand import client_models, client_types
 from stagehand.client_models import (
+    BrowserbaseConnectOptions,
     StagehandClientCreateConfig,
     StagehandClientLoggingConfig,
     _cache_config,
@@ -133,6 +134,15 @@ def test_create_configuration_uses_default_logging() -> None:
     config = StagehandClientCreateConfig.model_validate({})
 
     assert config.logging == StagehandClientLoggingConfig(level="info", format="pretty")
+
+
+def test_browserbase_connect_configuration_uses_default_api_url() -> None:
+    config = BrowserbaseConnectOptions.model_validate({
+        "api_key": "bb-key",
+        "session_id": "session-id",
+    })
+
+    assert config.api_url == "https://api.browserbase.com"
 
 
 def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:

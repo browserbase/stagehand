@@ -68,6 +68,7 @@ class LocalBrowserConnectOptions(TypedDict):
 
 class BrowserbaseConnectOptions(TypedDict):
     api_key: str
+    api_url: NotRequired[str]
     session_id: str
     extension_id: NotRequired[str]
 
@@ -84,6 +85,7 @@ class StagehandClientLoggingConfig(TypedDict, total=False):
 
 class StagehandClientCreateConfig(TypedDict, total=False):
     api_key: str
+    api_url: str
     model: ModelConfig | ClientLLM
     telemetry: TelemetryConfig
     system_prompt: str

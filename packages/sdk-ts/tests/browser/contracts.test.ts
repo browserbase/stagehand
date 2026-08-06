@@ -57,13 +57,14 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "apiUrl">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
     expectTypeOf<Parameters<BrowserbaseBrowser["connect"]>>().toEqualTypeOf<
       [options: BrowserbaseConnectOptions]
     >();
     expectTypeOf<BrowserbaseConnectOptions>().toExtend<{
       apiKey: string;
+      apiUrl?: string;
       sessionId: string;
       extensionId?: string;
     }>();
@@ -78,6 +79,7 @@ describe("browser API contracts", () => {
     );
     expect(BrowserbaseLaunchOptionsSchema.parse({ apiKey: "bb_key" })).toStrictEqual({
       apiKey: "bb_key",
+      apiUrl: "https://api.browserbase.com",
     });
     expect(
       BrowserbaseLaunchOptionsSchema.parse({
@@ -88,6 +90,7 @@ describe("browser API contracts", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      apiUrl: "https://api.browserbase.com",
       projectId: "project_123",
       proxySettings: { caCertificates: ["certificate_123"] },
       extensionId: "user-extension",
@@ -99,6 +102,7 @@ describe("browser API contracts", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      apiUrl: "https://api.browserbase.com",
       browserSettings: { extensionId: "user-extension" },
     });
     expect(() =>
@@ -112,6 +116,7 @@ describe("browser API contracts", () => {
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
+      apiUrl: "https://api.browserbase.com",
       sessionId: "session_123",
       extensionId: "user-extension",
     });

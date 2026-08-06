@@ -1154,6 +1154,11 @@
           "type": "string",
           "minLength": 1
         },
+        "api_url": {
+          "description": "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+          "type": "string",
+          "format": "uri"
+        },
         "browser": {
           "$ref": "#/$defs/BrowserSessionMetadata"
         },
