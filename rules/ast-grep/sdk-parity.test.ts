@@ -752,8 +752,12 @@ async function clientProtocolNotifications(
     if (language === "go") {
       for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
         const calledFunction = namedChildren(call)[0]?.text();
-        if (!calledFunction?.endsWith(".onNotification")) continue;
-        const notification = callArguments(call)[0];
+        const arguments_ = callArguments(call);
+        const notification = calledFunction?.endsWith(".onNotification")
+          ? arguments_[0]
+          : calledFunction === "registerNotification"
+            ? arguments_[1]
+            : undefined;
         if (notification?.kind() === "interpreted_string_literal") {
           notifications.add(stringLiteral(notification));
         }
