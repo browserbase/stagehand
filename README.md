@@ -44,7 +44,9 @@ Stagehand is the SDK for browser agents. Playwright was built for testing, Stage
 
 ## Why Stagehand?
 
-Stagehand gives you the Playwright-style APIs you and your agents already know, running as an extension next to the browser so production actions stay fast. Its hybrid accessibility tree trimming keeps agents token-efficient, and self-healing `act`, `observe`, and `extract` primitives keep automations running when sites change instead of breaking. On top of that, Stagehand ships the features agents actually need in production: WebMCP, clipboard support, batch commands, deep locators for nested iframes, and OTel support.
+Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and deep support for iframes and shadow DOM. 
+
+Agents use fewer tokens, recover when websites change, and complete tasks more reliably. With a complete browser driver across TypeScript, Python, and Go, Stagehand delivers the flexibility of AI without sacrificing the speed, control, determinism, reliability, and observability required in production.
 
 ### 1. Familiar APIs
 
