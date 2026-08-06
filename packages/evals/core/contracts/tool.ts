@@ -135,6 +135,18 @@ export interface ToolStartInput {
 
 export interface ToolStartResult {
   session: CoreSession;
+  /**
+   * Optional agent-facing binding for this running surface. `via` describes
+   * delivery to the agent and is independent of `CoreTool.surface`; for
+   * example, a code surface may be delivered through MCP or a CLI wrapper.
+   */
+  agentMount?: AgentMount;
+  /**
+   * Best-effort terminal state captured before cleanup. Implementations must
+   * swallow per-field failures and must not throw.
+   */
+  captureFinalState?: () => Promise<TerminalArtifact>;
+  /** Releases the runtime; `captureFinalState` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
     environment: EnvironmentName;
@@ -155,33 +167,24 @@ export interface CoreTool {
 }
 
 /**
- * The MCP server / tool name a `code_handles` exposure is mounted under by an
- * agent harness. Surfaces reference the tool name in their prompt
- * instructions; the harness mounts the single "run" tool under the server.
+ * The MCP server / tool name used when an agent harness wraps handles in a
+ * code-execution tool.
  */
-export const LLM_RUN_TOOL_SERVER = "stagehand_browser";
-export const LLM_RUN_TOOL_NAME = `mcp__${LLM_RUN_TOOL_SERVER}__run`;
+export const AGENT_RUN_TOOL_SERVER = "stagehand_browser";
+export const AGENT_RUN_TOOL_NAME = `mcp__${AGENT_RUN_TOOL_SERVER}__run`;
+export const AGENT_RUN_TOOL_RESERVED_HANDLES = ["startUrl", "task", "console"] as const;
 
 /**
- * `code_handles` only: the surface-specific pieces of the harness's single
- * "run" tool. The harness owns the tool mechanics (timeouts, result
- * stringification, logging); the surface owns the copy the model sees and
- * the values bound into the snippet scope.
+ * Surface-specific copy for the harness's code-execution tool. The harness
+ * owns mechanics and task bindings; the surface owns what the agent sees.
  */
-export interface LLMRunToolSpec {
+export interface AgentRunToolSpec {
   /** MCP tool description shown to the model. */
   description: string;
   /** Description of the tool's `code` parameter. */
   codeParamDescription: string;
-  /** Denial message when the model requests a tool outside the allowlist. */
+  /** Message from the harness-owned tool allowlist when access is denied. */
   denyMessage: string;
-  /** Value bound to `task` in the snippet scope. */
-  task: Record<string, unknown>;
-  /**
-   * Value bound to `console` in the snippet scope. Defaults to the
-   * harness's logger-backed console when omitted.
-   */
-  console?: Pick<Console, "log" | "warn" | "error">;
 }
 
 /**
@@ -198,35 +201,30 @@ export interface TerminalArtifact {
 }
 
 /**
- * A harness-agnostic description of how an agent harness (claude_code,
- * codex, ...) mounts a tool surface. Each surface implements this once;
- * harness drivers keep exactly three mount points and no surface knowledge:
- * - `code_handles` -> wrap `handles` in the harness's single run tool
- * - `mcp_server`   -> mount `mcpServers` config directly
- * - `cli`          -> spawn `command` with env
+ * How an agent harness reaches an already-running surface. This is independent
+ * of `CoreTool.surface`; harnesses switch on `via` and need no surface-specific
+ * mounting logic.
  */
-export interface LLMExposure {
-  kind: "code_handles" | "mcp_server" | "cli";
-  /**
-   * code_handles: named values placed in the run-tool snippet scope. The
-   * harness derives the snippet argument names from these keys (plus
-   * startUrl, task, and console). Names, not order, bind the values.
-   */
-  handles?: Record<string, unknown>;
-  promptInstructions: string;
-  /** mcp_server: mounted as-is by the harness. */
-  mcpServers?: Record<string, unknown>;
-  /** cli: spawned with env by the harness. */
-  command?: { bin: string; env: Record<string, string> };
-  /** code_handles: surface-specific run-tool copy and snippet bindings. */
-  runTool?: LLMRunToolSpec;
-  /** Extra surface facts (session URLs etc.) that flow through to the harness. */
-  metadata?: Record<string, unknown>;
-  /**
-   * Capture the terminal page state (screenshot + URL) for artifact-grounded
-   * grading. Called by the harness after the agent finishes, before cleanup.
-   * Best-effort: implementations should swallow per-field failures.
-   */
-  captureFinalState?: () => Promise<TerminalArtifact>;
-  cleanup: () => Promise<void>;
-}
+export type AgentMount = { promptInstructions: string } & (
+  | {
+      via: "handles";
+      /**
+       * Named values placed in snippet scope. Names, not order, bind values.
+       * `AGENT_RUN_TOOL_RESERVED_HANDLES` are injected by the harness and may
+       * not appear here.
+       */
+      handles: Record<string, unknown>;
+      runTool: AgentRunToolSpec;
+    }
+  | { via: "mcp"; mcpServers: Record<string, unknown> }
+  | {
+      via: "cli";
+      command: {
+        bin: string;
+        args?: string[];
+        cwd?: string;
+        /** Extra variables merged over the harness environment. */
+        env?: Record<string, string>;
+      };
+    }
+);
