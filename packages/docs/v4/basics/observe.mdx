@@ -561,8 +561,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const productsPage = await browser.context.newPage();
-await productsPage.goto("https://www.example.com/products");
+const productsPage = await browser.context.newPage("https://www.example.com/products");
 
 // Use observe with that specific page
 const { data: actions } = await stagehand.observe("find all product cards", {
@@ -579,8 +578,7 @@ browser = await browserbase.launch(
 stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-products_page = await browser.context.new_page()
-await products_page.goto("https://www.example.com/products")
+products_page = await browser.context.new_page("https://www.example.com/products")
 
 # Use observe with that specific page
 result = await stagehand.observe(
@@ -608,11 +606,8 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-productsPage, err := browserContext.NewPage(ctx, nil)
+productsPage, err := browserContext.NewPage(ctx, "https://www.example.com/products")
 if err != nil {
-	return err
-}
-if _, err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
 	return err
 }
 

@@ -3,6 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const coreTasksRoot = path.resolve(__dirname, "../../core/tasks");
+const deterministicTaskRoots = ["act", "extract", "observe"].map((category) =>
+  path.resolve(__dirname, `../../tasks/bench/${category}`),
+);
 
 function walk(dir: string): string[] {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -39,6 +42,15 @@ describe("core task portability", () => {
         expect(source, `${path.relative(coreTasksRoot, taskFile)} matched ${pattern}`).not.toMatch(
           pattern,
         );
+      }
+    }
+  });
+
+  it("leaves Stagehand lifecycle cleanup to the bench harness", () => {
+    for (const tasksRoot of deterministicTaskRoots) {
+      for (const taskFile of walk(tasksRoot)) {
+        const source = fs.readFileSync(taskFile, "utf8");
+        expect(source, path.relative(tasksRoot, taskFile)).not.toContain("stagehand.close(");
       }
     }
   });
