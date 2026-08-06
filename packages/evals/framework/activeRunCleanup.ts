@@ -19,7 +19,7 @@ export function registerActiveRunCleanup(cleanup: () => Promise<void>): () => vo
 export async function cleanupActiveRunResources(): Promise<void> {
   const cleanups = [...activeRunCleanups.entries()];
   for (const [key] of cleanups) activeRunCleanups.delete(key);
-  await Promise.allSettled(cleanups.map(([, cleanup]) => cleanup()));
+  await Promise.allSettled(cleanups.map(([, cleanup]) => Promise.resolve().then(cleanup)));
 }
 
 export async function abortActiveRun(

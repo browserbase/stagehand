@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { abortActiveRun, registerActiveRunCleanup } from "../../framework/activeRunCleanup.js";
+import {
+  abortActiveRun,
+  cleanupActiveRunResources,
+  registerActiveRunCleanup,
+} from "../../framework/activeRunCleanup.js";
 
 describe("active run cleanup", () => {
   it("upgrades a cooperative abort by cleaning active resources", async () => {
@@ -19,5 +23,19 @@ describe("active run cleanup", () => {
     expect(cleanup).toHaveBeenCalledTimes(1);
 
     unregister();
+  });
+
+  it("attempts every cleanup when one throws synchronously", async () => {
+    const synchronousFailure = vi.fn(() => {
+      throw new Error("synchronous cleanup failure");
+    }) as unknown as () => Promise<void>;
+    const laterCleanup = vi.fn(async () => {});
+    registerActiveRunCleanup(synchronousFailure);
+    registerActiveRunCleanup(laterCleanup);
+
+    await expect(cleanupActiveRunResources()).resolves.toBeUndefined();
+
+    expect(synchronousFailure).toHaveBeenCalledOnce();
+    expect(laterCleanup).toHaveBeenCalledOnce();
   });
 });
