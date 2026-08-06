@@ -15,6 +15,7 @@ import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
+import type { StagehandInitResult } from "../initStagehand.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -41,16 +42,31 @@ export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
   signal?: AbortSignal;
 }
 
-export interface BenchHarnessContext {
+interface BenchHarnessContextBase {
   harness: Harness;
   row: BenchMatrixRow;
   logger: EvalLogger;
-  v3?: V3;
-  agent?: AgentInstance;
-  page?: Page;
   debugUrl: string;
   sessionUrl: string;
 }
+
+/**
+ * The two context shapes are mutually exclusive: act/extract/observe tasks
+ * run on the v4 SDK, everything else (agent) runs on stagehand-v3. The `sdk`
+ * discriminant lets the runner narrow instead of probing optional fields.
+ */
+export type BenchHarnessContext =
+  | (BenchHarnessContextBase & {
+      sdk: "v4";
+      stagehand: StagehandInitResult["stagehand"];
+      page: StagehandInitResult["page"];
+    })
+  | (BenchHarnessContextBase & {
+      sdk: "v3";
+      v3: V3;
+      agent?: AgentInstance;
+      page: Page;
+    });
 
 export interface StartedBenchHarness {
   ctx: BenchHarnessContext;
@@ -144,6 +160,60 @@ export const stagehandHarness: BenchHarness = {
     const agentMode = config.agentMode ?? input.agentMode;
     const isCUA = config.isCUA ?? input.isCUA;
 
+    // The deterministic suite (act/extract/observe, ported to the v4 SDK in
+    // place) runs on a v4 client. Dispatch is by category — the directory a
+    // task lives in — so tasks carry no marker and the runner stays v4-only.
+    const isDeterministicTask = ["act", "extract", "observe"].includes(task.primaryCategory);
+
+    if (isDeterministicTask) {
+      // The v4 SDK has no agent surface, and agent tasks are deliberately not
+      // ported. Fail loudly rather than silently fall back to v3 behavior.
+      if (createAgent || agentMode || isCUA) {
+        throw new EvalsError("The v4 SDK does not support agent tasks or agent modes.");
+      }
+      if (config.useApi) {
+        throw new EvalsError("--api is not supported with the v4 SDK.");
+      }
+      const { initStagehand } = await import("../initStagehand.js");
+      const v4Result = await initStagehand({
+        logger,
+        modelName: input.modelName,
+        environment: config.environment,
+      });
+      return {
+        ctx: {
+          harness: "stagehand",
+          row,
+          logger,
+          sdk: "v4",
+          stagehand: v4Result.stagehand,
+          page: v4Result.page,
+          debugUrl: v4Result.debugUrl,
+          sessionUrl: v4Result.sessionUrl,
+        },
+        cleanup: async () => {
+          try {
+            await v4Result.stagehand.close();
+          } catch (closeError) {
+            console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
+          }
+          // `stagehand.close()` tears down the RPC client and context but leaves
+          // the browser it was handed running. initStagehand acquired that
+          // browser, so this harness owns closing it — without this every task
+          // leaks a Chrome process (LOCAL) or a live Browserbase session, and
+          // the run never exits once the suite finishes.
+          try {
+            await v4Result.stagehand.browser.close();
+          } catch (closeError) {
+            console.error(`Warning: Error closing v4 browser for ${input.name}:`, closeError);
+          }
+          // browser.close() on a connected handle disconnects; releasing the
+          // session is a separate, best-effort call.
+          await v4Result.endSession().catch(() => {});
+        },
+      };
+    }
+
     if (config.useApi) {
       const provider = resolveProvider(input.modelName);
       const logFn = (line: LogLine) => logger.log(line);
@@ -191,6 +261,7 @@ export const stagehandHarness: BenchHarness = {
         harness: "stagehand",
         row,
         logger,
+        sdk: "v3",
         v3: v3Result.v3,
         agent: v3Result.agent,
         page: v3Result.v3.context.pages()[0],
