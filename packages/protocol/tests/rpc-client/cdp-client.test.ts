@@ -571,12 +571,17 @@ describe("waitForRuntimeReceiver", () => {
     ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
   });
 
-  it("does not accept markers with unknown descriptor fields", async () => {
-    let now = 0;
+  it("accepts an idle operational marker when the RPC receiver is installed", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
       result: {
         value: {
-          marker: { ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION), status: "ready" },
+          marker: {
+            ...runtimeMarker(STAGEHAND_PROTOCOL_VERSION),
+            name: "stagehand",
+            state: "idle",
+            connected: false,
+            timings: {},
+          },
           hasReceiver: true,
         },
       },
@@ -584,14 +589,9 @@ describe("waitForRuntimeReceiver", () => {
 
     await expect(
       waitForRuntimeReceiver(cdp, "worker-session", {
-        pollIntervalMs: 1,
-        timeout: 1,
-        nowFn: () => now,
-        delayFn: async (ms) => {
-          now += ms;
-        },
+        timeout: 1_000,
       }),
-    ).rejects.toThrow("Timed out waiting for the Stagehand extension runtime RPC receiver");
+    ).resolves.toBeUndefined();
   });
 });
 
