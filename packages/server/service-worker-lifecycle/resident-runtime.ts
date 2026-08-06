@@ -9,6 +9,7 @@ import { STAGEHAND_RUNTIME_VERSION } from "../version.js";
 
 export type ResidentRuntimeState =
   | "unconfigured"
+  | "idle"
   | "connecting"
   | "bootstrapping"
   | "ready"
@@ -37,7 +38,6 @@ export type ResidentRuntimeLifecycleOptions = {
   resolveResidentWebSocketUrl?: () => Promise<string>;
   waitForRpcReceiver?: () => Promise<void>;
   now?: () => number;
-  startedAt?: number;
   reconnectDelaysMs?: readonly number[];
 };
 
@@ -47,7 +47,6 @@ const DEFAULT_RECONNECT_DELAYS_MS = [100, 250, 500] as const;
 export class ResidentRuntimeLifecycle {
   readonly marker: StagehandRuntimeMarker;
   private readonly now: () => number;
-  private readonly startedAt: number;
   private readonly reconnectDelaysMs: readonly number[];
   private operationGeneration = 0;
   private operationTail: Promise<void> = Promise.resolve();
@@ -62,7 +61,6 @@ export class ResidentRuntimeLifecycle {
     private readonly options: ResidentRuntimeLifecycleOptions = {},
   ) {
     this.now = options.now ?? (() => performance.now());
-    this.startedAt = options.startedAt ?? this.now();
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
     this.marker = {
       name: "stagehand",
@@ -72,7 +70,7 @@ export class ResidentRuntimeLifecycle {
         name: "stagehand",
         version: STAGEHAND_RUNTIME_VERSION,
       },
-      state: options.resolveResidentWebSocketUrl ? "connecting" : "unconfigured",
+      state: options.resolveResidentWebSocketUrl ? "idle" : "unconfigured",
       connected: false,
       timings: {},
     };
@@ -196,7 +194,7 @@ export class ResidentRuntimeLifecycle {
       this.cancelReconnects();
       this.publish("ready", true, {
         connectAndBootstrapMs: this.now() - connectStartedAt,
-        totalMs: this.now() - this.startedAt,
+        totalMs: this.now() - connectStartedAt,
       });
     } catch (error) {
       if (this.isCurrent(generation) && !this.closed) {
