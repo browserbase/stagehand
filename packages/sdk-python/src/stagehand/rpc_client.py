@@ -123,6 +123,9 @@ class RPCClient:
         page_id: str | None,
         timeout: int,
     ) -> object:
+        if self._closed:
+            raise RuntimeError("RPC client is closed") from self._close_reason
+
         runner = getattr(self._transport, "run_callback_batch", None)
         if not callable(runner):
             raise RuntimeError("The connected Stagehand runtime does not support callback batches")

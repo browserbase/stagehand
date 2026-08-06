@@ -541,3 +541,11 @@ async def test_close_can_detach_without_closing_transport() -> None:
     assert client._pending_notifications == []
     with pytest.raises(RuntimeError, match="RPC client is closed"):
         await client.send("test.request", models.EmptyParams(), RPCResult)
+
+    with pytest.raises(RuntimeError, match="RPC client is closed"):
+        await client.run_callback_batch(
+            source="async ({ page }) => page.title()",
+            input=None,
+            page_id=None,
+            timeout=30_000,
+        )
