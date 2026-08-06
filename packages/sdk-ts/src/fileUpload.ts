@@ -76,6 +76,12 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
   }
 
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
+  if (typeof file.buffer === "string") {
+    const nodeBuffer = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
+    if (nodeBuffer && nodeBuffer.byteLength(file.buffer, "utf8") > MAX_INPUT_FILE_BYTES) {
+      throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
+    }
+  }
   const bytes =
     typeof file.buffer === "string"
       ? new TextEncoder().encode(file.buffer)
