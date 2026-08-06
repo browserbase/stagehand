@@ -38,7 +38,7 @@ async def main() -> None:
 
             def handle_console(event: PageCDPEvent) -> None:
                 nonlocal event_method
-                if event.params.model_dump().get("type") == "log":
+                if event.params.root.get("type") == "log":
                     event_method = event.method.value
                     console_event.set()
 
