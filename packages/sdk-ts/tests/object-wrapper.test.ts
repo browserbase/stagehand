@@ -1,17 +1,19 @@
 import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import {
   BrowserClipboard,
   BrowserContext,
+  type ExperimentalBatchContext,
   Locator,
   Page,
   Response,
   Stagehand,
+  type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
 } from "../src/index.js";
@@ -118,6 +120,12 @@ const zeroUsage = {
   inferenceTimeMs: 0,
 };
 describe("Stagehand TS object wrapper", () => {
+  it("preserves the metrics type in experimental batch callbacks", () => {
+    expectTypeOf<ExperimentalBatchContext["metrics"]>().returns.toEqualTypeOf<
+      Promise<StagehandMetrics>
+    >();
+  });
+
   it("exposes an async callback-first experimental batch API", async () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);

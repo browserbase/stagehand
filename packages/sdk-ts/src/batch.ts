@@ -1,4 +1,4 @@
-import type { Action, ActResult, ObserveResult } from "../../protocol/types.js";
+import type { Action, ActResult, ObserveResult, StagehandMetrics } from "../../protocol/types.js";
 import type { BrowserContext } from "./browserContext.js";
 import type {
   StagehandClientActOptions,
@@ -30,7 +30,7 @@ export type ExperimentalBatchContext = {
     schema: unknown,
     options?: ExperimentalBatchExtractOptions,
   ): Promise<unknown>;
-  metrics(): Promise<unknown>;
+  metrics(): Promise<StagehandMetrics>;
 };
 
 export type ExperimentalBatchCallback<Input, Result> = (

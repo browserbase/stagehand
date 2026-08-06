@@ -1,7 +1,7 @@
 import type { RPCMethod } from "../protocol/json-rpc/schemas.js";
 import { encodeWireValue } from "../protocol/json-rpc/wire-casing.js";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../protocol/schema-registry.js";
-import type { Action } from "../protocol/types.js";
+import type { Action, StagehandMetrics } from "../protocol/types.js";
 import { z } from "zod/v4";
 import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";
@@ -72,7 +72,7 @@ export type CallbackStagehand = {
     schemaOrOptions?: unknown,
     options?: StagehandClientExtractOptions,
   ): Promise<unknown>;
-  metrics(): Promise<unknown>;
+  metrics(): Promise<StagehandMetrics>;
 };
 
 export function installCallbackBatchRunner(
