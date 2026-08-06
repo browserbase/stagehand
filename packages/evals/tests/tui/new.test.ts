@@ -58,6 +58,23 @@ describe("scaffoldTask", () => {
     expect(task?.content).toContain("// TODO: implement eval logic");
   });
 
+  it("uses the v4 bench definition for non-agent bench tasks", async () => {
+    const { scaffoldTask } = await import("../../tui/commands/new.js");
+
+    const task = scaffoldTask(["bench", "act", "test"]);
+    expect(task?.content).toContain("defineBenchTask");
+    expect(task?.content).not.toContain("defineAgentBenchTask");
+    expect(task?.content).toContain("async ({ stagehand, page, logger, debugUrl, sessionUrl })");
+  });
+
+  it("uses the v3 agent definition for agent tasks", async () => {
+    const { scaffoldTask } = await import("../../tui/commands/new.js");
+
+    const task = scaffoldTask(["bench", "agent", "test"]);
+    expect(task?.content).toContain("defineAgentBenchTask");
+    expect(task?.content).toContain("async ({ v3, logger, debugUrl, sessionUrl })");
+  });
+
   it("rejects category path traversal", async () => {
     const { scaffoldTask } = await import("../../tui/commands/new.js");
 

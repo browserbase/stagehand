@@ -34,6 +34,37 @@ const BENCH_TEMPLATE = (
 
 export default defineBenchTask(
   { name: "${name}" },
+  async ({ stagehand, page, logger, debugUrl, sessionUrl }) => {
+    try {
+      await page.goto("https://example.com");
+
+      // TODO: implement eval logic
+
+      return {
+        _success: true,
+        logs: logger.getLogs(),
+        debugUrl,
+        sessionUrl,
+      };
+    } catch (error) {
+      return {
+        _success: false,
+        error,
+        debugUrl,
+        sessionUrl,
+        logs: logger.getLogs(),
+      };
+    }
+  },
+);
+`;
+
+const AGENT_BENCH_TEMPLATE = (
+  name: string,
+) => `import { defineAgentBenchTask } from "../../../framework/defineTask.js";
+
+export default defineAgentBenchTask(
+  { name: "${name}" },
   async ({ v3, logger, debugUrl, sessionUrl }) => {
     try {
       const page = v3.context.pages()[0];
@@ -117,7 +148,12 @@ export function scaffoldTask(args: string[]): ScaffoldedTask | null {
 
   fs.mkdirSync(taskDir, { recursive: true });
 
-  const content = tier === "core" ? CORE_TEMPLATE(name) : BENCH_TEMPLATE(name);
+  const content =
+    tier === "core"
+      ? CORE_TEMPLATE(name)
+      : category === "agent"
+        ? AGENT_BENCH_TEMPLATE(name)
+        : BENCH_TEMPLATE(name);
   fs.writeFileSync(taskFile, content);
 
   const displayPath =

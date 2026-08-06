@@ -1,15 +1,14 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
-import { compareStrings } from "../../../utils.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
+import { compareStrings } from "../../../framework/stringScoring.js";
 
 export default defineBenchTask(
   { name: "extract_baptist_health" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/baptist-health/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the address, phone number, and fax number of the healthcare location.",
         z.object({
           address: z.string(),
@@ -86,13 +85,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

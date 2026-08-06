@@ -1,6 +1,6 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineAgentBenchTask } from "../../../framework/defineTask.js";
 
-export default defineBenchTask(
+export default defineAgentBenchTask(
   { name: "agent/steam_games" },
   async ({ debugUrl, sessionUrl, logger, agent, v3 }) => {
     try {
