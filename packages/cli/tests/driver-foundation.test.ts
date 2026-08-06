@@ -668,6 +668,66 @@ describe("driver foundation", () => {
     }
   });
 
+  it("keeps open requests alive through browser initialization and navigation", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "slow-open";
+    const sockets = new Set<net.Socket>();
+    let requestReceived: (() => void) | undefined;
+    const received = new Promise<void>((resolve) => {
+      requestReceived = resolve;
+    });
+    const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+        };
+        requestReceived?.();
+        setTimeout(() => {
+          socket.end(
+            `${JSON.stringify({
+              data: { url: "https://example.com" },
+              id: request.id,
+              type: "success",
+            })}\n`,
+          );
+        }, 36_000);
+      });
+    });
+
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(getSocketPath(session), resolve);
+      });
+      const open = openViaDaemon(session, "https://example.com", { timeoutMs: 1_000 });
+      await received;
+      await vi.advanceTimersByTimeAsync(36_000);
+
+      await expect(open).resolves.toEqual({ url: "https://example.com" });
+    } finally {
+      vi.useRealTimers();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+  });
+
   it("closes the browser when Stagehand.create fails", async () => {
     const closeBrowser = vi.fn().mockResolvedValue(undefined);
     const browser = { close: closeBrowser, context: {} };
