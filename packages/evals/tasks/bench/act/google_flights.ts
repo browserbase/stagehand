@@ -30,8 +30,6 @@ export default defineBenchTask(
         "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
       const currentUrl = await page.url();
 
-      await stagehand.close();
-
       if (currentUrl === expectedUrl) {
         return {
           _success: true,
@@ -56,8 +54,6 @@ export default defineBenchTask(
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await stagehand.close();
     }
   },
 );
