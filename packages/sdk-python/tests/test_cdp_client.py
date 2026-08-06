@@ -237,7 +237,7 @@ async def test_callback_batch_request_is_delivered_with_a_runtime_attachment() -
     }
 
     try:
-        await client.send(message, callback_source=source)
+        await client.send(message)
         params = cast(dict[str, object], socket.sent[0]["params"])
         assert params["awaitPromise"] is False
         assert params["returnByValue"] is True
@@ -276,9 +276,8 @@ async def test_callback_batch_delivery_reconstructs_runtime_exception_details() 
                     "jsonrpc": "2.0",
                     "id": 8,
                     "method": "stagehand.callback_batch",
-                    "params": {},
+                    "params": {"callback_source": "async () => undefined"},
                 },
-                callback_source="async () => undefined",
             )
     finally:
         await client.close()

@@ -34,6 +34,7 @@ class InProcessCommandClient implements StagehandCommandClient {
   constructor(
     private readonly router: RPCRouter,
     private readonly signal: AbortSignal,
+    private readonly traceContext: NonNullable<HandlerContext["traceContext"]>,
   ) {}
 
   async send<Method extends RPCMethod>(
@@ -47,6 +48,7 @@ class InProcessCommandClient implements StagehandCommandClient {
       id: this.#nextRequestId++,
       method: method.name,
       params: encodeWireValue(parsedParams, method.paramsWire),
+      ...this.traceContext,
     });
     const result = await this.router.handle(request);
     this.throwIfAborted();
@@ -75,30 +77,25 @@ export type CallbackStagehand = {
 };
 
 export function createCallbackBatchController(router: RPCRouter) {
-  let active = false;
-
   async function run(
     params: CallbackBatchParams,
-    { runtimeAttachments }: HandlerContext,
+    { runtimeAttachments, traceContext = {} }: HandlerContext,
   ): Promise<CallbackBatchResult> {
     const callback = runtimeAttachments?.callback;
     const { input, options } = params;
-    if (active) throw new Error("Another Stagehand callback batch is already running");
     if (typeof callback !== "function") {
       throw new TypeError(
         "Stagehand callback batch request is missing its runtime callback attachment",
       );
     }
 
-    active = true;
-    let callbackPromise: Promise<unknown> | undefined;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort(new Error(`Stagehand callback batch timed out after ${options.timeout}ms`));
     }, options.timeout);
 
     try {
-      const client = new InProcessCommandClient(router, controller.signal);
+      const client = new InProcessCommandClient(router, controller.signal, traceContext);
       const context = new BrowserContext(client);
       const page = options.pageId
         ? (await context.pages()).find((candidate) => candidate.pageId === options.pageId)
@@ -156,14 +153,9 @@ export function createCallbackBatchController(router: RPCRouter) {
         metrics: async () => await client.send(StagehandMethods.stagehandMetrics, {}),
       };
 
-      callbackPromise = Promise.resolve().then(() =>
+      const callbackPromise = Promise.resolve().then(() =>
         (callback as CallbackBatchFunction)(stagehand, input),
       );
-      void callbackPromise
-        .finally(() => {
-          active = false;
-        })
-        .catch(() => {});
       const result = await Promise.race([
         callbackPromise,
         new Promise<never>((_, reject) => {
@@ -176,7 +168,6 @@ export function createCallbackBatchController(router: RPCRouter) {
       return { value: jsonRoundTrip(result) };
     } finally {
       clearTimeout(timeoutId);
-      if (!callbackPromise) active = false;
     }
   }
 

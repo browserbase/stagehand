@@ -52,7 +52,6 @@ type RegisteredRequestHandler = {
 
 type RPCSendOptions = {
   signal?: AbortSignal;
-  callbackSource?: string;
 };
 
 const TRACER = trace.getTracer("@browserbasehq/stagehand");
@@ -94,11 +93,7 @@ export type CDPTransport = {
   onmessage?: (message: unknown) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
-  send(
-    message: JSONRPCMessage,
-    signal?: AbortSignal,
-    delivery?: { callbackSource?: string },
-  ): Promise<void>;
+  send(message: JSONRPCMessage, signal?: AbortSignal): Promise<void>;
   close(): void;
 };
 
@@ -179,15 +174,9 @@ export class RPCClient {
         try {
           const response = this.waitForResponse(request.id, method, signal);
           const [, result] = await Promise.all([
-            this.cdp
-              .send(
-                request,
-                signal,
-                options.callbackSource ? { callbackSource: options.callbackSource } : undefined,
-              )
-              .catch((error: unknown) => {
-                this.rejectPending(request.id, asError(error));
-              }),
+            this.cdp.send(request, signal).catch((error: unknown) => {
+              this.rejectPending(request.id, asError(error));
+            }),
             response,
           ]);
           return result as z.output<Method["result"]>;

@@ -74,12 +74,7 @@ _response = TypeAdapter(_JSONRPCSuccessResponse | _JSONRPCErrorResponse)
 
 
 class _Transport(Protocol):
-    async def send(
-        self,
-        message: dict[str, object],
-        *,
-        callback_source: str | None = None,
-    ) -> None: ...
+    async def send(self, message: dict[str, object]) -> None: ...
 
     async def receive(self) -> object: ...
 
@@ -126,8 +121,6 @@ class RPCClient:
         method: str,
         params: BaseModel,
         result_model: type[RootModel[RootResultT]],
-        *,
-        callback_source: str | None = None,
     ) -> RootResultT: ...
 
     @overload
@@ -136,8 +129,6 @@ class RPCClient:
         method: str,
         params: BaseModel,
         result_model: type[ResultT],
-        *,
-        callback_source: str | None = None,
     ) -> ResultT: ...
 
     async def send(
@@ -145,8 +136,6 @@ class RPCClient:
         method: str,
         params: BaseModel,
         result_model: type[BaseModel],
-        *,
-        callback_source: str | None = None,
     ) -> object:
         if self._closed:
             raise RuntimeError("RPC client is closed") from self._close_reason
@@ -185,8 +174,7 @@ class RPCClient:
                         cast(
                             dict[str, object],
                             request.model_dump(mode="json", exclude_none=True, exclude_unset=True),
-                        ),
-                        callback_source=callback_source,
+                        )
                     )
                     return await response
             except TimeoutError as error:

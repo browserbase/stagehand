@@ -196,7 +196,6 @@ async def test_experimental_batch_uses_registered_rpc_method(
         assert isinstance(params, CallbackBatchParams)
         assert params.callback_source == source
         assert params.options.timeout == 2_000
-        assert recording.callback_sources[-1] == source
     finally:
         await stagehand.close()
 
@@ -414,8 +413,6 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[RootModel[RootResultT]],
-            *,
-            callback_source: str | None = None,
         ) -> RootResultT: ...
 
         @overload
@@ -424,8 +421,6 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[ResultT],
-            *,
-            callback_source: str | None = None,
         ) -> ResultT: ...
 
         async def send(
@@ -433,13 +428,11 @@ async def test_cancelled_create_fails_closed_and_prevents_same_browser_retry(
             method: str,
             params: BaseModel,
             result_model: type[BaseModel],
-            *,
-            callback_source: str | None = None,
         ) -> object:
             if method == "stagehand.init":
                 started.set()
                 await blocker.wait()
-            return await super().send(method, params, result_model, callback_source=callback_source)
+            return await super().send(method, params, result_model)
 
     blocking = BlockingInitRPCClient()
     _install_rpc_client(monkeypatch, blocking)
@@ -475,8 +468,6 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[RootModel[RootResultT]],
-            *,
-            callback_source: str | None = None,
         ) -> RootResultT: ...
 
         @overload
@@ -485,8 +476,6 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[ResultT],
-            *,
-            callback_source: str | None = None,
         ) -> ResultT: ...
 
         async def send(
@@ -494,13 +483,11 @@ async def test_create_deadline_fails_closed_without_a_flaky_five_millisecond_tim
             method: str,
             params: BaseModel,
             result_model: type[BaseModel],
-            *,
-            callback_source: str | None = None,
         ) -> object:
             if method == "stagehand.init":
                 started.set()
                 await asyncio.Event().wait()
-            return await super().send(method, params, result_model, callback_source=callback_source)
+            return await super().send(method, params, result_model)
 
     blocking = BlockingInitRPCClient()
     _install_rpc_client(monkeypatch, blocking)

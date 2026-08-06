@@ -146,28 +146,18 @@ export class Stagehand {
       );
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(new Error(`Stagehand callback batch timed out after ${timeout}ms`)),
-      timeout + 1_000,
-    );
-    try {
-      const result: CallbackBatchResult = await this.connectedRpcClient.send(
-        StagehandMethods.stagehandCallbackBatch,
-        {
-          callbackSource,
-          ...(parsedInput === undefined ? {} : { input: parsedInput }),
-          options: {
-            ...(options.page ? { pageId: options.page.pageId } : {}),
-            timeout,
-          },
+    const result: CallbackBatchResult = await this.connectedRpcClient.send(
+      StagehandMethods.stagehandCallbackBatch,
+      {
+        callbackSource,
+        ...(parsedInput === undefined ? {} : { input: parsedInput }),
+        options: {
+          ...(options.page ? { pageId: options.page.pageId } : {}),
+          timeout,
         },
-        { signal: controller.signal, callbackSource },
-      );
-      return result.value as Awaited<Result>;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+      },
+    );
+    return result.value as Awaited<Result>;
   }
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {

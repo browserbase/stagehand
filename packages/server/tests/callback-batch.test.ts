@@ -3,6 +3,8 @@ import type { CallbackBatchOptions, StagehandRpcRequest } from "../../protocol/t
 import { createCallbackBatchController, type CallbackBatchFunction } from "../callbackBatch.js";
 import type { HandlerContext, RPCRouter } from "../rpcRouter.js";
 
+const traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
+
 async function runCallbackBatch(
   router: RPCRouter,
   callback: CallbackBatchFunction,
@@ -16,7 +18,7 @@ async function runCallbackBatch(
       options,
     },
     {
-      requestId: 1,
+      traceContext: { traceparent },
       runtimeAttachments: { callback },
     } as HandlerContext,
   );
@@ -31,7 +33,7 @@ describe("callback batch runner", () => {
           callbackSource: "async () => undefined",
           options: { timeout: 1_000 },
         },
-        { requestId: 8 } as HandlerContext,
+        {} as HandlerContext,
       ),
     ).rejects.toThrow("runtime callback attachment");
   });
@@ -69,6 +71,7 @@ describe("callback batch runner", () => {
       "page.title",
     ]);
     expect(requests[1]?.params).toEqual({ pageId: "page-1", selector: "button" });
+    expect(requests.every((request) => request.traceparent === traceparent)).toBe(true);
   });
 
   it("resolves an explicitly selected page without querying the active page", async () => {
@@ -107,6 +110,71 @@ describe("callback batch runner", () => {
     await expect(
       runCallbackBatch(router, async () => undefined, null, { timeout: 1_000 }),
     ).resolves.toEqual({});
+  });
+
+  it("enforces the callback timeout in the worker", async () => {
+    vi.useFakeTimers();
+    try {
+      const router = {
+        handle: vi.fn(async (request: StagehandRpcRequest) => {
+          if (request.method === "context.active_page") return { pageId: "page-1" };
+          throw new Error(`Unexpected method: ${request.method}`);
+        }),
+      } as unknown as RPCRouter;
+      const pending = runCallbackBatch(
+        router,
+        async () => await new Promise<never>(() => {}),
+        null,
+        { timeout: 25 },
+      );
+      const rejected = expect(pending).rejects.toThrow(
+        "Stagehand callback batch timed out after 25ms",
+      );
+
+      await vi.advanceTimersByTimeAsync(25);
+      await rejected;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("allows independent callback batches to run concurrently", async () => {
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    const controller = createCallbackBatchController(router);
+    let releaseFirst: (() => void) | undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let markFirstStarted: (() => void) | undefined;
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve;
+    });
+    const first = controller.run(
+      { callbackSource: "async () => 'first'", options: { timeout: 1_000 } },
+      {
+        runtimeAttachments: {
+          callback: async () => {
+            markFirstStarted?.();
+            await firstGate;
+            return "first";
+          },
+        },
+      } as HandlerContext,
+    );
+    await firstStarted;
+
+    await expect(
+      controller.run({ callbackSource: "async () => 'second'", options: { timeout: 1_000 } }, {
+        runtimeAttachments: { callback: async () => "second" },
+      } as HandlerContext),
+    ).resolves.toEqual({ value: "second" });
+    releaseFirst?.();
+    await expect(first).resolves.toEqual({ value: "first" });
   });
 
   it("does not expose context lifecycle or internals to callbacks", async () => {

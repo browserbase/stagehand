@@ -23,8 +23,8 @@ func (client *recordingBatchProtocolClient) call(
 	result any,
 ) error {
 	client.calls++
-	client.source, _ = callbackSourceFromContext(ctx)
 	if batchParams, ok := params.(CallbackBatchParams); ok {
+		client.source = batchParams.CallbackSource
 		_ = json.Unmarshal(batchParams.Input, &client.input)
 		if batchParams.Options.PageID != nil {
 			client.pageID = *batchParams.Options.PageID

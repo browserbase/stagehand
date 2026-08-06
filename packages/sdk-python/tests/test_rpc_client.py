@@ -24,10 +24,8 @@ class QueueTransport:
         self.incoming: asyncio.Queue[object] = asyncio.Queue()
         self.outgoing: asyncio.Queue[JSON] = asyncio.Queue()
         self.closed = asyncio.Event()
-        self.callback_sources: list[str | None] = []
 
-    async def send(self, message: JSON, *, callback_source: str | None = None) -> None:
-        self.callback_sources.append(callback_source)
+    async def send(self, message: JSON) -> None:
         self.sent.append(message)
         await self.outgoing.put(message)
 
@@ -63,12 +61,10 @@ async def test_callback_batch_uses_the_normal_pending_request_path() -> None:
                     options=models.CallbackBatchOptions(timeout=30_000),
                 ),
                 models.CallbackBatchResult,
-                callback_source=source,
             )
         )
         request = await transport.outgoing.get()
         assert request["method"] == "stagehand.callback_batch"
-        assert transport.callback_sources == [source]
         await transport.incoming.put({
             "jsonrpc": "2.0",
             "id": request["id"],
@@ -586,5 +582,4 @@ async def test_close_can_detach_without_closing_transport() -> None:
                 options=models.CallbackBatchOptions(timeout=30_000),
             ),
             models.CallbackBatchResult,
-            callback_source="async ({ page }) => page.title()",
         )

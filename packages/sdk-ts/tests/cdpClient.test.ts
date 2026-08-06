@@ -3,28 +3,26 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CDPClient,
   CDPConnectionClosedError,
-  callbackBatchExpression,
   openCDPWebSocket,
+  stagehandMessageExpression,
   waitForRuntimeReady,
   waitForServiceWorker,
 } from "../src/cdpClient.js";
 
 describe("callback batch expression", () => {
   it("serializes input separately from executable callback source", () => {
+    const callbackSource = "async ({ page }, input) => ({ title: await page.title(), input })";
     const message = {
       jsonrpc: "2.0" as const,
       id: 8,
       method: "stagehand.callback_batch",
       params: {
-        callback_source: "callback source is data too",
+        callback_source: callbackSource,
         input: { text: '"); globalThis.__injectionSucceeded = true; ("' },
         options: { page_id: "page-1", timeout: 2_000 },
       },
     };
-    const expression = callbackBatchExpression({
-      message,
-      callbackSource: "async ({ page }, input) => ({ title: await page.title(), input })",
-    });
+    const expression = stagehandMessageExpression(message);
 
     expect(expression).toContain("__stagehandReceiveFromHost");
     expect(expression).toContain("stagehand.callback_batch");
@@ -45,14 +43,13 @@ describe("callback batch expression", () => {
   });
 
   it("provides the lexical __name helper used by bundled callback source", async () => {
-    const expression = callbackBatchExpression({
-      message: {
-        jsonrpc: "2.0",
-        id: 8,
-        method: "stagehand.callback_batch",
-        params: {},
+    const expression = stagehandMessageExpression({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "stagehand.callback_batch",
+      params: {
+        callback_source: '__name(async () => "ok", "bundledCallback")',
       },
-      callbackSource: '__name(async () => "ok", "bundledCallback")',
     });
     let attachment: unknown;
     const evaluated = runInNewContext(expression, {

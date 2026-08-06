@@ -20,7 +20,6 @@ class RecordingRPCClient:
         self.notifications: dict[str, tuple[object, object]] = {}
         self.closed = False
         self.close_transport_flags: list[bool] = []
-        self.callback_sources: list[str | None] = []
 
     @overload
     async def send(
@@ -28,8 +27,6 @@ class RecordingRPCClient:
         method: str,
         params: BaseModel,
         result_model: type[RootModel[RootResultT]],
-        *,
-        callback_source: str | None = None,
     ) -> RootResultT: ...
 
     @overload
@@ -38,8 +35,6 @@ class RecordingRPCClient:
         method: str,
         params: BaseModel,
         result_model: type[ResultT],
-        *,
-        callback_source: str | None = None,
     ) -> ResultT: ...
 
     async def send(
@@ -47,10 +42,7 @@ class RecordingRPCClient:
         method: str,
         params: BaseModel,
         result_model: type[BaseModel],
-        *,
-        callback_source: str | None = None,
     ) -> object:
-        self.callback_sources.append(callback_source)
         self.calls.append((method, params, result_model))
         response = self.responses[method]
         if isinstance(response, BaseException):

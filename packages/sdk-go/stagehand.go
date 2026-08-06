@@ -201,7 +201,7 @@ func (s *Stagehand) ExperimentalBatch(
 	}
 	var batchResult CallbackBatchResult
 	if err := rpc.call(
-		withCallbackDelivery(ctx, source),
+		ctx,
 		"stagehand.callback_batch",
 		params,
 		&batchResult,

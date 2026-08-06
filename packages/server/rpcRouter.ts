@@ -32,7 +32,10 @@ const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 
 export type HandlerContext = {
   logger: StagehandLogger;
-  requestId: StagehandRpcRequest["id"];
+  traceContext?: {
+    traceparent?: string;
+    tracestate?: string;
+  };
   runtimeAttachments?: CallbackBatchRuntimeAttachments;
 };
 
@@ -90,9 +93,15 @@ export class RPCRouter {
       parentContext,
     );
     const requestContext = trace.setSpan(parentContext, span);
+    const traceContextFields: { traceparent?: string; tracestate?: string } = {};
+    W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, traceContextFields, {
+      set(carrier, key, value) {
+        if (key === "traceparent" || key === "tracestate") carrier[key] = value;
+      },
+    });
     const handlerContext: HandlerContext = {
       logger: this.runtime.logger.withContext(requestContext),
-      requestId: request.id,
+      traceContext: traceContextFields,
       ...(runtimeAttachments ? { runtimeAttachments } : {}),
     };
 

@@ -43,6 +43,18 @@ def _callback_batch_expression(
     )
 
 
+def _callback_source_from_message(message: dict[str, object]) -> str | None:
+    if message.get("method") != "stagehand.callback_batch":
+        return None
+    params = message.get("params")
+    if not isinstance(params, Mapping):
+        raise TypeError("Stagehand callback batch request is missing callback_source")
+    source = params.get("callback_source")
+    if not isinstance(source, str) or not source.strip():
+        raise TypeError("Stagehand callback batch request is missing callback_source")
+    return source
+
+
 def _negotiate_runtime(marker: object) -> tuple[bool, str]:
     """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
     if not isinstance(marker, Mapping):
@@ -185,8 +197,6 @@ class CDPClient:
     async def send(
         self,
         message: dict[str, object],
-        *,
-        callback_source: str | None = None,
     ) -> None:
         if self._closed:
             raise RuntimeError("CDP client is closed")
@@ -194,6 +204,7 @@ class CDPClient:
             raise RuntimeError("Stagehand service worker is not attached")
 
         serialized = json.dumps(message, separators=(",", ":"))
+        callback_source = _callback_source_from_message(message)
         expression = (
             _callback_batch_expression(message=message, source=callback_source)
             if callback_source is not None

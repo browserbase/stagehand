@@ -202,7 +202,6 @@ class Stagehand:
                 ),
             ),
             CallbackBatchResult,
-            callback_source=source,
         )
         return (
             result.value.model_dump(mode="json")

@@ -83,17 +83,6 @@ func (client *rpcClient) browserWebSocketDebuggerURL() string {
 	return client.browserWebSocketURL
 }
 
-type callbackDeliveryContextKey struct{}
-
-func withCallbackDelivery(ctx context.Context, source string) context.Context {
-	return context.WithValue(ctx, callbackDeliveryContextKey{}, source)
-}
-
-func callbackSourceFromContext(ctx context.Context) (string, bool) {
-	source, ok := ctx.Value(callbackDeliveryContextKey{}).(string)
-	return source, ok && source != ""
-}
-
 type pendingRPCRequest struct {
 	method   string
 	response chan rpcCallResponse

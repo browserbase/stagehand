@@ -24,17 +24,11 @@ class FakeCDPTransport implements CDPTransport {
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   readonly sent: JSONRPCMessage[] = [];
-  readonly deliveries: Array<{ callbackSource?: string } | undefined> = [];
 
   constructor(readonly result: unknown) {}
 
-  async send(
-    message: JSONRPCMessage,
-    _signal?: AbortSignal,
-    delivery?: { callbackSource?: string },
-  ): Promise<void> {
+  async send(message: JSONRPCMessage): Promise<void> {
     this.sent.push(message);
-    this.deliveries.push(delivery);
     if (!("id" in message) || !("method" in message)) return;
     await this.onmessage?.({ jsonrpc: "2.0", id: message.id, result: this.result });
   }
@@ -69,17 +63,16 @@ class ManualCDPTransport implements CDPTransport {
 }
 
 describe("RPCClient", () => {
-  it("keeps callback batches in the pending RPC path with request-scoped delivery metadata", async () => {
+  it("keeps callback batches in the ordinary pending RPC path", async () => {
     const source = "async () => undefined";
     const cdp = new FakeCDPTransport({});
     const client = new RPCClient(cdp);
 
     await expect(
-      client.send(
-        StagehandMethods.stagehandCallbackBatch,
-        { callbackSource: source, options: { timeout: 2_000 } },
-        { callbackSource: source },
-      ),
+      client.send(StagehandMethods.stagehandCallbackBatch, {
+        callbackSource: source,
+        options: { timeout: 2_000 },
+      }),
     ).resolves.toEqual({});
     expect(cdp.sent).toContainEqual({
       jsonrpc: "2.0",
@@ -90,7 +83,6 @@ describe("RPCClient", () => {
         options: { timeout: 2_000 },
       },
     });
-    expect(cdp.deliveries).toEqual([{ callbackSource: source }]);
   });
 
   it("accepts page methods without SDK wrapper methods", async () => {

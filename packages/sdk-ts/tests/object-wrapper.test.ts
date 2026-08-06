@@ -30,7 +30,6 @@ type CallbackBatchCall = {
   input: unknown;
   pageId?: string;
   timeout: number;
-  signal?: AbortSignal;
 };
 
 class FakeProtocolClient extends RPCClient {
@@ -67,7 +66,6 @@ class FakeProtocolClient extends RPCClient {
   async send<Method extends RPCMethod>(
     method: Method,
     params: z.input<Method["params"]>,
-    options: { signal?: AbortSignal; callbackSource?: string } = {},
   ): Promise<z.output<Method["result"]>> {
     this.calls.push({ method: method.name, params });
     if (method.name === StagehandMethods.stagehandCallbackBatch.name) {
@@ -77,11 +75,10 @@ class FakeProtocolClient extends RPCClient {
         options: { pageId?: string; timeout: number };
       };
       const call: CallbackBatchCall = {
-        callbackSource: options.callbackSource ?? batchParams.callbackSource,
+        callbackSource: batchParams.callbackSource,
         input: batchParams.input,
         ...(batchParams.options.pageId ? { pageId: batchParams.options.pageId } : {}),
         timeout: batchParams.options.timeout,
-        ...(options.signal ? { signal: options.signal } : {}),
       };
       this.batchCalls.push(call);
       const value = await this.batchHandler(call);
@@ -171,32 +168,6 @@ describe("Stagehand TS object wrapper", () => {
 
     expect(client.batchCalls).toHaveLength(1);
     expect(client.batchCalls[0]?.pageId).toBe("page-2");
-  });
-
-  it("aborts the callback batch transport after the timeout grace period", async () => {
-    vi.useFakeTimers();
-    try {
-      const client = new FakeProtocolClient();
-      const stagehand = createStagehandWithClientForTest(client);
-      client.batchHandler = async ({ signal }) =>
-        await new Promise<never>((_, reject) => {
-          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
-        });
-
-      const pending = stagehand._experimental_batch(async () => undefined, undefined, {
-        timeout: 25,
-      });
-      const rejected = expect(pending).rejects.toThrow(
-        "Stagehand callback batch timed out after 25ms",
-      );
-      await vi.advanceTimersByTimeAsync(1_025);
-
-      await rejected;
-      expect(client.batchCalls).toHaveLength(1);
-      expect(client.batchCalls[0]?.signal?.aborted).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("rejects null experimental batch options with a controlled error", async () => {

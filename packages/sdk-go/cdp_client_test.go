@@ -545,8 +545,8 @@ func TestCDPClientDeliversCallbackBatchWithRuntimeAttachment(t *testing.T) {
 	client.mu.Unlock()
 
 	const source = `async ({ page }) => ({ title: await page.title() })`
-	message := json.RawMessage(`{"jsonrpc":"2.0","id":8,"method":"stagehand.callback_batch","params":{"callback_source":"callback source is data too","input":{"value":1},"options":{"page_id":"page-1","timeout":2000}}}`)
-	err := client.Send(withCallbackDelivery(context.Background(), source), message)
+	message := json.RawMessage(fmt.Sprintf(`{"jsonrpc":"2.0","id":8,"method":"stagehand.callback_batch","params":{"callback_source":%q,"input":{"value":1},"options":{"page_id":"page-1","timeout":2000}}}`, source))
+	err := client.Send(context.Background(), message)
 	if err != nil {
 		t.Fatalf("Send() error = %v", err)
 	}
