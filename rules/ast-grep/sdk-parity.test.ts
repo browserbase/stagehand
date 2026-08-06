@@ -580,11 +580,7 @@ async function publicOperations(
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
       if (!publicMethod) return [];
-      const snakeCaseMethod = snakeCase(publicMethod.text());
-      const normalizedMethod =
-        className === "Stagehand" && snakeCaseMethod === "experimental_batch"
-          ? "_experimental_batch"
-          : snakeCaseMethod;
+      const normalizedMethod = normalizePublicMethod(className, publicMethod.text());
       if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {
@@ -624,17 +620,20 @@ async function publicCallableMethods(
         .flatMap((method) => {
           const name = methodName(method.node, language);
           if (!name) return [];
-          const snakeCaseMethod = snakeCase(name.text());
-          const normalizedMethod =
-            className === "Stagehand" && snakeCaseMethod === "experimental_batch"
-              ? "_experimental_batch"
-              : snakeCaseMethod;
+          const normalizedMethod = normalizePublicMethod(className, name.text());
           return participatesInSurfaceParity(className, language, normalizedMethod)
             ? [normalizedMethod]
             : [];
         }),
     ),
   ].sort();
+}
+
+function normalizePublicMethod(className: string, rawName: string): string {
+  const method = snakeCase(rawName);
+  return className === "Stagehand" && method === "experimental_batch"
+    ? "_experimental_batch"
+    : method;
 }
 
 function participatesInSurfaceParity(

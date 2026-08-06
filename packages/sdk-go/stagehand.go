@@ -177,6 +177,11 @@ func (s *Stagehand) ExperimentalBatch(
 	if timeout < time.Millisecond {
 		return errors.New("stagehand callback batch timeout must be at least one millisecond")
 	}
+	timeoutMilliseconds := timeout.Milliseconds()
+	maxInt := int64(^uint(0) >> 1)
+	if timeoutMilliseconds > maxInt {
+		return errors.New("stagehand callback batch timeout exceeds the supported millisecond range")
+	}
 	rpc, err := s.connectedProtocol()
 	if err != nil {
 		return err
@@ -193,7 +198,7 @@ func (s *Stagehand) ExperimentalBatch(
 		CallbackSource: source,
 		Input:          inputJSON,
 		Options: CallbackBatchOptions{
-			Timeout: int(timeout.Milliseconds()),
+			Timeout: int(timeoutMilliseconds),
 		},
 	}
 	if pageID != "" {
