@@ -7,6 +7,7 @@ import {
   buildBrowseCliProcessArgs,
 } from "../../core/tools/browse_cli.js";
 import { createBrowseCliSessionName } from "../../browseCliPaths.js";
+import { getSocketPath } from "../../../cli/src/lib/driver/daemon/paths.js";
 
 describe("browse_cli V4 adapter", () => {
   it("places session selection on each V4 command and uses mode-specific startup commands", () => {
@@ -26,6 +27,9 @@ describe("browse_cli V4 adapter", () => {
 
     expect(sessionName).toMatch(/^eval-\d+-[a-z0-9]+-[a-z0-9]{4}$/u);
     expect(sessionName.length).toBeLessThanOrEqual(32);
+    if (process.platform !== "win32") {
+      expect(Buffer.byteLength(getSocketPath(sessionName))).toBeLessThanOrEqual(103);
+    }
   });
 
   it("maps page capabilities onto the V4 command tree and flags", async () => {

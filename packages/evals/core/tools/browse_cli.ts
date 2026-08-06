@@ -106,7 +106,7 @@ export function browseCliStartupArgs(environment: ToolStartInput["environment"])
 class BrowseCliRuntime {
   constructor(private readonly session: string) {}
 
-  async runJson<T>(args: string[]): Promise<T> {
+  async runJson<T>(args: string[], timeoutMs?: number): Promise<T> {
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
       buildBrowseCliProcessArgs(resolveBrowseCliEntrypoint(), this.session, args),
@@ -114,6 +114,7 @@ class BrowseCliRuntime {
         cwd: getRepoRootDir(),
         env: process.env,
         maxBuffer: 10 * 1024 * 1024,
+        ...(timeoutMs === undefined ? {} : { timeout: timeoutMs }),
       },
     );
 
@@ -645,12 +646,7 @@ export class BrowseCliSession implements CoreSession {
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-
-    try {
-      await this.runtime.runJson(["stop", "--force"]);
-    } catch {
-      // best-effort only
-    }
+    await this.runtime.runJson(["stop", "--force"], 5_000);
   }
 
   async getArtifacts(): Promise<Artifact[]> {
@@ -705,7 +701,12 @@ export class BrowseCliTool implements CoreTool {
     }
 
     const session = new BrowseCliSession(createBrowseCliSessionName());
-    await session.runtime.runJson(browseCliStartupArgs(input.environment));
+    try {
+      await session.runtime.runJson(browseCliStartupArgs(input.environment));
+    } catch (error) {
+      await session.close().catch(() => {});
+      throw error;
+    }
 
     return {
       session,

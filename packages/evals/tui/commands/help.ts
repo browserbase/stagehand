@@ -67,6 +67,7 @@ export function printRunHelp(): void {
       `Provider: ${gray("openai | anthropic | google | ...")}`,
     ),
     row(cyan("--api"), "Use Stagehand API mode"),
+    row(cyan("--verbose"), "Stream detailed logs instead of the animated progress view"),
     "",
     `  ${bold("Core options:")}`,
     "",

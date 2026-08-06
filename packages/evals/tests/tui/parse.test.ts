@@ -17,6 +17,11 @@ describe("resolveRunOptions", () => {
     expect(resolved.verbose).toBe(true);
   });
 
+  it("lets --verbose override the config default", () => {
+    const resolved = resolveRunOptions(parseRunArgs(["act", "--verbose"]), { verbose: false }, {});
+    expect(resolved.verbose).toBe(true);
+  });
+
   it("defaults to the stagehand bench harness", () => {
     const resolved = resolveRunOptions({}, {}, {});
     expect(resolved.harness).toBe("stagehand");

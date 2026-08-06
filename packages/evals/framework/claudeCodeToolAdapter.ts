@@ -299,55 +299,85 @@ export async function prepareBrowseCliHarnessAdapter(
 
   const session = createBrowseCliSessionName();
   const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-browse-"));
-  const wrapperPath = path.join(cwd, "browse");
-  await installBrowseSkill(cwd);
-  input.logger.log({
-    category: input.logCategory,
-    message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
-    level: 1,
-  });
-  const env = {
-    ...process.env,
-    BROWSE_SESSION: session,
-    PATH: `${cwd}${path.delimiter}${process.env.PATH ?? ""}`,
-  } as Record<string, string>;
+  try {
+    const wrapperPath = path.join(cwd, "browse");
+    await installBrowseSkill(cwd);
+    input.logger.log({
+      category: input.logCategory,
+      message: `Installed browse skill at ${path.join(cwd, ".claude", "skills", "browse", "SKILL.md")}`,
+      level: 1,
+    });
+    const env = {
+      ...process.env,
+      BROWSE_SESSION: session,
+      PATH: `${cwd}${path.delimiter}${process.env.PATH ?? ""}`,
+    } as Record<string, string>;
 
-  const modeFlag = input.environment === "BROWSERBASE" ? "--remote" : "--local";
-  await fsp.writeFile(
-    wrapperPath,
-    [
-      "#!/usr/bin/env bash",
-      "set -euo pipefail",
-      // The mode flag (--local/--remote) selects the environment when the daemon
-      // is first started and must be explicit so a set BROWSERBASE_API_KEY does
-      // not silently auto-select remote. It is only accepted by the driver
-      // commands, so skip it for the few subcommands that reject it (stop,
-      // status). The session name is safe on every command.
-      "cmd=${1:-}",
-      "mode=()",
-      'if [[ "$cmd" != "stop" && "$cmd" != "status" ]]; then',
-      `  mode=(${JSON.stringify(modeFlag)})`,
-      "fi",
-      `exec ${JSON.stringify(process.execPath)} ${JSON.stringify(BROWSE_CLI_ENTRYPOINT)} "$@" "\${mode[@]+\${mode[@]}}" --session ${JSON.stringify(session)}`,
-      "",
-    ].join("\n"),
-    { mode: 0o755 },
-  );
+    const modeFlag = input.environment === "BROWSERBASE" ? "--remote" : "--local";
+    await fsp.writeFile(
+      wrapperPath,
+      buildBrowseCliWrapperScript({
+        entrypoint: BROWSE_CLI_ENTRYPOINT,
+        modeFlag,
+        nodePath: process.execPath,
+        session,
+      }),
+      { mode: 0o755 },
+    );
 
-  return {
-    toolSurface: "browse_cli",
-    startupProfile: input.startupProfile,
-    cwd,
-    env,
-    promptInstructions: buildBrowseCliPromptInstructions(input.plan),
-    metadata: getBrowseCliToolMetadata(),
-    cleanup: async () => {
-      await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd).catch(
-        (): undefined => undefined,
-      );
-      await fsp.rm(cwd, { recursive: true, force: true });
-    },
-  };
+    return {
+      toolSurface: "browse_cli",
+      startupProfile: input.startupProfile,
+      cwd,
+      env,
+      promptInstructions: buildBrowseCliPromptInstructions(input.plan),
+      metadata: getBrowseCliToolMetadata(),
+      cleanup: async () => {
+        try {
+          await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd, 5_000);
+        } catch (error) {
+          input.logger.warn({
+            category: input.logCategory,
+            message: `browse_cli cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+            level: 0,
+          });
+        } finally {
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
+      },
+    };
+  } catch (error) {
+    await fsp.rm(cwd, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export function buildBrowseCliWrapperScript({
+  entrypoint,
+  modeFlag,
+  nodePath,
+  session,
+}: {
+  entrypoint: string;
+  modeFlag: "--local" | "--remote";
+  nodePath: string;
+  session: string;
+}): string {
+  return [
+    "#!/usr/bin/env bash",
+    "set -euo pipefail",
+    "cmd=${1:-}",
+    'case "$cmd" in',
+    "  back|click|cursor|doctor|eval|fill|forward|get|highlight|is|mouse|network|open|press|reload|screenshot|select|snapshot|status|stop|tab|type|upload|viewport|wait) ;;",
+    '  *) echo "The browse eval harness only supports browser driver commands (received: ${cmd:-<root>})." >&2; exit 64 ;;',
+    "esac",
+    "mode=()",
+    'if [[ "$cmd" != "stop" && "$cmd" != "status" ]]; then',
+    `  mode=(${JSON.stringify(modeFlag)})`,
+    "fi",
+    `exec ${JSON.stringify(nodePath)} ${JSON.stringify(entrypoint)} "$@" "\${mode[@]+\${mode[@]}}" --session ${JSON.stringify(session)}`,
+    "",
+  ].join("\n");
 }
 
 async function preparePlaywrightCodeAdapter(
@@ -1152,6 +1182,7 @@ async function runBrowseCommand(
   logger: EvalLogger,
   env: Record<string, string>,
   cwd: string,
+  timeoutMs: number,
 ): Promise<void> {
   const { spawn } = await import("node:child_process");
   await new Promise<void>((resolve, reject) => {
@@ -1161,6 +1192,19 @@ async function runBrowseCommand(
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stderr = "";
+    let timedOut = false;
+    let settled = false;
+    const finish = (error?: Error): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolve();
+    };
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, timeoutMs);
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       logger.log({ category: "browse_cli", message: chunk, level: 1 });
@@ -1170,13 +1214,19 @@ async function runBrowseCommand(
       stderr += chunk;
       logger.log({ category: "browse_cli", message: chunk, level: 1 });
     });
-    child.on("error", reject);
+    child.on("error", (error) => finish(error));
     child.on("close", (code) => {
-      if (code === 0) {
-        resolve();
+      if (timedOut) {
+        finish(
+          new EvalsError(`browse_cli command timed out after ${timeoutMs}ms (${args.join(" ")})`),
+        );
         return;
       }
-      reject(new EvalsError(`browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`));
+      if (code === 0) {
+        finish();
+        return;
+      }
+      finish(new EvalsError(`browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`));
     });
   });
 }

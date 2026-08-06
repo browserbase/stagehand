@@ -38,6 +38,7 @@ export interface RunFlags {
   filter?: Array<[string, string]>;
   dryRun?: boolean;
   preview?: boolean;
+  verbose?: boolean;
   /**
    * Rubric success mode for the verifier — outcome | process | both.
    *   outcome (default): binary EvaluationResult.outcomeSuccess.
@@ -104,7 +105,7 @@ const SUPPORTED_BENCHMARKS = new Set([
 
 const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
 
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "verbose", "legacy"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -219,6 +220,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
+        else if (name === "verbose") flags.verbose = true;
         else if (name === "legacy") flags.legacy = true;
         i++;
         continue;
@@ -461,7 +463,7 @@ export function resolveRunOptions(
     envOverrides,
     dryRun: flags.dryRun ?? false,
     preview: flags.preview ?? false,
-    verbose: defaults.verbose ?? false,
+    verbose: flags.verbose ?? defaults.verbose ?? false,
   };
 }
 
