@@ -699,6 +699,26 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
+  it("returns browser-native screenshot bytes when Buffer is unavailable", async () => {
+    const NodeBuffer = Buffer;
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "iVBORw0KGgo=",
+      type: "png",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      const bytes: Uint8Array = await page.screenshot();
+
+      expect(bytes).toBeInstanceOf(Uint8Array);
+      expect(bytes).not.toBeInstanceOf(NodeBuffer);
+      expect([...bytes]).toStrictEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("routes page snapshots and preserves opaque map keys", async () => {
     const client = new FakeProtocolClient();
     const snapshot = {

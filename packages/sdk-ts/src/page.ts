@@ -213,7 +213,7 @@ export class Page {
     return result.matched;
   }
 
-  async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+  async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {
     const { path, mask, ...screenshotOptions } = options ?? {};
     const result = await this.rpcClient.send(StagehandMethods.pageScreenshot, {
       pageId: this.pageId,
@@ -230,7 +230,7 @@ export class Page {
       )) as typeof import("node:fs/promises");
       await writeFile(path, bytes);
     }
-    return bytes as Buffer;
+    return bytes;
   }
 
   async snapshot(options?: PageSnapshotOptions): Promise<SnapshotResult> {
