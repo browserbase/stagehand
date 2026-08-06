@@ -48,6 +48,7 @@ The process stays alive across calls and closes when its input stream ends. `SIG
 
 - [Vercel AI SDK](./examples/vercel) launches the stdio server through the AI SDK MCP client and keeps one process alive for the complete agent run.
 - [Mastra](./examples/mastra) discovers the canonical MCP toolset once and reuses one client and browser for the complete agent run.
+- [CrewAI](./examples/crewai) keeps its context-managed MCP adapter open across every tool call in one crew execution.
 
 ### Configuration
 
