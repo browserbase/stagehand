@@ -338,28 +338,36 @@ describe("doctor report builder", () => {
   });
 
   it("includes --verified/--proxies in the suggested remote open command", async () => {
-    const report = await buildDoctorReport(
-      {
-        flags: { proxies: true, remote: true, verified: true },
-        session: "default",
-      },
-      {
-        env: { BROWSERBASE_API_KEY: "test-key" },
-        getDriverStatus: async () => null,
-        readPackageVersion: async () => "0.0.0-test",
-      },
-    );
+    const daemonDir = await tempDaemonDir();
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
 
-    expect(report.verdict).toBe("ok");
-    expect(report.checks).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          message: "remote (verified, proxies)",
-          name: "target",
-        }),
-      ]),
-    );
-    expect(report.next).toBe("browse open https://example.com --remote --verified --proxies");
+    try {
+      process.env.BROWSE_DAEMON_DIR = daemonDir;
+      const report = await buildDoctorReport(
+        {
+          flags: { proxies: true, remote: true, verified: true },
+          session: "default",
+        },
+        {
+          env: { BROWSERBASE_API_KEY: "test-key" },
+          getDriverStatus: async () => null,
+          readPackageVersion: async () => "0.0.0-test",
+        },
+      );
+
+      expect(report.verdict).toBe("ok");
+      expect(report.checks).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: "remote (verified, proxies)",
+            name: "target",
+          }),
+        ]),
+      );
+      expect(report.next).toBe("browse open https://example.com --remote --verified --proxies");
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
   });
 });
 

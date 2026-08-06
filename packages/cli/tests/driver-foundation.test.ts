@@ -680,7 +680,7 @@ describe("driver foundation", () => {
     });
 
     vi.resetModules();
-    vi.doMock("@browserbasehq/stagehand", () => ({
+    vi.doMock("stagehand-v3", () => ({
       Stagehand,
     }));
 
@@ -698,7 +698,7 @@ describe("driver foundation", () => {
       expect(init).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
     } finally {
-      vi.doUnmock("@browserbasehq/stagehand");
+      vi.doUnmock("stagehand-v3");
       vi.resetModules();
     }
   });
@@ -714,7 +714,7 @@ describe("driver foundation", () => {
     });
 
     vi.resetModules();
-    vi.doMock("@browserbasehq/stagehand", () => ({
+    vi.doMock("stagehand-v3", () => ({
       Stagehand,
     }));
 
@@ -739,7 +739,7 @@ describe("driver foundation", () => {
         }),
       );
     } finally {
-      vi.doUnmock("@browserbasehq/stagehand");
+      vi.doUnmock("stagehand-v3");
       vi.resetModules();
     }
   });
@@ -755,7 +755,7 @@ describe("driver foundation", () => {
     });
 
     vi.resetModules();
-    vi.doMock("@browserbasehq/stagehand", () => ({
+    vi.doMock("stagehand-v3", () => ({
       Stagehand,
     }));
 
@@ -780,7 +780,7 @@ describe("driver foundation", () => {
         }),
       );
     } finally {
-      vi.doUnmock("@browserbasehq/stagehand");
+      vi.doUnmock("stagehand-v3");
       vi.resetModules();
     }
   });

@@ -1,4 +1,4 @@
-import { Stagehand } from "@browserbasehq/stagehand";
+import { Stagehand } from "stagehand-v3";
 
 import {
   emptyRefMaps,

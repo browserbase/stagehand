@@ -1,4 +1,4 @@
-import type { Stagehand } from "@browserbasehq/stagehand";
+import type { Stagehand } from "stagehand-v3";
 
 import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
