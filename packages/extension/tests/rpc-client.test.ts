@@ -125,4 +125,110 @@ describe("worker RPCClient", () => {
       vi.useRealTimers();
     }
   });
+
+  it.each([
+    ["1.0.9", true, undefined],
+    ["1.1.0", false, "protocol-server-too-old"],
+    ["2.0.0", false, "protocol-major-mismatch"],
+    ["1.0.0-beta.1", false, "protocol-prerelease-mismatch"],
+  ] as const)(
+    "negotiates client protocol %s through the stagehand.init wire handshake",
+    async (protocolVersion, compatible, reason) => {
+      const responses: Array<Record<string, unknown>> = [];
+      const runtimeClient = new ChromeRuntimeClient(
+        {
+          sendToHost(payload: string): void {
+            responses.push(JSON.parse(payload) as Record<string, unknown>);
+          },
+        },
+        "sendToHost",
+      );
+      const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+      const client = new RPCClient(
+        runtimeClient,
+        new RPCRouter(createRuntime(), { initializeStagehand }),
+      );
+
+      try {
+        await runtimeClient.receive(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 10,
+            method: "stagehand.init",
+            params: {
+              protocol_version: protocolVersion,
+              client_info: { name: "stagehand-sdk-test", version: "4.0.0" },
+            },
+          }),
+        );
+
+        if (compatible) {
+          expect(responses).toStrictEqual([
+            {
+              jsonrpc: "2.0",
+              id: 10,
+              result: { initialized: true, pages: [] },
+            },
+          ]);
+          expect(initializeStagehand).toHaveBeenCalledOnce();
+        } else {
+          expect(responses).toMatchObject([
+            {
+              jsonrpc: "2.0",
+              id: 10,
+              error: {
+                code: -32603,
+                message: `Incompatible Stagehand protocol (${reason})`,
+                data: { name: "StagehandProtocolCompatibilityError" },
+              },
+            },
+          ]);
+          expect(initializeStagehand).not.toHaveBeenCalled();
+        }
+      } finally {
+        client.close();
+      }
+    },
+  );
+
+  it("rejects a malformed protocol version as invalid params on the wire", async () => {
+    const responses: Array<Record<string, unknown>> = [];
+    const runtimeClient = new ChromeRuntimeClient(
+      {
+        sendToHost(payload: string): void {
+          responses.push(JSON.parse(payload) as Record<string, unknown>);
+        },
+      },
+      "sendToHost",
+    );
+    const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
+    const client = new RPCClient(
+      runtimeClient,
+      new RPCRouter(createRuntime(), { initializeStagehand }),
+    );
+
+    try {
+      await runtimeClient.receive(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 11,
+          method: "stagehand.init",
+          params: {
+            protocol_version: "not-semver",
+            client_info: { name: "stagehand-sdk-test", version: "4.0.0" },
+          },
+        }),
+      );
+
+      expect(responses).toMatchObject([
+        {
+          id: 11,
+          error: { code: -32602, data: { name: "ZodError" } },
+        },
+      ]);
+      expect(initializeStagehand).not.toHaveBeenCalled();
+    } finally {
+      client.close();
+    }
+  });
 });

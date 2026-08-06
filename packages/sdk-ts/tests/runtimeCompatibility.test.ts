@@ -53,6 +53,13 @@ describe("negotiateRuntimeCompatibility", () => {
       negotiateRuntimeCompatibility(prereleaseRequirement, marker("1.3.0-beta.2")),
     ).toMatchObject({ kind: "incompatible", reason: "protocol-prerelease-mismatch" });
   });
+  it("reports an invalid client requirement without throwing", () =>
+    expect(
+      negotiateRuntimeCompatibility({ protocolVersion: "not-semver" }, marker("1.2.4")),
+    ).toMatchObject({
+      kind: "incompatible",
+      reason: "protocol-invalid-version",
+    }));
   it.each([[null], [undefined]])("reports a missing marker for %s", (raw) =>
     expect(negotiateRuntimeCompatibility(requirement, raw)).toMatchObject({
       kind: "unknown",

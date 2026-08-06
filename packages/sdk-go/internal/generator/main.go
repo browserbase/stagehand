@@ -216,11 +216,7 @@ func generateProtocolVersionSource(packageData []byte) ([]byte, error) {
 	if err := json.Unmarshal(packageData, &protocolPackage); err != nil {
 		return nil, fmt.Errorf("decode protocol package: %w", err)
 	}
-	coreVersion := protocolPackage.Version
-	if suffixIndex := strings.IndexAny(coreVersion, "-+"); suffixIndex >= 0 {
-		coreVersion = coreVersion[:suffixIndex]
-	}
-	if strings.Count(coreVersion, ".") != 2 || !semver.IsValid("v"+protocolPackage.Version) {
+	if !validPackageVersion(protocolPackage.Version) {
 		return nil, fmt.Errorf(
 			"invalid Stagehand protocol package version: %s",
 			protocolPackage.Version,
@@ -254,17 +250,21 @@ func sdkPackageVersion(packageData []byte) (string, error) {
 	if err := json.Unmarshal(packageData, &sdkPackage); err != nil {
 		return "", fmt.Errorf("decode SDK package: %w", err)
 	}
-	coreVersion := sdkPackage.Version
-	if suffixIndex := strings.IndexAny(coreVersion, "-+"); suffixIndex >= 0 {
-		coreVersion = coreVersion[:suffixIndex]
-	}
-	if strings.Count(coreVersion, ".") != 2 || !semver.IsValid("v"+sdkPackage.Version) {
+	if !validPackageVersion(sdkPackage.Version) {
 		return "", fmt.Errorf(
 			"invalid Stagehand Go SDK package version: %s",
 			sdkPackage.Version,
 		)
 	}
 	return sdkPackage.Version, nil
+}
+
+func validPackageVersion(version string) bool {
+	coreVersion := version
+	if suffixIndex := strings.IndexAny(coreVersion, "-+"); suffixIndex >= 0 {
+		coreVersion = coreVersion[:suffixIndex]
+	}
+	return strings.Count(coreVersion, ".") == 2 && semver.IsValid("v"+version)
 }
 
 func findSDKRoot() (string, error) {

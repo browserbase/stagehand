@@ -92,6 +92,8 @@ func TestProtocolCompatibility(t *testing.T) {
 		{name: "major mismatch", client: "1.2.4", server: "2.0.0", detail: "major mismatch"},
 		{name: "exact prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.1", compatible: true},
 		{name: "different prerelease", client: "1.3.0-beta.1", server: "1.3.0-beta.2", detail: "match exactly"},
+		{name: "invalid client", client: "not-semver", server: "1.3.0", detail: "invalid protocol version"},
+		{name: "invalid server", client: "1.3.0", server: "not-semver", detail: "invalid protocol version"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

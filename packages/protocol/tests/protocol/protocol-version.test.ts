@@ -18,6 +18,8 @@ describe("protocol SemVer compatibility", () => {
     ["1.2.4", "2.0.0", "protocol-major-mismatch"],
     ["1.3.0-beta.1", "1.3.0-beta.2", "protocol-prerelease-mismatch"],
     ["1.3.0-beta.1", "1.3.0", "protocol-prerelease-mismatch"],
+    ["not-semver", "1.0.0", "protocol-invalid-version"],
+    ["1.0.0", "not-semver", "protocol-invalid-version"],
   ] as const)("rejects client %s with server %s", (client, server, reason) => {
     expect(checkProtocolCompatibility(client, server)).toStrictEqual({
       compatible: false,

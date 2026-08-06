@@ -15,6 +15,7 @@ export type RuntimeCompatibility =
   | {
       kind: "incompatible";
       reason:
+        | "protocol-invalid-version"
         | "protocol-major-mismatch"
         | "protocol-server-too-old"
         | "protocol-prerelease-mismatch";
@@ -88,6 +89,8 @@ function compatibilityDetail(
   serverVersion: string,
 ): string {
   switch (reason) {
+    case "protocol-invalid-version":
+      return `Invalid protocol version: client ${clientVersion}, server ${serverVersion}`;
     case "protocol-major-mismatch":
       return `Protocol major mismatch: client ${clientVersion}, server ${serverVersion}`;
     case "protocol-server-too-old":

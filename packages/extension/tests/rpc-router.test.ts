@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { StagehandRpcRequestSchema } from "../../protocol/schema-registry.ts";
 import { DEFAULT_EXTRACT_JSON_SCHEMA, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import { StagehandMetricsAccumulator } from "../metrics.ts";
+import { StagehandProtocolCompatibilityError } from "../errors.ts";
 import { createStagehandRuntime, type StagehandBrowserSession } from "../runtime.ts";
 import { RPCRouter } from "../rpcRouter.ts";
 import * as actService from "../services/actService.ts";
@@ -316,22 +317,25 @@ describe("Stagehand RPC router", () => {
     expect(closeStagehand).toHaveBeenCalledOnce();
   });
 
-  it("rejects a client that requires a newer protocol minor", async () => {
+  it.each([
+    ["1.1.0", "protocol-server-too-old"],
+    ["2.0.0", "protocol-major-mismatch"],
+    ["1.0.0-beta.1", "protocol-prerelease-mismatch"],
+  ] as const)("rejects incompatible client protocol %s", async (protocolVersion, reason) => {
     const initializeStagehand = vi.fn(async () => ({ initialized: true as const, pages: [] }));
     const router = new RPCRouter(createStagehandRuntime(), { initializeStagehand });
 
-    await expect(
-      router.handle(
-        request({
-          id: 16,
-          method: "stagehand.init",
-          params: {
-            protocol_version: "1.1.0",
-            client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
-          },
-        }),
-      ),
-    ).rejects.toThrow("protocol-server-too-old");
+    const result = router.handle(
+      request({
+        id: 16,
+        method: "stagehand.init",
+        params: {
+          protocol_version: protocolVersion,
+          client_info: { name: "stagehand-sdk-ts", version: "4.0.0" },
+        },
+      }),
+    );
+    await expect(result).rejects.toEqual(new StagehandProtocolCompatibilityError(reason));
     expect(initializeStagehand).not.toHaveBeenCalled();
   });
 

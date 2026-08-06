@@ -19,14 +19,17 @@ type ParsedProtocolVersion = {
   prerelease?: string;
 };
 
+export type ProtocolIncompatibilityReason =
+  | "protocol-invalid-version"
+  | "protocol-major-mismatch"
+  | "protocol-server-too-old"
+  | "protocol-prerelease-mismatch";
+
 export type ProtocolCompatibility =
   | { compatible: true }
   | {
       compatible: false;
-      reason:
-        | "protocol-major-mismatch"
-        | "protocol-server-too-old"
-        | "protocol-prerelease-mismatch";
+      reason: ProtocolIncompatibilityReason;
     };
 
 /**
@@ -40,6 +43,10 @@ export function checkProtocolCompatibility(
 ): ProtocolCompatibility {
   const client = parseProtocolVersion(clientVersion);
   const server = parseProtocolVersion(serverVersion);
+
+  if (client === undefined || server === undefined) {
+    return { compatible: false, reason: "protocol-invalid-version" };
+  }
 
   if (client.prerelease !== undefined || server.prerelease !== undefined) {
     return clientVersion === serverVersion
@@ -55,9 +62,9 @@ export function checkProtocolCompatibility(
   return { compatible: true };
 }
 
-function parseProtocolVersion(version: string): ParsedProtocolVersion {
+function parseProtocolVersion(version: string): ParsedProtocolVersion | undefined {
   const match = STAGEHAND_SEMVER_PATTERN.exec(version);
-  if (!match) throw new Error(`Invalid Stagehand protocol version: ${version}`);
+  if (!match) return undefined;
   return {
     major: BigInt(match[1]),
     minor: BigInt(match[2]),

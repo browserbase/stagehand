@@ -11,6 +11,7 @@ import {
   STAGEHAND_PROTOCOL_VERSION,
 } from "../../protocol/protocol-version.js";
 import type { HandlerContext } from "../rpcRouter.js";
+import { StagehandProtocolCompatibilityError } from "../errors.js";
 import type { StagehandRuntime } from "../runtime.js";
 import * as actService from "../services/actService.js";
 import * as cacheService from "../services/cacheService.js";
@@ -45,9 +46,7 @@ export function createStagehandController(
       STAGEHAND_PROTOCOL_VERSION,
     );
     if (!compatibility.compatible) {
-      throw new Error(
-        `Incompatible Stagehand protocol: client ${params.protocolVersion}, extension ${STAGEHAND_PROTOCOL_VERSION} (${compatibility.reason})`,
-      );
+      throw new StagehandProtocolCompatibilityError(compatibility.reason);
     }
     logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});

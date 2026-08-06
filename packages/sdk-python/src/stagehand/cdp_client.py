@@ -10,16 +10,14 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from urllib.request import urlopen
 
-from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from stagehand._generated.protocol_version import (
+    PROTOCOL_SEMVER_PATTERN,
+    STAGEHAND_PROTOCOL_VERSION,
+)
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
-_PROTOCOL_SEMVER_PATTERN = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-    r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
-    r"(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
-    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
-)
+_PROTOCOL_SEMVER_PATTERN = re.compile(PROTOCOL_SEMVER_PATTERN)
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
 # drift. All judgement happens here rather than in the page.
