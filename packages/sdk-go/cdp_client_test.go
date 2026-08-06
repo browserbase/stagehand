@@ -571,6 +571,15 @@ func TestCDPClientDeliversCallbackBatchWithRuntimeAttachment(t *testing.T) {
 	}
 }
 
+func TestCallbackSourceFromMessageSkipsNonBatchMessages(t *testing.T) {
+	t.Parallel()
+
+	source, ok, err := callbackSourceFromMessage(json.RawMessage(`not-json`))
+	if err != nil || ok || source != "" {
+		t.Fatalf("callbackSourceFromMessage() = %q, %t, %v; want empty, false, nil", source, ok, err)
+	}
+}
+
 func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 

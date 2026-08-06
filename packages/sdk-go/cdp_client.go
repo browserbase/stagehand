@@ -429,6 +429,9 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 }
 
 func callbackSourceFromMessage(message json.RawMessage) (string, bool, error) {
+	if !bytes.Contains(message, []byte("stagehand.callback_batch")) {
+		return "", false, nil
+	}
 	var request struct {
 		Method string `json:"method"`
 		Params struct {
