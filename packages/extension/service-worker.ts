@@ -53,6 +53,15 @@ export function startStagehandServiceWorker(
           console.error("[stagehand] Failed to emit log notification", error);
         });
       },
+      emitPageCDPEvent: (notification) => {
+        void rpcClient
+          ?.notify(StagehandNotifications.pageCDPEvent, notification)
+          .catch((error: unknown) => {
+            // This notification cannot safely report its own delivery failure over JSON-RPC.
+            // oxlint-disable-next-line no-console
+            console.error("[stagehand] Failed to emit page CDP event notification", error);
+          });
+      },
       clientLLMGenerate: async (params) => {
         if (!rpcClient) throw new Error("Stagehand RPC client is not connected");
         return await rpcClient.send(StagehandMethods.llmGenerate, params);

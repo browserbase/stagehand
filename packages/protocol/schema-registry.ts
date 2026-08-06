@@ -61,6 +61,7 @@ import {
   LLMGenerateResultSchema,
   ObserveResultSchema,
   PageAddInitScriptParamsSchema,
+  PageCDPEventNotificationSchema,
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
@@ -73,6 +74,8 @@ import {
   PageIdParamsSchema,
   PageKeyPressParamsSchema,
   PageNavigationResultSchema,
+  PageOffParamsSchema,
+  PageOnParamsSchema,
   PageRefSchema,
   PageReloadParamsSchema,
   PageScreenshotParamsSchema,
@@ -318,6 +321,16 @@ export const StagehandMethods = {
     params: PageAddInitScriptParamsSchema,
     result: PageVoidResultSchema,
   },
+  pageOn: {
+    name: "page.on",
+    params: PageOnParamsSchema,
+    result: PageVoidResultSchema,
+  },
+  pageOff: {
+    name: "page.off",
+    params: PageOffParamsSchema,
+    result: PageVoidResultSchema,
+  },
   pageSetExtraHTTPHeaders: {
     name: "page.set_extra_http_headers",
     params: PageSetExtraHTTPHeadersParamsSchema,
@@ -518,13 +531,37 @@ export const StagehandRpcRequestSchema = z
   .meta({ id: "StagehandRpcRuntimeRequest" });
 
 export const StagehandNotifications = {
-  log: { name: "stagehand.log", params: StagehandLogSchema },
+  log: { name: "stagehand.log", params: StagehandLogSchema, paramsWire: undefined },
+  pageCDPEvent: {
+    name: "page.cdp_event",
+    params: PageCDPEventNotificationSchema,
+    paramsWire: { opaqueKeys: ["params"] },
+  },
 } as const satisfies Record<string, RPCNotification>;
 
-export const StagehandRpcNotificationSchema = JSONRPCNotificationSchema.extend({
-  method: z.literal(StagehandNotifications.log.name),
-  params: StagehandLogSchema,
-}).meta({ id: "StagehandRpcRuntimeNotification" });
+type RegisteredNotificationSchema = {
+  [Key in keyof typeof StagehandNotifications]: z.ZodType<{
+    jsonrpc: "2.0";
+    method: (typeof StagehandNotifications)[Key]["name"];
+    params: z.output<(typeof StagehandNotifications)[Key]["params"]>;
+  }>;
+}[keyof typeof StagehandNotifications];
+
+const stagehandRpcNotificationSchemas = Object.values(StagehandNotifications).map((notification) =>
+  JSONRPCNotificationSchema.extend({
+    method: z.literal(notification.name),
+    params: wireSchema(notification.params, notification.paramsWire),
+  }),
+) as RegisteredNotificationSchema[];
+
+export const StagehandRpcNotificationSchema = z
+  .union(
+    stagehandRpcNotificationSchemas as [
+      RegisteredNotificationSchema,
+      ...RegisteredNotificationSchema[],
+    ],
+  )
+  .meta({ id: "StagehandRpcRuntimeNotification" });
 
 const stagehandMethodsByName = new Map<string, RPCMethod>(
   Object.values(StagehandMethods).map((method) => [method.name, method]),
