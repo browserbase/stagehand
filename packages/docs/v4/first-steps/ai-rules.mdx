@@ -318,11 +318,9 @@ const count = await page.locator("li.result").count();
 ### Multi-Page Workflows
 
 ```typescript
-const page1 = await browser.context.newPage();
-await page1.goto("https://example.com");
+const page1 = await browser.context.newPage("https://example.com");
 
-const page2 = await browser.context.newPage();
-await page2.goto("https://example2.com");
+const page2 = await browser.context.newPage("https://example2.com");
 
 // Act/extract/observe operate on the current active page by default
 // Pass { page } option to target a specific page
@@ -632,11 +630,9 @@ count = await page.locator("li.result").count()
 ### Multi-Page Workflows
 
 ```python
-page1 = await browser.context.new_page()
-await page1.goto("https://example.com")
+page1 = await browser.context.new_page("https://example.com")
 
-page2 = await browser.context.new_page()
-await page2.goto("https://example2.com")
+page2 = await browser.context.new_page("https://example2.com")
 
 # Act/extract/observe operate on the current active page by default
 # Pass page= to target a specific page
@@ -714,7 +710,7 @@ Import the package as `stagehand "github.com/browserbase/stagehand/packages/sdk-
 
 - `*stagehand.Stagehand`: Main client, constructed with `stagehand.Create`, providing `Act`, `Extract`, and `Observe`
 - `*stagehand.BrowserContext`: Returned by `browser.Context()`, manages pages, cookies, and the clipboard
-- `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, params)`
+- `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, url)`
 
 There is no agent API in v4. Compose `Observe`, `Act`, and `Extract` in your own control flow instead.
 
@@ -759,11 +755,8 @@ if len(pages) == 0 {
 page := pages[0]
 
 // Create new pages if needed
-page2, err := browserContext.NewPage(ctx, nil)
+_, err = browserContext.NewPage(ctx, "https://example.com")
 if err != nil {
-	return err
-}
-if _, err := page2.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
@@ -1094,25 +1087,22 @@ fmt.Println("results:", count)
 ### Multi-Page Workflows
 
 ```go
-page1, err := browserContext.NewPage(ctx, nil)
+page1, err := browserContext.NewPage(ctx, "https://example.com")
 if err != nil {
-	return err
-}
-if _, err := page1.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
-page2, err := browserContext.NewPage(ctx, nil)
+page2, err := browserContext.NewPage(ctx, "https://example2.com")
 if err != nil {
-	return err
-}
-if _, err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
 	return err
 }
 
 // Act/Extract/Observe operate on the current active page by default
 // Pass Page in the options struct to target a specific page
 if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("click another button"), &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
 	return err
 }
 ```

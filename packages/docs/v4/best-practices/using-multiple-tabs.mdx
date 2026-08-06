@@ -172,7 +172,7 @@ var starsSchema = json.RawMessage(`{
 }`)
 
 // Create a second page
-if _, err := browserContext.NewPage(ctx, nil); err != nil {
+if _, err := browserContext.NewPage(ctx); err != nil {
 	return err
 }
 pages, err := browserContext.Pages(ctx)

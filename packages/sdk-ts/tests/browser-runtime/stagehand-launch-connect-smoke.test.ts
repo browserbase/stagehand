@@ -245,7 +245,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("uses page-level interactions and waits", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
 
     await page.waitForLoadState("load");
     await expect(
@@ -382,9 +382,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     try {
       for (const marker of ["one", "two", "three", "four"]) {
-        const page = await activeStagehand.browser.context.newPage({
-          url: activeFixtureServer.url,
-        });
+        const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
         createdPages.push(page);
         await page.evaluate((value: string) => {
           (
@@ -448,9 +446,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const createdPages: Page[] = [];
 
     try {
-      const opener = await activeStagehand.browser.context.newPage({
-        url: activeFixtureServer.url,
-      });
+      const opener = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
       createdPages.push(opener);
       await activeStagehand.browser.context.setActivePage(opener);
       await waitForActivePageId(activeStagehand.browser.context, opener.pageId);
@@ -555,7 +551,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("reads, writes, and clears clipboard text against an explicit page", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
 
     await activeStagehand.browser.context.clipboard.writeText("stagehand clipboard smoke", {
       page,

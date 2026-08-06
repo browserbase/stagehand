@@ -1258,6 +1258,8 @@ export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
   .meta({ id: "LoadState" });
 
+const pageNavigationUrlSchema = z.string().min(1);
+
 export const PageNavigationOptionsSchema = z
   .strictObject({
     waitUntil: LoadStateSchema.optional(),
@@ -1601,7 +1603,7 @@ export const StagehandExtractParamsSchema = z
 
 export const ContextNewPageParamsSchema = z
   .strictObject({
-    url: z.string().optional(),
+    url: pageNavigationUrlSchema.optional(),
   })
   .meta({ id: "ContextNewPageParams" });
 
@@ -1672,7 +1674,7 @@ export const ContextClipboardCutParamsSchema = ContextClipboardTargetSchema;
 export const PageGotoParamsSchema = z
   .strictObject({
     pageId: z.string(),
-    url: z.string().min(1),
+    url: pageNavigationUrlSchema,
     options: PageNavigationOptionsSchema.optional(),
   })
   .meta({ id: "PageGotoParams" });
