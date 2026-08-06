@@ -189,6 +189,9 @@ func (s *Stagehand) ExperimentalBatch(
 	pageID := ""
 	if options.Page != nil {
 		pageID = options.Page.PageID()
+		if pageID == "" {
+			return errors.New("stagehand callback batch page must have a non-empty page ID")
+		}
 	}
 	inputJSON, err := json.Marshal(input)
 	if err != nil {

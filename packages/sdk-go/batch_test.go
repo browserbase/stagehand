@@ -141,3 +141,23 @@ func TestExperimentalBatchRejectsNonPointerResultBeforeTransport(t *testing.T) {
 		t.Fatalf("callback transport called %d times", rpc.calls)
 	}
 }
+
+func TestExperimentalBatchRejectsPageWithoutIDBeforeTransport(t *testing.T) {
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{}}
+	client := &Stagehand{rpc: rpc, initialized: true}
+	var result any
+
+	err := client.ExperimentalBatch(
+		context.Background(),
+		`() => null`,
+		nil,
+		&result,
+		ExperimentalBatchOptions{Page: &Page{}},
+	)
+	if err == nil || err.Error() != "stagehand callback batch page must have a non-empty page ID" {
+		t.Fatalf("ExperimentalBatch() error = %v", err)
+	}
+	if rpc.calls != 0 {
+		t.Fatalf("callback transport called %d times", rpc.calls)
+	}
+}
