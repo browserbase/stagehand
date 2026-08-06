@@ -15,7 +15,7 @@ const extensionArchivePath = path.join(artifactsDir, "stagehand-extension.zip");
 const extensionMetadataPath = path.join(artifactsDir, "stagehand-extension.metadata.json");
 const zipModifiedAt = new Date(1980, 0, 1);
 
-function buildExtensionArtifacts(residentTransportConfigured: boolean) {
+function buildExtensionArtifacts(residentGatewayConfigured: boolean) {
   return {
     name: "stagehand-extension-artifacts",
     async closeBundle() {
@@ -49,7 +49,7 @@ function buildExtensionArtifacts(residentTransportConfigured: boolean) {
           chromeExtensionId: chromeExtensionId(manifestKey),
           extensionVersion: chromeManifestVersion(packageJson.version),
           stagehandProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          residentTransportConfigured,
+          residentGatewayConfigured,
           sha256: sha256(archive),
           serviceWorkerPath: "service-worker.js",
           sourceCommit: sourceCommit(),
@@ -166,7 +166,7 @@ async function readExtensionFiles(directory: string, relativeDirectory = ""): Pr
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, root, "VITE_STAGEHAND_");
-  const residentTransportConfigured = Boolean(
+  const residentGatewayConfigured = Boolean(
     (process.env.VITE_STAGEHAND_BROWSER_PROXY_URL ?? env.VITE_STAGEHAND_BROWSER_PROXY_URL)?.trim(),
   );
   return {
@@ -196,6 +196,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [instrumentedDecoratorBuild(), buildExtensionArtifacts(residentTransportConfigured)],
+    plugins: [instrumentedDecoratorBuild(), buildExtensionArtifacts(residentGatewayConfigured)],
   };
 });

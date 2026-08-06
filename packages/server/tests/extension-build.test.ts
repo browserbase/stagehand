@@ -167,7 +167,7 @@ describe("extension build", () => {
         chromeExtensionId: z.string().regex(/^[a-p]{32}$/u),
         extensionVersion: z.literal(expectedManifestVersion),
         stagehandProtocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
-        residentTransportConfigured: z.boolean(),
+        residentGatewayConfigured: z.boolean(),
         sha256: z.string().regex(/^[0-9a-f]{64}$/u),
         serviceWorkerPath: z.literal("service-worker.js"),
         sourceCommit: z.string().regex(/^[0-9a-f]{40}$/u),
@@ -178,7 +178,7 @@ describe("extension build", () => {
     );
     expect(metadata.chromeExtensionId).toBe(chromeExtensionId(archivedManifest.key));
     const env = loadEnv("production", serverRoot, "VITE_STAGEHAND_");
-    expect(metadata.residentTransportConfigured).toBe(
+    expect(metadata.residentGatewayConfigured).toBe(
       Boolean(
         (
           process.env.VITE_STAGEHAND_BROWSER_PROXY_URL ?? env.VITE_STAGEHAND_BROWSER_PROXY_URL

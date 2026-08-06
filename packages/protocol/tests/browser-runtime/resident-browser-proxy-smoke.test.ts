@@ -25,7 +25,7 @@ type BrowserProxy = {
 };
 
 describe("resident browser proxy", () => {
-  it("bootstraps a real extension and serves the first RPC without a client CDP URL", async () => {
+  it("attaches a real extension on the first RPC without a client CDP URL", async () => {
     let chrome: LaunchedChrome | undefined;
     let proxy: BrowserProxy | undefined;
     let extensionDir: string | undefined;
@@ -43,14 +43,9 @@ describe("resident browser proxy", () => {
         commandTimeoutMs: COMMAND_TIMEOUT_MS,
       });
 
-      const marker = await waitForResidentReady(rpcClient);
-      expect(marker).toMatchObject({
-        state: "ready",
-        connected: true,
-        timings: {
-          connectAndBootstrapMs: expect.any(Number),
-          totalMs: expect.any(Number),
-        },
+      await expect(readRuntimeMarker(rpcClient)).resolves.toMatchObject({
+        state: "idle",
+        connected: false,
       });
 
       await expect(
@@ -61,6 +56,15 @@ describe("resident browser proxy", () => {
           telemetry: { traces: { endpoint: "http://127.0.0.1:4318/v1/traces", headers: {} } },
         }),
       ).resolves.toMatchObject({ initialized: true });
+      const marker = await waitForResidentReady(rpcClient);
+      expect(marker).toMatchObject({
+        state: "ready",
+        connected: true,
+        timings: {
+          connectAndBootstrapMs: expect.any(Number),
+          totalMs: expect.any(Number),
+        },
+      });
       const existingPages = await rpcClient.send(StagehandMethods.contextPages, {});
       expect(existingPages).toHaveLength(1);
       const page = await rpcClient.send(StagehandMethods.contextNewPage, {
@@ -192,24 +196,28 @@ async function startBrowserProxy(chromePort: number): Promise<BrowserProxy> {
 }
 
 async function waitForResidentReady(rpcClient: RPCClient): Promise<unknown> {
-  const cdp = rpcClient.cdp as CDPClient;
-  const sessionId = cdp.sessionId;
-  if (!sessionId) throw new Error("Stagehand service worker is not attached");
   const deadline = Date.now() + COMMAND_TIMEOUT_MS;
   let marker: unknown;
   while (Date.now() < deadline) {
-    const evaluated = await cdp.sendCommand<{ result?: { value?: unknown } }>(
-      "Runtime.evaluate",
-      { expression: "globalThis.__stagehand_runtime", returnByValue: true },
-      sessionId,
-    );
-    marker = evaluated.result?.value;
+    marker = await readRuntimeMarker(rpcClient);
     if (typeof marker === "object" && marker !== null && Reflect.get(marker, "state") === "ready") {
       return marker;
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
   throw new Error(`Timed out waiting for resident readiness: ${JSON.stringify(marker)}`);
+}
+
+async function readRuntimeMarker(rpcClient: RPCClient): Promise<unknown> {
+  const cdp = rpcClient.cdp as CDPClient;
+  const sessionId = cdp.sessionId;
+  if (!sessionId) throw new Error("Stagehand service worker is not attached");
+  const evaluated = await cdp.sendCommand<{ result?: { value?: unknown } }>(
+    "Runtime.evaluate",
+    { expression: "globalThis.__stagehand_runtime", returnByValue: true },
+    sessionId,
+  );
+  return evaluated.result?.value;
 }
 
 async function listen(server: Server): Promise<void> {

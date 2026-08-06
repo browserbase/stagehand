@@ -3,12 +3,10 @@ import { assertPublicExtensionArtifact } from "../extensionArtifactPackaging.js"
 
 describe("extension artifact packaging", () => {
   it("accepts an explicitly public extension artifact", () => {
-    expect(() =>
-      assertPublicExtensionArtifact({ residentTransportConfigured: false }),
-    ).not.toThrow();
+    expect(() => assertPublicExtensionArtifact({ residentGatewayConfigured: false })).not.toThrow();
   });
 
-  it.each([{ residentTransportConfigured: true }, {}, null])(
+  it.each([{ residentGatewayConfigured: true }, {}, null])(
     "rejects private or ambiguous extension metadata %#",
     (metadata) => {
       expect(() => assertPublicExtensionArtifact(metadata)).toThrow(
