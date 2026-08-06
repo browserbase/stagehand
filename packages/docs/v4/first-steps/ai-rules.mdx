@@ -1092,7 +1092,7 @@ if err != nil {
 	return err
 }
 
-_, err = browserContext.NewPage(ctx, "https://example2.com")
+page2, err := browserContext.NewPage(ctx, "https://example2.com")
 if err != nil {
 	return err
 }
@@ -1100,6 +1100,9 @@ if err != nil {
 // Act/Extract/Observe operate on the current active page by default
 // Pass Page in the options struct to target a specific page
 if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("click another button"), &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
 	return err
 }
 ```
