@@ -9,6 +9,8 @@ import type {
   PageHoverParams,
   PageIdParams,
   PageKeyPressParams,
+  PageOffParams,
+  PageOnParams,
   PageReloadParams,
   PageScrollParams,
   PageScreenshotParams,
@@ -167,6 +169,16 @@ export function createPageController(runtime: StagehandRuntime) {
     return runtime.pageClose(params);
   }
 
+  async function on(params: PageOnParams, { logger }: HandlerContext) {
+    logger.debug("page.on", {});
+    return runtime.pageOn(params);
+  }
+
+  async function off(params: PageOffParams, { logger }: HandlerContext) {
+    logger.debug("page.off", {});
+    return runtime.pageOff(params);
+  }
+
   return {
     goto,
     reload,
@@ -194,5 +206,7 @@ export function createPageController(runtime: StagehandRuntime) {
     url,
     title,
     close,
+    on,
+    off,
   };
 }
