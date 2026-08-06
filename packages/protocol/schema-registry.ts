@@ -504,7 +504,7 @@ export const StagehandMethodSchema = z
 const stagehandRpcRequestSchemas = Object.values(StagehandMethods).map((method) =>
   JSONRPCRequestSchema.extend({
     method: z.literal(method.name),
-    params: wireSchema(method.params),
+    params: wireSchema(method.params, "paramsWire" in method ? method.paramsWire : undefined),
   }),
 );
 
