@@ -62,6 +62,10 @@ Without a browser override, the helper selects Browserbase when `BROWSERBASE_API
 
 Native callers run generated JavaScript in their own process. An `AbortSignal` can cancel queued work before the snippet begins, but it cannot safely preempt arbitrary JavaScript already running in the same process. Native integrations that require hard time limits should put the executor behind a child-process boundary, as the stdio MCP integration does.
 
+### Skill and reference
+
+`codemode/SKILL.md` is the concise agent guide. `codemode/REFERENCE.md` is the longer API lookup. Both are exported as raw package assets and as bundle-safe JavaScript strings.
+
 ### Security boundary
 
 The code-mode executor does not provide a sandbox. Generated JavaScript runs in the host process and inherits that process's filesystem, network, and environment access. A framework may place the tool inside its own sandbox, container, or other isolation boundary.

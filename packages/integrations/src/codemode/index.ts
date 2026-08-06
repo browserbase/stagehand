@@ -2,6 +2,7 @@ export { stagehandCodeConfigFromEnv } from "./config.js";
 export { StagehandCodeExecutor, type StagehandCodeExecutorOptions } from "./executor.js";
 export { connectCodeModeStdio, createCodeModeMcp, createCodeModeMcpServer } from "./mcp-server.js";
 export { executeStagehandSnippet } from "./snippet.js";
+export { STAGEHAND_CODEMODE_REFERENCE, STAGEHAND_CODEMODE_SKILL } from "./generated-content.js";
 export {
   CODE_EXECUTE_DESCRIPTION,
   codeExecuteResultText,
