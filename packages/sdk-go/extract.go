@@ -68,10 +68,7 @@ func schemaForType(resultType reflect.Type) (schema json.RawMessage, err error) 
 		}
 	}()
 
-	reflected := (&jsonschema.Reflector{
-		Anonymous:      true,
-		DoNotReference: true,
-	}).ReflectFromType(resultType)
+	reflected := (&jsonschema.Reflector{Anonymous: true}).ReflectFromType(resultType)
 	encoded, err := json.Marshal(reflected)
 	if err != nil {
 		return nil, fmt.Errorf("encode JSON Schema for %s: %w", resultType, err)

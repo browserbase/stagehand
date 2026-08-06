@@ -227,7 +227,7 @@ The model generator and the runtime validator are two different decisions. They 
 ### Extraction schema reflection
 
 - Public extraction uses `stagehand.Extract[T]`; callers define `T` once instead of maintaining both a Go type and a `json.RawMessage` schema.
-- Pinned `github.com/invopop/jsonschema` `v0.14.0` reflects `T` into JSON Schema at call time. The reflector inlines nested types so the worker receives a self-contained schema without `$ref` or `$defs`.
+- Pinned `github.com/invopop/jsonschema` `v0.14.0` reflects `T` into JSON Schema at call time. Nested and recursive types use self-contained local `$defs` and `$ref` entries.
 - Standard `json` tags control field names and optionality. The library's `jsonschema` tags add descriptions, formats, bounds, and other constraints that Go's type system cannot express.
 - The generated schema and raw extraction payload remain internal implementation details. The public result contains decoded `Data` plus the protocol `Metadata`.
 

@@ -65,10 +65,6 @@ await stagehand.act("click the login button")
 
 <View title="Go" icon="golang">
 ```go
-type companies struct {
-	Companies []string `json:"companies"`
-}
-
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 cache := stagehand.CacheEnabled(true)
 
@@ -251,6 +247,10 @@ print(result.data.companies)
 
 <View title="Go" icon="golang">
 ```go
+type companies struct {
+	Companies []string `json:"companies"`
+}
+
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheWithThreshold(2) // Serve hits after two identical results
 

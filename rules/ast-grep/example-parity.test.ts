@@ -62,6 +62,23 @@ describe("All language examples remain in sync", () => {
     }
   });
 
+  it("recognizes generic Go operations through an aliased SDK import", () => {
+    const root = parse(
+      "go",
+      `package main
+
+import sh "github.com/browserbase/stagehand/packages/sdk-go"
+
+func main() {
+	client, err := sh.Create(ctx, options)
+	result, err := sh.Extract[pageInfo](ctx, client, "extract page info", nil)
+	_, _ = result, err
+}`,
+    ).root();
+
+    expect(publicSdkOperations(root, "go")).toStrictEqual(["stagehand.extract"]);
+  });
+
   it("uses the public Stagehand lifecycle in every example", async () => {
     for (const language of ["typescript", "python", "go"] as const) {
       for (const example of await examples(language)) {
@@ -144,14 +161,21 @@ async function examples(
 }
 
 function stagehandVariable(root: SgNode, language: ExampleLanguage): string | undefined {
+  if (language === "go") {
+    const sdkPackage = goSdkPackage(root);
+    if (!sdkPackage) return undefined;
+    return root
+      .find({ rule: { pattern: `$STAGEHAND, $ERR := ${sdkPackage}.Create($$$ARGS)` } })
+      ?.getMatch("STAGEHAND")
+      ?.text();
+  }
+
   const construction = root.find({
     rule: {
       pattern:
         language === "typescript"
           ? "const $STAGEHAND = await Stagehand.create($$$ARGS)"
-          : language === "python"
-            ? "$STAGEHAND = await Stagehand.create($$$ARGS)"
-            : "$STAGEHAND, $ERR := stagehand.Create($$$ARGS)",
+          : "$STAGEHAND = await Stagehand.create($$$ARGS)",
     },
   });
 
@@ -162,7 +186,10 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
   const stagehand = stagehandVariable(root, language);
   if (!stagehand) return [];
 
-  if (language === "go") return goPublicSdkOperations(root, stagehand);
+  if (language === "go") {
+    const sdkPackage = goSdkPackage(root);
+    return sdkPackage ? goPublicSdkOperations(root, stagehand, sdkPackage) : [];
+  }
 
   const assignments = root.findAll({
     rule: { pattern: language === "typescript" ? "const $NAME = $VALUE" : "$NAME = $VALUE" },
@@ -195,7 +222,7 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
     .sort();
 }
 
-function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
+function goPublicSdkOperations(root: SgNode, stagehand: string, sdkPackage: string): string[] {
   const assignedValues = goAssignedValues(root);
   const contextObjects = new Set(
     assignedValues.flatMap(({ name, value }) => {
@@ -213,6 +240,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
   );
 
   const operations = goCalls(root).flatMap(({ object, method }) => {
+    if (object === sdkPackage && method === "Extract") return ["stagehand.extract"];
     if (object === stagehand && method !== "Browser" && method !== "Close") {
       return [`stagehand.${snakeCase(method)}`];
     }
@@ -220,13 +248,21 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
     if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
     return [];
   });
-  operations.push(
-    ...root
-      .findAll({ rule: { kind: "call_expression" } })
-      .filter((call) => /^stagehand\.Extract\[/u.test(call.text()))
-      .map(() => "stagehand.extract"),
-  );
   return operations.sort();
+}
+
+function goSdkPackage(root: SgNode): string | undefined {
+  const sdkImport = root
+    .findAll({ rule: { kind: "import_spec" } })
+    .find((node) => node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go"'));
+  if (!sdkImport) return undefined;
+
+  return (
+    sdkImport
+      .children()
+      .find((child) => child.isNamed() && child.kind() === "package_identifier")
+      ?.text() ?? "stagehand"
+  );
 }
 
 function goAssignedValues(root: SgNode): Array<{ name: string; value: SgNode }> {
@@ -247,7 +283,10 @@ function goCalls(root: SgNode): Array<{ object: string; method: string }> {
 
 function goCallTarget(node: SgNode): { object: string; method: string } | undefined {
   if (node.kind() !== "call_expression") return undefined;
-  const called = node.children().filter((child) => child.isNamed())[0];
+  let called = node.children().filter((child) => child.isNamed())[0];
+  if (called?.kind() === "index_expression") {
+    called = called.children().find((child) => child.isNamed());
+  }
   if (called?.kind() !== "selector_expression") return undefined;
   const [object, method] = called.children().filter((child) => child.isNamed());
   return object && method ? { object: object.text(), method: method.text() } : undefined;

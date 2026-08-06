@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -280,21 +281,16 @@ func TestExtractDerivesSchemaAndPreservesTypedDataAndMetadata(t *testing.T) {
 	if err := json.Unmarshal(params.Schema, &schema); err != nil {
 		t.Fatalf("decode derived schema: %v", err)
 	}
-	if schema["type"] != "object" || schema["additionalProperties"] != false {
+	rootSchema := resolveLocalSchemaReference(t, schema, schema)
+	if rootSchema["type"] != "object" || rootSchema["additionalProperties"] != false {
 		t.Fatalf("derived schema root = %#v", schema)
 	}
-	if _, hasDefinitions := schema["$defs"]; hasDefinitions {
-		t.Fatalf("derived schema must inline definitions: %#v", schema)
+	if !reflect.DeepEqual(rootSchema["required"], []any{"heading", "tags"}) {
+		t.Fatalf("derived schema required = %#v", rootSchema["required"])
 	}
-	if _, hasReference := schema["$ref"]; hasReference {
-		t.Fatalf("derived schema must not use a root reference: %#v", schema)
-	}
-	if !reflect.DeepEqual(schema["required"], []any{"heading", "tags"}) {
-		t.Fatalf("derived schema required = %#v", schema["required"])
-	}
-	properties, ok := schema["properties"].(map[string]any)
+	properties, ok := rootSchema["properties"].(map[string]any)
 	if !ok {
-		t.Fatalf("derived schema properties = %#v", schema["properties"])
+		t.Fatalf("derived schema properties = %#v", rootSchema["properties"])
 	}
 	heading, ok := properties["heading"].(map[string]any)
 	if !ok || heading["description"] != "the page heading" {
@@ -305,12 +301,82 @@ func TestExtractDerivesSchemaAndPreservesTypedDataAndMetadata(t *testing.T) {
 		t.Fatalf("derived tags schema = %#v", properties["tags"])
 	}
 	items, ok := tags["items"].(map[string]any)
-	if !ok || items["type"] != "object" || items["additionalProperties"] != false {
+	if !ok {
 		t.Fatalf("derived tags item schema = %#v", tags["items"])
 	}
-	if !reflect.DeepEqual(items["required"], []any{"name"}) {
-		t.Fatalf("derived tags item required = %#v", items["required"])
+	itemRef, ok := items["$ref"].(string)
+	if !ok || !strings.HasPrefix(itemRef, "#/$defs/") {
+		t.Fatalf("derived tags item reference = %#v", items)
 	}
+	itemSchema := resolveLocalSchemaReference(t, schema, items)
+	if itemSchema["type"] != "object" || itemSchema["additionalProperties"] != false {
+		t.Fatalf("derived tags item definition = %#v", itemSchema)
+	}
+	if !reflect.DeepEqual(itemSchema["required"], []any{"name"}) {
+		t.Fatalf("derived tags item required = %#v", itemSchema["required"])
+	}
+}
+
+func TestSchemaForTypeSupportsRecursiveTypes(t *testing.T) {
+	t.Parallel()
+
+	type node struct {
+		Value    string  `json:"value"`
+		Children []*node `json:"children,omitempty"`
+	}
+
+	rawSchema, err := schemaForType(reflect.TypeFor[node]())
+	if err != nil {
+		t.Fatalf("schemaForType() error = %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(rawSchema, &schema); err != nil {
+		t.Fatalf("decode recursive schema: %v", err)
+	}
+	rootSchema := resolveLocalSchemaReference(t, schema, schema)
+	properties, ok := rootSchema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("recursive schema properties = %#v", rootSchema["properties"])
+	}
+	children, ok := properties["children"].(map[string]any)
+	if !ok {
+		t.Fatalf("recursive children schema = %#v", properties["children"])
+	}
+	items, ok := children["items"].(map[string]any)
+	if !ok {
+		t.Fatalf("recursive children items = %#v", children["items"])
+	}
+	nodeRef, ok := items["$ref"].(string)
+	if !ok || !strings.HasPrefix(nodeRef, "#/$defs/") {
+		t.Fatalf("recursive node reference = %#v", items)
+	}
+	resolveLocalSchemaReference(t, schema, items)
+}
+
+func resolveLocalSchemaReference(
+	t *testing.T,
+	document map[string]any,
+	candidate map[string]any,
+) map[string]any {
+	t.Helper()
+
+	reference, ok := candidate["$ref"].(string)
+	if !ok {
+		return candidate
+	}
+	const prefix = "#/$defs/"
+	if !strings.HasPrefix(reference, prefix) {
+		t.Fatalf("schema reference = %q, want local definition", reference)
+	}
+	definitions, ok := document["$defs"].(map[string]any)
+	if !ok {
+		t.Fatalf("schema definitions = %#v", document["$defs"])
+	}
+	resolved, ok := definitions[strings.TrimPrefix(reference, prefix)].(map[string]any)
+	if !ok {
+		t.Fatalf("schema definition missing for %q", reference)
+	}
+	return resolved
 }
 
 func TestExtractRejectsNilClient(t *testing.T) {
