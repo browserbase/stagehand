@@ -51,3 +51,24 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           STAGEHAND_BROWSER: local
+
+  mastra:
+    name: Mastra
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra typecheck
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra smoke
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          STAGEHAND_BROWSER: local
