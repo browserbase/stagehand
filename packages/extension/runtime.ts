@@ -56,6 +56,8 @@ import type {
   LocatorTypeResult,
   PageClickParams,
   PageCloseResult,
+  PageCDPEvent,
+  PageCDPEventNotification,
   PageAddInitScriptParams,
   PageDragAndDropParams,
   PageEvaluateParams,
@@ -68,6 +70,8 @@ import type {
   PageKeyPressParams,
   PageNavigationOptions,
   PageNavigationResult,
+  PageOffParams,
+  PageOnParams,
   PageRef,
   PageReloadParams,
   PageScrollParams,
@@ -122,6 +126,7 @@ import { Page } from "./understudy/page.js";
 import { Response } from "./understudy/response.js";
 import { StagehandMetricsAccumulator } from "./metrics.js";
 import { ResponseHandleTable } from "./responseHandleTable.js";
+import { DuplicatePageEventSubscriptionError } from "./errors.js";
 
 export type UnderstudyRuntimePage = {
   targetId(): string;
@@ -173,6 +178,7 @@ export type UnderstudyRuntimePage = {
   close(): Promise<void> | void;
   captureSnapshot(options?: SnapshotOptions): Promise<HybridSnapshot>;
   deepLocator(selector: string): UnderstudyRuntimeLocator;
+  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void;
 };
 
 export type UnderstudyRuntimeScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
@@ -256,6 +262,7 @@ export type StagehandRuntimeAdapters = {
   browserSessionFactory?: StagehandBrowserSessionFactory;
   emitLog?: StagehandLogEmitter;
   clientLLMGenerate?: (params: LLMGenerateParams) => Promise<LLMGenerateResult>;
+  emitPageCDPEvent?: (notification: PageCDPEventNotification) => void;
 };
 
 type ResolvedStagehandRuntimeAdapters = Required<StagehandRuntimeAdapters>;
@@ -264,6 +271,7 @@ const defaultBrowserSessionFactory: StagehandBrowserSessionFactory = async () =>
   throw new Error("Stagehand browser session factory is not configured");
 };
 const discardLog: StagehandLogEmitter = () => {};
+const discardPageCDPEvent = (): void => {};
 const unavailableClientLLM = async (): Promise<never> => {
   throw new Error("The connected SDK did not register a client-side LLM");
 };
@@ -277,6 +285,7 @@ export function createStagehandRuntime(
       browserSessionFactory: adapters.browserSessionFactory ?? defaultBrowserSessionFactory,
       emitLog: adapters.emitLog ?? discardLog,
       clientLLMGenerate: adapters.clientLLMGenerate ?? unavailableClientLLM,
+      emitPageCDPEvent: adapters.emitPageCDPEvent ?? discardPageCDPEvent,
     },
     tracing,
   );
@@ -291,6 +300,10 @@ export class StagehandRuntime {
   );
   browserSession?: StagehandBrowserSession;
   pagesById = new Map<string, UnderstudyRuntimePage>();
+  private readonly pageEventSubscriptions = new Map<
+    string,
+    { pageId: string; dispose: () => void }
+  >();
   private initializationInProgress = false;
 
   constructor(
@@ -307,6 +320,7 @@ export class StagehandRuntime {
     const { cdpUrl } = params;
     const previousSession = this.browserSession;
     this.browserSession = undefined;
+    this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
     await previousSession?.close();
@@ -713,9 +727,29 @@ export class StagehandRuntime {
   async pageClose(params: PageIdParams): Promise<PageCloseResult> {
     const page = this.resolvePage(params.pageId);
     await page.close();
+    this.disposePageEventSubscriptions(params.pageId);
     this.pagesById.delete(params.pageId);
     this.responseHandles.deleteForPage(params.pageId);
     return { closed: true };
+  }
+
+  pageOn(params: PageOnParams): PageVoidResult {
+    if (this.pageEventSubscriptions.has(params.subscriptionId)) {
+      throw new DuplicatePageEventSubscriptionError();
+    }
+    const dispose = this.resolvePage(params.pageId).subscribeCDPEvent((event) => {
+      this.adapters.emitPageCDPEvent({ subscriptionId: params.subscriptionId, event });
+    });
+    this.pageEventSubscriptions.set(params.subscriptionId, { pageId: params.pageId, dispose });
+    return { ok: true };
+  }
+
+  pageOff(params: PageOffParams): PageVoidResult {
+    const subscription = this.pageEventSubscriptions.get(params.subscriptionId);
+    if (!subscription) return { ok: true };
+    subscription.dispose();
+    this.pageEventSubscriptions.delete(params.subscriptionId);
+    return { ok: true };
   }
 
   async locatorClick(params: LocatorClickParams): Promise<LocatorClickResult> {
@@ -815,6 +849,7 @@ export class StagehandRuntime {
   async close(): Promise<void> {
     const session = this.browserSession;
     this.browserSession = undefined;
+    this.disposeAllPageEventSubscriptions();
     this.pagesById.clear();
     this.responseHandles.clear();
     try {
@@ -866,10 +901,24 @@ export class StagehandRuntime {
 
     for (const pageId of this.pagesById.keys()) {
       if (!currentPageIds.has(pageId)) {
+        this.disposePageEventSubscriptions(pageId);
         this.pagesById.delete(pageId);
         this.responseHandles.deleteForPage(pageId);
       }
     }
+  }
+
+  private disposePageEventSubscriptions(pageId: string): void {
+    for (const [subscriptionId, subscription] of this.pageEventSubscriptions) {
+      if (subscription.pageId !== pageId) continue;
+      subscription.dispose();
+      this.pageEventSubscriptions.delete(subscriptionId);
+    }
+  }
+
+  private disposeAllPageEventSubscriptions(): void {
+    for (const subscription of this.pageEventSubscriptions.values()) subscription.dispose();
+    this.pageEventSubscriptions.clear();
   }
 
   registerPage(page: UnderstudyRuntimePage): string {
