@@ -581,6 +581,30 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 	}
 }
 
+func TestCallbackBatchEvaluationTimeoutSaturates(t *testing.T) {
+	t.Parallel()
+
+	if got := callbackBatchEvaluationTimeout(2 * time.Second); got != 3*time.Second {
+		t.Fatalf("callbackBatchEvaluationTimeout(2s) = %s, want 3s", got)
+	}
+	if got := callbackBatchEvaluationTimeout(maxRPCResponseTimeout); got != maxRPCResponseTimeout {
+		t.Fatalf(
+			"callbackBatchEvaluationTimeout(max) = %s, want %s",
+			got,
+			maxRPCResponseTimeout,
+		)
+	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		callbackBatchEvaluationTimeout(maxRPCResponseTimeout),
+	)
+	defer cancel()
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("maximum callback batch timeout expired immediately: %v", err)
+	}
+}
+
 func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 

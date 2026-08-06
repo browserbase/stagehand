@@ -458,7 +458,7 @@ func (c *cdpClient) runCallbackBatch(
 		inputJSON,
 		optionsJSON,
 	)
-	evaluationContext, cancel := context.WithTimeout(ctx, timeout+time.Second)
+	evaluationContext, cancel := context.WithTimeout(ctx, callbackBatchEvaluationTimeout(timeout))
 	defer cancel()
 	var evaluated cdpRuntimeEvaluateResult
 	if err := c.sendCommand(
@@ -511,6 +511,13 @@ func (c *cdpClient) runCallbackBatch(
 		return fmt.Errorf("decode stagehand callback batch result: %w", err)
 	}
 	return nil
+}
+
+func callbackBatchEvaluationTimeout(timeout time.Duration) time.Duration {
+	if timeout > maxRPCResponseTimeout-time.Second {
+		return maxRPCResponseTimeout
+	}
+	return timeout + time.Second
 }
 
 func (c *cdpClient) Receive(ctx context.Context) (json.RawMessage, error) {
