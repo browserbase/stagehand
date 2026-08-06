@@ -576,6 +576,7 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 	}
 	if !command.Params.AwaitPromise || !command.Params.ReturnByValue ||
 		!strings.Contains(command.Params.Expression, "__stagehandRunCallbackBatch") ||
+		!strings.Contains(command.Params.Expression, "const __name = (fn, name)") ||
 		!strings.Contains(command.Params.Expression, `"pageId":"page-1"`) {
 		t.Fatalf("Runtime.evaluate callback params = %#v", command.Params)
 	}

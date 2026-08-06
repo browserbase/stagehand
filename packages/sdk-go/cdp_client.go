@@ -453,7 +453,7 @@ func (c *cdpClient) runCallbackBatch(
 		return fmt.Errorf("encode stagehand callback batch options: %w", err)
 	}
 	expression := fmt.Sprintf(
-		`(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((%s), %s, %s); })((fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; })`,
+		`(async () => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((%s), %s, %s); })()`,
 		source,
 		inputJSON,
 		optionsJSON,

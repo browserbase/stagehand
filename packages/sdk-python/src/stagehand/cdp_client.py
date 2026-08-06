@@ -43,14 +43,14 @@ def _callback_batch_expression(
         options["pageId"] = page_id
     serialized_options = json.dumps(options, separators=(",", ":"))
     return (
-        "(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "
+        "(async () => { const __name = (fn, name) => { try { "
+        "Object.defineProperty(fn, 'name', { value: name, configurable: true }); "
+        "} catch {} return fn; }; if (typeof globalThis.__stagehandRunCallbackBatch !== "
         "'function') return { ok: false, error: { name: "
         "'StagehandRuntimeIncompatibleError', message: "
         "'The connected Stagehand runtime does not support callback batches' } }; "
         "return await globalThis.__stagehandRunCallbackBatch("
-        f"({source}), {serialized_input}, {serialized_options}); }})"
-        "((fn, name) => { try { Object.defineProperty(fn, 'name', "
-        "{ value: name, configurable: true }); } catch {} return fn; })"
+        f"({source}), {serialized_input}, {serialized_options}); }})()"
     )
 
 

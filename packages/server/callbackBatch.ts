@@ -106,9 +106,8 @@ export function installCallbackBatchRunner(
     try {
       const client = new InProcessCommandClient(router, controller.signal);
       const context = new BrowserContext(client);
-      const pages = await context.pages();
       const page = options.pageId
-        ? pages.find((candidate) => candidate.pageId === options.pageId)
+        ? (await context.pages()).find((candidate) => candidate.pageId === options.pageId)
         : await context.activePage();
       if (!page) {
         throw new Error(

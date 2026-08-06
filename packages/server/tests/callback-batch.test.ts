@@ -34,12 +34,39 @@ describe("callback batch runner", () => {
 
     expect(result).toEqual({ ok: true, value: { title: "Example" } });
     expect(requests.map((request) => request.method)).toEqual([
-      "context.pages",
       "context.active_page",
       "locator.click",
       "page.title",
     ]);
-    expect(requests[2]?.params).toEqual({ pageId: "page-1", selector: "button" });
+    expect(requests[1]?.params).toEqual({ pageId: "page-1", selector: "button" });
+  });
+
+  it("resolves an explicitly selected page without querying the active page", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2", title: "Selected" }];
+        }
+        if (request.method === "page.title") return "Selected";
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    const scope: Parameters<typeof installCallbackBatchRunner>[0] = {};
+    installCallbackBatchRunner(scope, router);
+
+    const result = await scope.__stagehandRunCallbackBatch?.(
+      async ({ page }) => ({ pageId: page.pageId, title: await page.title() }),
+      null,
+      { pageId: "page-2", timeout: 1_000 },
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      value: { pageId: "page-2", title: "Selected" },
+    });
+    expect(requests.map((request) => request.method)).toEqual(["context.pages", "page.title"]);
   });
 
   it("returns a distinct envelope for undefined", async () => {

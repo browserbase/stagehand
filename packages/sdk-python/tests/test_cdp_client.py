@@ -36,6 +36,7 @@ def test_callback_batch_source_allows_native_code_text() -> None:
     )
 
     assert 'async () => "[native code]"' in expression
+    assert "const __name = (fn, name)" in expression
 
 
 class FakeWebSocket:

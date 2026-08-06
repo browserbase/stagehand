@@ -1,3 +1,4 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import {
   CDPClient,
@@ -24,6 +25,27 @@ describe("callback batch expression", () => {
     expect(expression).toContain("Object.defineProperty");
     expect(expression).not.toContain('"callbackSource":');
     expect(expression).not.toContain('"input":');
+  });
+
+  it("provides the lexical __name helper used by bundled callback source", async () => {
+    const expression = callbackBatchExpression({
+      callbackSource: '__name(async () => "ok", "bundledCallback")',
+      input: undefined,
+      timeout: 2_000,
+    });
+    const evaluated = runInNewContext(expression, {
+      globalThis: {
+        __stagehandRunCallbackBatch: async (callback: () => Promise<string>) => ({
+          ok: true,
+          value: { name: callback.name, result: await callback() },
+        }),
+      },
+    }) as Promise<unknown>;
+
+    await expect(evaluated).resolves.toEqual({
+      ok: true,
+      value: { name: "bundledCallback", result: "ok" },
+    });
   });
 });
 

@@ -84,7 +84,7 @@ export function callbackBatchExpression(input: {
     ...(input.pageId === undefined ? {} : { pageId: input.pageId }),
     timeout: input.timeout,
   });
-  return `(async (__name) => { if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((${input.callbackSource}), ${serializedInput}, ${serializedOptions}); })((fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; })`;
+  return `(async () => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; if (typeof globalThis.__stagehandRunCallbackBatch !== "function") return { ok: false, error: { name: "StagehandRuntimeIncompatibleError", message: "The connected Stagehand runtime does not support callback batches" } }; return await globalThis.__stagehandRunCallbackBatch((${input.callbackSource}), ${serializedInput}, ${serializedOptions}); })()`;
 }
 
 export class StagehandRuntimeIncompatibleError extends Error {
