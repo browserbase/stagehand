@@ -15,10 +15,12 @@ import {
   WebMCPToolDescriptorSchema,
   WebMCPToolResponseSchema,
   WebMCPToolsOptionsSchema,
+  PageCDPEventSchema,
 } from "../../protocol/schemas.js";
 import type {
   LoadState,
   LocalBrowserLaunchOptions,
+  PageCDPEvent,
   PageSnapshotOptions,
   SnapshotResult,
   WebMCPAnnotation,
@@ -86,6 +88,11 @@ type WebMCPInvocationRecord = {
   deferred: Deferred<WebMCPToolResponse>;
   result?: WebMCPToolResponse;
   retentionTimer?: ReturnType<typeof setTimeout>;
+};
+
+type CDPEventSubscription = {
+  listener: (event: PageCDPEvent) => void;
+  sessionHandlers: Map<string, { session: CDPSessionLike; handler: (params: unknown) => void }>;
 };
 
 function createDeferred<T>(): Deferred<T> {
@@ -164,6 +171,7 @@ export class Page {
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private webMCPResponseListenerInstalled = false;
+  private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
 
   private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
     const record = this.webMCPInvocations.get(event.invocationId);
@@ -395,6 +403,10 @@ export class Page {
   public adoptOopifSession(childSession: CDPSessionLike, childMainFrameId: string): void {
     if (childSession.id) this.sessions.set(childSession.id, childSession);
 
+    for (const subscription of this.cdpEventSubscriptions) {
+      this.attachCDPEventSubscription(subscription, childSession);
+    }
+
     this.networkManager.trackSession(childSession);
     if (this.extraHTTPHeaders)
       void this.applyExtraHTTPHeadersToSession(childSession, this.extraHTTPHeaders).catch(() => {});
@@ -440,6 +452,9 @@ export class Page {
 
   /** Detach an adopted child session and prune its subtree */
   public detachOopifSession(sessionId: string): void {
+    for (const subscription of this.cdpEventSubscriptions) {
+      this.detachCDPEventSubscription(subscription, sessionId);
+    }
     // Find which frames were owned by this session and prune by tree starting from each root.
     for (const fid of this.registry.framesForSession(sessionId)) {
       this.registry.onFrameDetached(fid, "remove");
@@ -490,6 +505,69 @@ export class Page {
 
   sendInternalCDP<T = unknown>(method: string, params?: object): Promise<T> {
     return this.mainSession.send<T>(method, params);
+  }
+
+  /** Subscribe to console events on every session owned by this page. */
+  public subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+    const subscription: CDPEventSubscription = {
+      listener,
+      sessionHandlers: new Map(),
+    };
+    this.cdpEventSubscriptions.add(subscription);
+    for (const session of this.sessions.values()) {
+      this.attachCDPEventSubscription(subscription, session);
+    }
+
+    let active = true;
+    return () => {
+      if (!active) return;
+      active = false;
+      this.cdpEventSubscriptions.delete(subscription);
+      for (const sessionId of subscription.sessionHandlers.keys()) {
+        this.detachCDPEventSubscription(subscription, sessionId);
+      }
+    };
+  }
+
+  private attachCDPEventSubscription(
+    subscription: CDPEventSubscription,
+    session: CDPSessionLike,
+  ): void {
+    const sessionId = session.id ?? "root";
+    if (subscription.sessionHandlers.has(sessionId)) return;
+    const handler = (params: unknown): void => {
+      const normalizedParams =
+        params !== null && typeof params === "object" && !Array.isArray(params)
+          ? (params as Record<string, unknown>)
+          : {};
+      const event = PageCDPEventSchema.parse({
+        pageId: this.pageId,
+        method: "Runtime.consoleAPICalled",
+        params: normalizedParams,
+        sessionId,
+        targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
+      });
+      try {
+        subscription.listener(event);
+      } catch (error) {
+        this.logger.error("Page CDP event listener failed", {
+          category: "page",
+          pageId: this.pageId,
+          method: "Runtime.consoleAPICalled",
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+    subscription.sessionHandlers.set(sessionId, { session, handler });
+    session.on("Runtime.consoleAPICalled", handler);
+  }
+
+  private detachCDPEventSubscription(subscription: CDPEventSubscription, sessionId: string): void {
+    const registered = subscription.sessionHandlers.get(sessionId);
+    if (!registered) return;
+    registered.session.off("Runtime.consoleAPICalled", registered.handler);
+    subscription.sessionHandlers.delete(sessionId);
   }
 
   /**
@@ -725,6 +803,12 @@ export class Page {
 
   /** Release page-scoped listeners, pending work, and network tracking. */
   public dispose(): void {
+    for (const subscription of this.cdpEventSubscriptions) {
+      this.cdpEventSubscriptions.delete(subscription);
+      for (const sessionId of subscription.sessionHandlers.keys()) {
+        this.detachCDPEventSubscription(subscription, sessionId);
+      }
+    }
     this.teardownWebMCPInvocations();
     this.networkManager.dispose();
   }
