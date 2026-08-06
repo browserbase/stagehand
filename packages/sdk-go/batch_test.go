@@ -3,6 +3,7 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -43,11 +44,13 @@ func TestExperimentalBatchDelegatesToCallbackTransport(t *testing.T) {
 	var result struct {
 		Title string `json:"title"`
 	}
+	const source = `async ({ page }) => ({ title: await page.title() })`
+	input := map[string]any{"value": 1}
 
 	err := client.ExperimentalBatch(
 		context.Background(),
-		`async ({ page }) => ({ title: await page.title() })`,
-		map[string]any{"value": 1},
+		source,
+		input,
 		&result,
 		ExperimentalBatchOptions{Timeout: 2 * time.Second, Page: page},
 	)
@@ -56,6 +59,12 @@ func TestExperimentalBatchDelegatesToCallbackTransport(t *testing.T) {
 	}
 	if result.Title != "Example" || rpc.pageID != "page-1" || rpc.timeout != 2*time.Second {
 		t.Fatalf("unexpected batch result or options: result=%+v page=%q timeout=%s", result, rpc.pageID, rpc.timeout)
+	}
+	if rpc.source != source {
+		t.Fatalf("callback source = %q, want %q", rpc.source, source)
+	}
+	if !reflect.DeepEqual(rpc.input, input) {
+		t.Fatalf("callback input = %#v, want %#v", rpc.input, input)
 	}
 }
 
