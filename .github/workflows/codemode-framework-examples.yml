@@ -100,3 +100,31 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           STAGEHAND_BROWSER: local
+
+  langchain:
+    name: LangChain Deep Agents
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/integrations/examples/langchain/requirements.txt
+
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+      - run: python -m pip install -r packages/integrations/examples/langchain/requirements.txt
+      - run: python packages/integrations/examples/langchain/smoke.py
+        env:
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          STAGEHAND_BROWSER: local
