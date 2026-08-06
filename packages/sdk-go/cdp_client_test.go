@@ -581,6 +581,70 @@ func TestCDPClientRunsCallbackBatchInServiceWorker(t *testing.T) {
 	}
 }
 
+func TestCDPClientValidatesCallbackBatchSuccessEnvelope(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		envelope map[string]any
+		wantErr  bool
+	}{
+		{name: "missing result", envelope: map[string]any{"ok": true}, wantErr: true},
+		{
+			name: "contradictory result",
+			envelope: map[string]any{
+				"ok": true, "value": nil, "valueIsUndefined": true,
+			},
+			wantErr: true,
+		},
+		{name: "explicit null", envelope: map[string]any{"ok": true, "value": nil}},
+		{
+			name:     "explicit undefined",
+			envelope: map[string]any{"ok": true, "valueIsUndefined": true},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			socket := newFakeCDPWebSocket()
+			socket.writeHook = responseHook(t, socket, nil, func(
+				string,
+				map[string]json.RawMessage,
+			) map[string]any {
+				return map[string]any{"result": map[string]any{
+					"result": map[string]any{"value": test.envelope},
+				}}
+			})
+			client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+			client.mu.Lock()
+			client.sessionID = "worker-session"
+			client.mu.Unlock()
+
+			var result any = "unchanged"
+			err := client.runCallbackBatch(
+				context.Background(),
+				`async () => undefined`,
+				nil,
+				"",
+				2*time.Second,
+				&result,
+			)
+			if test.wantErr {
+				if err == nil || !strings.Contains(err.Error(), "returned an invalid result") {
+					t.Fatalf("runCallbackBatch() error = %v, want invalid result", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("runCallbackBatch() error = %v", err)
+			}
+			if result != nil {
+				t.Fatalf("runCallbackBatch() result = %#v, want nil", result)
+			}
+		})
+	}
+}
+
 func TestCallbackBatchEvaluationTimeoutSaturates(t *testing.T) {
 	t.Parallel()
 

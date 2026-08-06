@@ -270,7 +270,11 @@ class CDPClient:
             error = envelope.get("error")
             message = error.get("message") if isinstance(error, Mapping) else None
             raise RuntimeError(str(message or "Stagehand callback batch failed"))
-        if envelope.get("valueIsUndefined") is True:
+        value_is_undefined = envelope.get("valueIsUndefined") is True
+        has_value = "value" in envelope
+        if value_is_undefined == has_value:
+            raise RuntimeError("Stagehand callback batch returned an invalid result")
+        if value_is_undefined:
             return None
         return envelope.get("value")
 

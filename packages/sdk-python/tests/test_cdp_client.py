@@ -249,6 +249,41 @@ async def test_callback_batch_evaluates_in_the_attached_service_worker() -> None
         await client.close()
 
 
+async def _decode_callback_batch_envelope(envelope: object) -> object:
+    socket = FakeWebSocket(
+        lambda _: {"result": {"result": {"value": envelope}}},
+    )
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    try:
+        return await client.run_callback_batch(
+            source="async () => undefined",
+            input=None,
+            page_id=None,
+            timeout=2_000,
+        )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_success_requires_value_or_undefined_marker() -> None:
+    with pytest.raises(RuntimeError, match="returned an invalid result"):
+        await _decode_callback_batch_envelope({"ok": True})
+    with pytest.raises(RuntimeError, match="returned an invalid result"):
+        await _decode_callback_batch_envelope({
+            "ok": True,
+            "value": None,
+            "valueIsUndefined": True,
+        })
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_accepts_explicit_null_and_undefined() -> None:
+    assert await _decode_callback_batch_envelope({"ok": True, "value": None}) is None
+    assert await _decode_callback_batch_envelope({"ok": True, "valueIsUndefined": True}) is None
+
+
 @pytest.mark.asyncio
 async def test_commands_inherit_caller_cancellation_and_are_removed() -> None:
     socket = FakeWebSocket(lambda _: None)

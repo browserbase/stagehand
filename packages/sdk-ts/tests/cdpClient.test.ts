@@ -44,6 +44,38 @@ class FakeWebSocket extends EventTarget {
   }
 }
 
+async function decodeCallbackBatchEnvelope(envelope: unknown): Promise<unknown> {
+  const socket = new FakeWebSocket();
+  const client = new CDPClient(socket as never, "wss://browser.example/devtools/browser/session");
+  client.sessionId = "worker-session";
+  vi.spyOn(client, "sendCommand").mockResolvedValue({ result: { value: envelope } } as never);
+  try {
+    return await client.runCallbackBatch({
+      callbackSource: "async () => undefined",
+      input: undefined,
+      timeout: 1_000,
+    });
+  } finally {
+    client.close();
+  }
+}
+
+describe("callback batch result envelope", () => {
+  it("requires an explicit value or undefined marker on success", async () => {
+    await expect(decodeCallbackBatchEnvelope({ ok: true })).rejects.toThrow();
+    await expect(
+      decodeCallbackBatchEnvelope({ ok: true, value: null, valueIsUndefined: true }),
+    ).rejects.toThrow();
+  });
+
+  it("accepts explicit null and undefined success results", async () => {
+    await expect(decodeCallbackBatchEnvelope({ ok: true, value: null })).resolves.toBeNull();
+    await expect(
+      decodeCallbackBatchEnvelope({ ok: true, valueIsUndefined: true }),
+    ).resolves.toBeUndefined();
+  });
+});
+
 describe("CDP WebSocket transport", () => {
   it("opens the built-in WebSocket transport", async () => {
     const signal = new AbortController().signal;

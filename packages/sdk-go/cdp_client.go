@@ -486,7 +486,7 @@ func (c *cdpClient) runCallbackBatch(
 	var envelope struct {
 		OK               bool            `json:"ok"`
 		Value            json.RawMessage `json:"value"`
-		ValueIsUndefined bool            `json:"valueIsUndefined"`
+		ValueIsUndefined *bool           `json:"valueIsUndefined"`
 		Error            *struct {
 			Name    string `json:"name"`
 			Message string `json:"message"`
@@ -501,10 +501,11 @@ func (c *cdpClient) runCallbackBatch(
 		}
 		return fmt.Errorf("%s: %s", envelope.Error.Name, envelope.Error.Message)
 	}
-	if envelope.ValueIsUndefined {
-		envelope.Value = json.RawMessage("null")
+	valueIsUndefined := envelope.ValueIsUndefined != nil && *envelope.ValueIsUndefined
+	if valueIsUndefined == (len(envelope.Value) != 0) {
+		return errors.New("Stagehand callback batch returned an invalid result")
 	}
-	if len(envelope.Value) == 0 {
+	if valueIsUndefined {
 		envelope.Value = json.RawMessage("null")
 	}
 	if err := json.Unmarshal(envelope.Value, result); err != nil {

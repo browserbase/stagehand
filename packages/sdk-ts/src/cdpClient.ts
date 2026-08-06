@@ -143,11 +143,15 @@ const RuntimeReadinessEnvelopeSchema = z.looseObject({
   hasReceiver: z.boolean(),
 });
 
-const CallbackBatchEnvelopeSchema = z.discriminatedUnion("ok", [
+const CallbackBatchEnvelopeSchema = z.union([
   z.strictObject({
     ok: z.literal(true),
-    value: z.unknown().optional(),
-    valueIsUndefined: z.boolean().optional(),
+    value: z.unknown(),
+    valueIsUndefined: z.literal(false).optional(),
+  }),
+  z.strictObject({
+    ok: z.literal(true),
+    valueIsUndefined: z.literal(true),
   }),
   z.strictObject({
     ok: z.literal(false),
