@@ -5,6 +5,7 @@ import type { Action } from "../protocol/types.js";
 import { ExtractOptionsSchema } from "../protocol/schemas.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "../sdk-ts/src/browserContext.js";
+import type { ExperimentalBatchBrowserContext } from "../sdk-ts/src/batch.js";
 import type { StagehandCommandClient } from "../sdk-ts/src/commandClient.js";
 import { Page } from "../sdk-ts/src/page.js";
 import type { RPCRouter } from "./rpcRouter.js";
@@ -56,7 +57,7 @@ class InProcessCommandClient implements StagehandCommandClient {
 
 export type CallbackStagehand = {
   page: Page;
-  context: Omit<BrowserContext, "close">;
+  context: ExperimentalBatchBrowserContext;
   act(instruction: string | Action, options?: Record<string, unknown>): Promise<unknown>;
   observe(instruction?: string, options?: Record<string, unknown>): Promise<unknown>;
   extract(
@@ -112,7 +113,7 @@ export function installCallbackBatchRunner(
 
       const stagehand: CallbackStagehand = {
         page,
-        context: withoutContextClose(context),
+        context: createCallbackContextFacade(context),
         act: async (instruction, operationOptions) =>
           await client.send(StagehandMethods.stagehandAct, {
             pageId: page.pageId,
@@ -172,17 +173,37 @@ export function installCallbackBatchRunner(
   };
 }
 
-function withoutContextClose(context: BrowserContext): Omit<BrowserContext, "close"> {
-  return new Proxy(context, {
-    get(target, property, receiver) {
-      if (property === "close") return undefined;
-      return Reflect.get(target, property, receiver) as unknown;
-    },
-    has(target, property) {
-      if (property === "close") return false;
-      return Reflect.has(target, property);
-    },
-  });
+function createCallbackContextFacade(context: BrowserContext): ExperimentalBatchBrowserContext {
+  const facade = Object.create(null) as Record<PropertyKey, unknown>;
+  const descriptors = Object.getOwnPropertyDescriptors(BrowserContext.prototype);
+
+  for (const [property, descriptor] of Object.entries(descriptors)) {
+    if (property === "constructor" || property === "close") continue;
+
+    if (typeof descriptor.value === "function") {
+      const method = descriptor.value as (...args: unknown[]) => unknown;
+      Object.defineProperty(facade, property, {
+        configurable: false,
+        enumerable: descriptor.enumerable,
+        value: (...args: unknown[]) => Reflect.apply(method, context, args),
+        writable: false,
+      });
+      continue;
+    }
+
+    if (descriptor.get) {
+      // The facade intentionally invokes the prototype getter with the real context as `this`.
+      // oxlint-disable-next-line typescript/unbound-method
+      const getter = descriptor.get;
+      Object.defineProperty(facade, property, {
+        configurable: false,
+        enumerable: descriptor.enumerable,
+        get: () => Reflect.apply(getter, context, []),
+      });
+    }
+  }
+
+  return Object.freeze(facade) as ExperimentalBatchBrowserContext;
 }
 
 function jsonRoundTrip(value: unknown): unknown {

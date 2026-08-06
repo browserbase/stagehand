@@ -58,7 +58,7 @@ describe("callback batch runner", () => {
     ).resolves.toEqual({ ok: true, valueIsUndefined: true });
   });
 
-  it("does not expose context.close to callbacks", async () => {
+  it("does not expose context lifecycle or internals to callbacks", async () => {
     const router = {
       handle: vi.fn(async (request: StagehandRpcRequest) => {
         if (request.method === "context.pages") return [{ pageId: "page-1" }];
@@ -70,17 +70,25 @@ describe("callback batch runner", () => {
     installCallbackBatchRunner(scope, router);
 
     const result = await scope.__stagehandRunCallbackBatch?.(
-      ({ context }) => ({
-        hasClose: "close" in context,
-        close: (context as unknown as { close?: unknown }).close,
-      }),
+      async ({ context }) => {
+        const pages = await context.pages();
+        return {
+          hasClose: "close" in context,
+          close: (context as unknown as { close?: unknown }).close,
+          prototype: Object.getPrototypeOf(context),
+          constructor: (context as unknown as { constructor?: unknown }).constructor,
+          rpcClient: (context as unknown as { rpcClient?: unknown }).rpcClient,
+          clipboardRef: (context as unknown as { clipboardRef?: unknown }).clipboardRef,
+          pageCount: pages.length,
+        };
+      },
       null,
       { timeout: 1_000 },
     );
 
     expect(result).toEqual({
       ok: true,
-      value: { hasClose: false },
+      value: { hasClose: false, prototype: null, pageCount: 1 },
     });
   });
 
@@ -113,11 +121,11 @@ describe("callback batch runner", () => {
     installCallbackBatchRunner(scope, router);
 
     const result = await scope.__stagehandRunCallbackBatch?.(
-      async ({ extract }) => {
-        await extract("options only", { timeout: 1_000 });
-        await extract("schema only", { type: "object" });
-        await extract("schema and options", { type: "object" }, { timeout: 2_000 });
-        await extract("empty schema", {}, undefined);
+      async (stagehand) => {
+        await stagehand.extract("options only", { timeout: 1_000 });
+        await stagehand.extract("schema only", { type: "object" });
+        await stagehand.extract("schema and options", { type: "object" }, { timeout: 2_000 });
+        await stagehand.extract("empty schema", {}, undefined);
         return true;
       },
       null,

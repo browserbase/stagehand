@@ -13,7 +13,10 @@ export type ExperimentalBatchOptions = {
   timeout?: number;
 };
 
-export type ExperimentalBatchBrowserContext = Omit<BrowserContext, "close">;
+export type ExperimentalBatchBrowserContext = Omit<
+  BrowserContext,
+  "close" | "rpcClient" | "clipboardRef"
+>;
 export type ExperimentalBatchExtractOptions = Omit<StagehandClientExtractOptions, "page">;
 
 export type ExperimentalBatchContext = {
