@@ -2,12 +2,11 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "observe_taxes" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://file.1040.com/estimate/");
 
-      const observations = await v3.observe(
+      const { data: observations } = await stagehand.observe(
         "Find all the form input elements under the 'Income' section",
       );
 
@@ -45,7 +44,7 @@ export default defineBenchTask(
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error.message,
+            error instanceof Error ? error.message : String(error),
           );
           continue;
         }
@@ -62,13 +61,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

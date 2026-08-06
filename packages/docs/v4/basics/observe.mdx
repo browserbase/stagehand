@@ -445,7 +445,7 @@ for i, action := range result.Data {
 
 if emailField != nil && passwordField != nil {
 	// Replay the observed actions, resolving placeholders locally
-	if _, err := client.Act(ctx, *emailField, &stagehand.StagehandClientActOptions{
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*emailField), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
 				"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
@@ -454,7 +454,7 @@ if emailField != nil && passwordField != nil {
 	}); err != nil {
 		return err
 	}
-	if _, err := client.Act(ctx, *passwordField, &stagehand.StagehandClientActOptions{
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*passwordField), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
 				"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
@@ -675,7 +675,7 @@ if err != nil {
 
 for _, field := range observed.Data {
 	// No LLM call: Stagehand replays the observed action
-	if _, err := client.Act(ctx, field, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(field), nil); err != nil {
 		return err
 	}
 }
@@ -794,7 +794,7 @@ if err != nil {
 	return err
 }
 
-for _, tier := range pricing.Tiers {
+for _, tier := range pricing.Data.Tiers {
 	fmt.Println(tier.Name, tier.Price)
 }
 ```
@@ -845,7 +845,7 @@ if len(observed.Data) == 0 || observed.Data[0].Method == nil || *observed.Data[0
 	return errors.New("Delete button not found")
 }
 
-if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 	return err
 }
 ```
@@ -1101,7 +1101,7 @@ if action != nil && action.Method != nil {
 // Validate method before acting
 validMethods := []string{"click", "fill", "type", "press"}
 if action != nil && slices.Contains(validMethods, method) {
-	if _, err := client.Act(ctx, *action, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*action), nil); err != nil {
 		return err
 	}
 } else {

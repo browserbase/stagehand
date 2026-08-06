@@ -15,7 +15,7 @@ const packageChangelogs = [
   },
   {
     label: "Extension Runtime",
-    path: path.join(repositoryRoot, "packages/server/CHANGELOG.md"),
+    path: path.join(repositoryRoot, "packages/extension/CHANGELOG.md"),
   },
 ];
 

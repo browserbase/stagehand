@@ -1,6 +1,6 @@
 import type { TaskSpec } from "stagehand-v3";
 
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineAgentBenchTask } from "../../../framework/defineTask.js";
 import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 /**
@@ -15,7 +15,7 @@ import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/v
  * Override via the EVAL_SUCCESS_MODE env var (set by the bench runner's
  * --success flag): outcome | process | both.
  */
-export default defineBenchTask(
+export default defineAgentBenchTask(
   { name: "agent/onlineMind2Web" },
   async ({ v3, logger, debugUrl, sessionUrl, modelName, input }) => {
     try {

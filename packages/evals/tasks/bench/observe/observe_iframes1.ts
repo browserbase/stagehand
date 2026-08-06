@@ -1,13 +1,13 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_iframes1" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
 
-      const observations = await v3.observe("find the main header of the page");
+      const { data: observations } = await stagehand.observe("find the main header of the page");
 
       if (observations.length === 0) {
         return {
@@ -24,35 +24,28 @@ export default defineBenchTask(
         `body > header > h1`,
       ];
 
-      // Precompute candidate backendNodeIds
-      const candidateIds = new Map<string, number>();
-      for (const sel of possibleLocators) {
-        try {
-          const id = await page.locator(sel).backendNodeId();
-          candidateIds.set(sel, id);
-        } catch {
-          // ignore candidates that fail to resolve
-        }
-      }
-
+      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
+      // so the same element-identity check is
+      // re-expressed in-page. Both candidate selectors live in the main
+      // frame, so main-frame resolution preserves the v3 pass criterion:
+      // an observed selector that points inside the iframe never had a
+      // backendNodeId equal to either main-frame candidate in v3 (no match),
+      // and here it simply fails to resolve in the main document (no match).
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const obsId = await page.locator(observation.selector).backendNodeId();
-          for (const [candSel, candId] of candidateIds) {
-            if (candId === obsId) {
-              foundMatch = true;
-              matchedLocator = candSel;
-              break;
-            }
+          const matched = await matchingSelector(page, observation.selector, possibleLocators);
+          if (matched) {
+            foundMatch = true;
+            matchedLocator = matched;
+            break;
           }
-          if (foundMatch) break;
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error?.message ?? String(error),
+            error instanceof Error ? error.message : String(error),
           );
           continue;
         }
@@ -69,13 +62,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
     } finally {
-      await v3.close();
+      await stagehand.close();
     }
   },
 );

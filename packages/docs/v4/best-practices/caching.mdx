@@ -99,7 +99,7 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 }
 
 // Cached after the hit-count threshold is met
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 ```
@@ -177,14 +177,14 @@ if err != nil {
 
 // This call skips the cache
 off := stagehand.CacheEnabled(false)
-if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &off},
 }); err != nil {
 	return err
 }
 
 // This call uses the cache as normal
-if _, err := client.Act(ctx, "submit the form", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("submit the form"), nil); err != nil {
 	return err
 }
 ```
@@ -312,7 +312,7 @@ print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 
 <View title="Go" icon="golang">
 ```go
-result, err := client.Act(ctx, "click the login button", nil)
+result, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
 if err != nil {
 	return err
 }
@@ -456,7 +456,7 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 
 	// The model only ever sees %email%, and the logged action keeps the placeholder
 	// A different email value travels with the request, so expect a MISS
-	_, err := client.Act(ctx, "type %email% into the Email address field", &stagehand.StagehandClientActOptions{
+	_, err := client.Act(ctx, stagehand.ActInstruction("type %email% into the Email address field"), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
 				"email": stagehand.PrimitiveVariable(stagehand.StringVariable("alice@example.com")),
@@ -563,12 +563,12 @@ await stagehand.act(f"type {email} into the Email address field")
 <View title="Go" icon="golang">
 ```go
 // Good: anchored to the visible label, no variance
-if _, err := client.Act(ctx, "click the Sign in button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the Sign in button"), nil); err != nil {
 	return err
 }
 
 // Bad: inline dynamic value creates a new cache key every time
-if _, err := client.Act(ctx, fmt.Sprintf("type %s into the Email address field", email), nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction(fmt.Sprintf("type %s into the Email address field", email)), nil); err != nil {
 	return err
 }
 ```

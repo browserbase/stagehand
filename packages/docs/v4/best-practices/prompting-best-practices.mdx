@@ -36,18 +36,18 @@ await stagehand.act("login with credentials and navigate to dashboard")
 <View title="Go" icon="golang">
 ```go
 // Good - Single, specific actions
-if _, err := client.Act(ctx, "click the 'Add to Cart' button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Add to Cart' button"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type 'user@example.com' into the email field", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type 'user@example.com' into the email field"), nil); err != nil {
 	return err
 }
 
 // Bad - Multiple actions combined
-if _, err := client.Act(ctx, "fill out the form and submit it", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("fill out the form and submit it"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "login with credentials and navigate to dashboard", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("login with credentials and navigate to dashboard"), nil); err != nil {
 	return err
 }
 ```
@@ -84,18 +84,18 @@ await stagehand.act("type into the white input")
 <View title="Go" icon="golang">
 ```go
 // Good - Element types and descriptive text
-if _, err := client.Act(ctx, "click the 'Sign In' button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Sign In' button"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type into the email input field", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type into the email input field"), nil); err != nil {
 	return err
 }
 
 // Bad - Color-based descriptions
-if _, err := client.Act(ctx, "click the blue button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the blue button"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type into the white input", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type into the white input"), nil); err != nil {
 	return err
 }
 ```
@@ -130,18 +130,18 @@ await stagehand.act("type into search")
 <View title="Go" icon="golang">
 ```go
 // Good - Clear element identification
-if _, err := client.Act(ctx, "click the 'Next' button at the bottom of the form", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Next' button at the bottom of the form"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type into the search bar at the top of the page", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type into the search bar at the top of the page"), nil); err != nil {
 	return err
 }
 
 // Bad - Vague descriptions
-if _, err := client.Act(ctx, "click next", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click next"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type into search", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type into search"), nil); err != nil {
 	return err
 }
 ```
@@ -182,18 +182,18 @@ await stagehand.act("choose option 1")
 <View title="Go" icon="golang">
 ```go
 // Good
-if _, err := client.Act(ctx, "click the submit button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "select 'Option 1' from dropdown", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("select 'Option 1' from dropdown"), nil); err != nil {
 	return err
 }
 
 // Bad
-if _, err := client.Act(ctx, "click submit", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click submit"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "choose option 1", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("choose option 1"), nil); err != nil {
 	return err
 }
 ```
@@ -240,7 +240,7 @@ await stagehand.act(
 <View title="Go" icon="golang">
 ```go
 // Use variables for sensitive data
-if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the email field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
@@ -253,7 +253,7 @@ if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.
 // v4 reads no environment variables, so read the secret yourself
 password := os.Getenv("USER_PASSWORD")
 
-if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
@@ -461,7 +461,7 @@ if err != nil {
 	return err
 }
 
-for _, l := range extracted.Links {
+for _, l := range extracted.Data.Links {
 	fmt.Println(l.Text, l.URL)
 }
 ```
@@ -611,12 +611,12 @@ await stagehand.act("go to Amazon and search for headphones")
 if _, err := page.Goto(ctx, "https://amazon.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "type 'wireless headphones' into the search box", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type 'wireless headphones' into the search box"), nil); err != nil {
 	return err
 }
 
 // Bad - Navigation inside the instruction
-if _, err := client.Act(ctx, "go to Amazon and search for headphones", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("go to Amazon and search for headphones"), nil); err != nil {
 	return err
 }
 ```
@@ -677,13 +677,13 @@ await stagehand.act(
 <View title="Go" icon="golang">
 ```go
 // Good - Explicit, ordered steps
-if _, err := client.Act(ctx, "type 'wireless headphones' into the search box", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("type 'wireless headphones' into the search box"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "press Enter in the search box", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("press Enter in the search box"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the 4 stars and up filter", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the 4 stars and up filter"), nil); err != nil {
 	return err
 }
 
@@ -727,12 +727,12 @@ if err != nil {
 	return err
 }
 
-for _, p := range extracted.Products {
+for _, p := range extracted.Data.Products {
 	fmt.Println(p.Name, p.Price)
 }
 
 // Bad - One instruction carrying a whole workflow
-if _, err := client.Act(ctx, "search for wireless headphones under $100 and add the best rated one to cart", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("search for wireless headphones under $100 and add the best rated one to cart"), nil); err != nil {
 	return err
 }
 ```
@@ -787,7 +787,7 @@ await stagehand.act("add some items to cart")
 <View title="Go" icon="golang">
 ```go
 // Good - Verify the outcome
-if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the add to cart button"), nil); err != nil {
 	return err
 }
 
@@ -813,12 +813,12 @@ if err != nil {
 	return err
 }
 
-if result.ItemCount != 1 {
-	return fmt.Errorf("expected 1 item in cart, found %d", result.ItemCount)
+if result.Data.ItemCount != 1 {
+	return fmt.Errorf("expected 1 item in cart, found %d", result.Data.ItemCount)
 }
 
 // Bad - No validation
-if _, err := client.Act(ctx, "add some items to cart", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("add some items to cart"), nil); err != nil {
 	return err
 }
 ```

@@ -14,7 +14,7 @@ const fixtureRoots: string[] = [];
 const createFixture = (files: string[] = []) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "integration-discovery-"));
   fixtureRoots.push(root);
-  const testsDir = path.join(root, "packages/server/tests/integration");
+  const testsDir = path.join(root, "packages/extension/tests/integration");
   for (const file of files) {
     const fullPath = path.join(testsDir, file);
     fs.mkdirSync(path.dirname(fullPath), { recursive: true });
@@ -78,12 +78,12 @@ describe("integration test discovery", () => {
 
     expect(discoverIntegrationTests(fixture.root, fixture.testsDir)).toEqual([
       {
-        path: "packages/server/tests/integration/a/streaming.test.ts",
+        path: "packages/extension/tests/integration/a/streaming.test.ts",
         name: "a/streaming",
         safe_name: "a-streaming",
       },
       {
-        path: "packages/server/tests/integration/locator-fill.test.ts",
+        path: "packages/extension/tests/integration/locator-fill.test.ts",
         name: "locator-fill",
         safe_name: "locator-fill",
       },
