@@ -8,18 +8,24 @@ import {
   type StagehandCreateOptions,
 } from "@browserbasehq/stagehand";
 import type { EvalLogger } from "./logger.js";
+import { launchRunnerProvidedBrowserbaseChrome } from "./core/targets/browserbase.js";
 import { resolveKey } from "./tui/welcomeStatus.js";
 
 export type InitStagehandArgs = {
   logger: EvalLogger;
   modelName: string;
-  systemPrompt?: string;
   environment: "LOCAL" | "BROWSERBASE";
 };
 
 export type StagehandInitResult = {
   stagehand: Stagehand;
   page: Page;
+  /** Session replay URL (Browserbase; empty for LOCAL). */
+  sessionUrl: string;
+  /** Live debugger URL (Browserbase, best-effort; empty for LOCAL). */
+  debugUrl: string;
+  /** Releases the Browserbase session (no-op for LOCAL). */
+  endSession: () => Promise<void>;
 };
 
 const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
@@ -58,7 +64,6 @@ function createStagehandOnLog(logger: EvalLogger): (event: StagehandLogEvent) =>
 export async function initStagehand({
   logger,
   modelName,
-  systemPrompt,
   environment,
 }: InitStagehandArgs): Promise<StagehandInitResult> {
   const provider = modelName.includes("/") ? modelName.split("/")[0].toLowerCase() : undefined;
@@ -75,9 +80,12 @@ export async function initStagehand({
   // `browser` is a factory-built handle rather than a config object:
   // StagehandBrowser is branded (#2517), so an object literal cannot satisfy it.
   let browser;
+  let sessionUrl = "";
+  let debugUrl = "";
+  let endSession: () => Promise<void> = async () => {};
   if (environment === "BROWSERBASE") {
-    // Checked here rather than left to zod: BrowserbaseLaunchOptions requires a
-    // non-empty key, so an absent one would surface as a parse error instead.
+    // Checked here rather than left to zod: BrowserbaseConnectOptions requires
+    // a non-empty key, so an absent one would surface as a parse error instead.
     const browserbaseApiKey =
       resolveKey("BROWSERBASE_API_KEY").value || resolveKey("BB_API_KEY").value;
     if (!browserbaseApiKey) {
@@ -85,16 +93,26 @@ export async function initStagehand({
         "Stagehand init: BROWSERBASE_API_KEY or BB_API_KEY is required for BROWSERBASE runs",
       );
     }
-    // Passed explicitly, matching initV3 and core/targets/browserbase: the
-    // Browserbase SDK does not read BROWSERBASE_PROJECT_ID from the
-    // environment, and omitting it lands sessions in the key's default
-    // project — the wrong one for keys that own several.
-    const projectId =
-      resolveKey("BROWSERBASE_PROJECT_ID").value || resolveKey("BB_PROJECT_ID").value;
-    browser = await browserbase.launch({
-      apiKey: browserbaseApiKey,
-      ...(projectId ? { projectId } : {}),
-    });
+    // The session is created first and attached with connect() rather than
+    // launched through the SDK: StagehandBrowser is an opaque branded handle
+    // with no browserbaseSessionId (#2517), so launching would leave the
+    // harness without the session/debug URLs that TaskResults and the
+    // Braintrust replay click-through report. The shared creator also passes
+    // the project id explicitly (the Browserbase SDK does not read
+    // BROWSERBASE_PROJECT_ID from the environment).
+    const session = await launchRunnerProvidedBrowserbaseChrome();
+    sessionUrl = session.sessionUrl;
+    debugUrl = session.debugUrl ?? "";
+    endSession = session.cleanup;
+    try {
+      browser = await browserbase.connect({
+        apiKey: browserbaseApiKey,
+        sessionId: session.sessionId,
+      });
+    } catch (error) {
+      await endSession().catch(() => {});
+      throw error;
+    }
   } else {
     browser = await localBrowser.launch({ headless: false });
   }
@@ -110,11 +128,11 @@ export async function initStagehand({
       // pass while measuring nothing.
       selfHeal: true,
       model: { modelName, apiKey } as NonNullable<StagehandCreateOptions["model"]>,
-      ...(systemPrompt ? { systemPrompt } : {}),
       logging: { onLog: createStagehandOnLog(logger) },
     });
   } catch (error) {
     await browser.close().catch(() => {});
+    await endSession().catch(() => {});
     throw error;
   }
 
@@ -130,16 +148,15 @@ export async function initStagehand({
   } catch (error) {
     await stagehand.close().catch(() => {});
     await browser.close().catch(() => {});
+    await endSession().catch(() => {});
     throw error;
   }
 
-  // No sessionUrl: StagehandBrowser is an opaque branded handle and does not
-  // expose the Browserbase session id (#2517). To restore the Braintrust
-  // click-through to a session replay, create the session first (as
-  // core/targets/browserbase.ts does) and attach with
-  // `browserbase.connect({ sessionId })`.
   return {
     stagehand,
     page,
+    sessionUrl,
+    debugUrl,
+    endSession,
   };
 }

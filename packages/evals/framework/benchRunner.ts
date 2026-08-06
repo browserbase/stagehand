@@ -67,23 +67,28 @@ export async function executeBenchTask(
     harnessCtx = startedHarness.ctx;
     const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
-      const ctx = {
-        v3: harnessCtx.v3,
-        agent: harnessCtx.agent,
-        // Deterministic (act/extract/observe) tasks run on the v4 SDK: they
-        // receive the v4 client and its RPC-backed page in place of the
-        // Playwright page the v3 harness provides.
-        stagehand: harnessCtx.stagehand,
-        page: harnessCtx.v4Page ?? harnessCtx.page,
+      const common = {
         logger,
         input,
         modelName: input.modelName,
         debugUrl: harnessCtx.debugUrl,
         sessionUrl: harnessCtx.sessionUrl,
       };
+      // Deterministic (act/extract/observe) tasks run on the v4 SDK: they
+      // receive the v4 client and its RPC-backed page in place of the
+      // Playwright page the v3 harness provides.
+      const ctx =
+        harnessCtx.sdk === "v4"
+          ? { ...common, stagehand: harnessCtx.stagehand, page: harnessCtx.page }
+          : { ...common, v3: harnessCtx.v3, agent: harnessCtx.agent, page: harnessCtx.page };
       return withBenchSessionUrls((await taskModule.definition.fn(ctx)) as TaskResult, harnessCtx);
     }
     if (taskModule.legacyFn) {
+      if (harnessCtx.sdk === "v4") {
+        // Unreachable through category dispatch (legacy tasks only exist
+        // outside act/extract/observe), but the narrowing keeps it honest.
+        throw new EvalsError(`Legacy task ${task.name} cannot run on the v4 harness context.`);
+      }
       return withBenchSessionUrls(
         await taskModule.legacyFn({
           v3: harnessCtx.v3,

@@ -42,20 +42,31 @@ export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
   signal?: AbortSignal;
 }
 
-export interface BenchHarnessContext {
+interface BenchHarnessContextBase {
   harness: Harness;
   row: BenchMatrixRow;
   logger: EvalLogger;
-  v3?: V3;
-  agent?: AgentInstance;
-  page?: Page;
-  /** Stagehand v4 client (set for act/extract/observe tasks). */
-  stagehand?: StagehandInitResult["stagehand"];
-  /** v4 page object (set for act/extract/observe tasks). */
-  v4Page?: StagehandInitResult["page"];
   debugUrl: string;
   sessionUrl: string;
 }
+
+/**
+ * The two context shapes are mutually exclusive: act/extract/observe tasks
+ * run on the v4 SDK, everything else (agent) runs on stagehand-v3. The `sdk`
+ * discriminant lets the runner narrow instead of probing optional fields.
+ */
+export type BenchHarnessContext =
+  | (BenchHarnessContextBase & {
+      sdk: "v4";
+      stagehand: StagehandInitResult["stagehand"];
+      page: StagehandInitResult["page"];
+    })
+  | (BenchHarnessContextBase & {
+      sdk: "v3";
+      v3: V3;
+      agent?: AgentInstance;
+      page: Page;
+    });
 
 export interface StartedBenchHarness {
   ctx: BenchHarnessContext;
@@ -174,12 +185,11 @@ export const stagehandHarness: BenchHarness = {
           harness: "stagehand",
           row,
           logger,
+          sdk: "v4",
           stagehand: v4Result.stagehand,
-          v4Page: v4Result.page,
-          debugUrl: "",
-          // Neither is reachable from the v4 client: StagehandBrowser is an
-          // opaque handle with no browserbaseSessionId (#2517).
-          sessionUrl: "",
+          page: v4Result.page,
+          debugUrl: v4Result.debugUrl,
+          sessionUrl: v4Result.sessionUrl,
         },
         cleanup: async () => {
           try {
@@ -188,7 +198,7 @@ export const stagehandHarness: BenchHarness = {
             console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
           }
           // `stagehand.close()` tears down the RPC client and context but leaves
-          // the browser it was handed running. initStagehand launched that
+          // the browser it was handed running. initStagehand acquired that
           // browser, so this harness owns closing it — without this every task
           // leaks a Chrome process (LOCAL) or a live Browserbase session, and
           // the run never exits once the suite finishes.
@@ -197,6 +207,9 @@ export const stagehandHarness: BenchHarness = {
           } catch (closeError) {
             console.error(`Warning: Error closing v4 browser for ${input.name}:`, closeError);
           }
+          // browser.close() on a connected handle disconnects; releasing the
+          // session is a separate, best-effort call.
+          await v4Result.endSession().catch(() => {});
         },
       };
     }
@@ -248,6 +261,7 @@ export const stagehandHarness: BenchHarness = {
         harness: "stagehand",
         row,
         logger,
+        sdk: "v3",
         v3: v3Result.v3,
         agent: v3Result.agent,
         page: v3Result.v3.context.pages()[0],
