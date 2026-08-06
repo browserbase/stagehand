@@ -6,12 +6,15 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { describe, expect, it } from "vitest";
 
 const entrypoint = fileURLToPath(new URL("../dist/codemode/stdio-server.mjs", import.meta.url));
-const baseEnv = { PATH: process.env.PATH ?? "" };
-const readyMessage = "Stagehand code-mode MCP host listening on stdio";
+const baseEnv = {
+  PATH: process.env.PATH ?? "",
+  STAGEHAND_BROWSER: "local",
+};
+const readyMessage = "Stagehand code-mode MCP listening on stdio";
 
-function startServer(): ChildProcessWithoutNullStreams {
+function startServer(env: NodeJS.ProcessEnv = baseEnv): ChildProcessWithoutNullStreams {
   return spawn(process.execPath, [entrypoint], {
-    env: baseEnv,
+    env,
     stdio: ["pipe", "pipe", "pipe"],
   });
 }
@@ -20,7 +23,7 @@ async function waitForReady(child: ChildProcessWithoutNullStreams): Promise<stri
   let stderr = "";
   return await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error(`stdio host did not start: ${stderr}`)),
+      () => reject(new Error(`stdio server did not start: ${stderr}`)),
       10_000,
     );
     const onData = (chunk: Buffer) => {
@@ -31,10 +34,10 @@ async function waitForReady(child: ChildProcessWithoutNullStreams): Promise<stri
       resolve(stderr);
     };
     child.stderr.on("data", onData);
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       clearTimeout(timeout);
       reject(
-        new Error(`stdio host exited before ready (code=${code}, signal=${signal}): ${stderr}`),
+        new Error(`stdio server exited before ready (code=${code}, signal=${signal}): ${stderr}`),
       );
     });
   });
@@ -82,17 +85,17 @@ function waitForExit(
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       child.kill("SIGKILL");
-      reject(new Error("stdio host did not exit within 10 seconds"));
+      reject(new Error("stdio server did not exit within 10 seconds"));
     }, 10_000);
     child.once("error", reject);
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       clearTimeout(timeout);
       resolve({ code, signal });
     });
   });
 }
 
-describe("built code-mode stdio host", () => {
+describe("built code-mode stdio server", () => {
   it("cleans up output waiters when the stream closes before the expected output", async () => {
     const stream = new PassThrough();
     const output = waitForOutput(stream, readyMessage);
@@ -106,8 +109,12 @@ describe("built code-mode stdio host", () => {
     expect(stream.listenerCount("close")).toBe(0);
   });
 
-  it("starts and exits successfully on stdin EOF", async () => {
-    const child = startServer();
+  it("starts in explicit local mode and exits successfully on stdin EOF", async () => {
+    const child = startServer({
+      ...baseEnv,
+      BROWSERBASE_API_KEY: "unused-browserbase-key",
+      BROWSERBASE_PROJECT_ID: "unused-project-id",
+    });
     try {
       await waitForReady(child);
       const exit = waitForExit(child);
@@ -139,7 +146,20 @@ describe("built code-mode stdio host", () => {
     30_000,
   );
 
-  it("initializes without advertising tools through the compiled child", async () => {
+  it("fails startup for an invalid browser mode", async () => {
+    const child = startServer({ ...baseEnv, STAGEHAND_BROWSER: "remote" });
+    let stderr = "";
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+
+    const exit = await waitForExit(child);
+
+    expect(exit.code).not.toBe(0);
+    expect(stderr).toContain('STAGEHAND_BROWSER must be either "local" or "browserbase".');
+  });
+
+  it("supports MCP initialization, discovery, and validation through the compiled child", async () => {
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: [entrypoint],
@@ -152,7 +172,19 @@ describe("built code-mode stdio host", () => {
 
     try {
       await Promise.all([client.connect(transport), ready]);
-      expect(client.getServerCapabilities()).not.toHaveProperty("tools");
+      const tools = await client.listTools();
+      expect(tools.tools.map((tool) => tool.name)).toStrictEqual(["code_execute"]);
+      await expect(
+        client.callTool({ name: "code_execute", arguments: { code: "   " } }),
+      ).resolves.toMatchObject({
+        isError: true,
+        content: [
+          {
+            type: "text",
+            text: expect.stringContaining("code must contain JavaScript source"),
+          },
+        ],
+      });
     } finally {
       await client.close();
     }
