@@ -13,7 +13,7 @@ export interface RemoteStagehandOptions {
 export interface RemoteBrowserLaunch {
   browser: StagehandBrowser;
   identity: BrowserbaseIdentity;
-  release: () => Promise<void>;
+  release?: () => Promise<void>;
 }
 
 export interface RemoteDoctorResult {

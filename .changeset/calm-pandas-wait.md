@@ -2,4 +2,4 @@
 "browse": patch
 ---
 
-Keep CLI open requests alive while Stagehand initializes local or remote browser sessions.
+Keep CLI open requests alive while Stagehand initializes correctly provisioned local or Browserbase sessions.

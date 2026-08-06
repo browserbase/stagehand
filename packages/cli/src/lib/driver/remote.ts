@@ -91,28 +91,15 @@ export async function launchRemoteBrowser(
   forwardedEnv?: ForwardedEnv,
 ): Promise<RemoteBrowserLaunch> {
   const { apiKey, browser: sessionOptions } = await remoteStagehandOptions(target, forwardedEnv);
-  const client = new Browserbase({ apiKey });
-  const session = await client.sessions.create(sessionOptions);
-  const sessionId = session.id?.trim();
-  if (!sessionId) {
-    throw new Error("Browserbase session creation returned an unexpected shape.");
-  }
-
-  const release = async () => {
-    await client.sessions.update(sessionId, { status: "REQUEST_RELEASE" });
+  // The V4 factory provisions the packaged Stagehand extension before it
+  // creates the Browserbase session and owns both resources on browser.close().
+  // A raw sessions.create() + browserbase.connect() skips that provisioning.
+  const browser = await browserbase.launch({ apiKey, ...sessionOptions });
+  return {
+    browser,
+    // V4 browser handles do not expose their Browserbase session ID yet.
+    identity: {},
   };
-
-  try {
-    const browser = await browserbase.connect({ apiKey, sessionId });
-    return {
-      browser,
-      identity: await remoteBrowserbaseIdentity(sessionId, forwardedEnv, client),
-      release,
-    };
-  } catch (error) {
-    await release().catch(() => undefined);
-    throw error;
-  }
 }
 
 export async function remoteBrowserbaseIdentity(

@@ -1,6 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const stagehandMocks = vi.hoisted(() => ({
+  launch: vi.fn(),
+}));
+
+vi.mock("@browserbasehq/stagehand", () => ({
+  browserbase: { launch: stagehandMocks.launch },
+}));
 
 import {
+  launchRemoteBrowser,
   remoteBrowserbaseIdentity,
   remoteStagehandOptions,
   resolveExplicitRemoteTarget,
@@ -13,6 +22,7 @@ describe("remote.ts (Browserbase capability)", () => {
   const previousApiKey = process.env.BROWSERBASE_API_KEY;
 
   beforeEach(() => {
+    stagehandMocks.launch.mockReset();
     process.env.BROWSERBASE_API_KEY = "test-key";
   });
 
@@ -74,6 +84,24 @@ describe("remote.ts (Browserbase capability)", () => {
   it("requires an API key", async () => {
     delete process.env.BROWSERBASE_API_KEY;
     await expect(remoteStagehandOptions({ kind: "remote" })).rejects.toThrow(/BROWSERBASE_API_KEY/);
+  });
+
+  it("launches through the V4 Browserbase factory so the extension is provisioned", async () => {
+    const browser = { close: vi.fn() };
+    stagehandMocks.launch.mockResolvedValue(browser);
+
+    await expect(
+      launchRemoteBrowser({ kind: "remote", proxies: true, verified: true }),
+    ).resolves.toEqual({
+      browser,
+      identity: {},
+    });
+    expect(stagehandMocks.launch).toHaveBeenCalledWith({
+      apiKey: "test-key",
+      browserSettings: { verified: true },
+      proxies: true,
+      userMetadata: expect.objectContaining({ browse_cli: "true" }),
+    });
   });
 
   it("preserves remote session and live-view output fields", async () => {
