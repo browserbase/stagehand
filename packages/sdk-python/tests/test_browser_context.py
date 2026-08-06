@@ -27,7 +27,7 @@ async def test_browser_context_wraps_generated_page_references() -> None:
     context = BrowserContext(cast(RPCClient, recording))
 
     pages = await context.pages()
-    new_page = await context.new_page(url="https://example.com")
+    new_page = await context.new_page("https://example.com")
     active_page = await context.active_page()
     await context.set_active_page(new_page)
 

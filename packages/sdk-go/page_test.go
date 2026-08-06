@@ -328,6 +328,46 @@ func TestPageNavigationMethodsReturnNilWithoutNetworkResponse(t *testing.T) {
 	}
 }
 
+func TestPageHistoryNavigationMatchesGotoOptionsAndResponse(t *testing.T) {
+	t.Parallel()
+
+	responseDescriptor := NavigationResponseDescriptor{
+		ResponseID:        "response-1",
+		URL:               "https://example.com/final",
+		Status:            200,
+		StatusText:        "OK",
+		Headers:           map[string]string{},
+		FromServiceWorker: false,
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.go_back": PageNavigationResult{
+			Page: PageRef{PageID: "page-2"}, Response: &responseDescriptor,
+		},
+		"page.go_forward": PageNavigationResult{
+			Page: PageRef{PageID: "page-3"}, Response: &responseDescriptor,
+		},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	waitUntil := LoadStateDOMContentLoaded
+	timeout := 5_000
+	options := &PageNavigationOptions{WaitUntil: &waitUntil, Timeout: &timeout}
+
+	backResponse, err := page.GoBack(context.Background(), options)
+	if err != nil || backResponse == nil || backResponse.URL() != responseDescriptor.URL {
+		t.Fatalf("GoBack() = (%#v, %v)", backResponse, err)
+	}
+	forwardResponse, err := page.GoForward(context.Background(), options)
+	if err != nil || forwardResponse == nil || forwardResponse.URL() != responseDescriptor.URL {
+		t.Fatalf("GoForward() = (%#v, %v)", forwardResponse, err)
+	}
+	if params, ok := rpc.calls[0].params.(PageGoBackParams); !ok || params.Options != options {
+		t.Fatalf("GoBack() params = %#v", rpc.calls[0].params)
+	}
+	if params, ok := rpc.calls[1].params.(PageGoForwardParams); !ok || params.Options != options {
+		t.Fatalf("GoForward() params = %#v", rpc.calls[1].params)
+	}
+}
+
 func TestPageScreenshotRejectsMalformedBase64(t *testing.T) {
 	t.Parallel()
 

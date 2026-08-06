@@ -15,6 +15,8 @@ from stagehand._generated.models import (
     PageClickParams,
     PageDragAndDropParams,
     PageEvaluateResult,
+    PageGoBackParams,
+    PageGoForwardParams,
     PageGotoParams,
     PageHoverParams,
     PageIdParams,
@@ -164,6 +166,27 @@ async def test_page_navigation_methods_return_none_without_a_network_response() 
         "page.go_back",
         "page.go_forward",
     ]
+
+
+@pytest.mark.asyncio
+async def test_history_navigation_matches_goto_options() -> None:
+    recording = RecordingRPCClient({
+        "page.go_back": PageNavigationResult(page=PageRef(page_id="page-2"), response=None),
+        "page.go_forward": PageNavigationResult(page=PageRef(page_id="page-3"), response=None),
+    })
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+
+    await page.go_back(wait_until="domcontentloaded", timeout=5_000)
+    await page.go_forward(wait_until="domcontentloaded", timeout=5_000)
+
+    assert recording.calls[0][1] == PageGoBackParams.model_validate({
+        "page_id": "page-1",
+        "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
+    })
+    assert recording.calls[1][1] == PageGoForwardParams.model_validate({
+        "page_id": "page-2",
+        "options": {"wait_until": "domcontentloaded", "timeout": 5_000},
+    })
 
 
 @pytest.mark.asyncio

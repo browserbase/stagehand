@@ -413,7 +413,7 @@ class ContextNewPageParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    url: Optional[StrictStr] = None
+    url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
 
 
 class ContextSetActivePageParams(WireModel):
