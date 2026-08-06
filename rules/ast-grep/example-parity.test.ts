@@ -137,7 +137,11 @@ async function examples(
     .filter((file) => file.endsWith(extension))
     .map((file) => ({
       file,
-      name: file.slice(0, -extension.length).replaceAll("_", "-"),
+      name: file
+        .slice(0, -extension.length)
+        .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+        .replaceAll("_", "-")
+        .toLowerCase(),
       url: new URL(file, exampleDirectories[language]),
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
