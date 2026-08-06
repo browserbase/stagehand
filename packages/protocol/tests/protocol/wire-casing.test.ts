@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { z } from "zod/v4";
 import { encodeWireValue, toWireJsonSchema, wireSchema } from "../../json-rpc/wire-casing.js";
-import { StagehandNotifications, StagehandMethods } from "../../schema-registry.js";
+import {
+  StagehandNotifications,
+  StagehandMethods,
+  StagehandRpcRequestSchema,
+} from "../../schema-registry.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 
 const snakeCaseKey = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
@@ -536,6 +540,32 @@ describe("JSON-RPC wire casing", () => {
     expect(wireSchema(definition.params, definition.paramsWire).parse(wireValue)).toStrictEqual(
       apiValue,
     );
+  });
+
+  it("preserves extraction schema keys through the JSON-RPC request envelope", () => {
+    const request = StagehandRpcRequestSchema.parse({
+      jsonrpc: "2.0",
+      id: 1,
+      method: StagehandMethods.stagehandExtract.name,
+      params: {
+        page_id: "page_1",
+        instruction: "Extract the company name",
+        schema: {
+          type: "object",
+          properties: { company_name: { type: "string" } },
+          required: ["company_name"],
+          additionalProperties: false,
+        },
+      },
+    });
+
+    expect(request.params).toMatchObject({
+      pageId: "page_1",
+      schema: {
+        properties: { company_name: { type: "string" } },
+        required: ["company_name"],
+      },
+    });
   });
 
   it("cases structured act and observe result data while preserving extracted JSON", () => {
