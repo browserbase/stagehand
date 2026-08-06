@@ -267,6 +267,43 @@ async def _decode_callback_batch_envelope(envelope: object) -> object:
 
 
 @pytest.mark.asyncio
+async def test_callback_batch_reconstructs_worker_error_envelope() -> None:
+    with pytest.raises(RuntimeError, match="worker callback failed"):
+        await _decode_callback_batch_envelope({
+            "ok": False,
+            "error": {
+                "name": "TypeError",
+                "message": "worker callback failed",
+            },
+        })
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_reconstructs_runtime_exception_details() -> None:
+    socket = FakeWebSocket(
+        lambda _: {
+            "result": {
+                "exceptionDetails": {
+                    "exception": {"description": "callback syntax failed"},
+                }
+            }
+        },
+    )
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    try:
+        with pytest.raises(RuntimeError, match="callback syntax failed"):
+            await client.run_callback_batch(
+                source="async () => undefined",
+                input=None,
+                page_id=None,
+                timeout=2_000,
+            )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_callback_batch_success_requires_value_or_undefined_marker() -> None:
     with pytest.raises(RuntimeError, match="returned an invalid result"):
         await _decode_callback_batch_envelope({"ok": True})

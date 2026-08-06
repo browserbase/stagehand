@@ -140,6 +140,41 @@ def test_stagehand_does_not_expose_context() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source", "input_value", "timeout", "error_type", "message"),
+    [
+        (123, None, 30_000, TypeError, "non-empty JavaScript string"),
+        ("   ", None, 30_000, TypeError, "non-empty JavaScript string"),
+        ("async () => undefined", None, True, ValueError, "positive number"),
+        ("async () => undefined", None, 0, ValueError, "positive number"),
+        ("async () => undefined", None, 1.5, ValueError, "positive number"),
+        ("async () => undefined", object(), 30_000, TypeError, "JSON-serializable"),
+    ],
+)
+async def test_experimental_batch_validates_arguments_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    source: object,
+    input_value: object,
+    timeout: object,
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        with pytest.raises(error_type, match=message):
+            await stagehand._experimental_batch(
+                cast(str, source),
+                input_value,
+                timeout=cast(int, timeout),
+            )
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_create_requires_a_factory_browser_before_validating_config() -> None:
     with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):
         await Stagehand.create(

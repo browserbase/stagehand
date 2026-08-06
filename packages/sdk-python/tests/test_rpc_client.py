@@ -47,6 +47,21 @@ class FailingReceiveTransport(QueueTransport):
 
 
 @pytest.mark.asyncio
+async def test_callback_batch_requires_a_capable_transport() -> None:
+    client = RPCClient(QueueTransport())
+    try:
+        with pytest.raises(RuntimeError, match="does not support callback batches"):
+            await client.run_callback_batch(
+                source="async () => undefined",
+                input=None,
+                page_id=None,
+                timeout=30_000,
+            )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_send_validates_and_serializes_params_and_results() -> None:
     transport = QueueTransport()
     client = RPCClient(transport)
