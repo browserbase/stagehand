@@ -34,12 +34,13 @@ type recordedCall struct {
 }
 
 type recordingProtocolClient struct {
-	calls      []recordedCall
-	responses  map[string]any
-	callErrors map[string]error
-	callHook   func(context.Context, string) error
-	handlers   map[string]requestHandler
-	closed     bool
+	calls            []recordedCall
+	responses        map[string]any
+	callErrors       map[string]error
+	callHook         func(context.Context, string) error
+	handlers         map[string]requestHandler
+	pageEventHandler func(PageCDPEventNotification)
+	closed           bool
 }
 
 func (c *recordingProtocolClient) call(
@@ -78,6 +79,13 @@ func (c *recordingProtocolClient) onRequest(method string, handler requestHandle
 
 func (*recordingProtocolClient) onNotification(string, func(StagehandLog)) func() {
 	return func() {}
+}
+
+func (c *recordingProtocolClient) onPageCDPEvent(
+	handler func(PageCDPEventNotification),
+) func() {
+	c.pageEventHandler = handler
+	return func() { c.pageEventHandler = nil }
 }
 
 func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {

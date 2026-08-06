@@ -351,6 +351,47 @@ describe("Stagehand RPC router", () => {
     );
     await tracing.shutdown();
   });
+
+  it("routes page event subscriptions through the page controller", async () => {
+    const tracing = configuredTracing(createStagehandTracingRuntime({ registerGlobals: false }));
+    const router = createRouter(tracing);
+    const on = vi.spyOn(router.pageController, "on").mockResolvedValue({ ok: true });
+    const off = vi.spyOn(router.pageController, "off").mockResolvedValue({ ok: true });
+
+    await expect(
+      router.handle(
+        request({
+          id: 18,
+          method: "page.on",
+          params: {
+            page_id: "page-1",
+            subscription_id: "subscription-1",
+            event: "console",
+          },
+        }),
+      ),
+    ).resolves.toStrictEqual({ ok: true });
+    await expect(
+      router.handle(
+        request({
+          id: 19,
+          method: "page.off",
+          params: { subscription_id: "subscription-1" },
+        }),
+      ),
+    ).resolves.toStrictEqual({ ok: true });
+
+    expect(on).toHaveBeenCalledWith(
+      {
+        pageId: "page-1",
+        subscriptionId: "subscription-1",
+        event: "console",
+      },
+      expect.anything(),
+    );
+    expect(off).toHaveBeenCalledWith({ subscriptionId: "subscription-1" }, expect.anything());
+    await tracing.shutdown();
+  });
 });
 
 function createRouter(tracing: StagehandTracing): RPCRouter {
