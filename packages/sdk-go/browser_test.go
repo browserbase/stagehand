@@ -533,10 +533,10 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
 			}
 			var connected cdpClientOptions
-			var configuredAPIURL string
+			var configuredBaseURL string
 			dependencies := browserFactoryDependencies{
-				createBrowserbaseClient: func(_ string, apiURL string) (browserbaseFactoryClient, error) {
-					configuredAPIURL = apiURL
+				createBrowserbaseClient: func(_ string, baseURL string) (browserbaseFactoryClient, error) {
+					configuredBaseURL = baseURL
 					return client, nil
 				},
 				connectCDP: func(_ context.Context, options cdpClientOptions) (*cdpClient, error) {
@@ -547,18 +547,18 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			var browser *Browser
 			var err error
 			if test.connect {
-				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", APIURL: "https://api.dev.browserbase.com", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
+				browser, err = connectBrowserbaseWithDependencies(context.Background(), BrowserbaseConnectOptions{APIKey: "key", BaseURL: "https://api.dev.browserbase.com", SessionID: "retrieved", ExtensionID: test.extensionID}, dependencies)
 			} else {
 				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
-					APIKey: "key", APIURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
+					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
 					Region: &region, UserMetadata: userMetadata,
 				}, dependencies)
 			}
 			if err != nil {
 				t.Fatalf("factory error = %v", err)
 			}
-			if configuredAPIURL != "https://api.dev.browserbase.com" {
-				t.Fatalf("Browserbase API URL = %q", configuredAPIURL)
+			if configuredBaseURL != "https://api.dev.browserbase.com" {
+				t.Fatalf("Browserbase base URL = %q", configuredBaseURL)
 			}
 			defer browser.Close(context.Background())
 			if !test.connect {

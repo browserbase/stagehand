@@ -17,7 +17,7 @@ from ._generated.models import (
     TelemetryConfig,
 )
 from ._validation import WireModel
-from .browserbase_session import DEFAULT_BROWSERBASE_API_URL
+from .browserbase_session import DEFAULT_BROWSERBASE_URL
 from .client_types import Cache as CacheInput
 
 ExtractData = TypeVar("ExtractData", bound=BaseModel)
@@ -110,7 +110,7 @@ class BrowserbaseConnectOptions(WireModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
     api_key: Annotated[str, Field(min_length=1)]
-    api_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_API_URL
+    base_url: Annotated[str, Field(min_length=1)] = DEFAULT_BROWSERBASE_URL
     session_id: Annotated[str, Field(min_length=1)]
     extension_id: Annotated[str | None, Field(min_length=1)] = None
 

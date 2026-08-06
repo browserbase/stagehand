@@ -538,8 +538,8 @@ def _install_browserbase_client(
     client = FakeBrowserbaseClient()
     configurations: list[tuple[str, str]] = []
 
-    def factory(api_key: str, api_url: str) -> FakeBrowserbaseClient:
-        configurations.append((api_key, api_url))
+    def factory(api_key: str, base_url: str) -> FakeBrowserbaseClient:
+        configurations.append((api_key, base_url))
         return client
 
     monkeypatch.setattr(browser, "_create_browserbase_session_client", factory)
@@ -553,7 +553,7 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
     client, configurations = _install_browserbase_client(monkeypatch)
     handle = await browserbase.launch(
         api_key="api-key",
-        api_url="https://api.dev.browserbase.com",
+        base_url="https://api.dev.browserbase.com",
         region=BrowserbaseRegion.us_east_1,
     )
 
@@ -595,7 +595,7 @@ async def test_browserbase_connect_never_owns_session_and_selects_extension_mode
     client, configurations = _install_browserbase_client(monkeypatch)
     preloaded = await browserbase.connect(
         api_key="api-key",
-        api_url="https://api.dev.browserbase.com",
+        base_url="https://api.dev.browserbase.com",
         session_id="session",
     )
     assert fake_cdp.connect_arguments[-1]["preloaded_extension"] is True

@@ -27,7 +27,7 @@ export type BrowserbaseSessionClient = {
 
 export type BrowserbaseSessionClientFactory = (
   apiKey: string,
-  apiUrl: string,
+  baseUrl: string,
 ) => BrowserbaseSessionClient;
 
 export type BrowserbaseApiClient = BrowserbaseExtensionClient & {
@@ -51,7 +51,7 @@ type BrowserbaseSdk = BrowserbaseExtensionSdk & {
   };
 };
 
-type BrowserbaseSdkFactory = (apiKey: string, apiUrl: string) => BrowserbaseSdk;
+type BrowserbaseSdkFactory = (apiKey: string, baseUrl: string) => BrowserbaseSdk;
 
 export class BrowserbaseSessionError extends Error {
   constructor(message: string) {
@@ -62,10 +62,10 @@ export class BrowserbaseSessionError extends Error {
 
 export function createBrowserbaseSessionClient(
   apiKey: string,
-  apiUrl: string,
+  baseUrl: string,
   dependencies: BrowserbaseSessionClientDependencies = {},
 ): BrowserbaseSessionClient {
-  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, apiUrl);
+  const browserbase = dependencies.browserbase ?? createBrowserbaseApiClient(apiKey, baseUrl);
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
@@ -158,10 +158,10 @@ export function createBrowserbaseSessionClient(
 
 export function createBrowserbaseApiClient(
   apiKey: string,
-  apiUrl: string,
+  baseUrl: string,
   createSdk: BrowserbaseSdkFactory = (key, baseURL) => new Browserbase({ apiKey: key, baseURL }),
 ): BrowserbaseApiClient {
-  const sdk = createSdk(apiKey, apiUrl);
+  const sdk = createSdk(apiKey, baseUrl);
   const extensionClient = createBrowserbaseExtensionClient(apiKey, () => sdk);
 
   return {

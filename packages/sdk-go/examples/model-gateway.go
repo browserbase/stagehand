@@ -27,8 +27,8 @@ var pageInfoSchema = json.RawMessage(`{
 }`)
 
 const (
-	browserbaseAPIURL = "https://api.browserbase.com"
-	stagehandAPIURL   = "https://api.stagehand.browserbase.com"
+	browserbaseBaseURL = "https://api.browserbase.com"
+	stagehandAPIURL    = "https://api.stagehand.browserbase.com"
 )
 
 func main() {
@@ -45,8 +45,8 @@ func run(ctx context.Context) (err error) {
 	// With no model, Browserbase Model Gateway selects one automatically for
 	// each inference call. The Browserbase API key and session authenticate it.
 	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-		APIKey: apiKey,
-		APIURL: browserbaseAPIURL,
+		APIKey:  apiKey,
+		BaseURL: browserbaseBaseURL,
 	})
 	if err != nil {
 		return err

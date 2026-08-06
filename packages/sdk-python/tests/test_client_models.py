@@ -136,13 +136,13 @@ def test_create_configuration_uses_default_logging() -> None:
     assert config.logging == StagehandClientLoggingConfig(level="info", format="pretty")
 
 
-def test_browserbase_connect_configuration_uses_default_api_url() -> None:
+def test_browserbase_connect_configuration_uses_default_base_url() -> None:
     config = BrowserbaseConnectOptions.model_validate({
         "api_key": "bb-key",
         "session_id": "session-id",
     })
 
-    assert config.api_url == "https://api.browserbase.com"
+    assert config.base_url == "https://api.browserbase.com"
 
 
 def test_create_logging_accepts_json_output_and_a_structured_callback() -> None:

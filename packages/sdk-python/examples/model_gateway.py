@@ -9,7 +9,7 @@ from stagehand import Stagehand, browserbase
 BROWSERBASE_API_KEY = os.environ["BROWSERBASE_API_KEY"]
 if not BROWSERBASE_API_KEY:
     raise RuntimeError
-BROWSERBASE_API_URL = "https://api.browserbase.com"
+BROWSERBASE_BASE_URL = "https://api.browserbase.com"
 STAGEHAND_API_URL = "https://api.stagehand.browserbase.com"
 
 
@@ -23,7 +23,7 @@ async def main() -> None:
     # each inference call. The Browserbase API key and session authenticate it.
     browser = await browserbase.launch(
         api_key=BROWSERBASE_API_KEY,
-        api_url=BROWSERBASE_API_URL,
+        base_url=BROWSERBASE_BASE_URL,
     )
     try:
         stagehand = await Stagehand.create(browser=browser, api_url=STAGEHAND_API_URL)

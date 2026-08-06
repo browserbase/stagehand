@@ -116,13 +116,13 @@ Supported regions: `us-west-2` (default), `us-east-1`, `eu-central-1`, `ap-south
 
 ### API endpoint overrides
 
-Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service, and neither URL is read from an environment variable. Pass `apiUrl` explicitly when testing another deployment. Use the service origin without `/v1`.
+Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service, and neither URL is read from an environment variable. Pass `baseUrl` to Browserbase and `apiUrl` to Stagehand when testing another deployment. Use the service origin without `/v1`.
 
 <View title="TypeScript" icon="js">
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  apiUrl: "https://api.dev.browserbase.com",
+  baseUrl: "https://api.dev.browserbase.com",
 });
 
 const stagehand = await Stagehand.create({
@@ -136,7 +136,7 @@ const stagehand = await Stagehand.create({
 ```python
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    api_url="https://api.dev.browserbase.com",
+    base_url="https://api.dev.browserbase.com",
 )
 
 stagehand = await Stagehand.create(
@@ -151,8 +151,8 @@ stagehand = await Stagehand.create(
 stagehandAPIURL := "https://api.stagehand.dev.browserbase.com"
 
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
-	APIKey: apiKey,
-	APIURL: "https://api.dev.browserbase.com",
+	APIKey:  apiKey,
+	BaseURL: "https://api.dev.browserbase.com",
 })
 if err != nil {
 	return err

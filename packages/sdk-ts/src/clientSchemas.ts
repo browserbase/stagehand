@@ -60,16 +60,16 @@ export const LocalBrowserConnectOptionsSchema = z
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
-export const DEFAULT_BROWSERBASE_API_URL = "https://api.browserbase.com";
+export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 
 type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
-  apiUrl?: string;
+  baseUrl?: string;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
-  apiUrl: string;
+  baseUrl: string;
 };
 
 /**
@@ -79,7 +79,7 @@ type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
 export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
-    apiUrl: z.url().default(DEFAULT_BROWSERBASE_API_URL),
+    baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     type: z.never().optional(),
   })
   .meta({ id: "BrowserbaseLaunchOptions" }) as z.ZodType<
@@ -90,7 +90,7 @@ export const BrowserbaseLaunchOptionsSchema = z
 export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
-    apiUrl: z.url().default(DEFAULT_BROWSERBASE_API_URL),
+    baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     sessionId: z.string().min(1),
     extensionId: z.string().min(1).optional(),
   })

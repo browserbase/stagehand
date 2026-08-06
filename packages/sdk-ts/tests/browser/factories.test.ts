@@ -103,7 +103,7 @@ describe("Stagehand browser factories", () => {
 
     const browser = await browserbase.launch({
       apiKey: "bb_key",
-      apiUrl: "https://api.dev.browserbase.com",
+      baseUrl: "https://api.dev.browserbase.com",
       projectId: "project_123",
       region: "us-west-2",
     });
@@ -146,7 +146,7 @@ describe("Stagehand browser factories", () => {
 
     const browser = await browserbase.connect({
       apiKey: "bb_key",
-      apiUrl: "https://api.dev.browserbase.com",
+      baseUrl: "https://api.dev.browserbase.com",
       sessionId: "session_123",
       extensionId: "extension-id",
     });
