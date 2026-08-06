@@ -751,25 +751,6 @@ type pricingTiers struct {
 	Tiers []pricingTier `json:"tiers"`
 }
 
-var pricingSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "tiers": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "price": {"type": "string"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["tiers"],
-  "additionalProperties": false
-}`)
 
 instruction := "find the pricing table"
 observed, err := client.Observe(ctx, &instruction, nil)
@@ -781,11 +762,10 @@ if len(observed.Data) == 0 {
 }
 
 selector := observed.Data[0].Selector
-pricing, err := stagehand.ExtractAs[pricingTiers](
+pricing, err := stagehand.Extract[pricingTiers](
 	ctx,
 	client,
 	"extract all pricing tiers",
-	pricingSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
 	},

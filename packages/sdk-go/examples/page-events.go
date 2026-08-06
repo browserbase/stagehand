@@ -17,16 +17,6 @@ type pageEventInfo struct {
 	Description string `json:"description"`
 }
 
-var pageEventInfoSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "heading": {"type": "string"},
-    "description": {"type": "string"}
-  },
-  "required": ["heading", "description"],
-  "additionalProperties": false
-}`)
-
 func main() {
 	if err := runPageEvents(context.Background()); err != nil {
 		log.Fatal(err)
@@ -94,22 +84,18 @@ func runPageEvents(ctx context.Context) (err error) {
 		return errors.New("timed out waiting for the console event")
 	}
 
-	result, err := client.Extract(
+	result, err := stagehand.Extract[pageEventInfo](
 		ctx,
+		client,
 		"Extract the page heading and description",
-		pageEventInfoSchema,
 		nil,
 	)
 	if err != nil {
 		return err
 	}
-	var info pageEventInfo
-	if err := json.Unmarshal(result.Data, &info); err != nil {
-		return fmt.Errorf("decode extracted page info: %w", err)
-	}
 	output, err := json.MarshalIndent(map[string]any{
 		"event_method": event.Method,
-		"extracted":    info,
+		"extracted":    result.Data,
 	}, "", "  ")
 	if err != nil {
 		return err

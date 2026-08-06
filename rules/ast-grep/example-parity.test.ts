@@ -212,16 +212,21 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
     }),
   );
 
-  return goCalls(root)
-    .flatMap(({ object, method }) => {
-      if (object === stagehand && method !== "Browser" && method !== "Close") {
-        return [`stagehand.${snakeCase(method)}`];
-      }
-      if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];
-      if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
-      return [];
-    })
-    .sort();
+  const operations = goCalls(root).flatMap(({ object, method }) => {
+    if (object === stagehand && method !== "Browser" && method !== "Close") {
+      return [`stagehand.${snakeCase(method)}`];
+    }
+    if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];
+    if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
+    return [];
+  });
+  operations.push(
+    ...root
+      .findAll({ rule: { kind: "call_expression" } })
+      .filter((call) => /^stagehand\.Extract\[/u.test(call.text()))
+      .map(() => "stagehand.extract"),
+  );
+  return operations.sort();
 }
 
 function goAssignedValues(root: SgNode): Array<{ name: string; value: SgNode }> {
