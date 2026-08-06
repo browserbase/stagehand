@@ -59,6 +59,29 @@ func TestExperimentalBatchDelegatesToCallbackTransport(t *testing.T) {
 	}
 }
 
+func TestExperimentalBatchAllowsNativeCodeTextInSource(t *testing.T) {
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{}}
+	client := &Stagehand{rpc: rpc, initialized: true}
+	const source = `async () => "[native code]"`
+	var result struct {
+		Title string `json:"title"`
+	}
+
+	err := client.ExperimentalBatch(
+		context.Background(),
+		source,
+		nil,
+		&result,
+		ExperimentalBatchOptions{},
+	)
+	if err != nil {
+		t.Fatalf("ExperimentalBatch() error = %v", err)
+	}
+	if rpc.source != source {
+		t.Fatalf("callback source = %q, want %q", rpc.source, source)
+	}
+}
+
 func TestExperimentalBatchRejectsNonPointerResultBeforeTransport(t *testing.T) {
 	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{}}
 	client := &Stagehand{rpc: rpc, initialized: true}

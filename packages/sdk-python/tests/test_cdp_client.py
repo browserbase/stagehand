@@ -27,6 +27,17 @@ def _ready_marker() -> dict[str, object]:
     }
 
 
+def test_callback_batch_source_allows_native_code_text() -> None:
+    expression = cdp_client._callback_batch_expression(
+        source='async () => "[native code]"',
+        input=None,
+        page_id=None,
+        timeout=2_000,
+    )
+
+    assert 'async () => "[native code]"' in expression
+
+
 class FakeWebSocket:
     def __init__(
         self,

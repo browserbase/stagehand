@@ -33,8 +33,6 @@ def _callback_batch_expression(
 ) -> str:
     if not isinstance(source, str) or not source.strip():
         raise TypeError("stagehand._experimental_batch() source must be JavaScript")
-    if "[native code]" in source:
-        raise TypeError("stagehand._experimental_batch() source must be serializable JavaScript")
     serialized_input = json.dumps(
         input,
         allow_nan=False,

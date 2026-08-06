@@ -166,9 +166,6 @@ func (s *Stagehand) ExperimentalBatch(
 	if strings.TrimSpace(source) == "" {
 		return errors.New("stagehand callback batch source must be JavaScript")
 	}
-	if strings.Contains(source, "[native code]") {
-		return errors.New("stagehand callback batch source must be serializable JavaScript")
-	}
 	resultValue := reflect.ValueOf(result)
 	if result == nil || resultValue.Kind() != reflect.Pointer || resultValue.IsNil() {
 		return errors.New("stagehand callback batch result must be a non-nil pointer")

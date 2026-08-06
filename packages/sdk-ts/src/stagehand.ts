@@ -54,6 +54,9 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   "safeParse" in value &&
   typeof value.safeParse === "function";
 
+const nativeFunctionSourcePattern =
+  /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
+
 export class Stagehand {
   isInitialized = false;
   rpcClient: RPCClient | undefined;
@@ -136,7 +139,7 @@ export class Stagehand {
       throw new RangeError("stagehand._experimental_batch() timeout must be greater than zero");
     }
     const callbackSource = Function.prototype.toString.call(callback);
-    if (callbackSource.includes("[native code]")) {
+    if (nativeFunctionSourcePattern.test(callbackSource)) {
       throw new TypeError(
         "stagehand._experimental_batch() callback must be serializable JavaScript",
       );

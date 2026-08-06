@@ -135,6 +135,29 @@ describe("Stagehand TS object wrapper", () => {
     expect(client.batchCalls).toHaveLength(0);
   });
 
+  it("allows native-code text inside a serializable experimental batch callback", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await stagehand._experimental_batch(async () => {
+      // Regression probe: this text does not make the callback a native function.
+      return "[native code]";
+    });
+
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.callbackSource).toContain('return "[native code]"');
+  });
+
+  it("rejects actual native functions as experimental batch callbacks", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await expect(stagehand._experimental_batch(Math.max as never)).rejects.toThrow(
+      "stagehand._experimental_batch() callback must be serializable JavaScript",
+    );
+    expect(client.batchCalls).toHaveLength(0);
+  });
+
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
