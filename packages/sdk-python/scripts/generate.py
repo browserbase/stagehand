@@ -119,7 +119,6 @@ def main() -> None:
         "JSONRPCErrorResponse",
     ):
         definitions.pop(envelope)
-    prune_unreachable_definitions(protocol)
 
     wire_protocol = deepcopy(protocol)
     use_wire_urls(wire_protocol)
@@ -163,45 +162,6 @@ def generate_protocol_version_module() -> str:
         '"""Generated from packages/protocol/package.json. Do not edit."""\n\n'
         f"STAGEHAND_PROTOCOL_VERSION = {int(major_text)}\n"
     )
-
-
-def prune_unreachable_definitions(protocol: dict[str, object]) -> None:
-    definitions = protocol.get("$defs")
-    if not isinstance(definitions, dict):
-        raise TypeError("expected protocol definitions to be a JSON object")
-    definitions = cast(dict[str, object], definitions)
-
-    roots = {key: value for key, value in protocol.items() if key != "$defs"}
-    pending = list(_local_definition_references(roots))
-    reachable: set[str] = set()
-    while pending:
-        name = pending.pop()
-        if name in reachable:
-            continue
-        definition = definitions.get(name)
-        if definition is None:
-            continue
-        reachable.add(name)
-        pending.extend(_local_definition_references(definition))
-
-    for name in definitions.keys() - reachable:
-        definitions.pop(name)
-
-
-def _local_definition_references(value: object) -> set[str]:
-    if isinstance(value, list):
-        return {reference for entry in value for reference in _local_definition_references(entry)}
-    if not isinstance(value, dict):
-        return set()
-    mapping = cast(dict[str, object], value)
-    references = set()
-    reference = mapping.get("$ref")
-    prefix = "#/$defs/"
-    if isinstance(reference, str) and reference.startswith(prefix):
-        references.add(reference.removeprefix(prefix))
-    for entry in mapping.values():
-        references.update(_local_definition_references(entry))
-    return references
 
 
 def use_wire_urls(value: object) -> None:

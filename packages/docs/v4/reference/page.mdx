@@ -318,8 +318,8 @@ const title = await page.evaluate(() => document.title);
 
 ## on()
 
-Subscribe to a Chrome DevTools Protocol event from this page and its page-owned
-sessions. The `"console"` alias subscribes to `"Runtime.consoleAPICalled"`.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```typescript
 const subscription = await page.on("console", (event) => {
@@ -330,11 +330,11 @@ await page.evaluate(() => console.log("ready"));
 await subscription.unsubscribe();
 ```
 
-<ParamField path="event" type="Event">
-  A generated CDP event name, or the `"console"` alias.
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
 </ParamField>
 
-<ParamField path="listener" type="PageEventListener<Event>">
+<ParamField path="listener" type="PageEventListener">
   A callback that receives the event method, raw parameters, session ID, target ID,
   and page ID. Async callbacks may overlap and are not awaited by later page calls.
 </ParamField>
@@ -987,8 +987,8 @@ title = await page.evaluate("document.title", result_type=str)
 
 ## on()
 
-Subscribe to a Chrome DevTools Protocol event from this page and its page-owned
-sessions. The `"console"` alias subscribes to `"Runtime.consoleAPICalled"`.
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
 
 ```python
 async def handle_console(event: PageCDPEvent) -> None:
@@ -1000,7 +1000,7 @@ await subscription.unsubscribe()
 ```
 
 <ParamField path="event" type="PageEventName">
-  A generated CDP event name, or the `"console"` alias.
+  The console event name. Currently, the only supported value is `"console"`.
 </ParamField>
 
 <ParamField path="listener" type="PageEventListener">

@@ -29,7 +29,6 @@ import type {
   CacheMetadataSchema,
   CacheStatusSchema,
   CacheTokenSavingsSchema,
-  CDPEventNameSchema,
   CachingSchema,
   CerebrasModelIdSchema,
   CerebrasModelNameSchema,
@@ -295,7 +294,6 @@ export type EmptyParams = z.infer<typeof EmptyParamsSchema>;
 export type ContextVoidResult = z.infer<typeof ContextVoidResultSchema>;
 export type ContextCloseResult = z.infer<typeof ContextCloseResultSchema>;
 export type PageRef = z.infer<typeof PageRefSchema>;
-export type CDPEventName = z.infer<typeof CDPEventNameSchema>;
 export type PageEventName = z.infer<typeof PageEventNameSchema>;
 export type PageCDPEventParams = z.infer<typeof PageCDPEventParamsSchema>;
 export type PageCDPEvent = z.infer<typeof PageCDPEventSchema>;

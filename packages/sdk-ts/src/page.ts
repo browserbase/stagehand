@@ -36,12 +36,8 @@ export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   path?: string;
 };
 
-export type PageCDPEventFor<Event extends PageEventName> = Omit<PageCDPEvent, "method"> & {
-  method: Event extends "console" ? "Runtime.consoleAPICalled" : Event;
-};
-
-export interface PageEventListener<Event extends PageEventName> {
-  (event: PageCDPEventFor<Event>): unknown;
+export interface PageEventListener {
+  (event: PageCDPEvent): unknown;
 }
 
 export class CDPSubscription {
@@ -206,10 +202,7 @@ export class Page {
     });
   }
 
-  async on<Event extends PageEventName>(
-    event: Event,
-    listener: PageEventListener<Event>,
-  ): Promise<CDPSubscription> {
+  async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
     const subscriptionId = crypto.randomUUID();
     const removeNotificationListener = this.rpcClient.onNotification((notification) => {
       if (
@@ -219,7 +212,7 @@ export class Page {
         return;
       }
       try {
-        const result = listener(notification.params.event as PageCDPEventFor<Event>);
+        const result = listener(notification.params.event);
         if (result && typeof result === "object" && "then" in result) {
           void Promise.resolve(result).catch(reportPageEventListenerError);
         }

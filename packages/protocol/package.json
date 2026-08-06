@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node json-rpc/build-json-rpc-schema.ts && oxfmt --write generated/cdp-events.ts stagehand.v4.json",
+    "build": "node json-rpc/build-json-rpc-schema.ts && oxfmt --write stagehand.v4.json",
     "test": "vitest run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests",
     "test:unit": "vitest run --root ../.. packages/protocol/tests packages/protocol/json-rpc/tests --exclude=packages/protocol/tests/browser-runtime/**",
     "test:browser": "vitest run --root ../.. packages/protocol/tests/browser-runtime",
@@ -19,7 +19,6 @@
     "@types/chrome": "catalog:",
     "@types/node": "catalog:",
     "chrome-launcher": "catalog:",
-    "devtools-protocol": "catalog:",
     "oxfmt": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",

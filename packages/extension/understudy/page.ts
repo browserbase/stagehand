@@ -18,7 +18,6 @@ import {
   PageCDPEventSchema,
 } from "../../protocol/schemas.js";
 import type {
-  CDPEventName,
   LoadState,
   LocalBrowserLaunchOptions,
   PageCDPEvent,
@@ -92,7 +91,6 @@ type WebMCPInvocationRecord = {
 };
 
 type CDPEventSubscription = {
-  method: CDPEventName;
   listener: (event: PageCDPEvent) => void;
   sessionHandlers: Map<string, { session: CDPSessionLike; handler: (params: unknown) => void }>;
 };
@@ -509,13 +507,9 @@ export class Page {
     return this.mainSession.send<T>(method, params);
   }
 
-  /** Subscribe to one raw CDP event on every session owned by this page. */
-  public subscribeCDPEvent(
-    method: CDPEventName,
-    listener: (event: PageCDPEvent) => void,
-  ): () => void {
+  /** Subscribe to console events on every session owned by this page. */
+  public subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
     const subscription: CDPEventSubscription = {
-      method,
       listener,
       sessionHandlers: new Map(),
     };
@@ -548,7 +542,7 @@ export class Page {
           : {};
       const event = PageCDPEventSchema.parse({
         pageId: this.pageId,
-        method: subscription.method,
+        method: "Runtime.consoleAPICalled",
         params: normalizedParams,
         sessionId,
         targetId: this.conn.targetIdForSession(session.id) ?? this._targetId,
@@ -559,20 +553,20 @@ export class Page {
         this.logger.error("Page CDP event listener failed", {
           category: "page",
           pageId: this.pageId,
-          method: subscription.method,
+          method: "Runtime.consoleAPICalled",
           sessionId,
           error: error instanceof Error ? error.message : String(error),
         });
       }
     };
     subscription.sessionHandlers.set(sessionId, { session, handler });
-    session.on(subscription.method, handler);
+    session.on("Runtime.consoleAPICalled", handler);
   }
 
   private detachCDPEventSubscription(subscription: CDPEventSubscription, sessionId: string): void {
     const registered = subscription.sessionHandlers.get(sessionId);
     if (!registered) return;
-    registered.session.off(subscription.method, registered.handler);
+    registered.session.off("Runtime.consoleAPICalled", registered.handler);
     subscription.sessionHandlers.delete(sessionId);
   }
 

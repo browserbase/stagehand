@@ -230,7 +230,7 @@ async def test_page_on_cleans_up_local_state_when_remote_registration_fails() ->
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
 
     with pytest.raises(RuntimeError, match="registration failed"):
-        await page.on("Runtime.consoleAPICalled", lambda _: None)
+        await page.on("console", lambda _: None)
 
     assert "page.cdp_event" not in recording.notifications
     await page.close()
@@ -243,7 +243,7 @@ async def test_page_on_delivers_events_in_order_across_page_owned_cdp_sessions()
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     sessions: list[str] = []
     subscription = await page.on(
-        "Runtime.consoleAPICalled",
+        "console",
         lambda event: sessions.append(event.session_id),
     )
     _, on_params, _ = recording.calls[0]
@@ -282,7 +282,7 @@ async def test_page_close_unsubscribes_event_listeners_before_closing() -> None:
         "page.close": {"closed": True},
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    await page.on("Runtime.consoleAPICalled", lambda _: None)
+    await page.on("console", lambda _: None)
 
     await page.close()
 
@@ -333,7 +333,7 @@ async def test_unsubscribe_continues_after_calling_task_is_cancelled() -> None:
 
     recording = BlockingPageOffRPCClient()
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+    subscription = await page.on("console", lambda _: None)
     unsubscribe = asyncio.create_task(subscription.unsubscribe())
     await recording.page_off_started.wait()
 
@@ -353,7 +353,7 @@ async def test_unsubscribe_retries_after_page_off_failure() -> None:
         "page.off": RuntimeError("temporary page.off failure"),
     })
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+    subscription = await page.on("console", lambda _: None)
 
     with pytest.raises(RuntimeError, match="temporary page.off failure"):
         await subscription.unsubscribe()
@@ -413,7 +413,7 @@ async def test_unsubscribe_reports_background_failure_after_caller_cancellation(
 
     recording = FailingPageOffRPCClient()
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
-    subscription = await page.on("Runtime.consoleAPICalled", lambda _: None)
+    subscription = await page.on("console", lambda _: None)
     loop = asyncio.get_running_loop()
     original_handler = loop.get_exception_handler()
     reported: list[dict[str, object]] = []

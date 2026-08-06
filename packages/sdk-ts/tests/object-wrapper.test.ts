@@ -460,9 +460,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageClose, { closed: true });
     const page = new Page(client, { pageId: "page-1" });
 
-    await expect(page.on("Runtime.consoleAPICalled", () => {})).rejects.toThrow(
-      "registration failed",
-    );
+    await expect(page.on("console", () => {})).rejects.toThrow("registration failed");
     expect(client.listeners).toHaveLength(0);
 
     await page.close();
@@ -475,7 +473,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageOff, new Error("temporary failure"));
     client.queueResponse(StagehandMethods.pageOff, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
-    const subscription = await page.on("Runtime.consoleAPICalled", () => {});
+    const subscription = await page.on("console", () => {});
 
     await expect(subscription.unsubscribe()).rejects.toThrow("temporary failure");
     await expect(subscription.unsubscribe()).resolves.toBeUndefined();
@@ -493,7 +491,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageOff, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
     const sessions: string[] = [];
-    const subscription = await page.on("Runtime.consoleAPICalled", (event) => {
+    const subscription = await page.on("console", (event) => {
       sessions.push(event.sessionId);
     });
     const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;
@@ -528,7 +526,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageOff, { ok: true });
     client.queueResponse(StagehandMethods.pageClose, { closed: true });
     const page = new Page(client, { pageId: "page-1" });
-    await page.on("Runtime.consoleAPICalled", () => {});
+    await page.on("console", () => {});
 
     await page.close();
 
@@ -546,7 +544,7 @@ describe("Stagehand TS object wrapper", () => {
     client.queueResponse(StagehandMethods.pageOff, { ok: true });
     const page = new Page(client, { pageId: "page-1" });
     const warning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
-    const subscription = await page.on("Runtime.consoleAPICalled", () => {
+    const subscription = await page.on("console", () => {
       throw new Error("listener failed");
     });
     const subscriptionId = (client.calls[0]!.params as { subscriptionId: string }).subscriptionId;

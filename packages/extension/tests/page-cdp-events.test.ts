@@ -51,7 +51,7 @@ describe("Page CDP event subscriptions", () => {
     const page = createPage(main);
     const events: unknown[] = [];
 
-    const unsubscribe = page.subscribeCDPEvent("Runtime.consoleAPICalled", (event) => {
+    const unsubscribe = page.subscribeCDPEvent((event) => {
       events.push(event);
     });
     main.emit("Runtime.consoleAPICalled", { type: "log", args: [] });
@@ -87,11 +87,11 @@ describe("Page CDP event subscriptions", () => {
     const page = createPage(main);
 
     page.adoptOopifSession(child, "frame-child");
-    page.subscribeCDPEvent("Network.responseReceived", () => {});
+    page.subscribeCDPEvent(() => {});
     page.dispose();
 
-    expect(main.listenerCount("Network.responseReceived")).toBe(0);
-    expect(child.listenerCount("Network.responseReceived")).toBe(0);
+    expect(main.listenerCount("Runtime.consoleAPICalled")).toBe(0);
+    expect(child.listenerCount("Runtime.consoleAPICalled")).toBe(0);
   });
 
   it("isolates listener failures so other subscriptions still receive the event", () => {
@@ -100,10 +100,10 @@ describe("Page CDP event subscriptions", () => {
     const page = createPage(main, { error: logError } as unknown as StagehandLogger);
     const events: PageCDPEvent[] = [];
 
-    page.subscribeCDPEvent("Runtime.consoleAPICalled", () => {
+    page.subscribeCDPEvent(() => {
       throw new Error("listener failed");
     });
-    page.subscribeCDPEvent("Runtime.consoleAPICalled", (event) => events.push(event));
+    page.subscribeCDPEvent((event) => events.push(event));
 
     expect(() => main.emit("Runtime.consoleAPICalled", { type: "log", args: [] })).not.toThrow();
     expect(events).toHaveLength(1);

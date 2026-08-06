@@ -289,7 +289,7 @@ func TestGoLoggingReportsPageEventListenerPanic(t *testing.T) {
 		SubscriptionID: onParams.SubscriptionID,
 		Event: PageCDPEvent{
 			PageID: "page-1",
-			Method: CDPEventNameRuntimeConsoleAPICalled,
+			Method: "Runtime.consoleAPICalled",
 		},
 	})
 

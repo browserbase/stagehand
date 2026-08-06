@@ -456,10 +456,8 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     return locator;
   }
 
-  subscribeCDPEvent(
-    method: PageCDPEvent["method"],
-    listener: (event: PageCDPEvent) => void,
-  ): () => void {
+  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+    const method = "Runtime.consoleAPICalled";
     const listeners = this.cdpEventListeners.get(method) ?? new Set();
     listeners.add(listener);
     this.cdpEventListeners.set(method, listeners);

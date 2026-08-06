@@ -13,8 +13,8 @@
   "globalEnv": ["CI"],
   "tasks": {
     "@browserbasehq/stagehand-protocol#build": {
-      "inputs": ["$TURBO_DEFAULT$", "!generated/cdp-events.ts", "!stagehand.v4.json"],
-      "outputs": ["generated/cdp-events.ts", "stagehand.v4.json"]
+      "inputs": ["$TURBO_DEFAULT$", "!stagehand.v4.json"],
+      "outputs": ["stagehand.v4.json"]
     },
     "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],

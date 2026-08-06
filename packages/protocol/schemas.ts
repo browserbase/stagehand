@@ -1,8 +1,5 @@
 import { z } from "zod/v4";
 import protocolPackageJson from "./package.json" with { type: "json" };
-import { CDP_EVENT_NAMES, CDPEventNameSchema } from "./generated/cdp-events.ts";
-
-export { CDP_EVENT_NAMES, CDPEventNameSchema };
 
 // Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
 // Stagehand owns these allowlists: changes are reviewed and maintained here
@@ -1408,9 +1405,7 @@ export const ResponseFinishedResultSchema = z
   })
   .meta({ id: "ResponseFinishedResult" });
 
-export const PageEventNameSchema = z
-  .enum([...CDP_EVENT_NAMES, "console"])
-  .meta({ id: "PageEventName" });
+export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
 
 export const PageCDPEventParamsSchema = z
   .record(z.string(), z.json())
@@ -1419,7 +1414,7 @@ export const PageCDPEventParamsSchema = z
 export const PageCDPEventSchema = z
   .strictObject({
     pageId: z.string().min(1),
-    method: CDPEventNameSchema,
+    method: z.literal("Runtime.consoleAPICalled"),
     params: PageCDPEventParamsSchema,
     sessionId: z.string().min(1),
     targetId: z.string().min(1),

@@ -39,7 +39,7 @@ async def main() -> None:
             def handle_console(event: PageCDPEvent) -> None:
                 nonlocal event_method
                 if event.params.root.get("type") == "log":
-                    event_method = event.method.value
+                    event_method = event.method
                     console_event.set()
 
             subscription = await page.on("console", handle_console)

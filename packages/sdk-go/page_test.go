@@ -120,7 +120,7 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 		SubscriptionID: onParams.SubscriptionID,
 		Event: PageCDPEvent{
 			PageID:    "page-1",
-			Method:    CDPEventNameRuntimeConsoleAPICalled,
+			Method:    "Runtime.consoleAPICalled",
 			Params:    PageCDPEventParams{"type": json.RawMessage(`"log"`)},
 			SessionID: "session-1",
 			TargetID:  "target-1",
@@ -128,7 +128,7 @@ func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
 	})
 	select {
 	case event := <-events:
-		if event.Method != CDPEventNameRuntimeConsoleAPICalled || event.SessionID != "session-1" {
+		if event.Method != "Runtime.consoleAPICalled" || event.SessionID != "session-1" {
 			t.Fatalf("page event = %#v", event)
 		}
 	case <-time.After(time.Second):
@@ -169,7 +169,7 @@ func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
 			SubscriptionID: onParams.SubscriptionID,
 			Event: PageCDPEvent{
 				PageID: "page-1",
-				Method: CDPEventNameRuntimeConsoleAPICalled,
+				Method: "Runtime.consoleAPICalled",
 				Params: PageCDPEventParams{
 					"sequence": json.RawMessage(sequence),
 				},
