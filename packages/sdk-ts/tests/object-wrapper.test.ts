@@ -586,25 +586,11 @@ describe("Stagehand TS object wrapper", () => {
     });
     client.queueResponse(StagehandMethods.pageGoBack, {
       page: { pageId: "page-1", url: "https://example.com/back" },
-      response: {
-        responseId: "response-back",
-        url: "https://example.com/back",
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        fromServiceWorker: false,
-      },
+      response: null,
     });
     client.queueResponse(StagehandMethods.pageGoForward, {
       page: { pageId: "page-1", url: "https://example.com/forward" },
-      response: {
-        responseId: "response-forward",
-        url: "https://example.com/forward",
-        status: 200,
-        statusText: "OK",
-        headers: {},
-        fromServiceWorker: false,
-      },
+      response: null,
     });
     const page = new Page(client, { pageId: "page-1", url: "https://example.com/current" });
 
@@ -613,14 +599,10 @@ describe("Stagehand TS object wrapper", () => {
     ).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/reloaded");
 
-    const backResponse = await page.goBack({ waitUntil: "domcontentloaded" });
-    expect(backResponse).toBeInstanceOf(Response);
-    expect(backResponse?.url()).toBe("https://example.com/back");
+    await expect(page.goBack({ waitUntil: "domcontentloaded" })).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/back");
 
-    const forwardResponse = await page.goForward();
-    expect(forwardResponse).toBeInstanceOf(Response);
-    expect(forwardResponse?.url()).toBe("https://example.com/forward");
+    await expect(page.goForward()).resolves.toBeNull();
     expect(page.ref.url).toBe("https://example.com/forward");
 
     expect(client.calls).toStrictEqual([
