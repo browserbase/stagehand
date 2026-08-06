@@ -63,7 +63,7 @@ async def test_callback_batch_uses_the_normal_pending_request_path() -> None:
                 models.CallbackBatchResult,
             )
         )
-        request = await transport.outgoing.get()
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
         assert request["method"] == "stagehand.callback_batch"
         await transport.incoming.put({
             "jsonrpc": "2.0",

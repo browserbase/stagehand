@@ -379,6 +379,14 @@ describe("RPCClient", () => {
       },
     },
     {
+      name: "a callback batch timeout",
+      method: StagehandMethods.stagehandCallbackBatch,
+      params: {
+        callbackSource: "async () => undefined",
+        options: { timeout: 30_000 },
+      },
+    },
+    {
       name: "page.waitForTimeout",
       method: StagehandMethods.pageWaitForTimeout,
       params: { pageId: "page-1", ms: 30_000 },
