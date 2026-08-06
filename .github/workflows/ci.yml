@@ -37,6 +37,7 @@ jobs:
               - '.github/**'
             sdk-ts:
               - 'packages/sdk-ts/**'
+              - 'packages/integrations/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
@@ -167,6 +168,7 @@ jobs:
             packages/extension/dist/**
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
+            packages/integrations/dist/**
             packages/evals/dist/**
           retention-days: 1
 
