@@ -318,11 +318,9 @@ const count = await page.locator("li.result").count();
 ### Multi-Page Workflows
 
 ```typescript
-const page1 = await browser.context.newPage();
-await page1.goto("https://example.com");
+const page1 = await browser.context.newPage("https://example.com");
 
-const page2 = await browser.context.newPage();
-await page2.goto("https://example2.com");
+const page2 = await browser.context.newPage("https://example2.com");
 
 // Act/extract/observe operate on the current active page by default
 // Pass { page } option to target a specific page
@@ -632,11 +630,9 @@ count = await page.locator("li.result").count()
 ### Multi-Page Workflows
 
 ```python
-page1 = await browser.context.new_page()
-await page1.goto("https://example.com")
+page1 = await browser.context.new_page("https://example.com")
 
-page2 = await browser.context.new_page()
-await page2.goto("https://example2.com")
+page2 = await browser.context.new_page("https://example2.com")
 
 # Act/extract/observe operate on the current active page by default
 # Pass page= to target a specific page
@@ -714,7 +710,7 @@ Import the package as `stagehand "github.com/browserbase/stagehand/packages/sdk-
 
 - `*stagehand.Stagehand`: Main client, constructed with `stagehand.Create`, providing `Act`, `Extract`, and `Observe`
 - `*stagehand.BrowserContext`: Returned by `browser.Context()`, manages pages, cookies, and the clipboard
-- `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, params)`
+- `*stagehand.Page`: Individual pages from `browserContext.ActivePage(ctx)`, `browserContext.Pages(ctx)`, or `browserContext.NewPage(ctx, url)`
 
 There is no agent API in v4. Compose `Observe`, `Act`, and `Extract` in your own control flow instead.
 
@@ -759,11 +755,8 @@ if len(pages) == 0 {
 page := pages[0]
 
 // Create new pages if needed
-page2, err := browserContext.NewPage(ctx, nil)
+_, err = browserContext.NewPage(ctx, "https://example.com")
 if err != nil {
-	return err
-}
-if _, err := page2.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
@@ -868,9 +861,9 @@ if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0]
 
 ## Extract
 
-Extract data from pages using natural language instructions. `Extract` takes an instruction and a JSON Schema, and returns the raw JSON payload. Use the generic `stagehand.ExtractAs` helper to decode straight into a Go type.
+Extract data from pages using natural language instructions. The generic `stagehand.Extract` function derives JSON Schema from the selected Go type and returns typed data plus metadata.
 
-### Basic Extraction (with schema)
+### Basic Extraction
 
 ```go
 type listing struct {
@@ -882,31 +875,10 @@ type listings struct {
 	Listings []listing `json:"listings"`
 }
 
-var listingsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "listings": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "price": {"type": "string"},
-          "address": {"type": "string"}
-        },
-        "required": ["price", "address"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["listings"],
-  "additionalProperties": false
-}`)
-
-data, err := stagehand.ExtractAs[listings](
+data, err := stagehand.Extract[listings](
 	ctx,
 	client,
 	"extract all apartment listings with prices and addresses",
-	listingsSchema,
 	nil,
 )
 if err != nil {
@@ -916,36 +888,22 @@ if err != nil {
 fmt.Println(data.Data.Listings)
 ```
 
-### Working With the Raw Result
+### Typed Data and Metadata
 
-`ExtractAs` decodes for you but discards the metadata. Call `client.Extract` directly when you want the raw `json.RawMessage` payload and the metadata alongside it:
+`Extract` decodes `Data` into the selected Go type and preserves the protocol metadata alongside it:
 
 ```go
 type buttonText struct {
 	ButtonText string `json:"buttonText"`
 }
 
-var buttonTextSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "buttonText": {"type": "string"}
-  },
-  "required": ["buttonText"],
-  "additionalProperties": false
-}`)
-
-result, err := client.Extract(ctx, "extract the sign in button text", buttonTextSchema, nil)
+result, err := stagehand.Extract[buttonText](ctx, client, "extract the sign in button text", nil)
 if err != nil {
 	return err
 }
 
-// result.Data is json.RawMessage, so decode it into your own type
-var decoded buttonText
-if err := json.Unmarshal(result.Data, &decoded); err != nil {
-	return err
-}
-
-fmt.Println(decoded.ButtonText)
+fmt.Println(result.Data.ButtonText)
+fmt.Println(result.Metadata.Cache.Status)
 ```
 
 ### Targeted Extraction
@@ -953,17 +911,12 @@ fmt.Println(decoded.ButtonText)
 Scope extraction to a specific element with `Selector`, and prune noise with `IgnoreSelectors`:
 
 ```go
-var articleSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "body": {"type": "string"}
-  },
-  "required": ["body"],
-  "additionalProperties": false
-}`)
+type article struct {
+	Body string `json:"body"`
+}
 
 selector := "#main-content"
-result, err := client.Extract(ctx, "extract the article body", articleSchema, &stagehand.StagehandClientExtractOptions{
+result, err := stagehand.Extract[article](ctx, client, "extract the article body", &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{
 		Selector:        &selector,
 		IgnoreSelectors: []string{"nav", ".cookie-banner"},
@@ -973,44 +926,39 @@ if err != nil {
 	return err
 }
 
-fmt.Println(string(result.Data))
+fmt.Println(result.Data.Body)
 ```
 
 ### URL Extraction
 
-When extracting links or URLs, declare the field as a URI-formatted string in your schema:
+When extracting links or URLs, add JSON Schema constraints with `jsonschema` tags:
 
 ```go
-var linksSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "links": {"type": "array", "items": {"type": "string", "format": "uri"}}
-  },
-  "required": ["links"],
-  "additionalProperties": false
-}`)
+type link struct {
+	Text string `json:"text"`
+	URL  string `json:"url" jsonschema:"format=uri"`
+}
+
+type links struct {
+	Links []link `json:"links"`
+}
 ```
 
 ### Extracting from a Specific Page
 
 ```go
-var placeholderSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "placeholder": {"type": "string"}
-  },
-  "required": ["placeholder"],
-  "additionalProperties": false
-}`)
+type placeholder struct {
+	Placeholder string `json:"placeholder"`
+}
 
-result, err := client.Extract(ctx, "extract the placeholder text on the name field", placeholderSchema, &stagehand.StagehandClientExtractOptions{
+result, err := stagehand.Extract[placeholder](ctx, client, "extract the placeholder text on the name field", &stagehand.StagehandClientExtractOptions{
 	Page: page2,
 })
 if err != nil {
 	return err
 }
 
-fmt.Println(string(result.Data))
+fmt.Println(result.Data.Placeholder)
 ```
 
 ### Inspecting Metadata
@@ -1018,16 +966,11 @@ fmt.Println(string(result.Data))
 `ActionID` is a pointer, so check for nil before dereferencing. `Cache` is always present:
 
 ```go
-var titleSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "title": {"type": "string"}
-  },
-  "required": ["title"],
-  "additionalProperties": false
-}`)
+type title struct {
+	Title string `json:"title"`
+}
 
-result, err := client.Extract(ctx, "extract the page title", titleSchema, nil)
+result, err := stagehand.Extract[title](ctx, client, "extract the page title", nil)
 if err != nil {
 	return err
 }
@@ -1094,25 +1037,22 @@ fmt.Println("results:", count)
 ### Multi-Page Workflows
 
 ```go
-page1, err := browserContext.NewPage(ctx, nil)
+page1, err := browserContext.NewPage(ctx, "https://example.com")
 if err != nil {
-	return err
-}
-if _, err := page1.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
 
-page2, err := browserContext.NewPage(ctx, nil)
+page2, err := browserContext.NewPage(ctx, "https://example2.com")
 if err != nil {
-	return err
-}
-if _, err := page2.Goto(ctx, "https://example2.com", nil); err != nil {
 	return err
 }
 
 // Act/Extract/Observe operate on the current active page by default
 // Pass Page in the options struct to target a specific page
 if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), &stagehand.StagehandClientActOptions{Page: page1}); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("click another button"), &stagehand.StagehandClientActOptions{Page: page2}); err != nil {
 	return err
 }
 ```
@@ -1166,8 +1106,8 @@ func run(ctx context.Context) (err error) {
 - Read configuration from environment variables and pass it explicitly
 - Thread `context.Context` through every call so cancellation works
 - Check every returned `error`; do not discard them
-- Keep JSON Schemas next to the Go structs they decode into
-- Prefer `stagehand.ExtractAs` over manual `json.Unmarshal` when you do not need metadata
+- Define extraction shapes once as Go types; `stagehand.Extract` derives JSON Schema from them
+- Use `jsonschema` struct tags for constraints such as formats, descriptions, and bounds
 
 ## Security Notes
 

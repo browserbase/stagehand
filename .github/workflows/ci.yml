@@ -234,7 +234,7 @@ jobs:
         if: needs.determine-changes.outputs.is_internal_head == 'true'
         run: >-
           pnpm exec vitest run --root .
-          packages/sdk-ts/tests/browser-runtime/stagehand-browserbase-smoke.test.ts
+          packages/sdk-ts/tests/browser-runtime/stagehandBrowserbaseSmoke.test.ts
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_SMOKE: "1"
