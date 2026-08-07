@@ -70,11 +70,7 @@ WebMCP, clipboard support, self-healing actions, batch commands, deep locators f
 
 ## Getting Started
 
-Start with Stagehand with one line of code, or check out our [Quickstart Guide](https://docs.stagehand.dev/v4/first-steps/quickstart) for more information:
-
-```bash
-npx create-browser-app
-```
+Check out our [Quickstart Guide](https://docs.stagehand.dev/v4/first-steps/quickstart) for more information:
 
 ## Example
 
@@ -165,6 +161,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Anirudh Kamath](https://github.com/kamath)
 - [Jeremy Press](https://x.com/jeremypress)
 - [Navid Pour](https://github.com/navidpour)
+- [Nick Sweeting](https://github.com/pirate)
 
 ## License
 
