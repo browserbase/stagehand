@@ -20,6 +20,16 @@ describe("closeCodeModeStdio", () => {
     await expect(closeCodeModeStdio([healthy, failing], 50)).resolves.toBe(false);
   });
 
+  it("contains synchronous cleanup failures", async () => {
+    const failing = {
+      close: vi.fn(() => {
+        throw new Error("secret detail");
+      }),
+    };
+
+    await expect(closeCodeModeStdio([failing], 50)).resolves.toBe(false);
+  });
+
   it("bounds cleanup when a resource never settles", async () => {
     vi.useFakeTimers();
     const stuck = { close: vi.fn(() => new Promise<void>(() => undefined)) };

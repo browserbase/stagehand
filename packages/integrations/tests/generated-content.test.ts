@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -61,6 +62,8 @@ describe("generated code-mode content", () => {
   });
 
   it("escapes special characters and rejects stale output", async () => {
+    const fixtureSkill = "slash\\ quote' carriage\rreturn\nline\ttab\u2028separator\u2029paragraph";
+    const fixtureReference = "reference";
     const fixtureRoot = await mkdtemp(path.join(tmpdir(), "stagehand-codemode-generator-"));
     temporaryRoots.push(fixtureRoot);
     await Promise.all([
@@ -72,23 +75,27 @@ describe("generated code-mode content", () => {
       new URL("scripts/generate-codemode-content.mjs", packageRoot),
       path.join(fixtureRoot, "scripts", "generate-codemode-content.mjs"),
     );
-    await writeFile(
-      path.join(fixtureRoot, "codemode", "SKILL.md"),
-      "slash\\ quote' carriage\rreturn\nline\ttab\u2028separator\u2029paragraph",
-    );
-    await writeFile(path.join(fixtureRoot, "codemode", "REFERENCE.md"), "reference");
+    await writeFile(path.join(fixtureRoot, "codemode", "SKILL.md"), fixtureSkill);
+    await writeFile(path.join(fixtureRoot, "codemode", "REFERENCE.md"), fixtureReference);
 
     await execFileAsync(process.execPath, ["scripts/generate-codemode-content.mjs"], {
       cwd: fixtureRoot,
     });
-    const generated = await readFile(
-      path.join(fixtureRoot, "src", "codemode", "generated-content.ts"),
-      "utf8",
-    );
+    const generatedPath = path.join(fixtureRoot, "src", "codemode", "generated-content.ts");
+    const generated = await readFile(generatedPath, "utf8");
     expect(generated).toContain("slash\\\\");
     expect(generated).toContain("quote\\'");
     expect(generated).toContain("carriage\\rreturn\\nline\\ttab");
     expect(generated).toContain("\\u2028separator\\u2029paragraph");
+
+    const generatedUrl = pathToFileURL(generatedPath);
+    generatedUrl.searchParams.set("test", String(Date.now()));
+    const roundTrip = (await import(generatedUrl.href)) as {
+      STAGEHAND_CODEMODE_REFERENCE: string;
+      STAGEHAND_CODEMODE_SKILL: string;
+    };
+    expect(roundTrip.STAGEHAND_CODEMODE_SKILL).toBe(fixtureSkill);
+    expect(roundTrip.STAGEHAND_CODEMODE_REFERENCE).toBe(fixtureReference);
 
     await execFileAsync(process.execPath, ["scripts/generate-codemode-content.mjs", "--check"], {
       cwd: fixtureRoot,

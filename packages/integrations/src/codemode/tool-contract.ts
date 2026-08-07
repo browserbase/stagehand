@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import { STAGEHAND_CODEMODE_SKILL } from "./generated-content.js";
+import { MAX_CODE_BYTES } from "./limits.js";
 import type { CodeExecuteResult } from "./types.js";
 
 export const CODE_EXECUTE_DESCRIPTION = [
@@ -16,8 +17,8 @@ export const codeExecuteSchema = z.object({
     .string()
     .refine((code) => code.trim().length > 0, "code must contain JavaScript source")
     .refine(
-      (code) => new TextEncoder().encode(code).byteLength <= 100_000,
-      "code must be at most 100000 UTF-8 bytes",
+      (code) => new TextEncoder().encode(code).byteLength <= MAX_CODE_BYTES,
+      `code must be at most ${MAX_CODE_BYTES} UTF-8 bytes`,
     )
     .describe(
       "Async JavaScript function body. page, context, stagehand, z, and console are in scope.",
