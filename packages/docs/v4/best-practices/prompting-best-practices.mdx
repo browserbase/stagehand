@@ -336,33 +336,17 @@ data = (await stagehand.extract(instruction="Get product details", schema=Data))
 ```go
 // Good - Descriptive names, correct types, and helpful descriptions
 type productData struct {
-	ProductTitle   string  `json:"product_title"`
-	PriceInDollars float64 `json:"price_in_dollars"`
-	IsInStock      bool    `json:"is_in_stock"`
+	ProductTitle   string  `json:"product_title" jsonschema:"description=the main product name displayed on the page"`
+	PriceInDollars float64 `json:"price_in_dollars" jsonschema:"description=current selling price as a number without a currency symbol"`
+	IsInStock      bool    `json:"is_in_stock" jsonschema:"description=whether the product is available for purchase"`
 }
 
-var productDataSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "product_title": {"type": "string", "description": "The main product name displayed on the page"},
-    "price_in_dollars": {"type": "number", "description": "Current selling price as a number, without currency symbol"},
-    "is_in_stock": {"type": "boolean", "description": "Whether the product is available for purchase"}
-  },
-  "required": ["product_title", "price_in_dollars", "is_in_stock"],
-  "additionalProperties": false
-}`)
-
 // Bad - Generic names, wrong types, no descriptions
-var badSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "name": {"type": "string"},
-    "price": {"type": "string"},
-    "stock": {"type": "string"}
-  },
-  "required": ["name", "price", "stock"],
-  "additionalProperties": false
-}`)
+type data struct {
+	Name  string `json:"name"`
+	Price string `json:"price"`
+	Stock string `json:"stock"`
+}
 ```
 </View>
 
@@ -429,34 +413,14 @@ contact = (await stagehand.extract(
 // Good - Tells Stagehand to extract URLs
 type link struct {
 	Text string `json:"text"`
-	URL  string `json:"url"`
+	URL  string `json:"url" jsonschema:"format=uri"`
 }
 
 type links struct {
 	Links []link `json:"links"`
 }
 
-var linksSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "links": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "text": {"type": "string"},
-          "url": {"type": "string", "format": "uri"}
-        },
-        "required": ["text", "url"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["links"],
-  "additionalProperties": false
-}`)
-
-extracted, err := stagehand.ExtractAs[links](ctx, client, "Extract navigation links", linksSchema, nil)
+extracted, err := stagehand.Extract[links](ctx, client, "Extract navigation links", nil)
 if err != nil {
 	return err
 }
@@ -696,31 +660,11 @@ type products struct {
 	Products []product `json:"products"`
 }
 
-var productsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "products": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "price": {"type": "string"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["products"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[products](
+extracted, err := stagehand.Extract[products](
 	ctx,
 	client,
 	"Extract the first three results with name and price",
-	productsSchema,
 	nil,
 )
 if err != nil {
@@ -795,18 +739,11 @@ type cart struct {
 	ItemCount int `json:"item_count"`
 }
 
-var cartSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"item_count": {"type": "integer"}},
-  "required": ["item_count"],
-  "additionalProperties": false
-}`)
 
-result, err := stagehand.ExtractAs[cart](
+result, err := stagehand.Extract[cart](
 	ctx,
 	client,
 	"Extract the number of items shown in the cart badge",
-	cartSchema,
 	nil,
 )
 if err != nil {

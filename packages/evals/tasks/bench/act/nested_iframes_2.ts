@@ -43,8 +43,6 @@ export default defineBenchTask(
         sessionUrl,
         error,
       };
-    } finally {
-      await stagehand.close();
     }
   },
 );

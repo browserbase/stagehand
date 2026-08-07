@@ -245,7 +245,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("uses page-level interactions and waits", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
 
     await page.waitForLoadState("load");
     await expect(
@@ -264,6 +264,42 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await page.keyPress("!");
     await expect(page.locator("#locator-input").inputValue()).resolves.toBe("smoke!");
     await page.waitForTimeout(1);
+  });
+
+  it("preserves custom drag routes through the page wrapper", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const page = await activeStagehand.browser.context.newPage();
+
+    try {
+      await page.evaluate(`(() => {
+        globalThis.__stagehandDragMoves = [];
+        document.addEventListener("mousemove", (event) => {
+          if (event.buttons === 1) {
+            globalThis.__stagehandDragMoves.push({ x: event.clientX, y: event.clientY });
+          }
+        });
+      })()`);
+
+      await expect(
+        page.dragAndDrop(10, 10, 90, 90, {
+          steps: 99,
+          route: [
+            { x: 10, y: 10 },
+            { x: 25, y: 60 },
+            { x: 70, y: 20 },
+            { x: 90, y: 90 },
+          ],
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(page.evaluate("globalThis.__stagehandDragMoves")).resolves.toStrictEqual([
+        { x: 25, y: 60 },
+        { x: 70, y: 20 },
+        { x: 90, y: 90 },
+      ]);
+    } finally {
+      await page.close();
+    }
   });
 
   it("applies page configuration and captures browser state", async () => {
@@ -382,9 +418,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
 
     try {
       for (const marker of ["one", "two", "three", "four"]) {
-        const page = await activeStagehand.browser.context.newPage({
-          url: activeFixtureServer.url,
-        });
+        const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
         createdPages.push(page);
         await page.evaluate((value: string) => {
           (
@@ -448,9 +482,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     const createdPages: Page[] = [];
 
     try {
-      const opener = await activeStagehand.browser.context.newPage({
-        url: activeFixtureServer.url,
-      });
+      const opener = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
       createdPages.push(opener);
       await activeStagehand.browser.context.setActivePage(opener);
       await waitForActivePageId(activeStagehand.browser.context, opener.pageId);
@@ -555,7 +587,7 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
   it("reads, writes, and clears clipboard text against an explicit page", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);
-    const page = await activeStagehand.browser.context.newPage({ url: activeFixtureServer.url });
+    const page = await activeStagehand.browser.context.newPage(activeFixtureServer.url);
 
     await activeStagehand.browser.context.clipboard.writeText("stagehand clipboard smoke", {
       page,

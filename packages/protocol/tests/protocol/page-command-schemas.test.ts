@@ -89,7 +89,15 @@ describe("page command schemas", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { steps: 5, delay: 10 },
+        options: {
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
       }),
     ).toStrictEqual({
       pageId,
@@ -97,7 +105,15 @@ describe("page command schemas", () => {
       fromY: 2,
       toX: 3,
       toY: 4,
-      options: { steps: 5, delay: 10 },
+      options: {
+        steps: 5,
+        delay: 10,
+        route: [
+          { x: 1, y: 2 },
+          { x: 2, y: 5 },
+          { x: 3, y: 4 },
+        ],
+      },
     });
     expect(() =>
       PageClickParamsSchema.parse({ pageId, x: 1, y: 2, options: { clickCount: 0 } }),
@@ -124,6 +140,16 @@ describe("page command schemas", () => {
         toX: 3,
         toY: 4,
         options: { returnXpath: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      PageDragAndDropParamsSchema.parse({
+        pageId,
+        fromX: 1,
+        fromY: 2,
+        toX: 3,
+        toY: 4,
+        options: { route: [{ x: 2, y: 3, duration: 10 }] },
       }),
     ).toThrow();
   });

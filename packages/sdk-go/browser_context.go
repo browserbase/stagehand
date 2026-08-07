@@ -2,6 +2,7 @@ package stagehand
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -34,11 +35,14 @@ func (c *BrowserContext) Pages(ctx context.Context) ([]*Page, error) {
 	return pages, nil
 }
 
-// NewPage creates a page using the generated protocol parameters.
-func (c *BrowserContext) NewPage(ctx context.Context, options *ContextNewPageParams) (*Page, error) {
+// NewPage creates a page, optionally navigating it to the provided URL.
+func (c *BrowserContext) NewPage(ctx context.Context, url ...string) (*Page, error) {
+	if len(url) > 1 {
+		return nil, errors.New("new page accepts at most one URL")
+	}
 	params := ContextNewPageParams{}
-	if options != nil {
-		params = *options
+	if len(url) == 1 {
+		params.URL = &url[0]
 	}
 	var result PageRef
 	if err := c.rpc.call(ctx, "context.new_page", params, &result); err != nil {
