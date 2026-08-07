@@ -2,14 +2,16 @@ package stagehand
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
 // BrowserContext exposes browser-wide protocol operations.
 type BrowserContext struct {
-	rpc           protocolClient
-	clipboardOnce sync.Once
-	clipboard     *BrowserClipboard
+	rpc                          protocolClient
+	reportPageEventListenerPanic func(any)
+	clipboardOnce                sync.Once
+	clipboard                    *BrowserClipboard
 }
 
 // Clipboard returns the context clipboard helper.
@@ -28,22 +30,25 @@ func (c *BrowserContext) Pages(ctx context.Context) ([]*Page, error) {
 	}
 	pages := make([]*Page, len(result))
 	for index := range result {
-		pages[index] = &Page{rpc: c.rpc, ref: result[index]}
+		pages[index] = c.page(result[index])
 	}
 	return pages, nil
 }
 
-// NewPage creates a page using the generated protocol parameters.
-func (c *BrowserContext) NewPage(ctx context.Context, options *ContextNewPageParams) (*Page, error) {
+// NewPage creates a page, optionally navigating it to the provided URL.
+func (c *BrowserContext) NewPage(ctx context.Context, url ...string) (*Page, error) {
+	if len(url) > 1 {
+		return nil, errors.New("new page accepts at most one URL")
+	}
 	params := ContextNewPageParams{}
-	if options != nil {
-		params = *options
+	if len(url) == 1 {
+		params.URL = &url[0]
 	}
 	var result PageRef
 	if err := c.rpc.call(ctx, "context.new_page", params, &result); err != nil {
 		return nil, err
 	}
-	return &Page{rpc: c.rpc, ref: result}, nil
+	return c.page(result), nil
 }
 
 // ActivePage returns the active page, or nil when no page is active.
@@ -55,7 +60,15 @@ func (c *BrowserContext) ActivePage(ctx context.Context) (*Page, error) {
 	if result == nil {
 		return nil, nil
 	}
-	return &Page{rpc: c.rpc, ref: *result}, nil
+	return c.page(*result), nil
+}
+
+func (c *BrowserContext) page(ref PageRef) *Page {
+	return &Page{
+		rpc:                      c.rpc,
+		ref:                      ref,
+		reportEventListenerPanic: c.reportPageEventListenerPanic,
+	}
 }
 
 // SetActivePage makes page the context's active page.

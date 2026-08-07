@@ -19,7 +19,7 @@ await stagehand.act("click on add to cart")
 
 <View title="Go" icon="golang">
 ```go
-if _, err := client.Act(ctx, "click on add to cart", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click on add to cart"), nil); err != nil {
 	return err
 }
 ```
@@ -67,10 +67,10 @@ await stagehand.act("click the add to cart button")
 
 <View title="Go" icon="golang">
 ```go
-if err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
+if _, err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the add to cart button"), nil); err != nil {
 	return err
 }
 ```
@@ -226,13 +226,13 @@ await stagehand.act("click the apply button")
 <View title="Go" icon="golang">
 ```go
 // Break it into single-step actions
-if _, err := client.Act(ctx, "open the filters panel", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "choose 4-star rating", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("choose 4-star rating"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the apply button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the apply button"), nil); err != nil {
 	return err
 }
 ```
@@ -259,7 +259,7 @@ await stagehand.act("open the filters panel, choose 4-star rating, and click app
 <View title="Go" icon="golang">
 ```go
 // Too complex - trying to do multiple things at once
-if _, err := client.Act(ctx, "open the filters panel, choose 4-star rating, and click apply", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel, choose 4-star rating, and click apply"), nil); err != nil {
 	return err
 }
 ```
@@ -286,12 +286,17 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
 
 <View title="Python" icon="python">
 ```python
+# Custom model configuration
+import os
+
+from stagehand import ModelConfig
+
 await stagehand.act(
     "choose 'Peach' from the favorite color dropdown",
-    model={
-        "model_name": "google/gemini-2.5-flash",
-        "api_key": os.environ["GOOGLE_API_KEY"],
-    },
+    model=ModelConfig(
+        model_name="google/gemini-2.5-flash",
+        api_key=os.environ["GOOGLE_API_KEY"],
+    ),
     timeout=10000,
 )
 ```
@@ -301,13 +306,13 @@ await stagehand.act(
 ```go
 // Custom model configuration
 modelAPIKey := os.Getenv("GOOGLE_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "google/gemini-2.5-flash",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 10000.0
 
-if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the favorite color dropdown"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Model:   &model,
 		Timeout: &timeout,
@@ -321,17 +326,21 @@ if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", 
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
 When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -349,12 +358,16 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 
 <View title="Python" icon="python">
 ```python
-from stagehand import CacheOptions, Stagehand
+import os
+
+from stagehand import CacheOptions, Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -375,15 +388,18 @@ print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
 
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
-if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &off},
 }); err != nil {
 	return err
@@ -391,14 +407,14 @@ if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClien
 
 // Or lower the hit-count threshold for a single call
 eager := stagehand.CacheWithThreshold(1)
-if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &eager},
 }); err != nil {
 	return err
 }
 
 // Check whether a result was served from cache
-result, err := client.Act(ctx, "click the login button", nil)
+result, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
 if err != nil {
 	return err
 }
@@ -406,7 +422,7 @@ fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
 </View>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v4/best-practices/caching">
   Learn how the cache key is built, what the threshold does, and when results are invalidated.
 </Card>
 
@@ -416,15 +432,13 @@ Stagehand v4 drives the browser directly over the Chrome DevTools Protocol, so t
 
 <View title="TypeScript" icon="js">
 ```typescript
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
 });
-await stagehand.init();
+const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const blogPage = await stagehand.context.newPage();
-await blogPage.goto("https://www.example.com/blog");
+const blogPage = await browser.context.newPage("https://www.example.com/blog");
 
 // Use act with that specific page
 await stagehand.act("click the next page button", {
@@ -435,15 +449,13 @@ await stagehand.act("click the next page button", {
 
 <View title="Python" icon="python">
 ```python
-stagehand = Stagehand(
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
 )
-await stagehand.init()
+stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-blog_page = await stagehand.context.new_page()
-await blog_page.goto("https://www.example.com/blog")
+blog_page = await browser.context.new_page("https://www.example.com/blog")
 
 # Use act with that specific page
 await stagehand.act("click the next page button", page=blog_page)
@@ -453,30 +465,28 @@ await stagehand.act("click the next page button", page=blog_page)
 <View title="Go" icon="golang">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-})
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
 
 // Open a second page in the same browser context
-blogPage, err := browserContext.NewPage(ctx, stagehand.ContextNewPageParams{})
+blogPage, err := browserContext.NewPage(ctx, "https://www.example.com/blog")
 if err != nil {
-	return err
-}
-if err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
 	return err
 }
 
 // Use Act with that specific page
-_, err = client.Act(ctx, "click the next page button", &stagehand.StagehandClientActOptions{
+_, err = client.Act(ctx, stagehand.ActInstruction("click the next page button"), &stagehand.StagehandClientActOptions{
 	Page: blogPage,
 })
 ```
@@ -486,9 +496,9 @@ This works with:
 - **Active page:** omit `page` and Stagehand uses `context.activePage()` (default)
 - **Existing pages:** receive the list from `context.pages()` first (await it in TypeScript and Python), then index into it
 - **New pages:** create one with `context.newPage()`
-- **Existing browsers:** attach to a browser you already run with the `cdp` browser source
+- **Existing browsers:** attach to a browser you already run with `localBrowser.connect()`
 
-<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   See the full `Stagehand` reference for detailed parameter documentation, return values, and advanced examples.
 </Card>
 
@@ -533,7 +543,7 @@ if err != nil {
 
 if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0].Method == "click" {
 	// No inference: Stagehand replays the observed action
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 		return err
 	}
 }
@@ -554,15 +564,15 @@ Enable server-side caching with `cache` when running on Browserbase. The first t
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+});
+const stagehand = await Stagehand.create({
+  browser,
   cache: { threshold: 1 }, // Actions are cached after one identical result
 });
-
-await stagehand.init();
 
 // First run makes an LLM call and records the action
 await stagehand.act("click the login button");
@@ -574,15 +584,17 @@ await stagehand.act("click the login button");
 
 <View title="Python" icon="python">
 ```python
-from stagehand import CacheOptions, Stagehand
+import os
 
-stagehand = Stagehand(
+from stagehand import CacheOptions, Stagehand, browserbase
+
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+)
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=CacheOptions(threshold=1),  # Actions are cached after one identical result
 )
-
-await stagehand.init()
 
 # First run makes an LLM call and records the action
 await stagehand.act("click the login button")
@@ -597,23 +609,22 @@ await stagehand.act("click the login button")
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 cache := stagehand.CacheWithThreshold(1) // Actions are cached after one identical result
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
-	Cache:   &cache,
-})
-
-if err := client.Init(ctx); err != nil {
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Cache: &cache})
+if err != nil {
 	return err
 }
 
 // First run makes an LLM call and records the action
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 
 // Second run is served from the cache
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 ```
@@ -623,7 +634,7 @@ if _, err := client.Act(ctx, "click the login button", nil); err != nil {
 The cache lives on Browserbase, keyed on the instruction, page content, and call options, so it persists across script executions and across machines. The model configuration is deliberately excluded from the key, so switching models does not invalidate your cache.
 </Note>
 
-<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v3/best-practices/caching">
+<Card title="Complete caching guide" icon="database" iconType="sharp-solid" href="/v4/best-practices/caching">
   Learn advanced caching techniques and patterns for optimal performance.
 </Card>
 
@@ -670,7 +681,7 @@ await stagehand.act("click the login button")
 <View title="Go" icon="golang">
 ```go
 // Variables use %variableName% syntax in the instruction
-if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the email field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
@@ -681,7 +692,7 @@ if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.
 }
 
 userPassword := os.Getenv("USER_PASSWORD")
-if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
@@ -691,7 +702,7 @@ if _, err := client.Act(ctx, "type %password% into the password field", &stageha
 	return err
 }
 
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 ```
@@ -701,7 +712,7 @@ if _, err := client.Act(ctx, "click the login button", nil); err != nil {
 When handling sensitive data, turn logging off in your Stagehand configuration to prevent secrets from appearing in logs. See the [logging guide](/v4/configuration/logging) for more details.
 </Warning>
 
-<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v3/best-practices/user-data">
+<Card title="User data best practices" icon="shield-check" iconType="sharp-solid" href="/v4/best-practices/user-data">
   Complete guide to persisting and securing browser state across sessions.
 </Card>
 
@@ -775,7 +786,7 @@ except Exception as error:
 prompt := "click the submit button"
 expectedMethod := "click"
 
-if _, err := client.Act(ctx, prompt, nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction(prompt), nil); err != nil {
 	if !strings.Contains(err.Error(), "method not supported") {
 		return err
 	}
@@ -793,7 +804,7 @@ if _, err := client.Act(ctx, prompt, nil); err != nil {
 	if action.Method == nil || *action.Method != expectedMethod {
 		return fmt.Errorf("unsupported method: expected %q, got %v", expectedMethod, action.Method)
 	}
-	if _, err := client.Act(ctx, action, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(action), nil); err != nil {
 		return err
 	}
 }
@@ -859,7 +870,7 @@ const maxRetries = 3
 
 for attempt := 0; attempt <= maxRetries; attempt++ {
 	timeout := float64(10000 + attempt*5000)
-	_, err := client.Act(ctx, prompt, &stagehand.StagehandClientActOptions{
+	_, err := client.Act(ctx, stagehand.ActInstruction(prompt), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{Timeout: &timeout},
 	})
 	if err == nil {
@@ -940,7 +951,7 @@ except Exception:
 ```go
 // Handle timeout and element not found issues
 timeout := 30000.0
-if _, err := client.Act(ctx, "click the submit button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Timeout: &timeout},
 }); err != nil {
 	// Check if page is fully loaded
@@ -957,10 +968,10 @@ if _, err := client.Act(ctx, "click the submit button", &stagehand.StagehandClie
 
 	if len(observed.Data) > 0 {
 		fmt.Println("Element found, trying more specific instruction")
-		_, err = client.Act(ctx, "click the submit button at the bottom of the form", nil)
+		_, err = client.Act(ctx, stagehand.ActInstruction("click the submit button at the bottom of the form"), nil)
 	} else {
 		fmt.Println("Element not found, trying alternative selector")
-		_, err = client.Act(ctx, "click the button with text 'Submit'", nil)
+		_, err = client.Act(ctx, stagehand.ActInstruction("click the button with text 'Submit'"), nil)
 	}
 	if err != nil {
 		return err
@@ -1019,10 +1030,10 @@ if observed.data and "checkout" in observed.data[0].description:
 ```go
 // More precise element targeting
 // Instead of:
-_, err := client.Act(ctx, "click the button", nil)
+_, err := client.Act(ctx, stagehand.ActInstruction("click the button"), nil)
 
 // Use specific context:
-_, err = client.Act(ctx, "click the red 'Delete' button next to the user John Smith", nil)
+_, err = client.Act(ctx, stagehand.ActInstruction("click the red 'Delete' button next to the user John Smith"), nil)
 
 // Or preview with Observe first:
 instruction := "click the submit button in the checkout form"
@@ -1031,7 +1042,7 @@ if err != nil {
 	return err
 }
 if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "checkout") {
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 		return err
 	}
 }
@@ -1051,7 +1062,7 @@ if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "che
     Use `observe()` to plan actions before executing them.
   </Card>
 
-   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v3/best-practices/caching">
+   <Card title="Caching actions" icon="bolt" iconType="sharp-solid" href="/v4/best-practices/caching">
     Speed up repeated automations by caching actions.
   </Card>
 
@@ -1059,7 +1070,7 @@ if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "che
     Use `extract` with a data schema to pull clean, typed data from any page.
   </Card>
 
-  <Card title="Work across multiple tabs" icon="clone" iconType="sharp-solid" href="/v3/best-practices/using-multiple-tabs">
+  <Card title="Work across multiple tabs" icon="clone" iconType="sharp-solid" href="/v4/best-practices/using-multiple-tabs">
     Target a specific page with the `page` option.
   </Card>
 </CardGroup>

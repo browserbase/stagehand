@@ -1,8 +1,16 @@
-import path from "node:path";
 import { createRequire } from "node:module";
-import { getRepoRootDir } from "../../runtimePaths.js";
+import path from "node:path";
+import type { ReadStream } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 type BrowserbaseConstructor = new (options: { apiKey: string }) => {
+  extensions: {
+    create: (payload: { file: ReadStream }) => Promise<{ id: string }>;
+    delete: (
+      extensionId: string,
+      options?: { headers?: Record<string, string | null> },
+    ) => Promise<unknown>;
+  };
   sessions: {
     create: (payload: Record<string, unknown>) => Promise<unknown>;
     update: (sessionId: string, payload: Record<string, unknown>) => Promise<unknown>;
@@ -24,26 +32,24 @@ type WsModule = {
   OPEN?: number;
 };
 
-let coreRequire: ReturnType<typeof createRequire> | null = null;
+// Resolve from this package's own dependency tree. Lazy requires keep these
+// CommonJS dependencies out of surfaces that never touch Browserbase or raw CDP.
+const evalsRequire = createRequire(import.meta.url);
 
-function requireFromCorePackage(specifier: string): unknown {
-  if (!coreRequire) {
-    const packageJsonPath = path.join(getRepoRootDir(), "packages", "core", "package.json");
-    coreRequire = createRequire(packageJsonPath);
-  }
-
-  return coreRequire(specifier);
+export function resolveStagehandExtensionArchivePath(): string {
+  const stagehandEntry = fileURLToPath(import.meta.resolve("@browserbasehq/stagehand"));
+  return path.join(path.dirname(stagehandEntry), "assets", "stagehand-extension.zip");
 }
 
 export function loadBrowserbaseSdk(): BrowserbaseConstructor {
-  const module = requireFromCorePackage("@browserbasehq/sdk") as {
+  const module = evalsRequire("@browserbasehq/sdk") as {
     default?: BrowserbaseConstructor;
   } & BrowserbaseConstructor;
   return module.default ?? (module as BrowserbaseConstructor);
 }
 
 export function loadWsModule(): WsModule {
-  const module = requireFromCorePackage("ws") as {
+  const module = evalsRequire("ws") as {
     default?: WsModule;
   } & WsModule;
   return module.default ?? (module as WsModule);

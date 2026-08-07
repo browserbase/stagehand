@@ -413,7 +413,7 @@ class ContextNewPageParams(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    url: Optional[StrictStr] = None
+    url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
 
 
 class ContextSetActivePageParams(WireModel):
@@ -616,6 +616,12 @@ class FieldSchema11(
     root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
+class FieldSchema12(
+    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
+
+
 class FieldSchema2(
     RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
@@ -727,7 +733,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema11] = None
+    data: Optional[FieldSchema12] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -1430,6 +1436,31 @@ class PageAddInitScriptParams(WireModel):
     source: StrictStr
 
 
+class PageCDPEvent(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[StrictStr, Field(min_length=1)]
+    method: Literal["Runtime.consoleAPICalled"]
+    params: PageCDPEventParams
+    session_id: Annotated[StrictStr, Field(min_length=1)]
+    target_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageCDPEventNotification(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    event: PageCDPEvent
+
+
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema10]]]):
+    root: dict[StrictStr, Optional[FieldSchema10]]
+
+
 class PageClickOptions(WireModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1506,6 +1537,10 @@ class PageEvaluateResult(WireModel):
         validate_by_name=True,
     )
     value: Optional[FieldSchema7]
+
+
+class PageEventName(RootModel[Literal["console"]]):
+    root: Literal["console"]
 
 
 class PageGoBackParams(WireModel):
@@ -1588,6 +1623,24 @@ class PageNavigationResult(WireModel):
     )
     page: PageRef
     response: Optional[NavigationResponseDescriptor]
+
+
+class PageOffParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+
+
+class PageOnParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: StrictStr
+    subscription_id: Annotated[StrictStr, Field(min_length=1)]
+    event: PageEventName
 
 
 class PageRef(WireModel):
@@ -2262,6 +2315,7 @@ FieldSchema0.model_rebuild()
 FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
 FieldSchema11.model_rebuild()
+FieldSchema12.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

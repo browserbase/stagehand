@@ -67,9 +67,9 @@ func assertNavigationResponse(
 	fixtureBody []byte,
 ) {
 	t.Helper()
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {
@@ -249,16 +249,16 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 		t.Fatalf("Create() with screenshot LLM error = %v", err)
 	}
 	closeStagehandAfterTest(t, client, browser)
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {
 		t.Fatalf("BrowserContext.ActivePage() error = %v", err)
 	}
 	if page == nil {
-		page, err = browserContext.NewPage(ctx, nil)
+		page, err = browserContext.NewPage(ctx)
 		if err != nil {
 			t.Fatalf("BrowserContext.NewPage() error = %v", err)
 		}
@@ -268,28 +268,23 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 	}
 
 	screenshot := true
-	result, err := client.Extract(
+	type extractedHeading struct {
+		Heading string `json:"heading"`
+	}
+	result, err := Extract[extractedHeading](
 		ctx,
+		client,
 		"Extract the page heading",
-		json.RawMessage(
-			`{"type":"object","properties":{"heading":{"type":"string"}},"required":["heading"]}`,
-		),
 		&StagehandClientExtractOptions{
 			ExtractOptions: ExtractOptions{Screenshot: &screenshot},
 			Page:           page,
 		},
 	)
 	if err != nil {
-		t.Fatalf("Stagehand.Extract() with screenshot error = %v", err)
+		t.Fatalf("Extract() with screenshot error = %v", err)
 	}
-	var extracted struct {
-		Heading string `json:"heading"`
-	}
-	if err := json.Unmarshal(result.Data, &extracted); err != nil {
-		t.Fatalf("decode Extract() data: %v", err)
-	}
-	if extracted.Heading != "Stagehand Go Screenshot" {
-		t.Fatalf("Extract() heading = %q", extracted.Heading)
+	if result.Data.Heading != "Stagehand Go Screenshot" {
+		t.Fatalf("Extract() heading = %q", result.Data.Heading)
 	}
 
 	var image LLMImageContent
@@ -360,9 +355,9 @@ func assertLiveStagehand(
 	if !client.Initialized() {
 		t.Fatal("Stagehand.Initialized() = false after Create")
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
-		t.Fatalf("Stagehand.Context() error = %v", err)
+		t.Fatalf("Browser.Context() error = %v", err)
 	}
 	page, err := browserContext.ActivePage(ctx)
 	if err != nil {

@@ -34,12 +34,13 @@ type recordedCall struct {
 }
 
 type recordingProtocolClient struct {
-	calls      []recordedCall
-	responses  map[string]any
-	callErrors map[string]error
-	callHook   func(context.Context, string) error
-	handlers   map[string]requestHandler
-	closed     bool
+	calls            []recordedCall
+	responses        map[string]any
+	callErrors       map[string]error
+	callHook         func(context.Context, string) error
+	handlers         map[string]requestHandler
+	pageEventHandler func(PageCDPEventNotification)
+	closed           bool
 }
 
 func (c *recordingProtocolClient) call(
@@ -80,6 +81,13 @@ func (*recordingProtocolClient) onNotification(string, func(StagehandLog)) func(
 	return func() {}
 }
 
+func (c *recordingProtocolClient) onPageCDPEvent(
+	handler func(PageCDPEventNotification),
+) func() {
+	c.pageEventHandler = handler
+	return func() { c.pageEventHandler = nil }
+}
+
 func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {
 	return "ws://127.0.0.1:9222/devtools/browser/test"
 }
@@ -87,6 +95,13 @@ func (*recordingProtocolClient) browserWebSocketDebuggerURL() string {
 func (c *recordingProtocolClient) close() error {
 	c.closed = true
 	return nil
+}
+
+func TestStagehandDoesNotExposeContext(t *testing.T) {
+	t.Parallel()
+	if _, ok := reflect.TypeOf((*Stagehand)(nil)).MethodByName("Context"); ok {
+		t.Fatal("Stagehand.Context() remains in the public API")
+	}
 }
 
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
@@ -106,7 +121,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	browserContext, err := client.Context()
+	browserContext, err := client.Browser().Context()
 	if err != nil {
 		t.Fatalf("Context() error = %v", err)
 	}

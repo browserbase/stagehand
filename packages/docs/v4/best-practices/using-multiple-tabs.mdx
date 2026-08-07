@@ -1,0 +1,233 @@
+---
+title: 'Using multiple tabs'
+description: 'Act on multiple tabs with Stagehand'
+---
+
+Many modern web applications open new tabs when users click certain buttons or links. Without proper multitab support, automation scripts break when expected content appears in a new tab rather than the current one. Stagehand's multitab capabilities ensure your automations work seamlessly across multitab workflows.
+
+## The Stagehand page
+
+Stagehand automatically adapts to multitab workflows. The active page always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created. `act()`, `observe()`, and `extract()` all default to the active page.
+
+This means you can continue using familiar patterns:
+
+<View title="TypeScript" icon="js">
+```typescript
+const page = await browser.context.activePage();
+await page.goto("https://example.com");
+await stagehand.act("click the button that opens a new tab");
+
+// Stagehand now operates on the new tab automatically
+const { data } = await stagehand.extract(
+  "get data from new tab",
+  z.object({ value: z.string() }),
+);
+console.log(data.value);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+page = await browser.context.active_page()
+await page.goto("https://example.com")
+await stagehand.act("click the button that opens a new tab")
+
+
+class Data(BaseModel):
+    value: str
+
+
+# Stagehand now operates on the new tab automatically
+result = await stagehand.extract(
+    instruction="get data from new tab",
+    schema=Data,
+)
+print(result.data.value)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if page == nil {
+	return errors.New("Stagehand has no active page")
+}
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the button that opens a new tab"), nil); err != nil {
+	return err
+}
+
+type data struct {
+	Value string `json:"value"`
+}
+
+
+// Stagehand now operates on the new tab automatically
+extracted, err := stagehand.Extract[data](ctx, client, "get data from new tab", nil)
+if err != nil {
+	return err
+}
+
+fmt.Println(extracted.Data.Value)
+```
+</View>
+
+<Warning>
+**Important**: The page object you captured before the click still refers to the *original* tab. Re-read the active page, or hold an explicit reference to each tab, when you need to reach back to it.
+</Warning>
+
+## Manual page management
+
+For more control or multitab workflows, you can manage multiple tabs explicitly. Set the active page when you want the default target to follow you:
+
+<View title="TypeScript" icon="js">
+```typescript
+// Create a second page
+await browser.context.newPage();
+const pages = await browser.context.pages();
+
+const githubPage = pages[0];
+const pythonPage = pages[1];
+
+// Navigate each page to different repositories
+await githubPage.goto("https://github.com/browserbase/stagehand");
+await pythonPage.goto("https://github.com/browserbase/stagehand-python");
+
+// Extract data from both pages simultaneously
+const starsSchema = z.object({ stars: z.number() });
+const [stagehandStars, stagehandPythonStars] = await Promise.all([
+  stagehand.extract("extract the repository stars", starsSchema, { page: githubPage }),
+  stagehand.extract("extract the repository stars", starsSchema, { page: pythonPage }),
+]);
+
+console.log(`Stagehand stars: ${stagehandStars.data.stars}`);
+console.log(`Stagehand-Python stars: ${stagehandPythonStars.data.stars}`);
+
+// Make one of them the default target for later calls
+await browser.context.setActivePage(githubPage);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import asyncio
+
+from pydantic import BaseModel
+
+class Stars(BaseModel):
+    stars: int
+
+
+# Create a second page
+await browser.context.new_page()
+pages = await browser.context.pages()
+
+github_page = pages[0]
+python_page = pages[1]
+
+# Navigate each page to different repositories
+await github_page.goto("https://github.com/browserbase/stagehand")
+await python_page.goto("https://github.com/browserbase/stagehand-python")
+
+# Extract data from both pages simultaneously
+stagehand_stars, stagehand_python_stars = await asyncio.gather(
+    stagehand.extract(
+        instruction="extract the repository stars", schema=Stars, page=github_page
+    ),
+    stagehand.extract(
+        instruction="extract the repository stars", schema=Stars, page=python_page
+    ),
+)
+
+print(f"Stagehand stars: {stagehand_stars.data.stars}")
+print(f"Stagehand-Python stars: {stagehand_python_stars.data.stars}")
+
+# Make one of them the default target for later calls
+await browser.context.set_active_page(github_page)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type stars struct {
+	Stars int `json:"stars"`
+}
+
+
+// Create a second page
+if _, err := browserContext.NewPage(ctx); err != nil {
+	return err
+}
+pages, err := browserContext.Pages(ctx)
+if err != nil {
+	return err
+}
+
+githubPage, pythonPage := pages[0], pages[1]
+
+// Navigate each page to different repositories
+if _, err := githubPage.Goto(ctx, "https://github.com/browserbase/stagehand", nil); err != nil {
+	return err
+}
+if _, err := pythonPage.Goto(ctx, "https://github.com/browserbase/stagehand-python", nil); err != nil {
+	return err
+}
+
+// Extract data from both pages concurrently
+group, groupCtx := errgroup.WithContext(ctx)
+var stagehandStars, stagehandPythonStars stars
+
+group.Go(func() error {
+	result, err := stagehand.Extract[stars](groupCtx, client, "extract the repository stars",
+		&stagehand.StagehandClientExtractOptions{Page: githubPage})
+	stagehandStars = result.Data
+	return err
+})
+group.Go(func() error {
+	result, err := stagehand.Extract[stars](groupCtx, client, "extract the repository stars",
+		&stagehand.StagehandClientExtractOptions{Page: pythonPage})
+	stagehandPythonStars = result.Data
+	return err
+})
+if err := group.Wait(); err != nil {
+	return err
+}
+
+fmt.Printf("Stagehand stars: %d\n", stagehandStars.Stars)
+fmt.Printf("Stagehand-Python stars: %d\n", stagehandPythonStars.Stars)
+
+// Make one of them the default target for later calls
+if err := browserContext.SetActivePage(ctx, githubPage); err != nil {
+	return err
+}
+```
+</View>
+
+<Note>
+Locators belong to the page they were created on. `page.locator(selector)` carries that page's identity, so a locator from one tab never resolves against another.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Act" icon="play" iconType="sharp-solid" href="/v4/basics/act">
+    Target a specific tab with the `page` option on any primitive.
+  </Card>
+
+  <Card title="Working with iframes" icon="frame" iconType="sharp-solid" href="/v4/basics/observe">
+    Stagehand traverses iframes automatically. Scope with a selector when you need to narrow the snapshot.
+  </Card>
+
+  <Card title="Browser configuration" icon="browser" iconType="sharp-solid" href="/v4/configuration/browser">
+    Manage browser contexts and sessions for complex automation scenarios.
+  </Card>
+
+  <Card title="Logging & debugging" icon="bug" iconType="sharp-solid" href="/v4/configuration/logging">
+    Handle errors gracefully and debug automation issues effectively.
+  </Card>
+</CardGroup>

@@ -1,0 +1,672 @@
+---
+title: Cost optimization
+sidebarTitle: Cost optimization
+description: Minimize costs while maintaining automation performance
+---
+
+Cost optimization in Stagehand involves balancing LLM inference costs and browser infrastructure costs. This guide provides practical strategies to reduce your automation expenses.
+
+## Quick wins
+
+Start with these simple optimizations that can reduce costs:
+
+### 1. Use the right model for the job
+
+Browserbase doesn't recommend using larger, more premium models for simple tasks. See the [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
+
+Reach for a stronger model only on the calls that need it, with a per-call model override:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model: {
+    modelName: "google/gemini-2.5-flash",
+  },
+});
+
+const termsSchema = z.object({ summary: z.string() });
+
+// One hard extraction gets the expensive model, everything else stays cheap
+await stagehand.extract("summarize the contract terms", termsSchema, {
+  model: {
+    modelName: "anthropic/claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+
+from stagehand import ModelConfig, Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="google/gemini-2.5-flash",
+    model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
+)
+
+class Terms(BaseModel):
+    summary: str
+
+# One hard extraction gets the expensive model, everything else stays cheap
+await stagehand.extract(
+    instruction="summarize the contract terms",
+    schema=Terms,
+    model=ModelConfig(
+        model_name="anthropic/claude-sonnet-4-6",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    ),
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type terms struct {
+	Summary string `json:"summary"`
+}
+
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+cheapModel := stagehand.ModelConfig{
+	ModelName: "google/gemini-2.5-flash",
+	APIKey:    &googleKey,
+}
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &cheapModel,
+})
+if err != nil {
+	return err
+}
+
+// One hard extraction gets the expensive model, everything else stays cheap
+anthropicKey := os.Getenv("ANTHROPIC_API_KEY")
+strongModel := stagehand.ModelConfig{
+	ModelName: "anthropic/claude-sonnet-4-6",
+	APIKey:    &anthropicKey,
+}
+
+
+result, err := stagehand.Extract[terms](ctx, client, "summarize the contract terms", &stagehand.StagehandClientExtractOptions{
+	ExtractOptions: stagehand.ExtractOptions{Model: &strongModel},
+})
+if err != nil {
+	return err
+}
+
+fmt.Println(result.Data.Summary)
+```
+</View>
+
+<CardGroup cols={2}>
+<Card title="Model selection guide" icon="brain" href="/v4/configuration/models">
+  Choose the right LLM for your budget and accuracy requirements
+</Card>
+<Card title="Evaluation results" icon="chart-line" href="https://www.stagehand.dev/evals">
+  See how different models perform on different tasks
+</Card>
+</CardGroup>
+
+### 2. Implement caching
+
+Enable server-side caching to eliminate redundant LLM calls. Turn on the `cache` option when initializing Stagehand:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  cache: { threshold: 1 }, // Serve hits after one identical result
+});
+
+// First run: uses LLM inference and records the action
+// Subsequent runs: reuses the cached action (no LLM cost)
+await stagehand.act("Click the sign in button");
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+
+from stagehand import CacheOptions, Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    cache=CacheOptions(threshold=1),  # Serve hits after one identical result
+)
+
+# First run: uses LLM inference and records the action
+# Subsequent runs: reuses the cached action (no LLM cost)
+await stagehand.act("Click the sign in button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+cache := stagehand.CacheWithThreshold(1) // Serve hits after one identical result
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Cache:   &cache,
+})
+if err != nil {
+	return err
+}
+
+// First run: uses LLM inference and records the action
+// Subsequent runs: reuses the cached action (no LLM cost)
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"), nil); err != nil {
+	return err
+}
+```
+</View>
+
+<CardGroup cols={1}>
+<Card title="Caching guide" icon="database" href="/v4/best-practices/caching">
+  Learn how the cache key is built and how to tune the hit-count threshold
+</Card>
+</CardGroup>
+
+### 3. Optimize browser sessions
+
+Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/v4/configuration/browser) for details:
+
+<View title="TypeScript" icon="js">
+```typescript
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+    timeout: 1800, // 30 minutes instead of default 1 hour
+    keepAlive: true, // Keep session alive between tasks
+  }),
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    timeout=1800,  # 30 minutes instead of default 1 hour
+    keep_alive=True,  # Keep session alive between tasks
+)
+
+stagehand = await Stagehand.create(browser=browser)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+timeout := 1800.0 // 30 minutes instead of default 1 hour
+keepAlive := true // Keep session alive between tasks
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:    apiKey,
+	Timeout:   &timeout,
+	KeepAlive: &keepAlive,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+<CardGroup cols={1}>
+<Card title="Browserbase cost optimization" icon="window-maximize" href="https://docs.browserbase.com/guides/cost-optimization">
+  Optimize Browserbase infrastructure costs and session management
+</Card>
+</CardGroup>
+
+## Advanced strategies
+
+### Intelligent model switching
+
+Automatically fall back to cheaper models for simple tasks. Escalate on `observe()` rather than `act()`: `observe()` only plans and never touches the page, so a retry cannot repeat a click, submit, or purchase that already landed before the error surfaced. The winning plan is then handed to `act()` exactly once.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Use models from least to most expensive based on task complexity
+// See stagehand.dev/evals for performance comparisons
+async function smartAct(stagehand: Stagehand, prompt: string) {
+  const models = [
+    { modelName: "google/gemini-2.5-flash", apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY },
+    { modelName: "openai/gpt-5.4", apiKey: process.env.OPENAI_API_KEY },
+  ] as const;
+
+  for (const model of models) {
+    // Planning is side-effect free, so escalating here is safe to repeat
+    const plan = await stagehand.observe(prompt, { model }).catch(() => null);
+    // An empty plan means the model found no matching action, so escalate too
+    if (!plan || plan.data.length === 0) {
+      console.log(`${model.modelName} failed, escalating...`);
+      continue;
+    }
+
+    // The page is touched once, by the first model that produced a plan
+    return await stagehand.act(plan.data[0], { model });
+  }
+
+  throw new Error(`No model could complete: ${prompt}`);
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Use models from least to most expensive based on task complexity
+# See stagehand.dev/evals for performance comparisons
+async def smart_act(stagehand: Stagehand, prompt: str):
+    models = [
+        {
+            "model_name": "google/gemini-2.5-flash",
+            "api_key": os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
+        },
+        {"model_name": "openai/gpt-5.4", "api_key": os.environ["OPENAI_API_KEY"]},
+    ]
+
+    for model in models:
+        # Planning is side-effect free, so escalating here is safe to repeat
+        try:
+            plan = await stagehand.observe(instruction=prompt, model=model)
+        except Exception:
+            plan = None
+
+        # An empty plan means the model found no matching action, so escalate too
+        if plan is None or not plan.data:
+            print(f"{model['model_name']} failed, escalating...")
+            continue
+
+        # The page is touched once, by the first model that produced a plan
+        return await stagehand.act(plan.data[0], model=model)
+
+    raise RuntimeError(f"No model could complete: {prompt}")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Use models from least to most expensive based on task complexity
+// See stagehand.dev/evals for performance comparisons
+func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (stagehand.ActResult, error) {
+	googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
+	openaiKey := os.Getenv("OPENAI_API_KEY")
+
+	models := []stagehand.ModelConfig{
+		stagehand.ModelConfig{
+			ModelName: "google/gemini-2.5-flash",
+			APIKey:    &googleKey,
+		},
+		stagehand.ModelConfig{
+			ModelName: "openai/gpt-5.4",
+			APIKey:    &openaiKey,
+		},
+	}
+
+	for i := range models {
+		// Planning is side-effect free, so escalating here is safe to repeat
+		plan, err := client.Observe(ctx, &prompt, &stagehand.StagehandClientObserveOptions{
+			ObserveOptions: stagehand.ObserveOptions{Model: &models[i]},
+		})
+		// An empty plan means the model found no matching action, so escalate too
+		if err != nil || len(plan.Data) == 0 {
+			fmt.Println("model failed, escalating...")
+			continue
+		}
+
+		// The page is touched once, by the first model that produced a plan
+		return client.Act(ctx, stagehand.ObservedAction(plan.Data[0]), &stagehand.StagehandClientActOptions{
+			ActOptions: stagehand.ActOptions{Model: &models[i]},
+		})
+	}
+
+	return stagehand.ActResult{}, fmt.Errorf("no model could complete: %s", prompt)
+}
+```
+</View>
+
+### Session pooling
+
+Reuse browser sessions across multiple tasks:
+
+<View title="TypeScript" icon="js">
+```typescript
+class SessionManager {
+  // Store the in-flight promise, not the resolved instance: two callers racing
+  // on the same task type would otherwise each start a session and leak one
+  private sessions = new Map<string, Promise<Stagehand>>();
+
+  getSession(taskType: string): Promise<Stagehand> {
+    const existing = this.sessions.get(taskType);
+    if (existing) {
+      return existing;
+    }
+
+    const pending = (async () => {
+      const stagehand = await Stagehand.create({
+        browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+      });
+      return stagehand;
+    })().catch((error) => {
+      // Drop the failed attempt so the next caller retries instead of
+      // re-awaiting the same rejection forever
+      this.sessions.delete(taskType);
+      throw error;
+    });
+
+    this.sessions.set(taskType, pending);
+    return pending;
+  }
+
+  async closeAll(): Promise<void> {
+    const pending = [...this.sessions.values()];
+    this.sessions.clear();
+    // Settle tolerantly: one failed init must not skip closing healthy sessions
+    const settled = await Promise.allSettled(pending);
+    const sessions = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+    await Promise.all(sessions.map((s) => s.close()));
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import os
+import asyncio
+
+class SessionManager:
+    def __init__(self) -> None:
+        # Store the in-flight task, not the resolved instance: two callers racing
+        # on the same task type would otherwise each start a session and leak one
+        self._sessions: dict[str, asyncio.Task[Stagehand]] = {}
+
+    async def get_session(self, task_type: str) -> Stagehand:
+        task = self._sessions.get(task_type)
+        if task is None:
+            task = asyncio.create_task(self._open_session())
+            self._sessions[task_type] = task
+        try:
+            return await task
+        except Exception:
+            # Drop the failed attempt so the next caller retries instead of
+            # re-awaiting the same rejection forever
+            self._sessions.pop(task_type, None)
+            raise
+
+    async def _open_session(self) -> Stagehand:
+        browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+        stagehand = await Stagehand.create(browser=browser)
+        return stagehand
+
+    async def close_all(self) -> None:
+        tasks = list(self._sessions.values())
+        self._sessions.clear()
+        # Settle tolerantly: one failed init must not skip closing healthy sessions
+        sessions = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*(s.close() for s in sessions if isinstance(s, Stagehand)))
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type sessionManager struct {
+	mu       sync.Mutex
+	sessions map[string]*stagehand.Stagehand
+}
+
+func (m *sessionManager) getSession(ctx context.Context, taskType string) (*stagehand.Stagehand, error) {
+	// The lock spans Init so two callers racing on the same task type cannot
+	// each start a session and leak one
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if existing, ok := m.sessions[taskType]; ok {
+		return existing, nil
+	}
+
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: apiKey,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+	})
+	if err != nil {
+		// Release the browser, or the session bills until it times out. Close
+		// records its outcome once, so pass a context that outlives ctx:
+		// a canceled ctx would spend that one attempt on a failure.
+		closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+		defer cancel()
+		return nil, errors.Join(err, browser.Close(closeCtx))
+	}
+	if m.sessions == nil {
+		m.sessions = map[string]*stagehand.Stagehand{}
+	}
+	m.sessions[taskType] = client
+	return client, nil
+}
+
+func (m *sessionManager) closeAll(ctx context.Context) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var errs []error
+	for key, client := range m.sessions {
+		errs = append(errs, client.Close(ctx))
+		delete(m.sessions, key)
+	}
+	return errors.Join(errs...)
+}
+```
+</View>
+
+## Cost monitoring
+
+Track your spending to identify optimization opportunities. See the [observability guide](/v4/configuration/observability) for detailed metrics.
+
+Stagehand reports token counts, not dollars. Keep prompt and completion tokens separate: providers bill them at different rates, so a single blended rate over the total is wrong for every model. Multiply each count by the input and output rates on your provider's pricing page to turn these into currency.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Monitor token usage
+const metrics = await stagehand.metrics();
+console.log(`Prompt tokens: ${metrics.totalPromptTokens}`);
+console.log(`Completion tokens: ${metrics.totalCompletionTokens}`);
+
+// Tokens served from your provider's prompt cache cost less
+console.log(`Cached input tokens: ${metrics.totalCachedInputTokens}`);
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Monitor token usage
+metrics = await stagehand.metrics()
+print(f"Prompt tokens: {metrics.total_prompt_tokens}")
+print(f"Completion tokens: {metrics.total_completion_tokens}")
+
+# Tokens served from your provider's prompt cache cost less
+print(f"Cached input tokens: {metrics.total_cached_input_tokens}")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Monitor token usage
+metrics, err := client.Metrics(ctx)
+if err != nil {
+	return err
+}
+fmt.Printf("Prompt tokens: %.0f\n", metrics.TotalPromptTokens)
+fmt.Printf("Completion tokens: %.0f\n", metrics.TotalCompletionTokens)
+
+// Tokens served from your provider's prompt cache cost less
+fmt.Printf("Cached input tokens: %.0f\n", metrics.TotalCachedInputTokens)
+```
+</View>
+
+<CardGroup cols={1}>
+<Card title="Observability & metrics" icon="chart-line" href="/v4/configuration/observability">
+  Monitor usage patterns and track costs in real-time
+</Card>
+</CardGroup>
+
+## Budget controls
+
+Set spending limits to prevent unexpected costs:
+
+<View title="TypeScript" icon="js">
+```typescript
+class BudgetGuard {
+  private dailySpend = 0;
+  private spendDay = new Date().toDateString();
+  private maxDailyBudget: number;
+
+  constructor(maxDailyBudget: number = 25) {
+    this.maxDailyBudget = maxDailyBudget;
+  }
+
+  checkBudget(estimatedCost: number): void {
+    // Roll the window when the calendar day changes, otherwise the first day's
+    // total blocks the process for the rest of its life
+    const today = new Date().toDateString();
+    if (today !== this.spendDay) {
+      this.spendDay = today;
+      this.dailySpend = 0;
+    }
+
+    if (this.dailySpend + estimatedCost > this.maxDailyBudget) {
+      throw new Error(`Daily budget exceeded: $${this.maxDailyBudget}`);
+    }
+    this.dailySpend += estimatedCost;
+  }
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+from datetime import date
+
+class BudgetGuard:
+    def __init__(self, max_daily_budget: float = 25) -> None:
+        self.daily_spend = 0.0
+        self.spend_day = date.today()
+        self.max_daily_budget = max_daily_budget
+
+    def check_budget(self, estimated_cost: float) -> None:
+        # Roll the window when the calendar day changes, otherwise the first day's
+        # total blocks the process for the rest of its life
+        today = date.today()
+        if today != self.spend_day:
+            self.spend_day = today
+            self.daily_spend = 0.0
+
+        if self.daily_spend + estimated_cost > self.max_daily_budget:
+            raise RuntimeError(f"Daily budget exceeded: ${self.max_daily_budget}")
+        self.daily_spend += estimated_cost
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type budgetGuard struct {
+	mu             sync.Mutex
+	dailySpend     float64
+	spendDay       string
+	maxDailyBudget float64
+}
+
+func newBudgetGuard(maxDailyBudget float64) *budgetGuard {
+	if maxDailyBudget == 0 {
+		maxDailyBudget = 25
+	}
+	return &budgetGuard{
+		maxDailyBudget: maxDailyBudget,
+		spendDay:       time.Now().Format(time.DateOnly),
+	}
+}
+
+func (g *budgetGuard) checkBudget(estimatedCost float64) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Roll the window when the calendar day changes, otherwise the first day's
+	// total blocks the process for the rest of its life
+	if today := time.Now().Format(time.DateOnly); today != g.spendDay {
+		g.spendDay = today
+		g.dailySpend = 0
+	}
+
+	if g.dailySpend+estimatedCost > g.maxDailyBudget {
+		return fmt.Errorf("daily budget exceeded: $%.2f", g.maxDailyBudget)
+	}
+	g.dailySpend += estimatedCost
+	return nil
+}
+```
+</View>
+
+<Tip>
+Using the [Model Gateway](/v4/configuration/models#model-gateway) puts inference, browsers, and caching on a single Browserbase bill, which makes spend easier to attribute and cap in one place.
+</Tip>
+
+
+## Related resources
+
+<CardGroup cols={2}>
+<Card title="Model selection guide" icon="brain" href="/v4/configuration/models">
+  Choose the right LLM for your budget and accuracy requirements
+</Card>
+
+<Card title="Caching strategies" icon="database" href="/v4/best-practices/caching">
+  Reduce costs with smart action caching and observe patterns
+</Card>
+
+<Card title="Observability & metrics" icon="chart-line" href="/v4/configuration/observability">
+  Monitor usage patterns and track costs in real-time
+</Card>
+
+<Card title="Browser configuration" icon="window-maximize" href="/v4/configuration/browser">
+  Optimize Browserbase infrastructure costs and session management
+</Card>
+</CardGroup>

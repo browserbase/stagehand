@@ -2,35 +2,35 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "iframe_form_filling" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-form-filling/",
       );
 
-      await v3.act("type 'nunya' into the 'first name' field");
-      await v3.act("type 'business' into the 'last name' field");
-      await v3.act("type 'test@email.com' into the 'email' field");
-      await v3.act("click 'phone' as the preferred contact method");
-      await v3.act("type 'yooooooooooooooo' into the message box");
+      await stagehand.act("type 'nunya' into the 'first name' field");
+      await stagehand.act("type 'business' into the 'last name' field");
+      await stagehand.act("type 'test@email.com' into the 'email' field");
+      await stagehand.act("click 'phone' as the preferred contact method");
+      await stagehand.act("type 'yooooooooooooooo' into the message box");
 
-      const iframe = page.frameLocator("iframe");
+      // The form lives in a cross-origin iframe, so main-frame evaluation
+      // cannot access its contentDocument. V4 locators resolve `>>` iframe
+      // hops server-side and can inspect the OOPIF directly.
+      const firstNameValue = await page.locator('iframe >> input[placeholder="Jane"]').inputValue();
 
-      const firstNameValue: string = await iframe.locator('input[placeholder="Jane"]').inputValue();
+      const lastNameValue = await page.locator('iframe >> input[placeholder="Doe"]').inputValue();
 
-      const lastNameValue: string = await iframe.locator('input[placeholder="Doe"]').inputValue();
-
-      const emailValue: string = await iframe
-        .locator('input[placeholder="jane@example.com"]')
+      const emailValue = await page
+        .locator('iframe >> input[placeholder="jane@example.com"]')
         .inputValue();
 
-      const contactValue: boolean = await iframe
-        .locator("xpath=/html/body/main/section[1]/form/fieldset/label[2]/input")
+      const contactValue = await page
+        .locator("iframe >> xpath=/html/body/main/section[1]/form/fieldset/label[2]/input")
         .isChecked();
 
-      const messageValue: string = await iframe
-        .locator('textarea[placeholder="Say hello…"]')
+      const messageValue = await page
+        .locator('iframe >> textarea[placeholder="Say hello…"]')
         .inputValue();
 
       const passed: boolean =
@@ -49,13 +49,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

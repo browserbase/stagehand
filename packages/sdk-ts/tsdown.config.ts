@@ -22,11 +22,11 @@ export default defineConfig({
   },
   copy: [
     {
-      from: "../server/artifacts/stagehand-extension.zip",
+      from: "../extension/artifacts/stagehand-extension.zip",
       to: "dist/assets",
     },
     {
-      from: "../server/dist",
+      from: "../extension/dist",
       to: "dist",
       rename: "extension",
     },

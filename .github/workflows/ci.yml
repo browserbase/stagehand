@@ -18,7 +18,7 @@ jobs:
     name: Determine changes
     runs-on: ubuntu-latest
     outputs:
-      server: ${{ steps.filter.outputs.server }}
+      extension: ${{ steps.filter.outputs.extension }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
@@ -29,28 +29,28 @@ jobs:
         id: filter
         with:
           filters: |
-            server:
-              - 'packages/server/**'
+            extension:
+              - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
             sdk-ts:
               - 'packages/sdk-ts/**'
-              - 'packages/server/**'
+              - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
             sdk-python:
               - 'packages/sdk-python/**'
-              - 'packages/server/**'
+              - 'packages/extension/**'
               - 'packages/protocol/**'
               - 'pnpm-lock.yaml'
               - '.github/**'
             sdk-go:
               - 'packages/sdk-go/**'
-              - 'packages/server/**'
+              - 'packages/extension/**'
               - 'packages/protocol/**'
               - '.github/**'
   check:
@@ -164,8 +164,8 @@ jobs:
           path: |
             package.json
             packages/protocol/stagehand.v4.json
-            packages/server/dist/**
-            packages/server/artifacts/**
+            packages/extension/dist/**
+            packages/extension/artifacts/**
             packages/sdk-ts/dist/**
             packages/evals/dist/**
           retention-days: 1
@@ -213,7 +213,7 @@ jobs:
       - name: Browserbase smoke test
         run: >-
           pnpm exec vitest run --root .
-          packages/sdk-ts/tests/browser-runtime/stagehand-browserbase-smoke.test.ts
+          packages/sdk-ts/tests/browser-runtime/stagehandBrowserbaseSmoke.test.ts
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_SMOKE: "1"
@@ -295,8 +295,8 @@ jobs:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
 
   extension-drift:
-    name: Extension drift (Go embed vs server build)
-    # Same fork gate as go-windows: installs dependencies and builds the server, so it should
+    name: Extension drift (Go embed vs extension build)
+    # Same fork gate as go-windows: installs dependencies and builds the extension, so it should
     # not burn hosted-runner time on an unreviewed fork PR. safe-to-test lets a maintainer opt
     # a specific external PR in.
     if: >-
@@ -320,12 +320,12 @@ jobs:
           go-version: "1.26.x"
           cache: false
 
-      - run: pnpm --filter ./packages/server build
+      - run: pnpm --filter ./packages/extension build
 
       # packages/sdk-go/internal/extensionassets/stagehand-extension.zip is committed and
-      # go:embed'd, so Go tests and releases use it without ever building the server. Without
+      # go:embed'd, so Go tests and releases use it without ever building the extension. Without
       # this gate a change to the extension source ships a stale embedded copy while CI is green.
-      - name: Check embedded Go extension matches the built server extension
+      - name: Check embedded Go extension matches the built extension
         run: go run ./internal/extensionpack --check
         working-directory: packages/sdk-go
 
@@ -366,7 +366,7 @@ jobs:
     name: Discover integration tests
     runs-on: ubuntu-latest
     needs: [determine-changes]
-    if: needs.determine-changes.outputs.server == 'true'
+    if: needs.determine-changes.outputs.extension == 'true'
     outputs:
       integration-tests: ${{ steps.set-matrix.outputs.integration-tests }}
       has-integration-tests: ${{ steps.set-matrix.outputs.has-integration-tests }}

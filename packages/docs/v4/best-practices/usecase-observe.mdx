@@ -1,0 +1,393 @@
+---
+title: Observe use cases
+sidebarTitle: Use cases
+description: Real-world patterns for planning automations with observe()
+---
+
+## Real-world use cases
+
+### E-commerce product discovery
+
+<View title="TypeScript" icon="js">
+```typescript
+// Discover product interaction elements
+const { data: productActions } = await stagehand.observe(
+  "Find add to cart buttons, size selectors, and product images",
+);
+
+// Categorize actions by type
+const cartButtons = productActions.filter(a =>
+  a.description.toLowerCase().includes("cart")
+);
+const sizeOptions = productActions.filter(a =>
+  a.description.toLowerCase().includes("size")
+);
+
+// Execute purchase workflow
+if (sizeOptions.length > 0) {
+  await page.locator(sizeOptions[0].selector).click(); // Select size first
+}
+if (cartButtons.length > 0) {
+  await page.locator(cartButtons[0].selector).click(); // Then add to cart
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Discover product interaction elements
+product_actions = (await stagehand.observe(
+    instruction="Find add to cart buttons, size selectors, and product images",
+)).data
+
+# Categorize actions by type
+cart_buttons = [a for a in product_actions if "cart" in a.description.lower()]
+size_options = [a for a in product_actions if "size" in a.description.lower()]
+
+# Execute purchase workflow
+if size_options:
+    await page.locator(size_options[0].selector).click()  # Select size first
+if cart_buttons:
+    await page.locator(cart_buttons[0].selector).click()  # Then add to cart
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Discover product interaction elements
+instruction := "Find add to cart buttons, size selectors, and product images"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+// Categorize actions by type
+var cartButtons, sizeOptions []stagehand.Action
+for _, action := range observed.Data {
+	description := strings.ToLower(action.Description)
+	if strings.Contains(description, "cart") {
+		cartButtons = append(cartButtons, action)
+	}
+	if strings.Contains(description, "size") {
+		sizeOptions = append(sizeOptions, action)
+	}
+}
+
+// Execute purchase workflow
+if len(sizeOptions) > 0 {
+	if err := page.Locator(sizeOptions[0].Selector).Click(ctx, nil); err != nil { // Select size first
+		return err
+	}
+}
+if len(cartButtons) > 0 {
+	if err := page.Locator(cartButtons[0].Selector).Click(ctx, nil); err != nil { // Then add to cart
+		return err
+	}
+}
+```
+</View>
+
+### Form handling & validation
+
+`valueFor` (`value_for` in Python) is a helper you supply: it maps an observed field description to the value you want to type.
+
+<View title="TypeScript" icon="js">
+```typescript
+// Analyze form structure before filling
+const { data: formElements } = await stagehand.observe(
+  "Find form fields, validation messages, and submit buttons",
+);
+
+// Check for required fields
+const requiredFields = formElements.filter(e =>
+  e.description.includes("required") || e.description.includes("*")
+);
+
+console.log(`Found ${requiredFields.length} required fields to complete`);
+
+// Fill form systematically
+for (const field of requiredFields) {
+  await page.locator(field.selector).fill(valueFor(field.description));
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Analyze form structure before filling
+form_elements = (await stagehand.observe(
+    instruction="Find form fields, validation messages, and submit buttons",
+)).data
+
+# Check for required fields
+required_fields = [
+    e for e in form_elements if "required" in e.description or "*" in e.description
+]
+
+print(f"Found {len(required_fields)} required fields to complete")
+
+# Fill form systematically
+for field in required_fields:
+    await page.locator(field.selector).fill(value_for(field.description))
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Analyze form structure before filling
+instruction := "Find form fields, validation messages, and submit buttons"
+observed, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+
+// Check for required fields
+var requiredFields []stagehand.Action
+for _, element := range observed.Data {
+	if strings.Contains(element.Description, "required") || strings.Contains(element.Description, "*") {
+		requiredFields = append(requiredFields, element)
+	}
+}
+
+fmt.Printf("Found %d required fields to complete\n", len(requiredFields))
+
+// Fill form systematically
+for _, field := range requiredFields {
+	if err := page.Locator(field.Selector).Fill(ctx, valueFor(field.Description)); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+### Dynamic content & SPA navigation
+
+<View title="TypeScript" icon="js">
+```typescript
+// Wait for and discover dynamically loaded content
+await page.waitForLoadState("networkidle");
+
+const { data: dynamicElements } = await stagehand.observe(
+  "Find newly loaded content, infinite scroll triggers, or loading indicators",
+  { timeout: 15000 }, // Allow longer for dynamic content
+);
+
+// Handle infinite scroll
+const scrollTriggers = dynamicElements.filter(e =>
+  e.description.toLowerCase().includes("load more") ||
+  e.description.toLowerCase().includes("scroll")
+);
+
+if (scrollTriggers.length > 0) {
+  await page.locator(scrollTriggers[0].selector).click();
+  // Recursively observe new content
+  const { data: newContent } = await stagehand.observe("Find additional items");
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Wait for and discover dynamically loaded content
+await page.wait_for_load_state("networkidle")
+
+dynamic_elements = (await stagehand.observe(
+    instruction="Find newly loaded content, infinite scroll triggers, or loading indicators",
+    timeout=15000,  # Allow longer for dynamic content
+)).data
+
+# Handle infinite scroll
+scroll_triggers = [
+    e
+    for e in dynamic_elements
+    if "load more" in e.description.lower() or "scroll" in e.description.lower()
+]
+
+if scroll_triggers:
+    await page.locator(scroll_triggers[0].selector).click()
+    # Recursively observe new content
+    new_content = (await stagehand.observe(instruction="Find additional items")).data
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// Wait for and discover dynamically loaded content
+if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, nil); err != nil {
+	return err
+}
+
+timeout := 15000.0 // Allow longer for dynamic content
+instruction := "Find newly loaded content, infinite scroll triggers, or loading indicators"
+observed, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+	ObserveOptions: stagehand.ObserveOptions{Timeout: &timeout},
+})
+if err != nil {
+	return err
+}
+
+// Handle infinite scroll
+var scrollTriggers []stagehand.Action
+for _, element := range observed.Data {
+	description := strings.ToLower(element.Description)
+	if strings.Contains(description, "load more") || strings.Contains(description, "scroll") {
+		scrollTriggers = append(scrollTriggers, element)
+	}
+}
+
+if len(scrollTriggers) > 0 {
+	if err := page.Locator(scrollTriggers[0].Selector).Click(ctx, nil); err != nil {
+		return err
+	}
+	// Recursively observe new content
+	more := "Find additional items"
+	if _, err := client.Observe(ctx, &more, nil); err != nil {
+		return err
+	}
+}
+```
+</View>
+
+### Multi-step workflow planning
+
+<View title="TypeScript" icon="js">
+```typescript
+// Plan entire checkout flow upfront
+async function planCheckoutWorkflow() {
+  // Step 1: Cart page analysis
+  await page.goto("/cart");
+  const { data: cartActions } = await stagehand.observe("Find checkout and cart modification options");
+
+  // Step 2: Checkout page analysis. Descriptions are model-generated, so
+  // lowercase them before matching.
+  const checkoutButton = cartActions.find(a =>
+    a.description.toLowerCase().includes("checkout")
+  );
+  if (checkoutButton) await page.locator(checkoutButton.selector).click();
+
+  const { data: checkoutActions } = await stagehand.observe("Find payment forms and shipping options");
+
+  // Step 3: Plan execution order
+  const shippingFields = checkoutActions.filter(a =>
+    a.description.toLowerCase().includes("shipping")
+  );
+  const paymentFields = checkoutActions.filter(a =>
+    a.description.toLowerCase().includes("payment")
+  );
+  const submitButton = checkoutActions.find(a =>
+    a.description.toLowerCase().includes("complete order")
+  );
+
+  return { shippingFields, paymentFields, submitButton };
+}
+
+// Execute planned workflow
+const workflow = await planCheckoutWorkflow();
+// Fill shipping, then payment, then submit
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+# Plan entire checkout flow upfront
+async def plan_checkout_workflow():
+    # Step 1: Cart page analysis
+    await page.goto("/cart")
+    cart_actions = (await stagehand.observe(
+        instruction="Find checkout and cart modification options"
+    )).data
+
+    # Step 2: Checkout page analysis. Descriptions are model-generated, so
+    # lowercase them before matching.
+    checkout_button = next(
+        (a for a in cart_actions if "checkout" in a.description.lower()), None
+    )
+    if checkout_button is not None:
+        await page.locator(checkout_button.selector).click()
+
+    checkout_actions = (await stagehand.observe(
+        instruction="Find payment forms and shipping options"
+    )).data
+
+    # Step 3: Plan execution order
+    shipping_fields = [
+        a for a in checkout_actions if "shipping" in a.description.lower()
+    ]
+    payment_fields = [a for a in checkout_actions if "payment" in a.description.lower()]
+    submit_button = next(
+        (a for a in checkout_actions if "complete order" in a.description.lower()), None
+    )
+
+    return shipping_fields, payment_fields, submit_button
+
+
+# Execute planned workflow
+workflow = await plan_checkout_workflow()
+# Fill shipping, then payment, then submit
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type checkoutPlan struct {
+	ShippingFields []stagehand.Action
+	PaymentFields  []stagehand.Action
+	SubmitButton   *stagehand.Action
+}
+
+// Plan entire checkout flow upfront
+func planCheckoutWorkflow(
+	ctx context.Context,
+	client *stagehand.Stagehand,
+	page *stagehand.Page,
+) (checkoutPlan, error) {
+	var plan checkoutPlan
+
+	// Step 1: Cart page analysis
+	if _, err := page.Goto(ctx, "/cart", nil); err != nil {
+		return plan, err
+	}
+	cartInstruction := "Find checkout and cart modification options"
+	cartActions, err := client.Observe(ctx, &cartInstruction, nil)
+	if err != nil {
+		return plan, err
+	}
+
+	// Step 2: Checkout page analysis. Descriptions are model-generated, so
+	// lowercase them before matching.
+	for _, action := range cartActions.Data {
+		if strings.Contains(strings.ToLower(action.Description), "checkout") {
+			if err := page.Locator(action.Selector).Click(ctx, nil); err != nil {
+				return plan, err
+			}
+			break
+		}
+	}
+
+	checkoutInstruction := "Find payment forms and shipping options"
+	checkoutActions, err := client.Observe(ctx, &checkoutInstruction, nil)
+	if err != nil {
+		return plan, err
+	}
+
+	// Step 3: Plan execution order
+	for i, action := range checkoutActions.Data {
+		description := strings.ToLower(action.Description)
+		switch {
+		case strings.Contains(description, "shipping"):
+			plan.ShippingFields = append(plan.ShippingFields, action)
+		case strings.Contains(description, "payment"):
+			plan.PaymentFields = append(plan.PaymentFields, action)
+		case strings.Contains(description, "complete order"):
+			plan.SubmitButton = &checkoutActions.Data[i]
+		}
+	}
+
+	return plan, nil
+}
+
+// Execute planned workflow
+plan, err := planCheckoutWorkflow(ctx, client, page)
+// Fill shipping, then payment, then submit
+```
+</View>

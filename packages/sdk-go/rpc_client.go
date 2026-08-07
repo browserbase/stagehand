@@ -31,8 +31,44 @@ const (
 )
 
 var (
-	ErrRPCClientClosed = errors.New("stagehand RPC client is closed")
-	rpcTracePropagator = propagation.TraceContext{}
+	ErrRPCClientClosed       = errors.New("stagehand RPC client is closed")
+	rpcTracePropagator       = propagation.TraceContext{}
+	defaultOperationTimeouts = map[string]time.Duration{
+		"page.goto":                15 * time.Second,
+		"page.reload":              15 * time.Second,
+		"page.go_back":             15 * time.Second,
+		"page.go_forward":          15 * time.Second,
+		"page.wait_for_load_state": 15 * time.Second,
+		"page.wait_for_selector":   30 * time.Second,
+		"page.webmcp_tools":        time.Second,
+	}
+	unboundedByDefaultMethods = map[string]struct{}{
+		"stagehand.init":                 {},
+		"stagehand.close":                {},
+		"stagehand.act":                  {},
+		"stagehand.extract":              {},
+		"stagehand.observe":              {},
+		"context.new_page":               {},
+		"context.close":                  {},
+		"context.add_init_script":        {},
+		"context.set_extra_http_headers": {},
+		"context.get_domain_policy":      {},
+		"context.set_domain_policy":      {},
+		"context.cookies":                {},
+		"context.add_cookies":            {},
+		"context.clear_cookies":          {},
+		"context.clipboard_read_text":    {},
+		"context.clipboard_write_text":   {},
+		"context.clipboard_clear":        {},
+		"context.clipboard_paste":        {},
+		"context.clipboard_copy":         {},
+		"context.clipboard_cut":          {},
+		"page.close":                     {},
+		"page.evaluate":                  {},
+		"page.screenshot":                {},
+		"page.snapshot":                  {},
+		"page.webmcp_invocation_result":  {},
+	}
 )
 
 // RPCError is a JSON-RPC error returned by the Stagehand worker.
@@ -70,7 +106,7 @@ type rpcClient struct {
 	requestHandlers      map[string]registeredRequestHandler
 	notificationHandlers map[string][]registeredNotificationHandler
 	pendingNotifications []bufferedRPCNotification
-	notificationQueue    []rpcNotificationDelivery
+	notificationQueue    []rpcNotificationDeliveryGroup
 	notificationWake     chan struct{}
 	closed               bool
 	closeReason          error
@@ -100,7 +136,8 @@ type registeredRequestHandler struct {
 
 type registeredNotificationHandler struct {
 	id      uint64
-	handler func(StagehandLog)
+	decode  func(json.RawMessage) (any, error)
+	handler func(any)
 }
 
 type bufferedRPCNotification struct {
@@ -109,8 +146,12 @@ type bufferedRPCNotification struct {
 }
 
 type rpcNotificationDelivery struct {
-	handlers     []func(StagehandLog)
-	notification StagehandLog
+	handler      func(any)
+	notification any
+}
+
+type rpcNotificationDeliveryGroup struct {
+	deliveries []rpcNotificationDelivery
 }
 
 type rpcRequestEnvelope struct {
@@ -237,10 +278,6 @@ func (c *rpcClient) call(ctx context.Context, method string, params any, result 
 }
 
 func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, bool) {
-	if method == "stagehand.init" {
-		return 0, false
-	}
-
 	var path []string
 	switch method {
 	case "stagehand.act",
@@ -259,11 +296,23 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 		path = []string{"timeout"}
 	case "page.wait_for_timeout":
 		path = []string{"ms"}
-	default:
-		return rpcResponseGrace, true
 	}
 
-	durationMilliseconds := jsonNumberAtPath(params, path...)
+	if durationMilliseconds, found := jsonNumberAtPath(params, path...); found {
+		return rpcResponseTimeoutForDuration(durationMilliseconds), true
+	}
+	if defaultTimeout, found := defaultOperationTimeouts[method]; found {
+		return rpcResponseGrace + defaultTimeout, true
+	}
+	// These operations had no v3 deadline. Keep the server as the owner of their
+	// lifetime instead of turning the transport grace period into a 10s ceiling.
+	if _, found := unboundedByDefaultMethods[method]; found || strings.HasPrefix(method, "locator.") {
+		return 0, false
+	}
+	return rpcResponseGrace, true
+}
+
+func rpcResponseTimeoutForDuration(durationMilliseconds float64) time.Duration {
 	if durationMilliseconds < 0 {
 		durationMilliseconds = 0
 	}
@@ -271,40 +320,43 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	operationNanoseconds := durationMilliseconds * float64(time.Millisecond)
 	if math.IsInf(operationNanoseconds, 1) ||
 		operationNanoseconds >= float64(maxOperationDuration) {
-		return maxRPCResponseTimeout, true
+		return maxRPCResponseTimeout
 	}
-	return rpcResponseGrace + time.Duration(operationNanoseconds), true
+	return rpcResponseGrace + time.Duration(operationNanoseconds)
 }
 
-func jsonNumberAtPath(encoded json.RawMessage, path ...string) float64 {
+func jsonNumberAtPath(encoded json.RawMessage, path ...string) (float64, bool) {
+	if len(path) == 0 {
+		return 0, false
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.UseNumber()
 	var current any
 	if err := decoder.Decode(&current); err != nil {
-		return 0
+		return 0, false
 	}
 	for _, property := range path {
 		object, ok := current.(map[string]any)
 		if !ok {
-			return 0
+			return 0, false
 		}
 		current, ok = object[property]
 		if !ok {
-			return 0
+			return 0, false
 		}
 	}
 	number, ok := current.(json.Number)
 	if !ok {
-		return 0
+		return 0, false
 	}
 	value, err := number.Float64()
 	if err != nil {
 		if math.IsInf(value, 1) {
-			return value
+			return value, true
 		}
-		return 0
+		return 0, false
 	}
-	return value
+	return value, true
 }
 
 func (c *rpcClient) onRequest(method string, handler requestHandler) func() {
@@ -329,23 +381,48 @@ func (c *rpcClient) onRequest(method string, handler requestHandler) func() {
 }
 
 func (c *rpcClient) onNotification(method string, handler func(StagehandLog)) func() {
+	return registerNotification(c, method, handler)
+}
+
+func (c *rpcClient) onPageCDPEvent(handler func(PageCDPEventNotification)) func() {
+	return registerNotification(c, "page.cdp_event", handler)
+}
+
+func registerNotification[Notification any](
+	c *rpcClient,
+	method string,
+	handler func(Notification),
+) func() {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
 		return func() {}
 	}
-	registration := registeredNotificationHandler{id: c.nextRegistrationID, handler: handler}
+	registration := registeredNotificationHandler{
+		id: c.nextRegistrationID,
+		decode: func(raw json.RawMessage) (any, error) {
+			var notification Notification
+			if err := decodeStrictJSON(raw, &notification); err != nil {
+				return nil, err
+			}
+			return notification, nil
+		},
+		handler: func(notification any) {
+			handler(notification.(Notification))
+		},
+	}
 	c.nextRegistrationID++
 	c.notificationHandlers[method] = append(c.notificationHandlers[method], registration)
 
 	retained := c.pendingNotifications[:0]
 	for _, notification := range c.pendingNotifications {
 		if notification.method == method {
-			var params StagehandLog
-			if decodeStrictJSON(notification.params, &params) == nil {
-				c.enqueueNotificationLocked(rpcNotificationDelivery{
-					handlers:     []func(StagehandLog){handler},
-					notification: params,
+			if decoded, err := registration.decode(notification.params); err == nil {
+				c.enqueueNotificationLocked(rpcNotificationDeliveryGroup{
+					deliveries: []rpcNotificationDelivery{{
+						handler:      registration.handler,
+						notification: decoded,
+					}},
 				})
 			}
 		} else {
@@ -551,15 +628,11 @@ func (c *rpcClient) receiveRequest(
 }
 
 func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
-	if method != "stagehand.log" {
-		return
-	}
-	var notification StagehandLog
-	if err := decodeStrictJSON(params, &notification); err != nil {
-		return
-	}
-
 	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
 	handlers := append([]registeredNotificationHandler(nil), c.notificationHandlers[method]...)
 	if len(handlers) == 0 {
 		c.pendingNotifications = append(c.pendingNotifications, bufferedRPCNotification{
@@ -572,21 +645,35 @@ func (c *rpcClient) receiveNotification(method string, params json.RawMessage) {
 		c.mu.Unlock()
 		return
 	}
+	c.mu.Unlock()
 
-	delivery := rpcNotificationDelivery{
-		handlers:     make([]func(StagehandLog), len(handlers)),
-		notification: notification,
+	deliveries := make([]rpcNotificationDelivery, 0, len(handlers))
+	for _, registration := range handlers {
+		notification, err := registration.decode(params)
+		if err != nil {
+			continue
+		}
+		deliveries = append(deliveries, rpcNotificationDelivery{
+			handler:      registration.handler,
+			notification: notification,
+		})
 	}
-	for index, registration := range handlers {
-		delivery.handlers[index] = registration.handler
+	if len(deliveries) == 0 {
+		return
 	}
-	c.enqueueNotificationLocked(delivery)
+
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.enqueueNotificationLocked(rpcNotificationDeliveryGroup{deliveries: deliveries})
 	c.mu.Unlock()
 	c.wakeNotificationDelivery()
 }
 
-func (c *rpcClient) enqueueNotificationLocked(delivery rpcNotificationDelivery) {
-	c.notificationQueue = append(c.notificationQueue, delivery)
+func (c *rpcClient) enqueueNotificationLocked(group rpcNotificationDeliveryGroup) {
+	c.notificationQueue = append(c.notificationQueue, group)
 	if len(c.notificationQueue) > maxPendingNotifications {
 		dropped := len(c.notificationQueue) - maxPendingNotifications
 		clear(c.notificationQueue[:dropped])
@@ -605,12 +692,12 @@ func (c *rpcClient) deliverNotifications() {
 	for {
 		c.mu.Lock()
 		if len(c.notificationQueue) > 0 {
-			delivery := c.notificationQueue[0]
-			c.notificationQueue[0] = rpcNotificationDelivery{}
+			group := c.notificationQueue[0]
+			c.notificationQueue[0] = rpcNotificationDeliveryGroup{}
 			c.notificationQueue = c.notificationQueue[1:]
 			c.mu.Unlock()
-			for _, handler := range delivery.handlers {
-				handler(delivery.notification)
+			for _, delivery := range group.deliveries {
+				delivery.handler(delivery.notification)
 			}
 			continue
 		}
@@ -796,6 +883,12 @@ func decodeStrictJSON(data json.RawMessage, target any) error {
 }
 
 func validateRequiredJSONFields(data json.RawMessage, valueType reflect.Type) error {
+	jsonUnmarshalerType := reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+	if valueType.Implements(jsonUnmarshalerType) ||
+		(valueType.Kind() != reflect.Pointer && reflect.PointerTo(valueType).Implements(jsonUnmarshalerType)) {
+		return nil
+	}
+
 	for valueType.Kind() == reflect.Pointer {
 		valueType = valueType.Elem()
 	}

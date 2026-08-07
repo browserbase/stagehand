@@ -11,7 +11,7 @@ A `Page` combines deterministic browser controls with Stagehand's natural-langua
 ## Quick start
 
 ```typescript
-const page = await stagehand.context.newPage();
+const page = await browser.context.newPage();
 const response = await page.goto("https://example.com");
 ```
 
@@ -327,6 +327,33 @@ const title = await page.evaluate(() => document.title);
 
 <ResponseField name="result" type="Promise<R>">
   The operation result.
+</ResponseField>
+
+## on()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```typescript
+const subscription = await page.on("console", (event) => {
+  console.log(event.method, event.params);
+});
+
+await page.evaluate(() => console.log("ready"));
+await subscription.unsubscribe();
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A callback that receives the event method, raw parameters, session ID, target ID,
+  and page ID. Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
 ## addInitScript()
@@ -683,7 +710,7 @@ const locator = page.locator("button[type=submit]");
 ## Quick start
 
 ```python
-page = await stagehand.context.new_page()
+page = await browser.context.new_page()
 response = await page.goto("https://example.com")
 ```
 
@@ -986,6 +1013,34 @@ title = await page.evaluate("document.title", result_type=str)
 
 <ResponseField name="result" type="JsonValue | EvaluateResult">
   The operation result.
+</ResponseField>
+
+## on()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```python
+async def handle_console(event: PageCDPEvent) -> None:
+    print(event.method, event.params)
+
+subscription = await page.on("console", handle_console)
+await page.evaluate('console.log("ready")')
+await subscription.unsubscribe()
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A sync or async callback that receives the event method, raw parameters, session
+  ID, target ID, and page ID. Async callbacks may overlap and are not awaited by
+  later page calls.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
 ## add_init_script()

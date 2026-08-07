@@ -71,7 +71,7 @@ WebMCP requires a Chromium build with the WebMCP features enabled. Stagehand shi
 ```
 
 <Warning>
-Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself with the `cdp` browser source, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
+Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
 </Warning>
 
 ## Listing tools
@@ -391,7 +391,7 @@ if addToCart != nil {
 	}
 } else {
 	// The page publishes no tool for this, so drive the UI
-	if _, err := client.Act(ctx, "add the item to the cart", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("add the item to the cart"), nil); err != nil {
 		return err
 	}
 }
@@ -404,7 +404,7 @@ A tool invocation costs no LLM tokens and cannot pick the wrong element, so pref
 
 ## API reference
 
-<Card title="Complete API reference" icon="book" href="/v3/references/stagehand">
+<Card title="Complete API reference" icon="book" href="/v4/reference/stagehand">
   Full `Page`, `WebMCPTool`, and `WebMCPInvocation` reference with every option and field.
 </Card>
 
@@ -421,6 +421,6 @@ A tool invocation costs no LLM tokens and cannot pick the wrong element, so pref
     Pull typed, structured data off any page
   </Card>
   <Card title="Browser configuration" icon="browser" href="/v4/configuration/browser">
-    Launch flags, browser sources, and attaching over CDP
+    Launch flags, browser factories, and attaching over CDP
   </Card>
 </CardGroup>

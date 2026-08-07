@@ -84,9 +84,7 @@ const DEFAULT_EVAL_CATEGORIES = process.env.EVAL_CATEGORIES
   : [
       "observe",
       "act",
-      "combination",
       "extract",
-      "experimental",
       "targeted_extract",
       "regression",
       "agent",

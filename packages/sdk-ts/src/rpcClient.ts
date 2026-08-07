@@ -29,7 +29,6 @@ import type {
 } from "../../protocol/json-rpc/types.js";
 import { encodeWireValue, wireSchema } from "../../protocol/json-rpc/wire-casing.js";
 import {
-  StagehandNotifications,
   StagehandMethods,
   StagehandRpcNotificationSchema,
 } from "../../protocol/schema-registry.js";
@@ -58,6 +57,42 @@ const TRACER = trace.getTracer("@browserbasehq/stagehand");
 const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 const MAX_PENDING_NOTIFICATIONS = 100;
 const RPC_RESPONSE_GRACE_MS = 10_000;
+const DEFAULT_OPERATION_TIMEOUT_MS = new Map<string, number>([
+  [StagehandMethods.pageGoto.name, 15_000],
+  [StagehandMethods.pageReload.name, 15_000],
+  [StagehandMethods.pageGoBack.name, 15_000],
+  [StagehandMethods.pageGoForward.name, 15_000],
+  [StagehandMethods.pageWaitForLoadState.name, 15_000],
+  [StagehandMethods.pageWaitForSelector.name, 30_000],
+  [StagehandMethods.pageWebMCPTools.name, 1_000],
+]);
+const UNBOUNDED_BY_DEFAULT_METHODS = new Set<string>([
+  StagehandMethods.stagehandInit.name,
+  StagehandMethods.stagehandClose.name,
+  StagehandMethods.stagehandAct.name,
+  StagehandMethods.stagehandExtract.name,
+  StagehandMethods.stagehandObserve.name,
+  StagehandMethods.contextNewPage.name,
+  StagehandMethods.contextClose.name,
+  StagehandMethods.contextAddInitScript.name,
+  StagehandMethods.contextSetExtraHTTPHeaders.name,
+  StagehandMethods.contextGetDomainPolicy.name,
+  StagehandMethods.contextSetDomainPolicy.name,
+  StagehandMethods.contextCookies.name,
+  StagehandMethods.contextAddCookies.name,
+  StagehandMethods.contextClearCookies.name,
+  StagehandMethods.contextClipboardReadText.name,
+  StagehandMethods.contextClipboardWriteText.name,
+  StagehandMethods.contextClipboardClear.name,
+  StagehandMethods.contextClipboardPaste.name,
+  StagehandMethods.contextClipboardCopy.name,
+  StagehandMethods.contextClipboardCut.name,
+  StagehandMethods.pageClose.name,
+  StagehandMethods.pageEvaluate.name,
+  StagehandMethods.pageScreenshot.name,
+  StagehandMethods.pageSnapshot.name,
+  StagehandMethods.pageWebMCPInvocationResult.name,
+]);
 
 const RPCClientOptionsBaseSchema = z
   .object({
@@ -419,8 +454,6 @@ export class RPCClient {
   }
 
   handleNotification(notification: StagehandRpcNotification): void {
-    if (notification.method !== StagehandNotifications.log.name) return;
-
     if (this.notificationListeners.size === 0) {
       if (this.pendingNotifications.length === MAX_PENDING_NOTIFICATIONS) {
         this.pendingNotifications.shift();
@@ -474,9 +507,7 @@ function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
 
-function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
-  if (method === StagehandMethods.stagehandInit.name) return undefined;
-
+export function rpcResponseTimeoutMs(method: string, params: unknown): number | undefined {
   let operationTimeoutMs: number | undefined;
   switch (method) {
     case StagehandMethods.stagehandAct.name:
@@ -500,7 +531,22 @@ function rpcResponseTimeoutMs(method: string, params: unknown): number | undefin
       break;
   }
 
-  return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs ?? 0);
+  if (operationTimeoutMs !== undefined) {
+    return RPC_RESPONSE_GRACE_MS + Math.max(0, operationTimeoutMs);
+  }
+
+  const defaultOperationTimeoutMs = DEFAULT_OPERATION_TIMEOUT_MS.get(method);
+  if (defaultOperationTimeoutMs !== undefined) {
+    return RPC_RESPONSE_GRACE_MS + defaultOperationTimeoutMs;
+  }
+
+  // These operations had no v3 deadline. Keep the server as the owner of their
+  // lifetime instead of turning the transport grace period into a 10s ceiling.
+  if (UNBOUNDED_BY_DEFAULT_METHODS.has(method) || method.startsWith("locator.")) {
+    return undefined;
+  }
+
+  return RPC_RESPONSE_GRACE_MS;
 }
 
 function recordProperty(value: unknown, property: string): unknown {

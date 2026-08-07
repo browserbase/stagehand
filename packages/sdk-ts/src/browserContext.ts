@@ -34,8 +34,9 @@ export class BrowserContext {
     return pageRefs.map((pageRef) => new Page(this.rpcClient, pageRef));
   }
 
-  async newPage(options: ContextNewPageParams = {}): Promise<Page> {
-    const pageRef = await this.rpcClient.send(StagehandMethods.contextNewPage, options);
+  async newPage(url?: string): Promise<Page> {
+    const params: ContextNewPageParams = url === undefined ? {} : { url };
+    const pageRef = await this.rpcClient.send(StagehandMethods.contextNewPage, params);
     return new Page(this.rpcClient, pageRef);
   }
 

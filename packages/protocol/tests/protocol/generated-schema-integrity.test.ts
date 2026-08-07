@@ -81,9 +81,14 @@ describe("generated Stagehand schema integrity", () => {
     expect(requestMethods).toStrictEqual(Object.values(StagehandMethods).map(({ name }) => name));
 
     const notification = resolveSchema(protocol, jsonrpc.notification);
-    expect(notification.required).toContain("params");
-    expect(asRecord(asRecord(notification.properties).method).const).toBe(
-      StagehandNotifications.log.name,
+    const notificationVariants = notification.oneOf ?? notification.anyOf ?? [notification];
+    const notificationMethods = (notificationVariants as unknown[]).map((variant) => {
+      const envelope = resolveSchema(protocol, variant);
+      expect(envelope.required).toContain("params");
+      return asRecord(asRecord(envelope.properties).method).const;
+    });
+    expect(notificationMethods).toStrictEqual(
+      Object.values(StagehandNotifications).map(({ name }) => name),
     );
   });
 

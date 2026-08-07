@@ -33,24 +33,17 @@ type repository struct {
 	Name string `json:"name"`
 }
 
-var repositorySchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"name": {"type": "string"}},
-  "required": ["name"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[repository](
+extracted, err := stagehand.Extract[repository](
 	ctx,
 	client,
 	"extract the name of the repository",
-	repositorySchema,
 	nil,
 )
 ```
 </View>
 
-`extract()` grabs structured data from a webpage. Every call takes an instruction and a schema: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a [JSON Schema](https://json-schema.org) as `json.RawMessage` in Go. The result is validated against your schema before it is returned, so what you get back is already typed.
+`extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. The result is validated against that shape before it is returned, so what you get back is already typed.
 
 ## Why use `extract()`?
 
@@ -65,7 +58,7 @@ extracted, err := stagehand.ExtractAs[repository](
 
 ## Return value
 
-`extract()` returns a result with two fields: `data` holds the value matching the schema you passed, and `metadata` carries the action ID and server-side cache status. The shape of `data` depends on the schema:
+`extract()` returns a result with two fields: `data` holds the extracted value, and `metadata` carries the action ID and server-side cache status. The shape of `data` follows the schema or Go type you supplied:
 <Tabs>
 <Tab title="Basic schema">
 
@@ -107,22 +100,11 @@ type product struct {
 	InStock bool    `json:"in_stock"`
 }
 
-var productSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "name": {"type": "string"},
-    "price": {"type": "number"},
-    "in_stock": {"type": "boolean"}
-  },
-  "required": ["name", "price", "in_stock"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[product](
+extracted, err := stagehand.Extract[product](
 	ctx,
 	client,
 	"extract product details",
-	productSchema,
 	nil,
 )
 ```
@@ -206,32 +188,11 @@ type apartments struct {
 	Apartments []apartment `json:"apartments"`
 }
 
-var apartmentsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "apartments": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "address": {"type": "string"},
-          "price": {"type": "string"},
-          "sqft": {"type": "integer"}
-        },
-        "required": ["address", "price", "sqft"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["apartments"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[apartments](
+extracted, err := stagehand.Extract[apartments](
 	ctx,
 	client,
 	"extract all apartment listings",
-	apartmentsSchema,
 	nil,
 )
 ```
@@ -310,18 +271,11 @@ type price struct {
 	Price float64 `json:"price"`
 }
 
-var priceSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"price": {"type": "number"}},
-  "required": ["price"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[price](
+extracted, err := stagehand.Extract[price](
 	ctx,
 	client,
 	"extract the price",
-	priceSchema,
 	nil,
 )
 ```
@@ -380,21 +334,14 @@ result = await stagehand.extract(
 <View title="Go" icon="golang">
 ```go
 type contactLink struct {
-	URL string `json:"url"`
+	URL string `json:"url" jsonschema:"format=uri"`
 }
 
-var contactLinkSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"url": {"type": "string", "format": "uri"}},
-  "required": ["url"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[contactLink](
+extracted, err := stagehand.Extract[contactLink](
 	ctx,
 	client,
 	"extract the contact page link",
-	contactLinkSchema,
 	nil,
 )
 ```
@@ -426,13 +373,17 @@ const result = await stagehand.extract(
 
 <View title="Python" icon="python">
 ```python
+import os
+
+from stagehand import ModelConfig
+
 result = await stagehand.extract(
     "extract the repository name",
     Repository,
-    model={
-        "model_name": "anthropic/claude-sonnet-4-6",
-        "api_key": os.environ["ANTHROPIC_API_KEY"],
-    },
+    model=ModelConfig(
+        model_name="anthropic/claude-sonnet-4-6",
+        api_key=os.environ["ANTHROPIC_API_KEY"],
+    ),
     timeout=30000,
     selector="//header",  # Focus on specific area
 )
@@ -441,22 +392,16 @@ result = await stagehand.extract(
 
 <View title="Go" icon="golang">
 ```go
-var repositorySchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"name": {"type": "string"}},
-  "required": ["name"],
-  "additionalProperties": false
-}`)
 
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
-model := stagehand.KnownModel(stagehand.KnownModelConfig{
+model := stagehand.ModelConfig{
 	ModelName: "anthropic/claude-sonnet-4-6",
 	APIKey:    &modelAPIKey,
-})
+}
 timeout := 30000.0
 selector := "//header" // Focus on specific area
 
-result, err := client.Extract(ctx, "extract the repository name", repositorySchema, &stagehand.StagehandClientExtractOptions{
+result, err := stagehand.Extract[repository](ctx, client, "extract the repository name", &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{
 		Model:    &model,
 		Timeout:  &timeout,
@@ -467,25 +412,27 @@ if err != nil {
 	return err
 }
 
-// Extract hands back the raw JSON; use stagehand.ExtractAs to decode into a type
-fmt.Println(string(result.Data))
+fmt.Println(result.Data.Name)
 ```
 </View>
 
 ### Server-side caching
 
 <Note>
-`cache` requires the Browserbase browser source and a Browserbase API key. It has no effect on local or CDP browsers.
+`cache` requires a Browserbase browser and a Browserbase API key. It has no effect on local browsers.
 </Note>
 
-When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on `Stagehand.create()` and override it per call:
 
 <View title="TypeScript" icon="js">
 ```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
 // Enable server-side caching for the entire instance
-const stagehand = new Stagehand({
-  apiKey: process.env.BROWSERBASE_API_KEY,
-  browser: { type: "browserbase" },
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+
+const stagehand = await Stagehand.create({
+  browser,
   cache: true,
 });
 
@@ -503,12 +450,15 @@ console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 
 <View title="Python" icon="python">
 ```python
-from stagehand import Stagehand
+import os
+
+from stagehand import Stagehand, browserbase
 
 # Enable server-side caching for the entire instance
-stagehand = Stagehand(
-    api_key=os.environ["BROWSERBASE_API_KEY"],
-    browser="browserbase",
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
     cache=True,
 )
 
@@ -526,25 +476,29 @@ print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 
 <View title="Go" icon="golang">
 ```go
-var repositorySchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"name": {"type": "string"}},
-  "required": ["name"],
-  "additionalProperties": false
-}`)
 
 // Enable server-side caching for the entire instance
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheEnabled(true)
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey:  &apiKey,
-	Browser: stagehand.BrowserbaseClientBrowserSource{},
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
 	Cache:   &instanceCache,
 })
+if err != nil {
+	return err
+}
 
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
-result, err := client.Extract(ctx, "extract the repository name", repositorySchema, &stagehand.StagehandClientExtractOptions{
+result, err := stagehand.Extract[repository](ctx, client, "extract the repository name", &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{Cache: &off},
 })
 if err != nil {
@@ -599,21 +553,14 @@ type tableRow struct {
 	Values []string `json:"values"`
 }
 
-var tableRowSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"values": {"type": "array", "items": {"type": "string"}}},
-  "required": ["values"],
-  "additionalProperties": false
-}`)
 
 // xPath or CSS selector
 selector := "xpath=/html/body/div/table/"
 
-tableData, err := stagehand.ExtractAs[tableRow](
+tableData, err := stagehand.Extract[tableRow](
 	ctx,
 	client,
 	"Extract the values of the third row",
-	tableRowSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
 	},
@@ -660,21 +607,11 @@ type article struct {
 	Body  string `json:"body"`
 }
 
-var articleSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "title": {"type": "string"},
-    "body": {"type": "string"}
-  },
-  "required": ["title", "body"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[article](
+extracted, err := stagehand.Extract[article](
 	ctx,
 	client,
 	"extract the article title and body",
-	articleSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{
 			IgnoreSelectors: []string{".ad", ".newsletter-modal", "nav.related-posts"},
@@ -726,20 +663,13 @@ type saleBadge struct {
 	Text string `json:"text"`
 }
 
-var saleBadgeSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"text": {"type": "string"}},
-  "required": ["text"],
-  "additionalProperties": false
-}`)
 
 screenshot := true
 
-saleBadgeData, err := stagehand.ExtractAs[saleBadge](
+saleBadgeData, err := stagehand.Extract[saleBadge](
 	ctx,
 	client,
 	"extract the text shown in the visible sale badge",
-	saleBadgeSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{Screenshot: &screenshot},
 	},
@@ -804,42 +734,21 @@ result = await stagehand.extract(
 <View title="Go" icon="golang">
 ```go
 type apartment struct {
-	Address     string `json:"address"`
-	Price       string `json:"price"`
-	SquareFeet  string `json:"square_feet"`
+	Address    string `json:"address" jsonschema:"description=the address of the apartment"`
+	Price      string `json:"price" jsonschema:"description=the price of the apartment"`
+	SquareFeet string `json:"square_feet" jsonschema:"description=the square footage of the apartment"`
 }
 
 type apartments struct {
 	Apartments []apartment `json:"apartments"`
 }
 
-// Field descriptions live in the JSON Schema you pass to Extract
-var apartmentsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "apartments": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "address": {"type": "string", "description": "the address of the apartment"},
-          "price": {"type": "string", "description": "the price of the apartment"},
-          "square_feet": {"type": "string", "description": "the square footage of the apartment"}
-        },
-        "required": ["address", "price", "square_feet"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["apartments"],
-  "additionalProperties": false
-}`)
+// Optional JSON Schema constraints live in jsonschema struct tags.
 
-extracted, err := stagehand.ExtractAs[apartments](
+extracted, err := stagehand.Extract[apartments](
 	ctx,
 	client,
 	"Extract ALL the apartment listings and their details, including address, price, and square feet.",
-	apartmentsSchema,
 	nil,
 )
 ```
@@ -886,29 +795,22 @@ print("the link to the contact us page is: ", result.data.contact_link)
 <View title="Go" icon="golang">
 ```go
 type contactLink struct {
-	ContactLink string `json:"contact_link"`
+	ContactLink string `json:"contact_link" jsonschema:"format=uri"`
 }
 
-// note the "format": "uri" annotation for URL extraction
-var contactLinkSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"contact_link": {"type": "string", "format": "uri"}},
-  "required": ["contact_link"],
-  "additionalProperties": false
-}`)
+// The jsonschema tag adds the "format": "uri" constraint.
 
-extracted, err := stagehand.ExtractAs[contactLink](
+extracted, err := stagehand.Extract[contactLink](
 	ctx,
 	client,
 	"extract the link to the 'contact us' page",
-	contactLinkSchema,
 	nil,
 )
 if err != nil {
 	return err
 }
 
-fmt.Println("the link to the contact us page is: ", extracted.ContactLink)
+fmt.Println("the link to the contact us page is: ", extracted.Data.ContactLink)
 ```
 </View>
 
@@ -996,38 +898,18 @@ type products struct {
 	Products []product `json:"products"`
 }
 
-var productsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "products": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "price": {"type": "string"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["products"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[products](
+extracted, err := stagehand.Extract[products](
 	ctx,
 	client,
 	"extract all product names and prices",
-	productsSchema,
 	nil,
 )
 if err != nil {
 	return err
 }
 
-fmt.Println("extracted", len(extracted.Products), "products")
+fmt.Println("extracted", len(extracted.Data.Products), "products")
 ```
 </View>
 </Accordion>
@@ -1065,21 +947,11 @@ class ProductDetails(BaseModel):
 ```go
 // Optional fields are pointers, and descriptions live in the JSON Schema
 type productDetails struct {
-	Price        string   `json:"price"`
-	Availability *string  `json:"availability,omitempty"`
+	Price        string   `json:"price" jsonschema:"description=price including currency symbol such as $19.99"`
+	Availability *string  `json:"availability,omitempty" jsonschema:"description=stock status if available"`
 	Rating       *float64 `json:"rating,omitempty"`
 }
 
-var productDetailsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "price": {"type": "string", "description": "price including currency symbol, e.g., '$19.99'"},
-    "availability": {"type": "string", "description": "stock status if available"},
-    "rating": {"type": "number"}
-  },
-  "required": ["price"],
-  "additionalProperties": false
-}`)
 ```
 </View>
 </Accordion>
@@ -1159,38 +1031,18 @@ type products struct {
 	Products []product `json:"products"`
 }
 
-var productsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "products": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string", "description": "the product title or name"},
-          "price": {"type": "string", "description": "the price as displayed, including currency"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["products"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[products](
+extracted, err := stagehand.Extract[products](
 	ctx,
 	client,
 	"extract name and price from each product listing shown on the page",
-	productsSchema,
 	nil,
 )
 if err != nil {
 	return err
 }
 
-for _, item := range extracted.Products {
+for _, item := range extracted.Data.Products {
 	fmt.Println(item.Name, item.Price)
 }
 ```
@@ -1263,40 +1115,20 @@ type products struct {
 	Products []product `json:"products"`
 }
 
-var productsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "products": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "price": {"type": "number"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["products"],
-  "additionalProperties": false
-}`)
 
 // Instead of extracting everything at once
 var allData []product
 timeout := 60000.0 // 60 second timeout
 
 for pageNum := 1; pageNum <= 5; pageNum++ {
-	if _, err := client.Act(ctx, fmt.Sprintf("navigate to page %d", pageNum), nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction(fmt.Sprintf("navigate to page %d", pageNum)), nil); err != nil {
 		return err
 	}
 
-	extracted, err := stagehand.ExtractAs[products](
+	extracted, err := stagehand.Extract[products](
 		ctx,
 		client,
 		"extract product data from the current page only",
-		productsSchema,
 		&stagehand.StagehandClientExtractOptions{
 			ExtractOptions: stagehand.ExtractOptions{Timeout: &timeout},
 		},
@@ -1305,7 +1137,7 @@ for pageNum := 1; pageNum <= 5; pageNum++ {
 		return err
 	}
 
-	allData = append(allData, extracted.Products...)
+	allData = append(allData, extracted.Data.Products...)
 }
 ```
 </View>

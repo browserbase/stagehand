@@ -22,7 +22,6 @@ type Stagehand struct {
 	mu                        sync.RWMutex
 	rpc                       protocolClient
 	browser                   *Browser
-	context                   *BrowserContext
 	initialized               bool
 	closed                    bool
 	closeResult               error
@@ -114,19 +113,23 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		cancelCleanup()
 		return nil, errors.Join(err, closeErr, browserErr)
 	}
-	client.context = &BrowserContext{rpc: rpc}
+	browserContext := &BrowserContext{
+		rpc: rpc,
+		reportPageEventListenerPanic: func(recovered any) {
+			reportClientCallbackPanic(logging, "page event listener", recovered)
+		},
+	}
+	if err := attachBrowserContext(client.browser, browserContext); err != nil {
+		if client.removeLLMHandler != nil {
+			client.removeLLMHandler()
+		}
+		client.removeNotificationHandler()
+		rpcErr := rpc.close()
+		releaseBrowserClaim(options.Browser)
+		return nil, errors.Join(err, rpcErr)
+	}
 	client.initialized = true
 	return client, nil
-}
-
-// Context returns the initialized browser context.
-func (s *Stagehand) Context() (*BrowserContext, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.context == nil {
-		return nil, ErrNotInitialized
-	}
-	return s.context, nil
 }
 
 // Browser returns the factory-created browser handle attached to Stagehand.
@@ -204,68 +207,6 @@ func (s *Stagehand) Observe(
 	return result, nil
 }
 
-// Extract returns the generated protocol's dynamic JSON result for the
-// selected or active page.
-func (s *Stagehand) Extract(
-	ctx context.Context,
-	instruction string,
-	schema json.RawMessage,
-	options *StagehandClientExtractOptions,
-) (ExtractResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return ExtractResult{}, err
-	}
-	page, err := s.targetPage(ctx, pageFromExtractOptions(options))
-	if err != nil {
-		return ExtractResult{}, err
-	}
-	params := StagehandExtractParams{PageID: page.PageID(), Instruction: instruction}
-	if schema != nil {
-		if len(schema) == 0 {
-			schema = json.RawMessage(`{}`)
-		}
-		params.Schema = schema
-	}
-	if options != nil {
-		params.Options = &options.ExtractOptions
-	}
-	var result ExtractResult
-	if err := rpc.call(ctx, "stagehand.extract", params, &result); err != nil {
-		return ExtractResult{}, err
-	}
-	return result, nil
-}
-
-// TypedExtractResult contains caller-decoded extract data and its protocol metadata.
-type TypedExtractResult[T any] struct {
-	Data     T                       `json:"data"`
-	Metadata StagehandResultMetadata `json:"metadata"`
-}
-
-// ExtractAs decodes an Extract result into a caller-selected Go type while
-// preserving the full result envelope.
-func ExtractAs[T any](
-	ctx context.Context,
-	client *Stagehand,
-	instruction string,
-	schema json.RawMessage,
-	options *StagehandClientExtractOptions,
-) (TypedExtractResult[T], error) {
-	var typedResult TypedExtractResult[T]
-	var value T
-	result, err := client.Extract(ctx, instruction, schema, options)
-	if err != nil {
-		return typedResult, err
-	}
-	typedResult.Metadata = result.Metadata
-	if err := json.Unmarshal(result.Data, &value); err != nil {
-		return typedResult, fmt.Errorf("decode stagehand.extract result: %w", err)
-	}
-	typedResult.Data = value
-	return typedResult, nil
-}
-
 // Close releases the remote Stagehand context without touching the Browser handle.
 func (s *Stagehand) Close(ctx context.Context) error {
 	s.mu.Lock()
@@ -275,7 +216,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 	}
 
 	var closeErr error
-	if s.context != nil && s.rpc != nil {
+	if s.initialized && s.rpc != nil {
 		var result StagehandCloseResult
 		closeErr = s.rpc.call(ctx, "stagehand.close", EmptyParams{}, &result)
 		if errors.Is(closeErr, ErrCDPConnectionClosed) {
@@ -295,7 +236,7 @@ func (s *Stagehand) Close(ctx context.Context) error {
 		rpcErr = s.rpc.close()
 		s.rpc = nil
 	}
-	s.context = nil
+	detachBrowserContext(s.browser)
 	s.initialized = false
 	s.closed = true
 	s.closeResult = errors.Join(closeErr, rpcErr)
@@ -356,7 +297,7 @@ func (s *Stagehand) targetPage(ctx context.Context, page *Page) (*Page, error) {
 	if page != nil {
 		return page, nil
 	}
-	browserContext, err := s.Context()
+	browserContext, err := s.browser.Context()
 	if err != nil {
 		return nil, err
 	}
@@ -406,14 +347,26 @@ func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLogging
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			fmt.Fprintf(
-				logging.writer,
-				"[stagehand] ERROR onLog callback failed: %v\n",
-				recovered,
-			)
+			reportClientCallbackPanic(logging, "onLog", recovered)
 		}
 	}()
 	logging.onLog(log)
+}
+
+func reportClientCallbackPanic(
+	logging resolvedStagehandClientLoggingConfig,
+	callback string,
+	recovered any,
+) {
+	if !isClientLogLevelEnabled(StagehandLogLevelError, logging.level) {
+		return
+	}
+	fmt.Fprintf(
+		logging.writer,
+		"[stagehand] ERROR %s callback failed: %v\n",
+		callback,
+		recovered,
+	)
 }
 
 func isClientLogLevelEnabled(

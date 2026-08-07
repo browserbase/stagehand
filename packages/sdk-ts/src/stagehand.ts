@@ -5,7 +5,7 @@ import {
   StagehandInitParamsSchema,
 } from "../../protocol/schemas.js";
 import { JSONRPCErrorObjectSchema } from "../../protocol/json-rpc/schemas.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
 import type {
   Action,
   ActResult,
@@ -36,6 +36,7 @@ import {
   type ClaimedStagehandBrowser,
   type StagehandBrowser,
 } from "./browser/factories.js";
+import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
 
 type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
@@ -53,7 +54,6 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   typeof value.safeParse === "function";
 
 export class Stagehand {
-  browserContext: BrowserContext | undefined;
   isInitialized = false;
   rpcClient: RPCClient | undefined;
   removeNotificationListener: (() => void) | undefined;
@@ -98,15 +98,6 @@ export class Stagehand {
     }
   }
 
-  get context(): BrowserContext {
-    if (!this.browserContext) {
-      throw new Error(
-        "Stagehand is unavailable. Create a new instance with await Stagehand.create().",
-      );
-    }
-    return this.browserContext;
-  }
-
   get browser(): StagehandBrowser {
     return this.browserHandle;
   }
@@ -140,7 +131,7 @@ export class Stagehand {
         stagehandCreateParamsForWorker(createConfig, browser),
         signal,
       );
-      this.browserContext = new BrowserContext(rpcClient);
+      attachStagehandBrowserContext(this.browserHandle, new BrowserContext(rpcClient));
     } catch (error) {
       this.removeClientLLMHandler?.();
       this.removeClientLLMHandler = undefined;
@@ -161,7 +152,7 @@ export class Stagehand {
   async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
   async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
     const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
-    const targetPage = page ?? (await this.context.activePage());
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
@@ -177,7 +168,7 @@ export class Stagehand {
     options?: StagehandClientObserveOptions,
   ): Promise<ObserveResult> {
     const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
-    const targetPage = page ?? (await this.context.activePage());
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandObserve, {
       pageId: targetPage.pageId,
@@ -208,7 +199,7 @@ export class Stagehand {
     const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(
       resolvedOptions ?? {},
     );
-    const targetPage = page ?? (await this.context.activePage());
+    const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
@@ -225,9 +216,8 @@ export class Stagehand {
 
   close(): Promise<void> {
     this.closePromise ??= (async () => {
-      const context = this.browserContext;
       try {
-        if (context) {
+        if (this.isInitialized) {
           try {
             await this.rpcClient?.send(StagehandMethods.stagehandClose, {});
           } catch (error) {
@@ -241,7 +231,7 @@ export class Stagehand {
         this.removeNotificationListener = undefined;
         this.rpcClient?.close(new Error("Stagehand closed"), { closeTransport: false });
         this.rpcClient = undefined;
-        this.browserContext = undefined;
+        detachStagehandBrowserContext(this.browserHandle);
         this.isInitialized = false;
       }
     })();
@@ -292,6 +282,7 @@ function handleStagehandNotification(
   notification: StagehandRpcNotification,
   logging: ResolvedStagehandClientLoggingConfig,
 ): void {
+  if (notification.method !== StagehandNotifications.log.name) return;
   const log = notification.params;
   if (LOG_LEVEL_PRIORITY[log.level] < LOG_LEVEL_PRIORITY[logging.level]) return;
 
@@ -309,7 +300,7 @@ function handleStagehandNotification(
 }
 
 function renderStagehandLog(
-  log: StagehandRpcNotification["params"],
+  log: Extract<StagehandRpcNotification, { method: "stagehand.log" }>["params"],
   format: ResolvedStagehandClientLoggingConfig["format"],
 ): string {
   if (format === "json") return JSON.stringify(log);

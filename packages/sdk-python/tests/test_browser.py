@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, cast
 
 import pytest
 from pydantic import ValidationError
@@ -17,8 +17,10 @@ from stagehand.browser import (
     _DEFAULT_CHROME_FLAGS,
     _WEBMCP_CHROME_FLAG,
     StagehandBrowser,
+    _attach_browser_context,
     _claim_browser,
     _connect_browser,
+    _detach_browser_context,
     _launch_local_browser,
     _local_browser_flags,
     _release_browser,
@@ -26,6 +28,7 @@ from stagehand.browser import (
     browserbase,
     local_browser,
 )
+from stagehand.browser_context import BrowserContext
 from stagehand.client_models import LocalBrowserLaunchOptions, LocalViewport
 
 
@@ -149,6 +152,31 @@ async def test_claim_release_reclaim_and_errors(fake_cdp: type[FakeCDPClient]) -
         _claim_browser(handle)
     with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):
         _claim_browser(object())
+
+
+async def test_context_requires_stagehand_attachment(fake_cdp: type[FakeCDPClient]) -> None:
+    handle = await _connected_handle(FakeSource(keep_alive=True))
+    context = cast(BrowserContext, object())
+    try:
+        with pytest.raises(RuntimeError, match="Browser context is unavailable"):
+            _ = handle.context
+        with pytest.raises(RuntimeError, match="before Stagehand claims"):
+            _attach_browser_context(handle, context)
+
+        _claim_browser(handle)
+        _attach_browser_context(handle, context)
+        assert handle.context is context
+
+        with pytest.raises(RuntimeError, match="already has a Stagehand context"):
+            _attach_browser_context(handle, cast(BrowserContext, object()))
+
+        _detach_browser_context(handle)
+        with pytest.raises(RuntimeError, match="Browser context is unavailable"):
+            _ = handle.context
+    finally:
+        _detach_browser_context(handle)
+        _release_browser(handle)
+        await handle.close()
 
 
 def test_handle_construction_is_nominal() -> None:
@@ -417,7 +445,7 @@ async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_so
     packaged = await local_browser.connect(cdp_url="http://browser")
     arguments = fake_cdp.connect_arguments[-1]
     assert arguments["extension_id"] is None
-    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "server/dist"))
+    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "extension/dist"))
     assert arguments["service_worker_url_includes"] == "service-worker.js"
     assert set(arguments) == {
         "cdp_url",

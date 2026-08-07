@@ -65,16 +65,17 @@ export BROWSERBASE_API_KEY=your_api_key
 <Note>
 Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
 
-Read the values in your own app code and pass them explicitly to the constructor:
+Read the values in your own app code and pass them explicitly to the browser factory:
 
 <View title="TypeScript" icon="js">
 ```typescript
 // Optional: install dotenv first (pnpm add dotenv), then load an env file yourself
 import "dotenv/config";
 
-const stagehand = new Stagehand({
+const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
 });
+const stagehand = await Stagehand.create({ browser });
 ```
 </View>
 
@@ -82,9 +83,12 @@ const stagehand = new Stagehand({
 ```python
 import os
 
-stagehand = Stagehand(
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
 )
+stagehand = await Stagehand.create(browser=browser)
 ```
 </View>
 
@@ -93,9 +97,11 @@ stagehand = Stagehand(
 // Every optional field is a pointer, so read your key into a variable first
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-client := stagehand.New(stagehand.StagehandClientInitParams{
-	APIKey: &apiKey,
-})
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
 </View>
 </Note>
@@ -106,36 +112,35 @@ Add Stagehand where you need browser automation.
 
 <View title="TypeScript" icon="js">
 ```typescript
-import { Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
 async function main() {
-  const stagehand = new Stagehand({
+  const browser = await browserbase.launch({
     apiKey: process.env.BROWSERBASE_API_KEY,
-    browser: { type: "browserbase" },
   });
-
-  await stagehand.init();
-
-  // Close in a finally block so the session is released even if a step throws
   try {
-    const page = await stagehand.context.activePage();
-    if (!page) throw new Error("Stagehand initialized without an active page");
+    const stagehand = await Stagehand.create({ browser });
+    try {
+      const [page] = await browser.context.pages();
 
-    await page.goto("https://example.com");
+      await page.goto("https://example.com");
 
-    // Act on the page
-    await stagehand.act("Click the learn more button");
+      // Act on the page
+      await stagehand.act("Click the learn more button");
 
-    // Extract structured data
-    const { data } = await stagehand.extract(
-      "extract the description",
-      z.object({ description: z.string() }),
-    );
+      // Extract structured data
+      const { data } = await stagehand.extract(
+        "extract the description",
+        z.object({ description: z.string() }),
+      );
 
-    console.log(data.description);
+      console.log(data.description);
+    } finally {
+      await stagehand.close();
+    }
   } finally {
-    await stagehand.close();
+    await browser.close();
   }
 }
 
@@ -152,42 +157,36 @@ import asyncio
 import os
 
 from pydantic import BaseModel
-from stagehand import Stagehand
-
+from stagehand import Stagehand, browserbase
 
 class Description(BaseModel):
     description: str
 
-
 async def main() -> None:
-    stagehand = Stagehand(
+    browser = await browserbase.launch(
         api_key=os.environ["BROWSERBASE_API_KEY"],
-        browser="browserbase",
     )
-
-    await stagehand.init()
-
-    # Close in a finally block so the session is released even if a step raises
     try:
-        page = await stagehand.context.active_page()
-        if page is None:
-            raise RuntimeError("Stagehand initialized without an active page")
+        stagehand = await Stagehand.create(browser=browser)
+        try:
+            page = (await browser.context.pages())[0]
 
-        await page.goto("https://example.com")
+            await page.goto("https://example.com")
 
-        # Act on the page
-        await stagehand.act("Click the learn more button")
+            # Act on the page
+            await stagehand.act("Click the learn more button")
 
-        # Extract structured data
-        result = await stagehand.extract(
-            "extract the description",
-            Description,
-        )
+            # Extract structured data
+            result = await stagehand.extract(
+                "extract the description",
+                Description,
+            )
 
-        print(result.data.description)
+            print(result.data.description)
+        finally:
+            await stagehand.close()
     finally:
-        await stagehand.close()
-
+        await browser.close()
 
 asyncio.run(main())
 ```
@@ -199,7 +198,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -212,13 +210,6 @@ type description struct {
 	Description string `json:"description"`
 }
 
-var descriptionSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"description": {"type": "string"}},
-  "required": ["description"],
-  "additionalProperties": false
-}`)
-
 func main() {
 	if err := run(context.Background()); err != nil {
 		log.Fatal(err)
@@ -228,50 +219,56 @@ func main() {
 func run(ctx context.Context) (err error) {
 	apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
-	client := stagehand.New(stagehand.StagehandClientInitParams{
-		APIKey:  &apiKey,
-		Browser: stagehand.BrowserbaseClientBrowserSource{},
-	})
-
-	if err := client.Init(ctx); err != nil {
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+	})
+	if err != nil {
+		return err
+	}
+
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
-	browserContext, err := client.Context()
+	browserContext, err := browser.Context()
 	if err != nil {
 		return err
 	}
-	page, err := browserContext.ActivePage(ctx)
+	pages, err := browserContext.Pages(ctx)
 	if err != nil {
 		return err
 	}
-	if page == nil {
+	if len(pages) == 0 {
 		return errors.New("Stagehand initialized without an active page")
 	}
+	page := pages[0]
 
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		return err
 	}
 
 	// Act on the page
-	if _, err := client.Act(ctx, "Click the learn more button", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("Click the learn more button"), nil); err != nil {
 		return err
 	}
 
 	// Extract structured data
-	extracted, err := stagehand.ExtractAs[description](
+	extracted, err := stagehand.Extract[description](
 		ctx,
 		client,
 		"extract the description",
-		descriptionSchema,
 		nil,
 	)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(extracted.Description)
+	fmt.Println(extracted.Data.Description)
 	return nil
 }
 ```

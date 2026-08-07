@@ -65,7 +65,65 @@ const runtimeBindingTokens = {
   go: "__stagehandSendToHost",
 } as const satisfies Record<Language, string>;
 
+const pages = {
+  typescript: {
+    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    typeName: "Page",
+    method: "on",
+  },
+  python: {
+    file: new URL("../../packages/sdk-python/src/stagehand/page.py", import.meta.url),
+    typeName: "Page",
+    method: "on",
+  },
+  go: {
+    file: new URL("../../packages/sdk-go/page.go", import.meta.url),
+    typeName: "Page",
+    method: "On",
+  },
+} as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
+
+const subscriptions = {
+  typescript: {
+    file: new URL("../../packages/sdk-ts/src/page.ts", import.meta.url),
+    typeName: "CDPSubscription",
+    method: "unsubscribe",
+  },
+  python: {
+    file: new URL("../../packages/sdk-python/src/stagehand/page.py", import.meta.url),
+    typeName: "CDPSubscription",
+    method: "unsubscribe",
+  },
+  go: {
+    file: new URL("../../packages/sdk-go/page.go", import.meta.url),
+    typeName: "CDPSubscription",
+    method: "Close",
+  },
+} as const satisfies Record<Language, { file: URL; typeName: string; method: string }>;
+
 describe("CDP clients retain the same core behavior", () => {
+  it("exposes page event subscriptions in TypeScript, Python, and Go", async () => {
+    for (const language of ["typescript", "python", "go"] as const) {
+      const page = pages[language];
+      const root = parse(language, await readFile(page.file, "utf8")).root();
+      expect(
+        clientMethods(root, language, page.typeName).has(page.method),
+        `${language} Page must expose ${page.method}`,
+      ).toBe(true);
+    }
+  });
+
+  it("returns removable subscription handles in TypeScript, Python, and Go", async () => {
+    for (const language of ["typescript", "python", "go"] as const) {
+      const subscription = subscriptions[language];
+      const root = parse(language, await readFile(subscription.file, "utf8")).root();
+      expect(
+        clientMethods(root, language, subscription.typeName).has(subscription.method),
+        `${language} CDPSubscription must expose ${subscription.method}`,
+      ).toBe(true);
+    }
+  });
+
   it("keeps the same transport lifecycle in TypeScript, Python, and Go", async () => {
     const methods = new Map<Language, Set<string>>();
 

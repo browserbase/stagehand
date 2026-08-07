@@ -99,4 +99,5 @@ export type RPCMethod = {
 export type RPCNotification = {
   name: string;
   params: z.ZodType;
+  paramsWire?: WireCasingOptions;
 };

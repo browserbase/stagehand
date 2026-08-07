@@ -53,14 +53,20 @@ type Page struct {
 - Preserve the same conceptual object graph as TypeScript and Python even when access syntax differs. A Go `Context()` method may correspond to a TypeScript/Python property.
 
 ```go
-client, err := stagehand.NewLocal(stagehand.LocalOptions{
-	Headless: stagehand.Bool(true),
-})
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
 if err != nil {
 	return err
 }
+defer func() {
+	closeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := browser.Close(closeCtx); err != nil {
+		logger.Printf("close browser: %v", err)
+	}
+}()
 
-if err := client.Init(ctx); err != nil {
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+if err != nil {
 	return err
 }
 defer func() {
@@ -71,17 +77,18 @@ defer func() {
 	}
 }()
 
-browserContext, err := client.Context()
+browserContext, err := browser.Context()
 if err != nil {
 	return err
 }
-page, err := browserContext.ActivePage(ctx)
+pages, err := browserContext.Pages(ctx)
 if err != nil {
 	return err
 }
-if page == nil {
+if len(pages) == 0 {
 	return errors.New("stagehand: initialized without an active page")
 }
+page := pages[0]
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
@@ -185,8 +192,8 @@ if errors.As(err, &rpcErr) {
 
 ### Dynamic JSON and Go-specific API gaps
 
-- Go does not allow methods with their own type parameters, so TypeScript/Python-style generic `page.evaluate` cannot be translated literally.
-- Choose one explicit Go shape and document it:
+- Go does not allow methods with their own type parameters, so typed operations use package-level generic functions. Extraction is `stagehand.Extract[T](ctx, client, instruction, options)`: it derives JSON Schema from `T`, sends that schema to the worker, decodes `Data` into `T`, and preserves result metadata.
+- Dynamic `page.evaluate` still needs one explicit Go shape before release:
   - `Evaluate(ctx, expression) (json.RawMessage, error)` plus a package-level `EvaluateAs[T](ctx, page, expression) (T, error)` helper; or
   - `Evaluate(ctx, expression, destination any) error`, following `json.Unmarshal`-style destination APIs.
 - Prefer `json.RawMessage` over `map[string]any` when the SDK is only carrying JSON through.
@@ -216,6 +223,13 @@ if errors.As(err, &rpcErr) {
 ## JSON Schema tooling decision
 
 The model generator and the runtime validator are two different decisions. They should not be conflated.
+
+### Extraction schema reflection
+
+- Public extraction uses `stagehand.Extract[T]`; callers define `T` once instead of maintaining both a Go type and a `json.RawMessage` schema.
+- Pinned `github.com/invopop/jsonschema` `v0.14.0` reflects `T` into JSON Schema at call time. Nested and recursive types use self-contained local `$defs` and `$ref` entries.
+- Standard `json` tags control field names and optionality. The library's `jsonschema` tags add descriptions, formats, bounds, and other constraints that Go's type system cannot express.
+- The generated schema and raw extraction payload remain internal implementation details. The public result contains decoded `Data` plus the protocol `Metadata`.
 
 ### Linked candidates
 
@@ -263,7 +277,7 @@ This is deliberately schema projection, not output patching: Omissis output is a
 - Omissis emits schema `const` properties as ordinary Go fields. Later client-facing constructors should set constants for browser sources, response formats, and similar tagged objects; callers constructing generated structs directly can still set invalid strings.
 - Required fields are ordinary zero-valued Go fields. The thin client currently relies on authoritative RPC errors rather than duplicating protocol validation; generated structs alone do not prove a required string was supplied.
 - The module path is `github.com/browserbase/stagehand/packages/sdk-go`, matching the module's `packages/sdk-go` directory inside `github.com/browserbase/stagehand`. Releases from this layout will need subdirectory-prefixed Go tags such as `packages/sdk-go/v0.1.0`.
-- Dynamic extract/evaluate payloads intentionally remain `json.RawMessage`. `ExtractAs` provides caller-selected typed decoding while preserving result metadata, without weakening the generated protocol boundary to `any`.
+- The extraction wire payload remains `json.RawMessage` internally, while the sole public extraction operation is `Extract[T]`. It derives the request schema from the caller's Go type and returns decoded data plus protocol metadata without exposing raw schema plumbing.
 - Single-string-or-array values and single-block-or-array LLM content normalize to arrays when marshalled. Arrays are schema-valid and give callers one stable Go representation, but byte-for-byte preservation of the input shape is not promised.
 - The handwritten union layer is part of the public model API. Before v1, evaluate constructor/accessor naming against the first thin-client implementation and real examples.
 - Browser source resolution and the CDP-backed JSON-RPC transport are intentionally stubbed in the first thin-client pass. Examples compile and exercise the public surface, but cannot complete `Stagehand.Init` until that bootstrap layer is implemented.
