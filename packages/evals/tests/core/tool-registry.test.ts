@@ -16,11 +16,11 @@ describe("core tool registry", () => {
     expect(getCoreTool("stagehand_code").id).toBe("stagehand_code");
   });
 
-  it("shows awaited Stagehand locator actions to coding agents", () => {
+  it("shows Stagehand locator actions to coding agents", () => {
     const prompt = buildStagehandCodePromptInstructions();
 
-    expect(prompt).toContain("await page.locator(selector).click()");
-    expect(prompt).toContain("await page.locator(selector).fill(value)");
-    expect(prompt).toContain("await page.locator(selector).type(text)");
+    expect(prompt).toContain("page.locator(selector): count(), click(), hover(), fill(value)");
+    expect(prompt).toContain("type(text)");
+    expect(prompt).toContain("Page accessors are async RPCs — always await them.");
   });
 });
