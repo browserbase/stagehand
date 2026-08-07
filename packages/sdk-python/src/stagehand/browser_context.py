@@ -53,7 +53,7 @@ class BrowserContext:
         )
         return [Page(self._rpc_client, page_ref) for page_ref in result]
 
-    async def new_page(self, *, url: str | None = None) -> Page:
+    async def new_page(self, url: str | None = None) -> Page:
         params = ContextNewPageParams()
         if url is not None:
             params.url = url

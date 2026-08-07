@@ -438,8 +438,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const blogPage = await browser.context.newPage();
-await blogPage.goto("https://www.example.com/blog");
+const blogPage = await browser.context.newPage("https://www.example.com/blog");
 
 // Use act with that specific page
 await stagehand.act("click the next page button", {
@@ -456,8 +455,7 @@ browser = await browserbase.launch(
 stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-blog_page = await browser.context.new_page()
-await blog_page.goto("https://www.example.com/blog")
+blog_page = await browser.context.new_page("https://www.example.com/blog")
 
 # Use act with that specific page
 await stagehand.act("click the next page button", page=blog_page)
@@ -482,11 +480,8 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-blogPage, err := browserContext.NewPage(ctx, nil)
+blogPage, err := browserContext.NewPage(ctx, "https://www.example.com/blog")
 if err != nil {
-	return err
-}
-if _, err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
 	return err
 }
 

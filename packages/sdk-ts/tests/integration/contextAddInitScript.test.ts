@@ -171,9 +171,7 @@ describe("context.addInitScript", () => {
 
     await ctx.addInitScript(installInitPayload, payload);
 
-    const newPage = await ctx.newPage({
-      url: toDataUrl("<html><body>new page</body></html>"),
-    });
+    const newPage = await ctx.newPage(toDataUrl("<html><body>new page</body></html>"));
     await newPage.waitForLoadState("load");
 
     const observed = await newPage.evaluate(() => {

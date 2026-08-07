@@ -24,7 +24,7 @@ describe("Page.waitForSelector tests", () => {
   beforeEach(async () => {
     const pages = await stagehand.browser.context.pages();
     if (pages.length === 0) {
-      await stagehand.browser.context.newPage({ url: "about:blank" });
+      await stagehand.browser.context.newPage("about:blank");
       return;
     }
 
