@@ -23,6 +23,7 @@
     "test:unit": "vitest run rules/ast-grep scripts",
     "test:integration": "tsx scripts/test-integration.ts",
     "build": "turbo run build",
+    "build:cli": "turbo run build:cli",
     "generate:python": "uv --directory packages/sdk-python run --locked python scripts/generate.py",
     "generate:go": "go -C packages/sdk-go generate ./...",
     "build:wheel": "uv --directory packages/sdk-python run --locked python scripts/build.py"

@@ -18,20 +18,31 @@ a request object without an `id`, so it does not receive a response.
 1. `schemas.ts` defines protocol data with Zod.
 2. `schema-registry.ts` assigns those schemas to JSON-RPC methods and notifications.
 3. `json-rpc/build-json-rpc-schema.ts` derives one in-memory Zod document from those catalogs, converts it to JSON Schema, renames API-facing keys to their wire names, and writes `stagehand.v4.json`.
-4. TypeScript uses the original Zod schemas directly. Other SDKs and documentation consume `stagehand.v4.json`.
+4. TypeScript uses the original Zod schemas directly. `just generate` uses `stagehand.v4.json` to generate the Python models and Go structs.
 
-## Adding a method
+## Where schemas go
 
-Follow these steps to add a method to the protocol:
+- Does it cross the JSON-RPC boundary?
+  - Put it in `schemas.ts` and infer its type with `z.infer` in `types.ts`.
+  - The Zod schema is the source of truth.
+- Is it used only by the SDKs?
+  - Put it in `../sdk-ts/src/clientSchemas.ts`, `../sdk-python/src/stagehand/client_types.py` and `client_models.py`, and `../sdk-go/client_options.go`.
+  - Extend or reuse the protocol type when possible.
 
-1. Define the method's Zod parameter and result schemas in `schemas.ts`, including a stable `.meta({ id: "..." })` on each new schema.
-2. Export their inferred types from `types.ts`.
-3. Add the method definition to `StagehandMethods` in `schema-registry.ts`.
-4. Implement the method in the appropriate extension controller.
-5. Route the method to that controller in `../extension/rpcRouter.ts`.
-6. Expose the method from the appropriate TypeScript SDK class using `client.send(StagehandMethods.example, params)`.
-7. Add protocol, extension, and SDK tests for the method.
-8. Regenerate `stagehand.v4.json` with `just generate`, then run `just check` and `just test` from the repository root.
+## Adding or changing a method
+
+1. Decide which fields cross JSON-RPC and which are used only by the SDKs.
+2. Add or update the Zod schemas in `schemas.ts`, export their types with `z.infer` from `types.ts`, and add the method to `StagehandMethods` in `schema-registry.ts`.
+3. Run `just generate`.
+4. Implement and route the method in the extension.
+   - Add it to the appropriate controller in `../extension/controllers`, creating a controller if needed.
+   - Put the underlying behavior in the appropriate service in `../extension/services`, then route the method in `../extension/rpcRouter.ts`.
+5. Add or update the method in all three SDKs.
+   - TypeScript: update the appropriate class in `../sdk-ts/src`.
+   - Python: update the corresponding class in `../sdk-python/src/stagehand`.
+   - Go: update the corresponding type in `../sdk-go`.
+6. Update the matching `../docs/v4/reference/<object>.mdx` page and any affected guide.
+7. Add focused tests, then run `just check` and `just test`.
 
 ## Runtime protocol versions
 

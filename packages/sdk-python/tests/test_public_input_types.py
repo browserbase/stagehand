@@ -6,15 +6,18 @@ from typing import Union, get_args, get_origin, is_typeddict
 import pytest
 
 from stagehand import (
+    ActionInput,
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     BrowserContext,
     CacheOptions,
     CookieParam,
+    DomainPolicyInput,
     ExternalProxyConfig,
     Locator,
     ModelConfig,
     Page,
+    PageDragAndDropRoutePoint,
     PageScreenshotClip,
     RgbaColor,
     Stagehand,
@@ -35,12 +38,15 @@ def _is_typed_dict_shape(value: object) -> bool:
 @pytest.mark.parametrize(
     "input_type",
     [
+        ActionInput,
         BrowserbaseBrowserSettings,
         BrowserbaseProxyConfig,
         CacheOptions,
         CookieParam,
+        DomainPolicyInput,
         ExternalProxyConfig,
         ModelConfig,
+        PageDragAndDropRoutePoint,
         PageScreenshotClip,
         RgbaColor,
         StagehandClientLoggingConfig,

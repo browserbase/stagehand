@@ -3,10 +3,13 @@ package stagehand
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
@@ -16,6 +19,11 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 	button := MouseButtonRight
 	steps := 5
 	delay := 10.0
+	route := []PageDragAndDropRoutePoint{
+		{X: 1, Y: 2},
+		{X: 2, Y: 5},
+		{X: 3, Y: 4},
+	}
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"page.click":         PageVoidResult{Ok: true},
 		"page.hover":         PageVoidResult{Ok: true},
@@ -41,6 +49,7 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 		Button: &button,
 		Steps:  &steps,
 		Delay:  &delay,
+		Route:  route,
 	}); err != nil {
 		t.Fatalf("DragAndDrop() error = %v", err)
 	}
@@ -84,12 +93,167 @@ func TestPageCoordinateInteractionsReturnOnlyErrors(t *testing.T) {
 					Button: &button,
 					Steps:  &steps,
 					Delay:  &delay,
+					Route:  route,
 				},
 			},
 		},
 	}
 	if !reflect.DeepEqual(rpc.calls, want) {
 		t.Fatalf("RPC calls = %#v, want %#v", rpc.calls, want)
+	}
+}
+
+func TestPageOnDeliversCanonicalConsoleEventsAndUnsubscribes(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":  PageVoidResult{Ok: true},
+		"page.off": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	events := make(chan PageCDPEvent, 1)
+
+	subscription, err := page.On(context.Background(), "console", func(event PageCDPEvent) {
+		events <- event
+	})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+	onParams, ok := rpc.calls[0].params.(PageOnParams)
+	if !ok || onParams.PageID != "page-1" || onParams.Event != PageEventNameConsole {
+		t.Fatalf("page.on params = %#v", rpc.calls[0].params)
+	}
+	rpc.pageEventHandler(PageCDPEventNotification{
+		SubscriptionID: onParams.SubscriptionID,
+		Event: PageCDPEvent{
+			PageID:    "page-1",
+			Method:    "Runtime.consoleAPICalled",
+			Params:    PageCDPEventParams{"type": json.RawMessage(`"log"`)},
+			SessionID: "session-1",
+			TargetID:  "target-1",
+		},
+	})
+	select {
+	case event := <-events:
+		if event.Method != "Runtime.consoleAPICalled" || event.SessionID != "session-1" {
+			t.Fatalf("page event = %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for page event")
+	}
+
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("subscription.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("page event handler remained registered")
+	}
+	offParams, ok := rpc.calls[1].params.(PageOffParams)
+	if !ok || offParams.SubscriptionID != onParams.SubscriptionID {
+		t.Fatalf("page.off params = %#v", rpc.calls[1].params)
+	}
+}
+
+func TestPageOnInvokesEventsInDeliveryOrder(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":  PageVoidResult{Ok: true},
+		"page.off": PageVoidResult{Ok: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	sequences := make([]string, 0, 2)
+
+	subscription, err := page.On(context.Background(), "console", func(event PageCDPEvent) {
+		sequences = append(sequences, string(event.Params["sequence"]))
+	})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+	onParams := rpc.calls[0].params.(PageOnParams)
+	for _, sequence := range []string{"1", "2"} {
+		rpc.pageEventHandler(PageCDPEventNotification{
+			SubscriptionID: onParams.SubscriptionID,
+			Event: PageCDPEvent{
+				PageID: "page-1",
+				Method: "Runtime.consoleAPICalled",
+				Params: PageCDPEventParams{
+					"sequence": json.RawMessage(sequence),
+				},
+			},
+		})
+	}
+	if !reflect.DeepEqual(sequences, []string{"1", "2"}) {
+		t.Fatalf("listener delivery order = %v, want [1 2]", sequences)
+	}
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("subscription.Close() error = %v", err)
+	}
+}
+
+func TestPageEventSubscriptionCanRetryFailedClose(t *testing.T) {
+	t.Parallel()
+
+	closeErr := errors.New("page.off failed")
+	rpc := &recordingProtocolClient{
+		responses: map[string]any{
+			"page.on":  PageVoidResult{Ok: true},
+			"page.off": PageVoidResult{Ok: true},
+		},
+		callErrors: map[string]error{"page.off": closeErr},
+	}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	subscription, err := page.On(context.Background(), "console", func(PageCDPEvent) {})
+	if err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+
+	if err := subscription.Close(context.Background()); !errors.Is(err, closeErr) {
+		t.Fatalf("first subscription.Close() error = %v, want %v", err, closeErr)
+	}
+	if rpc.pageEventHandler == nil {
+		t.Fatal("failed page.off removed the local event handler")
+	}
+	page.mu.RLock()
+	_, retained := page.subscriptions[subscription]
+	page.mu.RUnlock()
+	if !retained {
+		t.Fatal("failed page.off removed the subscription from its page")
+	}
+
+	delete(rpc.callErrors, "page.off")
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatalf("retried subscription.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("successful page.off retained the local event handler")
+	}
+	if got := []string{rpc.calls[1].method, rpc.calls[2].method}; !reflect.DeepEqual(got, []string{"page.off", "page.off"}) {
+		t.Fatalf("unsubscribe RPC calls = %v, want [page.off page.off]", got)
+	}
+}
+
+func TestPageCloseCleansUpLiveEventSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.on":    PageVoidResult{Ok: true},
+		"page.off":   PageVoidResult{Ok: true},
+		"page.close": PageCloseResult{Closed: true},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	if _, err := page.On(context.Background(), "console", func(PageCDPEvent) {}); err != nil {
+		t.Fatalf("On() error = %v", err)
+	}
+
+	if err := page.Close(context.Background()); err != nil {
+		t.Fatalf("Page.Close() error = %v", err)
+	}
+	if rpc.pageEventHandler != nil {
+		t.Fatal("page event handler remained registered after Page.Close()")
+	}
+	if got := []string{rpc.calls[0].method, rpc.calls[1].method, rpc.calls[2].method}; !reflect.DeepEqual(got, []string{"page.on", "page.off", "page.close"}) {
+		t.Fatalf("page lifecycle RPC calls = %v, want [page.on page.off page.close]", got)
 	}
 }
 

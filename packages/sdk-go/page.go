@@ -2,17 +2,75 @@ package stagehand
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 )
 
 // Page is a thin wrapper around a generated PageRef.
 type Page struct {
-	rpc protocolClient
-	mu  sync.RWMutex
-	ref PageRef
+	rpc                      protocolClient
+	mu                       sync.RWMutex
+	ref                      PageRef
+	subscriptions            map[*CDPSubscription]struct{}
+	reportEventListenerPanic func(any)
+}
+
+// CDPSubscription is a page-scoped console event listener registration.
+type CDPSubscription struct {
+	rpc                 protocolClient
+	page                *Page
+	subscriptionID      string
+	removeLocalListener func()
+	mu                  sync.Mutex
+	unsubscribeAttempt  *cdpUnsubscribeAttempt
+	unsubscribed        bool
+}
+
+type cdpUnsubscribeAttempt struct {
+	done chan struct{}
+	err  error
+}
+
+// Close removes the listener locally and from the Stagehand runtime.
+func (s *CDPSubscription) Close(ctx context.Context) error {
+	s.mu.Lock()
+	if s.unsubscribed {
+		s.mu.Unlock()
+		return nil
+	}
+	if attempt := s.unsubscribeAttempt; attempt != nil {
+		s.mu.Unlock()
+		select {
+		case <-attempt.done:
+			return attempt.err
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	attempt := &cdpUnsubscribeAttempt{done: make(chan struct{})}
+	s.unsubscribeAttempt = attempt
+	s.mu.Unlock()
+
+	params := PageOffParams{SubscriptionID: s.subscriptionID}
+	var result PageVoidResult
+	err := s.rpc.call(ctx, "page.off", params, &result)
+	if err == nil {
+		s.removeLocalListener()
+		s.page.removeSubscription(s)
+	}
+
+	s.mu.Lock()
+	attempt.err = err
+	s.unsubscribeAttempt = nil
+	s.unsubscribed = err == nil
+	close(attempt.done)
+	s.mu.Unlock()
+	return err
 }
 
 // PageID returns the stable protocol page identifier.
@@ -185,6 +243,43 @@ func (p *Page) AddInitScript(ctx context.Context, source string) error {
 	return p.rpc.call(ctx, "page.add_init_script", params, &result)
 }
 
+// On subscribes to console events for this page and its OOPIF sessions.
+func (p *Page) On(
+	ctx context.Context,
+	event PageEventName,
+	listener func(PageCDPEvent),
+) (*CDPSubscription, error) {
+	if listener == nil {
+		return nil, errors.New("stagehand page event listener is required")
+	}
+	subscriptionID, err := newSubscriptionID()
+	if err != nil {
+		return nil, err
+	}
+	removeLocalListener := p.rpc.onPageCDPEvent(func(notification PageCDPEventNotification) {
+		if notification.SubscriptionID != subscriptionID {
+			return
+		}
+		invokePageEventListener(listener, notification.Event, p.reportEventListenerPanic)
+	})
+	subscription := &CDPSubscription{
+		rpc:                 p.rpc,
+		page:                p,
+		subscriptionID:      subscriptionID,
+		removeLocalListener: removeLocalListener,
+	}
+	p.addSubscription(subscription)
+
+	params := PageOnParams{PageID: p.PageID(), SubscriptionID: subscriptionID, Event: event}
+	var result PageVoidResult
+	if err := p.rpc.call(ctx, "page.on", params, &result); err != nil {
+		removeLocalListener()
+		p.removeSubscription(subscription)
+		return nil, err
+	}
+	return subscription, nil
+}
+
 // SetExtraHTTPHeaders sets page-specific request headers.
 func (p *Page) SetExtraHTTPHeaders(
 	ctx context.Context,
@@ -308,9 +403,54 @@ func (p *Page) Title(ctx context.Context) (string, error) {
 
 // Close closes the page.
 func (p *Page) Close(ctx context.Context) error {
+	p.mu.RLock()
+	subscriptions := make([]*CDPSubscription, 0, len(p.subscriptions))
+	for subscription := range p.subscriptions {
+		subscriptions = append(subscriptions, subscription)
+	}
+	p.mu.RUnlock()
+	for _, subscription := range subscriptions {
+		_ = subscription.Close(ctx)
+	}
 	params := PageIDParams{PageID: p.PageID()}
 	var result PageCloseResult
 	return p.rpc.call(ctx, "page.close", params, &result)
+}
+
+func (p *Page) addSubscription(subscription *CDPSubscription) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.subscriptions == nil {
+		p.subscriptions = make(map[*CDPSubscription]struct{})
+	}
+	p.subscriptions[subscription] = struct{}{}
+}
+
+func (p *Page) removeSubscription(subscription *CDPSubscription) {
+	p.mu.Lock()
+	delete(p.subscriptions, subscription)
+	p.mu.Unlock()
+}
+
+func newSubscriptionID() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("create page event subscription ID: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+func invokePageEventListener(
+	listener func(PageCDPEvent),
+	event PageCDPEvent,
+	reportPanic func(any),
+) {
+	defer func() {
+		if recovered := recover(); recovered != nil && reportPanic != nil {
+			reportPanic(recovered)
+		}
+	}()
+	listener(event)
 }
 
 // Locator creates a page-scoped selector wrapper.

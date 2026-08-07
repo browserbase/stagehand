@@ -114,7 +114,7 @@ export class RPCClient {
       JSONRPCNotificationSchema.parse({
         jsonrpc: "2.0",
         method: notification.name,
-        params: notification.params.parse(params),
+        params: encodeWireValue(notification.params.parse(params), notification.paramsWire),
       }),
     );
   }

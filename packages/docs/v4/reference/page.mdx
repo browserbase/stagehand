@@ -238,6 +238,19 @@ await page.dragAndDrop(100, 100, 400, 400);
   <ParamField path="options.steps" type="number" optional>
     The number of intermediate pointer moves.
   </ParamField>
+
+  <ParamField path="options.route" type="PageDragAndDropRoutePoint[]" optional>
+    An ordered mouse route to follow instead of generating linear intermediate moves. The explicit
+    `toX` and `toY` coordinates remain the final point.
+
+    <ParamField path="options.route.x" type="number">
+      A route point's horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="options.route.y" type="number">
+      A route point's vertical coordinate.
+    </ParamField>
+  </ParamField>
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
@@ -314,6 +327,33 @@ const title = await page.evaluate(() => document.title);
 
 <ResponseField name="result" type="Promise<R>">
   The operation result.
+</ResponseField>
+
+## on()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```typescript
+const subscription = await page.on("console", (event) => {
+  console.log(event.method, event.params);
+});
+
+await page.evaluate(() => console.log("ready"));
+await subscription.unsubscribe();
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A callback that receives the event method, raw parameters, session ID, target ID,
+  and page ID. Async callbacks may overlap and are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="Promise<CDPSubscription>">
+  A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
 ## addInitScript()
@@ -890,6 +930,23 @@ await page.drag_and_drop(100, 100, 400, 400)
   An optional input delay in milliseconds.
 </ParamField>
 
+<ParamField
+  path="route"
+  type="Sequence[PageDragAndDropRoutePoint | Mapping[str, float]] | None"
+  optional
+>
+  An ordered mouse route to follow instead of generating linear intermediate moves. The explicit
+  `to_x` and `to_y` coordinates remain the final point.
+
+  <ParamField path="route.x" type="float">
+    A route point's horizontal coordinate.
+  </ParamField>
+
+  <ParamField path="route.y" type="float">
+    A route point's vertical coordinate.
+  </ParamField>
+</ParamField>
+
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
@@ -956,6 +1013,34 @@ title = await page.evaluate("document.title", result_type=str)
 
 <ResponseField name="result" type="JsonValue | EvaluateResult">
   The operation result.
+</ResponseField>
+
+## on()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```python
+async def handle_console(event: PageCDPEvent) -> None:
+    print(event.method, event.params)
+
+subscription = await page.on("console", handle_console)
+await page.evaluate('console.log("ready")')
+await subscription.unsubscribe()
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `"console"`.
+</ParamField>
+
+<ParamField path="listener" type="PageEventListener">
+  A sync or async callback that receives the event method, raw parameters, session
+  ID, target ID, and page ID. Async callbacks may overlap and are not awaited by
+  later page calls.
+</ParamField>
+
+<ResponseField name="result" type="CDPSubscription">
+  A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
 ## add_init_script()
