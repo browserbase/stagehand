@@ -21,26 +21,6 @@ type companies struct {
 	Companies []company `json:"companies"`
 }
 
-var companiesSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "companies": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "description": {"type": "string"}
-        },
-        "required": ["name", "description"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["companies"],
-  "additionalProperties": false
-}`)
-
 func main() {
 	if err := run(context.Background()); err != nil {
 		log.Fatal(err)
@@ -91,20 +71,16 @@ func run(ctx context.Context) (err error) {
 	}
 	extractCompanies := func() (companies, time.Duration, error) {
 		start := time.Now()
-		extractResult, extractErr := client.Extract(
+		extractResult, extractErr := stagehand.Extract[companies](
 			ctx,
+			client,
 			"Extract the names and descriptions of the first five companies listed on the page",
-			companiesSchema,
 			extractOptions,
 		)
 		if extractErr != nil {
 			return companies{}, time.Since(start), extractErr
 		}
-		var result companies
-		if decodeErr := json.Unmarshal(extractResult.Data, &result); decodeErr != nil {
-			return companies{}, time.Since(start), decodeErr
-		}
-		return result, time.Since(start), nil
+		return extractResult.Data, time.Since(start), nil
 	}
 
 	first, firstDuration, err := extractCompanies()
