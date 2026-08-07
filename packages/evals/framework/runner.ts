@@ -39,6 +39,7 @@ export { inferEffectiveBenchCategory, resolveBenchModelEntries } from "./benchPl
 export type { Harness } from "./benchTypes.js";
 export { cleanupActiveRunResources } from "./activeRunCleanup.js";
 import { resolveDefaultCoreStartupProfile } from "./context.js";
+import { withBrowserbaseExtensionScope } from "../core/targets/browserbase.js";
 
 export interface RunProgressEvent {
   type: "planned" | "started" | "passed" | "failed" | "error";
@@ -373,80 +374,82 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
     void onAggressiveAbort();
   });
 
-  const evalResult = await Eval(
-    braintrustProjectName,
-    {
-      experimentName,
-      metadata: {
-        environment,
-        tier: hasCoreOnly ? "core" : "bench",
-        ...(effectiveCoreToolSurface && {
-          toolSurface: effectiveCoreToolSurface,
-        }),
-        ...(effectiveCoreStartupProfile && {
-          startupProfile: effectiveCoreStartupProfile,
-        }),
-        ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-        ...(options.provider && { provider: options.provider }),
-        ...(options.modelOverride && { model: options.modelOverride }),
-        ...(options.useApi && { api: true }),
-      },
-      data: () => testcases,
-      task: async (input: EvalInput): Promise<TaskResult> => {
-        // Cooperative abort: skip any testcase that hasn't started yet
-        // when the signal has flipped. The in-flight task at the moment of
-        // abort still finishes its current step; this stops the next one
-        // from spinning up.
-        if (options.signal?.aborted) {
+  const evalResult = await withBrowserbaseExtensionScope(() =>
+    Eval(
+      braintrustProjectName,
+      {
+        experimentName,
+        metadata: {
+          environment,
+          tier: hasCoreOnly ? "core" : "bench",
+          ...(effectiveCoreToolSurface && {
+            toolSurface: effectiveCoreToolSurface,
+          }),
+          ...(effectiveCoreStartupProfile && {
+            startupProfile: effectiveCoreStartupProfile,
+          }),
+          ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
+          ...(options.provider && { provider: options.provider }),
+          ...(options.modelOverride && { model: options.modelOverride }),
+          ...(options.useApi && { api: true }),
+        },
+        data: () => testcases,
+        task: async (input: EvalInput): Promise<TaskResult> => {
+          // Cooperative abort: skip any testcase that hasn't started yet
+          // when the signal has flipped. The in-flight task at the moment of
+          // abort still finishes its current step; this stops the next one
+          // from spinning up.
+          if (options.signal?.aborted) {
+            options.onProgress?.({
+              type: "failed",
+              taskName: input.name,
+              modelName: input.modelName,
+              error: "aborted",
+            });
+            return {
+              _success: false,
+              error: "aborted by user",
+              logs: [],
+            };
+          }
+
+          const resolvedTask =
+            options.registry.byName.get(input.name) ??
+            (input.name.includes("/")
+              ? undefined
+              : options.registry.byName.get(`agent/${input.name}`));
+
+          if (!resolvedTask) {
+            throw new EvalsError(`Task "${input.name}" not found in registry.`);
+          }
+
           options.onProgress?.({
-            type: "failed",
+            type: "started",
             taskName: input.name,
             modelName: input.modelName,
-            error: "aborted",
           });
-          return {
-            _success: false,
-            error: "aborted by user",
-            logs: [],
-          };
-        }
 
-        const resolvedTask =
-          options.registry.byName.get(input.name) ??
-          (input.name.includes("/")
-            ? undefined
-            : options.registry.byName.get(`agent/${input.name}`));
+          const result = await executeTask(input, resolvedTask, options);
 
-        if (!resolvedTask) {
-          throw new EvalsError(`Task "${input.name}" not found in registry.`);
-        }
+          options.onProgress?.({
+            type: result._success ? "passed" : "failed",
+            taskName: input.name,
+            modelName: input.modelName,
+            error: result._success ? undefined : formatProgressError(result.error),
+          });
 
-        options.onProgress?.({
-          type: "started",
-          taskName: input.name,
-          modelName: input.modelName,
-        });
-
-        const result = await executeTask(input, resolvedTask, options);
-
-        options.onProgress?.({
-          type: result._success ? "passed" : "failed",
-          taskName: input.name,
-          modelName: input.modelName,
-          error: result._success ? undefined : formatProgressError(result.error),
-        });
-
-        return result;
+          return result;
+        },
+        scores: scores as unknown as never,
+        maxConcurrency: concurrency,
+        trialCount: trials,
       },
-      scores: scores as unknown as never,
-      maxConcurrency: concurrency,
-      trialCount: trials,
-    },
-    {
-      progress: silentBraintrustProgress,
-      reporter: silentBraintrustReporter,
-      ...(sendLogs ? {} : { noSendLogs: true }),
-    },
+      {
+        progress: silentBraintrustProgress,
+        reporter: silentBraintrustReporter,
+        ...(sendLogs ? {} : { noSendLogs: true }),
+      },
+    ),
   );
 
   if (sendLogs) {

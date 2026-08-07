@@ -68,6 +68,10 @@ await stagehand.extract(
 
 <View title="Go" icon="golang">
 ```go
+type terms struct {
+	Summary string `json:"summary"`
+}
+
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
 cheapModel := stagehand.ModelConfig{
@@ -97,21 +101,15 @@ strongModel := stagehand.ModelConfig{
 	APIKey:    &anthropicKey,
 }
 
-var termsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"summary": {"type": "string"}},
-  "required": ["summary"],
-  "additionalProperties": false
-}`)
 
-result, err := client.Extract(ctx, "summarize the contract terms", termsSchema, &stagehand.StagehandClientExtractOptions{
+result, err := stagehand.Extract[terms](ctx, client, "summarize the contract terms", &stagehand.StagehandClientExtractOptions{
 	ExtractOptions: stagehand.ExtractOptions{Model: &strongModel},
 })
 if err != nil {
 	return err
 }
 
-fmt.Println(string(result.Data))
+fmt.Println(result.Data.Summary)
 ```
 </View>
 

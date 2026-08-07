@@ -19,9 +19,6 @@ export default defineBenchTask(
         }),
       );
 
-      // v3 closes mid-task here (and again in finally); preserved verbatim.
-      await stagehand.close();
-
       const { practices, phone, fax } = result;
 
       const expected = {
@@ -124,8 +121,6 @@ export default defineBenchTask(
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await stagehand.close();
     }
   },
 );

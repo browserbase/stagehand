@@ -152,18 +152,24 @@ describe("Stagehand TS object wrapper", () => {
     expect(pages[1]?.pageId).toBe("page-2");
   });
 
-  it("wraps context.newPage results as a Page", async () => {
+  it("wraps context.newPage results and serializes its optional URL", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.contextNewPage, {
       pageId: "new-page",
       url: "https://browserbase.com",
     });
+    client.queueResponse(StagehandMethods.contextNewPage, {
+      pageId: "blank-page",
+      url: "about:blank",
+    });
     const stagehand = createStagehandWithClientForTest(client);
 
-    const page = await stagehand.browser.context.newPage({ url: "https://browserbase.com" });
+    const page = await stagehand.browser.context.newPage("https://browserbase.com");
+    const blankPage = await stagehand.browser.context.newPage();
 
     expect(client.calls).toStrictEqual([
       requestCall(StagehandMethods.contextNewPage, { url: "https://browserbase.com" }),
+      requestCall(StagehandMethods.contextNewPage, {}),
     ]);
     expect(page).toBeInstanceOf(Page);
     expect(page.pageId).toBe("new-page");
@@ -171,6 +177,7 @@ describe("Stagehand TS object wrapper", () => {
       pageId: "new-page",
       url: "https://browserbase.com",
     });
+    expect(blankPage.pageId).toBe("blank-page");
   });
 
   it("wraps the active page and maps a missing active page to undefined", async () => {
@@ -627,6 +634,11 @@ describe("Stagehand TS object wrapper", () => {
         button: "left",
         steps: 5,
         delay: 10,
+        route: [
+          { x: 1, y: 2 },
+          { x: 2, y: 5 },
+          { x: 3, y: 4 },
+        ],
       }),
     ).resolves.toBeUndefined();
 
@@ -655,7 +667,16 @@ describe("Stagehand TS object wrapper", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10 },
+        options: {
+          button: "left",
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
       }),
     ]);
   });
