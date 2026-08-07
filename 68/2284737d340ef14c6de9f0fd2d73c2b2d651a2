@@ -1,0 +1,19 @@
+packages/evals/tests/core/tool-registry.test.ts
+  s_67f3908051a9f6::t_c6e674e71d82c6 19,22-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "682284737d340ef14c6de9f0fd2d73c2b2d651a2",
+  "prompts": {},
+  "sessions": {
+    "s_67f3908051a9f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "639bcd90-2b51-42bb-be81-46b44b4c81b1",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Shriya Lolabattu <shriavj@gmail.com>"
+    }
+  }
+}
