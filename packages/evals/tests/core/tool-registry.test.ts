@@ -19,8 +19,12 @@ describe("core tool registry", () => {
   it("shows Stagehand locator actions to coding agents", () => {
     const prompt = buildStagehandCodePromptInstructions();
 
-    expect(prompt).toContain("page.locator(selector): count(), click(), hover(), fill(value)");
-    expect(prompt).toContain("type(text)");
+    expect(prompt).toContain("goBack()/goForward()");
+    expect(prompt).toContain("keyPress(key)");
+    expect(prompt).toContain("click(x,y), hover(x,y)");
+    expect(prompt).toContain(
+      "page.locator(selector): count(), click(), hover(), fill(value), type(text), isVisible(), textContent(), inputValue()",
+    );
     expect(prompt).toContain("Page accessors are async RPCs — always await them.");
   });
 });
