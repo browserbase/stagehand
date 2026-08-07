@@ -11,7 +11,7 @@ Selectors pierce shadow DOM, including closed roots.
 Selectors also cross iframe boundaries. Separate a frame from a target inside it with `>>`, and Stagehand resolves each hop in turn, so `page.locator("iframe#checkout >> button.submit")` reaches the button inside that iframe. Chain as many hops as the page nests. A deep XPath that steps through an iframe resolves the same way, as in `/html/body/iframe[2]//div`.
 
 <Warning>
-**Closed roots require a navigated page.** Stagehand resolves elements inside iframes and shadow DOMs for you, so you rarely need to target nested documents manually. This relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs, so navigate to a `http:` or `https:` URL first when a target sits inside a closed shadow root (see [locator limitations](/v4/reference/locator)).
+**Closed roots require a navigated page.** Stagehand resolves elements inside iframes and shadow DOMs for you, so you rarely need to target nested documents manually. This relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs, so navigate to a `http:` or `https:` URL first when a target sits inside an iframe or a closed shadow root (see [locator limitations](/v4/reference/locator)).
 </Warning>
 
 <View title="TypeScript" icon="js">

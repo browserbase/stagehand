@@ -41,7 +41,7 @@ const page = await stagehand.browser.context.activePage();
 ```
 
 <ResponseField name="stagehand.browser" type="StagehandBrowser">
-  The browser handle this instance was created with. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+  The browser handle you passed to `Stagehand.create()`. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
 </ResponseField>
 
 <ResponseField name="stagehand.initialized" type="boolean">
@@ -703,7 +703,7 @@ page = await stagehand.browser.context.active_page()
 ```
 
 <ResponseField name="stagehand.browser" type="StagehandBrowser">
-  The browser handle this instance was created with. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+  The browser handle you passed to `Stagehand.create()`. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
 </ResponseField>
 
 <ResponseField name="stagehand.initialized" type="bool">
