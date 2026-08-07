@@ -385,12 +385,6 @@ type data struct {
 	Title string `json:"title"`
 }
 
-var dataSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"title": {"type": "string"}},
-  "required": ["title"],
-  "additionalProperties": false
-}`)
 
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
@@ -432,7 +426,7 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 if _, err := client.Act(ctx, stagehand.ActInstruction("click button"), nil); err != nil {
 	return err
 }
-if _, err := stagehand.ExtractAs[data](ctx, client, "get data", dataSchema, nil); err != nil {
+if _, err := stagehand.Extract[data](ctx, client, "get data", nil); err != nil {
 	return err
 }
 
@@ -730,12 +724,6 @@ type user struct {
 	Email string `json:"email"`
 }
 
-var userSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"name": {"type": "string"}, "email": {"type": "string"}},
-  "required": ["name", "email"],
-  "additionalProperties": false
-}`)
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
@@ -782,7 +770,7 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
-extracted, err := stagehand.ExtractAs[user](ctx, client, "extract user info", userSchema, nil)
+extracted, err := stagehand.Extract[user](ctx, client, "extract user info", nil)
 if err != nil {
 	return err
 }

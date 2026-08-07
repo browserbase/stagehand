@@ -46,7 +46,7 @@ describe("default page tracking", () => {
 
   it("activePage switches to the most recently created page", async () => {
     const initial = await firstPage(stagehand);
-    const created = await stagehand.browser.context.newPage({ url: fixture.url });
+    const created = await stagehand.browser.context.newPage(fixture.url);
     const active = await waitForActivePage(stagehand.browser.context, initial.pageId);
 
     expect(active.pageId).toBe(created.pageId);

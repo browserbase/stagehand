@@ -28,10 +28,7 @@ func TestBrowserContextMapsPagesAndCookies(t *testing.T) {
 	if len(pages) != 1 || pages[0].PageID() != "page-1" {
 		t.Fatalf("Pages() = %#v", pages)
 	}
-	page, err := browserContext.NewPage(
-		context.Background(),
-		&ContextNewPageParams{URL: &pageURL},
-	)
+	page, err := browserContext.NewPage(context.Background(), pageURL)
 	if err != nil {
 		t.Fatalf("NewPage() error = %v", err)
 	}
@@ -56,6 +53,25 @@ func TestBrowserContextMapsPagesAndCookies(t *testing.T) {
 		len(*params.Urls) != 1 ||
 		(*params.Urls)[0] != pageURL {
 		t.Fatalf("Cookies() params = %#v", rpc.calls[2].params)
+	}
+}
+
+func TestBrowserContextNewPageAcceptsZeroOrOneURL(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.new_page": PageRef{PageID: "page-1"},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	if _, err := browserContext.NewPage(context.Background()); err != nil {
+		t.Fatalf("NewPage() error = %v", err)
+	}
+	if params, ok := rpc.calls[0].params.(ContextNewPageParams); !ok || params.URL != nil {
+		t.Fatalf("NewPage() params = %#v", rpc.calls[0].params)
+	}
+	if _, err := browserContext.NewPage(context.Background(), "first", "second"); err == nil {
+		t.Fatal("NewPage() accepted more than one URL")
 	}
 }
 

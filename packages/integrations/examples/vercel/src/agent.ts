@@ -43,7 +43,7 @@ export async function runStagehandAgent(
   try {
     const result = await generateText({
       model,
-      system: STAGEHAND_CODEMODE_SKILL,
+      instructions: STAGEHAND_CODEMODE_SKILL,
       prompt,
       tools,
       stopWhen: stepCountIs(8),

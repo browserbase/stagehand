@@ -17,6 +17,17 @@ export function registerActiveRunCleanup(cleanup: () => Promise<void>): () => vo
 }
 
 export async function cleanupActiveRunResources(): Promise<void> {
-  const cleanups = [...activeRunCleanups.values()];
-  await Promise.allSettled(cleanups.map((cleanup) => cleanup()));
+  const cleanups = [...activeRunCleanups.entries()];
+  for (const [key] of cleanups) activeRunCleanups.delete(key);
+  await Promise.allSettled(cleanups.map(([, cleanup]) => Promise.resolve().then(cleanup)));
+}
+
+export async function abortActiveRun(
+  controller: AbortController,
+  mode: "cooperative" | "aggressive",
+): Promise<void> {
+  // AbortController keeps the first reason forever. A second Escape therefore
+  // cannot upgrade a cooperative abort by calling abort("aggressive") again.
+  if (!controller.signal.aborted) controller.abort(mode);
+  if (mode === "aggressive") await cleanupActiveRunResources();
 }

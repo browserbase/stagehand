@@ -1517,7 +1517,7 @@ export class Page {
 
   /**
    * Drag from (fromX, fromY) to (toX, toY) using mouse events.
-   * Sends mouseMoved → mousePressed → mouseMoved (steps) → mouseReleased.
+   * Sends mouseMoved → mousePressed → mouseMoved (route or steps) → mouseReleased.
    */
   async dragAndDrop(
     fromX: number,
@@ -1528,6 +1528,7 @@ export class Page {
       button?: "left" | "right" | "middle";
       steps?: number;
       delay?: number;
+      route?: Array<{ x: number; y: number }>;
     },
   ): Promise<void> {
     const button = options?.button ?? "left";
@@ -1568,11 +1569,26 @@ export class Page {
       clickCount: 1,
     } as Protocol.Input.DispatchMouseEventRequest);
 
-    // Intermediate moves
-    for (let i = 1; i <= steps; i++) {
-      const t = i / steps;
-      const x = fromX + (toX - fromX) * t;
-      const y = fromY + (toY - fromY) * t;
+    const samePoint = (point: { x: number; y: number }, x: number, y: number) =>
+      point.x === x && point.y === y;
+    const route = options?.route ?? [];
+    let routeStart = 0;
+    let routeEnd = route.length;
+    while (routeStart < routeEnd && samePoint(route[routeStart], fromX, fromY)) routeStart++;
+    while (routeEnd > routeStart && samePoint(route[routeEnd - 1], toX, toY)) routeEnd--;
+
+    const movementPoints =
+      route.length > 0
+        ? [...route.slice(routeStart, routeEnd), { x: toX, y: toY }]
+        : Array.from({ length: steps }, (_, index) => {
+            const t = (index + 1) / steps;
+            return {
+              x: fromX + (toX - fromX) * t,
+              y: fromY + (toY - fromY) * t,
+            };
+          });
+
+    for (const { x, y } of movementPoints) {
       await this.updateCursor(x, y);
       await this.mainSession.send<never>("Input.dispatchMouseEvent", {
         type: "mouseMoved",
