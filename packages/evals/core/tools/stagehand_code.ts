@@ -507,7 +507,7 @@ export function buildStagehandCodePromptInstructions(): string {
     `Use the ${AGENT_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Stagehand client (stagehand), its initial page, startUrl, and task object.`,
     "AI methods live on the client: await stagehand.act('instruction'), await stagehand.observe('instruction'), await stagehand.extract('instruction', zodSchema) — a zod `z` is in scope for extract schemas (use single-word keys).",
     "The page implements exactly these methods:",
-    "  page: goto(url, opts), reload(), back()/forward(), url(), title(), evaluate(fn, arg), screenshot(opts), setViewportSize(w,h), waitForSelector(sel, opts), waitForTimeout(ms), click(target), hover(target), scroll(x,y,dx,dy), type(text), press(key).",
+    "  page: goto(url, opts), reload(), goBack()/goForward(), url(), title(), evaluate(fn, arg), screenshot(opts), setViewportSize(w,h), waitForSelector(sel, opts), waitForTimeout(ms), click(x,y), hover(x,y), scroll(x,y,dx,dy), type(text), keyPress(key).",
     "  page.locator(selector): count(), click(), hover(), fill(value), type(text), isVisible(), textContent(), inputValue().",
     "For behavior not listed above, use await stagehand.act('describe the action').",
     "Page accessors are async RPCs — always await them.",
