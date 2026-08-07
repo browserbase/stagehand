@@ -5,6 +5,7 @@ import type {
   A11yOptions,
   AccessibilityTreeResult,
 } from "../../../types/private/snapshot.js";
+import { isFrameScopeError } from "../frameScopeError.js";
 import { resolveObjectIdForCss, resolveObjectIdForXPath } from "./focusSelectors.js";
 import { formatTreeLine, normaliseSpaces } from "./treeFormatUtils.js";
 
@@ -28,12 +29,7 @@ export async function a11yForFrame(
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree", params));
   } catch (e) {
-    const msg = String((e as Error)?.message ?? e ?? "");
-    const isFrameScopeError =
-      msg.includes("Frame with the given") ||
-      msg.includes("does not belong to the target") ||
-      msg.includes("is not found");
-    if (!isFrameScopeError || !frameId) throw e;
+    if (!isFrameScopeError(e) || !frameId || !opts.allowUnscopedFrameFallback?.()) throw e;
     ({ nodes } = await session.send<{
       nodes: Protocol.Accessibility.AXNode[];
     }>("Accessibility.getFullAXTree"));

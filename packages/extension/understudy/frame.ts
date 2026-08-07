@@ -4,6 +4,7 @@ import type { CDPSessionLike } from "./cdp.js";
 import { Locator } from "./locator.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import type { StagehandLogger } from "../logger.js";
+import { isFrameScopeError } from "./a11y/frameScopeError.js";
 
 function base64ToBytes(base64: string): Uint8Array {
   const binary = globalThis.atob(base64);
@@ -99,12 +100,7 @@ export class Frame implements FrameManager {
         nodes: Protocol.Accessibility.AXNode[];
       }>("Accessibility.getFullAXTree", { frameId: this.frameId }));
     } catch (e) {
-      const msg = String((e as Error)?.message ?? e ?? "");
-      const isFrameScopeError =
-        msg.includes("Frame with the given") ||
-        msg.includes("does not belong to the target") ||
-        msg.includes("is not found");
-      if (!isFrameScopeError) throw e;
+      if (!isFrameScopeError(e)) throw e;
       // Retry unscoped: on OOPIF sessions, returns the child doc's AX tree.
       ({ nodes } = await this.session.send<{
         nodes: Protocol.Accessibility.AXNode[];

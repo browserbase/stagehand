@@ -54,7 +54,7 @@ export const integrationTestGroups = {
     "pageScreenshot",
     "pageScroll",
   ],
-  "local/snapshots-ai": ["observeElementIdFormat", "unicodeWellFormed"],
+  "local/snapshots-ai": ["observeElementIdFormat", "snapshotIframeChurn", "unicodeWellFormed"],
   "local/waits-timeouts": ["waitForSelector", "waitForTimeout"],
 } as const;
 

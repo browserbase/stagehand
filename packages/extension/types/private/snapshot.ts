@@ -109,6 +109,12 @@ export type A11yNode = {
 
 export type A11yOptions = {
   focusSelector?: string;
+  /**
+   * Whether a frame-scoped AX request may be retried against the session root.
+   * This is valid for the main frame and live OOPIF session roots, but not for
+   * detached same-process iframes whose ids have gone stale.
+   */
+  allowUnscopedFrameFallback?: () => boolean;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;

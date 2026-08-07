@@ -16,6 +16,7 @@ import type {
   SnapshotOptions,
   SessionDomIndex,
 } from "../../../types/private/index.js";
+import { isFrameScopeError } from "../frameScopeError.js";
 import { a11yForFrame } from "./a11yTree.js";
 import {
   resolveCssFocusFrameAndTail,
@@ -118,11 +119,15 @@ export async function captureHybridSnapshot(
     framesInScope,
     exclusionIntervalsByFrame,
   );
+  const capturedFrameIds = framesInScope.filter((frameId) => perFrameMaps.has(frameId));
   const { absPrefix, iframeHostEncByChild } = await computeFramePrefixes(
     page,
     context,
     perFrameMaps,
-    framesInScope,
+    capturedFrameIds,
+  );
+  const mergeableFrameIds = capturedFrameIds.filter(
+    (frameId) => frameId === context.rootId || absPrefix.has(frameId),
   );
 
   return mergeFramesIntoSnapshot(
@@ -131,7 +136,7 @@ export async function captureHybridSnapshot(
     perFrameOutlines,
     absPrefix,
     iframeHostEncByChild,
-    framesInScope,
+    mergeableFrameIds,
   );
 }
 
@@ -221,6 +226,8 @@ export async function tryScopedSnapshot(
     );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(owningSess, targetFrameId, {
+      allowUnscopedFrameFallback: () =>
+        !sameSessionAsParent && (targetFrameId === context.rootId || page.hasFrame(targetFrameId)),
       focusSelector: tailSelector || undefined,
       isIgnoredBackendNode: makeIsIgnoredBackendNode(
         targetFrameId,
@@ -335,49 +342,65 @@ export async function collectPerFrameMaps(
   const perFrameOutlines: Array<{ frameId: string; outline: string }> = [];
 
   for (const frameId of frameIds) {
-    const sess = ownerSession(page, frameId);
-    const sid = sess.id ?? "root";
-    let idx = sessionToIndex.get(sid);
-    if (!idx) {
-      idx = await buildSessionDomIndex(sess, pierce);
-      sessionToIndex.set(sid, idx);
+    const isRoot = frameId === context.rootId;
+    if (!isRoot && !page.hasFrame(frameId)) continue;
+
+    try {
+      const sess = ownerSession(page, frameId);
+      const sid = sess.id ?? "root";
+      let idx = sessionToIndex.get(sid);
+      if (!idx) {
+        idx = await buildSessionDomIndex(sess, pierce);
+        sessionToIndex.set(sid, idx);
+      }
+
+      const parentId = context.parentByFrame.get(frameId);
+      const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
+
+      const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
+      if (!isRoot && !page.hasFrame(frameId)) continue;
+
+      const tagNameMap: Record<string, string> = {};
+      const xpathMap: Record<string, string> = {};
+      const scrollableMap: Record<string, boolean> = {};
+      const isIgnoredBackendNode = makeIsIgnoredBackendNode(
+        frameId,
+        idx,
+        exclusionIntervalsByFrame,
+      );
+      const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
+      const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
+
+      for (const [be, nodeAbs] of idx.absByBe.entries()) {
+        const nodeDocRoot = idx.docRootOf.get(be);
+        if (nodeDocRoot !== docRootBe) continue;
+        if (isIgnoredBackendNode?.(be)) continue;
+
+        // Translate absolute XPaths into document-relative ones for this frame.
+        const rel = relativizeXPath(baseAbs, nodeAbs);
+        const key = enc(be);
+        xpathMap[key] = rel;
+        const tag = idx.tagByBe.get(be);
+        if (tag) tagNameMap[key] = tag;
+        if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
+      }
+
+      const { outline, urlMap } = await a11yForFrame(sess, frameId, {
+        allowUnscopedFrameFallback: () =>
+          !sameSessionAsParent && (isRoot || page.hasFrame(frameId)),
+        isIgnoredBackendNode,
+        tagNameMap,
+        scrollableMap,
+        encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
+      });
+      if (!isRoot && !page.hasFrame(frameId)) continue;
+
+      perFrameOutlines.push({ frameId, outline });
+      perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
+    } catch (error) {
+      if (!isRoot && (!page.hasFrame(frameId) || isFrameScopeError(error))) continue;
+      throw error;
     }
-
-    const parentId = context.parentByFrame.get(frameId);
-    const sameSessionAsParent = !!parentId && ownerSession(page, parentId) === sess;
-
-    const docRootBe = await resolveFrameDocRootBackendId(page, frameId, idx, sameSessionAsParent);
-
-    const tagNameMap: Record<string, string> = {};
-    const xpathMap: Record<string, string> = {};
-    const scrollableMap: Record<string, boolean> = {};
-    const isIgnoredBackendNode = makeIsIgnoredBackendNode(frameId, idx, exclusionIntervalsByFrame);
-    const enc = (be: number) => `${page.getOrdinal(frameId)}-${be}`;
-    const baseAbs = idx.absByBe.get(docRootBe) ?? "/";
-
-    for (const [be, nodeAbs] of idx.absByBe.entries()) {
-      const nodeDocRoot = idx.docRootOf.get(be);
-      if (nodeDocRoot !== docRootBe) continue;
-      if (isIgnoredBackendNode?.(be)) continue;
-
-      // Translate absolute XPaths into document-relative ones for this frame.
-      const rel = relativizeXPath(baseAbs, nodeAbs);
-      const key = enc(be);
-      xpathMap[key] = rel;
-      const tag = idx.tagByBe.get(be);
-      if (tag) tagNameMap[key] = tag;
-      if (idx.scrollByBe.get(be)) scrollableMap[key] = true;
-    }
-
-    const { outline, urlMap } = await a11yForFrame(sess, frameId, {
-      isIgnoredBackendNode,
-      tagNameMap,
-      scrollableMap,
-      encode: (backendNodeId) => `${page.getOrdinal(frameId)}-${backendNodeId}`,
-    });
-
-    perFrameOutlines.push({ frameId, outline });
-    perFrameMaps.set(frameId, { tagNameMap, xpathMap, scrollableMap, urlMap });
   }
 
   return { perFrameMaps, perFrameOutlines };
@@ -716,7 +739,7 @@ export async function computeFramePrefixes(
     for (const child of context.frames) {
       if (!included.has(child)) continue;
       if (context.parentByFrame.get(child) !== parent) continue;
-      queue.push(child);
+      if (!page.hasFrame(child)) continue;
 
       const parentSess = parentSession(page, context.parentByFrame, child);
 
@@ -730,10 +753,12 @@ export async function computeFramePrefixes(
           return undefined;
         }
       })();
+      if (!page.hasFrame(child)) continue;
 
       if (!ownerBackendNodeId) {
         // OOPIFs resolved via a different session inherit the parent prefix.
         absPrefix.set(child, parentAbs);
+        queue.push(child);
         continue;
       }
 
@@ -745,6 +770,7 @@ export async function computeFramePrefixes(
 
       absPrefix.set(child, childAbs);
       iframeHostEncByChild.set(child, iframeEnc);
+      queue.push(child);
     }
   }
 
@@ -765,6 +791,7 @@ export function mergeFramesIntoSnapshot(
   iframeHostEncByChild: Map<string, string>,
   frameIds: string[],
 ): HybridSnapshot {
+  const included = new Set(frameIds);
   const combinedXpathMap: Record<string, string> = {};
   const combinedUrlMap: Record<string, string> = {};
 
@@ -789,6 +816,7 @@ export function mergeFramesIntoSnapshot(
 
   const idToTree = new Map<string, string>();
   for (const { frameId, outline } of perFrameOutlines) {
+    if (!included.has(frameId)) continue;
     const parentEnc = iframeHostEncByChild.get(frameId);
     // The key is the parent iframe's encoded id so injectSubtrees can nest lines.
     if (parentEnc) idToTree.set(parentEnc, outline);
@@ -804,14 +832,16 @@ export function mergeFramesIntoSnapshot(
     combinedTree,
     combinedXpathMap,
     combinedUrlMap,
-    perFrame: perFrameOutlines.map(({ frameId, outline }) => {
-      const maps = perFrameMaps.get(frameId);
-      return {
-        frameId,
-        outline: toWellFormed(outline),
-        xpathMap: maps?.xpathMap ?? {},
-        urlMap: maps?.urlMap ?? {},
-      };
-    }),
+    perFrame: perFrameOutlines
+      .filter(({ frameId }) => included.has(frameId))
+      .map(({ frameId, outline }) => {
+        const maps = perFrameMaps.get(frameId);
+        return {
+          frameId,
+          outline: toWellFormed(outline),
+          xpathMap: maps?.xpathMap ?? {},
+          urlMap: maps?.urlMap ?? {},
+        };
+      }),
   };
 }

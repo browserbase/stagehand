@@ -874,6 +874,10 @@ export class Page {
     return this.registry.listAllFrames();
   }
 
+  public hasFrame(frameId: string): boolean {
+    return this.registry.hasFrame(frameId);
+  }
+
   // -------- Convenience APIs delegated to the current main frame --------
 
   /**
