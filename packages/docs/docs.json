@@ -24,10 +24,6 @@
         "version": "v4",
         "groups": [
           {
-            "group": "Getting started",
-            "pages": ["v4/index"]
-          },
-          {
             "group": "First steps",
             "pages": [
               "v4/first-steps/introduction",

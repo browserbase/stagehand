@@ -19,6 +19,7 @@ import type {
   UnderstudyRuntimeScreenshotOptions,
 } from "../runtime.ts";
 import { createStagehandRuntime, type StagehandRuntimeAdapters } from "../runtime.ts";
+import { DuplicatePageEventSubscriptionError } from "../errors.ts";
 import type { StagehandTracing } from "../tracing.ts";
 import type {
   ContextSetExtraHTTPHeadersParams,
@@ -36,6 +37,8 @@ import type {
   LocatorTypeParams,
   PageAddInitScriptParams,
   PageClickParams,
+  PageCDPEvent,
+  PageCDPEventNotification,
   PageDragAndDropParams,
   PageEvaluateParams,
   PageKeyPressParams,
@@ -243,6 +246,10 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
   readonly webMCPInvocations = new Set<string>();
   readonly locatorRefs: FakeUnderstudyRuntimeLocator[] = [];
   readonly locatorsBySelector = new Map<string, FakeUnderstudyRuntimeLocator>();
+  readonly cdpEventListeners = new Map<
+    PageCDPEvent["method"],
+    Set<(event: PageCDPEvent) => void>
+  >();
   closed = false;
   currentUrl: string;
   backUrl?: string;
@@ -448,6 +455,21 @@ class FakeUnderstudyRuntimePage implements UnderstudyRuntimePage {
     this.locatorRefs.push(locator);
     return locator;
   }
+
+  subscribeCDPEvent(listener: (event: PageCDPEvent) => void): () => void {
+    const method = "Runtime.consoleAPICalled";
+    const listeners = this.cdpEventListeners.get(method) ?? new Set();
+    listeners.add(listener);
+    this.cdpEventListeners.set(method, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0) this.cdpEventListeners.delete(method);
+    };
+  }
+
+  emitCDPEvent(event: PageCDPEvent): void {
+    for (const listener of this.cdpEventListeners.get(event.method) ?? []) listener(event);
+  }
 }
 
 class FakeUnderstudyRuntimeLocator implements UnderstudyRuntimeLocator {
@@ -629,6 +651,74 @@ function configuredInitParams(cdpUrl: string) {
 }
 
 describe("Stagehand worker clients", () => {
+  it("canonicalizes the console alias and stops page notifications after page.off", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const session = new FakeBrowserSession([page]);
+    const notifications: PageCDPEventNotification[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => session,
+      emitPageCDPEvent: (notification) => notifications.push(notification),
+    });
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://127.0.0.1:9222/devtools/browser/session",
+    });
+    await runtime.contextPages();
+
+    runtime.pageOn({ pageId: "page-a", subscriptionId: "subscription-1", event: "console" });
+    page.emitCDPEvent({
+      pageId: "page-a",
+      method: "Runtime.consoleAPICalled",
+      params: { type: "log", executionContextId: 1 },
+      sessionId: "session-1",
+      targetId: "target-1",
+    });
+
+    expect(notifications).toStrictEqual([
+      {
+        subscriptionId: "subscription-1",
+        event: {
+          pageId: "page-a",
+          method: "Runtime.consoleAPICalled",
+          params: { type: "log", executionContextId: 1 },
+          sessionId: "session-1",
+          targetId: "target-1",
+        },
+      },
+    ]);
+    expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(true);
+
+    runtime.pageOff({ subscriptionId: "subscription-1" });
+    page.emitCDPEvent({
+      pageId: "page-a",
+      method: "Runtime.consoleAPICalled",
+      params: { type: "log" },
+      sessionId: "session-1",
+      targetId: "target-1",
+    });
+    expect(notifications).toHaveLength(1);
+    expect(page.cdpEventListeners.has("Runtime.consoleAPICalled")).toBe(false);
+  });
+
+  it("rejects duplicate page event subscriptions without reflecting their identifier", async () => {
+    const page = new FakeUnderstudyRuntimePage("page-a", "about:blank");
+    const runtime = await createConfiguredRuntime(new FakeBrowserSession([page]));
+    const subscriptionId = 'caller-controlled-<script>alert("x")</script>';
+
+    runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+
+    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
+      DuplicatePageEventSubscriptionError,
+    );
+    expect(() => runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" })).toThrow(
+      "A page event subscription with this identifier already exists",
+    );
+    try {
+      runtime.pageOn({ pageId: "page-a", subscriptionId, event: "console" });
+    } catch (error) {
+      expect((error as Error).message).not.toContain(subscriptionId);
+    }
+  });
+
   it("accepts only the shared Stagehand Chrome binding name", () => {
     expect(StagehandSendToHostBindingSchema.parse(STAGEHAND_SEND_TO_HOST_BINDING)).toBe(
       STAGEHAND_SEND_TO_HOST_BINDING,
@@ -1538,7 +1628,16 @@ describe("Stagehand worker clients", () => {
           from_y: 2,
           to_x: 3,
           to_y: 4,
-          options: { button: "left", steps: 5, delay: 10 },
+          options: {
+            button: "left",
+            steps: 5,
+            delay: 10,
+            route: [
+              { x: 1, y: 2 },
+              { x: 2, y: 5 },
+              { x: 3, y: 4 },
+            ],
+          },
         },
       }),
     ).resolves.toStrictEqual({
@@ -1558,7 +1657,16 @@ describe("Stagehand worker clients", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10 },
+        options: {
+          button: "left",
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
       },
     ]);
   });

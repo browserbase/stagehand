@@ -1,15 +1,23 @@
 """Stagehand Python SDK."""
 
 from ._generated.input_types import (
+    Action as ActionInput,
+)
+from ._generated.input_types import (
     BrowserbaseBrowserSettings,
     BrowserbaseProxyConfig,
     CookieParam,
     ExternalProxyConfig,
     ModelConfig,
+    PageDragAndDropRoutePoint,
+    PageEventName,
     PageScreenshotClip,
     RgbaColor,
     TelemetryConfig,
     Variables,
+)
+from ._generated.input_types import (
+    DomainPolicy as DomainPolicyInput,
 )
 from ._generated.input_types import Locator as ProtocolLocator
 from ._generated.models import (
@@ -37,6 +45,7 @@ from ._generated.models import (
     NavigationSecurityDetails,
     NavigationServerAddr,
     ObserveResult,
+    PageCDPEvent,
     Scale,
     StagehandMetrics,
     StagehandResultMetadata,
@@ -62,7 +71,7 @@ from .client_types import (
 )
 from .file_upload import FileInput, FilePayload
 from .locator import Locator
-from .page import Page
+from .page import CDPSubscription, Page, PageEventListener
 from .response import Response
 from .stagehand import Stagehand
 from .webmcp import (
@@ -76,6 +85,7 @@ __all__ = [
     "ActResult",
     "ActResultData",
     "Action",
+    "ActionInput",
     "Animations",
     "BrowserClipboard",
     "BrowserContext",
@@ -87,9 +97,11 @@ __all__ = [
     "CacheStatus",
     "CacheTokenSavings",
     "Caret",
+    "CDPSubscription",
     "Cookie",
     "CookieParam",
     "DomainPolicy",
+    "DomainPolicyInput",
     "DefaultExtract",
     "ExternalProxyConfig",
     "ExtractResult",
@@ -114,6 +126,10 @@ __all__ = [
     "NavigationServerAddr",
     "ObserveResult",
     "Page",
+    "PageCDPEvent",
+    "PageDragAndDropRoutePoint",
+    "PageEventListener",
+    "PageEventName",
     "PageScreenshotClip",
     "ProtocolLocator",
     "RgbaColor",

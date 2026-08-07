@@ -299,6 +299,16 @@ export class RPCRouter {
           parseParams(StagehandMethods.pageAddInitScript, request.params),
           context,
         );
+      case "page.on":
+        return this.pageController.on(
+          parseParams(StagehandMethods.pageOn, request.params),
+          context,
+        );
+      case "page.off":
+        return this.pageController.off(
+          parseParams(StagehandMethods.pageOff, request.params),
+          context,
+        );
       case "page.set_extra_http_headers":
         return this.pageController.setExtraHTTPHeaders(
           parseParams(StagehandMethods.pageSetExtraHTTPHeaders, request.params),

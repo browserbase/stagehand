@@ -397,6 +397,8 @@ describe("Stagehand object-model protocol", () => {
       "page.key_press",
       "page.evaluate",
       "page.add_init_script",
+      "page.on",
+      "page.off",
       "page.set_extra_http_headers",
       "page.screenshot",
       "page.snapshot",

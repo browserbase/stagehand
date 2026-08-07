@@ -496,7 +496,6 @@ describe("All language SDK operations remain in sync", () => {
     for (const [methodNameText, resultType] of [
       ["Act", "ActResult"],
       ["Observe", "ObserveResult"],
-      ["Extract", "ExtractResult"],
     ] as const) {
       const method = directClassMethods(stagehand, "go", "Stagehand").find(
         (candidate) => methodName(candidate.node, "go")?.text() === methodNameText,
@@ -517,9 +516,12 @@ describe("All language SDK operations remain in sync", () => {
     }
   });
 
-  it("keeps Go act input typed and typed extract metadata intact", async () => {
-    const root = parse("go", await readFile(new URL("stagehand.go", goSource), "utf8")).root();
-    const stagehand = findClass(root, "go", "Stagehand");
+  it("keeps Go act input typed and generic extract metadata intact", async () => {
+    const stagehandRoot = parse(
+      "go",
+      await readFile(new URL("stagehand.go", goSource), "utf8"),
+    ).root();
+    const stagehand = findClass(stagehandRoot, "go", "Stagehand");
 
     expect(stagehand, "Go Stagehand must exist").toBeDefined();
     if (!stagehand) return;
@@ -533,28 +535,29 @@ describe("All language SDK operations remain in sync", () => {
       "Go Stagehand.Act must accept the generated instruction union",
     ).toBe("ActInstructionValue");
 
-    const extractAs = root
+    const extractRoot = parse("go", await readFile(new URL("extract.go", goSource), "utf8")).root();
+    const extract = extractRoot
       .findAll({ rule: { kind: "function_declaration" } })
       .find((function_) =>
         namedChildren(function_).some(
-          (child) => child.kind() === "identifier" && child.text() === "ExtractAs",
+          (child) => child.kind() === "identifier" && child.text() === "Extract",
         ),
       );
-    expect(extractAs, "Go ExtractAs must exist").toBeDefined();
-    expect(extractAs?.field("result")?.text(), "Go ExtractAs result type").toBe(
+    expect(extract, "Go generic Extract must exist").toBeDefined();
+    expect(extract?.field("result")?.text(), "Go Extract result type").toBe(
       "(TypedExtractResult[T], error)",
     );
     expect(
-      extractAs
+      extract
         ?.findAll({ rule: { kind: "return_statement" } })
         .some((statement) => /\btypedResult\b/u.test(statement.text())),
-      "Go ExtractAs must return its typed result envelope",
+      "Go Extract must return its typed result envelope",
     ).toBe(true);
     expect(
-      extractAs
+      extract
         ?.findAll({ rule: { kind: "assignment_statement" } })
         .some((assignment) => assignment.text() === "typedResult.Metadata = result.Metadata"),
-      "Go ExtractAs must preserve protocol result metadata",
+      "Go Extract must preserve protocol result metadata",
     ).toBe(true);
   });
 });
@@ -571,7 +574,7 @@ async function publicOperations(
   expect(classNode, `${className} must exist in ${file.pathname}`).toBeDefined();
   if (!classNode) return [];
 
-  return directClassMethods(classNode, language, className)
+  const operations = directClassMethods(classNode, language, className)
     .filter((method) => isPublicCallable(method, language))
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
@@ -590,12 +593,31 @@ async function publicOperations(
           wireMethod,
         };
       });
-    })
-    .sort((left, right) =>
-      `${left.publicMethod}:${left.wireMethod}`.localeCompare(
-        `${right.publicMethod}:${right.wireMethod}`,
-      ),
-    );
+    });
+  if (language === "go" && className === "Stagehand") {
+    const extract = await goExtractFunction();
+    if (extract) {
+      operations.push(
+        ...protocolCalls(extract, "go").flatMap((call) => {
+          const methodNode = protocolMethodNode(call, "go");
+          return methodNode
+            ? [
+                {
+                  publicMethod: "extract",
+                  wireMethod: wireMethodForCall(methodNode, "go", registry),
+                },
+              ]
+            : [];
+        }),
+      );
+    }
+  }
+
+  return operations.sort((left, right) =>
+    `${left.publicMethod}:${left.wireMethod}`.localeCompare(
+      `${right.publicMethod}:${right.wireMethod}`,
+    ),
+  );
 }
 
 async function publicCallableMethods(
@@ -609,7 +631,7 @@ async function publicCallableMethods(
   expect(classNode, `${className} must exist in ${file.pathname}`).toBeDefined();
   if (!classNode) return [];
 
-  return [
+  const methods = [
     ...new Set(
       directClassMethods(classNode, language, className)
         .filter((method) => isPublicCallable(method, language))
@@ -622,7 +644,22 @@ async function publicCallableMethods(
             : [];
         }),
     ),
-  ].sort();
+  ];
+  if (language === "go" && className === "Stagehand" && (await goExtractFunction())) {
+    methods.push("extract");
+  }
+  return [...new Set(methods)].sort();
+}
+
+async function goExtractFunction(): Promise<SgNode | undefined> {
+  const root = parse("go", await readFile(new URL("extract.go", goSource), "utf8")).root();
+  return root
+    .findAll({ rule: { kind: "function_declaration" } })
+    .find((function_) =>
+      namedChildren(function_).some(
+        (child) => child.kind() === "identifier" && child.text() === "Extract",
+      ),
+    );
 }
 
 function participatesInSurfaceParity(
@@ -752,8 +789,12 @@ async function clientProtocolNotifications(
     if (language === "go") {
       for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
         const calledFunction = namedChildren(call)[0]?.text();
-        if (!calledFunction?.endsWith(".onNotification")) continue;
-        const notification = callArguments(call)[0];
+        const arguments_ = callArguments(call);
+        const notification = calledFunction?.endsWith(".onNotification")
+          ? arguments_[0]
+          : calledFunction === "registerNotification"
+            ? arguments_[1]
+            : undefined;
         if (notification?.kind() === "interpreted_string_literal") {
           notifications.add(stringLiteral(notification));
         }
@@ -834,6 +875,20 @@ async function publicRpcMethods(
         methods.push({
           method: candidate.node,
           wireMethod: wireMethodForCall(methodNode, language, registry),
+        });
+      }
+    }
+  }
+
+  if (language === "go") {
+    const extract = await goExtractFunction();
+    if (extract) {
+      for (const call of protocolCalls(extract, "go")) {
+        const methodNode = protocolMethodNode(call, "go");
+        if (!methodNode) continue;
+        methods.push({
+          method: extract,
+          wireMethod: wireMethodForCall(methodNode, "go", registry),
         });
       }
     }

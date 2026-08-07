@@ -562,8 +562,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const productsPage = await browser.context.newPage();
-await productsPage.goto("https://www.example.com/products");
+const productsPage = await browser.context.newPage("https://www.example.com/products");
 
 // Use observe with that specific page
 const { data: actions } = await stagehand.observe("find all product cards", {
@@ -580,8 +579,7 @@ browser = await browserbase.launch(
 stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-products_page = await browser.context.new_page()
-await products_page.goto("https://www.example.com/products")
+products_page = await browser.context.new_page("https://www.example.com/products")
 
 # Use observe with that specific page
 result = await stagehand.observe(
@@ -609,11 +607,8 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-productsPage, err := browserContext.NewPage(ctx, nil)
+productsPage, err := browserContext.NewPage(ctx, "https://www.example.com/products")
 if err != nil {
-	return err
-}
-if _, err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
 	return err
 }
 
@@ -755,25 +750,6 @@ type pricingTiers struct {
 	Tiers []pricingTier `json:"tiers"`
 }
 
-var pricingSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "tiers": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {"type": "string"},
-          "price": {"type": "string"}
-        },
-        "required": ["name", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["tiers"],
-  "additionalProperties": false
-}`)
 
 instruction := "find the pricing table"
 observed, err := client.Observe(ctx, &instruction, nil)
@@ -784,11 +760,10 @@ if len(observed.Data) == 0 {
 	return errors.New("pricing table not found")
 }
 
-pricing, err := stagehand.ExtractAs[pricingTiers](
+pricing, err := stagehand.Extract[pricingTiers](
 	ctx,
 	client,
 	"extract all pricing tiers",
-	pricingSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{
 			Locator: &stagehand.Locator{Selector: observed.Data[0].Selector},
