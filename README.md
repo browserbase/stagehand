@@ -112,7 +112,6 @@ const {
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-
 ### Build and Run from Source
 
 ```bash
@@ -151,12 +150,12 @@ Or set it in your project's `package.json`:
 
 At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://stagehand.dev/discord) before starting to ensure that your contribution aligns with our goals.
 
-
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 
 ## Acknowledgements
 
 We'd like to thank the following people for their major contributions to Stagehand:
+
 - [Paul Klein](https://github.com/pkiv)
 - [Sean McGuire](https://github.com/seanmcguire12)
 - [Miguel Gonzalez](https://github.com/miguelg719)
@@ -178,4 +177,3 @@ Licensed under the MIT License.
 Copyright 2026 Browserbase, Inc.
 
 "Stagehand" is a trademark of Browserbase, Inc.
-
