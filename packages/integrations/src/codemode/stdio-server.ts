@@ -2,7 +2,6 @@ import { connectCodeModeStdio, createCodeModeMcpHost } from "./mcp-runtime.js";
 import { closeCodeModeStdio } from "./stdio-lifecycle.js";
 
 const server = createCodeModeMcpHost();
-await connectCodeModeStdio(server);
 let closing = false;
 
 async function shutdown(code: number): Promise<void> {
@@ -19,4 +18,6 @@ process.once("SIGINT", () => void shutdown(130));
 process.once("SIGTERM", () => void shutdown(143));
 process.stdin.once("end", () => void shutdown(0));
 process.stdin.once("close", () => void shutdown(0));
+
+await connectCodeModeStdio(server);
 process.stderr.write("Stagehand code-mode MCP host listening on stdio\n");
