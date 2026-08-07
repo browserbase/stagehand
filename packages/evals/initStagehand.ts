@@ -9,6 +9,7 @@ import {
 } from "@browserbasehq/stagehand";
 import type { EvalLogger } from "./logger.js";
 import { launchRunnerProvidedBrowserbaseChrome } from "./core/targets/browserbase.js";
+import { onceAsync, registerActiveRunCleanup } from "./framework/activeRunCleanup.js";
 import { resolveKey } from "./tui/welcomeStatus.js";
 
 export type InitStagehandArgs = {
@@ -24,8 +25,8 @@ export type StagehandInitResult = {
   sessionUrl: string;
   /** Live debugger URL (Browserbase, best-effort; empty for LOCAL). */
   debugUrl: string;
-  /** Releases the Browserbase session (no-op for LOCAL). */
-  endSession: () => Promise<void>;
+  /** Closes Stagehand, its browser handle, and the Browserbase session. */
+  cleanup: () => Promise<void>;
 };
 
 const PROVIDER_API_KEY_ENV: Record<string, string[]> = {
@@ -120,7 +121,18 @@ export async function initStagehand({
   // `Stagehand.create` does not reliably close the handle when init fails —
   // without this a failed task leaks a Chrome process (LOCAL) or a live
   // Browserbase session (BROWSERBASE) for the rest of the run.
-  let stagehand: Stagehand;
+  let stagehand: Stagehand | undefined;
+  const cleanupOwnedResources = onceAsync(async () => {
+    await stagehand?.close().catch(() => {});
+    await browser.close().catch(() => {});
+    await endSession().catch(() => {});
+  });
+  const unregisterCleanup = registerActiveRunCleanup(cleanupOwnedResources);
+  const cleanup = async (): Promise<void> => {
+    await cleanupOwnedResources();
+    unregisterCleanup();
+  };
+
   try {
     stagehand = await Stagehand.create({
       browser,
@@ -131,8 +143,7 @@ export async function initStagehand({
       logging: { onLog: createStagehandOnLog(logger) },
     });
   } catch (error) {
-    await browser.close().catch(() => {});
-    await endSession().catch(() => {});
+    await cleanup();
     throw error;
   }
 
@@ -146,9 +157,7 @@ export async function initStagehand({
       throw new Error("Stagehand init: Stagehand initialized without an active page");
     }
   } catch (error) {
-    await stagehand.close().catch(() => {});
-    await browser.close().catch(() => {});
-    await endSession().catch(() => {});
+    await cleanup();
     throw error;
   }
 
@@ -157,6 +166,6 @@ export async function initStagehand({
     page,
     sessionUrl,
     debugUrl,
-    endSession,
+    cleanup,
   };
 }

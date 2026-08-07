@@ -13,15 +13,10 @@ import (
 	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
 )
 
-var pageInfoSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "heading": {"type": "string"},
-    "description": {"type": "string"}
-  },
-  "required": ["heading", "description"],
-  "additionalProperties": false
-}`)
+type pageInfo struct {
+	Heading     string `json:"heading"`
+	Description string `json:"description"`
+}
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -58,7 +53,12 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	pageInfo, err := client.Extract(ctx, "Extract the page heading and description", pageInfoSchema, nil)
+	extracted, err := stagehand.Extract[pageInfo](
+		ctx,
+		client,
+		"Extract the page heading and description",
+		nil,
+	)
 	if err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	output, err := json.MarshalIndent(map[string]any{
-		"page_info": pageInfo, "actions": actions, "action_result": actionResult,
+		"page_info": extracted.Data, "actions": actions, "action_result": actionResult,
 	}, "", "  ")
 	if err != nil {
 		return err

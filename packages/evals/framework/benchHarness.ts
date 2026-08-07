@@ -191,26 +191,9 @@ export const stagehandHarness: BenchHarness = {
           debugUrl: v4Result.debugUrl,
           sessionUrl: v4Result.sessionUrl,
         },
-        cleanup: async () => {
-          try {
-            await v4Result.stagehand.close();
-          } catch (closeError) {
-            console.error(`Warning: Error closing v4 Stagehand for ${input.name}:`, closeError);
-          }
-          // `stagehand.close()` tears down the RPC client and context but leaves
-          // the browser it was handed running. initStagehand acquired that
-          // browser, so this harness owns closing it — without this every task
-          // leaks a Chrome process (LOCAL) or a live Browserbase session, and
-          // the run never exits once the suite finishes.
-          try {
-            await v4Result.stagehand.browser.close();
-          } catch (closeError) {
-            console.error(`Warning: Error closing v4 browser for ${input.name}:`, closeError);
-          }
-          // browser.close() on a connected handle disconnects; releasing the
-          // session is a separate, best-effort call.
-          await v4Result.endSession().catch(() => {});
-        },
+        // Registered as soon as initStagehand owns the browser, so Ctrl+C can
+        // release a session even while client/page initialization is in flight.
+        cleanup: v4Result.cleanup,
       };
     }
 
