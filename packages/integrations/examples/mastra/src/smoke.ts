@@ -50,18 +50,18 @@ try {
   );
   assert.deepEqual(second.value, { title, marker, pageCount: 1 });
 
-  console.log(
-    JSON.stringify({
+  process.stdout.write(
+    `${JSON.stringify({
       status: "PASS",
       browser: browserMode,
       tool: "code_execute",
       calls: 2,
       persistentState: second.value,
-    }),
+    })}\n`,
   );
 } finally {
   await mcp.disconnect();
-  console.log("Mastra MCP disconnect PASS");
+  process.stdout.write("Mastra MCP disconnect PASS\n");
 }
 
 function expectSuccessfulResult(result: unknown): {
