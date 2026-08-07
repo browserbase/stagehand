@@ -167,7 +167,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Jeremy Press](https://x.com/jeremypress)
 - [Navid Pour](https://github.com/navidpour)
 - [Nick Sweeting](https://github.com/pirate)
-- [Sam F](https://github.com/monadoid)
+- [Sam Finton](https://github.com/monadoid)
 - [Shrey Pandya](https://github.com/shrey150)
 - [Alyssa Keimach](https://github.com/akeimach)
 
