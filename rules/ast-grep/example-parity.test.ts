@@ -20,6 +20,19 @@ const exampleExtensions: Record<ExampleLanguage, string> = {
   typescript: ".ts",
 };
 
+describe("example name normalization", () => {
+  it.each([
+    ["customLlm", "custom-llm"],
+    ["custom_llm", "custom-llm"],
+    ["custom-llm", "custom-llm"],
+    ["parseHTMLElement", "parse-html-element"],
+    ["parse_html_element", "parse-html-element"],
+    ["URLParser", "url-parser"],
+  ])("normalizes %s to %s", (name, expected) => {
+    expect(normalizeExampleName(name)).toBe(expected);
+  });
+});
+
 describe("All language examples remain in sync", () => {
   it("provides the same examples in every SDK", async () => {
     const inventories = {
@@ -154,7 +167,7 @@ async function examples(
     .filter((file) => file.endsWith(extension))
     .map((file) => ({
       file,
-      name: file.slice(0, -extension.length).replaceAll("_", "-"),
+      name: normalizeExampleName(file.slice(0, -extension.length)),
       url: new URL(file, exampleDirectories[language]),
     }))
     .sort((left, right) => left.name.localeCompare(right.name));
@@ -297,4 +310,8 @@ function snakeCase(value: string): string {
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
     .toLowerCase();
+}
+
+function normalizeExampleName(value: string): string {
+  return snakeCase(value).replaceAll("_", "-");
 }
