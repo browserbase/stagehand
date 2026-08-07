@@ -216,7 +216,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - **One key, one bill:** LLM inference, browser infrastructure, and caching all run through your Browserbase API key.
 - **Market-price tokens:** Browserbase charges the same price as going direct to the provider. No markup.
-- **Built-in reliability:** Retries, backoff, and rate limit handling are managed for you.
+- **Built-in reliability:** Browserbase handles retries, backoff, and rate limits.
 - **No tier-gating:** Access new models immediately without hitting provider spend thresholds.
 - **Action caching:** Model Gateway works with Stagehand's [managed action caching](/v4/best-practices/caching), so repeated steps are reused instead of re-run. Both features run off the same Browserbase session, so turning on `cache` costs you nothing extra to set up.
 

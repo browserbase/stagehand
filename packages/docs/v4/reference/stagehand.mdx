@@ -32,6 +32,22 @@ const stagehand = await Stagehand.create({ browser: await localBrowser.launch() 
   An initialized Stagehand instance.
 </ResponseField>
 
+## Properties
+
+Read-only accessors on an instance.
+
+```typescript
+const page = await stagehand.browser.context.activePage();
+```
+
+<ResponseField name="stagehand.browser" type="StagehandBrowser">
+  The browser handle this instance was created with. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="stagehand.initialized" type="boolean">
+  Whether the instance is connected and able to serve calls. This is `false` after `close()`.
+</ResponseField>
+
 ## close()
 
 Close the Stagehand session and release browser resources.
@@ -676,6 +692,22 @@ stagehand = await Stagehand.create(browser=await local_browser.launch())
 
 <ResponseField name="result" type="Stagehand">
   An initialized Stagehand instance.
+</ResponseField>
+
+## Properties
+
+Read-only accessors on an instance.
+
+```python
+page = await stagehand.browser.context.active_page()
+```
+
+<ResponseField name="stagehand.browser" type="StagehandBrowser">
+  The browser handle this instance was created with. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="stagehand.initialized" type="bool">
+  Whether the instance is connected and able to serve calls. This is `False` after `close()`.
 </ResponseField>
 
 ## close()

@@ -364,7 +364,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-Stagehand provisions its own browser extension on every Browserbase session, so the `extensionId` session setting is not available on `browserbase.launch()`.
+Stagehand runs as a browser extension, so `browserbase.launch()` uploads that extension to your Browserbase account, starts the session against it, and deletes it again when you call `browser.close()`.
 </Note>
 
 ### Alternative: Browserbase SDK
