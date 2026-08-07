@@ -206,6 +206,10 @@ function createCodeConsole(logs: CodeLogEntry[]) {
     const text = formatLog(values);
     const remaining = MAX_LOG_BYTES - logBytes;
     const bounded = truncateUtf8(text, remaining);
+    if (bounded.length === 0) {
+      if (text.length > 0) logBytes = MAX_LOG_BYTES;
+      return;
+    }
     logBytes += Buffer.byteLength(bounded);
     logs.push({ level, text: bounded });
   };
