@@ -283,7 +283,7 @@ function goCalls(root: SgNode): Array<{ object: string; method: string }> {
 
 function goCallTarget(node: SgNode): { object: string; method: string } | undefined {
   if (node.kind() !== "call_expression") return undefined;
-  let called = node.children().filter((child) => child.isNamed())[0];
+  let called: SgNode | undefined = node.children().find((child) => child.isNamed());
   if (called?.kind() === "index_expression") {
     called = called.children().find((child) => child.isNamed());
   }
