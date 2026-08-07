@@ -18,8 +18,8 @@
     },
     "@browserbasehq/stagehand-server#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
-      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
-      "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/**"],
+      "outputs": ["dist/**", "artifacts/**"]
     },
     "@browserbasehq/stagehand#build": {
       "dependsOn": ["@browserbasehq/stagehand-server#build"],
