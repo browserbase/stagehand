@@ -6,10 +6,10 @@ icon: 'arrow-up-right-dots'
 
 Two changes account for most of this migration:
 
-1. **`agent()` is gone.** Nothing in v4 replaces it one-for-one. Read this part first.
-2. **The SDK surface moved.** Construction, page access, and result shapes changed. Those are mechanical renames.
+1. **`agent()` is gone.** Nothing in v4 replaces it one-for-one.
+2. **The SDK surface moved.** Construction, page access, and result shapes changed.
 
-`act()`, `extract()`, and `observe()` still exist and still take natural-language instructions. Their role changed.
+`act()`, `extract()`, and `observe()` still exist and still take natural-language instructions, but their place has changed.
 
 ## Why agent() is gone
 
@@ -239,26 +239,6 @@ TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
 Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
 </Tip>
 
-<Note>
-To let a framework own the loop instead, the [LangChain](/v4/integrations/langchain/introduction) and [CrewAI](/v4/integrations/crew-ai/introduction) integrations expose the Stagehand primitives as agent tools, and the [MCP server](/v4/integrations/mcp/introduction) exposes them to any MCP client.
-</Note>
-
-### Feature mapping
-
-| v3 `agent()` feature | v4 |
-| --- | --- |
-| `agent.execute(instruction)` | A generated script, or a tool-calling loop you own |
-| `maxSteps` | Your loop bound, or the length of the script |
-| Stopping when the task is done | The script ends, or your loop's own stop condition |
-| Step-by-step action selection | The full tool surface above |
-| `systemPrompt` | `systemPrompt` on `Stagehand.create()` |
-| Variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
-| Structured output | `extract()` with a schema |
-| MCP integrations | [MCP server](/v4/integrations/mcp/introduction) |
-| Custom tools | Page-declared tools via [WebMCP](/v4/basics/webmcp), or your own tool definitions |
-| Computer Use mode, `highlightCursor` | No equivalent |
-| Streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
-
 ## Let a coding assistant do the rest
 
 The rest of this guide is mechanical, so hand it to the same assistant that writes your v4 code. Set up [AI rules](/v4/first-steps/ai-rules) first, then point it at a file:
@@ -443,15 +423,24 @@ Metrics became a method:
 | `stagehand.context` | `browser.context` |
 | `stagehand.context.pages()` | `await browser.context.pages()` |
 | `page.act(...)` | `stagehand.act(...)`, with `{ page }` to target a tab |
-| `stagehand.agent()` | A generated script, or your own tool-calling loop |
 | `await stagehand.observe(...)` returns an array | `.data` holds the array |
 | `extract({ instruction, schema })` | `extract(instruction, schema)` |
+| `page.deepLocator()` | `page.locator()`, same selector syntax |
+| `stagehand.agent()`, `agent.execute()` | A generated script, or your own tool-calling loop |
+| `execute({ maxSteps })` | Your loop bound, or the length of the script |
+| `agent({ systemPrompt })` | `systemPrompt` on `Stagehand.create()` |
+| `agent({ tools })` | Page-declared tools via [WebMCP](/v4/basics/webmcp), or your own tool definitions |
+| `agent({ mode: "cua" })`, `execute({ highlightCursor })` | No equivalent |
+| Agent stopping when the task is done | The script ends, or your loop's own stop condition |
+| Agent step-by-step action selection | The [full tool surface](#tool-calling-with-the-full-api) |
+| Agent variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
+| Agent structured output | `extract()` with a schema |
+| Agent streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
 | `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
 | `enableCaching` | `cache` |
 | `verbose`, `logger` | `logging: { level, format, onLog }` |
 | `await stagehand.metrics` | `await stagehand.metrics()` |
 | `stagehand.browserbaseSessionID` | Hold the ID from `sessions.create()` |
-| `page.deepLocator()` | `page.locator()`, same selector syntax |
 
 ## Troubleshooting
 
