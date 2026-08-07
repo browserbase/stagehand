@@ -9,9 +9,9 @@ export async function closeCodeModeStdio(
   timeoutMs = STDIO_SHUTDOWN_GRACE_MS,
 ): Promise<boolean> {
   let timeout: NodeJS.Timeout | undefined;
-  const cleanup = Promise.allSettled(resources.map((resource) => resource.close())).then(
-    (results) => results.every((result) => result.status === "fulfilled"),
-  );
+  const cleanup = Promise.allSettled(
+    resources.map((resource) => Promise.resolve().then(() => resource.close())),
+  ).then((results) => results.every((result) => result.status === "fulfilled"));
   const deadline = new Promise<boolean>((resolve) => {
     timeout = setTimeout(() => resolve(false), timeoutMs);
     timeout.unref();

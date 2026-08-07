@@ -108,7 +108,7 @@ context.activePage(): Promise<Page | undefined>
 context.setActivePage(page): Promise<void>
 context.setExtraHTTPHeaders(headers): Promise<void>
 context.getDomainPolicy(): Promise<DomainPolicy | null>
-context.setDomainPolicy(policy): Promise<void>
+context.setDomainPolicy(policy: DomainPolicy | null): Promise<void>
 context.cookies(urls?): Promise<Cookie[]>
 context.addCookies(cookies): Promise<void>
 context.clearCookies(options?): Promise<void>
