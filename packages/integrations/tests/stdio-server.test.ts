@@ -1,4 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { Stream } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -9,6 +10,7 @@ const baseEnv = {
   PATH: process.env.PATH ?? "",
   STAGEHAND_BROWSER: "local",
 };
+const readyMessage = "Stagehand code-mode MCP listening on stdio";
 
 function startServer(env: NodeJS.ProcessEnv = baseEnv): ChildProcessWithoutNullStreams {
   return spawn(process.execPath, [entrypoint], {
@@ -26,7 +28,7 @@ async function waitForReady(child: ChildProcessWithoutNullStreams): Promise<stri
     );
     const onData = (chunk: Buffer) => {
       stderr += chunk.toString();
-      if (!stderr.includes("Stagehand code-mode MCP listening on stdio")) return;
+      if (!stderr.includes(readyMessage)) return;
       clearTimeout(timeout);
       child.stderr.off("data", onData);
       resolve(stderr);
@@ -38,6 +40,24 @@ async function waitForReady(child: ChildProcessWithoutNullStreams): Promise<stri
         new Error(`stdio server exited before ready (code=${code}, signal=${signal}): ${stderr}`),
       );
     });
+  });
+}
+
+function waitForOutput(stream: Stream, expected: string): Promise<string> {
+  let output = "";
+  return new Promise<string>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error(`stdio host did not emit ${JSON.stringify(expected)}: ${output}`)),
+      10_000,
+    );
+    const onData = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (!output.includes(expected)) return;
+      clearTimeout(timeout);
+      stream.off("data", onData);
+      resolve(output);
+    };
+    stream.on("data", onData);
   });
 }
 
@@ -115,14 +135,13 @@ describe("built code-mode stdio server", () => {
       env: baseEnv,
       stderr: "pipe",
     });
-    let stderr = "";
-    transport.stderr?.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
+    if (!transport.stderr) throw new Error("stdio transport did not expose stderr");
+    const ready = waitForOutput(transport.stderr, readyMessage);
     const client = new Client({ name: "stagehand-codemode-stdio-test", version: "1.0.0" });
 
     try {
       await client.connect(transport);
+      await ready;
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name)).toStrictEqual(["code_execute"]);
       await expect(
@@ -136,7 +155,6 @@ describe("built code-mode stdio server", () => {
           },
         ],
       });
-      expect(stderr).toContain("Stagehand code-mode MCP listening on stdio");
     } finally {
       await client.close();
     }
