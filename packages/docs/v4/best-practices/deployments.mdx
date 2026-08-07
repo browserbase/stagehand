@@ -233,12 +233,6 @@ type fastestModel struct {
 	FastestModel string `json:"fastest_model"`
 }
 
-var fastestModelSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"fastest_model": {"type": "string"}},
-  "required": ["fastest_model"],
-  "additionalProperties": false
-}`)
 
 func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -314,11 +308,10 @@ func run(ctx context.Context) (result string, err error) {
 		return "", err
 	}
 
-	extracted, err := stagehand.ExtractAs[fastestModel](
+	extracted, err := stagehand.Extract[fastestModel](
 		ctx,
 		client,
 		"extract the fastest model",
-		fastestModelSchema,
 		nil,
 	)
 	if err != nil {

@@ -32,15 +32,11 @@ const pages = await browser.context.pages();
 Create a new page in the browser context.
 
 ```typescript
-const page = await browser.context.newPage({ url: "https://example.com" });
+const page = await browser.context.newPage("https://example.com");
 ```
 
-<ParamField path="options" type="ContextNewPageParams" optional>
-  Options that configure this operation.
-
-  <ParamField path="options.url" type="string" optional>
-    The URL to open.
-  </ParamField>
+<ParamField path="url" type="string" optional>
+  The initial URL for the new page. Omit it to create a blank page.
 </ParamField>
 
 <ResponseField name="result" type="Promise<Page>">
@@ -325,11 +321,11 @@ pages = await browser.context.pages()
 Create a new page in the browser context.
 
 ```python
-page = await browser.context.new_page(url="https://example.com")
+page = await browser.context.new_page("https://example.com")
 ```
 
 <ParamField path="url" type="str | None" optional>
-  The initial URL for the new page.
+  The initial URL for the new page. Omit it to create a blank page.
 </ParamField>
 
 <ResponseField name="result" type="Page">

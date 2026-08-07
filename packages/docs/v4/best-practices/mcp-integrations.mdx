@@ -82,31 +82,11 @@ type pricing struct {
 	Pricing []tier `json:"pricing"`
 }
 
-var pricingSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "pricing": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "tier": {"type": "string"},
-          "price": {"type": "string"}
-        },
-        "required": ["tier", "price"],
-        "additionalProperties": false
-      }
-    }
-  },
-  "required": ["pricing"],
-  "additionalProperties": false
-}`)
 
-extracted, err := stagehand.ExtractAs[pricing](
+extracted, err := stagehand.Extract[pricing](
 	ctx,
 	client,
 	"extract the pricing tiers",
-	pricingSchema,
 	nil,
 )
 if err != nil {

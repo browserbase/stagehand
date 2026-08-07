@@ -68,7 +68,7 @@ actions = (await stagehand.observe("find submit buttons")).data
 
 <View title="Go" icon="golang">
 ```go
-// ctx, client, and the encoding/json import come from the quickstart
+// ctx and client come from the quickstart
 
 // Act: execute natural language actions
 actResult, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
@@ -81,13 +81,7 @@ fmt.Println(actResult.Data.Success)
 type price struct {
 	Price float64 `json:"price"`
 }
-priceSchema := json.RawMessage(`{
-  "type": "object",
-  "properties": {"price": {"type": "number"}},
-  "required": ["price"],
-  "additionalProperties": false
-}`)
-extracted, err := stagehand.ExtractAs[price](ctx, client, "extract the price", priceSchema, nil)
+extracted, err := stagehand.Extract[price](ctx, client, "extract the price", nil)
 if err != nil {
 	return err
 }

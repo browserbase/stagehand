@@ -438,6 +438,9 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.2.141
         version: 0.2.141(zod@4.4.3)
+      '@browserbasehq/sdk':
+        specifier: 'catalog:'
+        version: 2.16.0
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../sdk-ts
@@ -468,6 +471,9 @@ importers:
       tsx:
         specifier: 'catalog:'
         version: 4.23.1
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0(bufferutil@4.1.0)
       zod:
         specifier: 'catalog:'
         version: 4.4.3
