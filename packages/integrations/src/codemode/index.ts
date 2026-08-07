@@ -7,4 +7,17 @@ export {
   codeExecuteResultText,
   codeExecuteSchema,
 } from "./tool-contract.js";
-export * from "./types.js";
+export type {
+  CodeExecuteErrorKind,
+  CodeExecuteFailure,
+  CodeExecuteInput,
+  CodeExecuteResult,
+  CodeExecuteSuccess,
+  CodeLogEntry,
+  CodePageState,
+  ExecuteStagehandSnippetInput,
+  StagehandCodeBrowserConfig,
+  StagehandCodeConfig,
+  StagehandSnippetBindings,
+  StagehandSnippetConsole,
+} from "./types.js";
