@@ -103,6 +103,29 @@ describe("StagehandCodeExecutor", () => {
     expect(runtime.browser.close).toHaveBeenCalledOnce();
   });
 
+  it("reports lifecycle cleanup failures without retaining underlying errors", async () => {
+    const runtime = fakeRuntime();
+    runtime.stagehand.close.mockRejectedValue(new Error("stagehand close secret"));
+    runtime.browser.close.mockRejectedValue(new Error("browser close secret"));
+    sdkMocks.localLaunch.mockResolvedValue(runtime.browser);
+    sdkMocks.stagehandCreate.mockResolvedValue(runtime.stagehand);
+    const executor = new StagehandCodeExecutor(localConfig());
+
+    await executor.execute({ code: "return 1;" });
+    const error = await executor.close().then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+
+    expect(error).toMatchObject({
+      name: "StagehandCodeCloseError",
+      message: "Failed to close Stagehand code mode.",
+    });
+    expect(error).not.toBeInstanceOf(AggregateError);
+    expect(error).not.toHaveProperty("errors");
+    expect(String(error)).not.toContain("secret");
+  });
+
   it("forwards Browserbase launch options", async () => {
     const runtime = fakeRuntime();
     sdkMocks.browserbaseLaunch.mockResolvedValue(runtime.browser);
@@ -253,7 +276,7 @@ describe("StagehandCodeExecutor", () => {
       ok: false,
       error: {
         kind: "runtime",
-        name: "AggregateError",
+        name: "StagehandCodeInitializationError",
         message: "Stagehand code mode initialization and browser cleanup both failed.",
       },
     });
@@ -283,6 +306,31 @@ describe("StagehandCodeExecutor", () => {
       expect(
         Buffer.byteLength(String((large.value as { preview: string }).preview)),
       ).toBeLessThanOrEqual(256 * 1024);
+    }
+
+    const multibyte = await executor.execute({ code: 'return "é".repeat(200000);' });
+    expect(multibyte).toMatchObject({ ok: true, value: { truncated: true } });
+    if (multibyte.ok && typeof multibyte.value === "object" && multibyte.value) {
+      const preview = String((multibyte.value as { preview: string }).preview);
+      expect(Buffer.byteLength(preview)).toBeLessThanOrEqual(256 * 1024);
+      expect(preview).not.toContain("�");
+    }
+  });
+
+  it("truncates captured logs on UTF-8 character boundaries", async () => {
+    const runtime = fakeRuntime();
+    sdkMocks.localLaunch.mockResolvedValue(runtime.browser);
+    sdkMocks.stagehandCreate.mockResolvedValue(runtime.stagehand);
+    const executor = new StagehandCodeExecutor(localConfig());
+
+    const result = await executor.execute({
+      code: 'console.log("a" + "é".repeat(40000)); return "ok";',
+    });
+
+    expect(result).toMatchObject({ ok: true, value: "ok" });
+    if (result.ok && result.logs) {
+      expect(Buffer.byteLength(result.logs[0].text)).toBeLessThanOrEqual(64 * 1024);
+      expect(result.logs[0].text).not.toContain("�");
     }
   });
 

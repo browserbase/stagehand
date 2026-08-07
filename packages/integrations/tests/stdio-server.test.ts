@@ -34,7 +34,7 @@ async function waitForReady(child: ChildProcessWithoutNullStreams): Promise<stri
       resolve(stderr);
     };
     child.stderr.on("data", onData);
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       clearTimeout(timeout);
       reject(
         new Error(`stdio server exited before ready (code=${code}, signal=${signal}): ${stderr}`),
@@ -70,7 +70,7 @@ function waitForExit(
       reject(new Error("stdio server did not exit within 10 seconds"));
     }, 10_000);
     child.once("error", reject);
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       clearTimeout(timeout);
       resolve({ code, signal });
     });

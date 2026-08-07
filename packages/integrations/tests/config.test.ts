@@ -45,12 +45,23 @@ describe("stagehandCodeConfigFromEnv", () => {
   });
 
   it("rejects invalid or unauthenticated Browserbase selections", () => {
-    expect(() => stagehandCodeConfigFromEnv({ STAGEHAND_BROWSER: "remote" })).toThrow(
-      'STAGEHAND_BROWSER must be either "local" or "browserbase".',
-    );
-    expect(() => stagehandCodeConfigFromEnv({ STAGEHAND_BROWSER: "browserbase" })).toThrow(
-      'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
-    );
+    for (const [env, message] of [
+      [
+        { STAGEHAND_BROWSER: "remote" },
+        'STAGEHAND_BROWSER must be either "local" or "browserbase".',
+      ],
+      [
+        { STAGEHAND_BROWSER: "browserbase" },
+        'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
+      ],
+    ] as const) {
+      try {
+        stagehandCodeConfigFromEnv(env);
+        throw new Error("expected configuration to be rejected");
+      } catch (error) {
+        expect(error).toMatchObject({ name: "StagehandCodeConfigError", message });
+      }
+    }
   });
 
   it.each([
@@ -101,7 +112,7 @@ describe("stagehandCodeConfigFromEnv", () => {
 
     expect(config.stagehand?.model).toStrictEqual({
       modelName: "google/gemini-3-flash-preview",
-      apiKey: "gemini-key",
+      apiKey: "generative-key",
     });
   });
 
@@ -131,8 +142,14 @@ describe("stagehandCodeConfigFromEnv", () => {
   });
 
   it("rejects an explicit model key without a model name", () => {
-    expect(() => stagehandCodeConfigFromEnv({ STAGEHAND_MODEL_API_KEY: "orphan-key" })).toThrow(
-      "STAGEHAND_MODEL_NAME is required when STAGEHAND_MODEL_API_KEY is set.",
-    );
+    try {
+      stagehandCodeConfigFromEnv({ STAGEHAND_MODEL_API_KEY: "orphan-key" });
+      throw new Error("expected configuration to be rejected");
+    } catch (error) {
+      expect(error).toMatchObject({
+        name: "StagehandCodeConfigError",
+        message: "STAGEHAND_MODEL_NAME is required when STAGEHAND_MODEL_API_KEY is set.",
+      });
+    }
   });
 });
