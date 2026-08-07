@@ -132,7 +132,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -144,13 +143,6 @@ import (
 type valueProposition struct {
 	ValueProposition string `json:"value_proposition"`
 }
-
-var valuePropositionSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"value_proposition": {"type": "string"}},
-  "required": ["value_proposition"],
-  "additionalProperties": false
-}`)
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -192,11 +184,10 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	extracted, err := stagehand.ExtractAs[valueProposition](
+	extracted, err := stagehand.Extract[valueProposition](
 		ctx,
 		client,
 		"Extract the value proposition from the page.",
-		valuePropositionSchema,
 		nil,
 	)
 	if err != nil {

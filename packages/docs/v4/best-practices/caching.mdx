@@ -247,6 +247,10 @@ print(result.data.companies)
 
 <View title="Go" icon="golang">
 ```go
+type companies struct {
+	Companies []string `json:"companies"`
+}
+
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 instanceCache := stagehand.CacheWithThreshold(2) // Serve hits after two identical results
 
@@ -265,21 +269,13 @@ if err != nil {
 	return err
 }
 
-var companiesSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "companies": {"type": "array", "items": {"type": "string"}}
-  },
-  "required": ["companies"],
-  "additionalProperties": false
-}`)
 
 // Prime this one step aggressively: the second call is a hit
 eager := stagehand.CacheWithThreshold(1)
-result, err := client.Extract(
+result, err := stagehand.Extract[companies](
 	ctx,
+	client,
 	"Extract the names of the first five companies listed on the page",
-	companiesSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{Cache: &eager},
 	},
@@ -288,7 +284,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println(string(result.Data))
+fmt.Println(result.Data.Companies)
 ```
 </View>
 
