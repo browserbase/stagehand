@@ -148,7 +148,7 @@ Or set it in your project's `package.json`:
 > [!NOTE]
 > We highly value contributions to Stagehand! For questions or support, please join our [Discord community](https://stagehand.dev/discord).
 
-At a high level, we're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://stagehand.dev/discord) before starting to ensure that your contribution aligns with our goals.
+We're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://stagehand.dev/discord) before starting to ensure that your contribution aligns with our goals.
 
 <!-- For more information, please see our [Contributing Guide](https://docs.stagehand.dev/examples/contributing). -->
 
@@ -168,7 +168,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Nick Sweeting](https://github.com/pirate)
 - [Sam Finton](https://github.com/monadoid)
 - [Shrey Pandya](https://github.com/shrey150)
-- [Alyssa Keimach](https://github.com/akeimach)
+- [Alyssa Maruyama](https://github.com/akeimach)
 
 ## License
 
