@@ -64,7 +64,7 @@
             ]
           },
           {
-            "group": "Migration guides",
+            "group": "Migration guide",
             "pages": ["v4/migrations/v3"]
           },
           {
