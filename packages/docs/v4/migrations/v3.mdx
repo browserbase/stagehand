@@ -4,91 +4,71 @@ sidebarTitle: Migrate v3 to v4
 icon: 'arrow-up-right-dots'
 ---
 
-v4 removes `agent()` and reshapes how you construct Stagehand, reach pages, and read results. The rest of the surface is recognizable: `act()`, `extract()`, and `observe()` still take natural-language instructions and still do the same jobs.
+Two changes account for most of this migration:
 
-Start with the section below. Replacing `agent()` is the only change that asks you to write new logic rather than rename something, so it is the one worth understanding before you touch anything else.
+1. **`agent()` is gone.** Nothing in v4 replaces it one-for-one. Read this part first.
+2. **The SDK surface moved.** Construction, page access, and result shapes changed. Those are mechanical renames.
 
-## Replace agent() with your own loop
+`act()`, `extract()`, and `observe()` still exist and still take natural-language instructions. Their role changed.
 
-### What agent() did
+## Why agent() is gone
 
-In v3 you handed Stagehand a goal and it decided the steps:
+`agent()` was built for models that couldn't reliably drive a browser on their own. It wrapped `act()`, `extract()`, and `observe()` in a loop and asked the model to pick one tool per step, which was the right shape for the models available at the time.
 
-```diff
-- const agent = stagehand.agent({
--   mode: "cua",
--   model: "anthropic/claude-sonnet-4-6",
--   systemPrompt: "You are a helpful assistant...",
-- });
--
-- await agent.execute({
--   instruction: "Find the most controversial post from today and summarize the debate",
--   maxSteps: 20,
-- });
+Now, models are strong enough to plan against a real API. Keep calling `act()`, `extract()`, and `observe()` where a natural-language instruction beats a selector, but stop treating them as the whole toolset you hand a model.
+
+v4 has two approaches that replace `agent()`.
+
+## Code mode
+
+Browserbase recommends this path. Ask your coding assistant to write a Stagehand script, then run the script. The model writes the code once instead of driving the browser on every run.
+
+You get ordinary code: reviewable, diffable, and free of per-step inference. When a site changes, re-run the assistant on the step that broke.
+
+Start with [AI rules](/v4/first-steps/ai-rules). It carries the rule files and MCP servers that keep generated code on the v4 API instead of the v2 and v3 patterns in training data.
+
+Here's a prompt that produces a working script:
+
+```text
+Using Stagehand v4 (@browserbasehq/stagehand), write a script that:
+  1. Opens news.ycombinator.com
+  2. Finds today's most-commented story
+  3. Opens its comments and extracts the top five comment bodies
+
+Follow the rules in my project's Stagehand rules file. Prefer page.locator()
+and page.goto() for anything with a stable selector, and reserve act() and
+extract() for steps that need a model.
 ```
 
-`agent()` owned the loop: it looked at the page, chose an action, ran it, looked again, and stopped when it judged the task complete or hit `maxSteps`. v4 has no equivalent call. Stagehand is the SDK for browser agents, so you should own that loop now.
-
-### The three jobs the loop has to do
-
-Any replacement needs the same three moves `agent()` made internally:
-
-1. **Decide whether you are done:** `extract()` reads the page and never touches it, so it is safe to call on every pass.
-2. **Choose one next action:** `observe()` proposes actions without performing them. It returns `Action` objects, each with a `selector` and a `description`.
-3. **Perform exactly one action:** Pass an `Action` straight to `act()`. Replaying an observed action skips inference entirely.
-
-### A working loop
-
-This is an example replacement for a single `agent.execute()` call. It returns the same three things v3's `AgentResult` gave you: whether it succeeded, a message, and how many steps it took.
+What comes back should read like the script you would have written yourself:
 
 <View title="TypeScript" icon="js">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-const goalSchema = z.object({
-  status: z.enum(["done", "not_done"]),
-  reason: z.string(),
+const commentSchema = z.object({
+  comments: z.array(z.object({ author: z.string(), body: z.string() })),
 });
-
-async function runGoal(stagehand: Stagehand, goal: string, maxSteps = 20) {
-  for (let step = 0; step < maxSteps; step += 1) {
-    // 1. extract() only reads, so asking on every pass is safe
-    const { data: check } = await stagehand.extract(
-      `Has this goal been accomplished: ${goal}? Answer done or not_done, and say why.`,
-      goalSchema,
-    );
-    if (check.status === "done") {
-      return { success: true, message: check.reason, steps: step };
-    }
-
-    // 2. observe() proposes without touching the page
-    const { data: candidates } = await stagehand.observe(
-      `What is the single next action that makes progress toward: ${goal}`,
-    );
-    if (candidates.length === 0) {
-      return { success: false, message: "No action found on this page", steps: step };
-    }
-
-    // 3. Replaying an observed Action costs no inference
-    const result = await stagehand.act(candidates[0]);
-    if (!result.data.success) {
-      return { success: false, message: result.data.message, steps: step };
-    }
-  }
-
-  return { success: false, message: `Gave up after ${maxSteps} steps`, steps: maxSteps };
-}
 
 const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
 const stagehand = await Stagehand.create({ browser });
 
 try {
-  const page = await browser.context.activePage();
-  await page.goto("https://news.ycombinator.com");
+  const page = await browser.context.newPage("https://news.ycombinator.com");
 
-  const outcome = await runGoal(stagehand, "open the top story's comments");
-  console.log(outcome);
+  // Deterministic where the page allows it: no inference, no variance.
+  await page.locator("a.morelink").first().click();
+  await page.waitForLoadState("domcontentloaded");
+
+  // A model call where the page needs judgement.
+  await stagehand.act("Open the comments for the story with the most comments");
+
+  const { data } = await stagehand.extract(
+    "Extract the top five comments, with each author and body",
+    commentSchema,
+  );
+  console.log(data.comments);
 } finally {
   await stagehand.close();
   await browser.close();
@@ -99,158 +79,215 @@ try {
 <View title="Python" icon="python">
 ```python
 import os
-from typing import Literal
 
 from pydantic import BaseModel
-
 from stagehand import Stagehand, browserbase
 
 
-class GoalCheck(BaseModel):
-    status: Literal["done", "not_done"]
-    reason: str
+class Comment(BaseModel):
+    author: str
+    body: str
 
 
-async def run_goal(stagehand: Stagehand, goal: str, max_steps: int = 20):
-    for step in range(max_steps):
-        # 1. extract() only reads, so asking on every pass is safe
-        check = (await stagehand.extract(
-            f"Has this goal been accomplished: {goal}? Answer done or not_done, and say why.",
-            GoalCheck,
-        )).data
-        if check.status == "done":
-            return {"success": True, "message": check.reason, "steps": step}
-
-        # 2. observe() proposes without touching the page
-        candidates = (await stagehand.observe(
-            f"What is the single next action that makes progress toward: {goal}"
-        )).data
-        if not candidates:
-            return {"success": False, "message": "No action found on this page", "steps": step}
-
-        # 3. Replaying an observed Action costs no inference
-        result = await stagehand.act(candidates[0])
-        if not result.data.success:
-            return {"success": False, "message": result.data.message, "steps": step}
-
-    return {"success": False, "message": f"Gave up after {max_steps} steps", "steps": max_steps}
+class Comments(BaseModel):
+    comments: list[Comment]
 
 
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 stagehand = await Stagehand.create(browser=browser)
 
 try:
-    page = await browser.context.active_page()
-    await page.goto("https://news.ycombinator.com")
+    page = await browser.context.new_page("https://news.ycombinator.com")
 
-    outcome = await run_goal(stagehand, "open the top story's comments")
-    print(outcome)
+    # Deterministic where the page allows it: no inference, no variance.
+    await page.locator("a.morelink").first().click()
+    await page.wait_for_load_state("domcontentloaded")
+
+    # A model call where the page needs judgement.
+    await stagehand.act("Open the comments for the story with the most comments")
+
+    result = await stagehand.extract(
+        "Extract the top five comments, with each author and body",
+        Comments,
+    )
+    print(result.data.comments)
 finally:
     await stagehand.close()
     await browser.close()
 ```
 </View>
 
-<View title="Go" icon="golang">
-```go
-type goalCheck struct {
-	Status string `json:"status"`
-	Reason string `json:"reason"`
-}
+Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. `agent()` couldn't make that split, because every step it ran was an inference call.
 
-var goalCheckSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {
-    "status": {"type": "string", "enum": ["done", "not_done"]},
-    "reason": {"type": "string"}
+## Tool calling with the full API
+
+To keep a model in the loop at runtime, give it the whole Stagehand surface. Models handle toolsets this size, and precise tools are easier to plan against than three broad ones.
+
+Expose the real API:
+
+| Capability | Tools worth exposing |
+| --- | --- |
+| Navigation | `page.goto()`, `page.reload()`, `page.goBack()`, `page.goForward()` |
+| Perception | `page.snapshot()`, `page.screenshot()`, `page.url()`, `page.title()` |
+| Element interaction | `locator.click()`, `locator.fill()`, `locator.type()`, `locator.selectOption()`, `locator.setInputFiles()`, `locator.scrollTo()` |
+| Element inspection | `locator.textContent()`, `locator.innerText()`, `locator.isVisible()`, `locator.isChecked()`, `locator.count()`, `locator.inputValue()` |
+| Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.keyPress()`, `page.dragAndDrop()` |
+| Tabs and state | `context.newPage()`, `context.pages()`, `context.setActivePage()`, `context.cookies()` |
+| Waiting | `page.waitForSelector()`, `page.waitForLoadState()`, `page.waitForTimeout()` |
+| Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
+| Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
+
+`page.snapshot()` anchors the loop. It returns `formattedTree`, the accessibility tree, plus an `xpathMap`, so the model reads real page structure and hands back a selector you can drive deterministically.
+
+<View title="TypeScript" icon="js">
+```typescript
+import { z } from "zod/v4";
+
+const tools = {
+  goto: {
+    description: "Navigate to a URL",
+    parameters: z.object({ url: z.string() }),
+    execute: async ({ url }: { url: string }) => {
+      await page.goto(url);
+      return await page.url();
+    },
   },
-  "required": ["status", "reason"],
-  "additionalProperties": false
-}`)
+  snapshot: {
+    description: "Read the accessibility tree of the current page",
+    parameters: z.object({}),
+    execute: async () => (await page.snapshot()).formattedTree,
+  },
+  click: {
+    description: "Click the element matching a selector from the snapshot",
+    parameters: z.object({ selector: z.string() }),
+    execute: async ({ selector }: { selector: string }) => {
+      await page.locator(selector).click();
+    },
+  },
+  fill: {
+    description: "Fill the input matching a selector",
+    parameters: z.object({ selector: z.string(), value: z.string() }),
+    execute: async ({ selector, value }: { selector: string; value: string }) => {
+      await page.locator(selector).fill(value);
+    },
+  },
+  readText: {
+    description: "Read the text of the element matching a selector",
+    parameters: z.object({ selector: z.string() }),
+    execute: async ({ selector }: { selector: string }) =>
+      await page.locator(selector).textContent(),
+  },
+  act: {
+    description: "Perform one action in natural language when no selector is known",
+    parameters: z.object({ instruction: z.string() }),
+    execute: async ({ instruction }: { instruction: string }) =>
+      (await stagehand.act(instruction)).data.message,
+  },
+  extract: {
+    description: "Read structured data off the current page",
+    parameters: z.object({ instruction: z.string() }),
+    execute: async ({ instruction }: { instruction: string }) =>
+      (await stagehand.extract(instruction)).data.extraction,
+  },
+};
+```
+</View>
 
-type goalOutcome struct {
-	Success bool
-	Message string
-	Steps   int
-}
+<View title="Python" icon="python">
+```python
+async def goto(url: str) -> str:
+    """Navigate to a URL."""
+    await page.goto(url)
+    return await page.url()
 
-func runGoal(
-	ctx context.Context,
-	client *stagehand.Stagehand,
-	goal string,
-	maxSteps int,
-) (goalOutcome, error) {
-	for step := 0; step < maxSteps; step++ {
-		// 1. Extract only reads, so asking on every pass is safe
-		check, err := stagehand.ExtractAs[goalCheck](
-			ctx,
-			client,
-			fmt.Sprintf("Has this goal been accomplished: %s? Answer done or not_done, and say why.", goal),
-			goalCheckSchema,
-			nil,
-		)
-		if err != nil {
-			return goalOutcome{}, err
-		}
-		if check.Data.Status == "done" {
-			return goalOutcome{Success: true, Message: check.Data.Reason, Steps: step}, nil
-		}
 
-		// 2. Observe proposes without touching the page
-		instruction := fmt.Sprintf("What is the single next action that makes progress toward: %s", goal)
-		observed, err := client.Observe(ctx, &instruction, nil)
-		if err != nil {
-			return goalOutcome{}, err
-		}
-		if len(observed.Data) == 0 {
-			return goalOutcome{Message: "No action found on this page", Steps: step}, nil
-		}
+async def snapshot() -> str:
+    """Read the accessibility tree of the current page."""
+    return (await page.snapshot()).formatted_tree
 
-		// 3. Replaying an observed Action costs no inference
-		result, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil)
-		if err != nil {
-			return goalOutcome{}, err
-		}
-		if !result.Data.Success {
-			return goalOutcome{Message: result.Data.Message, Steps: step}, nil
-		}
-	}
 
-	return goalOutcome{Message: fmt.Sprintf("Gave up after %d steps", maxSteps), Steps: maxSteps}, nil
-}
+async def click(selector: str) -> None:
+    """Click the element matching a selector from the snapshot."""
+    await page.locator(selector).click()
+
+
+async def fill(selector: str, value: str) -> None:
+    """Fill the input matching a selector."""
+    await page.locator(selector).fill(value)
+
+
+async def read_text(selector: str) -> str:
+    """Read the text of the element matching a selector."""
+    return await page.locator(selector).text_content()
+
+
+async def act(instruction: str) -> str:
+    """Perform one action in natural language when no selector is known."""
+    return (await stagehand.act(instruction)).data.message
+
+
+async def extract(instruction: str) -> str:
+    """Read structured data off the current page."""
+    return (await stagehand.extract(instruction)).data.extraction
+
+
+TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
 ```
 </View>
 
 <Tip>
-Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) shows the same idea applied to model escalation.
+Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
 </Tip>
+
+<Note>
+To let a framework own the loop instead, the [LangChain](/v4/integrations/langchain/introduction) and [CrewAI](/v4/integrations/crew-ai/introduction) integrations expose the Stagehand primitives as agent tools, and the [MCP server](/v4/integrations/mcp/introduction) exposes them to any MCP client.
+</Note>
 
 ### Feature mapping
 
 | v3 `agent()` feature | v4 |
 | --- | --- |
-| `agent.execute(instruction)` | The loop above |
-| `maxSteps` | Your loop bound |
-| Stopping when the task is done | An `extract()` goal check each pass |
-| Step-by-step action selection | `observe()`, one action per pass |
+| `agent.execute(instruction)` | A generated script, or a tool-calling loop you own |
+| `maxSteps` | Your loop bound, or the length of the script |
+| Stopping when the task is done | The script ends, or your loop's own stop condition |
+| Step-by-step action selection | The full tool surface above |
 | `systemPrompt` | `systemPrompt` on `Stagehand.create()` |
 | Variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
 | Structured output | `extract()` with a schema |
 | MCP integrations | [MCP server](/v4/integrations/mcp/introduction) |
-| Custom tools | Page-declared tools via [WebMCP](/v4/basics/webmcp), or wire the primitives into a framework agent |
+| Custom tools | Page-declared tools via [WebMCP](/v4/basics/webmcp), or your own tool definitions |
 | Computer Use mode, `highlightCursor` | No equivalent |
-| Streaming, callbacks, abort signal, message continuation | No equivalent. Your loop already sits between steps, so log, cancel, or persist there |
+| Streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
 
-<Note>
-If you want a framework to own the loop instead of writing it yourself, the [LangChain](/v4/integrations/langchain/introduction) and [CrewAI](/v4/integrations/crew-ai/introduction) integrations expose the primitives as agent tools.
-</Note>
+## Let a coding assistant do the rest
+
+The rest of this guide is mechanical, so hand it to the same assistant that writes your v4 code. Set up [AI rules](/v4/first-steps/ai-rules) first, then point it at a file:
+
+```text
+Migrate this file from Stagehand v3 to v4. Apply these changes:
+  - new Stagehand(...) + init()  ->  browserbase.launch() or localBrowser.launch(),
+    then Stagehand.create({ browser })
+  - stagehand.page / stagehand.context  ->  await browser.context.activePage() /
+    browser.context
+  - page.act/extract/observe  ->  stagehand.act/extract/observe
+  - act/extract/observe now return { data, metadata }; read .data
+  - extract({ instruction, schema })  ->  extract(instruction, schema)
+  - page.deepLocator(sel)  ->  page.locator(sel)
+  - modelName + modelClientOptions  ->  model: { modelName, apiKey }
+  - enableCaching  ->  cache
+  - verbose + logger  ->  logging: { level, format, onLog }
+  - await stagehand.metrics  ->  await stagehand.metrics()
+Leave agent() calls alone and list them for me instead.
+```
+
+Work through the sections below for anything it flags or misses.
 
 ## Recommended migration order
 
 1. Get one script constructing and closing cleanly on v4, before changing any instructions.
 2. Replace page and context access, since it moved.
 3. Unwrap results: every primitive now returns `{ data, metadata }`.
-4. Replace `agent()` calls with the loop above.
+4. Replace `agent()` calls, using either approach above.
 5. Turn on server-side caching once the flow is stable.
 
 ## Breaking changes
@@ -266,7 +303,7 @@ The constructor is private and `init()` is gone. Get a browser from a factory, t
 + const stagehand = await Stagehand.create({ browser });
 ```
 
-Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that is already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
 
 ### Pages and the browser context
 
@@ -280,6 +317,16 @@ The context moved off the Stagehand instance and onto the browser handle, and pa
 ```
 
 If you only hold the instance, reach the handle through it: `stagehand.browser.context`.
+
+### act(), extract(), and observe() moved to the instance
+
+In v3 these hung off the page. In v4 they're top-level methods on Stagehand, and you pick the target page with `options.page` when it isn't the active one:
+
+```diff
+- await page.act("Click the sign in button");
++ await stagehand.act("Click the sign in button");
++ await stagehand.act("Click the sign in button", { page: page2 });
+```
 
 ### Every primitive returns data and metadata
 
@@ -376,6 +423,17 @@ Metrics became a method:
 
 [Observability](/v4/configuration/observability) shows the full version, including reading session metrics back.
 
+### deepLocator() folded into locator()
+
+`page.deepLocator()` is gone, but its behavior isn't. `page.locator()` resolves the same selectors in v4, so drop the call and keep the selector:
+
+```diff
+- const button = page.deepLocator("iframe#checkout >> button.submit");
++ const button = page.locator("iframe#checkout >> button.submit");
+```
+
+`>>` hop notation and deep XPath such as `/html/body/iframe[2]//div` work unchanged. See [Locator](/v4/reference/locator).
+
 ## Quick reference
 
 | v3 | v4 |
@@ -384,7 +442,8 @@ Metrics became a method:
 | `stagehand.page` | `await browser.context.activePage()` |
 | `stagehand.context` | `browser.context` |
 | `stagehand.context.pages()` | `await browser.context.pages()` |
-| `stagehand.agent()` | Your own loop |
+| `page.act(...)` | `stagehand.act(...)`, with `{ page }` to target a tab |
+| `stagehand.agent()` | A generated script, or your own tool-calling loop |
 | `await stagehand.observe(...)` returns an array | `.data` holds the array |
 | `extract({ instruction, schema })` | `extract(instruction, schema)` |
 | `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
@@ -392,6 +451,7 @@ Metrics became a method:
 | `verbose`, `logger` | `logging: { level, format, onLog }` |
 | `await stagehand.metrics` | `await stagehand.metrics()` |
 | `stagehand.browserbaseSessionID` | Hold the ID from `sessions.create()` |
+| `page.deepLocator()` | `page.locator()`, same selector syntax |
 
 ## Troubleshooting
 
@@ -399,23 +459,27 @@ Metrics became a method:
 
 **`Property 'context' does not exist on type 'Stagehand'`.** The context lives on the browser handle: `browser.context`, or `stagehand.browser.context`.
 
+**`Property 'act' does not exist on type 'Page'`.** `act()`, `extract()`, and `observe()` are methods on the Stagehand instance now. Target a specific tab with `options.page`.
+
 **`Property 'length' does not exist`** on an `observe()` result. Read `.data` first.
 
-**Your loop never stops.** The goal check is too permissive. Ask for a strict enum, as the example does, and keep the step cap.
+**Your generated script uses v3 APIs.** The assistant is drawing on v2 and v3 patterns in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
 
-**A retried step repeats a side effect.** You are retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
+**`Property 'deepLocator' does not exist on type 'Page'`.** Rename the call to `page.locator()`. The selector stays the same.
+
+**A retried step repeats a side effect.** You're retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
 
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="AI rules" icon="robot" href="/v4/first-steps/ai-rules">
+    Set your coding assistant up to write v4 code
+  </Card>
   <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
     Perform one action, or replay an observed one
   </Card>
   <Card title="Observe" icon="eye" href="/v4/basics/observe">
     Plan actions without performing them
-  </Card>
-  <Card title="Prompting best practices" icon="comment" href="/v4/best-practices/prompting-best-practices">
-    Sequence multi-step work you own
   </Card>
   <Card title="Caching" icon="database" href="/v4/best-practices/caching">
     Cut inference out of a stable flow
