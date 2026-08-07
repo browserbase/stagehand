@@ -334,6 +334,28 @@ describe("StagehandCodeExecutor", () => {
     }
   });
 
+  it("stops capturing logs when the remaining byte cannot hold a UTF-8 character", async () => {
+    const runtime = fakeRuntime();
+    sdkMocks.localLaunch.mockResolvedValue(runtime.browser);
+    sdkMocks.stagehandCreate.mockResolvedValue(runtime.stagehand);
+    const executor = new StagehandCodeExecutor(localConfig());
+
+    const result = await executor.execute({
+      code: `
+        console.log("a".repeat(65535));
+        for (let index = 0; index < 100; index += 1) console.log("é");
+        return "ok";
+      `,
+    });
+
+    expect(result).toMatchObject({ ok: true, value: "ok" });
+    if (result.ok && result.logs) {
+      expect(result.logs).toHaveLength(1);
+      expect(Buffer.byteLength(result.logs[0].text)).toBe(65_535);
+      expect(result.logs.every((entry) => entry.text.length > 0)).toBe(true);
+    }
+  });
+
   it("captures circular console values without changing snippet success", async () => {
     const runtime = fakeRuntime();
     sdkMocks.localLaunch.mockResolvedValue(runtime.browser);
