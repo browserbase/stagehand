@@ -147,6 +147,46 @@ describe("extract inference", () => {
 });
 
 describe("extract service", () => {
+  it("accepts recursive JSON Schemas sent by SDKs", () => {
+    const schema = z.fromJSONSchema({
+      $schema: "https://json-schema.org/draft/2020-12/schema",
+      $defs: {
+        node: {
+          type: "object",
+          properties: {
+            value: { type: "string" },
+            children: {
+              type: "array",
+              items: { $ref: "#/$defs/node" },
+            },
+          },
+          required: ["value"],
+          additionalProperties: false,
+        },
+      },
+      $ref: "#/$defs/node",
+    });
+
+    const [transformed, urlPaths] = extractService.transformUrlStringsToNumericIds(schema);
+
+    expect(urlPaths).toStrictEqual([]);
+    expect(
+      transformed.parse({
+        value: "root",
+        children: [{ value: "child", children: [] }],
+      }),
+    ).toStrictEqual({
+      value: "root",
+      children: [{ value: "child", children: [] }],
+    });
+    expect(z.toJSONSchema(transformed)).toMatchObject({
+      type: "object",
+      properties: {
+        children: { items: { $ref: "#" } },
+      },
+    });
+  });
+
   it("captures and forwards a screenshot through a client-provided LLM", async () => {
     const withCache = vi.spyOn(cacheService, "withCache");
     const captureSnapshot = vi.fn(async () => ({
