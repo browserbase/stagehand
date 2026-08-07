@@ -6,6 +6,7 @@ import {
   type StagehandBrowser,
   type StagehandMetrics,
 } from "@browserbasehq/stagehand";
+import { MAX_CODE_BYTES } from "./limits.js";
 import { executeStagehandSnippet } from "./snippet.js";
 import type {
   CodeExecuteFailure,
@@ -18,7 +19,6 @@ import type {
 
 export type StagehandCodeExecutorOptions = StagehandCodeConfig;
 
-const MAX_CODE_BYTES = 100_000;
 const MAX_LOG_BYTES = 64 * 1024;
 const MAX_RESULT_BYTES = 256 * 1024;
 const MAX_ERROR_MESSAGE_LENGTH = 4_000;
@@ -28,6 +28,22 @@ const URL = /\b(?:https?|wss?):\/\/[^\s"'<>]+/gi;
 const CREDENTIAL =
   /\b(authorization|api[_-]?key|password|secret|token)\s*[:=]\s*(?:bearer\s+)?[^\s,;]+/gi;
 const BEARER_TOKEN = /\bbearer\s+[^\s,;]+/gi;
+
+class StagehandCodeCloseError extends Error {
+  override readonly name = "StagehandCodeCloseError";
+
+  constructor() {
+    super("Failed to close Stagehand code mode.");
+  }
+}
+
+class StagehandCodeInitializationError extends Error {
+  override readonly name = "StagehandCodeInitializationError";
+
+  constructor() {
+    super("Stagehand code mode initialization and browser cleanup both failed.");
+  }
+}
 
 export class StagehandCodeExecutor {
   private stagehand?: Stagehand;
@@ -70,16 +86,18 @@ export class StagehandCodeExecutor {
       this.stagehand = undefined;
       this.browser = undefined;
 
-      const errors: unknown[] = [];
+      let failed = false;
       if (stagehand) {
-        await stagehand.close().catch((error) => errors.push(error));
+        await stagehand.close().catch(() => {
+          failed = true;
+        });
       }
       if (browser) {
-        await browser.close().catch((error) => errors.push(error));
+        await browser.close().catch(() => {
+          failed = true;
+        });
       }
-      if (errors.length > 0) {
-        throw new AggregateError(errors, "Failed to close Stagehand code mode.");
-      }
+      if (failed) throw new StagehandCodeCloseError();
     });
     return this.closePromise;
   }
@@ -155,11 +173,8 @@ export class StagehandCodeExecutor {
     } catch (error) {
       try {
         await browser.close();
-      } catch (closeError) {
-        throw new AggregateError(
-          [error, closeError],
-          "Stagehand code mode initialization and browser cleanup both failed.",
-        );
+      } catch {
+        throw new StagehandCodeInitializationError();
       }
       throw error;
     }
@@ -190,7 +205,7 @@ function createCodeConsole(logs: CodeLogEntry[]) {
     if (logBytes >= MAX_LOG_BYTES) return;
     const text = formatLog(values);
     const remaining = MAX_LOG_BYTES - logBytes;
-    const bounded = Buffer.from(text).subarray(0, remaining).toString();
+    const bounded = truncateUtf8(text, remaining);
     logBytes += Buffer.byteLength(bounded);
     logs.push({ level, text: bounded });
   };
@@ -225,8 +240,23 @@ function jsonSafe(value: unknown): unknown {
   return {
     truncated: true,
     original_bytes: bytes,
-    preview: Buffer.from(serialized).subarray(0, MAX_RESULT_BYTES).toString(),
+    preview: truncateUtf8(serialized, MAX_RESULT_BYTES),
   };
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  if (maxBytes <= 0) return "";
+  if (Buffer.byteLength(value) <= maxBytes) return value;
+
+  const characters: string[] = [];
+  let bytes = 0;
+  for (const character of value) {
+    const characterBytes = Buffer.byteLength(character);
+    if (bytes + characterBytes > maxBytes) break;
+    characters.push(character);
+    bytes += characterBytes;
+  }
+  return characters.join("");
 }
 
 function formatLog(values: unknown[]): string {
