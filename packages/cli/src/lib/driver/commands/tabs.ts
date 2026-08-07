@@ -11,7 +11,7 @@ export const tabHandlers: DriverCommandHandlers = {
   async "tab.new"(manager, params) {
     const { url } = z.object({ url: z.string().optional() }).parse(params);
     const context = await manager.browserContext();
-    const page = await context.newPage(url ? { url } : {});
+    const page = await context.newPage(url);
     await context.setActivePage(page);
     const pages = await context.pages();
     return {
