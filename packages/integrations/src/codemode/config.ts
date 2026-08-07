@@ -3,6 +3,10 @@ import type { StagehandCodeConfig } from "./types.js";
 
 const ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER = "anthropic-dangerous-direct-browser-access";
 
+class StagehandCodeConfigError extends Error {
+  override readonly name = "StagehandCodeConfigError";
+}
+
 export function stagehandCodeConfigFromEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): StagehandCodeConfig {
@@ -12,20 +16,26 @@ export function stagehandCodeConfigFromEnv(
     requestedBrowser !== "local" &&
     requestedBrowser !== "browserbase"
   ) {
-    throw new Error('STAGEHAND_BROWSER must be either "local" or "browserbase".');
+    throw new StagehandCodeConfigError(
+      'STAGEHAND_BROWSER must be either "local" or "browserbase".',
+    );
   }
 
   const browserbaseApiKey = nonEmpty(env.BROWSERBASE_API_KEY);
   const browserbaseProjectId = nonEmpty(env.BROWSERBASE_PROJECT_ID);
   const browserType = requestedBrowser ?? (browserbaseApiKey ? "browserbase" : "local");
   if (browserType === "browserbase" && !browserbaseApiKey) {
-    throw new Error('BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".');
+    throw new StagehandCodeConfigError(
+      'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
+    );
   }
 
   const explicitModelName = nonEmpty(env.STAGEHAND_MODEL_NAME);
   const explicitModelApiKey = nonEmpty(env.STAGEHAND_MODEL_API_KEY);
   if (!explicitModelName && explicitModelApiKey) {
-    throw new Error("STAGEHAND_MODEL_NAME is required when STAGEHAND_MODEL_API_KEY is set.");
+    throw new StagehandCodeConfigError(
+      "STAGEHAND_MODEL_NAME is required when STAGEHAND_MODEL_API_KEY is set.",
+    );
   }
 
   const inferredGoogleKey = providerApiKey("google", env);
@@ -80,8 +90,8 @@ function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): s
       return nonEmpty(env.ANTHROPIC_API_KEY);
     case "google":
       return (
-        nonEmpty(env.GEMINI_API_KEY) ??
         nonEmpty(env.GOOGLE_GENERATIVE_AI_API_KEY) ??
+        nonEmpty(env.GEMINI_API_KEY) ??
         nonEmpty(env.GOOGLE_API_KEY)
       );
     case "groq":
