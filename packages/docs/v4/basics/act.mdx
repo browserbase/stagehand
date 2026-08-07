@@ -19,7 +19,7 @@ await stagehand.act("click on add to cart")
 
 <View title="Go" icon="golang">
 ```go
-if _, err := client.Act(ctx, "click on add to cart", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click on add to cart"), nil); err != nil {
 	return err
 }
 ```
@@ -70,7 +70,7 @@ await stagehand.act("click the add to cart button")
 if _, err := page.Goto(ctx, "https://example-store.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the add to cart button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the add to cart button"), nil); err != nil {
 	return err
 }
 ```
@@ -226,13 +226,13 @@ await stagehand.act("click the apply button")
 <View title="Go" icon="golang">
 ```go
 // Break it into single-step actions
-if _, err := client.Act(ctx, "open the filters panel", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "choose 4-star rating", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("choose 4-star rating"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the apply button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the apply button"), nil); err != nil {
 	return err
 }
 ```
@@ -259,7 +259,7 @@ await stagehand.act("open the filters panel, choose 4-star rating, and click app
 <View title="Go" icon="golang">
 ```go
 // Too complex - trying to do multiple things at once
-if _, err := client.Act(ctx, "open the filters panel, choose 4-star rating, and click apply", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel, choose 4-star rating, and click apply"), nil); err != nil {
 	return err
 }
 ```
@@ -312,7 +312,7 @@ model := stagehand.ModelConfig{
 }
 timeout := 10000.0
 
-if _, err := client.Act(ctx, "choose 'Peach' from the favorite color dropdown", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the favorite color dropdown"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Model:   &model,
 		Timeout: &timeout,
@@ -399,7 +399,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
-if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &off},
 }); err != nil {
 	return err
@@ -407,14 +407,14 @@ if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClien
 
 // Or lower the hit-count threshold for a single call
 eager := stagehand.CacheWithThreshold(1)
-if _, err := client.Act(ctx, "click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Cache: &eager},
 }); err != nil {
 	return err
 }
 
 // Check whether a result was served from cache
-result, err := client.Act(ctx, "click the login button", nil)
+result, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
 if err != nil {
 	return err
 }
@@ -438,8 +438,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const blogPage = await browser.context.newPage();
-await blogPage.goto("https://www.example.com/blog");
+const blogPage = await browser.context.newPage("https://www.example.com/blog");
 
 // Use act with that specific page
 await stagehand.act("click the next page button", {
@@ -456,8 +455,7 @@ browser = await browserbase.launch(
 stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-blog_page = await browser.context.new_page()
-await blog_page.goto("https://www.example.com/blog")
+blog_page = await browser.context.new_page("https://www.example.com/blog")
 
 # Use act with that specific page
 await stagehand.act("click the next page button", page=blog_page)
@@ -482,16 +480,13 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-blogPage, err := browserContext.NewPage(ctx, nil)
+blogPage, err := browserContext.NewPage(ctx, "https://www.example.com/blog")
 if err != nil {
-	return err
-}
-if _, err := blogPage.Goto(ctx, "https://www.example.com/blog", nil); err != nil {
 	return err
 }
 
 // Use Act with that specific page
-_, err = client.Act(ctx, "click the next page button", &stagehand.StagehandClientActOptions{
+_, err = client.Act(ctx, stagehand.ActInstruction("click the next page button"), &stagehand.StagehandClientActOptions{
 	Page: blogPage,
 })
 ```
@@ -548,7 +543,7 @@ if err != nil {
 
 if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0].Method == "click" {
 	// No inference: Stagehand replays the observed action
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 		return err
 	}
 }
@@ -624,12 +619,12 @@ if err != nil {
 }
 
 // First run makes an LLM call and records the action
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 
 // Second run is served from the cache
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 ```
@@ -686,7 +681,7 @@ await stagehand.act("click the login button")
 <View title="Go" icon="golang">
 ```go
 // Variables use %variableName% syntax in the instruction
-if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the email field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
@@ -697,7 +692,7 @@ if _, err := client.Act(ctx, "type %username% into the email field", &stagehand.
 }
 
 userPassword := os.Getenv("USER_PASSWORD")
-if _, err := client.Act(ctx, "type %password% into the password field", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{
 		Variables: stagehand.Variables{
 			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
@@ -707,7 +702,7 @@ if _, err := client.Act(ctx, "type %password% into the password field", &stageha
 	return err
 }
 
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 ```
@@ -791,7 +786,7 @@ except Exception as error:
 prompt := "click the submit button"
 expectedMethod := "click"
 
-if _, err := client.Act(ctx, prompt, nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction(prompt), nil); err != nil {
 	if !strings.Contains(err.Error(), "method not supported") {
 		return err
 	}
@@ -809,7 +804,7 @@ if _, err := client.Act(ctx, prompt, nil); err != nil {
 	if action.Method == nil || *action.Method != expectedMethod {
 		return fmt.Errorf("unsupported method: expected %q, got %v", expectedMethod, action.Method)
 	}
-	if _, err := client.Act(ctx, action, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(action), nil); err != nil {
 		return err
 	}
 }
@@ -875,7 +870,7 @@ const maxRetries = 3
 
 for attempt := 0; attempt <= maxRetries; attempt++ {
 	timeout := float64(10000 + attempt*5000)
-	_, err := client.Act(ctx, prompt, &stagehand.StagehandClientActOptions{
+	_, err := client.Act(ctx, stagehand.ActInstruction(prompt), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{Timeout: &timeout},
 	})
 	if err == nil {
@@ -956,7 +951,7 @@ except Exception:
 ```go
 // Handle timeout and element not found issues
 timeout := 30000.0
-if _, err := client.Act(ctx, "click the submit button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Timeout: &timeout},
 }); err != nil {
 	// Check if page is fully loaded
@@ -973,10 +968,10 @@ if _, err := client.Act(ctx, "click the submit button", &stagehand.StagehandClie
 
 	if len(observed.Data) > 0 {
 		fmt.Println("Element found, trying more specific instruction")
-		_, err = client.Act(ctx, "click the submit button at the bottom of the form", nil)
+		_, err = client.Act(ctx, stagehand.ActInstruction("click the submit button at the bottom of the form"), nil)
 	} else {
 		fmt.Println("Element not found, trying alternative selector")
-		_, err = client.Act(ctx, "click the button with text 'Submit'", nil)
+		_, err = client.Act(ctx, stagehand.ActInstruction("click the button with text 'Submit'"), nil)
 	}
 	if err != nil {
 		return err
@@ -1035,10 +1030,10 @@ if observed.data and "checkout" in observed.data[0].description:
 ```go
 // More precise element targeting
 // Instead of:
-_, err := client.Act(ctx, "click the button", nil)
+_, err := client.Act(ctx, stagehand.ActInstruction("click the button"), nil)
 
 // Use specific context:
-_, err = client.Act(ctx, "click the red 'Delete' button next to the user John Smith", nil)
+_, err = client.Act(ctx, stagehand.ActInstruction("click the red 'Delete' button next to the user John Smith"), nil)
 
 // Or preview with Observe first:
 instruction := "click the submit button in the checkout form"
@@ -1047,7 +1042,7 @@ if err != nil {
 	return err
 }
 if len(observed.Data) > 0 && strings.Contains(observed.Data[0].Description, "checkout") {
-	if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 		return err
 	}
 }

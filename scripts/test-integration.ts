@@ -1,4 +1,4 @@
-/** Discover or run the v4 server integration tests. */
+/** Discover or run the v4 extension-backed integration tests. */
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";

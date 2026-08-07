@@ -12,7 +12,7 @@ import { StagehandMethods } from "../../schema-registry.js";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.js";
 import type { StagehandRpcNotification } from "../../types.js";
 
-const stagehandExtensionDistDir = new URL("../../../server/dist", import.meta.url).pathname;
+const stagehandExtensionDistDir = new URL("../../../extension/dist", import.meta.url).pathname;
 
 type FixtureServer = {
   url: string;
@@ -496,29 +496,29 @@ async function createFullGraphSmokeExtension(): Promise<string> {
   );
 
   const extensionEntryPath = fileURLToPath(
-    new URL("../../../server/service-worker.ts", import.meta.url),
+    new URL("../../../extension/service-worker.ts", import.meta.url),
   );
-  const serverModulePath = (relativePath: string): string =>
-    fileURLToPath(new URL(`../../../server/${relativePath}`, import.meta.url));
+  const extensionModulePath = (relativePath: string): string =>
+    fileURLToPath(new URL(`../../../extension/${relativePath}`, import.meta.url));
   const workerEntryPath = path.join(extensionDir, "stagehand-full-graph-entry.ts");
 
   await writeFile(
     workerEntryPath,
     [
       `import ${JSON.stringify(extensionEntryPath)};`,
-      `import * as actService from ${JSON.stringify(serverModulePath("services/actService.ts"))};`,
-      `import * as extractService from ${JSON.stringify(serverModulePath("services/extractService.ts"))};`,
-      `import * as observeService from ${JSON.stringify(serverModulePath("services/observeService.ts"))};`,
-      `import { LLMProvider } from ${JSON.stringify(serverModulePath("llm/LLMProvider.ts"))};`,
-      `import { StagehandLogger } from ${JSON.stringify(serverModulePath("logger.ts"))};`,
-      `import { withTimeout } from ${JSON.stringify(serverModulePath("timeoutConfig.ts"))};`,
-      `import { CdpConnection } from ${JSON.stringify(serverModulePath("understudy/cdp.ts"))};`,
-      `import { BrowserContext } from ${JSON.stringify(serverModulePath("understudy/context.ts"))};`,
-      `import { Locator } from ${JSON.stringify(serverModulePath("understudy/locator.ts"))};`,
-      `import { Page } from ${JSON.stringify(serverModulePath("understudy/page.ts"))};`,
-      `import { Response } from ${JSON.stringify(serverModulePath("understudy/response.ts"))};`,
+      `import * as actService from ${JSON.stringify(extensionModulePath("services/actService.ts"))};`,
+      `import * as extractService from ${JSON.stringify(extensionModulePath("services/extractService.ts"))};`,
+      `import * as observeService from ${JSON.stringify(extensionModulePath("services/observeService.ts"))};`,
+      `import { LLMProvider } from ${JSON.stringify(extensionModulePath("llm/LLMProvider.ts"))};`,
+      `import { StagehandLogger } from ${JSON.stringify(extensionModulePath("logger.ts"))};`,
+      `import { withTimeout } from ${JSON.stringify(extensionModulePath("timeoutConfig.ts"))};`,
+      `import { CdpConnection } from ${JSON.stringify(extensionModulePath("understudy/cdp.ts"))};`,
+      `import { BrowserContext } from ${JSON.stringify(extensionModulePath("understudy/context.ts"))};`,
+      `import { Locator } from ${JSON.stringify(extensionModulePath("understudy/locator.ts"))};`,
+      `import { Page } from ${JSON.stringify(extensionModulePath("understudy/page.ts"))};`,
+      `import { Response } from ${JSON.stringify(extensionModulePath("understudy/response.ts"))};`,
       "const graph = [actService.act, extractService.extract, observeService.observe, LLMProvider, StagehandLogger, withTimeout, CdpConnection, BrowserContext, Locator, Page, Response];",
-      "(globalThis as typeof globalThis & { __stagehandServerGraph?: string[] }).__stagehandServerGraph = graph.map((value) => value.name);",
+      "(globalThis as typeof globalThis & { __stagehandExtensionGraph?: string[] }).__stagehandExtensionGraph = graph.map((value) => value.name);",
     ].join("\n"),
   );
 

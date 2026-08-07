@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from contextlib import suppress
 from typing import Annotated, Literal, Protocol, TypeVar, cast, overload
 
+from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -20,6 +21,43 @@ from pydantic import (
 _MAX_REQUEST_ID = 9_007_199_254_740_991
 _MAX_PENDING_NOTIFICATIONS = 100
 _RPC_RESPONSE_GRACE_MS = 10_000
+_TRACE_CONTEXT_PROPAGATOR = TraceContextTextMapPropagator()
+_DEFAULT_OPERATION_TIMEOUT_MS = {
+    "page.goto": 15_000,
+    "page.reload": 15_000,
+    "page.go_back": 15_000,
+    "page.go_forward": 15_000,
+    "page.wait_for_load_state": 15_000,
+    "page.wait_for_selector": 30_000,
+    "page.webmcp_tools": 1_000,
+}
+_UNBOUNDED_BY_DEFAULT_METHODS = {
+    "stagehand.init",
+    "stagehand.close",
+    "stagehand.act",
+    "stagehand.extract",
+    "stagehand.observe",
+    "context.new_page",
+    "context.close",
+    "context.add_init_script",
+    "context.set_extra_http_headers",
+    "context.get_domain_policy",
+    "context.set_domain_policy",
+    "context.cookies",
+    "context.add_cookies",
+    "context.clear_cookies",
+    "context.clipboard_read_text",
+    "context.clipboard_write_text",
+    "context.clipboard_clear",
+    "context.clipboard_paste",
+    "context.clipboard_copy",
+    "context.clipboard_cut",
+    "page.close",
+    "page.evaluate",
+    "page.screenshot",
+    "page.snapshot",
+    "page.webmcp_invocation_result",
+}
 
 ParamsT = TypeVar("ParamsT", bound=BaseModel)
 ResultT = TypeVar("ResultT", bound=BaseModel)
@@ -155,6 +193,8 @@ class RPCClient:
             result_model,
             response,
         )
+        trace_context: dict[str, str] = {}
+        _TRACE_CONTEXT_PROPAGATOR.inject(trace_context)
         request = _JSONRPCRequest(
             jsonrpc="2.0",
             id=request_id,
@@ -164,6 +204,8 @@ class RPCClient:
                 by_alias=True,
                 exclude_unset=True,
             ),
+            traceparent=trace_context.get("traceparent"),
+            tracestate=trace_context.get("tracestate"),
         )
 
         response_timeout = asyncio.timeout(_rpc_response_timeout_seconds(method, parsed_params))
@@ -491,9 +533,6 @@ class RPCClient:
 
 
 def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | None:
-    if method == "stagehand.init":
-        return None
-
     operation_timeout_ms: float | int | None = None
     if method in {
         "stagehand.act",
@@ -515,7 +554,18 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
     elif method == "page.wait_for_timeout":
         operation_timeout_ms = _numeric_property(params, "ms")
 
-    return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms or 0)) / 1_000
+    if operation_timeout_ms is not None:
+        return (_RPC_RESPONSE_GRACE_MS + max(0, operation_timeout_ms)) / 1_000
+
+    if (default_timeout_ms := _DEFAULT_OPERATION_TIMEOUT_MS.get(method)) is not None:
+        return (_RPC_RESPONSE_GRACE_MS + default_timeout_ms) / 1_000
+
+    # These operations had no v3 deadline. Keep the server as the owner of their
+    # lifetime instead of turning the transport grace period into a 10s ceiling.
+    if method in _UNBOUNDED_BY_DEFAULT_METHODS or method.startswith("locator."):
+        return None
+
+    return _RPC_RESPONSE_GRACE_MS / 1_000
 
 
 def _property(value: object, name: str) -> object:

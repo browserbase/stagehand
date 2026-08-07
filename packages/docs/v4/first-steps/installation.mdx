@@ -83,6 +83,8 @@ const stagehand = await Stagehand.create({ browser });
 ```python
 import os
 
+from stagehand import Stagehand, browserbase
+
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
 )
@@ -157,10 +159,8 @@ import os
 from pydantic import BaseModel
 from stagehand import Stagehand, browserbase
 
-
 class Description(BaseModel):
     description: str
-
 
 async def main() -> None:
     browser = await browserbase.launch(
@@ -187,7 +187,6 @@ async def main() -> None:
             await stagehand.close()
     finally:
         await browser.close()
-
 
 asyncio.run(main())
 ```
@@ -234,10 +233,14 @@ func run(ctx context.Context) (err error) {
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+	})
 	if err != nil {
 		return err
 	}
+
 	defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 	browserContext, err := browser.Context()
@@ -253,12 +256,12 @@ func run(ctx context.Context) (err error) {
 	}
 	page := pages[0]
 
-	if err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 		return err
 	}
 
 	// Act on the page
-	if _, err := client.Act(ctx, "Click the learn more button", nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ActInstruction("Click the learn more button"), nil); err != nil {
 		return err
 	}
 
@@ -274,7 +277,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Println(extracted.Description)
+	fmt.Println(extracted.Data.Description)
 	return nil
 }
 ```

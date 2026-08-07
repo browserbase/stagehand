@@ -1,14 +1,13 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_rockauto" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/");
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
           "Do not include the manufacturer name. Do not include products from the premium category.",
         z.object({
@@ -85,13 +84,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

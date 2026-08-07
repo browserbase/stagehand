@@ -171,7 +171,7 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
     assignments.flatMap((assignment) => {
       const value = assignment.getMatch("VALUE");
       const comesFromContext = value?.find({
-        rule: { pattern: `${stagehand}.context.$METHOD($$$ARGS)` },
+        rule: { pattern: `${stagehand}.browser.context.$METHOD($$$ARGS)` },
       });
       const name = assignment.getMatch("NAME")?.text();
       return comesFromContext && name ? [name] : [];
@@ -188,7 +188,7 @@ function publicSdkOperations(root: SgNode, language: ExampleLanguage): string[] 
       if (object === stagehand && method !== "init" && method !== "close") {
         return [`stagehand.${snakeCase(method)}`];
       }
-      if (object === `${stagehand}.context`) return [`context.${snakeCase(method)}`];
+      if (object === `${stagehand}.browser.context`) return [`context.${snakeCase(method)}`];
       if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];
       return [];
     })
@@ -200,7 +200,9 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
   const contextObjects = new Set(
     assignedValues.flatMap(({ name, value }) => {
       const target = goCallTarget(value);
-      return target?.object === stagehand && target.method === "Context" ? [name] : [];
+      return target?.object === `${stagehand}.Browser()` && target.method === "Context"
+        ? [name]
+        : [];
     }),
   );
   const pageObjects = new Set(
@@ -212,7 +214,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string): string[] {
 
   return goCalls(root)
     .flatMap(({ object, method }) => {
-      if (object === stagehand && method !== "Context" && method !== "Close") {
+      if (object === stagehand && method !== "Browser" && method !== "Close") {
         const normalizedMethod = snakeCase(method);
         return [
           `stagehand.${normalizedMethod === "experimental_batch" ? "_experimental_batch" : normalizedMethod}`,

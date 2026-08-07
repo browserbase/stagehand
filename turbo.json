@@ -16,13 +16,13 @@
       "inputs": ["$TURBO_DEFAULT$", "!stagehand.v4.json"],
       "outputs": ["stagehand.v4.json"]
     },
-    "@browserbasehq/stagehand-server#build": {
+    "@browserbasehq/stagehand-extension#build": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**", "!artifacts/stagehand-extension.zip"],
       "outputs": ["dist/**", "artifacts/stagehand-extension.zip"]
     },
     "@browserbasehq/stagehand#build": {
-      "dependsOn": ["@browserbasehq/stagehand-server#build"],
+      "dependsOn": ["@browserbasehq/stagehand-extension#build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
@@ -30,6 +30,11 @@
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
+    },
+    "build:cli": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/cli/**"]
     },
     "//#generate:python": {
       "dependsOn": ["@browserbasehq/stagehand-protocol#build"],
@@ -39,7 +44,7 @@
     "//#generate:go": {
       "dependsOn": [
         "@browserbasehq/stagehand-protocol#build",
-        "@browserbasehq/stagehand-server#build"
+        "@browserbasehq/stagehand-extension#build"
       ],
       "inputs": [
         "$TURBO_DEFAULT$",
@@ -49,7 +54,7 @@
       "outputs": ["packages/sdk-go/models.gen.go", "packages/sdk-go/internal/extensionassets/**"]
     },
     "//#build:wheel": {
-      "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-server#build"],
+      "dependsOn": ["//#generate:python", "@browserbasehq/stagehand-extension#build"],
       "inputs": ["$TURBO_DEFAULT$", "!packages/sdk-python/dist/**"],
       "outputs": ["packages/sdk-python/dist/*.whl", "packages/sdk-python/dist/*.tar.gz"]
     },
@@ -72,8 +77,8 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
-    "@browserbasehq/stagehand-server#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-server#build"],
+    "@browserbasehq/stagehand-extension#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-extension#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",
@@ -83,7 +88,7 @@
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
@@ -98,7 +103,7 @@
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
@@ -166,11 +171,11 @@
         "json-rpc/**",
         "**/*.test.ts",
         "$TURBO_ROOT$/packages/sdk-ts/src/**",
-        "$TURBO_ROOT$/packages/server/**",
+        "$TURBO_ROOT$/packages/extension/**",
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     },
@@ -186,7 +191,7 @@
         "$TURBO_ROOT$/vitest.config.ts",
         "!$TURBO_ROOT$/packages/*/dist/**",
         "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/server/artifacts/**",
+        "!$TURBO_ROOT$/packages/extension/artifacts/**",
         "!$TURBO_ROOT$/packages/*/node_modules/**"
       ]
     }

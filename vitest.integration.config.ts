@@ -1,5 +1,5 @@
 import { defineConfig } from "vitest/config";
-import { instrumentedDecoratorBuild } from "./packages/server/instrumentedDecoratorBuild.ts";
+import { instrumentedDecoratorBuild } from "./packages/extension/instrumentedDecoratorBuild.ts";
 
 export default defineConfig({
   plugins: [instrumentedDecoratorBuild()],

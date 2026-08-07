@@ -3,12 +3,11 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_staff_members" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/panamcs/");
 
-      const result = await v3.extract(
+      const { data: result } = await stagehand.extract(
         "extract a list of ALL the staff members on this page, with their name and their job title",
         z.object({
           staff_members: z.array(
@@ -130,13 +129,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

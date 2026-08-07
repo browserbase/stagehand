@@ -1279,6 +1279,8 @@ export const LoadStateSchema = z
   .enum(["load", "domcontentloaded", "networkidle"])
   .meta({ id: "LoadState" });
 
+const pageNavigationUrlSchema = z.string().min(1);
+
 export const PageNavigationOptionsSchema = z
   .strictObject({
     waitUntil: LoadStateSchema.optional(),
@@ -1425,6 +1427,29 @@ export const ResponseFinishedResultSchema = z
     error: NavigationFinishedErrorSchema.nullable(),
   })
   .meta({ id: "ResponseFinishedResult" });
+
+export const PageEventNameSchema = z.enum(["console"]).meta({ id: "PageEventName" });
+
+export const PageCDPEventParamsSchema = z
+  .record(z.string(), z.json())
+  .meta({ id: "PageCDPEventParams" });
+
+export const PageCDPEventSchema = z
+  .strictObject({
+    pageId: z.string().min(1),
+    method: z.literal("Runtime.consoleAPICalled"),
+    params: PageCDPEventParamsSchema,
+    sessionId: z.string().min(1),
+    targetId: z.string().min(1),
+  })
+  .meta({ id: "PageCDPEvent" });
+
+export const PageCDPEventNotificationSchema = z
+  .strictObject({
+    subscriptionId: z.string().min(1),
+    event: PageCDPEventSchema,
+  })
+  .meta({ id: "PageCDPEventNotification" });
 
 export const WebMCPAnnotationSchema = z
   .strictObject({
@@ -1599,7 +1624,7 @@ export const StagehandExtractParamsSchema = z
 
 export const ContextNewPageParamsSchema = z
   .strictObject({
-    url: z.string().optional(),
+    url: pageNavigationUrlSchema.optional(),
   })
   .meta({ id: "ContextNewPageParams" });
 
@@ -1670,7 +1695,7 @@ export const ContextClipboardCutParamsSchema = ContextClipboardTargetSchema;
 export const PageGotoParamsSchema = z
   .strictObject({
     pageId: z.string(),
-    url: z.string().min(1),
+    url: pageNavigationUrlSchema,
     options: PageNavigationOptionsSchema.optional(),
   })
   .meta({ id: "PageGotoParams" });
@@ -1680,6 +1705,17 @@ export const PageIdParamsSchema = z
     pageId: z.string(),
   })
   .meta({ id: "PageIdParams" });
+
+export const PageOnParamsSchema = PageIdParamsSchema.extend({
+  subscriptionId: z.string().min(1),
+  event: PageEventNameSchema,
+}).meta({ id: "PageOnParams" });
+
+export const PageOffParamsSchema = z
+  .strictObject({
+    subscriptionId: z.string().min(1),
+  })
+  .meta({ id: "PageOffParams" });
 
 export const PageWebMCPToolsParamsSchema = z
   .strictObject({

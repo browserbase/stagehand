@@ -445,7 +445,7 @@ for i, action := range result.Data {
 
 if emailField != nil && passwordField != nil {
 	// Replay the observed actions, resolving placeholders locally
-	if _, err := client.Act(ctx, *emailField, &stagehand.StagehandClientActOptions{
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*emailField), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
 				"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
@@ -454,7 +454,7 @@ if emailField != nil && passwordField != nil {
 	}); err != nil {
 		return err
 	}
-	if _, err := client.Act(ctx, *passwordField, &stagehand.StagehandClientActOptions{
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*passwordField), &stagehand.StagehandClientActOptions{
 		ActOptions: stagehand.ActOptions{
 			Variables: stagehand.Variables{
 				"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
@@ -561,8 +561,7 @@ const browser = await browserbase.launch({
 const stagehand = await Stagehand.create({ browser });
 
 // Open a second page in the same browser context
-const productsPage = await browser.context.newPage();
-await productsPage.goto("https://www.example.com/products");
+const productsPage = await browser.context.newPage("https://www.example.com/products");
 
 // Use observe with that specific page
 const { data: actions } = await stagehand.observe("find all product cards", {
@@ -579,8 +578,7 @@ browser = await browserbase.launch(
 stagehand = await Stagehand.create(browser=browser)
 
 # Open a second page in the same browser context
-products_page = await browser.context.new_page()
-await products_page.goto("https://www.example.com/products")
+products_page = await browser.context.new_page("https://www.example.com/products")
 
 # Use observe with that specific page
 result = await stagehand.observe(
@@ -608,11 +606,8 @@ if err != nil {
 }
 
 // Open a second page in the same browser context
-productsPage, err := browserContext.NewPage(ctx, nil)
+productsPage, err := browserContext.NewPage(ctx, "https://www.example.com/products")
 if err != nil {
-	return err
-}
-if _, err := productsPage.Goto(ctx, "https://www.example.com/products", nil); err != nil {
 	return err
 }
 
@@ -675,7 +670,7 @@ if err != nil {
 
 for _, field := range observed.Data {
 	// No LLM call: Stagehand replays the observed action
-	if _, err := client.Act(ctx, field, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(field), nil); err != nil {
 		return err
 	}
 }
@@ -794,7 +789,7 @@ if err != nil {
 	return err
 }
 
-for _, tier := range pricing.Tiers {
+for _, tier := range pricing.Data.Tiers {
 	fmt.Println(tier.Name, tier.Price)
 }
 ```
@@ -845,7 +840,7 @@ if len(observed.Data) == 0 || observed.Data[0].Method == nil || *observed.Data[0
 	return errors.New("Delete button not found")
 }
 
-if _, err := client.Act(ctx, observed.Data[0], nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ObservedAction(observed.Data[0]), nil); err != nil {
 	return err
 }
 ```
@@ -1101,7 +1096,7 @@ if action != nil && action.Method != nil {
 // Validate method before acting
 validMethods := []string{"click", "fill", "type", "press"}
 if action != nil && slices.Contains(validMethods, method) {
-	if _, err := client.Act(ctx, *action, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(*action), nil); err != nil {
 		return err
 	}
 } else {

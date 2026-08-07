@@ -1207,6 +1207,33 @@ type PageAddInitScriptParams struct {
 	Source string `json:"source"`
 }
 
+type PageCDPEvent struct {
+	// Method corresponds to the JSON schema field "method".
+	Method string `json:"method"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// Params corresponds to the JSON schema field "params".
+	Params PageCDPEventParams `json:"params"`
+
+	// SessionID corresponds to the JSON schema field "session_id".
+	SessionID string `json:"session_id"`
+
+	// TargetID corresponds to the JSON schema field "target_id".
+	TargetID string `json:"target_id"`
+}
+
+type PageCDPEventNotification struct {
+	// Event corresponds to the JSON schema field "event".
+	Event PageCDPEvent `json:"event"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+}
+
+type PageCDPEventParams map[string]json.RawMessage
+
 type PageClickOptions struct {
 	// Button corresponds to the JSON schema field "button".
 	Button *MouseButton `json:"button,omitempty,omitzero"`
@@ -1277,6 +1304,10 @@ type PageEvaluateResult struct {
 	// Value corresponds to the JSON schema field "value".
 	Value json.RawMessage `json:"value"`
 }
+
+type PageEventName string
+
+const PageEventNameConsole PageEventName = "console"
 
 type PageGoBackParams struct {
 	// Options corresponds to the JSON schema field "options".
@@ -1351,6 +1382,22 @@ type PageNavigationResult struct {
 
 	// Response corresponds to the JSON schema field "response".
 	Response *NavigationResponseDescriptor `json:"response"`
+}
+
+type PageOffParams struct {
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
+}
+
+type PageOnParams struct {
+	// Event corresponds to the JSON schema field "event".
+	Event PageEventName `json:"event"`
+
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID string `json:"page_id"`
+
+	// SubscriptionID corresponds to the JSON schema field "subscription_id".
+	SubscriptionID string `json:"subscription_id"`
 }
 
 type PageRef struct {
@@ -2494,6 +2541,16 @@ type generatedModelCatalog struct {
 	// "PageAddInitScriptParams".
 	PageAddInitScriptParams *PageAddInitScriptParams `json:"PageAddInitScriptParams,omitempty,omitzero"`
 
+	// PageCDPEvent corresponds to the JSON schema field "PageCDPEvent".
+	PageCDPEvent *PageCDPEvent `json:"PageCDPEvent,omitempty,omitzero"`
+
+	// PageCDPEventNotification corresponds to the JSON schema field
+	// "PageCDPEventNotification".
+	PageCDPEventNotification *PageCDPEventNotification `json:"PageCDPEventNotification,omitempty,omitzero"`
+
+	// PageCDPEventParams corresponds to the JSON schema field "PageCDPEventParams".
+	PageCDPEventParams PageCDPEventParams `json:"PageCDPEventParams,omitempty,omitzero"`
+
 	// PageClickOptions corresponds to the JSON schema field "PageClickOptions".
 	PageClickOptions *PageClickOptions `json:"PageClickOptions,omitempty,omitzero"`
 
@@ -2516,6 +2573,9 @@ type generatedModelCatalog struct {
 
 	// PageEvaluateResult corresponds to the JSON schema field "PageEvaluateResult".
 	PageEvaluateResult *PageEvaluateResult `json:"PageEvaluateResult,omitempty,omitzero"`
+
+	// PageEventName corresponds to the JSON schema field "PageEventName".
+	PageEventName *PageEventName `json:"PageEventName,omitempty,omitzero"`
 
 	// PageGoBackParams corresponds to the JSON schema field "PageGoBackParams".
 	PageGoBackParams *PageGoBackParams `json:"PageGoBackParams,omitempty,omitzero"`
@@ -2545,6 +2605,12 @@ type generatedModelCatalog struct {
 	// PageNavigationResult corresponds to the JSON schema field
 	// "PageNavigationResult".
 	PageNavigationResult *PageNavigationResult `json:"PageNavigationResult,omitempty,omitzero"`
+
+	// PageOffParams corresponds to the JSON schema field "PageOffParams".
+	PageOffParams *PageOffParams `json:"PageOffParams,omitempty,omitzero"`
+
+	// PageOnParams corresponds to the JSON schema field "PageOnParams".
+	PageOnParams *PageOnParams `json:"PageOnParams,omitempty,omitzero"`
 
 	// PageRef corresponds to the JSON schema field "PageRef".
 	PageRef *PageRef `json:"PageRef,omitempty,omitzero"`
@@ -2778,6 +2844,9 @@ type generatedModelCatalog struct {
 
 	// Schema11 corresponds to the JSON schema field "__schema11".
 	Schema11 json.RawMessage `json:"__schema11,omitempty,omitzero"`
+
+	// Schema12 corresponds to the JSON schema field "__schema12".
+	Schema12 json.RawMessage `json:"__schema12,omitempty,omitzero"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
 	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`

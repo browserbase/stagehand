@@ -48,9 +48,9 @@ for field in form_fields:
 <View title="Go" icon="golang">
 ```go
 // Instead of sequential operations with multiple LLM calls
-_, err := client.Act(ctx, "Fill name field", nil)          // LLM call #1
-_, err = client.Act(ctx, "Fill email field", nil)          // LLM call #2
-_, err = client.Act(ctx, "Select country dropdown", nil)    // LLM call #3
+_, err := client.Act(ctx, stagehand.ActInstruction("Fill name field"), nil)          // LLM call #1
+_, err = client.Act(ctx, stagehand.ActInstruction("Fill email field"), nil)          // LLM call #2
+_, err = client.Act(ctx, stagehand.ActInstruction("Select country dropdown"), nil)    // LLM call #3
 
 // Use a single Observe to plan all form fields: one LLM call
 instruction := "Find all form fields to fill"
@@ -61,7 +61,7 @@ if err != nil {
 
 // Replay each observed action: no further LLM inference
 for _, field := range observed.Data {
-	if _, err := client.Act(ctx, field, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(field), nil); err != nil {
 		return err
 	}
 }
@@ -148,7 +148,7 @@ if _, err := page.Evaluate(ctx, `
 }
 
 // Then perform Stagehand operations
-_, err := client.Act(ctx, "Click the submit button", nil)
+_, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), nil)
 ```
 </View>
 
@@ -229,7 +229,7 @@ if err != nil {
 
 // Simple actions: reduce the action timeout
 timeout := 5000.0
-if _, err := client.Act(ctx, "Click the login button", &stagehand.StagehandClientActOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click the login button"), &stagehand.StagehandClientActOptions{
 	ActOptions: stagehand.ActOptions{Timeout: &timeout},
 }); err != nil {
 	return err
@@ -332,7 +332,7 @@ func (t *performanceTracker) timedAct(
 	prompt string,
 ) (stagehand.ActResult, error) {
 	start := time.Now()
-	result, err := client.Act(ctx, prompt, nil)
+	result, err := client.Act(ctx, stagehand.ActInstruction(prompt), nil)
 	duration := time.Since(start)
 
 	t.mu.Lock()
@@ -421,13 +421,13 @@ print(f"workflow-optimized: {(perf_counter() - start) * 1000:.0f}ms")  # 500ms
 ```go
 // Before optimization
 start := time.Now()
-if _, err := client.Act(ctx, "Fill form", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("Fill form"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "Click submit", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click submit"), nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "Confirm submission", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("Confirm submission"), nil); err != nil {
 	return err
 }
 fmt.Printf("workflow: %dms\n", time.Since(start).Milliseconds()) // 8000ms
@@ -442,7 +442,7 @@ if err != nil {
 
 // Replay actions sequentially to avoid conflicts
 for _, action := range observed.Data {
-	if _, err := client.Act(ctx, action, nil); err != nil {
+	if _, err := client.Act(ctx, stagehand.ObservedAction(action), nil); err != nil {
 		return err
 	}
 }

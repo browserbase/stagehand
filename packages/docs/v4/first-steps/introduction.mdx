@@ -4,7 +4,7 @@ sidebarTitle: "Introduction"
 description: "Developers use Stagehand to reliably automate the web."
 ---
 
-Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and actually reliable.
+Stagehand is a browser automation framework used to control web browsers with natural language and code. By combining the power of AI with the precision of code, Stagehand makes web automation flexible, maintainable, and predictable.
 
 ## The problem with browser automation
 
@@ -71,7 +71,7 @@ actions = (await stagehand.observe("find submit buttons")).data
 // ctx, client, and the encoding/json import come from the quickstart
 
 // Act: execute natural language actions
-actResult, err := client.Act(ctx, "click the login button", nil)
+actResult, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil)
 if err != nil {
 	return err
 }
@@ -91,7 +91,7 @@ extracted, err := stagehand.ExtractAs[price](ctx, client, "extract the price", p
 if err != nil {
 	return err
 }
-fmt.Println(extracted.Price)
+fmt.Println(extracted.Data.Price)
 
 // Observe: discover available actions
 instruction := "find submit buttons"
@@ -127,7 +127,7 @@ Stagehand is designed for developers building production browser automations and
 
 ## Get started in 60 seconds
 <Info>
-  **Pro tip**: For best results, Browserbase recommends using Stagehand with [Browserbase](https://www.browserbase.com) for reliable cloud browser infrastructure. It is the default browser source, and it unlocks [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
+  **Pro tip**: For best results, Browserbase recommends using Stagehand with [Browserbase](https://www.browserbase.com) for reliable cloud browser infrastructure. It unlocks [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
 </Info>
 <CardGroup cols={2}>
   <Card

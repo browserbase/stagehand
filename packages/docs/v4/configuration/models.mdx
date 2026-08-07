@@ -1423,7 +1423,7 @@ if err != nil {
 }
 
 // Uses the instance model
-if _, err := client.Act(ctx, "click the login button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), nil); err != nil {
 	return err
 }
 
@@ -1447,7 +1447,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println(extracted.Summary)
+fmt.Println(extracted.Data.Summary)
 ```
 </View>
 

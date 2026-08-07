@@ -143,6 +143,72 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		t.Fatalf("stagehand.init timeout = %v, true; want no nested RPC deadline", timeout)
 	}
 
+	defaultTimeouts := map[string]time.Duration{
+		"page.goto":                25 * time.Second,
+		"page.reload":              25 * time.Second,
+		"page.go_back":             25 * time.Second,
+		"page.go_forward":          25 * time.Second,
+		"page.wait_for_load_state": 25 * time.Second,
+		"page.wait_for_selector":   40 * time.Second,
+		"page.webmcp_tools":        11 * time.Second,
+	}
+	for method, expected := range defaultTimeouts {
+		timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`))
+		if !ok || timeout != expected {
+			t.Errorf("%s timeout = %v, %t; want %v, true", method, timeout, ok, expected)
+		}
+	}
+
+	unboundedMethods := []string{
+		"stagehand.init",
+		"stagehand.close",
+		"stagehand.act",
+		"stagehand.extract",
+		"stagehand.observe",
+		"context.new_page",
+		"context.close",
+		"context.add_init_script",
+		"context.set_extra_http_headers",
+		"context.get_domain_policy",
+		"context.set_domain_policy",
+		"context.cookies",
+		"context.add_cookies",
+		"context.clear_cookies",
+		"context.clipboard_read_text",
+		"context.clipboard_write_text",
+		"context.clipboard_clear",
+		"context.clipboard_paste",
+		"context.clipboard_copy",
+		"context.clipboard_cut",
+		"page.close",
+		"page.evaluate",
+		"page.screenshot",
+		"page.snapshot",
+		"page.webmcp_invocation_result",
+		"locator.click",
+		"locator.fill",
+		"locator.hover",
+		"locator.count",
+		"locator.is_checked",
+		"locator.input_value",
+		"locator.is_visible",
+		"locator.inner_text",
+		"locator.inner_html",
+		"locator.text_content",
+		"locator.scroll_to",
+		"locator.centroid",
+		"locator.highlight",
+		"locator.send_click_event",
+		"locator.type",
+		"locator.select_option",
+		"locator.set_input_files",
+	}
+	for _, method := range unboundedMethods {
+		if timeout, ok := rpcResponseTimeout(method, json.RawMessage(`{}`)); ok {
+			t.Errorf("%s timeout = %v, true; want no response deadline", method, timeout)
+		}
+	}
+
 	hugeTimeout, ok := rpcResponseTimeout(
 		"stagehand.callback_batch",
 		json.RawMessage(`{"options":{"timeout":1e1000}}`),
@@ -382,6 +448,22 @@ func TestRPCClientValidatesInboundRequestsAndHandlerResults(t *testing.T) {
 	}`)
 }
 
+func TestMarshalValidatedJSONHonorsCustomUnionUnmarshalers(t *testing.T) {
+	t.Parallel()
+
+	encoded, err := marshalValidatedJSON(StagehandActParams{
+		Instruction: ActInstruction("click the link"),
+		PageID:      "page-1",
+	})
+	if err != nil {
+		t.Fatalf("marshalValidatedJSON() error = %v", err)
+	}
+	assertRPCJSON(t, encoded, `{
+		"instruction": "click the link",
+		"page_id": "page-1"
+	}`)
+}
+
 func TestRPCClientReturnsMethodAndHandlerErrors(t *testing.T) {
 	t.Parallel()
 
@@ -507,6 +589,44 @@ func TestRPCClientValidatesAndFlushesBufferedNotifications(t *testing.T) {
 	}
 }
 
+func TestRPCClientValidatesPageCDPEventNotificationsWithoutRenamingRawParams(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	received := make(chan PageCDPEventNotification, 1)
+	client.onPageCDPEvent(func(notification PageCDPEventNotification) {
+		received <- notification
+	})
+
+	transport.receiveJSON(`{
+		"jsonrpc": "2.0",
+		"method": "page.cdp_event",
+		"params": {
+			"subscription_id": "subscription-1",
+			"event": {
+				"page_id": "page-1",
+				"method": "Runtime.consoleAPICalled",
+				"params": {"executionContextId": 7},
+				"session_id": "session-1",
+				"target_id": "target-1"
+			}
+		}
+	}`)
+
+	select {
+	case notification := <-received:
+		if notification.SubscriptionID != "subscription-1" {
+			t.Fatalf("subscription ID = %q", notification.SubscriptionID)
+		}
+		if string(notification.Event.Params["executionContextId"]) != "7" {
+			t.Fatalf("raw params = %#v", notification.Event.Params)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for page CDP event")
+	}
+}
+
 func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T) {
 	t.Parallel()
 
@@ -543,14 +663,65 @@ func TestRPCClientDeliversNotificationToHandlersInRegistrationOrder(t *testing.T
 	}
 }
 
-func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
+func TestRPCClientDecodesNotificationsOutsideMutex(t *testing.T) {
+	t.Parallel()
+
+	decodeStarted := make(chan struct{})
+	releaseDecode := make(chan struct{})
+	receiveDone := make(chan struct{})
+	client := &rpcClient{
+		notificationHandlers: map[string][]registeredNotificationHandler{
+			"test.notification": {{
+				decode: func(json.RawMessage) (any, error) {
+					close(decodeStarted)
+					<-releaseDecode
+					return "decoded", nil
+				},
+				handler: func(any) {},
+			}},
+		},
+		notificationWake: make(chan struct{}, 1),
+	}
+	go func() {
+		defer close(receiveDone)
+		client.receiveNotification("test.notification", json.RawMessage(`{}`))
+	}()
+	select {
+	case <-decodeStarted:
+	case <-time.After(time.Second):
+		close(releaseDecode)
+		t.Fatal("timed out waiting for notification decode")
+	}
+
+	mutexAvailableDuringDecode := client.mu.TryLock()
+	if mutexAvailableDuringDecode {
+		client.mu.Unlock()
+	}
+	close(releaseDecode)
+	select {
+	case <-receiveDone:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for notification receive")
+	}
+	if !mutexAvailableDuringDecode {
+		t.Fatal("RPC mutex remained locked during notification decode")
+	}
+}
+
+func TestRPCClientBoundsQueuedNotificationsWithoutSplittingHandlerGroups(t *testing.T) {
 	t.Parallel()
 
 	client := &rpcClient{}
 	client.mu.Lock()
 	for index := range maxPendingNotifications + 50 {
-		client.enqueueNotificationLocked(rpcNotificationDelivery{
-			notification: StagehandLog{Message: strconv.Itoa(index)},
+		deliveries := make([]rpcNotificationDelivery, 3)
+		for handlerIndex := range deliveries {
+			deliveries[handlerIndex] = rpcNotificationDelivery{
+				notification: StagehandLog{Message: strconv.Itoa(index)},
+			}
+		}
+		client.enqueueNotificationLocked(rpcNotificationDeliveryGroup{
+			deliveries: deliveries,
 		})
 	}
 	if len(client.notificationQueue) != maxPendingNotifications {
@@ -560,10 +731,19 @@ func TestRPCClientBoundsQueuedLogDeliveries(t *testing.T) {
 			maxPendingNotifications,
 		)
 	}
-	first := client.notificationQueue[0].notification.Message
-	last := client.notificationQueue[len(client.notificationQueue)-1].notification.Message
+	firstGroup := client.notificationQueue[0]
+	lastGroup := client.notificationQueue[len(client.notificationQueue)-1]
 	client.mu.Unlock()
 
+	if len(firstGroup.deliveries) != 3 || len(lastGroup.deliveries) != 3 {
+		t.Fatalf(
+			"retained handler group sizes = %d, %d; want 3, 3",
+			len(firstGroup.deliveries),
+			len(lastGroup.deliveries),
+		)
+	}
+	first := firstGroup.deliveries[0].notification.(StagehandLog).Message
+	last := lastGroup.deliveries[0].notification.(StagehandLog).Message
 	if first != "50" || last != "149" {
 		t.Fatalf("retained notification range = %s..%s, want 50..149", first, last)
 	}
@@ -788,6 +968,26 @@ func TestRPCClientTransportOwnership(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRPCClientCloseDropsLivePageEventListeners(t *testing.T) {
+	t.Parallel()
+
+	transport := newQueueRPCTransport()
+	client := newTestRPCClient(t, transport)
+	remove := client.onPageCDPEvent(func(PageCDPEventNotification) {})
+
+	if err := client.close(); err != nil {
+		t.Fatalf("close() error = %v", err)
+	}
+	client.mu.Lock()
+	handlerCount := len(client.notificationHandlers["page.cdp_event"])
+	client.mu.Unlock()
+	if handlerCount != 0 {
+		t.Fatalf("page event handlers after close = %d, want 0", handlerCount)
+	}
+
+	remove()
 }
 
 func TestRPCClientCarriesTraceContextIntoBidirectionalRequests(t *testing.T) {

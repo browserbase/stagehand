@@ -539,6 +539,32 @@
           "required": ["params", "result"],
           "additionalProperties": false
         },
+        "page.on": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageOnParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
+        "page.off": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageOffParams"
+            },
+            "result": {
+              "$ref": "#/$defs/PageVoidResult"
+            }
+          },
+          "required": ["params", "result"],
+          "additionalProperties": false
+        },
         "page.set_extra_http_headers": {
           "type": "object",
           "properties": {
@@ -1024,6 +1050,8 @@
         "page.key_press",
         "page.evaluate",
         "page.add_init_script",
+        "page.on",
+        "page.off",
         "page.set_extra_http_headers",
         "page.screenshot",
         "page.snapshot",
@@ -1073,9 +1101,19 @@
           },
           "required": ["params"],
           "additionalProperties": false
+        },
+        "page.cdp_event": {
+          "type": "object",
+          "properties": {
+            "params": {
+              "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["params"],
+          "additionalProperties": false
         }
       },
-      "required": ["stagehand.log"],
+      "required": ["stagehand.log", "page.cdp_event"],
       "additionalProperties": false
     },
     "legacy_client_models": {
@@ -2807,7 +2845,8 @@
       "type": "object",
       "properties": {
         "url": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false
@@ -3547,6 +3586,38 @@
         }
       },
       "required": ["page_id", "source"],
+      "additionalProperties": false
+    },
+    "PageOnParams": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string"
+        },
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "$ref": "#/$defs/PageEventName"
+        }
+      },
+      "required": ["page_id", "subscription_id", "event"],
+      "additionalProperties": false
+    },
+    "PageEventName": {
+      "type": "string",
+      "enum": ["console"]
+    },
+    "PageOffParams": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["subscription_id"],
       "additionalProperties": false
     },
     "PageSetExtraHTTPHeadersParams": {
@@ -4761,6 +4832,86 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/__schema11"
+          }
+        }
+      ]
+    },
+    "PageCDPEventNotification": {
+      "type": "object",
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event": {
+          "$ref": "#/$defs/PageCDPEvent"
+        }
+      },
+      "required": ["subscription_id", "event"],
+      "additionalProperties": false
+    },
+    "PageCDPEvent": {
+      "type": "object",
+      "properties": {
+        "page_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "type": "string",
+          "const": "Runtime.consoleAPICalled"
+        },
+        "params": {
+          "$ref": "#/$defs/PageCDPEventParams"
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["page_id", "method", "params", "session_id", "target_id"],
+      "additionalProperties": false
+    },
+    "PageCDPEventParams": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/__schema12"
+      }
+    },
+    "__schema12": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema12"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema12"
           }
         }
       ]
@@ -6122,6 +6273,60 @@
             },
             "method": {
               "type": "string",
+              "const": "page.on"
+            },
+            "params": {
+              "$ref": "#/$defs/PageOnParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.off"
+            },
+            "params": {
+              "$ref": "#/$defs/PageOffParams"
+            },
+            "traceparent": {
+              "type": "string"
+            },
+            "tracestate": {
+              "type": "string"
+            }
+          },
+          "required": ["jsonrpc", "id", "method", "params"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "id": {
+              "$ref": "#/$defs/JSONRPCRequestId"
+            },
+            "method": {
+              "type": "string",
               "const": "page.set_extra_http_headers"
             },
             "params": {
@@ -7036,22 +7241,44 @@
       "maximum": 9007199254740991
     },
     "StagehandRpcNotification": {
-      "type": "object",
-      "properties": {
-        "jsonrpc": {
-          "type": "string",
-          "const": "2.0"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "stagehand.log"
+            },
+            "params": {
+              "$ref": "#/$defs/StagehandLog"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
         },
-        "method": {
-          "type": "string",
-          "const": "stagehand.log"
-        },
-        "params": {
-          "$ref": "#/$defs/StagehandLog"
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "page.cdp_event"
+            },
+            "params": {
+              "$ref": "#/$defs/PageCDPEventNotification"
+            }
+          },
+          "required": ["jsonrpc", "method", "params"],
+          "additionalProperties": false
         }
-      },
-      "required": ["jsonrpc", "method", "params"],
-      "additionalProperties": false
+      ]
     },
     "JSONRPCSuccessResponse": {
       "type": "object",
@@ -7061,7 +7288,7 @@
           "const": "2.0"
         },
         "result": {
-          "$ref": "#/$defs/__schema12"
+          "$ref": "#/$defs/__schema13"
         },
         "id": {
           "$ref": "#/$defs/JSONRPCRequestId"
@@ -7070,7 +7297,7 @@
       "required": ["jsonrpc", "result", "id"],
       "additionalProperties": false
     },
-    "__schema12": {
+    "__schema13": {
       "anyOf": [
         {
           "type": "string"
@@ -7087,7 +7314,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         },
         {
@@ -7096,7 +7323,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema12"
+            "$ref": "#/$defs/__schema13"
           }
         }
       ]
@@ -7130,13 +7357,13 @@
           "type": "string"
         },
         "data": {
-          "$ref": "#/$defs/__schema13"
+          "$ref": "#/$defs/__schema14"
         }
       },
       "required": ["code", "message"],
       "additionalProperties": false
     },
-    "__schema13": {
+    "__schema14": {
       "anyOf": [
         {
           "type": "string"
@@ -7153,7 +7380,7 @@
         {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         },
         {
@@ -7162,7 +7389,7 @@
             "type": "string"
           },
           "additionalProperties": {
-            "$ref": "#/$defs/__schema13"
+            "$ref": "#/$defs/__schema14"
           }
         }
       ]

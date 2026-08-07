@@ -58,7 +58,7 @@ if page == nil {
 if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 	return err
 }
-if _, err := client.Act(ctx, "click the button that opens a new tab", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("click the button that opens a new tab"), nil); err != nil {
 	return err
 }
 
@@ -79,7 +79,7 @@ if err != nil {
 	return err
 }
 
-fmt.Println(extracted.Value)
+fmt.Println(extracted.Data.Value)
 ```
 </View>
 
@@ -172,7 +172,7 @@ var starsSchema = json.RawMessage(`{
 }`)
 
 // Create a second page
-if _, err := browserContext.NewPage(ctx, nil); err != nil {
+if _, err := browserContext.NewPage(ctx); err != nil {
 	return err
 }
 pages, err := browserContext.Pages(ctx)

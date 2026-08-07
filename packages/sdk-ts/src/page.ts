@@ -1,5 +1,7 @@
 import type {
   LoadState,
+  PageCDPEvent,
+  PageEventName,
   PageClickParams,
   PageDragAndDropParams,
   PageKeyPressParams,
@@ -15,7 +17,7 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
 } from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
 import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
 import {
@@ -33,8 +35,40 @@ export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   path?: string;
 };
 
+export interface PageEventListener {
+  (event: PageCDPEvent): unknown;
+}
+
+export class CDPSubscription {
+  private unsubscribePromise: Promise<void> | undefined;
+
+  constructor(
+    private readonly rpcClient: StagehandCommandClient,
+    private readonly subscriptionId: string,
+    private readonly removeLocalListener: () => void,
+    private readonly onDisposed: () => void,
+  ) {}
+
+  unsubscribe(): Promise<void> {
+    this.unsubscribePromise ??= this.unsubscribeOnce().catch((error: unknown) => {
+      this.unsubscribePromise = undefined;
+      throw error;
+    });
+    return this.unsubscribePromise;
+  }
+
+  private async unsubscribeOnce(): Promise<void> {
+    this.removeLocalListener();
+    this.onDisposed();
+    await this.rpcClient.send(StagehandMethods.pageOff, {
+      subscriptionId: this.subscriptionId,
+    });
+  }
+}
+
 export class Page {
   currentRef: PageRef;
+  private readonly eventSubscriptions = new Set<CDPSubscription>();
 
   constructor(
     readonly rpcClient: StagehandCommandClient,
@@ -167,6 +201,48 @@ export class Page {
     });
   }
 
+  async on(event: PageEventName, listener: PageEventListener): Promise<CDPSubscription> {
+    const subscriptionId = crypto.randomUUID();
+    const removeNotificationListener = this.rpcClient.onNotification((notification) => {
+      if (
+        notification.method !== StagehandNotifications.pageCDPEvent.name ||
+        notification.params.subscriptionId !== subscriptionId
+      ) {
+        return;
+      }
+      try {
+        const result = listener(notification.params.event);
+        if (result && typeof result === "object" && "then" in result) {
+          void Promise.resolve(result).catch(reportPageEventListenerError);
+        }
+      } catch (error) {
+        reportPageEventListenerError(error);
+      }
+    });
+
+    let subscription: CDPSubscription;
+    subscription = new CDPSubscription(
+      this.rpcClient,
+      subscriptionId,
+      removeNotificationListener,
+      () => this.eventSubscriptions.delete(subscription),
+    );
+    this.eventSubscriptions.add(subscription);
+
+    try {
+      await this.rpcClient.send(StagehandMethods.pageOn, {
+        pageId: this.pageId,
+        subscriptionId,
+        event,
+      });
+      return subscription;
+    } catch (error) {
+      removeNotificationListener();
+      this.eventSubscriptions.delete(subscription);
+      throw error;
+    }
+  }
+
   async setExtraHTTPHeaders(headers: PageSetExtraHTTPHeadersParams["headers"]): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageSetExtraHTTPHeaders, {
       pageId: this.pageId,
@@ -266,6 +342,9 @@ export class Page {
   }
 
   async close(): Promise<void> {
+    await Promise.allSettled(
+      [...this.eventSubscriptions].map((subscription) => subscription.unsubscribe()),
+    );
     await this.rpcClient.send(StagehandMethods.pageClose, { pageId: this.pageId });
   }
 
@@ -275,4 +354,10 @@ export class Page {
       selector,
     });
   }
+}
+
+function reportPageEventListenerError(error: unknown): void {
+  process.emitWarning(error instanceof Error ? error.message : String(error), {
+    code: "STAGEHAND_PAGE_EVENT_LISTENER_ERROR",
+  });
 }

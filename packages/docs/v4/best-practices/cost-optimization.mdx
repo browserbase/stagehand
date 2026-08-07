@@ -182,7 +182,7 @@ if err != nil {
 
 // First run: uses LLM inference and records the action
 // Subsequent runs: reuses the cached action (no LLM cost)
-if _, err := client.Act(ctx, "Click the sign in button", nil); err != nil {
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"), nil); err != nil {
 	return err
 }
 ```
@@ -350,7 +350,7 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 		}
 
 		// The page is touched once, by the first model that produced a plan
-		return client.Act(ctx, plan.Data[0], &stagehand.StagehandClientActOptions{
+		return client.Act(ctx, stagehand.ObservedAction(plan.Data[0]), &stagehand.StagehandClientActOptions{
 			ActOptions: stagehand.ActOptions{Model: &models[i]},
 		})
 	}

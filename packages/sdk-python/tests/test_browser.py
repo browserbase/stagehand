@@ -445,7 +445,7 @@ async def test_connect_uses_extension_id_or_packaged_extension_and_never_owns_so
     packaged = await local_browser.connect(cdp_url="http://browser")
     arguments = fake_cdp.connect_arguments[-1]
     assert arguments["extension_id"] is None
-    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "server/dist"))
+    assert str(arguments["extension_dir"]).endswith(("stagehand/_extension", "extension/dist"))
     assert arguments["service_worker_url_includes"] == "service-worker.js"
     assert set(arguments) == {
         "cdp_url",

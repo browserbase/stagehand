@@ -1,6 +1,6 @@
 import type { TaskSpec } from "stagehand-v3";
 
-import { defineBenchTask } from "../../../framework/defineTask.js";
+import { defineAgentBenchTask } from "../../../framework/defineTask.js";
 import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/verifierAdapter.js";
 
 /**
@@ -13,7 +13,7 @@ import { runWithVerifier, evaluationResultToSuccess } from "../../../framework/v
  * --success knob: defaults to "outcome".
  * Override via the EVAL_SUCCESS_MODE env var: outcome | process | both.
  */
-export default defineBenchTask(
+export default defineAgentBenchTask(
   { name: "agent/webvoyager" },
   async ({ v3, logger, debugUrl, sessionUrl, modelName, input }) => {
     try {
