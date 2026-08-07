@@ -239,6 +239,8 @@ TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
 Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
 </Tip>
 
+{/* TODO: Link to agent integrations overview page */}
+
 ## Let a coding assistant do the rest
 
 The rest of this guide is mechanical, so hand it to the same assistant that writes your v4 code. Set up [AI rules](/v4/first-steps/ai-rules) first, then point it at a file:
