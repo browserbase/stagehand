@@ -207,68 +207,6 @@ func (s *Stagehand) Observe(
 	return result, nil
 }
 
-// Extract returns the generated protocol's dynamic JSON result for the
-// selected or active page.
-func (s *Stagehand) Extract(
-	ctx context.Context,
-	instruction string,
-	schema json.RawMessage,
-	options *StagehandClientExtractOptions,
-) (ExtractResult, error) {
-	rpc, err := s.connectedProtocol()
-	if err != nil {
-		return ExtractResult{}, err
-	}
-	page, err := s.targetPage(ctx, pageFromExtractOptions(options))
-	if err != nil {
-		return ExtractResult{}, err
-	}
-	params := StagehandExtractParams{PageID: page.PageID(), Instruction: instruction}
-	if schema != nil {
-		if len(schema) == 0 {
-			schema = json.RawMessage(`{}`)
-		}
-		params.Schema = schema
-	}
-	if options != nil {
-		params.Options = &options.ExtractOptions
-	}
-	var result ExtractResult
-	if err := rpc.call(ctx, "stagehand.extract", params, &result); err != nil {
-		return ExtractResult{}, err
-	}
-	return result, nil
-}
-
-// TypedExtractResult contains caller-decoded extract data and its protocol metadata.
-type TypedExtractResult[T any] struct {
-	Data     T                       `json:"data"`
-	Metadata StagehandResultMetadata `json:"metadata"`
-}
-
-// ExtractAs decodes an Extract result into a caller-selected Go type while
-// preserving the full result envelope.
-func ExtractAs[T any](
-	ctx context.Context,
-	client *Stagehand,
-	instruction string,
-	schema json.RawMessage,
-	options *StagehandClientExtractOptions,
-) (TypedExtractResult[T], error) {
-	var typedResult TypedExtractResult[T]
-	var value T
-	result, err := client.Extract(ctx, instruction, schema, options)
-	if err != nil {
-		return typedResult, err
-	}
-	typedResult.Metadata = result.Metadata
-	if err := json.Unmarshal(result.Data, &value); err != nil {
-		return typedResult, fmt.Errorf("decode stagehand.extract result: %w", err)
-	}
-	typedResult.Data = value
-	return typedResult, nil
-}
-
 // Close releases the remote Stagehand context without touching the Browser handle.
 func (s *Stagehand) Close(ctx context.Context) error {
 	s.mu.Lock()

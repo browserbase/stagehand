@@ -471,6 +471,11 @@ async def test_page_coordinate_interactions_return_none() -> None:
             button="left",
             steps=5,
             delay=10,
+            route=[
+                {"x": 1, "y": 2},
+                {"x": 2, "y": 5},
+                {"x": 3, "y": 4},
+            ],
         )
         is None
     )
@@ -514,6 +519,11 @@ async def test_page_coordinate_interactions_return_none() -> None:
                     "button": "left",
                     "steps": 5,
                     "delay": 10,
+                    "route": [
+                        {"x": 1, "y": 2},
+                        {"x": 2, "y": 5},
+                        {"x": 3, "y": 4},
+                    ],
                 },
             }),
             PageVoidResult,

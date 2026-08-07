@@ -66,15 +66,9 @@ type data struct {
 	Value string `json:"value"`
 }
 
-var dataSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"value": {"type": "string"}},
-  "required": ["value"],
-  "additionalProperties": false
-}`)
 
 // Stagehand now operates on the new tab automatically
-extracted, err := stagehand.ExtractAs[data](ctx, client, "get data from new tab", dataSchema, nil)
+extracted, err := stagehand.Extract[data](ctx, client, "get data from new tab", nil)
 if err != nil {
 	return err
 }
@@ -164,12 +158,6 @@ type stars struct {
 	Stars int `json:"stars"`
 }
 
-var starsSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"stars": {"type": "integer"}},
-  "required": ["stars"],
-  "additionalProperties": false
-}`)
 
 // Create a second page
 if _, err := browserContext.NewPage(ctx); err != nil {
@@ -195,15 +183,15 @@ group, groupCtx := errgroup.WithContext(ctx)
 var stagehandStars, stagehandPythonStars stars
 
 group.Go(func() error {
-	result, err := stagehand.ExtractAs[stars](groupCtx, client, "extract the repository stars", starsSchema,
+	result, err := stagehand.Extract[stars](groupCtx, client, "extract the repository stars",
 		&stagehand.StagehandClientExtractOptions{Page: githubPage})
-	stagehandStars = result
+	stagehandStars = result.Data
 	return err
 })
 group.Go(func() error {
-	result, err := stagehand.ExtractAs[stars](groupCtx, client, "extract the repository stars", starsSchema,
+	result, err := stagehand.Extract[stars](groupCtx, client, "extract the repository stars",
 		&stagehand.StagehandClientExtractOptions{Page: pythonPage})
-	stagehandPythonStars = result
+	stagehandPythonStars = result.Data
 	return err
 })
 if err := group.Wait(); err != nil {

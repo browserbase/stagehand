@@ -79,20 +79,16 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	result, err := client.Extract(
+	result, err := stagehand.Extract[pageInfo](
 		ctx,
+		client,
 		"Extract the page heading and the domain this page says it is for",
-		pageInfoSchema,
 		nil,
 	)
 	if err != nil {
 		return err
 	}
-	var info pageInfo
-	if err := json.Unmarshal(result.Data, &info); err != nil {
-		return fmt.Errorf("decode extracted page info: %w", err)
-	}
-	output, err := json.MarshalIndent(info, "", "  ")
+	output, err := json.MarshalIndent(result.Data, "", "  ")
 	if err != nil {
 		return err
 	}

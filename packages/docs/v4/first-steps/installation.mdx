@@ -200,7 +200,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -212,13 +211,6 @@ import (
 type description struct {
 	Description string `json:"description"`
 }
-
-var descriptionSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"description": {"type": "string"}},
-  "required": ["description"],
-  "additionalProperties": false
-}`)
 
 func main() {
 	if err := run(context.Background()); err != nil {
@@ -268,11 +260,10 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Extract structured data
-	extracted, err := stagehand.ExtractAs[description](
+	extracted, err := stagehand.Extract[description](
 		ctx,
 		client,
 		"extract the description",
-		descriptionSchema,
 		nil,
 	)
 	if err != nil {
