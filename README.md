@@ -44,7 +44,7 @@ Stagehand is the SDK for browser agents. Playwright was built for testing, Stage
 
 ## Why Stagehand?
 
-Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and deep support for iframes and shadow DOM. 
+Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and native support for complex DOM structures like out-of-process iframes and closed Shadow DOMs.
 
 Agents use fewer tokens, recover when websites change, and complete tasks more reliably. With a complete browser driver across TypeScript, Python, and Go, Stagehand delivers the flexibility of AI without sacrificing the speed, control, determinism, reliability, and observability required in production.
 
@@ -91,10 +91,15 @@ await page.goto("https://github.com/browserbase");
 await stagehand.act("click on the stagehand repo");
 
 // Use observe() to see what's actionable on the page
-const actions = await stagehand.observe("find the latest PR");
+const { data: actions } = await stagehand.observe("find the latest PR");
+
+// Use locators for deterministic Playwright-style actions
+await page.locator(actions[0].selector).click();
 
 // Use extract() to get structured data from the page
-const { author, title } = await stagehand.extract(
+const {
+  data: { author, title },
+} = await stagehand.extract(
   "extract the author and title of the PR",
   z.object({
     author: z.string().describe("The username of the PR author"),
@@ -162,6 +167,9 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Jeremy Press](https://x.com/jeremypress)
 - [Navid Pour](https://github.com/navidpour)
 - [Nick Sweeting](https://github.com/pirate)
+- [Sam F](https://github.com/monadoid)
+- [Shrey Pandya](https://github.com/shrey150)
+- [Alyssa Keimach](https://github.com/akeimach)
 
 ## License
 
