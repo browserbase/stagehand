@@ -220,8 +220,7 @@ def preserve_json_value_integers(protocol: dict[str, object]) -> None:
             None,
         )
         has_integer = any(
-            isinstance(choice, dict) and choice.get("type") == "integer"
-            for choice in choices
+            isinstance(choice, dict) and choice.get("type") == "integer" for choice in choices
         )
         if number_index is not None and not has_integer:
             choices.insert(number_index, {"type": "integer"})
