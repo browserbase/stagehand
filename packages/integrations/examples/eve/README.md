@@ -47,7 +47,6 @@ This proves Eve's connection behavior without claiming browser or sandbox isolat
 Build and pack the exact Stagehand packages under review, then run the live composition:
 
 ```bash
-pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
 pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
 
 STAGEHAND_SANDBOX_ARTIFACTS="$PWD/packages/integrations/examples/vercel-sandbox/.artifacts" \
