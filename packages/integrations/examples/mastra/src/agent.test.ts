@@ -35,6 +35,25 @@ void test("sanitizes transport discovery errors", async () => {
   });
 });
 
+void test("sanitizes resolved MCP discovery errors", async () => {
+  const secret = "https://sandbox.example.test/mcp?token=do-not-reflect";
+
+  await assert.rejects(
+    loadStagehandCodeTools(
+      fakeMcp({
+        toolsets: {},
+        errors: { stagehand: new Error(secret) },
+      }),
+    ),
+    (error: unknown) => {
+      assert.ok(error instanceof StagehandMastraSetupError);
+      assert.equal(error.message, "Could not configure the Mastra Stagehand agent.");
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    },
+  );
+});
+
 void test("rejects non-canonical toolsets with a fixed typed error", async () => {
   await assert.rejects(
     loadStagehandCodeTools(
