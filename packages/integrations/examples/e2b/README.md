@@ -23,8 +23,9 @@ type StagehandSandboxConnection = {
 
 `createStagehandSandbox()` asks E2B's custom MCP gateway to clone a complete Stagehand commit,
 build the code-mode package from source, and start its stdio server. It waits for exactly one
-`code_execute` tool, applies the runtime egress policy, and only then returns the HTTP connection.
-It does not depend on the Stagehand OCI image.
+`code_execute` tool, creates a local bare mirror and warm pnpm store for later MCP client sessions,
+applies the runtime egress policy, and only then returns the HTTP connection. It does not depend on
+the Stagehand OCI image.
 
 ## Install and run
 
@@ -83,16 +84,22 @@ The source checkout and dependency build need normal package-network access. Aft
 `sandbox.updateNetwork()` atomically replaces that permissive setup with `allowOut` containing only
 `api.browserbase.com` and the configured Browserbase CDP hostnames, plus E2B's required
 `denyOut: [ALL_TRAFFIC]`. The live proof checks that Browserbase still works while an unrelated host
-is blocked.
+is blocked. E2B starts a GitHub custom server for each new MCP session, so the helper rewrites that
+repository URL to the in-microVM mirror and makes subsequent dependency installs offline before it
+removes GitHub and package registries from egress.
 
 Browserbase-only egress is the default. AI-backed Stagehand methods require a separately scoped model
 credential **and** the model provider's exact API hostname added to the allowlist. Do not forward the
 outer agent's model key into the microVM or broaden egress implicitly.
 
 Only the Browserbase key and optional project ID cross the sandbox boundary by default. A complete
-commit hash prevents the source install from silently following a moving branch. Always close the MCP
-client and call `close()`; the latter kills the complete microVM. Apply a host-side deadline and kill
-the microVM when untrusted code stops responding.
+commit hash prevents the source install from silently following a moving branch. The helper makes the
+bare source mirror read-only, but the hard lifecycle boundary is **one framework MCP session per
+sandbox**. Readiness finishes before any untrusted tool call. After generated code runs, destroy the
+microVM instead of reconnecting or reusing its guest filesystem and caches.
+
+Always close the MCP client and call `close()`; the latter kills the complete microVM. Apply a
+host-side deadline and kill the microVM when untrusted code stops responding.
 
 See [E2B custom MCP servers](https://e2b.dev/docs/mcp/custom-servers) for gateway and source-install
 details.
