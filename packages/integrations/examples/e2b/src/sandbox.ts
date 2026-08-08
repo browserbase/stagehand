@@ -7,6 +7,7 @@ const E2B_STAGEHAND_SERVER = "github/browserbase/stagehand";
 const BROWSERBASE_API_HOST = "api.browserbase.com";
 const DEFAULT_BROWSERBASE_CDP_HOSTS = ["connect.usw2.browserbase.com"];
 const STAGEHAND_GITHUB_URL_PREFIX = "https://github.com/browserbase/stagehand";
+const STAGEHAND_GITHUB_URL = `${STAGEHAND_GITHUB_URL_PREFIX}.git`;
 const STAGEHAND_OFFLINE_MARKER = "/opt/stagehand-codemode-offline";
 const STAGEHAND_OFFLINE_MIRROR = "/opt/stagehand-codemode.git";
 const STAGEHAND_PNPM_STORE = "/opt/stagehand-pnpm-store";
@@ -141,8 +142,12 @@ function stagehandInstallCommand(revision: string): string {
       `rm -rf ${STAGEHAND_OFFLINE_MIRROR}.tmp`,
       `git clone --bare . ${STAGEHAND_OFFLINE_MIRROR}.tmp`,
       `mv ${STAGEHAND_OFFLINE_MIRROR}.tmp ${STAGEHAND_OFFLINE_MIRROR}`,
+      `git --git-dir ${STAGEHAND_OFFLINE_MIRROR} update-ref refs/heads/stagehand-codemode ${revision}`,
+      `git --git-dir ${STAGEHAND_OFFLINE_MIRROR} symbolic-ref HEAD refs/heads/stagehand-codemode`,
       "git config --system protocol.file.allow always",
-      `git config --system url.file://${STAGEHAND_OFFLINE_MIRROR}.insteadOf ${STAGEHAND_GITHUB_URL_PREFIX}`,
+      `git config --system --add url.file://${STAGEHAND_OFFLINE_MIRROR}.insteadOf ${STAGEHAND_GITHUB_URL}`,
+      `git config --system --add url.file://${STAGEHAND_OFFLINE_MIRROR}.insteadOf ${STAGEHAND_GITHUB_URL_PREFIX}`,
+      `git -c http.proxy=http://127.0.0.1:1 ls-remote ${STAGEHAND_GITHUB_URL} refs/heads/stagehand-codemode`,
       `chmod -R a-w ${STAGEHAND_OFFLINE_MIRROR}`,
       `touch ${STAGEHAND_OFFLINE_MARKER}`,
     ].join(" && "),

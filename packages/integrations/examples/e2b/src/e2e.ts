@@ -1,4 +1,4 @@
-import { strict as assert } from "node:assert";
+import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 
@@ -90,14 +90,14 @@ try {
   );
 } catch (error) {
   primaryError = error;
-  throw error;
-} finally {
-  const cleanupErrors: unknown[] = [];
-  await client.close().catch((error: unknown) => cleanupErrors.push(error));
-  await connection.close().catch((error: unknown) => cleanupErrors.push(error));
-  if (primaryError === undefined && cleanupErrors.length > 0) {
-    throw new AggregateError(cleanupErrors, "Could not close the MCP client and E2B sandbox");
-  }
+}
+
+const cleanupErrors: unknown[] = [];
+await client.close().catch((error: unknown) => cleanupErrors.push(error));
+await connection.close().catch((error: unknown) => cleanupErrors.push(error));
+if (primaryError !== undefined) throw primaryError;
+if (cleanupErrors.length > 0) {
+  throw new AggregateError(cleanupErrors, "Could not close the MCP client and E2B sandbox");
 }
 
 function containsState(value: unknown, expected: Record<string, unknown>): boolean {
