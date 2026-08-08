@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "e2e": "tsx src/e2e.ts",
+    "test:contract": "tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
