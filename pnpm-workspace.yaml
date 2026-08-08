@@ -1,10 +1,12 @@
 packages:
   - packages/*
+  - packages/integrations/examples/*
 
 catalogMode: prefer
 
 catalog:
   "@modelcontextprotocol/sdk": 1.29.0
+  "@vercel/sandbox": 2.9.2
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
   "@ast-grep/napi": 0.44.1
@@ -48,6 +50,7 @@ catalog:
   mint: 4.2.742
   publint: ^0.3.8
   smol-toml: 1.7.0
+  supergateway: 3.4.3
 overrides:
   vite: "catalog:"
 allowBuilds:

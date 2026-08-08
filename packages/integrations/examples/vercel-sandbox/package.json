@@ -1,0 +1,33 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-vercel-sandbox",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/sandbox.ts",
+    "./lease": "./src/lease.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "e2e": "tsx src/e2e.ts",
+    "lease": "tsx src/lease.ts",
+    "pack:artifacts": "node scripts/pack-artifacts.mjs",
+    "smoke": "tsx src/smoke.ts",
+    "test:contract": "tsx --test src/*.test.ts src/*.test.mjs src/guest/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-codemode": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "@vercel/sandbox": "catalog:",
+    "supergateway": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
