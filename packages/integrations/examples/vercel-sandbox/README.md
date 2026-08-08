@@ -135,5 +135,9 @@ capabilities of that key. Use a separately scoped project/key and host-side time
 Stagehand methods require a separately scoped model credential and an exact provider-host policy;
 this example intentionally does not forward outer-agent model keys or broaden egress.
 
+The Vercel policy constrains network requests made by guest processes. The browser itself runs
+remotely on Browserbase, so this policy does not restrict which URLs that browser can navigate to.
+Apply separate browser-navigation controls when the agent must stay within an approved site set.
+
 `close()` is idempotent and attempts both stop and permanent delete even when one cleanup operation
 fails. The lease adds a bounded fallback. Always close the MCP client first, then the connection.

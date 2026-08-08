@@ -13,8 +13,8 @@ const MCP_USER = "stagehand-mcp";
 const PROXY_USER = "stagehand-proxy";
 const SANDBOX_ROOT = "/vercel/sandbox";
 const STAGEHAND_ROOT = `${SANDBOX_ROOT}/stagehand`;
-const GATEWAY_ROOT = `${SANDBOX_ROOT}/gateway`;
-const GATEWAY_BIN = `${GATEWAY_ROOT}/node_modules/.bin/supergateway`;
+const EXAMPLE_ROOT = `${STAGEHAND_ROOT}/packages/integrations/examples/vercel-sandbox`;
+const GATEWAY_BIN = `${EXAMPLE_ROOT}/node_modules/.bin/supergateway`;
 const AUTH_PROXY_PATH = `${SANDBOX_ROOT}/auth-proxy.mjs`;
 const STDIO_WRAPPER_PATH = `${SANDBOX_ROOT}/stdio-wrapper.mjs`;
 
@@ -59,7 +59,6 @@ export async function createStagehandSandbox(
 
   try {
     await installStagehand(sandbox, options.stagehandRevision);
-    await installGateway(sandbox);
     await sandbox.writeFiles([
       {
         path: AUTH_PROXY_PATH,
@@ -197,25 +196,14 @@ async function installStagehand(sandbox: Sandbox, revision: string): Promise<voi
   );
 }
 
-async function installGateway(sandbox: Sandbox): Promise<void> {
-  await run(sandbox, "install the MCP HTTP bridge", "npm", [
-    "install",
-    "--prefix",
-    GATEWAY_ROOT,
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund",
-    "supergateway@3.4.3",
-  ]);
-}
-
 async function protectRuntimeFiles(sandbox: Sandbox): Promise<void> {
   await run(sandbox.asUser("root"), "protect the trusted runtime", "bash", [
     "-lc",
     [
-      `chown -R root:root ${STAGEHAND_ROOT} ${GATEWAY_ROOT}`,
+      `test -x ${GATEWAY_BIN}`,
+      `chown -R root:root ${STAGEHAND_ROOT}`,
       `chown root:root ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
-      `chmod -R a-w ${STAGEHAND_ROOT} ${GATEWAY_ROOT}`,
+      `chmod -R a-w ${STAGEHAND_ROOT}`,
       `chmod 0555 ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
     ].join(" && "),
   ]);
