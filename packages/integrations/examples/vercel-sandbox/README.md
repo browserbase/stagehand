@@ -74,11 +74,15 @@ const stagehand = await createStagehandSandbox({
   packageArtifactsPath: process.env.STAGEHAND_SANDBOX_ARTIFACTS!,
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
-  vercelCredentials: {
-    teamId: process.env.VERCEL_TEAM_ID!,
-    projectId: process.env.VERCEL_PROJECT_ID!,
-    token: process.env.VERCEL_TOKEN!,
-  },
+  ...(process.env.VERCEL_TOKEN
+    ? {
+        vercelCredentials: {
+          teamId: process.env.VERCEL_TEAM_ID!,
+          projectId: process.env.VERCEL_PROJECT_ID!,
+          token: process.env.VERCEL_TOKEN,
+        },
+      }
+    : {}),
 });
 const client = new Client({ name: "my-agent", version: "1.0.0" });
 
