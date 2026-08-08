@@ -7,47 +7,62 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { startLocalTestGateway } from "./gateway.js";
-
 const EVE_BINARY = fileURLToPath(new URL("../node_modules/.bin/eve", import.meta.url));
 const EXAMPLE_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const BUILT_SERVER = fileURLToPath(new URL("../.output/server/index.mjs", import.meta.url));
 
-export async function runEveStagehandEval(deterministic: boolean): Promise<void> {
-  const gateway = await startLocalTestGateway();
+export type EveStagehandConnection = {
+  url: URL | string;
+  token: string;
+};
+
+export async function assertEveEndpointContract(connection: EveStagehandConnection): Promise<void> {
+  const unauthorized = await fetch(connection.url);
+  assert.equal(unauthorized.status, 401, "the Stagehand endpoint must require its bearer token");
+
+  const optionalGet = await fetch(connection.url, {
+    headers: { authorization: `Bearer ${connection.token}` },
+  });
+  assert.equal(optionalGet.status, 405, "Eve must tolerate the endpoint's optional GET rejection");
+}
+
+export async function runEveStagehandEval(
+  connection: EveStagehandConnection,
+  deterministic: boolean,
+): Promise<void> {
+  const environment = eveEnvironment(connection, deterministic);
+  await runChild(EVE_BINARY, ["build"], environment);
+
+  const port = await reservePort();
+  const serverRoot = await mkdtemp(join(tmpdir(), "eve-stagehand-"));
+  const server = spawn(process.execPath, [BUILT_SERVER], {
+    cwd: serverRoot,
+    env: { ...environment, HOST: "127.0.0.1", PORT: String(port) },
+    stdio: "inherit",
+  });
   try {
-    const unauthorized = await fetch(gateway.url);
-    assert.equal(unauthorized.status, 401, "the gateway must reject requests without its token");
-
-    const environment = {
-      ...process.env,
-      ...(deterministic ? { EVE_STAGEHAND_DETERMINISTIC: "1" } : {}),
-      STAGEHAND_MCP_URL: gateway.url,
-      STAGEHAND_MCP_TOKEN: gateway.token,
-    };
-    await runChild(EVE_BINARY, ["build"], environment);
-
-    const port = await reservePort();
-    const serverRoot = await mkdtemp(join(tmpdir(), "eve-stagehand-"));
-    const server = spawn(process.execPath, [BUILT_SERVER], {
-      cwd: serverRoot,
-      env: { ...environment, HOST: "127.0.0.1", PORT: String(port) },
-      stdio: "inherit",
-    });
-    try {
-      await waitForAgent(port, server);
-      await runChild(
-        EVE_BINARY,
-        ["eval", "stagehand", "--skip-report", "--url", `http://127.0.0.1:${port}`],
-        environment,
-      );
-    } finally {
-      await stopChild(server);
-      await rm(serverRoot, { recursive: true, force: true });
-    }
+    await waitForAgent(port, server);
+    await runChild(
+      EVE_BINARY,
+      ["eval", "stagehand", "--skip-report", "--url", `http://127.0.0.1:${port}`],
+      environment,
+    );
   } finally {
-    await gateway.close();
+    await stopChild(server);
+    await rm(serverRoot, { recursive: true, force: true });
   }
+}
+
+function eveEnvironment(
+  connection: EveStagehandConnection,
+  deterministic: boolean,
+): NodeJS.ProcessEnv {
+  const environment = { ...process.env };
+  if (deterministic) environment.EVE_STAGEHAND_DETERMINISTIC = "1";
+  else delete environment.EVE_STAGEHAND_DETERMINISTIC;
+  environment.STAGEHAND_MCP_URL = connection.url.toString();
+  environment.STAGEHAND_MCP_TOKEN = connection.token;
+  return environment;
 }
 
 async function runChild(
@@ -60,8 +75,12 @@ async function runChild(
     env: environment,
     stdio: "inherit",
   });
-  const [exitCode] = (await once(child, "exit")) as [number | null, NodeJS.Signals | null];
-  if (exitCode !== 0) throw new Error(`${command} exited with code ${String(exitCode)}`);
+  const [exitCode, signal] = (await once(child, "exit")) as [number | null, NodeJS.Signals | null];
+  if (exitCode !== 0) {
+    throw new Error(
+      `${command} exited with ${signal === null ? `code ${String(exitCode)}` : signal}`,
+    );
+  }
 }
 
 async function reservePort(): Promise<number> {
@@ -77,8 +96,10 @@ async function reservePort(): Promise<number> {
 }
 
 async function waitForAgent(port: number, child: ChildProcess): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (child.exitCode !== null) throw new Error("the built Eve server exited before startup");
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      throw new Error("the built Eve server exited before startup");
+    }
     const response = await fetch(`http://127.0.0.1:${port}/eve/v1/health`).catch(() => undefined);
     if (response?.ok) return;
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -87,11 +108,15 @@ async function waitForAgent(port: number, child: ChildProcess): Promise<void> {
 }
 
 async function stopChild(child: ChildProcess): Promise<void> {
-  if (child.exitCode !== null) return;
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  const exited = once(child, "exit").then(() => true);
   child.kill("SIGTERM");
   const stopped = await Promise.race([
-    once(child, "exit").then(() => true),
+    exited,
     new Promise<false>((resolve) => setTimeout(() => resolve(false), 3_000)),
   ]);
-  if (!stopped) child.kill("SIGKILL");
+  if (!stopped) {
+    child.kill("SIGKILL");
+    await exited;
+  }
 }

@@ -199,6 +199,10 @@ jobs:
 
   eve:
     name: Eve
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -208,12 +212,17 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-eve typecheck
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-eve smoke
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-eve contract
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-eve e2e
         env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-          STAGEHAND_BROWSER: local
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

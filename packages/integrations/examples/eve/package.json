@@ -5,16 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "eve build",
+    "contract": "tsx src/contract.ts",
     "dev": "eve dev",
     "e2e": "tsx src/e2e.ts",
-    "smoke": "tsx src/smoke.ts",
     "typecheck": "eve build && tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/groq": "catalog:",
-    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand-integrations-example-vercel-sandbox": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
     "eve": "catalog:",
-    "supergateway": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
