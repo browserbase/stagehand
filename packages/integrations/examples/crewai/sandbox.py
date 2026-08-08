@@ -8,7 +8,7 @@ from pathlib import Path
 SHARED_EXAMPLES_DIRECTORY = Path(__file__).resolve().parents[1] / "shared"
 sys.path.insert(0, str(SHARED_EXAMPLES_DIRECTORY))
 
-from vercel_sandbox_lease import (  # noqa: E402
+from vercel_sandbox_lease import (
     StagehandSandboxConnection,
     StagehandSandboxLease,
     StagehandSandboxLeaseError,
