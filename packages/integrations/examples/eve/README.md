@@ -133,12 +133,13 @@ We verified the two critical pieces independently:
 - Eve `0.29.4` passed both the deterministic and real-model flows below through the same gateway
   implementation on localhost.
 
-The full composition is still partial. A host Eve `0.29.3` run reached the sandbox gateway,
-initialized a stateful MCP session, sent the initialized notification, and opened its authenticated
-SSE stream, but did not advance to `tools/list` or `tools/call`. That exact version-mismatched proof
-does not establish an Eve `0.29.4` to sandbox `code_execute` loop. Treat the architecture as
-supported but keep the composed deployment behind an integration test until that Streamable HTTP
-client interoperability gap is closed.
+The full composition is still partial. A fresh host Eve `0.29.4` run against the same public
+sandbox first made an SSE request without a session (`400`), then initialized a stateful MCP
+session (`200`), sent the initialized notification (`202`), and opened its authenticated session
+SSE stream (`200`). It did not advance to `tools/list` or `tools/call` before the bounded 150-second
+proof timed out. This exact-version run therefore does not establish an Eve-to-sandbox
+`code_execute` loop. Treat the architecture as supported but keep the composed deployment behind
+an integration test until that Streamable HTTP client interoperability gap is closed.
 
 ## Run the deterministic smoke
 
