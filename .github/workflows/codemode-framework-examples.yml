@@ -225,13 +225,17 @@ jobs:
           packages/integrations/examples/langchain/agent.py
           packages/integrations/examples/langchain/sandbox.py
           packages/integrations/examples/langchain/test_agent.py
+          packages/integrations/examples/langchain/test_e2e.py
           packages/integrations/examples/langchain/e2e.py
       - run: python packages/integrations/examples/shared/test_vercel_sandbox_lease.py
       - run: python packages/integrations/examples/langchain/test_agent.py
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+      - run: python packages/integrations/examples/langchain/test_e2e.py
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
       - name: Detect LangChain live test credentials
         id: langchain-live-credentials
+        uses: ./.github/actions/detect-codemode-live-credentials
+        with:
+          require-openai: "true"
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -240,13 +244,6 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [[ -n "$BROWSERBASE_API_KEY" && -n "$BROWSERBASE_PROJECT_ID" && -n "$OPENAI_API_KEY" ]] && \
-             [[ -n "$VERCEL_OIDC_TOKEN" || ( -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" && -n "$VERCEL_TOKEN" ) ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Run LangChain live sandbox proof
         if: steps.langchain-live-credentials.outputs.available == 'true'
         run: python packages/integrations/examples/langchain/e2e.py

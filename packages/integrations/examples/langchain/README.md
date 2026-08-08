@@ -28,7 +28,6 @@ Build and pack the exact Stagehand packages under review:
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
 pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
 ```
 
@@ -62,6 +61,11 @@ session for each invocation, losing Stagehand's browser state.
 ## Run a Deep Agent
 
 ```bash
+STAGEHAND_SANDBOX_ARTIFACTS="$PWD/packages/integrations/examples/vercel-sandbox/.artifacts" \
+BROWSERBASE_API_KEY=<api-key> \
+BROWSERBASE_PROJECT_ID=<project-id> \
+VERCEL_OIDC_TOKEN=<oidc-token> \
+OPENAI_API_KEY=<openai-key> \
 python packages/integrations/examples/langchain/agent.py \
   "Open https://example.com and return its title and URL."
 ```
