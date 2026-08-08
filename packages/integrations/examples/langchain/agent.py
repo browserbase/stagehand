@@ -57,7 +57,7 @@ def modal_bridge_env(overrides: Mapping[str, str] | None = None) -> dict[str, st
         key: value for key in BRIDGE_ENV_KEYS if (value := os.environ.get(key)) is not None
     }
     if overrides:
-        child_env.update(overrides)
+        child_env.update({key: value for key, value in overrides.items() if key in BRIDGE_ENV_KEYS})
     return child_env
 
 
