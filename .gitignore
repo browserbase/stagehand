@@ -12,6 +12,7 @@ node_modules
 dist
 dist-ssr
 packages/extension/artifacts
+packages/integrations/examples/vercel-sandbox/.artifacts/
 .pnpm-store
 *.local
 *.tgz

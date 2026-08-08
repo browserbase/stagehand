@@ -209,7 +209,15 @@ jobs:
         with:
           use-prebuilt-artifacts: "true"
 
-      - run: pnpm exec turbo run test:unit --filter @browserbasehq/stagehand-integrations
+      - uses: ./.github/actions/setup-chrome-verified
+        id: setup-chrome
+
+      - run: pnpm exec turbo run test:unit --filter @browserbasehq/stagehand-codemode
+      - run: pnpm --filter @browserbasehq/stagehand-codemode smoke:package
+        env:
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
+          CI: "true"
 
   browser-ts:
     name: TypeScript browser
