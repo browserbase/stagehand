@@ -146,7 +146,7 @@ function stagehandInstallCommand(revision: string): string {
       `chmod -R a-w ${STAGEHAND_OFFLINE_MIRROR}`,
       `touch ${STAGEHAND_OFFLINE_MARKER}`,
     ].join(" && "),
-    "fi",
+    "; fi",
   ].join(" ");
 
   return [
