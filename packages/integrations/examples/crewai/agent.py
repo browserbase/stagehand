@@ -13,6 +13,26 @@ from crewai_tools import MCPServerAdapter
 DEFAULT_STAGEHAND_LLM = os.environ.get("CREWAI_MODEL", "openai/gpt-5-mini")
 
 
+class StagehandCrewAIConnectionError(RuntimeError):
+    """CrewAI could not establish the authenticated Stagehand MCP connection."""
+
+
+class StagehandCrewAIToolContractError(RuntimeError):
+    """The remote Stagehand MCP tool contract was not the expected code-mode API."""
+
+
+class StagehandCrewAICleanupError(RuntimeError):
+    """CrewAI could not close its Stagehand MCP adapter."""
+
+
+class StagehandCrewAISetupError(RuntimeError):
+    """CrewAI could not construct the Stagehand browser agent."""
+
+
+class StagehandCrewAIRunError(RuntimeError):
+    """The CrewAI Stagehand browser run failed."""
+
+
 class StagehandSandboxConnection(Protocol):
     url: str
     token: str
@@ -23,35 +43,62 @@ def stagehand_code_tools(
     connection: StagehandSandboxConnection,
 ) -> Iterator[list[BaseTool]]:
     """Keep one authenticated remote MCP client open for a complete CrewAI run."""
-    adapter = MCPServerAdapter(
-        {
-            "url": connection.url,
-            "transport": "streamable-http",
-            "headers": {"Authorization": f"Bearer {connection.token}"},
-        },
-        connect_timeout=60,
-    )
+    adapter: MCPServerAdapter | None = None
     try:
+        adapter = MCPServerAdapter(
+            {
+                "url": connection.url,
+                "transport": "streamable-http",
+                "headers": {"Authorization": f"Bearer {connection.token}"},
+            },
+            connect_timeout=60,
+        )
         tools = list(adapter.tools)
         names = [tool.name for tool in tools]
         if names != ["code_execute"]:
-            raise RuntimeError(
-                f"Expected only code_execute from Stagehand MCP, got {names!r}."
+            raise StagehandCrewAIToolContractError(
+                "The Stagehand MCP server returned an invalid tool contract."
             )
         if "# Stagehand V4 code-mode syntax" not in tools[0].description:
-            raise RuntimeError("code_execute did not include the canonical guidance")
+            raise StagehandCrewAIToolContractError(
+                "The Stagehand MCP server returned an invalid tool contract."
+            )
+    except Exception as error:  # noqa: BLE001 -- third-party discovery is untyped.
+        primary_error = (
+            error
+            if isinstance(error, StagehandCrewAIToolContractError)
+            else StagehandCrewAIConnectionError(
+                "Could not connect CrewAI to the Stagehand MCP server."
+            )
+        )
+        if adapter is None:
+            raise primary_error from None
+        try:
+            stop_adapter(adapter)
+        except StagehandCrewAICleanupError as cleanup_error:
+            raise BaseExceptionGroup(
+                "CrewAI MCP setup and cleanup both failed",
+                [primary_error, cleanup_error],
+            )
+        raise primary_error from None
+
+    if adapter is None:
+        raise StagehandCrewAIConnectionError(
+            "Could not connect CrewAI to the Stagehand MCP server."
+        )
+    try:
         yield tools
     except BaseException as primary_error:
         try:
-            adapter.stop()
-        except BaseException as cleanup_error:
+            stop_adapter(adapter)
+        except StagehandCrewAICleanupError as cleanup_error:
             raise BaseExceptionGroup(
                 "CrewAI run and MCP cleanup both failed",
                 [primary_error, cleanup_error],
             )
         raise
     else:
-        adapter.stop()
+        stop_adapter(adapter)
 
 
 def build_stagehand_agent(
@@ -59,16 +106,23 @@ def build_stagehand_agent(
     llm: str | Any = DEFAULT_STAGEHAND_LLM,
 ) -> Agent:
     if len(tools) != 1 or tools[0].name != "code_execute":
-        raise ValueError("CrewAI Stagehand agent requires exactly code_execute")
-    return Agent(
-        role="Stagehand browser agent",
-        goal="Complete browser tasks by writing compact, correct Stagehand V4 JavaScript.",
-        backstory=tools[0].description,
-        llm=llm,
-        tools=list(tools),
-        max_iter=8,
-        verbose=False,
-    )
+        raise StagehandCrewAIToolContractError(
+            "The Stagehand MCP server returned an invalid tool contract."
+        )
+    try:
+        return Agent(
+            role="Stagehand browser agent",
+            goal="Complete browser tasks by writing compact, correct Stagehand V4 JavaScript.",
+            backstory=tools[0].description,
+            llm=llm,
+            tools=list(tools),
+            max_iter=8,
+            verbose=False,
+        )
+    except Exception:  # noqa: BLE001 -- CrewAI construction is an untyped boundary.
+        raise StagehandCrewAISetupError(
+            "Could not configure the CrewAI Stagehand agent."
+        ) from None
 
 
 def run_stagehand_agent(
@@ -77,4 +131,20 @@ def run_stagehand_agent(
     llm: str | Any = DEFAULT_STAGEHAND_LLM,
 ) -> str:
     with stagehand_code_tools(connection) as tools:
-        return str(build_stagehand_agent(tools, llm).kickoff(prompt))
+        try:
+            return str(build_stagehand_agent(tools, llm).kickoff(prompt))
+        except (StagehandCrewAISetupError, StagehandCrewAIToolContractError):
+            raise
+        except Exception:  # noqa: BLE001 -- CrewAI kickoff is an untyped boundary.
+            raise StagehandCrewAIRunError(
+                "The CrewAI Stagehand agent run failed."
+            ) from None
+
+
+def stop_adapter(adapter: MCPServerAdapter) -> None:
+    try:
+        adapter.stop()
+    except Exception:  # noqa: BLE001 -- adapter shutdown is an untyped boundary.
+        raise StagehandCrewAICleanupError(
+            "Could not close the CrewAI Stagehand MCP adapter."
+        ) from None

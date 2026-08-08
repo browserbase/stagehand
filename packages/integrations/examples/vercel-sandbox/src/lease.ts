@@ -11,12 +11,14 @@ try {
   const browserbaseApiKey = requiredEnvironment("BROWSERBASE_API_KEY");
   const browserbaseProjectId = requiredEnvironment("BROWSERBASE_PROJECT_ID");
   const vercelCredentials = vercelCredentialsFromEnvironment();
-  const leaseEnd = waitForLeaseEnd();
+  const setupAbort = new AbortController();
+  const leaseEnd = waitForLeaseEnd(setupAbort);
   const connection = await createStagehandSandbox({
     packageArtifactsPath,
     browserbaseApiKey,
     browserbaseProjectId,
     vercelCredentials,
+    signal: setupAbort.signal,
   });
 
   process.stdout.write(
@@ -43,12 +45,13 @@ try {
   process.exitCode = 1;
 }
 
-function waitForLeaseEnd(): Promise<LeaseEnd> {
+function waitForLeaseEnd(setupAbort: AbortController): Promise<LeaseEnd> {
   return new Promise((resolve) => {
     let finished = false;
     const finish = (end: LeaseEnd = {}) => {
       if (finished) return;
       finished = true;
+      setupAbort.abort();
       resolve(end);
     };
 

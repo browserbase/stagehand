@@ -4,6 +4,22 @@ import type { StagehandSandboxConnection } from "@browserbasehq/stagehand-integr
 
 type RemoteStagehandConnection = Pick<StagehandSandboxConnection, "url" | "token">;
 
+export class StagehandMastraSetupError extends Error {
+  override readonly name = "StagehandMastraSetupError";
+
+  constructor() {
+    super("Could not configure the Mastra Stagehand agent.");
+  }
+}
+
+export class StagehandMastraToolContractError extends Error {
+  override readonly name = "StagehandMastraToolContractError";
+
+  constructor() {
+    super("The Stagehand MCP server returned an invalid tool contract.");
+  }
+}
+
 export function createStagehandMcpClient(connection: RemoteStagehandConnection): MCPClient {
   return new MCPClient({
     id: "stagehand-codemode",
@@ -21,27 +37,31 @@ export function createStagehandMcpClient(connection: RemoteStagehandConnection):
 }
 
 export async function loadStagehandCodeTools(mcp: MCPClient) {
-  const { toolsets, errors } = await mcp.listToolsetsWithErrors();
+  let discovery: Awaited<ReturnType<MCPClient["listToolsetsWithErrors"]>>;
+  try {
+    discovery = await mcp.listToolsetsWithErrors();
+  } catch {
+    throw new StagehandMastraSetupError();
+  }
+  const { toolsets, errors } = discovery;
   if (Object.keys(errors).length > 0) {
-    throw new Error(`Could not load the Stagehand MCP tools: ${formatErrors(errors)}`);
+    throw new StagehandMastraSetupError();
   }
 
   const stagehandTools = toolsets.stagehand ?? {};
   const toolNames = Object.keys(stagehandTools);
   if (toolNames.length !== 1 || toolNames[0] !== "code_execute") {
-    throw new Error(
-      `Expected exactly the code_execute tool, received: ${toolNames.join(", ") || "none"}`,
-    );
+    throw new StagehandMastraToolContractError();
   }
 
   const codeExecute = stagehandTools.code_execute;
   if (!codeExecute) {
-    throw new Error("The Stagehand MCP server did not provide code_execute");
+    throw new StagehandMastraToolContractError();
   }
 
   const guidance = codeExecute.description?.trim();
   if (!guidance?.includes("# Stagehand V4 code-mode syntax")) {
-    throw new Error("code_execute did not include the canonical Stagehand code-mode guidance");
+    throw new StagehandMastraToolContractError();
   }
 
   return { code_execute: codeExecute };
@@ -65,7 +85,7 @@ export async function createStagehandAgent(
     const tools = await loadStagehandCodeTools(mcp);
     const instructions = tools.code_execute.description;
     if (!instructions) {
-      throw new Error("code_execute did not provide agent guidance");
+      throw new StagehandMastraToolContractError();
     }
 
     const agent = new Agent({
@@ -83,29 +103,12 @@ export async function createStagehandAgent(
     };
   } catch (error) {
     await mcp.disconnect().catch(() => undefined);
-    throw error;
+    if (
+      error instanceof StagehandMastraSetupError ||
+      error instanceof StagehandMastraToolContractError
+    ) {
+      throw error;
+    }
+    throw new StagehandMastraSetupError();
   }
-}
-
-export async function runStagehandAgent(
-  connection: RemoteStagehandConnection,
-  prompt: string,
-  model?: string,
-): Promise<string> {
-  const handle = await createStagehandAgent(connection, model);
-
-  try {
-    const result = await handle.agent.generate(prompt, { maxSteps: 8 });
-    return result.text;
-  } finally {
-    await handle.close();
-  }
-}
-
-function formatErrors(errors: Record<string, unknown>): string {
-  return Object.entries(errors)
-    .map(
-      ([server, error]) => `${server}: ${error instanceof Error ? error.message : String(error)}`,
-    )
-    .join("; ");
 }

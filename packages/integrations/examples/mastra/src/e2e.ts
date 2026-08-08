@@ -11,6 +11,22 @@ const modelMarker = `mastra-model-${randomUUID()}`;
 const NO_ERROR = Symbol("no error");
 process.env.MASTRA_HOST_ONLY_MARKER = `host-${randomUUID()}`;
 
+class MastraIsolationError extends Error {
+  override readonly name = "MastraIsolationError";
+
+  constructor() {
+    super("A host-only value crossed the Mastra sandbox boundary.");
+  }
+}
+
+class MastraAgentRunError extends Error {
+  override readonly name = "MastraAgentRunError";
+
+  constructor() {
+    super("The Mastra agent run failed.");
+  }
+}
+
 const connection = await createStagehandSandbox({
   packageArtifactsPath: requiredEnvironment("STAGEHAND_SANDBOX_ARTIFACTS"),
   browserbaseApiKey: requiredEnvironment("BROWSERBASE_API_KEY"),
@@ -52,8 +68,9 @@ try {
   );
   assert.equal(first.value.title, "Example Domain");
   assert.equal(first.value.directMarker, directMarker);
-  assert.equal(first.value.modelKeyVisible, null);
-  assert.equal(first.value.hostMarkerVisible, null);
+  if (first.value.modelKeyVisible !== null || first.value.hostMarkerVisible !== null) {
+    throw new MastraIsolationError();
+  }
 
   const second = expectSuccessfulResult(
     await execute(
@@ -84,7 +101,7 @@ try {
     ].join(" "),
     { maxSteps: 8 },
   );
-  assert.equal(result.error, undefined, "the Mastra agent run must not report an error");
+  if (result.error !== undefined) throw new MastraAgentRunError();
   modelToolCalls = result.steps
     .flatMap((step) => step.toolCalls)
     .filter((call) => call.payload.toolName === "code_execute").length;
@@ -141,7 +158,7 @@ function expectSuccessfulResult(result: unknown): {
   value: Record<string, unknown>;
 } {
   assert.ok(isRecord(result), "code_execute must return an object");
-  assert.equal(result.ok, true, `code_execute failed: ${JSON.stringify(result)}`);
+  assert.equal(result.ok, true, "code_execute reported a failure");
   assert.ok(isRecord(result.value), "code_execute must return an object value");
   return result as { ok: true; value: Record<string, unknown> };
 }
