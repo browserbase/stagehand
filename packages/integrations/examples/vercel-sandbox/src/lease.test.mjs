@@ -7,7 +7,7 @@ const EXIT_TIMEOUT_MS = 2_000;
 
 test("lease setup failure exits while the parent keeps stdin open", async () => {
   const environment = { ...process.env };
-  delete environment.STAGEHAND_REVISION;
+  delete environment.STAGEHAND_SANDBOX_ARTIFACTS;
   delete environment.BROWSERBASE_API_KEY;
   delete environment.BROWSERBASE_PROJECT_ID;
 

@@ -10,16 +10,18 @@ const HTTP_REQUEST_TIMEOUT_MS = 15_000;
 const hostMarker = `host-${randomUUID()}`;
 const stateMarker = `state-${randomUUID()}`;
 const markerPath = `/tmp/stagehand-vercel-proof-${randomUUID()}.json`;
+const NO_ERROR = Symbol("no error");
 process.env.HOST_ONLY_MARKER = hostMarker;
 assert.equal(existsSync(markerPath), false);
 
 const connection = await createStagehandSandbox({
-  stagehandRevision: requiredEnvironment("STAGEHAND_REVISION"),
+  packageArtifactsPath: requiredEnvironment("STAGEHAND_SANDBOX_ARTIFACTS"),
   browserbaseApiKey: requiredEnvironment("BROWSERBASE_API_KEY"),
   browserbaseProjectId: requiredEnvironment("BROWSERBASE_PROJECT_ID"),
+  vercelCredentials: vercelCredentialsFromEnvironment(),
 });
 const client = new Client({ name: "stagehand-vercel-sandbox-e2e", version: "1.0.0" });
-let primaryError: unknown;
+let primaryError: unknown = NO_ERROR;
 
 try {
   const unauthorized = await fetch(connection.url, {
@@ -181,13 +183,13 @@ try {
 const cleanupErrors: unknown[] = [];
 await client.close().catch((error: unknown) => cleanupErrors.push(error));
 await connection.close().catch((error: unknown) => cleanupErrors.push(error));
-if (primaryError !== undefined && cleanupErrors.length > 0) {
+if (primaryError !== NO_ERROR && cleanupErrors.length > 0) {
   throw new AggregateError(
     [primaryError, ...cleanupErrors],
     "Vercel Sandbox E2E failed and cleanup also failed",
   );
 }
-if (primaryError !== undefined) throw primaryError;
+if (primaryError !== NO_ERROR) throw primaryError;
 if (cleanupErrors.length > 0) {
   throw new AggregateError(cleanupErrors, "Could not close the MCP client and Vercel Sandbox");
 }
@@ -220,4 +222,14 @@ function requiredEnvironment(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing ${name}`);
   return value;
+}
+
+function vercelCredentialsFromEnvironment() {
+  const token = process.env.VERCEL_TOKEN;
+  if (!token) return undefined;
+  return {
+    teamId: requiredEnvironment("VERCEL_TEAM_ID"),
+    projectId: requiredEnvironment("VERCEL_PROJECT_ID"),
+    token,
+  };
 }

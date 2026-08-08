@@ -10,12 +10,13 @@
   "scripts": {
     "e2e": "tsx src/e2e.ts",
     "lease": "tsx src/lease.ts",
+    "pack:artifacts": "node scripts/pack-artifacts.mjs",
     "smoke": "tsx src/smoke.ts",
-    "test:contract": "node --test src/*.test.mjs src/guest/*.test.mjs",
+    "test:contract": "tsx --test src/*.test.ts src/*.test.mjs src/guest/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-codemode": "workspace:*",
     "@modelcontextprotocol/sdk": "catalog:",
     "@vercel/sandbox": "catalog:",
     "supergateway": "catalog:"

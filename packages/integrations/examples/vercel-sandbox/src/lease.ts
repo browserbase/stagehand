@@ -7,14 +7,15 @@ const SHUTDOWN_FALLBACK_MS = 35_000;
 type LeaseEnd = { signal?: NodeJS.Signals };
 
 try {
-  const stagehandRevision = requiredEnvironment("STAGEHAND_REVISION");
+  const packageArtifactsPath = requiredEnvironment("STAGEHAND_SANDBOX_ARTIFACTS");
   const browserbaseApiKey = requiredEnvironment("BROWSERBASE_API_KEY");
   const browserbaseProjectId = requiredEnvironment("BROWSERBASE_PROJECT_ID");
   const leaseEnd = waitForLeaseEnd();
   const connection = await createStagehandSandbox({
-    stagehandRevision,
+    packageArtifactsPath,
     browserbaseApiKey,
     browserbaseProjectId,
+    vercelCredentials: vercelCredentialsFromEnvironment(),
   });
 
   process.stdout.write(
@@ -68,6 +69,16 @@ function requiredEnvironment(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`Missing ${name}`);
   return value;
+}
+
+function vercelCredentialsFromEnvironment() {
+  const token = process.env.VERCEL_TOKEN;
+  if (!token) return undefined;
+  return {
+    teamId: requiredEnvironment("VERCEL_TEAM_ID"),
+    projectId: requiredEnvironment("VERCEL_PROJECT_ID"),
+    token,
+  };
 }
 
 function safeMessage(error: unknown): string {

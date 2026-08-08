@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Sandbox, type SandboxUser } from "@vercel/sandbox";
@@ -12,12 +13,19 @@ const MCP_PROTOCOL_VERSION = "2025-11-25";
 const MCP_USER = "stagehand-mcp";
 const PROXY_USER = "stagehand-proxy";
 const SANDBOX_ROOT = "/vercel/sandbox";
-const STAGEHAND_ROOT = `${SANDBOX_ROOT}/stagehand`;
-const EXAMPLE_ROOT = `${STAGEHAND_ROOT}/packages/integrations/examples/vercel-sandbox`;
-const GATEWAY_BIN = `${EXAMPLE_ROOT}/node_modules/.bin/supergateway`;
+const RUNTIME_ROOT = `${SANDBOX_ROOT}/stagehand-runtime`;
+const PACKAGE_ROOT = `${SANDBOX_ROOT}/packages`;
+const STAGEHAND_PACKAGE_PATH = `${PACKAGE_ROOT}/stagehand.tgz`;
+const CODEMODE_PACKAGE_PATH = `${PACKAGE_ROOT}/stagehand-codemode.tgz`;
+const RUNTIME_MANIFEST_PATH = `${RUNTIME_ROOT}/package.json`;
+const RUNTIME_LOCK_PATH = `${RUNTIME_ROOT}/package-lock.json`;
+const GATEWAY_BIN = `${RUNTIME_ROOT}/node_modules/.bin/supergateway`;
+const CODEMODE_BIN = `${RUNTIME_ROOT}/node_modules/.bin/stagehand-codemode`;
 const AUTH_PROXY_PATH = `${SANDBOX_ROOT}/auth-proxy.mjs`;
 const STDIO_WRAPPER_PATH = `${SANDBOX_ROOT}/stdio-wrapper.mjs`;
 const HEALTH_REQUEST_TIMEOUT_MS = 5_000;
+const SUPERGATEWAY_VERSION = "3.4.3";
+const NO_ERROR = Symbol("no error");
 
 class StagehandSandboxSetupError extends Error {
   override readonly name = "StagehandSandboxSetupError";
@@ -59,10 +67,23 @@ class StagehandSandboxCommandError extends Error {
   }
 }
 
+class StagehandPackageArtifactError extends Error {
+  override readonly name = "StagehandPackageArtifactError";
+
+  constructor() {
+    super("Stagehand package artifact is invalid.");
+  }
+}
+
 export type StagehandSandboxOptions = {
-  stagehandRevision: string;
+  packageArtifactsPath: string;
   browserbaseApiKey: string;
   browserbaseProjectId: string;
+  vercelCredentials?: {
+    teamId: string;
+    projectId: string;
+    token: string;
+  };
   readinessTimeoutMs?: number;
   sandboxTimeoutMs?: number;
   cleanupTimeoutMs?: number;
@@ -75,16 +96,16 @@ export type StagehandSandboxConnection = {
 };
 
 /**
- * Build Stagehand from an exact revision inside a Vercel Sandbox, replace the
- * setup network with Browserbase-only egress, and expose its stdio MCP server
- * through an authenticated, stateful Streamable HTTP bridge.
+ * Install exact Stagehand package artifacts inside a Vercel Sandbox, replace
+ * setup egress with a Browserbase-only policy, and expose the code-mode stdio
+ * server through an authenticated, stateful Streamable HTTP bridge.
  */
 export async function createStagehandSandbox(
   options: StagehandSandboxOptions,
 ): Promise<StagehandSandboxConnection> {
-  assertCommitHash(options.stagehandRevision);
   assertNonEmpty(options.browserbaseApiKey, "browserbaseApiKey");
   assertNonEmpty(options.browserbaseProjectId, "browserbaseProjectId");
+  const artifacts = await loadPackageArtifacts(options);
 
   const cdpHost = await discoverBrowserbaseCdpHost(options);
   let sandbox: Sandbox;
@@ -97,6 +118,7 @@ export async function createStagehandSandbox(
       persistent: false,
       networkPolicy: "allow-all",
       tags: { purpose: "stagehand-codemode-mcp" },
+      ...options.vercelCredentials,
     });
   } catch {
     throw new StagehandSandboxSetupError();
@@ -104,7 +126,7 @@ export async function createStagehandSandbox(
   const close = sandboxCloser(sandbox, options.cleanupTimeoutMs ?? 30_000);
 
   try {
-    await installStagehand(sandbox, options.stagehandRevision);
+    await installStagehandPackages(sandbox, artifacts);
     await sandbox.writeFiles([
       {
         path: AUTH_PROXY_PATH,
@@ -187,62 +209,31 @@ export function stagehandTransport(
   return transport;
 }
 
-async function installStagehand(sandbox: Sandbox, revision: string): Promise<void> {
-  await run(sandbox, "initialize Stagehand checkout", "git", ["init", STAGEHAND_ROOT]);
-  await run(sandbox, "add Stagehand remote", "git", [
-    "-C",
-    STAGEHAND_ROOT,
-    "remote",
-    "add",
-    "origin",
-    "https://github.com/browserbase/stagehand.git",
+async function installStagehandPackages(
+  sandbox: Sandbox,
+  artifacts: PackageArtifacts,
+): Promise<void> {
+  await run(sandbox, "create package install directories", "mkdir", [
+    "-p",
+    PACKAGE_ROOT,
+    RUNTIME_ROOT,
   ]);
-  await run(sandbox, "fetch Stagehand revision", "git", [
-    "-C",
-    STAGEHAND_ROOT,
-    "fetch",
-    "--depth=1",
-    "origin",
-    revision,
+  await sandbox.writeFiles([
+    { path: STAGEHAND_PACKAGE_PATH, content: artifacts.stagehand.content, mode: 0o444 },
+    { path: CODEMODE_PACKAGE_PATH, content: artifacts.codeMode.content, mode: 0o444 },
+    { path: RUNTIME_MANIFEST_PATH, content: artifacts.runtimeManifest.content, mode: 0o444 },
+    { path: RUNTIME_LOCK_PATH, content: artifacts.runtimeLock.content, mode: 0o444 },
   ]);
-  await run(sandbox, "checkout Stagehand revision", "git", [
-    "-C",
-    STAGEHAND_ROOT,
-    "checkout",
-    "--detach",
-    "FETCH_HEAD",
-  ]);
-  const resolved = await run(sandbox, "resolve Stagehand revision", "git", [
-    "-C",
-    STAGEHAND_ROOT,
-    "rev-parse",
-    "HEAD",
-  ]);
-  if (resolved.trim() !== revision) {
-    throw new Error(`Stagehand checkout resolved to an unexpected revision: ${resolved.trim()}`);
-  }
-
-  await run(sandbox, "activate pnpm", "corepack", ["prepare", "pnpm@11.10.0", "--activate"]);
+  await verifyArtifact(sandbox, STAGEHAND_PACKAGE_PATH, artifacts.stagehand.sha256);
+  await verifyArtifact(sandbox, CODEMODE_PACKAGE_PATH, artifacts.codeMode.sha256);
+  await verifyArtifact(sandbox, RUNTIME_MANIFEST_PATH, artifacts.runtimeManifest.sha256);
+  await verifyArtifact(sandbox, RUNTIME_LOCK_PATH, artifacts.runtimeLock.sha256);
   await run(
     sandbox,
-    "install Stagehand dependencies",
-    "pnpm",
-    ["install", "--frozen-lockfile"],
-    STAGEHAND_ROOT,
-  );
-  await run(
-    sandbox,
-    "build Stagehand extension",
-    "pnpm",
-    ["--filter", "@browserbasehq/stagehand-extension", "build"],
-    STAGEHAND_ROOT,
-  );
-  await run(
-    sandbox,
-    "build Stagehand integrations",
-    "pnpm",
-    ["--filter", "@browserbasehq/stagehand-integrations...", "build"],
-    STAGEHAND_ROOT,
+    "install Stagehand package artifacts",
+    "npm",
+    ["ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+    RUNTIME_ROOT,
   );
 }
 
@@ -251,9 +242,10 @@ async function protectRuntimeFiles(sandbox: Sandbox): Promise<void> {
     "-lc",
     [
       `test -x ${GATEWAY_BIN}`,
-      `chown -R root:root ${STAGEHAND_ROOT}`,
+      `test -x ${CODEMODE_BIN}`,
+      `chown -R root:root ${RUNTIME_ROOT} ${PACKAGE_ROOT}`,
       `chown root:root ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
-      `chmod -R a-w ${STAGEHAND_ROOT}`,
+      `chmod -R a-w ${RUNTIME_ROOT} ${PACKAGE_ROOT}`,
       `chmod 0555 ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
     ].join(" && "),
   ]);
@@ -323,7 +315,7 @@ async function waitForHealth(origin: URL, token: string, timeoutMs: number): Pro
 async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Promise<string> {
   let sessionId: string | undefined;
   let discoveredHost: string | undefined;
-  let primaryError: unknown;
+  let primaryError: unknown = NO_ERROR;
 
   try {
     const response = await fetch(`https://${BROWSERBASE_API_HOST}/v1/sessions`, {
@@ -348,7 +340,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
     primaryError = error;
   }
 
-  let cleanupError: unknown;
+  let cleanupError: unknown = NO_ERROR;
   if (sessionId) {
     try {
       const response = await fetch(
@@ -370,7 +362,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
     }
   }
 
-  if (primaryError !== undefined || cleanupError !== undefined || !discoveredHost) {
+  if (primaryError !== NO_ERROR || cleanupError !== NO_ERROR || !discoveredHost) {
     throw new StagehandCdpDiscoveryError();
   }
   return discoveredHost;
@@ -428,12 +420,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   }
 }
 
-function assertCommitHash(revision: string): void {
-  if (!/^[0-9a-f]{40}$/.test(revision)) {
-    throw new Error("stagehandRevision must be a complete 40-character Git commit hash");
-  }
-}
-
 function assertNonEmpty(value: string, name: string): void {
   if (!value.trim()) throw new Error(`${name} must not be empty`);
 }
@@ -447,4 +433,93 @@ function assertBrowserbaseCdpHost(hostname: string): string {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+type PackageArtifact = { content: Buffer; sha256: string };
+type PackageArtifacts = {
+  stagehand: PackageArtifact;
+  codeMode: PackageArtifact;
+  runtimeManifest: PackageArtifact;
+  runtimeLock: PackageArtifact;
+};
+
+async function loadPackageArtifacts(options: StagehandSandboxOptions): Promise<PackageArtifacts> {
+  try {
+    if (!path.isAbsolute(options.packageArtifactsPath)) {
+      throw new StagehandPackageArtifactError();
+    }
+    const packageRoot = path.join(options.packageArtifactsPath, "packages");
+    const runtimeRoot = path.join(options.packageArtifactsPath, "runtime");
+    const runtimeManifest = await loadPackageArtifact(
+      path.join(runtimeRoot, "package.json"),
+      false,
+    );
+    assertRuntimeManifest(runtimeManifest.content);
+    const runtimeLock = await loadPackageArtifact(
+      path.join(runtimeRoot, "package-lock.json"),
+      false,
+    );
+    assertRuntimeLock(runtimeLock.content);
+    return {
+      stagehand: await loadPackageArtifact(path.join(packageRoot, "stagehand.tgz"), true),
+      codeMode: await loadPackageArtifact(path.join(packageRoot, "stagehand-codemode.tgz"), true),
+      runtimeManifest,
+      runtimeLock,
+    };
+  } catch {
+    throw new StagehandPackageArtifactError();
+  }
+}
+
+async function loadPackageArtifact(
+  artifactPath: string,
+  compressed: boolean,
+): Promise<PackageArtifact> {
+  const content = await readFile(artifactPath);
+  if (content.length === 0 || (compressed && (content[0] !== 0x1f || content[1] !== 0x8b))) {
+    throw new StagehandPackageArtifactError();
+  }
+  return {
+    content,
+    sha256: createHash("sha256").update(content).digest("hex"),
+  };
+}
+
+function assertRuntimeManifest(content: Buffer): void {
+  const manifest = JSON.parse(content.toString()) as { dependencies?: Record<string, unknown> };
+  const dependencies = manifest.dependencies;
+  if (
+    dependencies?.["@browserbasehq/stagehand"] !== "file:../packages/stagehand.tgz" ||
+    dependencies["@browserbasehq/stagehand-codemode"] !==
+      "file:../packages/stagehand-codemode.tgz" ||
+    dependencies.supergateway !== SUPERGATEWAY_VERSION ||
+    Object.keys(dependencies).length !== 3
+  ) {
+    throw new StagehandPackageArtifactError();
+  }
+}
+
+function assertRuntimeLock(content: Buffer): void {
+  const lock = JSON.parse(content.toString()) as {
+    lockfileVersion?: unknown;
+    packages?: Record<string, { dependencies?: Record<string, unknown> }>;
+  };
+  const dependencies = lock.packages?.[""]?.dependencies;
+  if (lock.lockfileVersion !== 3 || !dependencies) {
+    throw new StagehandPackageArtifactError();
+  }
+  assertRuntimeManifest(Buffer.from(JSON.stringify({ dependencies })));
+}
+
+async function verifyArtifact(
+  sandbox: Sandbox,
+  artifactPath: string,
+  expectedSha256: string,
+): Promise<void> {
+  const actual = await run(sandbox, "verify uploaded package artifact", "sha256sum", [
+    artifactPath,
+  ]);
+  if (actual.split(/\s+/, 1)[0] !== expectedSha256) {
+    throw new StagehandPackageArtifactError();
+  }
 }

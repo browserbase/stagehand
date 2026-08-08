@@ -48,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Vercel Sandbox source-installed MCP
+          - name: Vercel Sandbox package-installed MCP
             package: "@browserbasehq/stagehand-integrations-example-vercel-sandbox"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -60,10 +60,20 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
       - run: pnpm --filter ${{ matrix.package }} typecheck
       - run: pnpm --filter ${{ matrix.package }} test:contract
+      - run: pnpm --filter ${{ matrix.package }} pack:artifacts
       - run: pnpm --filter ${{ matrix.package }} smoke
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           STAGEHAND_BROWSER: local
+      - run: pnpm --filter ${{ matrix.package }} e2e
+        env:
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}

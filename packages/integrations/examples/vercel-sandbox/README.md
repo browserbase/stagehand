@@ -23,33 +23,40 @@ type StagehandSandboxConnection = {
 };
 ```
 
-`createStagehandSandbox()` creates a fresh Vercel Firecracker microVM with open setup egress, checks
-out a complete Stagehand commit, installs its frozen lockfile, builds code mode from source, and
-installs the pinned HTTP-to-stdio bridge. Before the MCP server starts, it replaces setup egress with
-an allowlist containing only Browserbase's API and the regional CDP hostname discovered for the
-configured project.
+`createStagehandSandbox()` creates a fresh Vercel Firecracker microVM with open setup egress, uploads
+the exact packed Stagehand and code-mode artifacts supplied by the trusted host, verifies their
+SHA-256 digests in the guest, and installs them with the pinned HTTP-to-stdio bridge. Before the MCP
+server starts, it replaces setup egress with an allowlist containing only Browserbase's API and the
+regional CDP hostname discovered for the configured project.
 
 ## Install and run
 
 Authenticate the host for [Vercel Sandbox](https://vercel.com/docs/vercel-sandbox), then set:
 
 ```bash
-STAGEHAND_REVISION=<40-character-stagehand-commit>
+pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+
+STAGEHAND_SANDBOX_ARTIFACTS="$PWD/packages/integrations/examples/vercel-sandbox/.artifacts"
 BROWSERBASE_API_KEY=<browserbase-api-key>
 BROWSERBASE_PROJECT_ID=<browserbase-project-id>
 
 pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox e2e
 ```
 
-The revision must be a full commit hash. This prevents the trusted install from following a moving
-branch or tag. Vercel's credential-brokering header transforms are currently available on Pro and
-Enterprise plans. Check the
+The artifact directory path must be absolute. The pack step builds the exact checkout under review,
+produces stable local tarball names, and records an integrity-pinned npm installation lock; no
+moving branch, tag, registry package version, or guest-side repository checkout participates in the
+proof. Vercel's credential-brokering header transforms are currently available on Pro and Enterprise
+plans. Check the
 [credential-brokering announcement](https://vercel.com/changelog/safely-inject-credentials-in-http-headers-with-vercel-sandbox)
 before relying on this example with another plan.
 
 Vercel credentials authenticate the host to the Sandbox control plane so it can create, update,
 stop, and delete the microVM. They are separate from the random application bearer returned by this
-helper, which protects only the MCP port exposed by this sandbox.
+helper, which protects only the MCP port exposed by this sandbox. The SDK uses
+`VERCEL_OIDC_TOKEN` when available. Outside Vercel, pass `{ teamId, projectId, token }` as
+`vercelCredentials`; the E2E and lease derive it from `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID`, and
+`VERCEL_TOKEN` when the token is present.
 
 ## Connect an MCP client
 
@@ -64,9 +71,14 @@ import {
 } from "@browserbasehq/stagehand-integrations-example-vercel-sandbox";
 
 const stagehand = await createStagehandSandbox({
-  stagehandRevision: process.env.STAGEHAND_REVISION!,
+  packageArtifactsPath: process.env.STAGEHAND_SANDBOX_ARTIFACTS!,
   browserbaseApiKey: process.env.BROWSERBASE_API_KEY!,
   browserbaseProjectId: process.env.BROWSERBASE_PROJECT_ID!,
+  vercelCredentials: {
+    teamId: process.env.VERCEL_TEAM_ID!,
+    projectId: process.env.VERCEL_PROJECT_ID!,
+    token: process.env.VERCEL_TOKEN!,
+  },
 });
 const client = new Client({ name: "my-agent", version: "1.0.0" });
 
@@ -109,8 +121,9 @@ It then holds stdin open as the sandbox lease. Keep the process and stdin pipe a
 MCP session. Close stdin for normal cleanup; `SIGINT` and `SIGTERM` trigger bounded cleanup and retain
 signal-style exit semantics. Spawn it with an explicit environment allowlist containing only the
 runtime variables it needs: `PATH`, the relevant Vercel authentication variables,
-`STAGEHAND_REVISION`, `BROWSERBASE_API_KEY`, and `BROWSERBASE_PROJECT_ID`. The token is emitted once
-over the trusted parent pipe and is never placed in command arguments or environment variables.
+`STAGEHAND_SANDBOX_ARTIFACTS`, `BROWSERBASE_API_KEY`, and `BROWSERBASE_PROJECT_ID`. The token is
+emitted once over the trusted parent pipe and is never placed in command arguments or environment
+variables.
 
 ## Security boundary
 
@@ -126,7 +139,8 @@ additional defense inside that VM, not a substitute for it:
   overwrites the Browserbase API header at the network boundary.
 - The host discovers and validates the exact regional Browserbase CDP hostname before lockdown. The
   running VM allows only that hostname and `api.browserbase.com`; all other egress is denied.
-- Source, dependencies, and bridge code become root-owned and read-only before untrusted code runs.
+- Installed package artifacts, dependencies, and bridge code become root-owned and read-only before
+  untrusted code runs.
 - The only published guest port is the authenticated proxy. The stateful bridge listens on guest
   loopback.
 

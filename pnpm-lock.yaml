@@ -600,7 +600,7 @@ importers:
 
   packages/integrations/examples/vercel-sandbox:
     dependencies:
-      '@browserbasehq/stagehand-integrations':
+      '@browserbasehq/stagehand-codemode':
         specifier: workspace:*
         version: link:../..
       '@modelcontextprotocol/sdk':
