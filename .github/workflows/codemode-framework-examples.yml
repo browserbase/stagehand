@@ -1,4 +1,4 @@
-name: Code-mode framework examples
+name: Code-mode sandbox examples
 
 on:
   pull_request:
@@ -9,8 +9,10 @@ on:
       - "packages/extension/**"
       - "packages/protocol/**"
       - "packages/sdk-ts/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - "tsconfig.json"
       - "turbo.json"
   push:
     branches: [main, v4-spike]
@@ -20,8 +22,10 @@ on:
       - "packages/extension/**"
       - "packages/protocol/**"
       - "packages/sdk-ts/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - "tsconfig.json"
       - "turbo.json"
 
 permissions:
@@ -32,7 +36,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  framework:
+  example:
     name: ${{ matrix.name }}
     if: >-
       github.event_name == 'push' ||
@@ -44,8 +48,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Vercel AI SDK
-            package: "@browserbasehq/stagehand-integrations-example-vercel"
+          - name: E2B source-installed MCP
+            package: "@browserbasehq/stagehand-integrations-example-e2b"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 

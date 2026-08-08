@@ -46,7 +46,7 @@ The process stays alive across calls and closes when its input stream ends. `SIG
 
 ### Framework examples
 
-- [Vercel AI SDK](./examples/vercel) launches the stdio server through the AI SDK MCP client and keeps one process alive for the complete agent run.
+- [E2B sandbox](./examples/e2b) source-installs the stdio server inside a Firecracker microVM and returns a framework-neutral, bearer-authenticated MCP connection.
 
 ### Configuration
 
@@ -74,6 +74,5 @@ Native callers run generated JavaScript in their own process. An `AbortSignal` c
 
 The code-mode executor does not provide a sandbox. Generated JavaScript runs in the host process and inherits that process's filesystem, network, and environment access. A framework may place the tool inside its own sandbox, container, or other isolation boundary.
 
-For untrusted generated code, use the OCI image and microVM architecture in
-[`codemode/SANDBOX.md`](./codemode/SANDBOX.md). The image packages the stdio server; the sandbox
-provider supplies the security boundary.
+For untrusted generated code, use the source-installed microVM architecture in the
+[E2B sandbox example](./examples/e2b). The sandbox provider supplies the security boundary.

@@ -1,18 +1,19 @@
 {
-  "name": "@browserbasehq/stagehand-integrations-example-vercel",
+  "name": "@browserbasehq/stagehand-integrations-example-e2b",
   "version": "4.0.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/sandbox.ts"
+  },
   "scripts": {
     "e2e": "tsx src/e2e.ts",
     "smoke": "tsx src/smoke.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "catalog:",
-    "@ai-sdk/mcp": "catalog:",
     "@browserbasehq/stagehand-integrations": "workspace:*",
-    "ai": "catalog:",
+    "@modelcontextprotocol/sdk": "catalog:",
     "e2b": "catalog:"
   },
   "devDependencies": {
