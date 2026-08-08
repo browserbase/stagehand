@@ -83,7 +83,6 @@ def _outbound_domains() -> list[str]:
 class SandboxProcess:
     def __init__(self) -> None:
         self.sandbox: modal.Sandbox | None = None
-        self.process: modal.Sandbox | None = None
         self._shutdown_requested = False
         self._closed = False
 
@@ -115,20 +114,19 @@ class SandboxProcess:
             idle_timeout=idle_timeout,
             outbound_domain_allowlist=_outbound_domains(),
         )
-        # The MCP is the primary process. EOF therefore lets its own shutdown
-        # handler close Stagehand and the Browserbase browser before the sandbox
-        # finishes.
-        self.process = self.sandbox
+        # The MCP is the sandbox's primary process. EOF therefore lets its own
+        # shutdown handler close Stagehand and the Browserbase browser before
+        # the sandbox finishes.
         print("Stagehand code-mode MCP started in a Modal Sandbox", file=sys.stderr)
 
     def request_shutdown(self) -> None:
         if self._shutdown_requested:
             return
         self._shutdown_requested = True
-        if self.process is not None:
+        if self.sandbox is not None:
             try:
-                self.process.stdin.write_eof()
-                self.process.stdin.drain()
+                self.sandbox.stdin.write_eof()
+                self.sandbox.stdin.drain()
             except Exception:
                 pass
 
@@ -161,26 +159,26 @@ def _stdin_chunks() -> Iterator[bytes]:
 
 
 def _forward_stdin(owner: SandboxProcess) -> None:
-    assert owner.process is not None
+    assert owner.sandbox is not None
     try:
         for chunk in _stdin_chunks():
-            owner.process.stdin.write(chunk)
-            owner.process.stdin.drain()
+            owner.sandbox.stdin.write(chunk)
+            owner.sandbox.stdin.drain()
     finally:
         owner.request_shutdown()
 
 
 def _forward_stdout(owner: SandboxProcess) -> None:
-    assert owner.process is not None
-    for line in owner.process.stdout:
+    assert owner.sandbox is not None
+    for line in owner.sandbox.stdout:
         data = line.encode() if isinstance(line, str) else line
         sys.stdout.buffer.write(data)
         sys.stdout.buffer.flush()
 
 
 def _forward_stderr(owner: SandboxProcess) -> None:
-    assert owner.process is not None
-    for line in owner.process.stderr:
+    assert owner.sandbox is not None
+    for line in owner.sandbox.stderr:
         data = line.encode() if isinstance(line, str) else line
         sys.stderr.buffer.write(b"sandbox: " + data)
         sys.stderr.buffer.flush()
@@ -188,9 +186,12 @@ def _forward_stderr(owner: SandboxProcess) -> None:
 
 def main() -> int:
     owner = SandboxProcess()
+    signal_exit_code: int | None = None
     atexit.register(owner.close)
 
     def stop(_signum: int, _frame: object) -> None:
+        nonlocal signal_exit_code
+        signal_exit_code = 128 + _signum
         owner.request_shutdown()
 
     signal.signal(signal.SIGTERM, stop)
@@ -205,11 +206,11 @@ def main() -> int:
         ]
         for thread in threads:
             thread.start()
-        assert owner.process is not None
-        owner.process.wait()
+        assert owner.sandbox is not None
+        owner.sandbox.wait()
         for thread in threads[1:]:
             thread.join(timeout=5)
-        return owner.process.returncode or 0
+        return signal_exit_code or owner.sandbox.returncode or 0
     finally:
         owner.close()
 
