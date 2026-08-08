@@ -110,6 +110,50 @@ async def test_callback_batch_uses_the_normal_pending_request_path(
 
 
 @pytest.mark.asyncio
+async def test_callback_batch_preserves_json_numbers_on_the_wire() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    value = {
+        "count": 7,
+        "ratio": 7.5,
+        "large": 9_007_199_254_740_993,
+        "nested": [1, 1.5],
+    }
+    try:
+        call = asyncio.create_task(
+            client.send(
+                "stagehand.callback_batch",
+                models.CallbackBatchParams(
+                    callback_source="async (_batch, input) => input",
+                    input=models.FieldSchema2.model_validate(value),
+                    options=models.CallbackBatchOptions(timeout=30_000),
+                ),
+                models.CallbackBatchResult,
+            )
+        )
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        params = cast(dict[str, object], request["params"])
+        assert params["input"] == value
+        encoded_input = cast(dict[str, object], params["input"])
+        assert type(encoded_input["count"]) is int
+        assert type(encoded_input["ratio"]) is float
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": {"value": value},
+        })
+
+        result = await call
+        assert result.value is not None
+        decoded = result.value.model_dump(mode="json")
+        assert decoded == value
+        assert type(decoded["count"]) is int
+        assert type(decoded["ratio"]) is float
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_send_validates_and_serializes_params_and_results() -> None:
     transport = QueueTransport()
     client = RPCClient(transport)

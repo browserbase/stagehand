@@ -620,93 +620,93 @@ class ExtractResult(WireModel):
 
 
 class FieldSchema0(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]
 
 
 class FieldSchema1(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
 
 
 class FieldSchema10(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
 class FieldSchema11(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
 class FieldSchema12(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
 
 
 class FieldSchema13(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]
 
 
 class FieldSchema14(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
 class FieldSchema2(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]
 
 
 class FieldSchema3(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]
 
 
 class FieldSchema4(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]
 
 
 class FieldSchema5(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]
 
 
 class FieldSchema6(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]
 
 
 class FieldSchema7(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]
 
 
 class FieldSchema8(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]
 
 
 class FieldSchema9(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]
 
 
 class GoogleModelName(RootModel[StrictStr]):
