@@ -1393,12 +1393,6 @@ type pricing struct {
 	Summary string `json:"summary"`
 }
 
-var pricingSchema = json.RawMessage(`{
-  "type": "object",
-  "properties": {"summary": {"type": "string"}},
-  "required": ["summary"],
-  "additionalProperties": false
-}`)
 
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 googleKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
@@ -1434,11 +1428,10 @@ strongModel := stagehand.ModelConfig{
 	APIKey:    &anthropicKey,
 }
 
-extracted, err := stagehand.ExtractAs[pricing](
+extracted, err := stagehand.Extract[pricing](
 	ctx,
 	client,
 	"summarize the pricing table",
-	pricingSchema,
 	&stagehand.StagehandClientExtractOptions{
 		ExtractOptions: stagehand.ExtractOptions{Model: &strongModel},
 	},

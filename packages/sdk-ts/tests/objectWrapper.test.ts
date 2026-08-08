@@ -734,6 +734,11 @@ describe("Stagehand TS object wrapper", () => {
         button: "left",
         steps: 5,
         delay: 10,
+        route: [
+          { x: 1, y: 2 },
+          { x: 2, y: 5 },
+          { x: 3, y: 4 },
+        ],
       }),
     ).resolves.toBeUndefined();
 
@@ -762,7 +767,16 @@ describe("Stagehand TS object wrapper", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10 },
+        options: {
+          button: "left",
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
       }),
     ]);
   });

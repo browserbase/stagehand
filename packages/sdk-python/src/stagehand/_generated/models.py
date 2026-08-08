@@ -1536,6 +1536,7 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    route: Optional[list[PageDragAndDropRoutePoint]] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1549,6 +1550,15 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
+
+
+class PageDragAndDropRoutePoint(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    x: StrictFloat
+    y: StrictFloat
 
 
 class PageEvaluateParams(WireModel):

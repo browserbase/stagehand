@@ -1796,6 +1796,13 @@ export const PageScrollParamsSchema = PageIdParamsSchema.extend({
   deltaY: z.number(),
 }).meta({ id: "PageScrollParams" });
 
+export const PageDragAndDropRoutePointSchema = z
+  .strictObject({
+    x: z.number(),
+    y: z.number(),
+  })
+  .meta({ id: "PageDragAndDropRoutePoint" });
+
 export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
   fromX: z.number(),
   fromY: z.number(),
@@ -1806,6 +1813,7 @@ export const PageDragAndDropParamsSchema = PageIdParamsSchema.extend({
       button: MouseButtonSchema.optional(),
       steps: z.number().int().positive().optional(),
       delay: z.number().nonnegative().optional(),
+      route: z.array(PageDragAndDropRoutePointSchema).optional(),
     })
     .meta({ id: "PageDragAndDropOptions" })
     .optional(),

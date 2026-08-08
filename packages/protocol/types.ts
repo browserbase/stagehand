@@ -152,6 +152,7 @@ import type {
   PageClickParamsSchema,
   PageCloseResultSchema,
   PageDragAndDropParamsSchema,
+  PageDragAndDropRoutePointSchema,
   PageEvaluateParamsSchema,
   PageEvaluateResultSchema,
   PageGoBackParamsSchema,
@@ -367,6 +368,7 @@ export type PageClickParams = z.infer<typeof PageClickParamsSchema>;
 export type PageHoverParams = z.infer<typeof PageHoverParamsSchema>;
 export type PageScrollParams = z.infer<typeof PageScrollParamsSchema>;
 export type PageDragAndDropParams = z.infer<typeof PageDragAndDropParamsSchema>;
+export type PageDragAndDropRoutePoint = z.infer<typeof PageDragAndDropRoutePointSchema>;
 export type PageTypeParams = z.infer<typeof PageTypeParamsSchema>;
 export type PageKeyPressParams = z.infer<typeof PageKeyPressParamsSchema>;
 export type PageEvaluateParams = z.infer<typeof PageEvaluateParamsSchema>;

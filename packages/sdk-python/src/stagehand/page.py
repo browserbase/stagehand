@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from pydantic import JsonValue, TypeAdapter
 
-from ._generated.input_types import PageEventName, PageScreenshotClip
+from ._generated.input_types import PageDragAndDropRoutePoint, PageEventName, PageScreenshotClip
 from ._generated.models import (
     Animations,
     Caret,
@@ -296,6 +296,7 @@ class Page:
         button: MouseButton | Literal["left", "right", "middle"] | None = None,
         steps: int | None = None,
         delay: float | None = None,
+        route: Sequence[PageDragAndDropRoutePoint | Mapping[str, float]] | None = None,
     ) -> None:
         params = PageDragAndDropParams(
             page_id=self.page_id,
@@ -310,6 +311,7 @@ class Page:
                 ("button", button),
                 ("steps", steps),
                 ("delay", delay),
+                ("route", list(route) if route is not None else None),
             )
             if value is not None
         })

@@ -1696,7 +1696,16 @@ describe("Stagehand worker clients", () => {
           from_y: 2,
           to_x: 3,
           to_y: 4,
-          options: { button: "left", steps: 5, delay: 10 },
+          options: {
+            button: "left",
+            steps: 5,
+            delay: 10,
+            route: [
+              { x: 1, y: 2 },
+              { x: 2, y: 5 },
+              { x: 3, y: 4 },
+            ],
+          },
         },
       }),
     ).resolves.toStrictEqual({
@@ -1716,7 +1725,16 @@ describe("Stagehand worker clients", () => {
         fromY: 2,
         toX: 3,
         toY: 4,
-        options: { button: "left", steps: 5, delay: 10 },
+        options: {
+          button: "left",
+          steps: 5,
+          delay: 10,
+          route: [
+            { x: 1, y: 2 },
+            { x: 2, y: 5 },
+            { x: 3, y: 4 },
+          ],
+        },
       },
     ]);
   });
