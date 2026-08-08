@@ -71,7 +71,8 @@ def local_stagehand_mcp_client_for_ci() -> MultiServerMCPClient:
         "PATH": os.environ.get("PATH", ""),
         "STAGEHAND_BROWSER": "local",
     }
-    for name in ("HOME", "TMPDIR", "CHROME_PATH"):
+    # Stagehand's local launcher uses CI to add Chrome's --no-sandbox flag.
+    for name in ("HOME", "TMPDIR", "CHROME_PATH", "CI"):
         if value := os.environ.get(name):
             child_env[name] = value
     return MultiServerMCPClient(
