@@ -2,7 +2,7 @@
 
 Use Stagehand code mode as one CrewAI tool without running generated JavaScript on the agent host.
 CrewAI still connects to a local stdio child, but that child is a small trusted bridge. The bridge
-starts `stdio-server.mjs` as the primary process in a [Modal Sandbox](https://modal.com/docs/guide/sandbox)
+starts `stdio-server.mjs` as the primary process in a [Modal Sandbox](https://modal.com/docs/guide/sandboxes)
 and forwards MCP bytes unchanged:
 
 ```text
