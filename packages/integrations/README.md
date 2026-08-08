@@ -50,6 +50,7 @@ The process stays alive across calls and closes when its input stream ends. `SIG
 - [Mastra](./examples/mastra) discovers the canonical MCP toolset once and reuses one client and browser for the complete agent run.
 - [CrewAI](./examples/crewai) keeps its context-managed MCP adapter open across every tool call in one crew execution.
 - [LangChain Deep Agents](./examples/langchain) uses one explicit MCP session so every tool call reaches the same browser.
+- [Eve](./examples/eve) keeps its host outside the sandbox and reaches the stdio server through an authenticated Streamable HTTP gateway inside the sandbox.
 
 ### Configuration
 
