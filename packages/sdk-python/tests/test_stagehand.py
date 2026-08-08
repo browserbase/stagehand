@@ -196,6 +196,31 @@ async def test_experimental_batch_uses_registered_rpc_method(
         assert isinstance(params, CallbackBatchParams)
         assert params.callback_source == source
         assert params.options.timeout == 2_000
+        assert params.options.model_dump(mode="json", exclude_unset=True) == {
+            "timeout": 2_000
+        }
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_includes_an_explicit_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    try:
+        await stagehand._experimental_batch("async () => undefined", page=page)
+        method, params, _ = recording.calls[-1]
+        assert method == "stagehand.callback_batch"
+        assert isinstance(params, CallbackBatchParams)
+        assert params.options.model_dump(mode="json", exclude_unset=True) == {
+            "page_id": "page-1",
+            "timeout": 30_000,
+        }
     finally:
         await stagehand.close()
 

@@ -197,7 +197,7 @@ class Stagehand:
                 callback_source=source,
                 input=_models.FieldSchema2.model_validate(input),
                 options=CallbackBatchOptions(
-                    page_id=page.page_id if page is not None else None,
+                    **({"page_id": page.page_id} if page is not None else {}),
                     timeout=timeout,
                 ),
             ),

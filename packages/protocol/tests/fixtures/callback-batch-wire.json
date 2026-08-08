@@ -1,0 +1,27 @@
+{
+  "pageOmitted": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "stagehand.callback_batch",
+    "params": {
+      "callback_source": "async () => undefined",
+      "input": null,
+      "options": {
+        "timeout": 30000
+      }
+    }
+  },
+  "pageProvided": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "stagehand.callback_batch",
+    "params": {
+      "callback_source": "async () => undefined",
+      "input": null,
+      "options": {
+        "page_id": "page-1",
+        "timeout": 30000
+      }
+    }
+  }
+}

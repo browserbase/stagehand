@@ -3,6 +3,9 @@ package stagehand
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -71,6 +74,80 @@ func TestExperimentalBatchUsesRegisteredRPCMethod(t *testing.T) {
 		t.Fatalf("encode callback input: %v", err)
 	}
 	assertJSONEqual(t, encodedInput, `{"value":1}`)
+}
+
+func TestExperimentalBatchSerializesPageSelectionOnWire(t *testing.T) {
+	fixtures := loadCallbackBatchWireFixtures(t)
+	tests := []struct {
+		name    string
+		page    *Page
+		fixture string
+	}{
+		{
+			name:    "active page",
+			fixture: "pageOmitted",
+		},
+		{
+			name:    "explicit page",
+			page:    &Page{ref: PageRef{PageID: "page-1"}},
+			fixture: "pageProvided",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			transport := newQueueRPCTransport()
+			rpc := newTestRPCClient(t, transport)
+			client := &Stagehand{rpc: rpc, initialized: true}
+			var result any
+			callDone := make(chan error, 1)
+			go func() {
+				callDone <- client.ExperimentalBatch(
+					context.Background(),
+					"async () => undefined",
+					nil,
+					&result,
+					ExperimentalBatchOptions{Page: test.page},
+				)
+			}()
+
+			actual := receiveSentRPC(t, transport)
+			expected, ok := fixtures[test.fixture]
+			if !ok {
+				t.Fatalf("missing callback batch wire fixture %q", test.fixture)
+			}
+			assertJSONEqual(t, actual, string(expected))
+			transport.receiveJSON(`{"jsonrpc":"2.0","id":1,"result":{}}`)
+			if err := receiveCallError(t, callDone); err != nil {
+				t.Fatalf("ExperimentalBatch() error = %v", err)
+			}
+		})
+	}
+}
+
+func loadCallbackBatchWireFixtures(t *testing.T) map[string]json.RawMessage {
+	t.Helper()
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate callback batch test source")
+	}
+	fixturePath := filepath.Join(
+		filepath.Dir(sourceFile),
+		"..",
+		"protocol",
+		"tests",
+		"fixtures",
+		"callback-batch-wire.json",
+	)
+	encoded, err := os.ReadFile(fixturePath)
+	if err != nil {
+		t.Fatalf("read callback batch wire fixtures: %v", err)
+	}
+	var fixtures map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &fixtures); err != nil {
+		t.Fatalf("decode callback batch wire fixtures: %v", err)
+	}
+	return fixtures
 }
 
 func TestExperimentalBatchMapsAnOmittedValueToNil(t *testing.T) {

@@ -1,4 +1,6 @@
 import asyncio
+import json
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -18,6 +20,15 @@ from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
+CALLBACK_BATCH_WIRE_FIXTURES = json.loads(
+    (
+        Path(__file__).resolve().parents[2]
+        / "protocol"
+        / "tests"
+        / "fixtures"
+        / "callback-batch-wire.json"
+    ).read_text()
+)
 
 
 class RPCResult(BaseModel):
@@ -55,7 +66,17 @@ class FailingReceiveTransport(QueueTransport):
 
 
 @pytest.mark.asyncio
-async def test_callback_batch_uses_the_normal_pending_request_path() -> None:
+@pytest.mark.parametrize(
+    ("page_id", "fixture_name"),
+    [
+        (None, "pageOmitted"),
+        ("page-1", "pageProvided"),
+    ],
+)
+async def test_callback_batch_uses_the_normal_pending_request_path(
+    page_id: str | None,
+    fixture_name: str,
+) -> None:
     transport = QueueTransport()
     client = RPCClient(transport)
     try:
@@ -66,13 +87,16 @@ async def test_callback_batch_uses_the_normal_pending_request_path() -> None:
                 models.CallbackBatchParams(
                     callback_source=source,
                     input=models.FieldSchema2.model_validate(None),
-                    options=models.CallbackBatchOptions(timeout=30_000),
+                    options=models.CallbackBatchOptions(
+                        **({"page_id": page_id} if page_id is not None else {}),
+                        timeout=30_000,
+                    ),
                 ),
                 models.CallbackBatchResult,
             )
         )
         request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
-        assert request["method"] == "stagehand.callback_batch"
+        assert request == CALLBACK_BATCH_WIRE_FIXTURES[fixture_name]
         await transport.incoming.put({
             "jsonrpc": "2.0",
             "id": request["id"],
