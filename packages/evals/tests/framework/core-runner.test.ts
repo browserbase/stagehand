@@ -16,6 +16,7 @@ const resolveDefaultCoreStartupProfileMock = vi.fn(
   () => "runner_provided_local_cdp",
 );
 let originalCi: string | undefined;
+let originalPersist: string | undefined;
 
 vi.mock("braintrust", async (importOriginal) => {
   const actual = (await importOriginal()) as typeof import("braintrust");
@@ -68,6 +69,10 @@ beforeEach(() => {
   // Set a dummy API key so the runner sends logs and calls flush(),
   // which this test asserts.
   process.env.BRAINTRUST_API_KEY = "test-key";
+  // With CI unset, trajectory persistence would default on and the runner's
+  // experiment-link write would leak a `.trajectories/` tree into cwd.
+  originalPersist = process.env.VERIFIER_PERSIST_TRAJECTORIES;
+  process.env.VERIFIER_PERSIST_TRAJECTORIES = "0";
   tracedNames.length = 0;
   evalMock.mockReset();
   flushMock.mockClear();
@@ -83,6 +88,16 @@ afterEach(() => {
     process.env.CI = originalCi;
   }
   delete process.env.BRAINTRUST_API_KEY;
+  if (originalPersist === undefined) {
+    delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+  } else {
+    process.env.VERIFIER_PERSIST_TRAJECTORIES = originalPersist;
+  }
+  // runEvals stamps these; don't leak them into other test files.
+  delete process.env.EVAL_TRAJECTORY_GROUP;
+  delete process.env.EVAL_EXPERIMENT_NAME;
+  delete process.env.EVAL_MODEL_OVERRIDE;
+  delete process.env.EVAL_PROVIDER;
 
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();

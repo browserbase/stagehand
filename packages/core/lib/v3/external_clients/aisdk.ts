@@ -86,6 +86,7 @@ export class AISdkClient extends LLMClient {
         model: this.model,
         messages: formattedMessages,
         schema: options.response_model.schema,
+        allowSystemInMessages: true,
       });
 
       return {
@@ -113,6 +114,7 @@ export class AISdkClient extends LLMClient {
       model: this.model,
       messages: formattedMessages,
       tools,
+      allowSystemInMessages: true,
     });
 
     return {

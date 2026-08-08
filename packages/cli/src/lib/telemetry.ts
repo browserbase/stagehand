@@ -1,11 +1,7 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
-
 import type { Command } from "@oclif/core";
 
 import { detectAgent } from "./agent.js";
+import { resolveInstallId } from "./identity.js";
 import { getRunTelemetry, resetRunTelemetry } from "./run-telemetry.js";
 import type { CommandFailureTelemetry } from "./errors.js";
 
@@ -18,7 +14,10 @@ const browserbaseTelemetryProjectToken =
 type TelemetryPrimitive = string | number | boolean | null;
 type TelemetryProperties = Record<string, TelemetryPrimitive>;
 
-type CliTelemetryEvent = "cli.command_invoked" | "cli.command_completed";
+type CliTelemetryEvent =
+  | "cli.command_invoked"
+  | "cli.command_completed"
+  | "cli.command_not_found";
 type CliTelemetryErrorType = "oclif" | "runtime";
 
 interface CliTelemetry {
@@ -133,12 +132,36 @@ export async function captureCommandCompleted(
   ]);
 }
 
+/**
+ * Captures a `cli.command_not_found` event. Privacy: only the sanitized
+ * attempted command id and the computed suggestion are sent — never raw argv,
+ * which can contain URLs, selectors, or secrets.
+ */
+export async function captureCommandNotFound(
+  cliVersion: string,
+  attemptedCommand: string | null,
+  suggestedCommand: string | null,
+): Promise<void> {
+  await getCliTelemetry(cliVersion)
+    .capture("cli.command_not_found", {
+      attempted_command: attemptedCommand
+        ? resolveCommandPath(attemptedCommand)
+        : null,
+      suggested_command: suggestedCommand
+        ? resolveCommandPath(suggestedCommand)
+        : null,
+    })
+    .catch(() => {
+      // Best-effort telemetry should never affect CLI behavior.
+    });
+}
+
 function createCliTelemetry(options: CreateCliTelemetryOptions): CliTelemetry {
   const env = options.env ?? process.env;
   const transport = resolveTransportConfig(env);
   const telemetryEnabled = !isTelemetryDisabled(env);
   const distinctIdPromise = telemetryEnabled
-    ? resolveAnonymousInstallId(env, options.sessionId)
+    ? resolveInstallId(env, options.sessionId)
     : Promise.resolve("");
   const agentPromise = telemetryEnabled ? detectAgent() : Promise.resolve(null);
 
@@ -255,6 +278,7 @@ function commandCompletedProperties(
       failureTelemetry?.requestHadHttpResponse ??
       runTelemetry.requestHadHttpResponse ??
       null,
+    skill_id: runTelemetry.skillId ?? null,
   };
 }
 
@@ -351,60 +375,6 @@ function parseTimeoutMs(value: string | undefined): number {
 
 function normalizeHost(host: string): string {
   return host.endsWith("/") ? host.slice(0, -1) : host;
-}
-
-async function resolveAnonymousInstallId(
-  env: NodeJS.ProcessEnv,
-  fallbackId?: string,
-): Promise<string> {
-  const installIdPath = resolveInstallIdPath(env);
-
-  try {
-    const existing = (await readFile(installIdPath, "utf8")).trim();
-    if (existing) {
-      return existing;
-    }
-  } catch {
-    // Fall through and create a new anonymous install ID.
-  }
-
-  const installId = fallbackId ?? randomUUID();
-
-  try {
-    await mkdir(dirname(installIdPath), { recursive: true });
-    await writeFile(installIdPath, `${installId}\n`, "utf8");
-  } catch {
-    // If persistence fails, continue with an in-memory anonymous ID.
-  }
-
-  return installId;
-}
-
-function resolveInstallIdPath(env: NodeJS.ProcessEnv): string {
-  const overriddenPath = env.BROWSERBASE_TELEMETRY_INSTALL_ID_FILE;
-  if (overriddenPath) {
-    return overriddenPath;
-  }
-
-  if (process.platform === "win32") {
-    const baseDir =
-      env.APPDATA ?? env.LOCALAPPDATA ?? join(homedir(), "AppData", "Roaming");
-    return join(baseDir, "Browserbase", "cli", "telemetry-id");
-  }
-
-  if (process.platform === "darwin") {
-    return join(
-      homedir(),
-      "Library",
-      "Application Support",
-      "Browserbase",
-      "cli",
-      "telemetry-id",
-    );
-  }
-
-  const baseDir = env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
-  return join(baseDir, "browserbase", "cli", "telemetry-id");
 }
 
 function isTelemetryDisabled(env: NodeJS.ProcessEnv): boolean {

@@ -619,11 +619,13 @@ class BrowseCliPageHandle implements CorePageHandle {
   }
 
   async represent(): Promise<PageRepresentation> {
+    // BROWSE_SNAPSHOT_FULL=1 includes the ref maps in the snapshot.
+    const full = process.env.BROWSE_SNAPSHOT_FULL === "1";
     const snapshot = await this.runCommandAfterSelecting<{
       tree: string;
       xpathMap?: Record<string, string>;
       urlMap?: Record<string, string>;
-    }>(["snapshot"]);
+    }>(full ? ["snapshot", "--full"] : ["snapshot"]);
     const content = snapshot.tree;
 
     return {
@@ -632,7 +634,10 @@ class BrowseCliPageHandle implements CorePageHandle {
       metadata: {
         bytes: Buffer.byteLength(content, "utf8"),
         tokenEstimate: Math.ceil(content.length / 4),
-        refCount: Object.keys(snapshot.xpathMap ?? {}).length,
+        // Count refs from xpathMap when present, else from the tree.
+        refCount: snapshot.xpathMap
+          ? Object.keys(snapshot.xpathMap).length
+          : (content.match(/\[\d+-\d+\]/g)?.length ?? 0),
       },
       raw: snapshot,
     };

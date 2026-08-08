@@ -15,6 +15,7 @@ export default class Open extends BrowseCommand {
     "browse open https://example.com",
     "browse open https://example.com --local --headed",
     "browse open https://example.com --remote",
+    "browse open https://example.com --remote --verified --proxies",
     "browse open https://example.com --auto-connect",
     "browse open https://example.com --cdp 9222",
     "browse open https://example.com --cdp ws://127.0.0.1:9222/devtools/browser/<id> --target-id <target-id>",

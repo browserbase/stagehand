@@ -136,6 +136,49 @@ describe("claude code runner helpers", () => {
     expect(String(result.error)).toContain("maximum number of turns");
   });
 
+  it("surfaces verifier integration failures as verifierError on the self-reported result", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield {
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "text",
+                text: 'EVAL_RESULT: {"success":true,"summary":"done","finalAnswer":"done"}',
+              },
+            ],
+          },
+        };
+      },
+    };
+
+    const result = await runClaudeCodeAgent({
+      plan,
+      model: "anthropic/claude-sonnet-4-20250514" as AvailableModel,
+      logger: new EvalLogger(false),
+      sdk,
+      verifier: {
+        v3: {} as never,
+        taskSpec: {
+          id: "wv-1",
+          instruction: plan.instruction,
+          // Malformed rubric — normalizeRubric throws inside the verifier
+          // path, exercising the integration-failure fallback.
+          precomputedRubric: {} as never,
+        },
+        dataset: "webvoyager",
+      },
+    });
+
+    // The agent's self-report is preserved, the failure is visible, and no
+    // verifier-graded fields are present.
+    expect(result._success).toBe(true);
+    expect(String(result.verifierError)).toContain("items array");
+    expect(result.outcomeSuccess).toBeUndefined();
+    expect(result.processScore).toBeUndefined();
+  });
+
   it("reports Claude Code token usage as Braintrust metrics", async () => {
     const sdk: ClaudeAgentSdk = {
       query: async function* () {

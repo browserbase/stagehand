@@ -74,6 +74,9 @@ describe("LLM and Agents public API types", () => {
       "openai/gpt-5.4",
       "openai/gpt-5.4-mini",
       "openai/gpt-5.5",
+      "openai/gpt-5.6-terra",
+      "openai/gpt-5.6-luna",
+      "openai/gpt-5.6-sol",
       "anthropic/claude-opus-4-5-20251101",
       "anthropic/claude-opus-4-6",
       "anthropic/claude-opus-4-8",
@@ -85,6 +88,7 @@ describe("LLM and Agents public API types", () => {
       "anthropic/claude-fable-5",
       "google/gemini-2.5-computer-use-preview-10-2025",
       "google/gemini-3-flash-preview",
+      "google/gemini-3.5-flash",
       "google/gemini-3-pro-preview",
       "microsoft/fara-7b",
     ] as const;
@@ -170,7 +174,9 @@ describe("LLM and Agents public API types", () => {
         ) => Promise<unknown>;
         setViewport: (width: number, height: number) => void;
         setCurrentUrl: (url: string) => void;
-        setScreenshotProvider: (provider: () => Promise<string>) => void;
+        setScreenshotProvider: (
+          provider: () => Promise<Stagehand.ScreenshotProviderResult>,
+        ) => void;
         setActionHandler: (
           handler: (action: Stagehand.AgentAction) => Promise<void>,
         ) => void;

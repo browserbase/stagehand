@@ -88,7 +88,7 @@ import {
 } from "./types/public/index.js";
 import { V3Context } from "./understudy/context.js";
 import { Page } from "./understudy/page.js";
-import { resolveModel } from "../modelUtils.js";
+import { AUTO_MODEL_NAME, isAutoModel, resolveModel } from "../modelUtils.js";
 import { StagehandAPIClient } from "./api.js";
 import { validateExperimentalFeatures } from "./agent/utils/validateExperimentalFeatures.js";
 import { flattenVariables } from "./agent/utils/variables.js";
@@ -98,6 +98,7 @@ import { EventStore } from "./flowlogger/EventStore.js";
 import { createTimeoutGuard } from "./handlers/handlerUtils/timeoutGuard.js";
 import { ActTimeoutError } from "./types/public/sdkErrors.js";
 
+const AUTO_MODEL_API_ONLY_MESSAGE = `model: "${AUTO_MODEL_NAME}" is only supported when running through the Stagehand API (env: "BROWSERBASE" with disableAPI: false and experimental: false). Specify a concrete model (e.g. "openai/gpt-5") instead.`;
 const DEFAULT_MODEL_NAME = "openai/gpt-4.1-mini";
 const DEFAULT_VIEWPORT = { width: 1288, height: 711 };
 const DEFAULT_AGENT_TOOL_TIMEOUT_MS = 45000;
@@ -222,6 +223,17 @@ export class V3 {
    */
   public get isAdvancedStealth(): boolean {
     return this.isVerified;
+  }
+
+  /**
+   * Whether coordinate pointer actions should actuate as touch instead of mouse.
+   *
+   * Explicit opt-in via the `useTouch` option — no session-derived or probed
+   * detection, so the answer is known before the first action, is stable for the
+   * whole run, and never surprises a caller who didn't ask for touch.
+   */
+  public get usesTouch(): boolean {
+    return this.opts.useTouch === true;
   }
 
   /**
@@ -356,7 +368,19 @@ export class V3 {
     const baseClientOptions: ClientOptions = clientOptions
       ? ({ ...clientOptions } as ClientOptions)
       : ({} as ClientOptions);
-    if (opts.llmClient) {
+    if (isAutoModel(this.modelName)) {
+      if (
+        opts.llmClient ||
+        opts.env !== "BROWSERBASE" ||
+        this.disableAPI ||
+        this.experimental
+      ) {
+        throw new StagehandInvalidArgumentError(AUTO_MODEL_API_ONLY_MESSAGE);
+      }
+      // "auto" delegates model selection to the Stagehand API, so no local
+      // LLM client is created and no provider API key is required.
+      this.modelClientOptions = baseClientOptions;
+    } else if (opts.llmClient) {
       this.llmClient = opts.llmClient;
       this.modelClientOptions = baseClientOptions;
       this.disableAPI = true;
@@ -579,6 +603,16 @@ export class V3 {
       modelName = overrideModelName;
       clientOptions = rest as ClientOptions;
       perCallMiddleware = middleware;
+    }
+
+    if (isAutoModel(modelName)) {
+      if (!this.apiClient) {
+        throw new StagehandInvalidArgumentError(AUTO_MODEL_API_ONLY_MESSAGE);
+      }
+      // The Stagehand API resolves "auto" server-side and intercepts every
+      // act/extract/observe, so the local client is never dereferenced here.
+      // Note it is undefined when the session's base model is also "auto".
+      return this.llmClient;
     }
 
     if (
@@ -1087,10 +1121,23 @@ export class V3 {
               verbose: this.verbose,
               systemPrompt: this.opts.systemPrompt,
               selfHeal: this.opts.selfHeal,
+              useTouch: this.opts.useTouch,
               browserbaseSessionCreateParams: createSessionPayload,
               browserbaseSessionID: this.opts.browserbaseSessionID,
             });
             if (!available) {
+              if (isAutoModel(this.modelName)) {
+                // "auto" has no local fallback; end the just-created session
+                // best-effort before surfacing the error. Never end a
+                // caller-supplied (resumed) session we didn't create.
+                if (!this.opts.browserbaseSessionID) {
+                  await this.apiClient.end().catch(() => {});
+                }
+                this.apiClient = null;
+                throw new StagehandInitError(
+                  `model: "${AUTO_MODEL_NAME}" requires the Stagehand API, but it is unavailable for this session (sessionId: ${sessionId}). Specify a concrete model (e.g. "openai/gpt-5") instead.`,
+                );
+              }
               this.apiClient = null;
             }
             this.opts.browserbaseSessionID = sessionId;
@@ -1289,7 +1336,10 @@ export class V3 {
       const canUseCache =
         typeof input === "string" &&
         !this.isAgentReplayRecording() &&
-        this.actCache.enabled;
+        this.actCache.enabled &&
+        // "auto" sessions have no local LLM client for replay self-heal;
+        // rely on the API (and its server-side cache) instead.
+        !isAutoModel(this.modelName);
       if (canUseCache) {
         actCacheContext = await this.actCache.prepareContext(
           input,
@@ -1982,14 +2032,24 @@ export class V3 {
         cua: { value: isCuaMode ? "true" : "false", type: "boolean" },
         mode: { value: loggedMode, type: "string" },
         model: {
-          value: extractModelName(options?.model) ?? this.llmClient.modelName,
+          value:
+            extractModelName(options?.model) ??
+            this.llmClient?.modelName ??
+            this.modelName,
           type: "string",
         },
         systemPrompt: { value: options?.systemPrompt ?? "", type: "string" },
         tools: { value: JSON.stringify(options?.tools ?? {}), type: "object" },
         ...(options?.integrations && {
           integrations: {
-            value: JSON.stringify(options.integrations),
+            // Integrations may contain live MCP `Client` instances (from
+            // connectToMCPServer), which are circular and throw in JSON.stringify.
+            // Log a safe descriptor instead: keep URL strings, summarize clients.
+            value: JSON.stringify(
+              options.integrations.map((integration) =>
+                typeof integration === "string" ? integration : "[mcp client]",
+              ),
+            ),
             type: "object",
           },
         }),

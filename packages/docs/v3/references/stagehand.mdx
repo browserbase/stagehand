@@ -60,6 +60,7 @@ interface V3Options {
   cacheDir?: string;
   keepAlive?: boolean;
   serverCache?: boolean;
+  useTouch?: boolean;
 
   // Logging options
   verbose?: 0 | 1 | 2;
@@ -235,6 +236,16 @@ interface V3Options {
   Can be overridden per-call via the `serverCache` option on `act()`, `extract()`, and `observe()`.
 
   **Default:** `true`
+</ParamField>
+
+<ParamField path="useTouch" type="boolean" optional>
+  Actuate coordinate pointer actions as a real touch tap instead of mouse input. Mobile layouts commonly gate their handlers on touch/pointer events, where a synthesized mouse click never registers (for example, a size selector that keeps reporting "please choose a size").
+
+  This affects coordinate-based actuation used by the `agent()` methods, and enables `page.tap()` / `locator.tap()` to be recorded and replayed as taps. Right-click, middle-click, multi-click, hover, and drag remain mouse-based.
+
+  <Note>Explicit opt-in only. Nothing is derived from the session. Set this whenever the session renders a mobile layout, e.g. a Browserbase session created with `browserSettings.os: "mobile"`.</Note>
+
+  **Default:** `false`
 </ParamField>
 
 #### Logging Options

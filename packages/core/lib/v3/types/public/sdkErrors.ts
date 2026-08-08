@@ -423,6 +423,17 @@ export class StagehandSetExtraHTTPHeadersError extends StagehandError {
   }
 }
 
+export class StagehandSetDomainPolicyError extends StagehandError {
+  public readonly failures: string[];
+
+  constructor(failures: string[]) {
+    super(
+      `setDomainPolicy failed for ${failures.length} session(s): ${failures.join(", ")}`,
+    );
+    this.failures = failures;
+  }
+}
+
 export class StagehandSnapshotError extends StagehandError {
   constructor(cause?: unknown) {
     const suffix =

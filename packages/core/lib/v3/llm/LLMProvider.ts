@@ -1,4 +1,7 @@
-import type { LanguageModelV2Middleware } from "@ai-sdk/provider";
+import type {
+  LanguageModelV2,
+  LanguageModelV2Middleware,
+} from "@ai-sdk/provider";
 import {
   UnsupportedAISDKModelProviderError,
   UnsupportedModelError,
@@ -148,6 +151,7 @@ const modelToProviderMap: { [key in AvailableModel]: ModelProvider } = {
   "gemini-2.0-flash": "google",
   "gemini-2.5-flash-preview-04-17": "google",
   "gemini-2.5-pro-preview-03-25": "google",
+  "gemini-3.5-flash": "google",
 };
 
 export function getAISDKLanguageModel(
@@ -155,16 +159,26 @@ export function getAISDKLanguageModel(
   subModelName: string,
   clientOptions?: ClientOptions,
   middleware?: LanguageModelV2Middleware,
-) {
-  const aiSdkClientOptions = toAISDKClientOptions(subProvider, clientOptions);
+): LanguageModelV2 {
+  const { openaiEndpointFormat, ...providerClientOptions } =
+    clientOptions ?? {};
+  const aiSdkClientOptions = toAISDKClientOptions(
+    subProvider,
+    providerClientOptions,
+  );
   const hasValidOptions =
     aiSdkClientOptions &&
     Object.values(aiSdkClientOptions).some(
       (v) => v !== undefined && v !== null,
     );
 
-  let model;
-  if (hasValidOptions) {
+  let model: LanguageModelV2;
+  if (subProvider === "openai" && openaiEndpointFormat === "chat") {
+    const provider = hasValidOptions
+      ? createOpenAI(aiSdkClientOptions)
+      : openai;
+    model = provider.chat(subModelName);
+  } else if (hasValidOptions) {
     const creator = AISDKProvidersWithAPIKey[subProvider];
     if (!creator) {
       throw new UnsupportedAISDKModelProviderError(

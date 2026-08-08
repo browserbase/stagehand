@@ -27,6 +27,16 @@ import { Page as PuppeteerPage } from "puppeteer-core";
 import { Page as PatchrightPage } from "patchright-core";
 import { Page } from "../../understudy/page.js";
 
+/**
+ * Result of a screenshot provider: the base64-encoded image bytes plus an
+ * explicit media type. Declaring the media type at the capture boundary lets
+ * every CUA client pass it through instead of hardcoding or inferring it.
+ */
+export interface ScreenshotProviderResult {
+  base64: string;
+  mediaType: "image/png" | "image/jpeg";
+}
+
 // =============================================================================
 // Variable Types
 // =============================================================================
@@ -459,6 +469,9 @@ export const AVAILABLE_CUA_MODELS = [
   "openai/gpt-5.4",
   "openai/gpt-5.4-mini",
   "openai/gpt-5.5",
+  "openai/gpt-5.6-terra",
+  "openai/gpt-5.6-luna",
+  "openai/gpt-5.6-sol",
   "openai/computer-use-preview",
   "openai/computer-use-preview-2025-03-11",
   "anthropic/claude-opus-4-5-20251101",
@@ -472,6 +485,7 @@ export const AVAILABLE_CUA_MODELS = [
   "anthropic/claude-fable-5",
   "google/gemini-2.5-computer-use-preview-10-2025",
   "google/gemini-3-flash-preview",
+  "google/gemini-3.5-flash",
   "google/gemini-3-pro-preview",
   "microsoft/fara-7b",
 ] as const;

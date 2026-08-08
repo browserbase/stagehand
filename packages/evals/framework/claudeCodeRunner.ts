@@ -4,6 +4,11 @@ import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
+import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
+import {
+  gradeExternalTrajectory,
+  type ExternalHarnessVerifierConfig,
+} from "./verifierAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
@@ -23,6 +28,16 @@ export interface ClaudeCodeRunnerInput {
   toolAdapter?: PreparedClaudeCodeToolAdapter;
   signal?: AbortSignal;
   sdk?: ClaudeAgentSdk;
+  /**
+   * Optional verifier integration. When provided, the runner builds a
+   * Trajectory from the SDK message stream (via claudeCodeAdapter), runs
+   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
+   * the EvaluationResult into the returned TaskResult ({_success} mode follows
+   * EVAL_SUCCESS_MODE).
+   * When omitted, the runner falls back to parsing the legacy EVAL_RESULT
+   * line — preserves current behavior for callers that haven't migrated.
+   */
+  verifier?: ExternalHarnessVerifierConfig;
 }
 
 export interface ParsedClaudeCodeResult {
@@ -124,6 +139,7 @@ export async function runClaudeCodeAgent({
   toolAdapter,
   signal,
   sdk: injectedSdk,
+  verifier,
 }: ClaudeCodeRunnerInput): Promise<TaskResult> {
   const sdk = injectedSdk ?? (await loadClaudeAgentSdk());
   const abortController = new AbortController();
@@ -220,8 +236,9 @@ export async function runClaudeCodeAgent({
     parsed.summary ??
     stopReason ??
     (resultText || transcriptText || "Claude Code did not report success");
+  const tokenUsage = extractClaudeCodeTokenUsage(resultMessage);
 
-  return {
+  const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
     reasoning: parsed.summary,
@@ -232,6 +249,34 @@ export async function runClaudeCodeAgent({
     logs: logger.getLogs(),
     metrics: buildClaudeCodeMetrics(resultMessage),
   };
+
+  if (!verifier) {
+    return baseResult;
+  }
+
+  // Build a Trajectory from the SDK message stream and grade it with the
+  // rubric verifier; any failure in that path folds into `verifierError`.
+  return gradeExternalTrajectory({
+    buildTrajectory: () =>
+      claudeCodeAdapter.fromHarnessResult(
+        {
+          messages,
+          finalAnswer: parsed.finalAnswer ?? resultText,
+          status: status === "completed" ? "complete" : "error",
+          usage: {
+            input_tokens: tokenUsage.inputTokens,
+            output_tokens: tokenUsage.outputTokens,
+            cached_input_tokens: tokenUsage.cacheReadInputTokens,
+          },
+        },
+        verifier.taskSpec,
+      ),
+    verifier,
+    baseResult,
+    errorMessage,
+    category: "claude_code",
+    logger,
+  });
 }
 
 function buildClaudeCodeMetrics(

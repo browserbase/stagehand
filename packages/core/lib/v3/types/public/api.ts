@@ -207,6 +207,11 @@ const ModelConfigBaseSchema = z
   .strict();
 
 export const GenericModelConfigObjectSchema = ModelConfigBaseSchema.extend({
+  openaiEndpointFormat: z.enum(["responses", "chat"]).optional().meta({
+    description:
+      "Wire format used by an OpenAI-compatible endpoint. Defaults to the Responses API; use chat for Chat Completions-only endpoints.",
+    example: "chat",
+  }),
   provider: z
     .enum(["openai", "anthropic", "google", "microsoft", "bedrock"])
     .optional()
@@ -549,6 +554,11 @@ export const SessionStartRequestSchema = z
     }),
     actTimeoutMs: z.number().optional().meta({
       description: "Timeout in ms for act operations (deprecated, v2 only)",
+    }),
+    useTouch: z.boolean().optional().meta({
+      description:
+        "Actuate coordinate pointer actions as trusted touch taps instead of mouse input (for sessions rendering a mobile layout)",
+      example: false,
     }),
   })
   .meta({ id: "SessionStartRequest" });

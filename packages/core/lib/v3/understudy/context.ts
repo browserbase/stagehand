@@ -17,6 +17,7 @@ import {
   CookieSetError,
   PageNotFoundError,
   StagehandSetExtraHTTPHeadersError,
+  StagehandSetDomainPolicyError,
 } from "../types/public/sdkErrors.js";
 import { getEnvTimeoutMs, withTimeout } from "../timeoutConfig.js";
 import {
@@ -29,12 +30,23 @@ import {
   Cookie,
   ClearCookieOptions,
   CookieParam,
+  DomainPolicy,
 } from "../types/public/context.js";
+import {
+  getDomainPolicyDecision,
+  normalizeDomainPolicy,
+} from "./domainPolicy.js";
+import type { NormalizedDomainPolicy } from "./domainPolicy.js";
 
 type TargetId = string;
 type SessionId = string;
 
 type TargetType = "page" | "iframe" | string;
+
+function isMissingTargetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /No target with given id found/i.test(message);
+}
 
 /**
  * Returns true when the target's URL points to a document with a real,
@@ -113,6 +125,10 @@ export class V3Context {
   // Timestamp for most recent popup/open signal
   private _lastPopupSignalAt = 0;
   private readonly _targetSessionListeners = new Set<SessionId>();
+  private readonly _domainPolicySessionListeners = new Map<
+    SessionId,
+    (evt: Protocol.Fetch.RequestPausedEvent) => void
+  >();
 
   private readonly _sessionInit = new Set<SessionId>();
   private pagesByTarget = new Map<TargetId, Page>();
@@ -124,8 +140,17 @@ export class V3Context {
   private typeByTarget = new Map<TargetId, TargetType>();
   private _pageOrder: TargetId[] = [];
   private pendingCreatedTargetUrl = new Map<TargetId, string>();
+  private pageCreationFailures = new Map<TargetId, Error>();
+  // Popup close attempts can race targetCreated, targetInfoChanged, and attached.
+  // In-flight promises let attach wait for a close result before deciding whether
+  // to skip normal setup. Successful closes stay deduped for the context lifetime
+  // because Chrome can emit late targetInfoChanged events after targetDestroyed.
+  // Failed closes are not retained so attach can continue and future events may retry.
+  private domainPolicyClosingTargets = new Set<TargetId>();
+  private domainPolicyClosePromises = new Map<TargetId, Promise<boolean>>();
   private readonly initScripts: string[] = [];
   private extraHttpHeaders: Record<string, string> | null = null;
+  private domainPolicy: NormalizedDomainPolicy | null = null;
   private _clipboard?: ContextClipboard;
 
   private installTargetSessionListeners(session: CDPSessionLike): void {
@@ -425,6 +450,153 @@ export class V3Context {
     }
   }
 
+  public getDomainPolicy(): DomainPolicy | null {
+    if (!this.domainPolicy) return null;
+    return {
+      ...(this.domainPolicy.allowedDomains.length
+        ? { allowedDomains: [...this.domainPolicy.allowedDomains] }
+        : {}),
+      ...(this.domainPolicy.blockedDomains.length
+        ? { blockedDomains: [...this.domainPolicy.blockedDomains] }
+        : {}),
+    };
+  }
+
+  public async setDomainPolicy(policy: DomainPolicy | null): Promise<void> {
+    const nextPolicy = normalizeDomainPolicy(policy);
+    this.domainPolicy = nextPolicy;
+
+    const sessions: CDPSessionLike[] = [];
+    for (const sessionId of this._sessionInit) {
+      const session = this.conn.getSession(sessionId);
+      if (session) sessions.push(session);
+    }
+
+    if (!sessions.length) return;
+
+    const results = await Promise.allSettled(
+      sessions.map(async (session) => {
+        if (!nextPolicy) {
+          try {
+            await session.send("Fetch.disable");
+            this.uninstallDomainPolicyHandler(session);
+          } catch (error) {
+            throw { action: "disable", error };
+          }
+          return;
+        }
+
+        this.installDomainPolicyHandler(session);
+        try {
+          await session.send("Fetch.enable", {
+            patterns: nextPolicy.fetchPatterns,
+          });
+        } catch (error) {
+          throw { action: "enable", error };
+        }
+      }),
+    );
+
+    const failures = results
+      .map((result, index) => ({ result, session: sessions[index] }))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          result: PromiseRejectedResult;
+          session: CDPSessionLike;
+        } => entry.result.status === "rejected",
+      )
+      .map((entry) => {
+        const failure = entry.result.reason as {
+          action?: "enable" | "disable";
+          error?: unknown;
+        };
+        if (failure?.action === "enable") {
+          this.uninstallDomainPolicyHandler(entry.session);
+        }
+        const reason = failure?.error ?? entry.result.reason;
+        const sid = entry.session.id ?? "unknown";
+        const message =
+          reason instanceof Error ? reason.message : String(reason);
+        return `session=${sid} error=${message}`;
+      });
+
+    if (failures.length) {
+      throw new StagehandSetDomainPolicyError(failures);
+    }
+  }
+
+  private installDomainPolicyHandler(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+    if (this._domainPolicySessionListeners.has(sessionId)) return;
+
+    const handler = (evt: Protocol.Fetch.RequestPausedEvent) => {
+      void this.handleDomainPolicyRequestPaused(session, evt);
+    };
+    this._domainPolicySessionListeners.set(sessionId, handler);
+    session.on<Protocol.Fetch.RequestPausedEvent>(
+      "Fetch.requestPaused",
+      handler,
+    );
+  }
+
+  private uninstallDomainPolicyHandler(session: CDPSessionLike): void {
+    const sessionId = session.id;
+    if (!sessionId) return;
+
+    const handler = this._domainPolicySessionListeners.get(sessionId);
+    if (!handler) return;
+
+    session.off<Protocol.Fetch.RequestPausedEvent>(
+      "Fetch.requestPaused",
+      handler,
+    );
+    this._domainPolicySessionListeners.delete(sessionId);
+  }
+
+  private async handleDomainPolicyRequestPaused(
+    session: CDPSessionLike,
+    evt: Protocol.Fetch.RequestPausedEvent,
+  ): Promise<void> {
+    const decision = getDomainPolicyDecision(
+      evt.request.url,
+      this.domainPolicy,
+    );
+
+    if (decision.action === "continue") {
+      await session
+        .send("Fetch.continueRequest", { requestId: evt.requestId })
+        .catch(() => {});
+      return;
+    }
+
+    let hostname = "";
+    try {
+      hostname = new URL(evt.request.url).hostname.toLowerCase();
+    } catch {
+      // ignore malformed URLs for logging
+    }
+
+    v3Logger({
+      category: "network",
+      message: "Blocked request by domain policy",
+      level: 2,
+      auxiliary: {
+        hostname: { value: hostname, type: "string" },
+        ruleType: { value: decision.reason, type: "string" },
+      },
+    });
+
+    await session
+      .send("Fetch.failRequest", {
+        requestId: evt.requestId,
+        errorReason: "BlockedByClient",
+      })
+      .catch(() => {});
+  }
+
   public get clipboard(): BrowserClipboard {
     return (this._clipboard ??= new ContextClipboard({
       context: this,
@@ -503,6 +675,13 @@ export class V3Context {
 
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
+      const failure = this.pageCreationFailures.get(targetId);
+      if (failure) {
+        this.pageCreationFailures.delete(targetId);
+        this.pendingCreatedTargetUrl.delete(targetId);
+        throw failure;
+      }
+
       const page = this.pagesByTarget.get(targetId);
       if (page) {
         // we created at about:blank; navigate only after attach so init scripts run
@@ -518,6 +697,7 @@ export class V3Context {
       }
       await new Promise((r) => setTimeout(r, 25));
     }
+    this.pendingCreatedTargetUrl.delete(targetId);
     throw new TimeoutError(`newPage: target not attached (${targetId})`, 5000);
   }
 
@@ -534,6 +714,9 @@ export class V3Context {
     this.createdAtByTarget.clear();
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
+    this.pageCreationFailures.clear();
+    this.domainPolicyClosingTargets.clear();
+    this.domainPolicyClosePromises.clear();
   }
 
   /**
@@ -575,7 +758,17 @@ export class V3Context {
         const ti = info;
         if (info.type === "page" && (ti?.openerId || ti?.openerFrameId)) {
           this._notePopupSignal();
+          void this.closePopupIfBlockedByDomainPolicy(info, "targetCreated");
         }
+      },
+    );
+    this.conn.on<Protocol.Target.TargetInfoChangedEvent>(
+      "Target.targetInfoChanged",
+      (evt) => {
+        void this.closePopupIfBlockedByDomainPolicy(
+          evt.targetInfo,
+          "targetInfoChanged",
+        );
       },
     );
 
@@ -610,6 +803,10 @@ export class V3Context {
     info: Protocol.Target.TargetInfo,
     sessionId: SessionId,
   ): Promise<void> {
+    if (await this.closePopupIfBlockedByDomainPolicy(info, "attached")) {
+      return;
+    }
+
     // Skip non-web targets (workers, chrome extensions, background pages, etc.).
     // They still need to be resumed so we don't leave them paused by
     // waitForDebuggerOnStart, but injecting the piercer into these targets
@@ -668,6 +865,24 @@ export class V3Context {
         .catch(() => false);
       return { dispatched, response };
     };
+    const queueFetchEnablePreResume = (params: object) => {
+      let error: unknown;
+      const dispatched = this.conn
+        .waitForSessionDispatch(sessionId, "Fetch.enable")
+        .then(() => true)
+        .catch((err) => {
+          error = err;
+          return false;
+        });
+      const response = session
+        .send("Fetch.enable", params)
+        .then(() => true)
+        .catch((err) => {
+          error = err;
+          return false;
+        });
+      return { dispatched, response, getError: () => error };
+    };
     const initScriptOps: Array<{
       dispatched: Promise<boolean>;
       response: Promise<boolean>;
@@ -695,6 +910,19 @@ export class V3Context {
       headerPreResumeOps.push(queuePreResume("Network.enable"));
       headerPreResumeOps.push(
         queuePreResume("Network.setExtraHTTPHeaders", { headers }),
+      );
+    }
+    const fetchPreResumeOps: Array<{
+      dispatched: Promise<boolean>;
+      response: Promise<boolean>;
+      getError: () => unknown;
+    }> = [];
+    if (this.domainPolicy) {
+      this.installDomainPolicyHandler(session);
+      fetchPreResumeOps.push(
+        queueFetchEnablePreResume({
+          patterns: this.domainPolicy.fetchPatterns,
+        }),
       );
     }
     // Send init scripts only after auto-attach has been queued.
@@ -728,6 +956,7 @@ export class V3Context {
       await Promise.all([
         ...corePreResumeOps.map((op) => op.dispatched),
         ...headerPreResumeOps.map((op) => op.dispatched),
+        ...fetchPreResumeOps.map((op) => op.dispatched),
         ...initScriptOps.map((op) => op.dispatched),
         piercerPreloadOp.dispatched,
       ])
@@ -741,11 +970,13 @@ export class V3Context {
     const [
       coreResults,
       headerResults,
+      fetchResults,
       initScriptResults,
       piercerPreRegistered,
     ] = await Promise.all([
       Promise.all(corePreResumeOps.map((op) => op.response)),
       Promise.all(headerPreResumeOps.map((op) => op.response)),
+      Promise.all(fetchPreResumeOps.map((op) => op.response)),
       Promise.all(initScriptOps.map((op) => op.response)),
       piercerPreloadOp.response,
     ]);
@@ -778,6 +1009,46 @@ export class V3Context {
       return;
     }
     resumed = true;
+
+    if (fetchPreResumeOps.length > 0 && !fetchResults.every(Boolean)) {
+      this.uninstallDomainPolicyHandler(session);
+      const fetchError = fetchPreResumeOps
+        .map((op) => op.getError())
+        .find((error) => error !== undefined);
+      const fetchErrorMessage = fetchError
+        ? fetchError instanceof Error
+          ? fetchError.message
+          : String(fetchError)
+        : "Fetch.enable failed during target attach";
+      const policyFailureMessage =
+        "Fetch.enable failed during target attach; closing target because " +
+        "Stagehand cannot guarantee domain policy enforcement";
+      if (this.pendingCreatedTargetUrl.has(info.targetId)) {
+        this.pageCreationFailures.set(
+          info.targetId,
+          new StagehandSetDomainPolicyError([
+            `session=${sessionId} target=${info.targetId} error=${policyFailureMessage} cdpError=${fetchErrorMessage}`,
+          ]),
+        );
+      }
+      v3Logger({
+        category: "ctx",
+        message: "Closing target because domain policy could not be guaranteed",
+        level: 0,
+        auxiliary: {
+          targetId: { value: String(info.targetId), type: "string" },
+          targetType: { value: String(info.type), type: "string" },
+          targetUrl: { value: String(info.url ?? ""), type: "string" },
+          sessionId: { value: sessionId, type: "string" },
+          cdpError: { value: fetchErrorMessage, type: "string" },
+        },
+      });
+      await this.conn
+        .send("Target.closeTarget", { targetId: info.targetId })
+        .catch(() => {});
+      return;
+    }
+
     const scriptsInstalled =
       coreResults.every(Boolean) && initScriptResults.every(Boolean);
 
@@ -906,6 +1177,84 @@ export class V3Context {
     }
   }
 
+  private async closePopupIfBlockedByDomainPolicy(
+    info: Protocol.Target.TargetInfo,
+    source: "targetCreated" | "targetInfoChanged" | "attached",
+  ): Promise<boolean> {
+    if (!this.domainPolicy || !isTopLevelPage(info)) return false;
+    if (!info.openerId && !info.openerFrameId) return false;
+    if (this.domainPolicyClosingTargets.has(info.targetId)) return true;
+
+    const existingClose = this.domainPolicyClosePromises.get(info.targetId);
+    if (existingClose) {
+      return source === "attached" ? await existingClose : true;
+    }
+
+    const decision = getDomainPolicyDecision(info.url ?? "", this.domainPolicy);
+    if (decision.action === "continue") return false;
+
+    v3Logger({
+      category: "network",
+      message:
+        "Popup reached a disallowed domain before it could be intercepted; closing it",
+      level: 2,
+      auxiliary: {
+        targetId: { value: String(info.targetId), type: "string" },
+        targetUrl: { value: String(info.url ?? ""), type: "string" },
+        openerId: { value: String(info.openerId ?? ""), type: "string" },
+        openerFrameId: {
+          value: String(info.openerFrameId ?? ""),
+          type: "string",
+        },
+        ruleType: { value: decision.reason, type: "string" },
+        source: { value: source, type: "string" },
+      },
+    });
+
+    const closePromise = this.closeTargetAfterDomainPolicyViolation(info, {
+      failureMessage:
+        "Failed to close popup after it reached a disallowed domain",
+    }).then((closed) => {
+      this.domainPolicyClosePromises.delete(info.targetId);
+      if (closed) {
+        this.domainPolicyClosingTargets.add(info.targetId);
+      }
+      return closed;
+    });
+    this.domainPolicyClosePromises.set(info.targetId, closePromise);
+    return await closePromise;
+  }
+
+  private async closeTargetAfterDomainPolicyViolation(
+    info: Protocol.Target.TargetInfo,
+    opts: { failureMessage: string },
+  ): Promise<boolean> {
+    try {
+      await this.conn.send("Target.closeTarget", { targetId: info.targetId });
+      return true;
+    } catch (error) {
+      if (isMissingTargetError(error)) {
+        return true;
+      }
+
+      v3Logger({
+        category: "network",
+        message: opts.failureMessage,
+        level: 0,
+        auxiliary: {
+          targetId: { value: String(info.targetId), type: "string" },
+          targetType: { value: String(info.type), type: "string" },
+          targetUrl: { value: String(info.url ?? ""), type: "string" },
+          error: {
+            value: error instanceof Error ? error.message : String(error),
+            type: "string",
+          },
+        },
+      });
+      return false;
+    }
+  }
+
   /**
    * Detach handler:
    * - Remove child session ownership and prune its subtree.
@@ -933,6 +1282,12 @@ export class V3Context {
     }
 
     this._targetSessionListeners.delete(sessionId);
+    const session = this.conn.getSession(sessionId);
+    if (session) {
+      this.uninstallDomainPolicyHandler(session);
+    } else {
+      this._domainPolicySessionListeners.delete(sessionId);
+    }
     this._sessionInit.delete(sessionId);
     this._piercerInstalled.delete(sessionId);
   }
@@ -944,6 +1299,7 @@ export class V3Context {
     const page = this.pagesByTarget.get(targetId);
     if (!page) return;
 
+    this.pageCreationFailures.delete(targetId);
     const mainId = page.mainFrameId();
     this.mainFrameToTarget.delete(mainId);
     this.frameOwnerPage.delete(mainId);
