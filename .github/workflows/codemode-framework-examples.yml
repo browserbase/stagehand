@@ -99,8 +99,10 @@ jobs:
       - run: >-
           python -m py_compile
           packages/integrations/examples/shared/modal_stdio_bridge.py
+          packages/integrations/examples/shared/test_modal_stdio_bridge.py
           packages/integrations/examples/crewai/agent.py
           packages/integrations/examples/crewai/smoke.py
+      - run: python packages/integrations/examples/shared/test_modal_stdio_bridge.py
       - run: python packages/integrations/examples/crewai/smoke.py
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
