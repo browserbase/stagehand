@@ -5,7 +5,8 @@ packages:
 catalogMode: prefer
 
 catalog:
-  "@ai-sdk/mcp": 2.0.8
+  "@ai-sdk/mcp": 2.0.21
+  e2b: 2.37.0
   "@modelcontextprotocol/sdk": 1.29.0
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6

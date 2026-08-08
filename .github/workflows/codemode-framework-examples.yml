@@ -2,6 +2,7 @@ name: Code-mode framework examples
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - ".github/workflows/codemode-framework-examples.yml"
       - "packages/integrations/**"
@@ -31,10 +32,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  vercel:
-    name: Vercel AI SDK
+  framework:
+    name: ${{ matrix.name }}
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Vercel AI SDK
+            package: "@browserbasehq/stagehand-integrations-example-vercel"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -46,8 +57,8 @@ jobs:
         id: setup-chrome
 
       - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel typecheck
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel smoke
+      - run: pnpm --filter ${{ matrix.package }} typecheck
+      - run: pnpm --filter ${{ matrix.package }} smoke
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           STAGEHAND_BROWSER: local

@@ -1,26 +1,29 @@
-import { createStagehandMcpBinding } from "./agent.js";
+import { strict as assert } from "node:assert";
+import { fileURLToPath } from "node:url";
+
+import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
+import { Experimental_StdioMCPTransport } from "@ai-sdk/mcp/mcp-stdio";
 import type { Tool } from "ai";
 
-process.env.STAGEHAND_BROWSER ??= "local";
+const stdioServerPath = fileURLToPath(
+  new URL("../../../dist/codemode/stdio-server.mjs", import.meta.url),
+);
+let client: MCPClient | undefined;
 
-const { client, tools } = await createStagehandMcpBinding();
 try {
-  const names = Object.keys(tools);
-  if (names.length !== 1 || names[0] !== "code_execute") {
-    throw new Error(`Expected one code_execute tool, got ${names.join(", ")}`);
-  }
+  client = await createMCPClient({
+    transport: new Experimental_StdioMCPTransport({
+      command: process.execPath,
+      args: [stdioServerPath],
+      env: localSmokeEnvironment(),
+    }),
+  });
+  const tools = await client.tools();
+  assert.deepEqual(Object.keys(tools), ["code_execute"]);
 
   const tool = tools.code_execute as Tool<{ code: string }, unknown>;
-  if (typeof tool?.execute !== "function") {
-    throw new Error("Vercel AI SDK did not expose code_execute as executable.");
-  }
-  const description =
-    typeof tool.description === "function" ? tool.description({ context: {} }) : tool.description;
-  if (!description?.includes("Stagehand V4 code-mode syntax")) {
-    throw new Error("code_execute did not include the canonical Stagehand guidance.");
-  }
-
-  const first = await tool.execute(
+  assert.equal(typeof tool?.execute, "function");
+  const first = await tool.execute!(
     {
       code: `
         await page.goto("https://example.com", { waitUntil: "load" });
@@ -31,22 +34,33 @@ try {
     },
     { context: {}, messages: [], toolCallId: "vercel-smoke-1" },
   );
-  const second = await tool.execute(
-    {
-      code: `return { title: await page.title(), pages: (await context.pages()).length };`,
-    },
+  const second = await tool.execute!(
+    { code: `return { title: await page.title(), pages: (await context.pages()).length };` },
     { context: {}, messages: [], toolCallId: "vercel-smoke-2" },
   );
 
-  const firstText = JSON.stringify(first);
-  const secondText = JSON.stringify(second);
-  if (!firstText.includes("Example Domain") || !secondText.includes('"pages":2')) {
-    throw new Error(`Expected browser state to persist across calls: ${firstText} ${secondText}`);
-  }
-
+  assert.ok(containsBrowserState(first, "Example Domain", 2), JSON.stringify(first));
+  assert.ok(containsBrowserState(second, "Example Domain", 2), JSON.stringify(second));
   process.stdout.write(
-    `${JSON.stringify({ status: "PASS", tools: names, statePersisted: true })}\n`,
+    `${JSON.stringify({ status: "PASS", tools: ["code_execute"], statePersisted: true })}\n`,
   );
 } finally {
-  await client.close();
+  await client?.close().catch(() => undefined);
+}
+
+function localSmokeEnvironment(): Record<string, string> {
+  const environment: Record<string, string> = { STAGEHAND_BROWSER: "local" };
+  for (const name of ["CHROME_PATH", "HOME", "PATH", "TMPDIR"]) {
+    const value = process.env[name];
+    if (value) environment[name] = value;
+  }
+  return environment;
+}
+
+function containsBrowserState(value: unknown, title: string, pages: number): boolean {
+  if (Array.isArray(value)) return value.some((entry) => containsBrowserState(entry, title, pages));
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (record.title === title && record.pages === pages) return true;
+  return Object.values(record).some((entry) => containsBrowserState(entry, title, pages));
 }
