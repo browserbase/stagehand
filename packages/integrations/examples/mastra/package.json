@@ -1,0 +1,24 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-mastra",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "tsx src/e2e.ts",
+    "test:contract": "tsx --test src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand-integrations-example-vercel-sandbox": "workspace:*",
+    "@mastra/core": "catalog:",
+    "@mastra/mcp": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}
