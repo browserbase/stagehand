@@ -93,10 +93,11 @@ export async function createStagehandSandbox(
 async function waitForOfflineSource(sandbox: Sandbox, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const result = await sandbox.commands.run(`test -f ${STAGEHAND_OFFLINE_MARKER}`, {
-      timeoutMs: 5_000,
-    });
-    if (result.exitCode === 0) return;
+    const result = await sandbox.commands.run(
+      `if [ -f ${STAGEHAND_OFFLINE_MARKER} ]; then echo ready; else echo waiting; fi`,
+      { timeoutMs: 5_000 },
+    );
+    if (result.stdout.trim() === "ready") return;
     await delay(2_000);
   }
   throw new Error("Timed out waiting for the trusted Stagehand source build in E2B");
