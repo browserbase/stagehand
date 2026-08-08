@@ -196,9 +196,7 @@ async def test_experimental_batch_uses_registered_rpc_method(
         assert isinstance(params, CallbackBatchParams)
         assert params.callback_source == source
         assert params.options.timeout == 2_000
-        assert params.options.model_dump(mode="json", exclude_unset=True) == {
-            "timeout": 2_000
-        }
+        assert params.options.model_dump(mode="json", exclude_unset=True) == {"timeout": 2_000}
     finally:
         await stagehand.close()
 
