@@ -16,15 +16,12 @@ If a PR materially adds or changes a hero, tagline, product description, quantit
 
 ## Stagehand positioning
 
-- Position Stagehand as Browserbase's SDK and AI browser driver for building browser agents. Do not position it as a general-purpose agent platform or as a browser automation framework.
-- Keep the browser at the center. Explain how Stagehand combines deterministic code and AI-powered browser primitives instead of making broad claims about agent intelligence.
-- Treat `act()`, `extract()`, `observe()`, and `agent()` as Stagehand primitives. Describe the user outcome before listing primitives or implementation details.
+- Position Stagehand as the SDK for browser agents. Do not position it as a general-purpose agent platform or as a browser automation framework.
+- Explain how Stagehand combines deterministic code and AI-powered browser primitives instead of making broad claims about agent intelligence.
 - Keep Stagehand distinct from Browserbase Agents. Stagehand is the SDK and browser driver; Agents is Browserbase's managed API product. Do not use the names interchangeably.
 - Position computer use as one Stagehand capability, not Stagehand's identity.
-- Connect top-level positioning to the Browserbase narrative that the web was not built for agents, but Browserbase is. Keep Stagehand copy focused on the developer's browser-agent workflow rather than the entire Browserbase platform.
+- Connect top-level positioning that Playwright was not built for agents, but Stagehand is. Keep Stagehand copy focused on the developer's browser-agent workflow rather than the entire Browserbase platform.
 - Lead with one primary idea per page or section. Do not compress every Browserbase product pillar into Stagehand copy.
-- Do not lead Stagehand positioning with Search, Fetch, or other supporting Browserbase products.
-- Do not use commodity-infrastructure metaphors such as pipes, roads, or raw compute. Explain the browser outcome directly.
 - Do not recommend Director in new or modified copy. Director is sunset.
 
 ## Writing style
@@ -32,12 +29,11 @@ If a PR materially adds or changes a hero, tagline, product description, quantit
 - Brevity is mandatory. Every sentence must earn its place. Cut filler words such as "just," "simply," "basically," "actually," "in order to," and "it should be noted that." If a sentence can be shorter without losing meaning, shorten it.
 - Use sentence case in frontmatter `title` and `sidebarTitle` fields, Markdown headings, navigation groups, cards, tabs, accordions, and callout titles. Preserve the official casing of products, APIs, model names, and code identifiers.
 - Use a conversational tone, not a casual one. Text should sound natural if spoken aloud. Contractions are encouraged. Do not use slang or filler phrases like "let's dive in" or "as you can see."
-- Use active voice. For example, replace "the session is created" with "Browserbase creates the session" or "you create the session."
+- Use active voice. For example, replace "the session is created" with "Stagehand creates the session" or "you create the session."
 - Address the reader as "you," not "we."
 - Require the Oxford comma before "and" or "or" in a list of three or more items.
 - Do not use em dashes in prose, frontmatter, tables, or authored code comments. Use a period, colon, comma, parentheses, or a shorter sentence.
 - Capitalize proper nouns and official product names consistently, including Browserbase, Stagehand, and Playwright. Default to lowercase for generic terms.
-- Never use "we," "us," or "our" for Browserbase. Write "Browserbase recommends" or "Browserbase provides." Direct quotes from customers or team members may use first-person plural.
 
 ## Voice
 
