@@ -11,11 +11,11 @@ async def main() -> None:
         try:
             result = await stagehand.experimental_batch(
                 """
-                async ({ page }, input) => {
-                  await page.goto(input.url);
+                async (batch, input) => {
+                  await batch.page.goto(input.url);
                   return {
-                    title: await page.title(),
-                    heading: await page.locator("h1").innerText(),
+                    title: await batch.page.title(),
+                    heading: await batch.page.locator("h1").innerText(),
                   };
                 }
                 """,
