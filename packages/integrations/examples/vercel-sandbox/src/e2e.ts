@@ -6,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 
 import { createStagehandSandbox, stagehandTransport } from "./sandbox.js";
 
+const HTTP_REQUEST_TIMEOUT_MS = 15_000;
 const hostMarker = `host-${randomUUID()}`;
 const stateMarker = `state-${randomUUID()}`;
 const markerPath = `/tmp/stagehand-vercel-proof-${randomUUID()}.json`;
@@ -21,14 +22,18 @@ const client = new Client({ name: "stagehand-vercel-sandbox-e2e", version: "1.0.
 let primaryError: unknown;
 
 try {
-  const unauthorized = await fetch(connection.url);
+  const unauthorized = await fetch(connection.url, {
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
+  });
   assert.equal(unauthorized.status, 401);
   const authorizedHealth = await fetch(new URL("/healthz", connection.url), {
     headers: { Authorization: `Bearer ${connection.token}` },
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   });
   assert.equal(authorizedHealth.status, 200);
   const optionalGetStream = await fetch(connection.url, {
     headers: { Authorization: `Bearer ${connection.token}` },
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   });
   assert.equal(optionalGetStream.status, 405);
   assert.equal(optionalGetStream.headers.get("allow"), "POST, DELETE");
@@ -169,21 +174,6 @@ try {
   assert.equal(secondValue.proxySignalAllowed, false);
   assert.equal(secondValue.sudoAllowed, false);
   assert.equal(existsSync(markerPath), false, "sandbox marker escaped to the host filesystem");
-
-  process.stdout.write(
-    `${JSON.stringify({
-      status: "PASS",
-      tools: ["code_execute"],
-      calls: 2,
-      statePersisted: true,
-      unrelatedEgressBlocked: true,
-      publicAuth: { unauthorized: 401, authorized: 200 },
-      optionalGetStream: 405,
-      credentialBrokered: true,
-      hostIsolated: true,
-      proxyUserIsolated: true,
-    })}\n`,
-  );
 } catch (error) {
   primaryError = error;
 }
@@ -202,11 +192,27 @@ if (cleanupErrors.length > 0) {
   throw new AggregateError(cleanupErrors, "Could not close the MCP client and Vercel Sandbox");
 }
 
+process.stdout.write(
+  `${JSON.stringify({
+    status: "PASS",
+    tools: ["code_execute"],
+    calls: 2,
+    statePersisted: true,
+    unrelatedEgressBlocked: true,
+    publicAuth: { unauthorized: 401, authorized: 200 },
+    optionalGetStream: 405,
+    credentialBrokered: true,
+    hostIsolated: true,
+    proxyUserIsolated: true,
+  })}\n`,
+);
+
 function successfulValue(result: Awaited<ReturnType<Client["callTool"]>>, label: string) {
   const structured = result.structuredContent as { ok?: unknown; value?: unknown } | undefined;
   assert.equal(result.isError ?? false, false, `${label} returned an MCP error`);
   assert.equal(structured?.ok, true, `${label} returned a code error`);
   assert.equal(typeof structured?.value, "object", `${label} returned no value`);
+  assert.notEqual(structured.value, null, `${label} returned no value`);
   return structured.value as Record<string, unknown>;
 }
 

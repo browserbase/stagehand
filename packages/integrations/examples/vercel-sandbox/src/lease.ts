@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 
-import { createStagehandSandbox } from "./sandbox.ts";
+import { createStagehandSandbox } from "./sandbox.js";
 
 const SHUTDOWN_FALLBACK_MS = 35_000;
 
 type LeaseEnd = { signal?: NodeJS.Signals };
 
 try {
+  const stagehandRevision = requiredEnvironment("STAGEHAND_REVISION");
+  const browserbaseApiKey = requiredEnvironment("BROWSERBASE_API_KEY");
+  const browserbaseProjectId = requiredEnvironment("BROWSERBASE_PROJECT_ID");
   const leaseEnd = waitForLeaseEnd();
   const connection = await createStagehandSandbox({
-    stagehandRevision: requiredEnvironment("STAGEHAND_REVISION"),
-    browserbaseApiKey: requiredEnvironment("BROWSERBASE_API_KEY"),
-    browserbaseProjectId: requiredEnvironment("BROWSERBASE_PROJECT_ID"),
+    stagehandRevision,
+    browserbaseApiKey,
+    browserbaseProjectId,
   });
 
   process.stdout.write(
@@ -33,6 +36,7 @@ try {
 
   if (signal) forwardSignal(signal);
 } catch (error) {
+  process.stdin.pause();
   process.stderr.write(`Stagehand sandbox lease failed: ${safeMessage(error)}\n`);
   process.exitCode = 1;
 }

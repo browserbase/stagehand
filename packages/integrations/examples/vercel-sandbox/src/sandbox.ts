@@ -17,6 +17,47 @@ const EXAMPLE_ROOT = `${STAGEHAND_ROOT}/packages/integrations/examples/vercel-sa
 const GATEWAY_BIN = `${EXAMPLE_ROOT}/node_modules/.bin/supergateway`;
 const AUTH_PROXY_PATH = `${SANDBOX_ROOT}/auth-proxy.mjs`;
 const STDIO_WRAPPER_PATH = `${SANDBOX_ROOT}/stdio-wrapper.mjs`;
+const HEALTH_REQUEST_TIMEOUT_MS = 5_000;
+
+class StagehandSandboxSetupError extends Error {
+  override readonly name = "StagehandSandboxSetupError";
+
+  constructor() {
+    super("Stagehand sandbox setup failed.");
+  }
+}
+
+class StagehandSandboxHealthError extends Error {
+  override readonly name = "StagehandSandboxHealthError";
+
+  constructor() {
+    super("Stagehand sandbox health verification failed.");
+  }
+}
+
+class StagehandCdpDiscoveryError extends Error {
+  override readonly name = "StagehandCdpDiscoveryError";
+
+  constructor() {
+    super("Browserbase CDP host discovery failed.");
+  }
+}
+
+class StagehandSandboxDisposeError extends Error {
+  override readonly name = "StagehandSandboxDisposeError";
+
+  constructor() {
+    super("Could not stop and delete the Stagehand sandbox.");
+  }
+}
+
+class StagehandSandboxCommandError extends Error {
+  override readonly name = "StagehandSandboxCommandError";
+
+  constructor(label: string, exitCode: number) {
+    super(`${label} failed inside the trusted sandbox (exit ${exitCode}).`);
+  }
+}
 
 export type StagehandSandboxOptions = {
   stagehandRevision: string;
@@ -46,15 +87,20 @@ export async function createStagehandSandbox(
   assertNonEmpty(options.browserbaseProjectId, "browserbaseProjectId");
 
   const cdpHost = await discoverBrowserbaseCdpHost(options);
-  const sandbox = await Sandbox.create({
-    runtime: "node24",
-    resources: { vcpus: 4 },
-    timeout: options.sandboxTimeoutMs ?? 40 * 60_000,
-    ports: [BRIDGE_PORT],
-    persistent: false,
-    networkPolicy: "allow-all",
-    tags: { purpose: "stagehand-codemode-mcp" },
-  });
+  let sandbox: Sandbox;
+  try {
+    sandbox = await Sandbox.create({
+      runtime: "node24",
+      resources: { vcpus: 4 },
+      timeout: options.sandboxTimeoutMs ?? 40 * 60_000,
+      ports: [BRIDGE_PORT],
+      persistent: false,
+      networkPolicy: "allow-all",
+      tags: { purpose: "stagehand-codemode-mcp" },
+    });
+  } catch {
+    throw new StagehandSandboxSetupError();
+  }
   const close = sandboxCloser(sandbox, options.cleanupTimeoutMs ?? 30_000);
 
   try {
@@ -100,11 +146,11 @@ export async function createStagehandSandbox(
 
     const origin = new URL(sandbox.domain(BRIDGE_PORT));
     await waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000);
-    const unauthorized = await fetch(new URL("/healthz", origin));
-    if (unauthorized.status !== 401) {
-      throw new Error(
-        `Expected unauthenticated bridge health to return 401, received ${unauthorized.status}`,
-      );
+    const unauthorized = await fetch(new URL("/healthz", origin), {
+      signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
+    }).catch(() => undefined);
+    if (unauthorized?.status !== 401) {
+      throw new StagehandSandboxHealthError();
     }
 
     return {
@@ -115,13 +161,17 @@ export async function createStagehandSandbox(
   } catch (error) {
     try {
       await close();
-    } catch (cleanupError) {
-      throw new AggregateError(
-        [error, cleanupError],
-        "Stagehand sandbox setup failed and cleanup also failed",
-      );
+    } catch {
+      throw new StagehandSandboxSetupError();
     }
-    throw error;
+    if (
+      error instanceof StagehandSandboxSetupError ||
+      error instanceof StagehandSandboxHealthError ||
+      error instanceof StagehandSandboxCommandError
+    ) {
+      throw error;
+    }
+    throw new StagehandSandboxSetupError();
   }
 }
 
@@ -255,18 +305,19 @@ async function assertUnprivileged(user: SandboxUser, name: string): Promise<void
 
 async function waitForHealth(origin: URL, token: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  let lastStatus: number | undefined;
   while (Date.now() < deadline) {
+    const requestTimeoutMs = Math.max(
+      1,
+      Math.min(HEALTH_REQUEST_TIMEOUT_MS, deadline - Date.now()),
+    );
     const response = await fetch(new URL("/healthz", origin), {
       headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(requestTimeoutMs),
     }).catch(() => undefined);
     if (response?.ok) return;
-    lastStatus = response?.status;
-    await delay(250);
+    await delay(Math.min(250, Math.max(0, deadline - Date.now())));
   }
-  throw new Error(
-    `Authenticated Stagehand bridge readiness timed out (last status ${lastStatus ?? "unreachable"})`,
-  );
+  throw new StagehandSandboxHealthError();
 }
 
 async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Promise<string> {
@@ -288,10 +339,10 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
       throw new Error(`Browserbase CDP host discovery returned ${response.status}`);
     }
     const session = (await response.json()) as { id?: unknown; connectUrl?: unknown };
-    if (typeof session.id !== "string" || typeof session.connectUrl !== "string") {
+    if (typeof session.id === "string") sessionId = session.id;
+    if (!sessionId || typeof session.connectUrl !== "string") {
       throw new Error("Browserbase CDP host discovery returned an invalid session");
     }
-    sessionId = session.id;
     discoveredHost = assertBrowserbaseCdpHost(new URL(session.connectUrl).hostname);
   } catch (error) {
     primaryError = error;
@@ -319,15 +370,9 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
     }
   }
 
-  if (primaryError !== undefined && cleanupError !== undefined) {
-    throw new AggregateError(
-      [primaryError, cleanupError],
-      "Browserbase CDP host discovery and session release both failed",
-    );
+  if (primaryError !== undefined || cleanupError !== undefined || !discoveredHost) {
+    throw new StagehandCdpDiscoveryError();
   }
-  if (primaryError !== undefined) throw primaryError;
-  if (cleanupError !== undefined) throw cleanupError;
-  if (!discoveredHost) throw new Error("Browserbase CDP host discovery returned no hostname");
   return discoveredHost;
 }
 
@@ -349,8 +394,7 @@ async function disposeSandbox(sandbox: Sandbox, timeoutMs: number): Promise<void
       errors.push(error);
     },
   );
-  if (errors.length > 0)
-    throw new AggregateError(errors, "Could not stop and delete Vercel Sandbox");
+  if (errors.length > 0) throw new StagehandSandboxDisposeError();
 }
 
 async function run(
@@ -363,8 +407,8 @@ async function run(
   const result = await target.runCommand({ cmd, args, cwd });
   const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
   if (result.exitCode !== 0) {
-    const detail = stderr.trim() || stdout.trim() || "no command output";
-    throw new Error(`${label} failed with exit ${result.exitCode}: ${detail.slice(-2_000)}`);
+    void stderr;
+    throw new StagehandSandboxCommandError(label, result.exitCode);
   }
   return stdout;
 }

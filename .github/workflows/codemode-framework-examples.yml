@@ -62,6 +62,7 @@ jobs:
 
       - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
       - run: pnpm --filter ${{ matrix.package }} typecheck
+      - run: pnpm --filter ${{ matrix.package }} test:contract
       - run: pnpm --filter ${{ matrix.package }} smoke
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}

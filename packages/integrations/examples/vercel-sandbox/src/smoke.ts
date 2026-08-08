@@ -8,6 +8,7 @@ const stdioServerPath = fileURLToPath(
   new URL("../../../dist/codemode/stdio-server.mjs", import.meta.url),
 );
 const client = new Client({ name: "stagehand-vercel-sandbox-smoke", version: "1.0.0" });
+let primaryError: unknown;
 
 try {
   await client.connect(
@@ -53,12 +54,26 @@ try {
       marker: "persisted",
     }),
   );
-  process.stdout.write(
-    `${JSON.stringify({ status: "PASS", tools: ["code_execute"], calls: 2, statePersisted: true })}\n`,
-  );
-} finally {
-  await client.close().catch(() => undefined);
+} catch (error) {
+  primaryError = error;
 }
+
+let cleanupError: unknown;
+await client.close().catch((error: unknown) => {
+  cleanupError = error;
+});
+if (primaryError !== undefined && cleanupError !== undefined) {
+  throw new AggregateError(
+    [primaryError, cleanupError],
+    "Stagehand sandbox smoke failed and MCP client cleanup also failed",
+  );
+}
+if (primaryError !== undefined) throw primaryError;
+if (cleanupError !== undefined) throw cleanupError;
+
+process.stdout.write(
+  `${JSON.stringify({ status: "PASS", tools: ["code_execute"], calls: 2, statePersisted: true })}\n`,
+);
 
 function localSmokeEnvironment(): Record<string, string> {
   const environment: Record<string, string> = { STAGEHAND_BROWSER: "local" };

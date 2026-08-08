@@ -10,11 +10,20 @@ const child = spawn(
   },
 );
 
+const signalHandlers = new Map();
 for (const signal of ["SIGINT", "SIGTERM"]) {
-  process.on(signal, () => child.kill(signal));
+  const handler = () => child.kill(signal);
+  signalHandlers.set(signal, handler);
+  process.on(signal, handler);
 }
 
 child.on("exit", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 1);
+  for (const [handledSignal, handler] of signalHandlers) {
+    process.removeListener(handledSignal, handler);
+  }
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code ?? 1);
 });

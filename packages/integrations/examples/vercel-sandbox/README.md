@@ -96,7 +96,7 @@ Python and other non-Node adapters can launch the same provider implementation w
 setup or network-policy logic:
 
 ```bash
-node packages/integrations/examples/vercel-sandbox/src/lease.ts
+pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox lease
 ```
 
 The launcher writes exactly one JSON line to stdout:

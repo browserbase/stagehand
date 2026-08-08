@@ -16,8 +16,10 @@ const passthroughHeaders = [
 ];
 
 function authorized(value) {
-  if (typeof value !== "string" || !value.startsWith("Bearer ")) return false;
-  const providedDigest = createHash("sha256").update(value.slice("Bearer ".length)).digest();
+  if (typeof value !== "string") return false;
+  const match = /^Bearer\s+(.+)$/i.exec(value);
+  if (!match) return false;
+  const providedDigest = createHash("sha256").update(match[1]).digest();
   return timingSafeEqual(providedDigest, expectedDigest);
 }
 
@@ -33,12 +35,17 @@ http
     // sends no server-initiated notifications, so reject the optional GET
     // stream and keep MCP request/response traffic on POST and DELETE.
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    if (request.method === "GET" && pathname === "/mcp") {
+    if (pathname === "/mcp" && request.method !== "POST" && request.method !== "DELETE") {
       response.writeHead(405, {
         allow: "POST, DELETE",
         "content-type": "text/plain",
       });
       response.end("Method Not Allowed\n");
+      return;
+    }
+    if (pathname !== "/mcp" && !(pathname === "/healthz" && request.method === "GET")) {
+      response.writeHead(404, { "content-type": "text/plain" });
+      response.end("Not Found\n");
       return;
     }
 
@@ -64,6 +71,10 @@ http
     upstream.on("error", () => {
       if (!response.headersSent) response.writeHead(502);
       response.end("Upstream unavailable\n");
+    });
+    request.once("aborted", () => upstream.destroy());
+    response.once("close", () => {
+      if (!response.writableEnded) upstream.destroy();
     });
     request.pipe(upstream);
   })

@@ -9,8 +9,9 @@
   },
   "scripts": {
     "e2e": "tsx src/e2e.ts",
-    "lease": "node src/lease.ts",
+    "lease": "tsx src/lease.ts",
     "smoke": "tsx src/smoke.ts",
+    "test:contract": "node --test src/*.test.mjs src/guest/*.test.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
