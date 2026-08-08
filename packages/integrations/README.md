@@ -81,3 +81,5 @@ implementation modules and an in-process arbitrary-code executor are not public 
 - [Vercel Sandbox](./examples/vercel-sandbox) installs the exact packed artifact inside a
   Firecracker microVM and returns a framework-neutral, bearer-authenticated MCP connection.
 - [Mastra](./examples/mastra) consumes that connection with one persistent remote MCP client.
+- [CrewAI](./examples/crewai) keeps its context-managed MCP adapter open across every tool call in
+  one crew execution.

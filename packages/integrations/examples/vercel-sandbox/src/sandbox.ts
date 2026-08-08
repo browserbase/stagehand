@@ -87,6 +87,7 @@ export type StagehandSandboxOptions = {
   readinessTimeoutMs?: number;
   sandboxTimeoutMs?: number;
   cleanupTimeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 export type StagehandSandboxConnection = {
@@ -105,9 +106,11 @@ export async function createStagehandSandbox(
 ): Promise<StagehandSandboxConnection> {
   assertNonEmpty(options.browserbaseApiKey, "browserbaseApiKey");
   assertNonEmpty(options.browserbaseProjectId, "browserbaseProjectId");
+  assertNotAborted(options.signal);
   const artifacts = await loadPackageArtifacts(options);
 
   const cdpHost = await discoverBrowserbaseCdpHost(options);
+  assertNotAborted(options.signal);
   let sandbox: Sandbox;
   try {
     const vercelCredentials = options.vercelCredentials;
@@ -133,51 +136,61 @@ export async function createStagehandSandbox(
   const close = sandboxCloser(sandbox, options.cleanupTimeoutMs ?? 30_000);
 
   try {
-    await installStagehandPackages(sandbox, artifacts);
-    await sandbox.writeFiles([
-      {
-        path: AUTH_PROXY_PATH,
-        content: await readFile(new URL("./guest/auth-proxy.mjs", import.meta.url)),
-        mode: 0o555,
-      },
-      {
-        path: STDIO_WRAPPER_PATH,
-        content: await readFile(new URL("./guest/stdio-wrapper.mjs", import.meta.url)),
-        mode: 0o555,
-      },
-    ]);
+    assertNotAborted(options.signal);
+    await abortable(installStagehandPackages(sandbox, artifacts), options.signal);
+    await abortable(
+      sandbox.writeFiles([
+        {
+          path: AUTH_PROXY_PATH,
+          content: await readFile(new URL("./guest/auth-proxy.mjs", import.meta.url)),
+          mode: 0o555,
+        },
+        {
+          path: STDIO_WRAPPER_PATH,
+          content: await readFile(new URL("./guest/stdio-wrapper.mjs", import.meta.url)),
+          mode: 0o555,
+        },
+      ]),
+      options.signal,
+    );
 
-    const mcpUser = await sandbox.createUser(MCP_USER);
-    const proxyUser = await sandbox.createUser(PROXY_USER);
-    await assertUnprivileged(mcpUser, MCP_USER);
-    await assertUnprivileged(proxyUser, PROXY_USER);
-    await protectRuntimeFiles(sandbox);
+    const mcpUser = await abortable(sandbox.createUser(MCP_USER), options.signal);
+    const proxyUser = await abortable(sandbox.createUser(PROXY_USER), options.signal);
+    await abortable(assertUnprivileged(mcpUser, MCP_USER), options.signal);
+    await abortable(assertUnprivileged(proxyUser, PROXY_USER), options.signal);
+    await abortable(protectRuntimeFiles(sandbox), options.signal);
 
     // This update is the trust transition: everything above is trusted setup;
     // everything below may eventually execute model-generated JavaScript.
-    await sandbox.update({
-      networkPolicy: {
-        allow: {
-          [BROWSERBASE_API_HOST]: [
-            {
-              transform: [{ headers: { "X-BB-API-Key": options.browserbaseApiKey } }],
-            },
-          ],
-          [cdpHost]: [],
+    await abortable(
+      sandbox.update({
+        networkPolicy: {
+          allow: {
+            [BROWSERBASE_API_HOST]: [
+              {
+                transform: [{ headers: { "X-BB-API-Key": options.browserbaseApiKey } }],
+              },
+            ],
+            [cdpHost]: [],
+          },
         },
-      },
-    });
+      }),
+      options.signal,
+    );
 
     const token = randomBytes(32).toString("base64url");
     const tokenDigest = createHash("sha256").update(token).digest("hex");
-    await startGateway(mcpUser, options.browserbaseProjectId);
-    await startAuthProxy(proxyUser, tokenDigest);
+    await abortable(startGateway(mcpUser, options.browserbaseProjectId), options.signal);
+    await abortable(startAuthProxy(proxyUser, tokenDigest), options.signal);
 
     const origin = new URL(sandbox.domain(BRIDGE_PORT));
-    await waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000);
-    const unauthorized = await fetch(new URL("/healthz", origin), {
-      signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
-    }).catch(() => undefined);
+    await waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000, options.signal);
+    const unauthorized = await abortable(
+      fetch(new URL("/healthz", origin), {
+        signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
+      }).catch(() => undefined),
+      options.signal,
+    );
     if (unauthorized?.status !== 401) {
       throw new StagehandSandboxHealthError();
     }
@@ -302,7 +315,13 @@ async function assertUnprivileged(user: SandboxUser, name: string): Promise<void
   if (sudoProbe.exitCode === 0) throw new Error(`${name} unexpectedly has sudo access`);
 }
 
-async function waitForHealth(origin: URL, token: string, timeoutMs: number): Promise<void> {
+async function waitForHealth(
+  origin: URL,
+  token: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  assertNotAborted(signal);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const requestTimeoutMs = Math.max(
@@ -311,10 +330,13 @@ async function waitForHealth(origin: URL, token: string, timeoutMs: number): Pro
     );
     const response = await fetch(new URL("/healthz", origin), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(requestTimeoutMs),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(requestTimeoutMs)])
+        : AbortSignal.timeout(requestTimeoutMs),
     }).catch(() => undefined);
+    assertNotAborted(signal);
     if (response?.ok) return;
-    await delay(Math.min(250, Math.max(0, deadline - Date.now())));
+    await delay(Math.min(250, Math.max(0, deadline - Date.now())), signal);
   }
   throw new StagehandSandboxHealthError();
 }
@@ -332,8 +354,11 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
         "X-BB-API-Key": options.browserbaseApiKey,
       },
       body: JSON.stringify({ projectId: options.browserbaseProjectId }),
-      signal: AbortSignal.timeout(30_000),
+      signal: options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)])
+        : AbortSignal.timeout(30_000),
     });
+    assertNotAborted(options.signal);
     if (!response.ok) {
       throw new Error(`Browserbase CDP host discovery returned ${response.status}`);
     }
@@ -344,7 +369,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
     }
     discoveredHost = assertBrowserbaseCdpHost(new URL(session.connectUrl).hostname);
   } catch (error) {
-    primaryError = error;
+    primaryError = options.signal?.aborted ? new StagehandSandboxSetupError() : error;
   }
 
   let cleanupError: unknown = NO_ERROR;
@@ -370,6 +395,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
   }
 
   if (primaryError !== NO_ERROR || cleanupError !== NO_ERROR || !discoveredHost) {
+    if (primaryError instanceof StagehandSandboxSetupError) throw primaryError;
     throw new StagehandCdpDiscoveryError();
   }
   return discoveredHost;
@@ -438,8 +464,40 @@ function assertBrowserbaseCdpHost(hostname: string): string {
   return hostname;
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  assertNotAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      reject(new StagehandSandboxSetupError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+function assertNotAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted) throw new StagehandSandboxSetupError();
+}
+
+async function abortable<T>(promise: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+  if (!signal) return promise;
+  assertNotAborted(signal);
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    onAbort = () => reject(new StagehandSandboxSetupError());
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  try {
+    return await Promise.race([promise, aborted]);
+  } finally {
+    if (onAbort) signal.removeEventListener("abort", onAbort);
+  }
 }
 
 type PackageArtifact = { content: Buffer; sha256: string };

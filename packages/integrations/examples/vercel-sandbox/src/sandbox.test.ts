@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { getEventListeners } from "node:events";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -64,6 +66,114 @@ void test("runtime lock rejects non-string resolved values", async () => {
     } finally {
       await rm(artifactRoot, { force: true, recursive: true });
     }
+  }
+});
+
+void test("an already-aborted setup never creates a sandbox", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const createMock = mock.method(Sandbox, "create", async () => {
+    throw new Error("Sandbox.create must not run");
+  });
+  try {
+    await assert.rejects(
+      createStagehandSandbox({
+        packageArtifactsPath: path.join(os.tmpdir(), "unused-stagehand-artifacts"),
+        browserbaseApiKey: "unused-test-key",
+        browserbaseProjectId: "unused-test-project",
+        signal: controller.signal,
+      }),
+      { name: "StagehandSandboxSetupError" },
+    );
+    assert.equal(createMock.mock.callCount(), 0);
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  } finally {
+    createMock.mock.restore();
+  }
+});
+
+void test("abort during CDP discovery is reported as setup cancellation", async () => {
+  const artifactRoot = await writeArtifacts("https://registry.npmjs.org/supergateway.tgz");
+  const controller = new AbortController();
+  let discoveryStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    discoveryStarted = resolve;
+  });
+  const fetchMock = mock.method(globalThis, "fetch", async (_input, init) => {
+    discoveryStarted();
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+        once: true,
+      });
+    });
+  });
+  const createMock = mock.method(Sandbox, "create", async () => {
+    throw new Error("Sandbox.create must not run");
+  });
+
+  try {
+    const setup = createStagehandSandbox({
+      packageArtifactsPath: artifactRoot,
+      browserbaseApiKey: "unused-test-key",
+      browserbaseProjectId: "unused-test-project",
+      signal: controller.signal,
+    });
+    await started;
+    controller.abort();
+    await assert.rejects(setup, { name: "StagehandSandboxSetupError" });
+    assert.equal(createMock.mock.callCount(), 0);
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  } finally {
+    createMock.mock.restore();
+    fetchMock.mock.restore();
+    await rm(artifactRoot, { force: true, recursive: true });
+  }
+});
+
+void test("abort during readiness stops polling, clears listeners, and disposes", async () => {
+  const resolved = "https://registry.npmjs.org/supergateway.tgz";
+  const artifactRoot = await writeArtifacts(resolved);
+  const controller = new AbortController();
+  const fake = readySandboxFake(resolved);
+  let healthRequests = 0;
+  const fetchMock = mock.method(globalThis, "fetch", async (input) => {
+    const url = new URL(input.toString());
+    if (url.hostname === "api.browserbase.com" && url.pathname === "/v1/sessions") {
+      return {
+        ok: true,
+        json: async () => ({
+          id: "discovery-session",
+          connectUrl: "wss://connect.browserbase.com/devtools/browser/test",
+        }),
+      } as Response;
+    }
+    if (url.hostname === "api.browserbase.com") return { ok: true } as Response;
+    healthRequests += 1;
+    if (healthRequests === 1) setTimeout(() => controller.abort(), 10);
+    return { ok: false, status: 503 } as Response;
+  });
+  const createMock = mock.method(Sandbox, "create", async () => fake.sandbox);
+
+  try {
+    await assert.rejects(
+      createStagehandSandbox({
+        packageArtifactsPath: artifactRoot,
+        browserbaseApiKey: "unused-test-key",
+        browserbaseProjectId: "unused-test-project",
+        readinessTimeoutMs: 5_000,
+        signal: controller.signal,
+      }),
+      { name: "StagehandSandboxSetupError" },
+    );
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    assert.equal(healthRequests, 1);
+    assert.equal(fake.stop.mock.callCount(), 1);
+    assert.equal(fake.deleteSandbox.mock.callCount(), 1);
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  } finally {
+    createMock.mock.restore();
+    fetchMock.mock.restore();
+    await rm(artifactRoot, { force: true, recursive: true });
   }
 });
 
@@ -139,13 +249,53 @@ async function writeArtifacts(resolved: unknown): Promise<string> {
   const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "stagehand-artifacts-"));
   const packageRoot = path.join(artifactRoot, "packages");
   const runtimeRoot = path.join(artifactRoot, "runtime");
+  const contents = artifactContents(resolved);
   await Promise.all([mkdir(packageRoot), mkdir(runtimeRoot)]);
   await Promise.all([
-    writeFile(path.join(packageRoot, "stagehand.tgz"), Buffer.from([0x1f, 0x8b])),
-    writeFile(path.join(packageRoot, "stagehand-codemode.tgz"), Buffer.from([0x1f, 0x8b])),
-    writeFile(path.join(runtimeRoot, "package.json"), JSON.stringify({ dependencies })),
-    writeFile(
-      path.join(runtimeRoot, "package-lock.json"),
+    writeFile(path.join(packageRoot, "stagehand.tgz"), contents.gzip),
+    writeFile(path.join(packageRoot, "stagehand-codemode.tgz"), contents.gzip),
+    writeFile(path.join(runtimeRoot, "package.json"), contents.manifest),
+    writeFile(path.join(runtimeRoot, "package-lock.json"), contents.lock),
+  ]);
+  return artifactRoot;
+}
+
+function readySandboxFake(resolved: unknown) {
+  const contents = artifactContents(resolved);
+  const sha256 = (content: Buffer) => createHash("sha256").update(content).digest("hex");
+  const artifactDigests = new Map([
+    ["/vercel/sandbox/packages/stagehand.tgz", sha256(contents.gzip)],
+    ["/vercel/sandbox/packages/stagehand-codemode.tgz", sha256(contents.gzip)],
+    ["/vercel/sandbox/stagehand-runtime/package.json", sha256(contents.manifest)],
+    ["/vercel/sandbox/stagehand-runtime/package-lock.json", sha256(contents.lock)],
+  ]);
+  const runCommand = mock.fn(async ({ cmd, args }: { cmd: string; args?: string[] }) => ({
+    exitCode: cmd === "sudo" ? 1 : 0,
+    stdout: async () =>
+      cmd === "sha256sum" ? `${artifactDigests.get(args?.[0] ?? "")}  ${args?.[0]}\n` : "",
+    stderr: async () => "",
+  }));
+  const user = { runCommand };
+  const stop = mock.fn(async () => undefined);
+  const deleteSandbox = mock.fn(async () => undefined);
+  const sandbox = {
+    runCommand,
+    writeFiles: async () => undefined,
+    createUser: async () => user,
+    asUser: () => user,
+    update: async () => undefined,
+    domain: () => "https://sandbox.example.vercel.run",
+    stop,
+    delete: deleteSandbox,
+  } as unknown as Sandbox;
+  return { sandbox, stop, deleteSandbox };
+}
+
+function artifactContents(resolved: unknown) {
+  return {
+    gzip: Buffer.from([0x1f, 0x8b]),
+    manifest: Buffer.from(JSON.stringify({ dependencies })),
+    lock: Buffer.from(
       JSON.stringify({
         lockfileVersion: 3,
         packages: {
@@ -154,6 +304,5 @@ async function writeArtifacts(resolved: unknown): Promise<string> {
         },
       }),
     ),
-  ]);
-  return artifactRoot;
+  };
 }

@@ -1,0 +1,44 @@
+name: Detect code-mode live credentials
+description: Decide whether Browserbase, Vercel, and optional OpenAI live proofs can run.
+
+inputs:
+  require-openai:
+    description: Require OPENAI_API_KEY in addition to Browserbase and Vercel credentials.
+    default: "false"
+
+outputs:
+  available:
+    description: Whether every credential required by the live proof is available.
+    value: ${{ steps.detect.outputs.available }}
+
+runs:
+  using: composite
+  steps:
+    - id: detect
+      shell: bash
+      env:
+        REQUIRE_OPENAI: ${{ inputs.require-openai }}
+      run: |
+        browserbase_ready=false
+        vercel_ready=false
+        openai_ready=false
+
+        if [[ -n "$BROWSERBASE_API_KEY" && -n "$BROWSERBASE_PROJECT_ID" ]]; then
+          browserbase_ready=true
+        fi
+        if [[ -n "$VERCEL_TOKEN" ]]; then
+          if [[ -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" ]]; then
+            vercel_ready=true
+          fi
+        elif [[ -n "$VERCEL_OIDC_TOKEN" ]]; then
+          vercel_ready=true
+        fi
+        if [[ "$REQUIRE_OPENAI" != "true" || -n "$OPENAI_API_KEY" ]]; then
+          openai_ready=true
+        fi
+
+        if [[ "$browserbase_ready" == "true" && "$vercel_ready" == "true" && "$openai_ready" == "true" ]]; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+        fi

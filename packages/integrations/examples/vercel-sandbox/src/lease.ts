@@ -6,17 +6,22 @@ const SHUTDOWN_FALLBACK_MS = 35_000;
 
 type LeaseEnd = { signal?: NodeJS.Signals };
 
+let setupSignal: NodeJS.Signals | undefined;
 try {
   const packageArtifactsPath = requiredEnvironment("STAGEHAND_SANDBOX_ARTIFACTS");
   const browserbaseApiKey = requiredEnvironment("BROWSERBASE_API_KEY");
   const browserbaseProjectId = requiredEnvironment("BROWSERBASE_PROJECT_ID");
   const vercelCredentials = vercelCredentialsFromEnvironment();
-  const leaseEnd = waitForLeaseEnd();
+  const setupAbort = new AbortController();
+  const leaseEnd = waitForLeaseEnd(setupAbort, (signal) => {
+    setupSignal = signal;
+  });
   const connection = await createStagehandSandbox({
     packageArtifactsPath,
     browserbaseApiKey,
     browserbaseProjectId,
     vercelCredentials,
+    signal: setupAbort.signal,
   });
 
   process.stdout.write(
@@ -39,21 +44,32 @@ try {
   if (signal) forwardSignal(signal);
 } catch (error) {
   process.stdin.pause();
+  if (setupSignal) forwardSignal(setupSignal);
   process.stderr.write(`Stagehand sandbox lease failed: ${safeMessage(error)}\n`);
   process.exitCode = 1;
 }
 
-function waitForLeaseEnd(): Promise<LeaseEnd> {
+function waitForLeaseEnd(
+  setupAbort: AbortController,
+  recordSignal: (signal: NodeJS.Signals) => void,
+): Promise<LeaseEnd> {
   return new Promise((resolve) => {
     let finished = false;
     const finish = (end: LeaseEnd = {}) => {
       if (finished) return;
       finished = true;
+      setupAbort.abort();
       resolve(end);
     };
 
-    process.once("SIGINT", () => finish({ signal: "SIGINT" }));
-    process.once("SIGTERM", () => finish({ signal: "SIGTERM" }));
+    process.once("SIGINT", () => {
+      recordSignal("SIGINT");
+      finish({ signal: "SIGINT" });
+    });
+    process.once("SIGTERM", () => {
+      recordSignal("SIGTERM");
+      finish({ signal: "SIGTERM" });
+    });
     process.stdin.once("end", () => finish());
     process.stdin.once("close", () => finish());
     process.stdin.resume();

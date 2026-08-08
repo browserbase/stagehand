@@ -60,7 +60,6 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
       - run: pnpm --filter ${{ matrix.package }} typecheck
       - run: pnpm --filter ${{ matrix.package }} test:contract
       - run: pnpm --filter ${{ matrix.package }} pack:artifacts
@@ -70,6 +69,7 @@ jobs:
           STAGEHAND_BROWSER: local
       - name: Detect live test credentials
         id: live-credentials
+        uses: ./.github/actions/detect-codemode-live-credentials
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -77,13 +77,6 @@ jobs:
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          if [[ -n "$BROWSERBASE_API_KEY" && -n "$BROWSERBASE_PROJECT_ID" ]] && \
-             [[ -n "$VERCEL_OIDC_TOKEN" || ( -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" && -n "$VERCEL_TOKEN" ) ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Run live package-installed sandbox proof
         if: steps.live-credentials.outputs.available == 'true'
         run: pnpm --filter ${{ matrix.package }} e2e
@@ -111,12 +104,14 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra typecheck
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra test:contract
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
       - name: Detect Mastra live test credentials
         id: mastra-live-credentials
+        uses: ./.github/actions/detect-codemode-live-credentials
+        with:
+          require-openai: "true"
         env:
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
           BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
@@ -125,16 +120,71 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          if [[ -n "$BROWSERBASE_API_KEY" && -n "$BROWSERBASE_PROJECT_ID" && -n "$OPENAI_API_KEY" ]] && \
-             [[ -n "$VERCEL_OIDC_TOKEN" || ( -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" && -n "$VERCEL_TOKEN" ) ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-          fi
       - name: Run Mastra live sandbox proof
         if: steps.mastra-live-credentials.outputs.available == 'true'
         run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra e2e
+        env:
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  crewai:
+    name: CrewAI
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/integrations/examples/crewai/requirements.txt
+
+      - run: python -m pip install -r packages/integrations/examples/crewai/requirements.txt
+      - run: >-
+          python -m py_compile
+          packages/integrations/examples/shared/vercel_sandbox_lease.py
+          packages/integrations/examples/shared/test_vercel_sandbox_lease.py
+          packages/integrations/examples/crewai/agent.py
+          packages/integrations/examples/crewai/sandbox.py
+          packages/integrations/examples/crewai/test_agent.py
+          packages/integrations/examples/crewai/test_e2e.py
+          packages/integrations/examples/crewai/e2e.py
+      - run: python packages/integrations/examples/shared/test_vercel_sandbox_lease.py
+      - run: python packages/integrations/examples/crewai/test_agent.py
+      - run: python packages/integrations/examples/crewai/test_e2e.py
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+      - name: Detect CrewAI live test credentials
+        id: crewai-live-credentials
+        uses: ./.github/actions/detect-codemode-live-credentials
+        with:
+          require-openai: "true"
+        env:
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Run CrewAI live sandbox proof
+        if: steps.crewai-live-credentials.outputs.available == 'true'
+        run: python packages/integrations/examples/crewai/e2e.py
         env:
           STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
           BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
