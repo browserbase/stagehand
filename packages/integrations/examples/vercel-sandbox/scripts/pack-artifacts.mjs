@@ -16,6 +16,14 @@ const packageRoot = path.join(artifactRoot, "packages");
 const runtimeRoot = path.join(artifactRoot, "runtime");
 const publicRegistry = "https://registry.npmjs.org";
 
+class StagehandArtifactPackCommandError extends Error {
+  name = "StagehandArtifactPackCommandError";
+
+  constructor() {
+    super("Stagehand sandbox artifact preparation failed.");
+  }
+}
+
 await rm(artifactRoot, { force: true, recursive: true });
 await Promise.all([
   mkdir(packageRoot, { recursive: true }),
@@ -86,7 +94,11 @@ function requiredArtifact(files, pattern) {
 }
 
 async function run(file, args, cwd) {
-  return execFileAsync(file, args, { cwd, maxBuffer: commandMaxBuffer });
+  try {
+    return await execFileAsync(file, args, { cwd, maxBuffer: commandMaxBuffer });
+  } catch {
+    throw new StagehandArtifactPackCommandError();
+  }
 }
 
 async function artifactSummary(artifactPath) {
