@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-example-vercel-sandbox": "workspace:*",
     "@mastra/core": "catalog:",
     "@mastra/mcp": "catalog:"
   },

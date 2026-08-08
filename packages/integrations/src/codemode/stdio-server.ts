@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { stagehandCodeConfigFromEnv } from "./config.js";
 import { StagehandCodeExecutor } from "./executor.js";
 import { createCodeModeMcpServer } from "./mcp-server.js";

@@ -1,57 +1,43 @@
-# Stagehand integrations
+# Stagehand code mode
 
-This package contains shared integration surfaces for Stagehand V4. It is private while the public API and packaging contract are validated.
+`@browserbasehq/stagehand-codemode` is a stateful Model Context Protocol (MCP) server that gives an
+agent one `code_execute` tool backed by Stagehand. One server process owns one browser session, so
+pages, cookies, JavaScript state, and navigation persist across tool calls.
 
-## Code mode
+> **Security:** `stagehand-codemode` executes arbitrary JavaScript with the permissions of its own
+> process. The package is not a sandbox. Run it inside an isolation boundary when code is generated
+> by a model or is otherwise untrusted.
 
-The `./codemode` export gives an agent one `code_execute` tool backed by a persistent Stagehand browser. Frameworks can either launch the thin local MCP server or wrap `StagehandCodeExecutor` as a native tool.
+## Install and run
 
-```ts
-import {
-  StagehandCodeExecutor,
-  stagehandCodeConfigFromEnv,
-} from "@browserbasehq/stagehand-integrations/codemode";
+Use an exact version in MCP client configuration:
 
-const executor = new StagehandCodeExecutor(stagehandCodeConfigFromEnv());
-
-try {
-  const result = await executor.execute({
-    code: `
-      await page.goto("https://example.com", { waitUntil: "domcontentloaded" });
-      return { title: await page.title(), url: await page.url() };
-    `,
-  });
-  console.log(result);
-} finally {
-  await executor.close();
+```json
+{
+  "mcpServers": {
+    "stagehand": {
+      "command": "npx",
+      "args": ["-y", "@browserbasehq/stagehand-codemode@4.0.0"],
+      "env": {
+        "STAGEHAND_BROWSER": "browserbase",
+        "BROWSERBASE_API_KEY": "<browserbase-api-key>",
+        "BROWSERBASE_PROJECT_ID": "<browserbase-project-id>"
+      }
+    }
+  }
 }
 ```
 
-The executor initializes the browser on the first valid call, serializes calls, and preserves pages, cookies, and navigation state until its owner closes it.
+For a trusted local browser:
 
-### Low-level eval integration
-
-Eval harnesses that already own Stagehand and browser initialization should call `executeStagehandSnippet` directly. This reuses the exact generated-code semantics without replacing the eval harness's startup, cleanup, task bindings, or metrics collection.
-
-### Local MCP integration
-
-The `./codemode/stdio-server` export is an internal process entrypoint. It is not a command-line interface and accepts no arguments. The owning framework launches one process per agent run and selects local or Browserbase startup through its environment:
-
-```text
-STAGEHAND_BROWSER=local
-STAGEHAND_BROWSER=browserbase
+```bash
+STAGEHAND_BROWSER=local npx -y @browserbasehq/stagehand-codemode@4.0.0
 ```
 
-The process stays alive across calls and closes when its input stream ends. `SIGINT` and `SIGTERM` perform bounded graceful cleanup and preserve signal-style exit codes. If generated JavaScript blocks the JavaScript event loop, the server cannot run its cleanup handlers. The owner must terminate the entire process tree, escalate to `SIGKILL` after its own deadline, and start a new process before accepting more work. Killing only the Node process can leave its local browser child alive.
+The executable writes MCP protocol frames only to stdout. Readiness and diagnostics go to stderr.
+It exposes exactly one MCP tool: `code_execute`.
 
-### Framework examples
-
-- [Vercel AI SDK](./examples/vercel) launches the stdio server through the AI SDK MCP client and keeps one process alive for the complete agent run.
-- [Mastra](./examples/mastra) discovers the canonical MCP toolset once and reuses one client and browser for the complete agent run.
-
-### Configuration
-
-`stagehandCodeConfigFromEnv()` recognizes:
+## Configuration
 
 | Variable                                                           | Purpose                                                          |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
@@ -63,14 +49,35 @@ The process stays alive across calls and closes when its input stream ends. `SIG
 | Provider API keys                                                  | Supplies the key for a matching explicit model provider          |
 | `GEMINI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `GOOGLE_API_KEY` | Selects `google/gemini-2.5-flash-lite` when no model is explicit |
 
-Without a browser override, the helper selects Browserbase when `BROWSERBASE_API_KEY` exists and a headless local browser otherwise.
+Without a browser override, the server selects Browserbase when `BROWSERBASE_API_KEY` exists and a
+headless local browser otherwise.
 
-Native callers run generated JavaScript in their own process. An `AbortSignal` can cancel queued work before the snippet begins, but it cannot safely preempt arbitrary JavaScript already running in the same process. Native integrations that require hard time limits should put the executor behind a child-process boundary, as the stdio MCP integration does.
+## Lifecycle and hard timeouts
 
-### Skill and reference
+The process stays alive until stdin ends. `SIGINT` and `SIGTERM` perform bounded graceful cleanup and
+preserve conventional signal exit codes.
 
-`codemode/SKILL.md` is the concise agent guide. `codemode/REFERENCE.md` is the longer API lookup. Both are exported as raw package assets and as bundle-safe JavaScript strings.
+JavaScript that blocks the Node.js event loop cannot be interrupted by an in-process timer. The
+owning sandbox or process supervisor must enforce a wall-clock deadline, terminate the complete
+process tree, escalate to `SIGKILL` when needed, and create a fresh process before accepting more
+work. Killing only the Node.js process can leave a local browser child running.
 
-### Security boundary
+For model-generated code, run the executable inside a disposable microVM or equivalent isolation
+boundary. Apply separate filesystem, egress, credential, quota, and browser-navigation policies for
+the authority your application intends to grant.
 
-The code-mode executor does not provide a sandbox. Generated JavaScript runs in the host process and inherits that process's filesystem, network, and environment access. A framework may place the tool inside its own sandbox, container, or other isolation boundary.
+## Agent guidance
+
+The published package includes the model-facing assets as exported package files:
+
+- `@browserbasehq/stagehand-codemode/SKILL.md`
+- `@browserbasehq/stagehand-codemode/REFERENCE.md`
+
+The first public release intentionally supports the executable and these two assets only. Internal
+implementation modules and an in-process arbitrary-code executor are not public package APIs.
+
+## Framework examples
+
+- [Vercel Sandbox](./examples/vercel-sandbox) installs the exact packed artifact inside a
+  Firecracker microVM and returns a framework-neutral, bearer-authenticated MCP connection.
+- [Mastra](./examples/mastra) consumes that connection with one persistent remote MCP client.
