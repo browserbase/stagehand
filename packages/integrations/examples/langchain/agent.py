@@ -93,8 +93,10 @@ async def stagehand_code_session(
         ) from None
 
     primary_error: BaseException | None = None
+    session_entered = False
     try:
         async with client.session("stagehand") as session:
+            session_entered = True
             try:
                 code_tool = await load_stagehand_code_tool(session)
                 yield code_tool
@@ -121,6 +123,10 @@ async def stagehand_code_session(
             ) from None
         if not isinstance(error, Exception):
             raise
+        if session_entered:
+            raise StagehandLangChainCleanupError(
+                "Could not close the LangChain Stagehand MCP session."
+            ) from None
         raise StagehandLangChainConnectionError(
             "Could not connect LangChain to the Stagehand MCP server."
         ) from None

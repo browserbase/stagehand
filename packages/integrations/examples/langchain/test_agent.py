@@ -85,6 +85,43 @@ class LangChainStagehandAgentTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(session_names, ["stagehand"])
         load_tool.assert_awaited_once_with(session)
 
+    async def test_session_reports_cleanup_only_failure_without_reflection(self) -> None:
+        secret = "https://sandbox.example.test/mcp?token=do-not-reflect"
+        connection = SimpleNamespace(
+            url="https://sandbox.example.test/mcp", token="secret"
+        )
+        session = SimpleNamespace()
+        code_tool = SimpleNamespace(
+            name="code_execute",
+            description="# Stagehand V4 code-mode syntax",
+        )
+
+        class CleanupFailingSession:
+            async def __aenter__(self):
+                return session
+
+            async def __aexit__(self, *_args):
+                raise RuntimeError(secret)
+
+        client = SimpleNamespace(session=lambda _name: CleanupFailingSession())
+        with (
+            patch.object(agent, "create_stagehand_mcp_client", return_value=client),
+            patch.object(
+                agent,
+                "load_stagehand_code_tool",
+                AsyncMock(return_value=code_tool),
+            ),
+            self.assertRaises(agent.StagehandLangChainCleanupError) as raised,
+        ):
+            async with agent.stagehand_code_session(connection) as loaded:
+                self.assertIs(loaded, code_tool)
+
+        self.assertEqual(
+            str(raised.exception),
+            "Could not close the LangChain Stagehand MCP session.",
+        )
+        self.assertNotIn(secret, str(raised.exception))
+
     def test_build_agent_uses_canonical_tool_description_as_system_prompt(self) -> None:
         code_tool = SimpleNamespace(
             name="code_execute",
