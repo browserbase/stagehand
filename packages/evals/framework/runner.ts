@@ -10,11 +10,19 @@
  */
 import type { AvailableModel } from "@browserbasehq/stagehand";
 import type { AgentToolMode } from "@browserbasehq/stagehand";
+import { shouldPersistTrajectory } from "@browserbasehq/stagehand";
 import { AssertionError } from "./assertions.js";
 import { EvalLogger } from "../logger.js";
 import { EvalsError } from "../errors.js";
 import { exactMatch, errorMatch, passRate } from "../scoring.js";
 import { generateExperimentName } from "../utils.js";
+import {
+  buildTrajectoryGroupSlug,
+  generateRunToken,
+  resolveUnambiguousModel,
+  resolveTrajectoryRoot,
+  writeExperimentLink,
+} from "./trajectoryGroup.js";
 import { generateSummary } from "../summary.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask, TaskRegistry, TaskResult } from "./types.js";
@@ -342,6 +350,24 @@ export async function runEvals(
     toolSurface: effectiveCoreToolSurface,
     startupProfile: effectiveCoreStartupProfile,
   });
+  const runModel = resolveUnambiguousModel(
+    testcases.map((testcase) => testcase.input?.modelName),
+  );
+
+  // Stamp the run-scoped trajectory group; the token is generated once here and
+  // reused for the completion-time experiment link. Local persistence only.
+  const trajectoryGroup = buildTrajectoryGroupSlug({
+    experimentName,
+    model: runModel,
+    runToken: generateRunToken(),
+  });
+  process.env.EVAL_EXPERIMENT_NAME = experimentName;
+  process.env.EVAL_TRAJECTORY_GROUP = trajectoryGroup;
+  if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
+  else delete process.env.EVAL_TRAJECTORY_MODEL;
+  if (options.modelOverride)
+    process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
+  if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
   const braintrustProjectName = hasCoreOnly
     ? process.env.CI === "true"
@@ -476,6 +502,25 @@ export async function runEvals(
   const resolvedExperimentName =
     evalResult.summary?.experimentName ?? experimentName;
   const resolvedExperimentUrl = evalResult.summary?.experimentUrl;
+
+  // Cross-link local trajectories to the resolved Braintrust experiment. The
+  // hashed name (e.g. `agent/onlineMind2Web-92918006`) is only known now, after
+  // Eval() resolves — so write it once at the group-dir root of the group this
+  // run recorded into.
+  await writeExperimentLink(
+    resolveTrajectoryRoot(),
+    trajectoryGroup,
+    {
+      braintrustExperiment: resolvedExperimentName,
+      braintrustExperimentId: evalResult.summary?.experimentId ?? null,
+      braintrustExperimentUrl: resolvedExperimentUrl ?? null,
+      braintrustProject:
+        evalResult.summary?.projectName ?? braintrustProjectName,
+      braintrustProjectUrl: evalResult.summary?.projectUrl ?? null,
+      requestedExperimentName: experimentName,
+    },
+    { persist: !hasCoreOnly && shouldPersistTrajectory(undefined) },
+  );
 
   await generateSummary(
     summaryResults,

@@ -76,26 +76,6 @@ console.log(actResult.cacheStatus); // "HIT" or "MISS"
 
 <AccordionGroup>
 
-<Accordion title="Wait for the page to finish loading">
-If you call a Stagehand method immediately after `page.goto()`, the page content may still be streaming in. This means the accessibility tree captured for the cache key is shorter than what the page will eventually render — so subsequent calls on the fully-loaded page will produce a different hash and miss the cache. Call `page.waitForLoadState("networkidle")` first to ensure the full tree is stable before Stagehand snapshots it.
-
-```typescript
-async function example(stagehand: Stagehand) {
-  const page = stagehand.context.pages()[0];
-  await page.goto("https://www.google.com/search?q=browserbase");
-
-  await page.waitForLoadState("networkidle");
-
-  // All content is loaded — consistent hash across runs
-  const result1 = await stagehand.observe("click the first search result");
-  // MISS
-
-  const result2 = await stagehand.observe("click the first search result");
-  // HIT
-}
-```
-</Accordion>
-
 <Accordion title="Scope by selector">
 When targeting a specific part of a page, pass a `selector` to scope the accessibility tree snapshot to that container. This reduces token costs, speeds up inference, and — crucially for caching — means that changes *outside* the container don't affect the cache key.
 

@@ -1,5 +1,30 @@
 # @browserbasehq/stagehand-evals
 
+## 2.1.0
+
+### Minor Changes
+
+- [#2275](https://github.com/browserbase/stagehand/pull/2275) [`cdae405`](https://github.com/browserbase/stagehand/commit/cdae405c1884d2600a1df02dd71556cfbf876e1e) Thanks [@miguelg719](https://github.com/miguelg719)! - Add OdysseysBench as a supported agent benchmark in the evals CLI. OdysseysBench is a 200-task web-agent benchmark (45 easy / 46 medium / 109 hard); each task ships a weighted rubric that is baked into the verifier's `precomputed_rubric` format so process + outcome are scored against the published criteria. Run with `--eval-name agent/odysseysbench` (or the `external_agent_benchmarks` category); supports `EVAL_ODYSSEYSBENCH_LIMIT`, `EVAL_ODYSSEYSBENCH_SAMPLE`, `EVAL_ODYSSEYSBENCH_LEVEL`, and `EVAL_ODYSSEYSBENCH_IDS`.
+
+### Patch Changes
+
+- Updated dependencies [[`2cd1edf`](https://github.com/browserbase/stagehand/commit/2cd1edf49e5b726d817805e3258f2fa9b7fa17b0), [`84197d8`](https://github.com/browserbase/stagehand/commit/84197d8cbab2461956cecf3fad84a7107610c960)]:
+  - @browserbasehq/stagehand@3.7.1
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`cd1daad`](https://github.com/browserbase/stagehand/commit/cd1daad7f7655307e951ee68a4a6c5f98928f9bc), [`d287ff4`](https://github.com/browserbase/stagehand/commit/d287ff4d2c96f1aa71abf07b35bc878e0ff34ce3), [`3938590`](https://github.com/browserbase/stagehand/commit/39385906b3bc9d419fee27afbee14c3a5fd4020f), [`892701a`](https://github.com/browserbase/stagehand/commit/892701a30f8d4bd6e5cccb721eeee1fee7f6e675), [`21826c7`](https://github.com/browserbase/stagehand/commit/21826c75ce978832c5be5bc3e3a06806dd91086e), [`8dcef1b`](https://github.com/browserbase/stagehand/commit/8dcef1b49142e83b94d0d9b8ee5b480181aee486), [`93a23d3`](https://github.com/browserbase/stagehand/commit/93a23d3adf04de91d95b2463f6edfde3d1cb7114), [`871ca7e`](https://github.com/browserbase/stagehand/commit/871ca7e305f4dc36a6936620735f189647a6de17), [`022d68f`](https://github.com/browserbase/stagehand/commit/022d68fc81ffe96e16008c3c751ea005eeb0b929), [`bb5ffa6`](https://github.com/browserbase/stagehand/commit/bb5ffa6f49a41dc4a962d063cbba9cccd193859c), [`f31980f`](https://github.com/browserbase/stagehand/commit/f31980f37a8f01cdb7758c91eea9e5f57911af44)]:
+  - @browserbasehq/stagehand@3.7.0
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`147e310`](https://github.com/browserbase/stagehand/commit/147e310b12ffa9a5a03d770b0f071495d7a3287d), [`cf3603d`](https://github.com/browserbase/stagehand/commit/cf3603d1c1f017cd7c195bcbe4300814c694454b), [`8d7d414`](https://github.com/browserbase/stagehand/commit/8d7d414c70676a31ea9322073f514d5b9dd5ecb1), [`fd42e65`](https://github.com/browserbase/stagehand/commit/fd42e65bb84825bdb7341a4953472db1ff774989), [`a64c6b7`](https://github.com/browserbase/stagehand/commit/a64c6b74cfce7341ad4bbb2d39ae22c082f5f61e), [`c49a3fc`](https://github.com/browserbase/stagehand/commit/c49a3fc47ada88322f7e11b7b72085f0147c43e3), [`ed3e566`](https://github.com/browserbase/stagehand/commit/ed3e56636ee35b6eb2b1ad1af2bfb098a97aa39c), [`840aac8`](https://github.com/browserbase/stagehand/commit/840aac8bfcd9b3debcddffea0ca0c3de4670cf2a)]:
+  - @browserbasehq/stagehand@3.6.0
+
 ## 2.0.2
 
 ### Patch Changes

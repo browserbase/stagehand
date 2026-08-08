@@ -139,6 +139,8 @@ export type ThinkingEffort =
   | "xhigh"
   | "max";
 
+export type OpenAIEndpointFormat = "responses" | "chat";
+
 export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   apiKey?: string;
   provider?: AgentProviderType;
@@ -172,6 +174,12 @@ export type ClientOptions = (OpenAIClientOptions | AnthropicClientOptions) & {
   headers?: Record<string, string>;
   /** Reasoning effort for reasoning-capable models (e.g., "none", "low", "medium", "high") */
   reasoningEffort?: string;
+  /**
+   * Wire format used against the OpenAI-compatible endpoint at `baseURL`.
+   * Defaults to the Responses API. Use `chat` for providers that expose only
+   * an OpenAI-compatible Chat Completions endpoint (e.g. Databricks).
+   */
+  openaiEndpointFormat?: OpenAIEndpointFormat;
 };
 
 export type ModelConfiguration =

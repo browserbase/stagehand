@@ -29,6 +29,8 @@ export interface CreateSessionParams {
   systemPrompt?: string;
   /** Enable self-healing for failed actions */
   selfHeal?: boolean;
+  /** Actuate coordinate pointer actions as trusted touch taps */
+  useTouch?: boolean;
   /** DOM settle timeout in milliseconds */
   domSettleTimeoutMs?: number;
   /** Enable experimental features */

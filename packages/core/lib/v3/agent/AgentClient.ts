@@ -3,6 +3,7 @@ import {
   AgentResult,
   AgentType,
   AgentExecutionOptions,
+  ScreenshotProviderResult,
 } from "../types/public/agent.js";
 import { ClientOptions } from "../types/public/model.js";
 
@@ -37,7 +38,9 @@ export abstract class AgentClient {
 
   abstract setCurrentUrl(url: string): void;
 
-  abstract setScreenshotProvider(provider: () => Promise<string>): void;
+  abstract setScreenshotProvider(
+    provider: () => Promise<ScreenshotProviderResult>,
+  ): void;
 
   abstract setActionHandler(
     handler: (action: AgentAction) => Promise<void>,

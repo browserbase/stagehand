@@ -5,6 +5,7 @@ import {
   AgentResult,
   AgentType,
   AgentExecutionOptions,
+  ScreenshotProviderResult,
 } from "../types/public/agent.js";
 import { ClientOptions } from "../types/public/model.js";
 import { AgentClient } from "./AgentClient.js";
@@ -56,7 +57,7 @@ export class MicrosoftCUAClient extends AgentClient {
   private client: OpenAI;
   private currentViewport = { width: 1288, height: 711 };
   private currentUrl?: string;
-  private screenshotProvider?: () => Promise<string>;
+  private screenshotProvider?: () => Promise<ScreenshotProviderResult>;
   private actionHandler?: (action: AgentAction) => Promise<void>;
 
   // Dual history system
@@ -138,7 +139,9 @@ export class MicrosoftCUAClient extends AgentClient {
     this.currentUrl = url;
   }
 
-  setScreenshotProvider(provider: () => Promise<string>): void {
+  setScreenshotProvider(
+    provider: () => Promise<ScreenshotProviderResult>,
+  ): void {
     this.screenshotProvider = provider;
   }
 
@@ -532,8 +535,8 @@ For each function call, return a json object with function name and arguments wi
       throw new AgentScreenshotProviderError("Screenshot provider not set");
     }
 
-    const base64Screenshot = await this.screenshotProvider();
-    return `data:image/png;base64,${base64Screenshot}`;
+    const screenshot = await this.screenshotProvider();
+    return `data:${screenshot.mediaType};base64,${screenshot.base64}`;
   }
 
   /**

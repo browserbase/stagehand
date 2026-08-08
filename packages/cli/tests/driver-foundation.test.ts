@@ -1,9 +1,20 @@
-import { access, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promises as fs } from "node:fs";
+import {
+  access,
+  mkdtemp,
+  open as openFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import net from "node:net";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { itPosix } from "./helpers/platform.js";
 
 import {
   resolveConnectionTarget,
@@ -21,13 +32,19 @@ import {
   ensureDriverDaemon,
   getDriverStatus,
   openViaDaemon,
+  stopDriverDaemon,
 } from "../src/lib/driver/daemon/client.js";
+import {
+  collectForwardedEnv,
+  forwardedEnvSignature,
+} from "../src/lib/driver/daemon/forwarded-env.js";
 import { runDriverDaemon } from "../src/lib/driver/daemon/server.js";
 import { resolveWsTarget } from "../src/lib/driver/resolve-ws.js";
 import { DriverSessionManager } from "../src/lib/driver/session-manager.js";
 import { runCli } from "./helpers/run-cli.js";
 
 const cleanupPaths: string[] = [];
+const execFileAsync = promisify(execFile);
 
 afterEach(async () => {
   while (cleanupPaths.length > 0) {
@@ -64,6 +81,48 @@ describe("driver foundation", () => {
       kind: "managed-local",
     });
     await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-focus-on-navigate"],
+        headed: true,
+        local: true,
+      }),
+    ).resolves.toEqual({
+      chromeArgs: ["--no-focus-on-navigate"],
+      headless: false,
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "chrome-arg": [],
+        local: true,
+      }),
+    ).resolves.toEqual({
+      headless: true,
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "ignore-default-chrome-arg": ["--enable-automation"],
+        local: true,
+      }),
+    ).resolves.toEqual({
+      headless: true,
+      ignoreDefaultArgs: ["--enable-automation"],
+      kind: "managed-local",
+    });
+    await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-sandbox"],
+        "no-default-chrome-args": true,
+        local: true,
+      }),
+    ).resolves.toEqual({
+      chromeArgs: ["--no-sandbox"],
+      headless: true,
+      ignoreDefaultArgs: true,
+      kind: "managed-local",
+    });
+    await expect(
       resolveConnectionTarget({ "auto-connect": true }),
     ).resolves.toEqual({ kind: "auto-connect" });
     await expect(
@@ -87,6 +146,12 @@ describe("driver foundation", () => {
       resolveConnectionTarget({ "auto-connect": true, remote: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --remote");
     await expect(
+      resolveConnectionTarget({
+        "auto-connect": true,
+        "chrome-arg": ["--no-focus-on-navigate"],
+      }),
+    ).rejects.toThrow("--auto-connect cannot be combined with --chrome-arg");
+    await expect(
       resolveConnectionTarget({ "auto-connect": true, local: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --local");
     await expect(
@@ -96,11 +161,23 @@ describe("driver foundation", () => {
       resolveConnectionTarget({ "auto-connect": true, headless: true }),
     ).rejects.toThrow("--auto-connect cannot be combined with --headless");
     await expect(
+      resolveConnectionTarget({
+        "chrome-arg": ["--no-focus-on-navigate"],
+        remote: true,
+      }),
+    ).rejects.toThrow("--remote cannot be combined with --chrome-arg");
+    await expect(
       resolveConnectionTarget({ remote: true, headed: true }),
     ).rejects.toThrow("--remote cannot be combined with --headed");
     await expect(
       resolveConnectionTarget({ remote: true, headless: true }),
     ).rejects.toThrow("--remote cannot be combined with --headless");
+    await expect(
+      resolveConnectionTarget({
+        cdp: "9222",
+        "chrome-arg": ["--no-focus-on-navigate"],
+      }),
+    ).rejects.toThrow("--cdp cannot be combined with --chrome-arg");
     await expect(
       resolveConnectionTarget({ cdp: "9222", local: true }),
     ).rejects.toThrow("--cdp cannot be combined with --local");
@@ -121,6 +198,18 @@ describe("driver foundation", () => {
     ).rejects.toThrow("--target-id requires --cdp");
   });
 
+  it("rejects combining --no-default-chrome-args with --ignore-default-chrome-arg", async () => {
+    await expect(
+      resolveConnectionTarget({
+        "ignore-default-chrome-arg": ["--enable-automation"],
+        "no-default-chrome-args": true,
+        local: true,
+      }),
+    ).rejects.toThrow(
+      "--no-default-chrome-args cannot be combined with --ignore-default-chrome-arg.",
+    );
+  });
+
   it("rejects local-only display flags for implicit remote mode", async () => {
     const previousApiKey = process.env.BROWSERBASE_API_KEY;
     process.env.BROWSERBASE_API_KEY = "test-key";
@@ -132,12 +221,158 @@ describe("driver foundation", () => {
       await expect(resolveConnectionTarget({ headless: true })).rejects.toThrow(
         "remote mode cannot be combined with --headless",
       );
+      await expect(
+        resolveConnectionTarget({
+          "chrome-arg": ["--no-focus-on-navigate"],
+        }),
+      ).rejects.toThrow("remote mode cannot be combined with --chrome-arg");
     } finally {
       restoreEnv("BROWSERBASE_API_KEY", previousApiKey);
     }
   });
 
-  it("only reuses daemon sessions for matching CDP targets", () => {
+  it("resolves --remote with --verified and --proxies", async () => {
+    await expect(resolveConnectionTarget({ remote: true })).resolves.toEqual({
+      kind: "remote",
+    });
+    await expect(
+      resolveConnectionTarget({ remote: true, verified: true }),
+    ).resolves.toEqual({ kind: "remote", verified: true });
+    await expect(
+      resolveConnectionTarget({ proxies: true, remote: true }),
+    ).resolves.toEqual({ kind: "remote", proxies: true });
+    await expect(
+      resolveConnectionTarget({ proxies: true, remote: true, verified: true }),
+    ).resolves.toEqual({ kind: "remote", proxies: true, verified: true });
+  });
+
+  it("requires --remote for --verified and --proxies", async () => {
+    await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
+      "--verified requires --remote",
+    );
+    await expect(resolveConnectionTarget({ proxies: true })).rejects.toThrow(
+      "--proxies requires --remote",
+    );
+    // plural subject keeps the plural verb
+    await expect(
+      resolveConnectionTarget({ proxies: true, verified: true }),
+    ).rejects.toThrow("--verified and --proxies require --remote");
+    // verified/proxies must be explicit about remote even when --cdp/--local is set
+    await expect(
+      resolveConnectionTarget({ cdp: "9222", verified: true }),
+    ).rejects.toThrow("--verified requires --remote");
+    await expect(
+      resolveConnectionTarget({ local: true, proxies: true }),
+    ).rejects.toThrow("--proxies requires --remote");
+  });
+
+  it("does not let --verified/--proxies imply remote from an API key", async () => {
+    const previousApiKey = process.env.BROWSERBASE_API_KEY;
+    process.env.BROWSERBASE_API_KEY = "test-key";
+    try {
+      await expect(resolveConnectionTarget({ verified: true })).rejects.toThrow(
+        "--verified requires --remote",
+      );
+    } finally {
+      restoreEnv("BROWSERBASE_API_KEY", previousApiKey);
+    }
+  });
+
+  it("makes remote verified/proxies sticky for session reuse", () => {
+    expect(targetsCompatible({ kind: "remote" }, { kind: "remote" })).toBe(
+      true,
+    );
+    expect(
+      targetsCompatible(
+        { kind: "remote", verified: true, proxies: true },
+        { kind: "remote", verified: true, proxies: true },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible({ kind: "remote" }, { kind: "remote", verified: true }),
+    ).toBe(false);
+    expect(
+      targetsCompatible({ kind: "remote", proxies: true }, { kind: "remote" }),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { kind: "remote", verified: true },
+        { kind: "remote", verified: true, proxies: true },
+      ),
+    ).toBe(false);
+  });
+
+  it("only reuses daemon sessions for matching launch targets", () => {
+    expect(
+      targetsCompatible(
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        { headless: false, kind: "managed-local" },
+        { chromeArgs: [], headless: false, kind: "managed-local" },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        {
+          chromeArgs: ["--no-focus-on-navigate"],
+          headless: false,
+          kind: "managed-local",
+        },
+        {
+          chromeArgs: ["--disable-features=CalculateNativeWinOcclusion"],
+          headless: false,
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      targetsCompatible(
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+        {
+          headless: false,
+          ignoreDefaultArgs: ["--enable-automation"],
+          kind: "managed-local",
+        },
+      ),
+    ).toBe(false);
+    expect(
+      targetsCompatible(
+        { headless: false, kind: "managed-local" },
+        { headless: false, ignoreDefaultArgs: true, kind: "managed-local" },
+      ),
+    ).toBe(false);
     expect(
       targetsCompatible(
         { endpoint: "ws://127.0.0.1:9222/devtools/browser/a", kind: "cdp" },
@@ -206,6 +441,7 @@ describe("driver foundation", () => {
       expect(result.stdout).toContain("DESCRIPTION");
       expect(result.stdout).toContain("FLAGS");
       expect(result.stdout).toContain("EXAMPLES");
+      if (command === "open") expect(result.stdout).toContain("--chrome-arg");
     }
   });
 
@@ -254,26 +490,29 @@ describe("driver foundation", () => {
     }
   });
 
-  it("does not remove daemon files for an alive unresponsive daemon", async () => {
-    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
-    cleanupPaths.push(daemonDir);
-    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
-    process.env.BROWSE_DAEMON_DIR = daemonDir;
-    const session = "alive-unresponsive";
-    const pidPath = getPidPath(session);
-    const socketPath = getSocketPath(session);
+  itPosix(
+    "does not remove daemon files for an alive unresponsive daemon",
+    async () => {
+      const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+      cleanupPaths.push(daemonDir);
+      const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+      process.env.BROWSE_DAEMON_DIR = daemonDir;
+      const session = "alive-unresponsive";
+      const pidPath = getPidPath(session);
+      const socketPath = getSocketPath(session);
 
-    try {
-      await writeFile(pidPath, String(process.pid));
-      await writeFile(socketPath, "not-a-socket");
+      try {
+        await writeFile(pidPath, String(process.pid));
+        await writeFile(socketPath, "not-a-socket");
 
-      await expect(getDriverStatus(session)).resolves.toBeNull();
-      await expect(access(pidPath)).resolves.toBeUndefined();
-      await expect(access(socketPath)).resolves.toBeUndefined();
-    } finally {
-      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
-    }
-  });
+        await expect(getDriverStatus(session)).resolves.toBeNull();
+        await expect(access(pidPath)).resolves.toBeUndefined();
+        await expect(access(socketPath)).resolves.toBeUndefined();
+      } finally {
+        restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      }
+    },
+  );
 
   it("checks target compatibility after waiting for the daemon lock", async () => {
     const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
@@ -388,6 +627,202 @@ describe("driver foundation", () => {
     }
   });
 
+  it("cleans a vanished daemon even when its PID has been reused", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "stop-race";
+    const sockets = new Set<net.Socket>();
+    const server = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+          type: string;
+        };
+        if (request.type !== "status") return;
+
+        server.close();
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
+    });
+
+    try {
+      await writeFile(getPidPath(session), String(process.pid));
+      await writeFile(getLockPath(session), "999999");
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(getSocketPath(session), resolve);
+      });
+
+      await expect(stopDriverDaemon(session)).resolves.toEqual({
+        stopped: false,
+      });
+      await expect(access(getPidPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(access(getSocketPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(access(getLockPath(session))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      if (server.listening) {
+        await new Promise<void>((resolve, reject) => {
+          server.close((error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
+      }
+    }
+  });
+
+  it("does not clean up a daemon restarted during a stop race", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = "stop-restart-race";
+    const lockPath = getLockPath(session);
+    const pidPath = getPidPath(session);
+    const socketPath = getSocketPath(session);
+    const sockets = new Set<net.Socket>();
+    const oldServer = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+          type: string;
+        };
+        if (request.type !== "status") return;
+
+        oldServer.close();
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
+    });
+    const restartedServer = net.createServer((socket) => {
+      sockets.add(socket);
+      socket.once("close", () => sockets.delete(socket));
+      socket.once("data", (chunk) => {
+        const request = JSON.parse(chunk.toString().split("\n")[0] ?? "{}") as {
+          id: string;
+          type: string;
+        };
+        if (request.type !== "status") return;
+
+        socket.end(
+          `${JSON.stringify({
+            data: {
+              browserConnected: true,
+              initialized: true,
+              mode: "managed-local",
+              session,
+              target: { headless: true, kind: "managed-local" },
+            },
+            id: request.id,
+            type: "success",
+          })}\n`,
+        );
+      });
+    });
+    let resolveLockAttempt: (() => void) | undefined;
+    const lockAttempted = new Promise<void>((resolve) => {
+      resolveLockAttempt = resolve;
+    });
+    const openSpy = vi.spyOn(fs, "open");
+    openSpy.mockImplementation((path, flags, mode) => {
+      if (String(path) === lockPath && flags === "wx") {
+        resolveLockAttempt?.();
+      }
+      return openFile(path, flags, mode);
+    });
+
+    try {
+      await writeFile(lockPath, String(process.pid));
+      await new Promise<void>((resolve, reject) => {
+        oldServer.once("error", reject);
+        oldServer.listen(socketPath, resolve);
+      });
+
+      const stopPromise = stopDriverDaemon(session);
+      await Promise.race([
+        lockAttempted,
+        rejectAfter(1_000, "Stop cleanup did not wait for the restart lock."),
+      ]);
+
+      await writeFile(pidPath, String(process.pid));
+      await new Promise<void>((resolve, reject) => {
+        restartedServer.once("error", reject);
+        restartedServer.listen(socketPath, resolve);
+      });
+      await rm(lockPath);
+
+      await expect(
+        Promise.race([
+          stopPromise,
+          rejectAfter(1_000, "Stop cleanup did not validate the restart."),
+        ]),
+      ).resolves.toEqual({ stopped: false });
+      await expect(access(pidPath)).resolves.toBeUndefined();
+      await expect(canConnect(socketPath)).resolves.toBe(true);
+    } finally {
+      openSpy.mockRestore();
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+      for (const socket of sockets) {
+        socket.destroy();
+      }
+      for (const server of [oldServer, restartedServer]) {
+        if (server.listening) {
+          await new Promise<void>((resolve, reject) => {
+            server.close((error) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+              resolve();
+            });
+          });
+        }
+      }
+    }
+  });
+
   it("times out resolving HTTP CDP endpoints", async () => {
     const sockets = new Set<net.Socket>();
     const server = net.createServer((socket) => {
@@ -472,6 +907,68 @@ describe("driver foundation", () => {
     }
   });
 
+  it("explains how to start a missing daemon instead of leaking a socket error", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "browse-driver-test-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+
+    try {
+      await expect(
+        openViaDaemon(
+          "missing-daemon",
+          "https://example.com/search?q=test&page=1",
+        ),
+      ).rejects.toMatchObject({
+        message:
+          "Driver daemon session \"missing-daemon\" is not running. Start it with: browse open 'https://example.com/search?q=test&page=1' --session missing-daemon",
+        telemetry: { resultCode: "daemon_not_running" },
+      });
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
+  itPosix("shell-quotes unsafe recovery command arguments", async () => {
+    const daemonDir = await mkdtemp(join(tmpdir(), "b-"));
+    cleanupPaths.push(daemonDir);
+    const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
+    process.env.BROWSE_DAEMON_DIR = daemonDir;
+    const session = 's $() `t` "d" \'q';
+    const url =
+      'https://example.com/a path?q=$(echo bad)&tick=`echo bad`&double="quoted"&single=it\'s';
+
+    try {
+      let error: unknown;
+      try {
+        await openViaDaemon(session, url);
+      } catch (thrown) {
+        error = thrown;
+      }
+
+      expect(error).toMatchObject({
+        message:
+          'Driver daemon session "s $() `t` "d" \'q" is not running. Start it with: browse open \'https://example.com/a path?q=$(echo bad)&tick=`echo bad`&double="quoted"&single=it\'"\'"\'s\' --session \'s $() `t` "d" \'"\'"\'q\'',
+        telemetry: { resultCode: "daemon_not_running" },
+      });
+      if (!(error instanceof Error)) {
+        throw new Error("Expected the missing daemon request to fail.");
+      }
+
+      const recoveryCommand = error.message.split("Start it with: ")[1];
+      if (!recoveryCommand) {
+        throw new Error("Expected a recovery command in the error message.");
+      }
+      const { stdout } = await execFileAsync("/bin/sh", [
+        "-c",
+        `browse() { printf '%s\\n' "$@"; }\n${recoveryCommand}`,
+      ]);
+      expect(stdout).toBe(`open\n${url}\n--session\n${session}\n`);
+    } finally {
+      restoreEnv("BROWSE_DAEMON_DIR", previousDaemonDir);
+    }
+  });
+
   it("closes Stagehand when initialization fails", async () => {
     const init = vi.fn().mockRejectedValue(new Error("init failed"));
     const close = vi.fn().mockResolvedValue(undefined);
@@ -506,6 +1003,90 @@ describe("driver foundation", () => {
       expect(Stagehand).toHaveBeenCalledTimes(1);
       expect(init).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("passes Chrome args to managed local Stagehand launches", async () => {
+    const init = vi.fn().mockResolvedValue(undefined);
+    const Stagehand = vi.fn(function () {
+      return {
+        close: vi.fn().mockResolvedValue(undefined),
+        context: {},
+        init,
+      };
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      Stagehand,
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("chrome-args", {
+        chromeArgs: ["--no-focus-on-navigate"],
+        headless: false,
+        kind: "managed-local",
+      });
+
+      await manager.stagehandInstance();
+
+      expect(Stagehand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: "LOCAL",
+          localBrowserLaunchOptions: {
+            args: ["--no-focus-on-navigate"],
+            headless: false,
+          },
+        }),
+      );
+    } finally {
+      vi.doUnmock("@browserbasehq/stagehand");
+      vi.resetModules();
+    }
+  });
+
+  it("passes ignored default Chrome args to managed local Stagehand launches", async () => {
+    const init = vi.fn().mockResolvedValue(undefined);
+    const Stagehand = vi.fn(function () {
+      return {
+        close: vi.fn().mockResolvedValue(undefined),
+        context: {},
+        init,
+      };
+    });
+
+    vi.resetModules();
+    vi.doMock("@browserbasehq/stagehand", () => ({
+      Stagehand,
+    }));
+
+    try {
+      const { DriverSessionManager: MockedDriverSessionManager } = await import(
+        "../src/lib/driver/session-manager.js"
+      );
+      const manager = new MockedDriverSessionManager("ignore-default-args", {
+        headless: true,
+        ignoreDefaultArgs: ["--enable-automation"],
+        kind: "managed-local",
+      });
+
+      await manager.stagehandInstance();
+
+      expect(Stagehand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          env: "LOCAL",
+          localBrowserLaunchOptions: {
+            headless: true,
+            ignoreDefaultArgs: ["--enable-automation"],
+          },
+        }),
+      );
     } finally {
       vi.doUnmock("@browserbasehq/stagehand");
       vi.resetModules();
@@ -625,6 +1206,101 @@ describe("driver foundation", () => {
     await expect(manager.open("https://example.com")).rejects.toThrow(
       "Target missing-target was not found in the attached browser.",
     );
+  });
+
+  it("collects forwardable env vars from the caller's env", async () => {
+    // Only the API key is forwarded; the project is inferred from the key.
+    await expect(
+      collectForwardedEnv({
+        BROWSERBASE_API_KEY: "client-key",
+        BROWSERBASE_PROJECT_ID: "client-project",
+        UNRELATED: "ignored",
+      }),
+    ).resolves.toEqual({
+      BROWSERBASE_API_KEY: "client-key",
+    });
+    await expect(collectForwardedEnv({})).resolves.toBeUndefined();
+    await expect(
+      collectForwardedEnv({ BROWSERBASE_API_KEY: "" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("produces a stable, secret-free forwarded-env signature", () => {
+    const sig = forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" });
+    // A non-empty hash that does not leak the raw key value.
+    expect(sig).toMatch(/^[a-f0-9]{64}$/);
+    expect(sig).not.toContain("forwarded-key");
+    // Stable for the same input, distinct for a different key.
+    expect(
+      forwardedEnvSignature({ BROWSERBASE_API_KEY: "forwarded-key" }),
+    ).toBe(sig);
+    expect(
+      forwardedEnvSignature({ BROWSERBASE_API_KEY: "other-key" }),
+    ).not.toBe(sig);
+    // Empty / absent sets collapse to "".
+    expect(forwardedEnvSignature(undefined)).toBe("");
+    expect(forwardedEnvSignature({})).toBe("");
+    expect(forwardedEnvSignature({ BROWSERBASE_API_KEY: "" })).toBe("");
+  });
+
+  it("retries init with a forwarded key after a key-less failure", async () => {
+    const manager = new DriverSessionManager("forwarded-key-retry", {
+      kind: "remote",
+    });
+
+    // Simulate the repro: the first key-less init failed and cached a backoff.
+    Object.assign(manager, {
+      consecutiveInitFailures: 1,
+      initFailure: {
+        error: new Error("Missing key"),
+        retryAt: Date.now() + 60_000,
+      },
+    });
+
+    // A new key forwarded before init clears the cached failure so the retry
+    // runs immediately instead of replaying the stale error.
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
+    expect(
+      (manager as unknown as { initFailure: unknown }).initFailure,
+    ).toBeNull();
+    expect(
+      (manager as unknown as { consecutiveInitFailures: number })
+        .consecutiveInitFailures,
+    ).toBe(0);
+    // The key is stashed for the next init (threaded into the constructor),
+    // never written back into process.env.
+    expect((manager as unknown as { pendingEnv: unknown }).pendingEnv).toEqual({
+      BROWSERBASE_API_KEY: "late-key",
+    });
+    expect(process.env.BROWSERBASE_API_KEY).not.toBe("late-key");
+    expect(
+      (manager as unknown as { lastForwardedEnvSignature: string })
+        .lastForwardedEnvSignature,
+    ).toBe(forwardedEnvSignature({ BROWSERBASE_API_KEY: "late-key" }));
+
+    // Re-applying the same forwarded env is a no-op (idempotent).
+    Object.assign(manager, {
+      initFailure: { error: new Error("x"), retryAt: Date.now() + 60_000 },
+    });
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "late-key" });
+    expect(
+      (manager as unknown as { initFailure: unknown }).initFailure,
+    ).not.toBeNull();
+  });
+
+  it("does not disturb an already-initialized session when forwarded env changes", () => {
+    const manager = new DriverSessionManager("warm-session", {
+      kind: "remote",
+    });
+    Object.assign(manager, { stagehand: {}, context: {} });
+
+    manager.applyForwardedEnv({ BROWSERBASE_API_KEY: "new-key" });
+
+    // The warm session is preserved: forwarded env only matters at init.
+    expect(
+      (manager as unknown as { stagehand: unknown }).stagehand,
+    ).not.toBeNull();
+    expect((manager as unknown as { context: unknown }).context).not.toBeNull();
   });
 });
 

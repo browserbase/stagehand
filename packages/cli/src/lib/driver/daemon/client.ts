@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { promises as fs } from "node:fs";
 import net from "node:net";
 
-import { fail } from "../../errors.js";
+import { CommandFailure, fail } from "../../errors.js";
 import type { DriverCommandName } from "../commands/types.js";
 import { targetsCompatible } from "../mode.js";
 import type { ConnectionTarget, DriverStatus, OpenResult } from "../types.js";
@@ -14,6 +14,7 @@ import {
   getSocketPath,
   PRIVATE_FILE_MODE,
 } from "./paths.js";
+import { collectForwardedEnv } from "./forwarded-env.js";
 import { isProcessAlive } from "./process.js";
 import { ResponseSchema, type DriverRequest } from "./protocol.js";
 
@@ -40,7 +41,11 @@ export async function ensureDriverDaemon({
 
   const locked = await acquireLock(session);
   if (!locked) {
-    fail(`Timed out waiting for driver daemon lock for session "${session}".`);
+    fail(
+      `Timed out waiting for driver daemon lock for session "${session}".`,
+      1,
+      { resultCode: "daemon_lock_timeout" },
+    );
   }
 
   try {
@@ -52,6 +57,8 @@ export async function ensureDriverDaemon({
     if (await isDaemonPidAlive(session)) {
       fail(
         `Driver daemon session "${session}" is running but not responding. Run browse stop --session ${session} --force to clean it up.`,
+        1,
+        { resultCode: "daemon_unresponsive" },
       );
     }
     spawnDaemon(session, target);
@@ -68,6 +75,7 @@ export async function openViaDaemon(
 ): Promise<OpenResult> {
   return sendDriverRequest<OpenResult>(session, {
     ...options,
+    forwardedEnv: await collectForwardedEnv(),
     id: requestId(),
     type: "open",
     url,
@@ -81,6 +89,7 @@ export async function runDriverCommandViaDaemon(
 ): Promise<unknown> {
   return sendDriverRequest(session, {
     command,
+    forwardedEnv: await collectForwardedEnv(),
     id: requestId(),
     params,
     type: "command",
@@ -111,6 +120,14 @@ export async function stopDriverDaemon(
       type: "stop",
     });
   } catch (error) {
+    if (
+      !force &&
+      error instanceof CommandFailure &&
+      error.telemetry.resultCode === "daemon_not_running"
+    ) {
+      await cleanupStoppedDaemonFiles(session);
+      return { stopped: false };
+    }
     if (!force) throw error;
     await cleanupDaemonFiles(session);
     return { stopped: true };
@@ -180,7 +197,11 @@ async function sendDriverRequest<T>(
 
     const timeout = setTimeout(() => {
       failRequest(
-        new Error(`Timed out waiting for driver daemon session "${session}".`),
+        new CommandFailure(
+          `Timed out waiting for driver daemon session "${session}".`,
+          1,
+          { resultCode: "daemon_socket_timeout" },
+        ),
       );
     }, 35_000);
 
@@ -196,7 +217,14 @@ async function sendDriverRequest<T>(
           JSON.parse(buffer.slice(0, newline)),
         );
         if (response.type === "error") {
-          failRequest(new Error(response.error));
+          failRequest(
+            new CommandFailure(response.error, 1, {
+              ...(response.code ? { resultCode: response.code } : {}),
+              ...(response.httpStatus !== undefined
+                ? { httpStatus: response.httpStatus }
+                : {}),
+            }),
+          );
           return;
         }
         completeRequest(response.data as T);
@@ -205,6 +233,10 @@ async function sendDriverRequest<T>(
       }
     });
     socket.on("error", (error) => {
+      if (isDaemonUnavailableError(error)) {
+        failRequest(daemonNotRunningError(session, request));
+        return;
+      }
       failRequest(error);
     });
     socket.on("end", () => {
@@ -219,7 +251,9 @@ async function sendDriverRequest<T>(
 function spawnDaemon(session: string, target: ConnectionTarget): void {
   const entrypoint = process.argv[1];
   if (!entrypoint) {
-    fail("Unable to locate browse CLI entrypoint for daemon startup.");
+    fail("Unable to locate browse CLI entrypoint for daemon startup.", 1, {
+      resultCode: "daemon_spawn_failed",
+    });
   }
 
   const child = spawn(
@@ -278,6 +312,18 @@ function isSocketConnectable(
 async function cleanupStaleDaemonFiles(session: string): Promise<void> {
   if (await isDaemonPidAlive(session)) return;
   await cleanupDaemonFiles(session, { includeLock: false });
+}
+
+async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
+  const locked = await acquireLock(session);
+  if (!locked) return;
+  try {
+    const status = await tryDriverStatus(session);
+    if (status?.session === session) return;
+    await cleanupDaemonFiles(session, { includeLock: false });
+  } finally {
+    await releaseLock(session);
+  }
 }
 
 async function acquireLock(
@@ -339,4 +385,33 @@ async function removeStaleLock(lockPath: string): Promise<boolean> {
 
 function requestId(): string {
   return `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function isDaemonUnavailableError(error: Error): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === "ECONNREFUSED" || code === "ENOENT";
+}
+
+function daemonNotRunningError(
+  session: string,
+  request: DriverRequest,
+): CommandFailure {
+  const sessionFlag =
+    session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
+  const startCommand =
+    request.type === "open"
+      ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`
+      : `browse open <url>${sessionFlag}`;
+
+  return new CommandFailure(
+    `Driver daemon session "${session}" is not running. Start it with: ${startCommand}`,
+    1,
+    { resultCode: "daemon_not_running" },
+  );
+}
+
+function formatCommandArgument(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  const escaped = value.replaceAll("'", "'\"'\"'");
+  return `'${escaped}'`;
 }

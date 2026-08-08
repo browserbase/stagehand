@@ -38,9 +38,24 @@ export interface RunFlags {
   filter?: Array<[string, string]>;
   dryRun?: boolean;
   preview?: boolean;
+  /**
+   * Rubric success mode for the verifier — outcome | process | both.
+   *   outcome (default): binary EvaluationResult.outcomeSuccess.
+   *   process: EvaluationResult.processScore ≥ threshold.
+   *   both: outcome AND process.
+   * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
+   */
+  success?: SuccessMode;
   /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
   legacy?: boolean;
 }
+
+export type SuccessMode = "outcome" | "process" | "both";
+const SUCCESS_MODES: ReadonlySet<SuccessMode> = new Set<SuccessMode>([
+  "outcome",
+  "process",
+  "both",
+]);
 
 export interface ConfigDefaults {
   env?: string;
@@ -68,6 +83,8 @@ export interface ResolvedRunOptions {
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   datasetFilter?: string;
+  /** Rubric success mode forwarded to bench tasks via EVAL_SUCCESS_MODE. */
+  successMode: SuccessMode;
   envOverrides: Record<string, string>;
   dryRun: boolean;
   preview: boolean;
@@ -82,6 +99,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
   "webtailbench",
+  "odysseysbench",
 ]);
 
 const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
@@ -101,6 +119,7 @@ const VALUE_FLAGS = new Set([
   "agent-mode",
   "agent-modes",
   "filter",
+  "success",
 ]);
 
 const FLAG_ALIASES: Record<string, string> = {
@@ -259,6 +278,16 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "filter": {
           filters.push(parseFilter(value));
+          break;
+        }
+        case "success": {
+          const v = value.toLowerCase() as SuccessMode;
+          if (!SUCCESS_MODES.has(v)) {
+            throw new Error(
+              `--success must be one of: outcome, process, both (got "${value}")`,
+            );
+          }
+          flags.success = v;
           break;
         }
         default:
@@ -427,6 +456,16 @@ export function resolveRunOptions(
     envOverrides.EVAL_MODEL_OVERRIDE = model;
   }
 
+  // Success mode resolves from --success first, then EVAL_SUCCESS_MODE env,
+  // then "outcome".
+  const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
+  const successMode: SuccessMode =
+    flags.success ??
+    (SUCCESS_MODES.has(envSuccess as SuccessMode)
+      ? (envSuccess as SuccessMode)
+      : "outcome");
+  envOverrides.EVAL_SUCCESS_MODE = successMode;
+
   return {
     target: flags.target,
     normalizedTarget: target,
@@ -442,12 +481,25 @@ export function resolveRunOptions(
     agentMode,
     agentModes,
     datasetFilter,
+    successMode,
     envOverrides,
     dryRun: flags.dryRun ?? false,
     preview: flags.preview ?? false,
     verbose: defaults.verbose ?? false,
   };
 }
+
+/**
+ * Env vars a run stamps onto `process.env` from the inside (see
+ * `framework/trajectoryGroup.ts`). Their values are only known once the run has
+ * generated its testcases, so they can't be passed as `overrides` — but the REPL
+ * still must not leak them, so they are restored even though we never set them.
+ */
+const RUN_STAMPED_ENV_KEYS = [
+  "EVAL_TRAJECTORY_GROUP",
+  "EVAL_EXPERIMENT_NAME",
+  "EVAL_TRAJECTORY_MODEL",
+];
 
 /**
  * Set env overrides for the duration of `fn` and restore prior values in
@@ -459,11 +511,15 @@ export async function withEnvOverrides<T>(
   overrides: Record<string, string>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const keys = Object.keys(overrides);
+  // Restore the run-stamped keys too, not just the ones we set: otherwise a run's
+  // trajectory group survives the command that created it.
+  const keys = [
+    ...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS]),
+  ];
   const previous: Record<string, string | undefined> = {};
   for (const key of keys) {
     previous[key] = process.env[key];
-    process.env[key] = overrides[key];
+    if (key in overrides) process.env[key] = overrides[key];
   }
   try {
     return await fn();

@@ -23,6 +23,16 @@ export const remoteFlag = Flags.boolean({
   description: "Use a remote Browserbase browser session.",
 });
 
+export const verifiedFlag = Flags.boolean({
+  description:
+    "Open the remote session as a Verified (advanced-stealth) browser. Requires --remote and a Browserbase Scale plan.",
+});
+
+export const proxiesFlag = Flags.boolean({
+  description:
+    "Route the remote session through Browserbase proxies. Requires --remote.",
+});
+
 export const autoConnectFlag = Flags.boolean({
   description:
     "Auto-discover and attach to a local browser with remote debugging enabled.",
@@ -38,6 +48,25 @@ export const targetIdFlag = Flags.string({
   description:
     "Select a specific CDP target when attaching to an existing browser.",
   helpValue: "<target-id>",
+});
+
+export const chromeArgFlag = Flags.string({
+  description:
+    "Add a Chrome launch arg for managed local sessions. Repeatable.",
+  helpValue: "<flag>",
+  multiple: true,
+});
+
+export const ignoreDefaultChromeArgFlag = Flags.string({
+  description:
+    "Drop one of Chrome's default launch args for managed local sessions. Repeatable.",
+  helpValue: "<flag>",
+  multiple: true,
+});
+
+export const noDefaultChromeArgsFlag = Flags.boolean({
+  description:
+    "Launch managed local Chrome without any of its default launch args.",
 });
 
 export function sessionName(value?: string): string {

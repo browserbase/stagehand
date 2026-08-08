@@ -3,6 +3,7 @@ import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
+import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
 import {
   getAgentModelEntries,
   getModelList,
@@ -513,6 +514,7 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
   const legacyOnlySuites = new Set(["agent/gaia"]);
 
@@ -582,7 +584,14 @@ function withBenchMetadata(
       task: task.name,
       category: task.categories[0] ?? task.primaryCategory,
       categories: task.categories,
-      task_category: task.primaryCategory,
+      // Preserve the dataset row's fine-grained category (e.g. webtailbench's
+      // hotels_head / flights / jobs) that the suite builder set on the
+      // testcase. Only fall back to the directory category when the row didn't
+      // carry one — otherwise all three category fields collapse to "agent".
+      task_category:
+        (testcase.metadata.task_category as string | undefined) ??
+        (row.params?.category as string | undefined) ??
+        task.primaryCategory,
       harness: row.harness,
       environment: row.environment,
       api: row.useApi,

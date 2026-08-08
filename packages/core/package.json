@@ -1,6 +1,6 @@
 {
   "name": "@browserbasehq/stagehand",
-  "version": "3.5.0",
+  "version": "3.7.1",
   "description": "An AI web browsing framework focused on simplicity and extensibility.",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -86,10 +86,10 @@
   "dependencies": {
     "@ai-sdk/provider": "^2.0.0",
     "@anthropic-ai/sdk": "0.39.0",
-    "@browserbasehq/sdk": "^2.10.0",
+    "@browserbasehq/sdk": "^2.14.0",
     "@google/genai": "^1.22.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "ai": "^5.0.133",
+    "ai": "^5.0.185",
     "devtools-protocol": "^0.0.1642743",
     "fetch-cookie": "^3.1.0",
     "openai": "^4.104.0",
@@ -123,7 +123,7 @@
     "@types/jsdom": "^27.0.0",
     "@types/node": "^20.11.30",
     "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^4.0.8",
+    "@vitest/coverage-v8": "^4.1.9",
     "adm-zip": "^0.5.16",
     "chalk": "^5.4.1",
     "eslint": "10.0.2",
@@ -134,8 +134,8 @@
     "prettier": "^3.2.5",
     "puppeteer-core": "^24.43.0",
     "tsx": "*",
-    "vite": "^7.3.3",
-    "vitest": "^4.1.6",
+    "vite": "^7.3.5",
+    "vitest": "^4.1.9",
     "zod": "^3.25.76 || ^4.2.0"
   },
   "repository": {

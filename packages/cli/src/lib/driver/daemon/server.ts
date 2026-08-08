@@ -1,6 +1,7 @@
 import net from "node:net";
 import readline from "node:readline";
 
+import { DriverError } from "../errors.js";
 import { DriverSessionManager } from "../session-manager.js";
 import type { ConnectionTarget } from "../types.js";
 import {
@@ -125,12 +126,13 @@ async function handleLine(
   try {
     request = parseRequest(line);
   } catch (error) {
-    await writeResponse(socket, { error: formatError(error), type: "error" });
+    await writeResponse(socket, { ...formatError(error), type: "error" });
     return false;
   }
 
   try {
     if (request.type === "open") {
+      manager.applyForwardedEnv(request.forwardedEnv);
       await writeResponse(socket, {
         data: await manager.execute("open", {
           timeoutMs: request.timeoutMs,
@@ -144,6 +146,7 @@ async function handleLine(
     }
 
     if (request.type === "command") {
+      manager.applyForwardedEnv(request.forwardedEnv);
       await writeResponse(socket, {
         data: await manager.execute(request.command, request.params),
         id: request.id,
@@ -169,7 +172,7 @@ async function handleLine(
     return true;
   } catch (error) {
     await writeResponse(socket, {
-      error: formatError(error),
+      ...formatError(error),
       id: request.id,
       type: "error",
     });
@@ -212,6 +215,20 @@ function endSocket(socket: net.Socket): Promise<void> {
   });
 }
 
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+function formatError(error: unknown): {
+  code?: string;
+  error: string;
+  httpStatus?: number;
+} {
+  const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof DriverError) {
+    return {
+      code: error.code,
+      error: message,
+      ...(error.httpStatus !== undefined
+        ? { httpStatus: error.httpStatus }
+        : {}),
+    };
+  }
+  return { error: message };
 }

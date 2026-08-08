@@ -1,7 +1,8 @@
 import type { Stagehand } from "@browserbasehq/stagehand";
 
+import type { ForwardedEnv } from "./daemon/forwarded-env.js";
 import type { DriverModeFlags } from "./mode.js";
-import type { ConnectionTarget } from "./types.js";
+import type { ConnectionTarget, RemoteConnectionTarget } from "./types.js";
 
 export type StagehandConstructorOptions = ConstructorParameters<
   typeof Stagehand
@@ -11,6 +12,24 @@ export interface RemoteDoctorResult {
   ok: boolean;
   message: string;
   fix?: string;
+}
+
+export interface RemoteInitErrorClassification {
+  code: string;
+  httpStatus?: number;
+  message: string;
+}
+
+/**
+ * Driver init remediation strings that may reference `BROWSERBASE_API_KEY`.
+ * They live behind the remote capability so the local-only artifact contains
+ * key-free variants (its build excludes `remote.ts` entirely).
+ */
+export interface DriverInitHints {
+  /** Actionable message when no local Chrome can be found. */
+  chromeNotFound: string;
+  /** Suffix appended after repeated consecutive init failures. */
+  repeatedInitFailure: string;
 }
 
 /**
@@ -24,8 +43,26 @@ export interface RemoteCapability {
   resolveExplicitRemoteTarget(flags: DriverModeFlags): ConnectionTarget;
   /** Auto-select remote when an API key is present; null otherwise. */
   autoSelectRemoteTarget(): ConnectionTarget | null;
-  /** Stagehand options for a remote (BROWSERBASE) session. */
-  remoteStagehandOptions(): StagehandConstructorOptions;
+  /**
+   * Env var names the client forwards to a running daemon (e.g. the API key)
+   * so a key set after the daemon started is honored. Empty in the local-only
+   * build, which never reaches the cloud.
+   */
+  forwardedEnvKeys(): readonly string[];
+  /**
+   * Stagehand options for a remote (BROWSERBASE) session. The target carries
+   * the optional verified/proxies flags. Forwarded env vars (if any) are
+   * threaded into the constructor here so a key set after the daemon started is
+   * honored without touching `process.env`.
+   */
+  remoteStagehandOptions(
+    target?: RemoteConnectionTarget,
+    forwardedEnv?: ForwardedEnv,
+  ): Promise<StagehandConstructorOptions>;
+  /** Map a failed remote `stagehand.init()` to an actionable message + code. */
+  classifyRemoteInitError(error: unknown): RemoteInitErrorClassification;
+  /** Remediation strings for driver init failures. */
+  driverInitHints(): DriverInitHints;
   /** Doctor readiness check for remote/Browserbase. */
   remoteDoctorCheck(env: NodeJS.ProcessEnv): RemoteDoctorResult;
 }

@@ -87,11 +87,17 @@ export class V3CuaAgentHandler {
     this.agentClient.setScreenshotProvider(async () => {
       this.ensureNotClosed();
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const screenshotBuffer = await page.screenshot({
+        fullPage: false,
+        type: "png",
+      });
 
       await this.emitCuaScreenshot(screenshotBuffer, page.url());
 
-      return screenshotBuffer.toString("base64"); // base64 png
+      return {
+        base64: screenshotBuffer.toString("base64"),
+        mediaType: "image/png",
+      };
     });
 
     // Provide action executor
@@ -338,6 +344,42 @@ export class V3CuaAgentHandler {
     switch (action.type) {
       case "click": {
         const { x, y, button = "left", clickCount } = action;
+        // On a touch session the computer-use model still emits "click", but the
+        // browser renders the site's touch-gated mobile layout whose handlers only
+        // respond to touch/pointer events — a mouse click there registers as "no
+        // selection" (e.g. a size selector's "please choose a size"). So actuate a
+        // single LEFT click as a trusted touch tap instead. Non-left (context menu)
+        // and multi-click stay on the mouse path unchanged.
+        const isPrimarySingleClick =
+          button === "left" && ((clickCount as number) ?? 1) === 1;
+        if (isPrimarySingleClick) {
+          if (this.v3.usesTouch) {
+            if (recording) {
+              // Record the tap as a deterministic "tap" step so replay reproduces
+              // touch (dispatched via METHOD_HANDLER_MAP.tap -> locator.tap).
+              const xpath = await page.tap(x as number, y as number, {
+                returnXpath: true,
+              });
+              const normalized = ensureXPath(xpath);
+              if (normalized) {
+                const stagehandAction: Action = {
+                  selector: normalized,
+                  description: this.describePointerAction("tap", x, y),
+                  method: "tap",
+                  arguments: [],
+                };
+                this.recordCuaActStep(
+                  action,
+                  [stagehandAction],
+                  stagehandAction.description,
+                );
+              }
+            } else {
+              await page.tap(x as number, y as number);
+            }
+            return { success: true };
+          }
+        }
         if (recording) {
           const xpath = await page.click(x as number, y as number, {
             button: (button as "left" | "right" | "middle") ?? "left",
@@ -452,28 +494,32 @@ export class V3CuaAgentHandler {
       case "keypress": {
         const { keys } = action;
         const keyList = Array.isArray(keys) ? keys : [keys];
-        const stagehandActions: Action[] = [];
-        for (const rawKey of keyList) {
-          const mapped = mapKeyToPlaywright(String(rawKey ?? ""));
+        if (keyList.length > 0) {
+          // CUA "keypress" actions describe a single key *chord* (modifiers held
+          // down for the main key), not a sequence of independent presses.
+          // Pressing each key separately released modifiers before the main key,
+          // so combinations like ["Control", "A"] sent Ctrl on its own and then
+          // typed a literal "a" instead of select-all. Join into one
+          // "+"-delimited combination so page.keyPress holds the modifiers down.
+          // page.keyPress already handles the literal "+" key correctly.
+          const mapped = keyList
+            .map((rawKey) => mapKeyToPlaywright(String(rawKey ?? "")))
+            .join("+");
           await page.keyPress(mapped);
           if (recording) {
-            stagehandActions.push({
-              selector: "xpath=/html",
-              description: `press ${mapped}`,
-              method: "press",
-              arguments: [mapped],
-            });
+            this.recordCuaActStep(
+              action,
+              [
+                {
+                  selector: "xpath=/html",
+                  description: `press ${mapped}`,
+                  method: "press",
+                  arguments: [mapped],
+                },
+              ],
+              `press ${mapped}`,
+            );
           }
-        }
-        if (recording && stagehandActions.length > 0) {
-          this.recordCuaActStep(
-            action,
-            stagehandActions,
-            stagehandActions
-              .map((a) => a.description)
-              .filter(Boolean)
-              .join(", ") || "keypress",
-          );
         }
         return { success: true };
       }
@@ -728,7 +774,10 @@ export class V3CuaAgentHandler {
     });
     try {
       const page = await this.v3.context.awaitActivePage();
-      const screenshotBuffer = await page.screenshot({ fullPage: false });
+      const screenshotBuffer = await page.screenshot({
+        fullPage: false,
+        type: "png",
+      });
 
       const currentUrl = page.url();
 
@@ -737,6 +786,7 @@ export class V3CuaAgentHandler {
 
       return await this.agentClient.captureScreenshot({
         base64Image: screenshotBuffer.toString("base64"),
+        mediaType: "image/png",
         currentUrl,
       });
     } catch (e) {

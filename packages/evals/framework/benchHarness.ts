@@ -1,12 +1,14 @@
 import {
   AgentProvider,
+  V3,
   getAISDKLanguageModel,
   loadApiKeyFromEnv,
+  normalizeRubric,
   type AgentInstance,
   type AvailableModel,
   type LLMClient,
   type LogLine,
-  type V3,
+  type TaskSpec,
 } from "@browserbasehq/stagehand";
 import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
 import { endBrowserbaseSession } from "../browserbaseCleanup.js";
@@ -15,9 +17,15 @@ import type { EvalLogger } from "../logger.js";
 import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
-import { prepareClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
+import {
+  prepareClaudeCodeToolAdapter,
+  type PreparedClaudeCodeToolAdapter,
+} from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import { prepareCodexToolAdapter } from "./codexToolAdapter.js";
+import {
+  prepareCodexToolAdapter,
+  type PreparedCodexToolAdapter,
+} from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
@@ -66,6 +74,43 @@ function isAgentTask(task: DiscoveredTask): boolean {
     task.categories.includes("agent") ||
     task.categories.includes("external_agent_benchmarks")
   );
+}
+
+/**
+ * Build a verifier-carrier V3 instance. Used only as the LLM-client carrier
+ * for V3Evaluator.verify() — never `init()`-ed, never drives a browser.
+ * The instance's logger is what V3Evaluator uses to construct its LLMProvider.
+ *
+ * The model is deliberately left at V3's default: the harness model can be a
+ * runner-only alias (e.g. "codex/default") that V3's provider map rejects at
+ * construction, and V3Evaluator selects its own verifier model regardless.
+ */
+function buildVerifierCarrierV3(logger: EvalLogger): V3 {
+  return new V3({
+    env: "LOCAL",
+    logger: logger.log.bind(logger),
+    disablePino: true,
+    disableAPI: true,
+    experimental: true,
+    verbose: 0,
+  });
+}
+
+function buildExternalHarnessTaskSpec(
+  plan: ReturnType<typeof buildExternalHarnessTaskPlan>,
+  input: EvalInput,
+): TaskSpec {
+  // Datasets that ship curated rubrics (WebTailBench) carry them in
+  // params.precomputed_rubric — thread them through so external-harness runs
+  // grade against the same rubric as the stagehand harness instead of
+  // LLM-generating a divergent one.
+  const precomputedRubric = normalizeRubric(input.params?.precomputed_rubric);
+  return {
+    id: plan.taskId ?? input.name,
+    instruction: plan.instruction,
+    initUrl: plan.startUrl,
+    ...(precomputedRubric && { precomputedRubric }),
+  };
 }
 
 function resolveProvider(modelName: AvailableModel): string | undefined {
@@ -197,23 +242,37 @@ export const claudeCodeHarness: BenchHarness = {
         `Expected claude_code harness config, received "${row.config.harness}".`,
       );
     }
-    const toolAdapter = await prepareClaudeCodeToolAdapter({
-      toolSurface: row.config.toolSurface,
-      startupProfile: row.config.startupProfile,
-      environment: row.config.environment,
-      plan,
-      logger,
-    });
+    // Everything past carrier construction runs inside one try/finally so a
+    // failure at any point — adapter preparation included — cleans up both
+    // the adapter and the carrier.
+    const carrierV3 = buildVerifierCarrierV3(logger);
+    let toolAdapter: PreparedClaudeCodeToolAdapter | undefined;
     try {
+      toolAdapter = await prepareClaudeCodeToolAdapter({
+        toolSurface: row.config.toolSurface,
+        startupProfile: row.config.startupProfile,
+        environment: row.config.environment,
+        plan,
+        logger,
+      });
       return await runClaudeCodeAgent({
         plan,
         model: input.modelName,
         logger,
         toolAdapter,
         signal,
+        verifier: {
+          v3: carrierV3,
+          taskSpec: buildExternalHarnessTaskSpec(plan, input),
+          dataset: plan.dataset,
+        },
       });
     } finally {
-      await toolAdapter.cleanup();
+      await toolAdapter?.cleanup();
+      // Deregister the never-init()-ed carrier (instance registry, event
+      // store, logger binding) so long matrix runs don't accumulate one
+      // V3 object graph per task.
+      await carrierV3.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {
@@ -239,23 +298,37 @@ export const codexHarness: BenchHarness = {
         `Expected codex harness config, received "${row.config.harness}".`,
       );
     }
-    const toolAdapter = await prepareCodexToolAdapter({
-      toolSurface: row.config.toolSurface,
-      startupProfile: row.config.startupProfile,
-      environment: row.config.environment,
-      plan,
-      logger,
-    });
+    // Everything past carrier construction runs inside one try/finally so a
+    // failure at any point — adapter preparation included — cleans up both
+    // the adapter and the carrier.
+    const carrierV3 = buildVerifierCarrierV3(logger);
+    let toolAdapter: PreparedCodexToolAdapter | undefined;
     try {
+      toolAdapter = await prepareCodexToolAdapter({
+        toolSurface: row.config.toolSurface,
+        startupProfile: row.config.startupProfile,
+        environment: row.config.environment,
+        plan,
+        logger,
+      });
       return await runCodexAgent({
         plan,
         model: input.modelName,
         logger,
         toolAdapter,
         signal,
+        verifier: {
+          v3: carrierV3,
+          taskSpec: buildExternalHarnessTaskSpec(plan, input),
+          dataset: plan.dataset,
+        },
       });
     } finally {
-      await toolAdapter.cleanup();
+      await toolAdapter?.cleanup();
+      // Deregister the never-init()-ed carrier (instance registry, event
+      // store, logger binding) so long matrix runs don't accumulate one
+      // V3 object graph per task.
+      await carrierV3.close().catch(() => {});
     }
   },
   async start(): Promise<StartedBenchHarness> {

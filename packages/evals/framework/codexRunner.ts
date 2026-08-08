@@ -4,6 +4,11 @@ import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
+import { codexAdapter } from "./harnesses/codexAdapter.js";
+import {
+  gradeExternalTrajectory,
+  type ExternalHarnessVerifierConfig,
+} from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -32,6 +37,16 @@ export interface CodexRunnerInput {
   toolAdapter?: PreparedCodexToolAdapter;
   signal?: AbortSignal;
   sdk?: CodexSdk;
+  /**
+   * Optional verifier integration. When provided, the runner builds a
+   * Trajectory from the codex event stream (via codexAdapter), runs
+   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
+   * the EvaluationResult into the returned TaskResult ({_success} mode follows
+   * EVAL_SUCCESS_MODE).
+   * When omitted, the runner falls back to parsing the legacy JSON result —
+   * preserves current behavior for callers that haven't migrated.
+   */
+  verifier?: ExternalHarnessVerifierConfig;
 }
 
 export interface ParsedCodexResult {
@@ -114,6 +129,7 @@ export async function runCodexAgent({
   toolAdapter,
   signal,
   sdk: injectedSdk,
+  verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
   const sdk = injectedSdk ?? (await loadCodexSdk(toolAdapter?.env));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
@@ -191,8 +207,7 @@ export async function runCodexAgent({
       finalResponse ||
       transcriptText ||
       "Codex did not report success");
-
-  return {
+  const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
     reasoning: parsed.summary,
@@ -203,6 +218,39 @@ export async function runCodexAgent({
     logs: logger.getLogs(),
     metrics: buildCodexMetrics(usage),
   };
+
+  if (!verifier) {
+    return baseResult;
+  }
+
+  // Build a Trajectory from the codex event stream and grade it with the
+  // rubric verifier; any failure in that path folds into `verifierError`.
+  return gradeExternalTrajectory({
+    buildTrajectory: () =>
+      codexAdapter.fromHarnessResult(
+        {
+          events,
+          finalAnswer: parsed.finalAnswer ?? finalResponse,
+          status: status === "completed" ? "complete" : "error",
+          usage: {
+            input_tokens: toFiniteNumber(usage?.input_tokens),
+            output_tokens: toFiniteNumber(usage?.output_tokens),
+            ...(usage?.reasoning_output_tokens !== undefined && {
+              reasoning_tokens: toFiniteNumber(usage.reasoning_output_tokens),
+            }),
+            ...(usage?.cached_input_tokens !== undefined && {
+              cached_input_tokens: toFiniteNumber(usage.cached_input_tokens),
+            }),
+          },
+        },
+        verifier.taskSpec,
+      ),
+    verifier,
+    baseResult,
+    errorMessage,
+    category: "codex",
+    logger,
+  });
 }
 
 function tryParseCodexJson(

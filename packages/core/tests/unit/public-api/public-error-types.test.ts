@@ -68,6 +68,7 @@ export const publicErrorTypes = {
   UnderstudyCommandException: Stagehand.UnderstudyCommandException,
   StagehandSetExtraHTTPHeadersError:
     Stagehand.StagehandSetExtraHTTPHeadersError,
+  StagehandSetDomainPolicyError: Stagehand.StagehandSetDomainPolicyError,
 } as const;
 
 const errorTypes = Object.keys(publicErrorTypes) as Array<
