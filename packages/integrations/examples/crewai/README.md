@@ -1,57 +1,90 @@
-# CrewAI + Stagehand code mode
+# CrewAI + sandboxed Stagehand code mode
 
-This example gives a CrewAI agent the canonical Stagehand `code_execute` tool over stdio. It starts
-one `packages/integrations/dist/codemode/stdio-server.mjs` child for the complete agent run, so later
-tool calls reuse the browser state created by earlier calls. Leaving the adapter context closes the
-MCP connection and its child process.
+Use Stagehand code mode as one CrewAI tool without running generated JavaScript on the agent host.
+CrewAI still connects to a local stdio child, but that child is a small trusted bridge. The bridge
+starts `stdio-server.mjs` as the primary process in a [Modal Sandbox](https://modal.com/docs/guide/sandboxes)
+and forwards MCP bytes unchanged:
 
-The server inherits the current environment. Select the browser without changing the example:
-
-```bash
-STAGEHAND_BROWSER=local
-STAGEHAND_BROWSER=browserbase
+```text
+CrewAI -> local stdio -> trusted bridge -> Modal Sandbox -> Stagehand MCP
+                                                     `-> generated JavaScript
 ```
 
-Browserbase mode also requires `BROWSERBASE_API_KEY`; `BROWSERBASE_PROJECT_ID` is optional. If the
-agent calls Stagehand AI methods, configure a supported model provider key or set
-`STAGEHAND_MODEL_NAME` and `STAGEHAND_MODEL_API_KEY` explicitly.
+The agent's model credential remains in the host process. The bridge gives the sandbox only
+`STAGEHAND_BROWSER=browserbase`, `BROWSERBASE_API_KEY`, optional `BROWSERBASE_PROJECT_ID`, and the
+optional Stagehand-specific `STAGEHAND_MODEL_NAME` and `STAGEHAND_MODEL_API_KEY` pair. Set that pair
+only when generated code needs AI-backed Stagehand methods such as `act` or `extract`.
+
+> The proposed `ghcr.io/browserbase/stagehand-codemode` image is not published yet. Until it is,
+> maintainers can set `STAGEHAND_CODEMODE_MODAL_IMAGE_ID` to an image built from the same Stagehand
+> commit. Once published, pin `STAGEHAND_CODEMODE_IMAGE` to a version or digest instead of a mutable
+> `latest` tag.
 
 ## Setup
 
-From the Stagehand repository root, build the exact MCP under review and install the Python example
-in an isolated environment:
+Create a Python 3.12 environment and install the example:
 
 ```bash
-pnpm turbo run build --filter @browserbasehq/stagehand-integrations
 python3.12 -m venv .venv
 . .venv/bin/activate
 python -m pip install -r packages/integrations/examples/crewai/requirements.txt
 ```
 
-Run the deterministic smoke. It discovers exactly `code_execute`, invokes that CrewAI tool twice
-against a real local browser, and verifies that the second call sees state left by the first:
+Configure Modal, Browserbase, and an immutable code-mode image. Configure the model provider key
+required by `DEFAULT_STAGEHAND_LLM` (`openai/gpt-5-mini`) separately in the host environment:
 
 ```bash
-python packages/integrations/examples/crewai/smoke.py
+export MODAL_TOKEN_ID="..."
+export MODAL_TOKEN_SECRET="..."
+export BROWSERBASE_API_KEY="..."
+export STAGEHAND_CODEMODE_IMAGE="ghcr.io/browserbase/stagehand-codemode:<version-or-digest>"
+export OPENAI_API_KEY="..."
 ```
 
-To run a model-driven agent, provide the outer CrewAI model credential and call the helper from the
-example directory while the Stagehand server configuration remains in the environment:
+`BROWSERBASE_PROJECT_ID` is optional. Modal can also use its normal local profile instead of token
+environment variables.
 
-```bash
-cd packages/integrations/examples/crewai
-```
+## Run an agent
+
+Run from `packages/integrations/examples/crewai`:
 
 ```python
 from agent import run_stagehand_agent
 
 result = run_stagehand_agent(
-    "Open https://example.com and return its title and URL.",
-    llm="openai/gpt-5-mini",
+    "Open https://example.com and return its title and URL."
 )
 print(result)
 ```
 
-`run_stagehand_agent` keeps CrewAI's context-managed `MCPServerAdapter` open through `kickoff`.
-This is important for stateful browser work: each `code_execute` call must reach the same stdio MCP
-process rather than launching a new browser.
+`run_stagehand_agent` keeps one context-managed `MCPServerAdapter` open for the complete `kickoff`.
+That lifecycle matters: every `code_execute` call reaches the same MCP process, sandbox, and browser.
+Leaving the context sends EOF to the MCP, gives Stagehand a chance to close the browser, and then
+terminates the sandbox if it is still running.
+
+## Sandbox policy
+
+The bridge defaults to a 10-minute hard timeout, a 5-minute idle timeout, and outbound access only
+to `*.browserbase.com`. Adjust them only when the task requires it:
+
+```bash
+export STAGEHAND_CODEMODE_TIMEOUT_SECONDS=900
+export STAGEHAND_CODEMODE_IDLE_TIMEOUT_SECONDS=300
+export STAGEHAND_CODEMODE_OUTBOUND_DOMAINS="*.browserbase.com,api.example.com"
+```
+
+Each extra domain is reachable by arbitrary generated JavaScript, so keep the list task-specific.
+The Browserbase credential is intentionally present inside the sandbox and should be scoped and
+rotated accordingly. The hard timeout is the final cleanup backstop if generated synchronous code
+cannot be interrupted cooperatively.
+
+## Local CI smoke
+
+The deterministic smoke starts the MCP directly on the CI runner with a local browser. It is useful
+for secret-free protocol and persistence coverage, but it is not the recommended boundary for
+production or untrusted prompts:
+
+```bash
+pnpm turbo run build --filter @browserbasehq/stagehand-integrations
+python packages/integrations/examples/crewai/smoke.py
+```

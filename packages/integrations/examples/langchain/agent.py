@@ -4,40 +4,79 @@ import asyncio
 import os
 import sys
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from deepagents import create_deep_agent
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
+
 from mcp import ClientSession
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
-STDIO_SERVER_PATH = (
-    REPOSITORY_ROOT / "packages/integrations/dist/codemode/stdio-server.mjs"
+MODAL_STDIO_BRIDGE_PATH = (
+    REPOSITORY_ROOT / "packages/integrations/examples/shared/modal_stdio_bridge.py"
 )
 SKILL_PATH = REPOSITORY_ROOT / "packages/integrations/codemode/SKILL.md"
-STAGEHAND_CODEMODE_SKILL = SKILL_PATH.read_text(encoding="utf-8").strip()
+DEFAULT_STAGEHAND_MODEL = "openai:gpt-5-mini"
+
+BRIDGE_ENV_KEYS = (
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
+    "SSL_CERT_FILE",
+    "REQUESTS_CA_BUNDLE",
+    "MODAL_TOKEN_ID",
+    "MODAL_TOKEN_SECRET",
+    "MODAL_PROFILE",
+    "BROWSERBASE_API_KEY",
+    "BROWSERBASE_PROJECT_ID",
+    "STAGEHAND_MODEL_NAME",
+    "STAGEHAND_MODEL_API_KEY",
+    "STAGEHAND_CODEMODE_IMAGE",
+    "STAGEHAND_CODEMODE_MODAL_IMAGE_ID",
+    "STAGEHAND_CODEMODE_MODAL_APP",
+    "STAGEHAND_CODEMODE_ENTRYPOINT",
+    "STAGEHAND_CODEMODE_TIMEOUT_SECONDS",
+    "STAGEHAND_CODEMODE_IDLE_TIMEOUT_SECONDS",
+    "STAGEHAND_CODEMODE_OUTBOUND_DOMAINS",
+)
+
+
+@lru_cache(maxsize=1)
+def load_stagehand_codemode_skill() -> str:
+    return SKILL_PATH.read_text(encoding="utf-8").strip()
+
+
+def modal_bridge_env(overrides: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Merge proxy overrides without inheriting host model credentials."""
+    child_env = {
+        key: value for key in BRIDGE_ENV_KEYS if (value := os.environ.get(key)) is not None
+    }
+    if overrides:
+        child_env.update(overrides)
+    return child_env
 
 
 def create_stagehand_mcp_client(
     env: Mapping[str, str] | None = None,
 ) -> MultiServerMCPClient:
-    """Create a client that forwards Stagehand local/Browserbase configuration."""
-    if not STDIO_SERVER_PATH.is_file():
-        raise RuntimeError(
-            "Build the Stagehand integrations package before running this example: "
-            "pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations"
+    """Create a stdio client for the trusted Modal sandbox bridge."""
+    if not MODAL_STDIO_BRIDGE_PATH.is_file():
+        raise FileNotFoundError(
+            f"Stagehand Modal stdio bridge not found: {MODAL_STDIO_BRIDGE_PATH}"
         )
 
-    child_env = dict(os.environ if env is None else env)
     return MultiServerMCPClient(
         {
             "stagehand": {
                 "transport": "stdio",
-                "command": "node",
-                "args": [str(STDIO_SERVER_PATH)],
-                "env": child_env,
+                "command": sys.executable,
+                "args": [str(MODAL_STDIO_BRIDGE_PATH)],
+                "env": modal_bridge_env(env),
             }
         },
         tool_name_prefix=False,
@@ -56,7 +95,7 @@ async def load_stagehand_code_tool(session: ClientSession) -> Any:
 
 async def run_stagehand_agent(
     prompt: str,
-    model: str | Any = "openai:gpt-5-mini",
+    model: str | Any = DEFAULT_STAGEHAND_MODEL,
 ) -> dict[str, Any]:
     client = create_stagehand_mcp_client()
 
@@ -68,7 +107,7 @@ async def run_stagehand_agent(
         agent = create_deep_agent(
             model=model,
             tools=[code_tool],
-            system_prompt=STAGEHAND_CODEMODE_SKILL,
+            system_prompt=load_stagehand_codemode_skill(),
         )
         return await agent.ainvoke(
             {"messages": [{"role": "user", "content": prompt}]},
@@ -88,7 +127,7 @@ async def _main() -> None:
     if len(sys.argv) < 2:
         raise SystemExit(f'Usage: {Path(sys.argv[0]).name} "<browser task>"')
     prompt = " ".join(sys.argv[1:])
-    model = os.environ.get("STAGEHAND_LANGCHAIN_MODEL", "openai:gpt-5-mini")
+    model = os.environ.get("STAGEHAND_LANGCHAIN_MODEL", DEFAULT_STAGEHAND_MODEL)
     result = await run_stagehand_agent(prompt, model=model)
     print(_last_message_text(result))
 
