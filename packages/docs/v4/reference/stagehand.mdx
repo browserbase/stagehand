@@ -73,7 +73,9 @@ const result = await stagehand._experimental_batch(
   Options controlling the selected page and overall deadline.
 
   <ParamField path="options.page" type="Page" optional>
-    The page supplied to the callback. The active page is used when omitted.
+    The page exposed as the callback context's `page`. The active page at batch startup is used
+    when omitted. This does not change the default target of `act()`, `observe()`, or `extract()`;
+    those methods use their own `page` option or the active page when called.
   </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
@@ -762,7 +764,9 @@ result = await stagehand._experimental_batch(
 </ParamField>
 
 <ParamField path="page" type="Page | None" optional>
-  The page supplied to the callback. The active page is used when omitted.
+  The page exposed as the callback context's `page`. The active page at batch startup is used when
+  omitted. This does not change the default target of `act()`, `observe()`, or `extract()`; those
+  methods use their own `page` option or the active page when called.
 </ParamField>
 
 <ResponseField name="result" type="object">

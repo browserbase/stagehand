@@ -4,6 +4,16 @@ import { createCallbackBatchController, type CallbackBatchFunction } from "../ca
 import type { HandlerContext, RPCRouter } from "../rpcRouter.js";
 
 const traceparent = "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01";
+const zeroMetadata = {
+  cache: { status: "DISABLED" },
+  usage: {
+    inputTokens: 0,
+    outputTokens: 0,
+    reasoningTokens: 0,
+    cachedInputTokens: 0,
+    inferenceTimeMs: 0,
+  },
+};
 
 async function runCallbackBatch(
   router: RPCRouter,
@@ -208,6 +218,90 @@ describe("callback batch runner", () => {
     });
   });
 
+  it("resolves the active page when each default operation runs", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    let activePageId = "page-1";
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2" }];
+        }
+        if (request.method === "context.active_page") return { pageId: activePageId };
+        if (request.method === "context.set_active_page") {
+          activePageId = (request.params as { pageId: string }).pageId;
+          return { ok: true };
+        }
+        if (request.method === "stagehand.act") {
+          return {
+            data: { success: true, message: "done", actionDescription: "done", actions: [] },
+            metadata: zeroMetadata,
+          };
+        }
+        if (request.method === "stagehand.observe") return { data: [], metadata: zeroMetadata };
+        if (request.method === "stagehand.extract") {
+          return { data: { extraction: "done" }, metadata: zeroMetadata };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+
+    await runCallbackBatch(
+      router,
+      async (stagehand) => {
+        const pages = await stagehand.context.pages();
+        const nextPage = pages[1];
+        if (!nextPage) throw new Error("missing second page");
+        await stagehand.context.setActivePage(nextPage);
+        await stagehand.act("act");
+        await stagehand.observe("observe");
+        await stagehand.extract("extract");
+      },
+      null,
+      { timeout: 10_000 },
+    );
+
+    const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
+    expect(
+      operationRequests.map((request) => (request.params as { pageId: string }).pageId),
+    ).toEqual(["page-2", "page-2", "page-2"]);
+  });
+
+  it("keeps AI operation defaults on the active page when the batch selects a page", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2" }];
+        }
+        if (request.method === "context.active_page") return { pageId: "page-2" };
+        if (request.method === "stagehand.act") {
+          return {
+            data: { success: true, message: "done", actionDescription: "done", actions: [] },
+            metadata: zeroMetadata,
+          };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+
+    const result = await runCallbackBatch(
+      router,
+      async (stagehand) => {
+        await stagehand.act("act");
+        return stagehand.page.pageId;
+      },
+      null,
+      { pageId: "page-1", timeout: 10_000 },
+    );
+
+    expect(result).toEqual({ value: "page-1" });
+    const actRequest = requests.find((request) => request.method === "stagehand.act");
+    expect((actRequest?.params as { pageId: string } | undefined)?.pageId).toBe("page-2");
+    expect(requests.filter((request) => request.method === "context.active_page")).toHaveLength(1);
+  });
+
   it("normalizes extract schema and options overloads", async () => {
     const requests: StagehandRpcRequest[] = [];
     const router = {
@@ -272,16 +366,6 @@ describe("callback batch runner", () => {
 
   it("normalizes and strips per-operation page options", async () => {
     const requests: StagehandRpcRequest[] = [];
-    const metadata = {
-      cache: { status: "DISABLED" },
-      usage: {
-        inputTokens: 0,
-        outputTokens: 0,
-        reasoningTokens: 0,
-        cachedInputTokens: 0,
-        inferenceTimeMs: 0,
-      },
-    };
     const router = {
       handle: vi.fn(async (request: StagehandRpcRequest) => {
         requests.push(request);
@@ -292,12 +376,12 @@ describe("callback batch runner", () => {
         if (request.method === "stagehand.act") {
           return {
             data: { success: true, message: "done", actionDescription: "done", actions: [] },
-            metadata,
+            metadata: zeroMetadata,
           };
         }
-        if (request.method === "stagehand.observe") return { data: [], metadata };
+        if (request.method === "stagehand.observe") return { data: [], metadata: zeroMetadata };
         if (request.method === "stagehand.extract") {
-          return { data: { extraction: "done" }, metadata };
+          return { data: { extraction: "done" }, metadata: zeroMetadata };
         }
         throw new Error(`Unexpected method: ${request.method}`);
       }),
