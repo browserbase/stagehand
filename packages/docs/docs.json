@@ -60,6 +60,12 @@
             ]
           },
           {
+            "group": "Integrations",
+            "pages": [
+              "v4/best-practices/code-mode"
+            ]
+          },
+          {
             "group": "SDK reference",
             "pages": [
               "v4/reference/stagehand",

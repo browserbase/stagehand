@@ -1,0 +1,112 @@
+---
+title: "Code mode"
+sidebarTitle: "Code mode"
+description: "Give an agent one tool that writes Stagehand code against a live browser."
+---
+
+Code mode gives an agent a single tool, `code_execute`, instead of a catalog of browser actions. The agent writes the body of an async JavaScript function, Stagehand runs it against a browser that stays open between calls, and the tool returns whatever the function returned.
+
+One call can do many steps, so loops and conditionals live inside the snippet instead of costing a round trip each.
+
+It ships as a local MCP server. Any framework with MCP support loads it as-is, and frameworks without MCP wrap the same executor in a small tool of their own.
+
+<Note>
+  `@browserbasehq/stagehand-integrations` is private while its API settles. Install it from the workspace, not from npm.
+</Note>
+
+## Set up with MCP
+
+Point your MCP client at the stdio server. It's a process entrypoint rather than a command-line interface, and it takes no arguments:
+
+```bash
+STAGEHAND_BROWSER=browserbase \
+BROWSERBASE_API_KEY=$BROWSERBASE_API_KEY \
+node node_modules/@browserbasehq/stagehand-integrations/dist/codemode/stdio-server.mjs
+```
+
+The client discovers one tool, `code_execute`, whose description already carries the syntax guide. Nothing else is Stagehand-specific.
+
+<Warning>
+  Keep one MCP session open for the whole run. The browser lives in the server process, so a client that opens a session per call starts a new process each time and loses the previous call's pages and cookies. Helpers that fetch tools without an explicit session usually work this way.
+</Warning>
+
+## Set up without MCP
+
+Wrap `StagehandCodeExecutor` in whatever tool primitive your framework has, exposing one `code` string argument. Build it once per run so the browser persists, and close it at the end.
+
+```typescript
+import {
+  StagehandCodeExecutor,
+  stagehandCodeConfigFromEnv,
+} from "@browserbasehq/stagehand-integrations/codemode";
+
+const executor = new StagehandCodeExecutor(stagehandCodeConfigFromEnv());
+
+try {
+  const result = await executor.execute({
+    code: `
+      await page.goto("https://example.com", { waitUntil: "domcontentloaded" });
+      return { title: await page.title(), url: await page.url() };
+    `,
+  });
+  console.log(result);
+} finally {
+  await executor.close();
+}
+```
+
+`execute()` takes an optional `AbortSignal`, and `metrics()` returns the session's token and timing counters. Prepend `STAGEHAND_CODEMODE_SKILL` to your system prompt, since there's no tool description for the client to read.
+
+If your harness already owns a Stagehand instance, call `executeStagehandSnippet({ code, page, context, stagehand })` instead and keep your own startup and cleanup.
+
+## Configure
+
+`stagehandCodeConfigFromEnv()` reads these:
+
+| Variable | Effect |
+| --- | --- |
+| `STAGEHAND_BROWSER` | Forces `local` or `browserbase`. Any other value throws |
+| `BROWSERBASE_API_KEY` | Selects and authenticates Browserbase. Required when `STAGEHAND_BROWSER=browserbase` |
+| `BROWSERBASE_PROJECT_ID` | Project forwarded when creating the session |
+| `STAGEHAND_MODEL_NAME` | Pins the model |
+| `STAGEHAND_MODEL_API_KEY` | Provider key for that model. Requires `STAGEHAND_MODEL_NAME` |
+| Provider keys | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, or a Google key, matched to the model's prefix |
+
+Without an override it picks Browserbase when `BROWSERBASE_API_KEY` is set, and a headless local browser otherwise. Pass a config object instead when you need something the environment can't express, such as `launchOptions`.
+
+## Write snippets
+
+Snippets are function bodies with `page`, `context`, `stagehand`, `z`, and `console` already in scope. They can't import packages, read environment variables, or close the browser, because the tool owner handles that. A deterministic surface drops `stagehand` and `z`.
+
+Every call returns the same shape:
+
+```json
+{
+  "ok": true,
+  "page": { "url": "https://example.com/", "title": "Example Domain" },
+  "value": { "heading": "Example Domain" },
+  "logs": [{ "level": "log", "text": "found heading" }]
+}
+```
+
+A failure replaces `value` with an `error` whose `kind` is `validation` (empty or oversized `code`), `runtime` (the snippet threw), `aborted`, or `closed`. A `runtime` error leaves the browser usable, so the agent can recover on the next call rather than starting over. Error messages are redacted for secrets, URLs, and tokens.
+
+Return compact evidence. Values serialize to JSON and truncate past 256 KiB, logs stop at 64 KiB, and `code` over 100,000 bytes is rejected.
+
+## Operating notes
+
+The browser, its pages, cookies, and navigation state persist across calls. Local variables don't, so rediscover pages and elements each time. Calls are serialized, so two snippets never run at once.
+
+An `AbortSignal` cancels queued work but can't stop JavaScript that already started. For hard timeouts, keep the executor behind a process boundary, which the stdio server gives you. If a snippet blocks the event loop the server can't run its cleanup, so kill the whole process tree and escalate to `SIGKILL` on your own deadline. Killing only the Node process can orphan a local browser.
+
+<Warning>
+  Code mode isn't a sandbox. Generated JavaScript runs in the host process with its filesystem, network, and environment access, credentials included. Put it inside your own container before giving it untrusted input.
+</Warning>
+
+## Keep the agent on the v4 API
+
+`codemode/SKILL.md` teaches the model the exact syntax: what's in scope, which page, locator, and context methods exist, and the `{ data, metadata }` shape of AI results. `codemode/REFERENCE.md` is the longer lookup. Both ship as package files and as the strings `STAGEHAND_CODEMODE_SKILL` and `STAGEHAND_CODEMODE_REFERENCE`.
+
+<Tip>
+  Without the skill, models reach for Playwright methods v4 doesn't have, such as `page.content()`, `locator.getAttribute()`, `page.keyboard`, and `page.frameLocator()`. Use `page.evaluate()` for DOM reads and `page.snapshot({ includeIframes: true })` for cross-origin frames.
+</Tip>
