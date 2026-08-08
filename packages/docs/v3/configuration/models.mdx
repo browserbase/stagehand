@@ -453,6 +453,23 @@ await stagehand.init();
 </CodeGroup>
 [View all supported Perplexity models →](https://docs.perplexity.ai/getting-started/models)
 </Tab>
+<Tab title="TrustedRouter">
+<CodeGroup>
+```typescript TypeScript
+import { Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = new Stagehand({
+  env: "BROWSERBASE",
+  model: "trustedrouter/auto"
+  // API key auto-loads from TRUSTEDROUTER_API_KEY - set in your .env
+});
+
+await stagehand.init();
+```
+
+</CodeGroup>
+[View all supported TrustedRouter models →](https://trustedrouter.com/models)
+</Tab>
 <Tab title="TogetherAI">
 <CodeGroup>
 ```typescript TypeScript

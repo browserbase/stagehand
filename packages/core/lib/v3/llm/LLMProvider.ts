@@ -37,6 +37,24 @@ import { ollama, createOllama } from "ollama-ai-provider-v2";
 import { gateway, createGateway, wrapLanguageModel } from "ai";
 import { AISDKProvider, AISDKCustomProvider } from "../types/public/model.js";
 
+const TRUSTEDROUTER_BASE_URL = "https://api.trustedrouter.com/v1";
+
+// TrustedRouter is an attested OpenAI-compatible router; it speaks the Chat
+// Completions API, so its models are created via the openai provider's .chat().
+const trustedrouter: AISDKProvider = (modelName: string) =>
+  createOpenAI({
+    baseURL: TRUSTEDROUTER_BASE_URL,
+    apiKey: process.env.TRUSTEDROUTER_API_KEY,
+  }).chat(modelName);
+
+const createTrustedRouter: AISDKCustomProvider = (options: ClientOptions) => {
+  const provider = createOpenAI({
+    baseURL: TRUSTEDROUTER_BASE_URL,
+    ...options,
+  });
+  return (modelName: string) => provider.chat(modelName);
+};
+
 const AISDKProviders: Record<string, AISDKProvider> = {
   openai,
   bedrock,
@@ -53,6 +71,7 @@ const AISDKProviders: Record<string, AISDKProvider> = {
   ollama,
   vertex,
   gateway,
+  trustedrouter,
 };
 const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   openai: createOpenAI,
@@ -70,6 +89,7 @@ const AISDKProvidersWithAPIKey: Record<string, AISDKCustomProvider> = {
   perplexity: createPerplexity,
   ollama: createOllama,
   gateway: createGateway,
+  trustedrouter: createTrustedRouter,
 };
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;

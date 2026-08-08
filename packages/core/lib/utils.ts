@@ -698,6 +698,7 @@ export const providerEnvVarMap: Partial<
   groq: "GROQ_API_KEY",
   cerebras: "CEREBRAS_API_KEY",
   togetherai: "TOGETHER_AI_API_KEY",
+  trustedrouter: "TRUSTEDROUTER_API_KEY",
   mistral: "MISTRAL_API_KEY",
   deepseek: "DEEPSEEK_API_KEY",
   perplexity: "PERPLEXITY_API_KEY",
