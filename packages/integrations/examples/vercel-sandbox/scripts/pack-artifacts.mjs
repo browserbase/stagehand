@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const commandMaxBuffer = 16 * 1024 * 1024;
 const exampleRoot = fileURLToPath(new URL("..", import.meta.url));
 const repositoryRoot = path.resolve(exampleRoot, "../../../..");
 const sdkRoot = path.join(repositoryRoot, "packages", "sdk-ts");
@@ -20,15 +21,13 @@ await Promise.all([
   mkdir(packageRoot, { recursive: true }),
   mkdir(runtimeRoot, { recursive: true }),
 ]);
-await execFileAsync(
+await run(
   "pnpm",
   ["exec", "turbo", "run", "build", "--filter", "@browserbasehq/stagehand-codemode"],
-  { cwd: repositoryRoot },
+  repositoryRoot,
 );
-await execFileAsync("pnpm", ["pack", "--pack-destination", packageRoot], { cwd: sdkRoot });
-await execFileAsync("pnpm", ["pack", "--pack-destination", packageRoot], {
-  cwd: codeModeRoot,
-});
+await run("pnpm", ["pack", "--pack-destination", packageRoot], sdkRoot);
+await run("pnpm", ["pack", "--pack-destination", packageRoot], codeModeRoot);
 
 const packed = await readdir(packageRoot);
 const stagehandSource = requiredArtifact(packed, /^browserbasehq-stagehand-(?!codemode-).+\.tgz$/);
@@ -52,7 +51,7 @@ await writeFile(
   path.join(runtimeRoot, "package.json"),
   `${JSON.stringify(runtimeManifest, null, 2)}\n`,
 );
-await execFileAsync(
+await run(
   "npm",
   [
     "install",
@@ -62,7 +61,7 @@ await execFileAsync(
     "--no-fund",
     `--registry=${publicRegistry}`,
   ],
-  { cwd: runtimeRoot },
+  runtimeRoot,
 );
 await assertPublicLock(path.join(runtimeRoot, "package-lock.json"));
 
@@ -84,6 +83,10 @@ function requiredArtifact(files, pattern) {
     throw new Error(`Expected exactly one packed artifact matching ${pattern}`);
   }
   return matches[0];
+}
+
+async function run(file, args, cwd) {
+  return execFileAsync(file, args, { cwd, maxBuffer: commandMaxBuffer });
 }
 
 async function artifactSummary(artifactPath) {
