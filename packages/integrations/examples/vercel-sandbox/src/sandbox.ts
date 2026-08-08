@@ -184,10 +184,7 @@ export async function createStagehandSandbox(
     await abortable(startAuthProxy(proxyUser, tokenDigest), options.signal);
 
     const origin = new URL(sandbox.domain(BRIDGE_PORT));
-    await abortable(
-      waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000),
-      options.signal,
-    );
+    await waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000, options.signal);
     const unauthorized = await abortable(
       fetch(new URL("/healthz", origin), {
         signal: AbortSignal.timeout(HEALTH_REQUEST_TIMEOUT_MS),
@@ -318,7 +315,13 @@ async function assertUnprivileged(user: SandboxUser, name: string): Promise<void
   if (sudoProbe.exitCode === 0) throw new Error(`${name} unexpectedly has sudo access`);
 }
 
-async function waitForHealth(origin: URL, token: string, timeoutMs: number): Promise<void> {
+async function waitForHealth(
+  origin: URL,
+  token: string,
+  timeoutMs: number,
+  signal?: AbortSignal,
+): Promise<void> {
+  assertNotAborted(signal);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const requestTimeoutMs = Math.max(
@@ -327,10 +330,13 @@ async function waitForHealth(origin: URL, token: string, timeoutMs: number): Pro
     );
     const response = await fetch(new URL("/healthz", origin), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(requestTimeoutMs),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(requestTimeoutMs)])
+        : AbortSignal.timeout(requestTimeoutMs),
     }).catch(() => undefined);
+    assertNotAborted(signal);
     if (response?.ok) return;
-    await delay(Math.min(250, Math.max(0, deadline - Date.now())));
+    await delay(Math.min(250, Math.max(0, deadline - Date.now())), signal);
   }
   throw new StagehandSandboxHealthError();
 }
@@ -348,8 +354,11 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
         "X-BB-API-Key": options.browserbaseApiKey,
       },
       body: JSON.stringify({ projectId: options.browserbaseProjectId }),
-      signal: AbortSignal.timeout(30_000),
+      signal: options.signal
+        ? AbortSignal.any([options.signal, AbortSignal.timeout(30_000)])
+        : AbortSignal.timeout(30_000),
     });
+    assertNotAborted(options.signal);
     if (!response.ok) {
       throw new Error(`Browserbase CDP host discovery returned ${response.status}`);
     }
@@ -454,8 +463,21 @@ function assertBrowserbaseCdpHost(hostname: string): string {
   return hostname;
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  assertNotAborted(signal);
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    const onAbort = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      reject(new StagehandSandboxSetupError());
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 function assertNotAborted(signal: AbortSignal | undefined): void {

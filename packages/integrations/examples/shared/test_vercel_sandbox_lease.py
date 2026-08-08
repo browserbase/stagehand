@@ -11,6 +11,8 @@ from unittest.mock import patch
 import vercel_sandbox_lease as lease
 
 VALID_TOKEN = "A" * 43
+SHORT_TOKEN = "A" * 42
+LONG_TOKEN = "A" * 44
 
 
 class FakeProcess:
@@ -61,6 +63,13 @@ class EscalatingFakeProcess(FakeProcess):
 
     def kill(self) -> None:
         self.killed = True
+
+
+class UnstoppableFakeProcess(EscalatingFakeProcess):
+    def wait(self, timeout: float) -> int:
+        self.wait_calls += 1
+        self.waited_after_stdin_closed = self.stdin.closed
+        raise subprocess.TimeoutExpired("stagehand-lease", timeout)
 
 
 class StagehandSandboxLeaseTest(unittest.TestCase):
@@ -132,11 +141,33 @@ class StagehandSandboxLeaseTest(unittest.TestCase):
         )
         self.assertTrue(process.waited_after_stdin_closed)
 
+    def test_keyboard_interrupt_during_setup_is_preserved(self) -> None:
+        process = FakeProcess()
+        with (
+            patch.object(lease, "TSX_PATH", Path(__file__)),
+            patch.object(lease, "LEASE_PATH", Path(__file__)),
+            patch.object(subprocess, "Popen", return_value=process),
+            patch.object(
+                lease.queue.Queue,
+                "get",
+                side_effect=KeyboardInterrupt,
+            ),
+            self.assertRaises(KeyboardInterrupt),
+        ):
+            lease.StagehandSandboxLease().start()
+
+        self.assertTrue(process.waited_after_stdin_closed)
+
     def test_connection_parser_rejects_untrusted_shapes(self) -> None:
         invalid_connections = (
             "not-json",
             f'{{"url":"http://sandbox.example.test/mcp","token":"{VALID_TOKEN}"}}',
             f'{{"url":"https://sandbox.example.test/not-mcp","token":"{VALID_TOKEN}"}}',
+            f'{{"url":"https://user:pass@sandbox.example.test/mcp","token":"{VALID_TOKEN}"}}',
+            f'{{"url":"https://sandbox.example.test/mcp?x=1","token":"{VALID_TOKEN}"}}',
+            f'{{"url":"https://sandbox.example.test/mcp#fragment","token":"{VALID_TOKEN}"}}',
+            f'{{"url":"https://sandbox.example.test/mcp","token":"{SHORT_TOKEN}"}}',
+            f'{{"url":"https://sandbox.example.test/mcp","token":"{LONG_TOKEN}"}}',
             '{"url":"https://sandbox.example.test/mcp","token":""}',
         )
         for connection in invalid_connections:
@@ -154,6 +185,23 @@ class StagehandSandboxLeaseTest(unittest.TestCase):
         with self.assertRaises(lease.StagehandSandboxLeaseError):
             owner.close()
 
+        self.assertTrue(process.waited_after_stdin_closed)
+        self.assertTrue(process.terminated)
+        self.assertTrue(process.killed)
+        self.assertEqual(process.wait_calls, 3)
+
+    def test_close_reports_owner_that_survives_kill(self) -> None:
+        process = UnstoppableFakeProcess()
+        owner = lease.StagehandSandboxLease()
+        owner._process = process
+
+        with self.assertRaises(lease.StagehandSandboxLeaseError) as raised:
+            owner.close()
+
+        self.assertEqual(
+            str(raised.exception),
+            "Stagehand sandbox lease could not stop the trusted owner",
+        )
         self.assertTrue(process.waited_after_stdin_closed)
         self.assertTrue(process.terminated)
         self.assertTrue(process.killed)

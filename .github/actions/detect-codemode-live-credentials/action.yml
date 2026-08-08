@@ -26,7 +26,11 @@ runs:
         if [[ -n "$BROWSERBASE_API_KEY" && -n "$BROWSERBASE_PROJECT_ID" ]]; then
           browserbase_ready=true
         fi
-        if [[ -n "$VERCEL_OIDC_TOKEN" || ( -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" && -n "$VERCEL_TOKEN" ) ]]; then
+        if [[ -n "$VERCEL_TOKEN" ]]; then
+          if [[ -n "$VERCEL_TEAM_ID" && -n "$VERCEL_PROJECT_ID" ]]; then
+            vercel_ready=true
+          fi
+        elif [[ -n "$VERCEL_OIDC_TOKEN" ]]; then
           vercel_ready=true
         fi
         if [[ "$REQUIRE_OPENAI" != "true" || -n "$OPENAI_API_KEY" ]]; then
