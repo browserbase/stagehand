@@ -1,5 +1,4 @@
-deepagents>=0.7.1,<1
-langchain-mcp-adapters>=0.3.1,<1
-langchain-openai>=1.2.1,<2
-mcp>=1.24.0,<2
-modal>=1.5.3,<2
+deepagents==0.7.5
+langchain-mcp-adapters==0.3.2
+langchain-openai==1.4.2
+mcp==1.29.0
