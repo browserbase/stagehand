@@ -10,6 +10,7 @@ describe("validateChangeset", () => {
 "@browserbasehq/stagehand-python": patch
 "@browserbasehq/stagehand-go": patch
 "@browserbasehq/stagehand-extension": patch
+"@browserbasehq/stagehand-codemode": patch
 ---
 
 Release the SDKs.
