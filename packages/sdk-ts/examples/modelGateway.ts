@@ -21,7 +21,7 @@ try {
     z.object({ heading: z.string(), domain: z.string() }),
   );
 
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result.data, null, 2));
 } finally {
   await stagehand.close();
   await browser.close();

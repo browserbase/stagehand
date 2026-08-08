@@ -23,18 +23,18 @@ async def main() -> None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")
 
-            actions = await stagehand.observe(
+            result = await stagehand.observe(
                 "Find the link that provides more information about Example Domain",
             )
 
             print(
                 json.dumps(
-                    [action.model_dump(mode="json", by_alias=True) for action in actions.data],
+                    [action.model_dump(mode="json", by_alias=True) for action in result.data],
                     indent=2,
                 )
             )
 
-            if not actions.data:
+            if not result.data:
                 raise RuntimeError("observe() returned no matching actions")
         finally:
             await stagehand.close()
