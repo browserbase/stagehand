@@ -1,28 +1,21 @@
-# CrewAI + sandboxed Stagehand code mode
+# CrewAI with Stagehand code mode
 
-Use Stagehand code mode as one CrewAI tool without running generated JavaScript on the agent host.
-CrewAI still connects to a local stdio child, but that child is a small trusted bridge. The bridge
-starts `stdio-server.mjs` as the primary process in a [Modal Sandbox](https://modal.com/docs/guide/sandboxes)
-and forwards MCP bytes unchanged:
+This example gives a CrewAI agent one browser tool, `code_execute`, without running generated
+JavaScript in the Python agent process. A small trusted Python lease owner starts the
+package-installed [Vercel Sandbox example](../vercel-sandbox) and receives its `{ url, token }`
+connection. CrewAI then connects directly through authenticated Streamable HTTP:
 
 ```text
-CrewAI -> local stdio -> trusted bridge -> Modal Sandbox -> Stagehand MCP
-                                                     `-> generated JavaScript
+CrewAI MCPServerAdapter -> authenticated HTTPS -> Vercel Sandbox -> Stagehand code-mode MCP
+                                                                  `-> generated JavaScript
 ```
 
-The agent's model credential remains in the host process. The bridge gives the sandbox only
-`STAGEHAND_BROWSER=browserbase`, `BROWSERBASE_API_KEY`, optional `BROWSERBASE_PROJECT_ID`, and the
-optional Stagehand-specific `STAGEHAND_MODEL_NAME` and `STAGEHAND_MODEL_API_KEY` pair. Set that pair
-only when generated code needs AI-backed Stagehand methods such as `act` or `extract`.
-
-> The proposed `ghcr.io/browserbase/stagehand-codemode` image is not published yet. Until it is,
-> maintainers can set `STAGEHAND_CODEMODE_MODAL_IMAGE_ID` to an image built from the same Stagehand
-> commit. Once published, pin `STAGEHAND_CODEMODE_IMAGE` to a version or digest instead of a mutable
-> `latest` tag.
+The adapter discovers the canonical tool description and uses it as the agent's backstory. It does
+not copy the executor, schema, or code-mode skill.
 
 ## Setup
 
-Create a Python 3.12 environment and install the example:
+Create a Python 3.12 environment and install the pinned CrewAI example dependencies:
 
 ```bash
 python3.12 -m venv .venv
@@ -30,61 +23,51 @@ python3.12 -m venv .venv
 python -m pip install -r packages/integrations/examples/crewai/requirements.txt
 ```
 
-Configure Modal, Browserbase, and an immutable code-mode image. Configure the model provider key
-required by `DEFAULT_STAGEHAND_LLM` (`openai/gpt-5-mini`) separately in the host environment:
+Build and pack the exact Stagehand packages under review:
 
 ```bash
-export MODAL_TOKEN_ID="..."
-export MODAL_TOKEN_SECRET="..."
-export BROWSERBASE_API_KEY="..."
-export STAGEHAND_CODEMODE_IMAGE="ghcr.io/browserbase/stagehand-codemode:<version-or-digest>"
-export OPENAI_API_KEY="..."
+pnpm install
+pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
 ```
 
-`BROWSERBASE_PROJECT_ID` is optional. Modal can also use its normal local profile instead of token
-environment variables.
+## Run the end-to-end proof
 
-## Run an agent
+```bash
+STAGEHAND_SANDBOX_ARTIFACTS="$PWD/packages/integrations/examples/vercel-sandbox/.artifacts" \
+BROWSERBASE_API_KEY=<api-key> \
+BROWSERBASE_PROJECT_ID=<project-id> \
+VERCEL_OIDC_TOKEN=<oidc-token> \
+OPENAI_API_KEY=<openai-key> \
+python packages/integrations/examples/crewai/e2e.py
+```
 
-Run from `packages/integrations/examples/crewai`:
+For external CI, replace `VERCEL_OIDC_TOKEN` with `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID`, and
+`VERCEL_TOKEN`. Set `CREWAI_MODEL` in your own wrapper if you want to pass a model other than the
+example's `openai/gpt-5-mini` default.
+
+The proof uses one live package-installed sandbox and one context-managed CrewAI MCP adapter. It:
+
+1. invokes `code_execute` twice directly and requires the same page ID and DOM marker;
+2. records CrewAI's tool-usage event from a real model-selected `code_execute` call;
+3. invokes the tool again to independently verify the model's browser-side change;
+4. proves the model key and a host-only marker are absent inside generated code; and
+5. closes the CrewAI MCP adapter before ending the sandbox lease, emitting `PASS` only afterward.
+
+## Use the agent
 
 ```python
 from agent import run_stagehand_agent
+from sandbox import StagehandSandboxLease
 
-result = run_stagehand_agent(
-    "Open https://example.com and return its title and URL."
-)
-print(result)
+with StagehandSandboxLease() as connection:
+    result = run_stagehand_agent(
+        connection,
+        "Open https://example.com and return its title and URL.",
+    )
+    print(result)
 ```
 
-`run_stagehand_agent` keeps one context-managed `MCPServerAdapter` open for the complete `kickoff`.
-That lifecycle matters: every `code_execute` call reaches the same MCP process, sandbox, and browser.
-Leaving the context sends EOF to the MCP, gives Stagehand a chance to close the browser, and then
-terminates the sandbox if it is still running.
-
-## Sandbox policy
-
-The bridge defaults to a 10-minute hard timeout, a 5-minute idle timeout, and outbound access only
-to `*.browserbase.com`. Adjust them only when the task requires it:
-
-```bash
-export STAGEHAND_CODEMODE_TIMEOUT_SECONDS=900
-export STAGEHAND_CODEMODE_IDLE_TIMEOUT_SECONDS=300
-export STAGEHAND_CODEMODE_OUTBOUND_DOMAINS="*.browserbase.com,api.example.com"
-```
-
-Each extra domain is reachable by arbitrary generated JavaScript, so keep the list task-specific.
-The Browserbase credential is intentionally present inside the sandbox and should be scoped and
-rotated accordingly. The hard timeout is the final cleanup backstop if generated synchronous code
-cannot be interrupted cooperatively.
-
-## Local CI smoke
-
-The deterministic smoke starts the MCP directly on the CI runner with a local browser. It is useful
-for secret-free protocol and persistence coverage, but it is not the recommended boundary for
-production or untrusted prompts:
-
-```bash
-pnpm turbo run build --filter @browserbasehq/stagehand-integrations
-python packages/integrations/examples/crewai/smoke.py
-```
+The lease subprocess receives only Browserbase, Vercel, artifact, and runtime variables from its
+allowlist. Outer model-provider credentials are intentionally excluded, and the sandbox foundation
+brokers the Browserbase credential at its egress boundary.

@@ -1,15 +1,18 @@
-name: Code-mode framework examples
+name: Code-mode sandbox examples
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths:
       - ".github/workflows/codemode-framework-examples.yml"
       - "packages/integrations/**"
       - "packages/extension/**"
       - "packages/protocol/**"
       - "packages/sdk-ts/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - "tsconfig.json"
       - "turbo.json"
   push:
     branches: [main, v4-spike]
@@ -19,8 +22,10 @@ on:
       - "packages/extension/**"
       - "packages/protocol/**"
       - "packages/sdk-ts/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+      - "tsconfig.json"
       - "turbo.json"
 
 permissions:
@@ -31,10 +36,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  vercel:
-    name: Vercel AI SDK
+  example:
+    name: ${{ matrix.name }}
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Vercel Sandbox package-installed MCP
+            package: "@browserbasehq/stagehand-integrations-example-vercel-sandbox"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
@@ -45,15 +60,30 @@ jobs:
       - uses: ./.github/actions/setup-chrome-verified
         id: setup-chrome
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel typecheck
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel smoke
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+      - run: pnpm --filter ${{ matrix.package }} typecheck
+      - run: pnpm --filter ${{ matrix.package }} test:contract
+      - run: pnpm --filter ${{ matrix.package }} pack:artifacts
+      - run: pnpm --filter ${{ matrix.package }} smoke
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
           STAGEHAND_BROWSER: local
+      - run: pnpm --filter ${{ matrix.package }} e2e
+        env:
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
   mastra:
     name: Mastra
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -63,18 +93,26 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra typecheck
-      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra smoke
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra e2e
         env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-          STAGEHAND_BROWSER: local
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   crewai:
     name: CrewAI
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -83,9 +121,6 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
         with:
           use-prebuilt-artifacts: "false"
-
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
 
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
@@ -94,20 +129,34 @@ jobs:
           cache: pip
           cache-dependency-path: packages/integrations/examples/crewai/requirements.txt
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
       - run: python -m pip install -r packages/integrations/examples/crewai/requirements.txt
       - run: >-
           python -m py_compile
-          packages/integrations/examples/shared/modal_stdio_bridge.py
+          packages/integrations/examples/shared/vercel_sandbox_lease.py
+          packages/integrations/examples/shared/test_vercel_sandbox_lease.py
           packages/integrations/examples/crewai/agent.py
-          packages/integrations/examples/crewai/smoke.py
-      - run: python packages/integrations/examples/crewai/smoke.py
+          packages/integrations/examples/crewai/sandbox.py
+          packages/integrations/examples/crewai/e2e.py
+      - run: python packages/integrations/examples/shared/test_vercel_sandbox_lease.py
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+      - run: python packages/integrations/examples/crewai/e2e.py
         env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-          STAGEHAND_BROWSER: local
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   langchain:
     name: LangChain Deep Agents
+    if: >-
+      github.event_name == 'push' ||
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -117,9 +166,6 @@ jobs:
         with:
           use-prebuilt-artifacts: "false"
 
-      - uses: ./.github/actions/setup-chrome-verified
-        id: setup-chrome
-
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
@@ -127,17 +173,29 @@ jobs:
           cache: pip
           cache-dependency-path: packages/integrations/examples/langchain/requirements.txt
 
-      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
       - run: python -m pip install -r packages/integrations/examples/langchain/requirements.txt
       - run: >-
           python -m py_compile
-          packages/integrations/examples/shared/modal_stdio_bridge.py
+          packages/integrations/examples/shared/vercel_sandbox_lease.py
+          packages/integrations/examples/shared/test_vercel_sandbox_lease.py
           packages/integrations/examples/langchain/agent.py
-          packages/integrations/examples/langchain/smoke.py
-      - run: python packages/integrations/examples/langchain/smoke.py
+          packages/integrations/examples/langchain/sandbox.py
+          packages/integrations/examples/langchain/test_agent.py
+          packages/integrations/examples/langchain/e2e.py
+      - run: python packages/integrations/examples/shared/test_vercel_sandbox_lease.py
+      - run: python packages/integrations/examples/langchain/test_agent.py
+      - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
+      - run: python packages/integrations/examples/langchain/e2e.py
         env:
-          CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
-          STAGEHAND_BROWSER: local
+          STAGEHAND_SANDBOX_ARTIFACTS: ${{ github.workspace }}/packages/integrations/examples/vercel-sandbox/.artifacts
+          BROWSERBASE_API_KEY: ${{ secrets.BROWSERBASE_API_KEY }}
+          BROWSERBASE_PROJECT_ID: ${{ secrets.BROWSERBASE_PROJECT_ID }}
+          VERCEL_OIDC_TOKEN: ${{ secrets.VERCEL_OIDC_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   eve:
     name: Eve

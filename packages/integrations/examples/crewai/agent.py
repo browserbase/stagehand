@@ -1,98 +1,69 @@
 from __future__ import annotations
 
 import os
-import sys
+from builtins import BaseExceptionGroup
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from functools import lru_cache
-from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
+from crewai import Agent
 from crewai.tools import BaseTool
 from crewai_tools import MCPServerAdapter
 
-from crewai import Agent
-from mcp import StdioServerParameters
-
-REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
-MODAL_STDIO_BRIDGE_PATH = (
-    REPOSITORY_ROOT / "packages/integrations/examples/shared/modal_stdio_bridge.py"
-)
-SKILL_PATH = REPOSITORY_ROOT / "packages/integrations/codemode/SKILL.md"
-DEFAULT_STAGEHAND_LLM = "openai/gpt-5-mini"
-
-BRIDGE_ENV_KEYS = (
-    "PATH",
-    "HOME",
-    "TMPDIR",
-    "LANG",
-    "LC_ALL",
-    "SSL_CERT_FILE",
-    "REQUESTS_CA_BUNDLE",
-    "MODAL_TOKEN_ID",
-    "MODAL_TOKEN_SECRET",
-    "MODAL_PROFILE",
-    "BROWSERBASE_API_KEY",
-    "BROWSERBASE_PROJECT_ID",
-    "STAGEHAND_MODEL_NAME",
-    "STAGEHAND_MODEL_API_KEY",
-    "STAGEHAND_CODEMODE_IMAGE",
-    "STAGEHAND_CODEMODE_MODAL_IMAGE_ID",
-    "STAGEHAND_CODEMODE_MODAL_APP",
-    "STAGEHAND_CODEMODE_ENTRYPOINT",
-    "STAGEHAND_CODEMODE_TIMEOUT_SECONDS",
-    "STAGEHAND_CODEMODE_IDLE_TIMEOUT_SECONDS",
-    "STAGEHAND_CODEMODE_OUTBOUND_DOMAINS",
-)
+DEFAULT_STAGEHAND_LLM = os.environ.get("CREWAI_MODEL", "openai/gpt-5-mini")
 
 
-@lru_cache(maxsize=1)
-def load_stagehand_codemode_skill() -> str:
-    return SKILL_PATH.read_text(encoding="utf-8").strip()
-
-
-def modal_bridge_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
-    """Build the trusted proxy environment without forwarding agent model keys."""
-    child_env = {
-        key: value for key in BRIDGE_ENV_KEYS if (value := os.environ.get(key)) is not None
-    }
-    if overrides:
-        child_env.update(overrides)
-    return child_env
+class StagehandSandboxConnection(Protocol):
+    url: str
+    token: str
 
 
 @contextmanager
 def stagehand_code_tools(
-    env: dict[str, str] | None = None,
+    connection: StagehandSandboxConnection,
 ) -> Iterator[list[BaseTool]]:
-    """Keep one sandboxed Stagehand MCP connected for a complete CrewAI run."""
-    if not MODAL_STDIO_BRIDGE_PATH.is_file():
-        raise FileNotFoundError(
-            f"Stagehand Modal stdio bridge not found: {MODAL_STDIO_BRIDGE_PATH}"
-        )
-
-    parameters = StdioServerParameters(
-        command=sys.executable,
-        args=[str(MODAL_STDIO_BRIDGE_PATH)],
-        cwd=REPOSITORY_ROOT,
-        env=modal_bridge_env(env),
+    """Keep one authenticated remote MCP client open for a complete CrewAI run."""
+    adapter = MCPServerAdapter(
+        {
+            "url": connection.url,
+            "transport": "streamable-http",
+            "headers": {"Authorization": f"Bearer {connection.token}"},
+        },
+        connect_timeout=60,
     )
-    with MCPServerAdapter(parameters, connect_timeout=600) as discovered_tools:
-        tools = list(discovered_tools)
+    try:
+        tools = list(adapter.tools)
         names = [tool.name for tool in tools]
         if names != ["code_execute"]:
-            raise RuntimeError(f"Expected only code_execute from Stagehand MCP, got {names!r}.")
+            raise RuntimeError(
+                f"Expected only code_execute from Stagehand MCP, got {names!r}."
+            )
+        if "# Stagehand V4 code-mode syntax" not in tools[0].description:
+            raise RuntimeError("code_execute did not include the canonical guidance")
         yield tools
+    except BaseException as primary_error:
+        try:
+            adapter.stop()
+        except BaseException as cleanup_error:
+            raise BaseExceptionGroup(
+                "CrewAI run and MCP cleanup both failed",
+                [primary_error, cleanup_error],
+            )
+        raise
+    else:
+        adapter.stop()
 
 
 def build_stagehand_agent(
     tools: Sequence[BaseTool],
     llm: str | Any = DEFAULT_STAGEHAND_LLM,
 ) -> Agent:
+    if len(tools) != 1 or tools[0].name != "code_execute":
+        raise ValueError("CrewAI Stagehand agent requires exactly code_execute")
     return Agent(
         role="Stagehand browser agent",
         goal="Complete browser tasks by writing compact, correct Stagehand V4 JavaScript.",
-        backstory=load_stagehand_codemode_skill(),
+        backstory=tools[0].description,
         llm=llm,
         tools=list(tools),
         max_iter=8,
@@ -100,6 +71,10 @@ def build_stagehand_agent(
     )
 
 
-def run_stagehand_agent(prompt: str, llm: str | Any = DEFAULT_STAGEHAND_LLM) -> str:
-    with stagehand_code_tools() as tools:
+def run_stagehand_agent(
+    connection: StagehandSandboxConnection,
+    prompt: str,
+    llm: str | Any = DEFAULT_STAGEHAND_LLM,
+) -> str:
+    with stagehand_code_tools(connection) as tools:
         return str(build_stagehand_agent(tools, llm).kickoff(prompt))

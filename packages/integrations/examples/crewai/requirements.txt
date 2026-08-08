@@ -1,3 +1,2 @@
-crewai>=1.15.9,<2
-crewai-tools[mcp]>=1.15.9,<2
-modal>=1.5.3,<2
+crewai==1.15.13
+crewai-tools[mcp]==1.15.13

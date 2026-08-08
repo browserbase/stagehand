@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "smoke": "tsx src/smoke.ts",
+    "e2e": "tsx src/e2e.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-example-vercel-sandbox": "workspace:*",
     "@mastra/core": "catalog:",
     "@mastra/mcp": "catalog:"
   },

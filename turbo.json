@@ -26,7 +26,7 @@
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
     },
-    "@browserbasehq/stagehand-integrations#build": {
+    "@browserbasehq/stagehand-codemode#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
       "outputs": ["dist/**"]
@@ -71,11 +71,11 @@
     "@browserbasehq/stagehand-evals#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations#typecheck": {
+    "@browserbasehq/stagehand-codemode#typecheck": {
       "dependsOn": ["^build"]
     },
-    "@browserbasehq/stagehand-integrations#test:unit": {
-      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
+    "@browserbasehq/stagehand-codemode#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-codemode#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
         "tests/**",

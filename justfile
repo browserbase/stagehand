@@ -88,4 +88,5 @@ _preview commit:
 
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
+    pnpm --filter @browserbasehq/stagehand-codemode build
     pnpm exec changeset publish
