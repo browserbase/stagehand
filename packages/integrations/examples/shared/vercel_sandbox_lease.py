@@ -142,7 +142,8 @@ class StagehandSandboxLease:
         except BaseException as error:  # noqa: BLE001 -- cleanup must preserve any primary failure.
             primary_error = (
                 error
-                if isinstance(error, StagehandSandboxLeaseError)
+                if not isinstance(error, Exception)
+                or isinstance(error, StagehandSandboxLeaseError)
                 else self._lease_error("failed during setup")
             )
             try:

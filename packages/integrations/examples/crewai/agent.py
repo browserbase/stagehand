@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import queue
+import threading
 from builtins import BaseExceptionGroup
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -11,6 +13,7 @@ from crewai.tools import BaseTool
 from crewai_tools import MCPServerAdapter
 
 DEFAULT_STAGEHAND_LLM = os.environ.get("CREWAI_MODEL", "openai/gpt-5-mini")
+ADAPTER_STOP_TIMEOUT_SECONDS = 30
 
 
 class StagehandCrewAIConnectionError(RuntimeError):
@@ -82,10 +85,6 @@ def stagehand_code_tools(
             )
         raise primary_error from None
 
-    if adapter is None:
-        raise StagehandCrewAIConnectionError(
-            "Could not connect CrewAI to the Stagehand MCP server."
-        )
     try:
         yield tools
     except BaseException as primary_error:
@@ -142,9 +141,25 @@ def run_stagehand_agent(
 
 
 def stop_adapter(adapter: MCPServerAdapter) -> None:
+    result: queue.Queue[BaseException | None] = queue.Queue(maxsize=1)
+
+    def stop() -> None:
+        try:
+            adapter.stop()
+            result.put(None)
+        except BaseException as error:  # noqa: BLE001 -- adapter shutdown is an untyped boundary.
+            result.put(error)
+
+    threading.Thread(
+        target=stop,
+        name="stagehand-crewai-mcp-cleanup",
+        daemon=True,
+    ).start()
     try:
-        adapter.stop()
-    except Exception:  # noqa: BLE001 -- adapter shutdown is an untyped boundary.
+        error = result.get(timeout=ADAPTER_STOP_TIMEOUT_SECONDS)
+    except queue.Empty:
+        error = TimeoutError()
+    if error is not None:
         raise StagehandCrewAICleanupError(
             "Could not close the CrewAI Stagehand MCP adapter."
         ) from None
