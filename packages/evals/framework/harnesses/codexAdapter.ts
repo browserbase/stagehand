@@ -99,7 +99,7 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       // runIndex counts every bridge run (failed captures leave gaps), so
       // max+1 is the number of runs the recorder actually saw.
       const totalBridgeRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
-      if (bridgeCalls.length >= totalBridgeRuns) {
+      if (bridgeCalls.length === totalBridgeRuns) {
         const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
         bridgeCalls.forEach((call, ordinal) => {
           const observation = observationsByRunIndex.get(ordinal);
