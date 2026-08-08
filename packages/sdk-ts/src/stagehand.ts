@@ -116,40 +116,38 @@ export class Stagehand {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
   }
 
-  async _experimental_batch<Result>(
+  async experimentalBatch<Result>(
     callback: ExperimentalBatchCallback<undefined, Result>,
   ): Promise<Awaited<Result>>;
-  async _experimental_batch<Input, Result>(
+  async experimentalBatch<Input, Result>(
     callback: ExperimentalBatchCallback<Input, Result>,
     input: Input,
     options?: ExperimentalBatchOptions,
   ): Promise<Awaited<Result>>;
-  async _experimental_batch<Input, Result>(
+  async experimentalBatch<Input, Result>(
     callback: ExperimentalBatchCallback<Input, Result>,
     input?: Input,
     options: ExperimentalBatchOptions = {},
   ): Promise<Awaited<Result>> {
     if (typeof callback !== "function") {
-      throw new TypeError("stagehand._experimental_batch() requires a callback function");
+      throw new TypeError("stagehand.experimentalBatch() requires a callback function");
     }
     if (options === null || typeof options !== "object" || Array.isArray(options)) {
-      throw new TypeError("stagehand._experimental_batch() options must be an object");
+      throw new TypeError("stagehand.experimentalBatch() options must be an object");
     }
     const parsedInput = input === undefined ? undefined : z.json().parse(input);
     const timeout = options.timeout ?? 30_000;
     if (!Number.isInteger(timeout) || timeout <= 0) {
-      throw new RangeError("stagehand._experimental_batch() timeout must be a positive integer");
+      throw new RangeError("stagehand.experimentalBatch() timeout must be a positive integer");
     }
     if (timeout > MAX_CALLBACK_BATCH_TIMEOUT_MS) {
       throw new RangeError(
-        `stagehand._experimental_batch() timeout must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`,
+        `stagehand.experimentalBatch() timeout must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`,
       );
     }
     const callbackSource = Function.prototype.toString.call(callback);
     if (nativeFunctionSourcePattern.test(callbackSource)) {
-      throw new TypeError(
-        "stagehand._experimental_batch() callback must be serializable JavaScript",
-      );
+      throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
     }
 
     const result: CallbackBatchResult = await this.connectedRpcClient.send(

@@ -1116,12 +1116,7 @@ async function readPythonMethods(): Promise<SdkMethod[]> {
           const decoratorName = decorator.text().slice(1).split("(", 1)[0]?.split(".").at(-1);
           return decoratorName === "overload" || decoratorName === "property";
         });
-        if (
-          !methodName ||
-          (methodName.startsWith("_") && methodName !== "_experimental_batch") ||
-          excludedDecorator
-        )
-          return [];
+        if (!methodName || methodName.startsWith("_") || excludedDecorator) return [];
 
         return [
           sdkMethod(

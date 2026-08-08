@@ -155,7 +155,7 @@ describe("Stagehand TS object wrapper", () => {
       id: input.id,
     });
 
-    const pending = stagehand._experimental_batch(callback, { id: 7 }, { timeout: 2_000 });
+    const pending = stagehand.experimentalBatch(callback, { id: 7 }, { timeout: 2_000 });
     expect(pending).toBeInstanceOf(Promise);
     await expect(pending).resolves.toEqual({ title: "Example" });
     expect(client.batchCalls).toHaveLength(1);
@@ -171,7 +171,7 @@ describe("Stagehand TS object wrapper", () => {
     client.batchHandler = async () => undefined;
 
     await expect(
-      stagehand._experimental_batch(async () => undefined, undefined, { page }),
+      stagehand.experimentalBatch(async () => undefined, undefined, { page }),
     ).resolves.toBeUndefined();
 
     expect(client.batchCalls).toHaveLength(1);
@@ -183,8 +183,8 @@ describe("Stagehand TS object wrapper", () => {
     const stagehand = createStagehandWithClientForTest(client);
 
     await expect(
-      stagehand._experimental_batch(async () => undefined, undefined, null as never),
-    ).rejects.toThrow(new TypeError("stagehand._experimental_batch() options must be an object"));
+      stagehand.experimentalBatch(async () => undefined, undefined, null as never),
+    ).rejects.toThrow(new TypeError("stagehand.experimentalBatch() options must be an object"));
     expect(client.batchCalls).toHaveLength(0);
   });
 
@@ -194,12 +194,12 @@ describe("Stagehand TS object wrapper", () => {
     client.batchHandler = async () => undefined;
 
     await expect(
-      stagehand._experimental_batch(async () => undefined, undefined, {
+      stagehand.experimentalBatch(async () => undefined, undefined, {
         timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS,
       }),
     ).resolves.toBeUndefined();
     await expect(
-      stagehand._experimental_batch(async () => undefined, undefined, {
+      stagehand.experimentalBatch(async () => undefined, undefined, {
         timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS + 1,
       }),
     ).rejects.toThrow(`must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`);
@@ -210,7 +210,7 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
 
-    await stagehand._experimental_batch(async () => {
+    await stagehand.experimentalBatch(async () => {
       // Regression probe: this text does not make the callback a native function.
       return "[native code]";
     });
@@ -223,8 +223,8 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
 
-    await expect(stagehand._experimental_batch(Math.max as never)).rejects.toThrow(
-      "stagehand._experimental_batch() callback must be serializable JavaScript",
+    await expect(stagehand.experimentalBatch(Math.max as never)).rejects.toThrow(
+      "stagehand.experimentalBatch() callback must be serializable JavaScript",
     );
     expect(client.batchCalls).toHaveLength(0);
   });

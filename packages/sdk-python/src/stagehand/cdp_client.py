@@ -30,7 +30,7 @@ def _callback_batch_expression(
     source: str,
 ) -> str:
     if not isinstance(source, str) or not source.strip():
-        raise TypeError("stagehand._experimental_batch() source must be JavaScript")
+        raise TypeError("stagehand.experimental_batch() source must be JavaScript")
     serialized_message = json.dumps(
         json.dumps(message, allow_nan=False, separators=(",", ":")),
         separators=(",", ":"),

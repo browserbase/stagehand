@@ -9,7 +9,7 @@ async def main() -> None:
     try:
         stagehand = await Stagehand.create(browser=browser)
         try:
-            result = await stagehand._experimental_batch(
+            result = await stagehand.experimental_batch(
                 """
                 async ({ page }, input) => {
                   await page.goto(input.url);

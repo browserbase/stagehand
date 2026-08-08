@@ -6,7 +6,7 @@ try {
   const stagehand = await Stagehand.create({ browser });
 
   try {
-    const result = await stagehand._experimental_batch(
+    const result = await stagehand.experimentalBatch(
       async ({ page }, input) => {
         await page.goto(input.url);
         return {

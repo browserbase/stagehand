@@ -583,7 +583,7 @@ async function publicOperations(
     .flatMap((method) => {
       const publicMethod = methodName(method.node, language);
       if (!publicMethod) return [];
-      const normalizedMethod = normalizePublicMethod(className, publicMethod.text());
+      const normalizedMethod = snakeCase(publicMethod.text());
       if (!participatesInSurfaceParity(className, language, normalizedMethod)) return [];
 
       return protocolCalls(method.node, language).map((call) => {
@@ -642,7 +642,7 @@ async function publicCallableMethods(
         .flatMap((method) => {
           const name = methodName(method.node, language);
           if (!name) return [];
-          const normalizedMethod = normalizePublicMethod(className, name.text());
+          const normalizedMethod = snakeCase(name.text());
           return participatesInSurfaceParity(className, language, normalizedMethod)
             ? [normalizedMethod]
             : [];
@@ -664,13 +664,6 @@ async function goExtractFunction(): Promise<SgNode | undefined> {
         (child) => child.kind() === "identifier" && child.text() === "Extract",
       ),
     );
-}
-
-function normalizePublicMethod(className: string, rawName: string): string {
-  const method = snakeCase(rawName);
-  return className === "Stagehand" && method === "experimental_batch"
-    ? "_experimental_batch"
-    : method;
 }
 
 function participatesInSurfaceParity(
@@ -1127,8 +1120,7 @@ function isPublicCallable(method: DirectClassMethod, language: SdkLanguage): boo
 
   if (language === "python") {
     return (
-      (name.text() === "_experimental_batch" || !name.text().startsWith("_")) &&
-      !method.decoratedDefinition?.text().startsWith("@property")
+      !name.text().startsWith("_") && !method.decoratedDefinition?.text().startsWith("@property")
     );
   }
 

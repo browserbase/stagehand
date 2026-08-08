@@ -44,14 +44,14 @@ await stagehand.close();
   Resolves after the operation completes.
 </ResponseField>
 
-## _experimental_batch()
+## experimentalBatch()
 
 Run a trusted, self-contained JavaScript callback inside the Stagehand extension service worker.
 Browser operations made by the callback use the worker-local `page` and `context` objects without
 returning to the SDK process for every command.
 
 ```typescript
-const result = await stagehand._experimental_batch(
+const result = await stagehand.experimentalBatch(
   async ({ page }, input) => {
     await page.goto(input.url);
     return { title: await page.title() };
@@ -733,13 +733,13 @@ await stagehand.close()
   Resolves after the operation completes.
 </ResponseField>
 
-## _experimental_batch()
+## experimental_batch()
 
 Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
 Browser operations use the worker-local `page` and `context` objects.
 
 ```python
-result = await stagehand._experimental_batch(
+result = await stagehand.experimental_batch(
     """
     async ({ page }, input) => {
       await page.goto(input.url);

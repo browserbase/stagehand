@@ -167,7 +167,7 @@ async def test_experimental_batch_validates_arguments_before_transport(
     stagehand = await Stagehand.create(browser=browser)
     try:
         with pytest.raises(error_type, match=message):
-            await stagehand._experimental_batch(
+            await stagehand.experimental_batch(
                 cast(str, source),
                 input_value,
                 timeout=cast(int, timeout),
@@ -190,7 +190,7 @@ async def test_experimental_batch_uses_registered_rpc_method(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     try:
-        result = await stagehand._experimental_batch(source, {"id": 7}, timeout=2_000)
+        result = await stagehand.experimental_batch(source, {"id": 7}, timeout=2_000)
         assert result == {"title": "Example", "input": {"id": 7}}
         method, params, _ = recording.calls[-1]
         assert method == "stagehand.callback_batch"
@@ -211,7 +211,7 @@ async def test_experimental_batch_normalizes_json_object_keys(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     try:
-        await stagehand._experimental_batch("async (_batch, input) => input", {1: "one"})
+        await stagehand.experimental_batch("async (_batch, input) => input", {1: "one"})
         _, params, _ = recording.calls[-1]
         assert isinstance(params, CallbackBatchParams)
         assert params.input is not None
@@ -229,12 +229,12 @@ async def test_experimental_batch_distinguishes_omitted_input_from_null(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     try:
-        await stagehand._experimental_batch("async () => undefined")
+        await stagehand.experimental_batch("async () => undefined")
         _, omitted_params, _ = recording.calls[-1]
         assert isinstance(omitted_params, CallbackBatchParams)
         assert "input" not in omitted_params.model_fields_set
 
-        await stagehand._experimental_batch("async () => undefined", None)
+        await stagehand.experimental_batch("async () => undefined", None)
         _, null_params, _ = recording.calls[-1]
         assert isinstance(null_params, CallbackBatchParams)
         assert "input" in null_params.model_fields_set
@@ -253,7 +253,7 @@ async def test_experimental_batch_accepts_maximum_timeout(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     try:
-        await stagehand._experimental_batch(
+        await stagehand.experimental_batch(
             "async () => undefined",
             timeout=2_147_473_647,
         )
@@ -274,7 +274,7 @@ async def test_experimental_batch_includes_an_explicit_page(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     try:
-        await stagehand._experimental_batch("async () => undefined", page=page)
+        await stagehand.experimental_batch("async () => undefined", page=page)
         method, params, _ = recording.calls[-1]
         assert method == "stagehand.callback_batch"
         assert isinstance(params, CallbackBatchParams)
@@ -295,7 +295,7 @@ async def test_experimental_batch_maps_an_omitted_value_to_none(
     browser, _ = _browser_handle()
     stagehand = await Stagehand.create(browser=browser)
     try:
-        assert await stagehand._experimental_batch("async () => undefined") is None
+        assert await stagehand.experimental_batch("async () => undefined") is None
     finally:
         await stagehand.close()
 

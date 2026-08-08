@@ -255,10 +255,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string, sdkPackage: stri
   const operations = goCalls(root).flatMap(({ object, method }) => {
     if (object === sdkPackage && method === "Extract") return ["stagehand.extract"];
     if (object === stagehand && method !== "Browser" && method !== "Close") {
-      const normalizedMethod = snakeCase(method);
-      return [
-        `stagehand.${normalizedMethod === "experimental_batch" ? "_experimental_batch" : normalizedMethod}`,
-      ];
+      return [`stagehand.${snakeCase(method)}`];
     }
     if (contextObjects.has(object)) return [`context.${snakeCase(method)}`];
     if (pageObjects.has(object)) return [`page.${snakeCase(method)}`];

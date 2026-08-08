@@ -176,7 +176,7 @@ class Stagehand:
             StagehandMetrics,
         )
 
-    async def _experimental_batch(
+    async def experimental_batch(
         self,
         source: str,
         input: object = _UNSET_BATCH_INPUT,
