@@ -80,10 +80,10 @@ E2B's built-in MCP gateway; this example does not add a second proxy or applicat
 ## Network and credential boundary
 
 The source checkout and dependency build need normal package-network access. After readiness succeeds,
-`sandbox.updateNetwork()` atomically replaces that permissive setup with an allowlist containing only
-`api.browserbase.com` and the configured Browserbase CDP hostnames. In E2B, setting `allowOut` makes
-all unlisted egress denied by default. The live proof checks that Browserbase still works while an
-unrelated host is blocked.
+`sandbox.updateNetwork()` atomically replaces that permissive setup with `allowOut` containing only
+`api.browserbase.com` and the configured Browserbase CDP hostnames, plus E2B's required
+`denyOut: [ALL_TRAFFIC]`. The live proof checks that Browserbase still works while an unrelated host
+is blocked.
 
 Browserbase-only egress is the default. AI-backed Stagehand methods require a separately scoped model
 credential **and** the model provider's exact API hostname added to the allowlist. Do not forward the

@@ -1,6 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { Sandbox } from "e2b";
+import { ALL_TRAFFIC, Sandbox } from "e2b";
 
 const E2B_MCP_PROTOCOL_VERSION = "2025-06-18";
 const E2B_STAGEHAND_SERVER = "github/browserbase/stagehand";
@@ -67,9 +67,12 @@ export async function createStagehandSandbox(
 
     await waitForStagehand(url, token, options.readinessTimeoutMs ?? 12 * 60_000);
 
-    // Supplying allowOut changes E2B egress from allow-all to default-deny.
+    // E2B requires ALL_TRAFFIC in denyOut when allowOut contains domains.
     // Do this only after the source checkout and build have completed.
-    await sandbox.updateNetwork({ allowOut: [...new Set(allowedHosts)] });
+    await sandbox.updateNetwork({
+      allowOut: [...new Set(allowedHosts)],
+      denyOut: [ALL_TRAFFIC],
+    });
 
     let closed = false;
     return {
