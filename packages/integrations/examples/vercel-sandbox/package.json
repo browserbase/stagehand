@@ -8,6 +8,7 @@
     "./lease": "./src/lease.ts"
   },
   "scripts": {
+    "build": "tsc --noEmit",
     "e2e": "tsx src/e2e.ts",
     "lease": "tsx src/lease.ts",
     "pack:artifacts": "node scripts/pack-artifacts.mjs",

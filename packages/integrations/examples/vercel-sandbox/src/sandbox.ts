@@ -110,6 +110,7 @@ export async function createStagehandSandbox(
   const cdpHost = await discoverBrowserbaseCdpHost(options);
   let sandbox: Sandbox;
   try {
+    const vercelCredentials = options.vercelCredentials;
     sandbox = await Sandbox.create({
       runtime: "node24",
       resources: { vcpus: 4 },
@@ -118,7 +119,13 @@ export async function createStagehandSandbox(
       persistent: false,
       networkPolicy: "allow-all",
       tags: { purpose: "stagehand-codemode-mcp" },
-      ...options.vercelCredentials,
+      ...(vercelCredentials
+        ? {
+            teamId: vercelCredentials.teamId,
+            projectId: vercelCredentials.projectId,
+            token: vercelCredentials.token,
+          }
+        : {}),
     });
   } catch {
     throw new StagehandSandboxSetupError();
@@ -502,11 +509,21 @@ function assertRuntimeManifest(content: Buffer): void {
 function assertRuntimeLock(content: Buffer): void {
   const lock = JSON.parse(content.toString()) as {
     lockfileVersion?: unknown;
-    packages?: Record<string, { dependencies?: Record<string, unknown> }>;
+    packages?: Record<string, { dependencies?: Record<string, unknown>; resolved?: unknown }>;
   };
   const dependencies = lock.packages?.[""]?.dependencies;
   if (lock.lockfileVersion !== 3 || !dependencies) {
     throw new StagehandPackageArtifactError();
+  }
+  for (const entry of Object.values(lock.packages ?? {})) {
+    const resolved = entry.resolved;
+    if (
+      resolved !== undefined &&
+      (typeof resolved !== "string" ||
+        (!resolved.startsWith("file:") && !resolved.startsWith("https://registry.npmjs.org/")))
+    ) {
+      throw new StagehandPackageArtifactError();
+    }
   }
   assertRuntimeManifest(Buffer.from(JSON.stringify({ dependencies })));
 }
