@@ -7,16 +7,25 @@ const child = spawn("/vercel/sandbox/stagehand-runtime/node_modules/.bin/stageha
 });
 
 const signalHandlers = new Map();
+const removeSignalHandlers = () => {
+  for (const [handledSignal, handler] of signalHandlers) {
+    process.removeListener(handledSignal, handler);
+  }
+};
 for (const signal of ["SIGINT", "SIGTERM"]) {
   const handler = () => child.kill(signal);
   signalHandlers.set(signal, handler);
   process.on(signal, handler);
 }
 
+child.on("error", () => {
+  removeSignalHandlers();
+  process.stderr.write("Stagehand code-mode process failed to start.\n");
+  process.exitCode = 1;
+});
+
 child.on("exit", (code, signal) => {
-  for (const [handledSignal, handler] of signalHandlers) {
-    process.removeListener(handledSignal, handler);
-  }
+  removeSignalHandlers();
   if (signal) {
     process.kill(process.pid, signal);
     return;
