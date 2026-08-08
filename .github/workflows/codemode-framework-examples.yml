@@ -113,6 +113,7 @@ jobs:
 
       - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra typecheck
+      - run: pnpm --filter @browserbasehq/stagehand-integrations-example-mastra test:contract
       - run: pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
       - name: Detect Mastra live test credentials
         id: mastra-live-credentials
