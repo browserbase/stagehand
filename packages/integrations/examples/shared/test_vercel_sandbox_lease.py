@@ -158,6 +158,26 @@ class StagehandSandboxLeaseTest(unittest.TestCase):
 
         self.assertTrue(process.waited_after_stdin_closed)
 
+    def test_unexpected_setup_exception_is_sanitized(self) -> None:
+        process = FakeProcess()
+        with (
+            patch.object(lease, "TSX_PATH", Path(__file__)),
+            patch.object(lease, "LEASE_PATH", Path(__file__)),
+            patch.object(subprocess, "Popen", return_value=process),
+            patch.object(
+                lease.queue.Queue,
+                "get",
+                side_effect=ValueError("setup-secret-do-not-reflect"),
+            ),
+            self.assertRaises(lease.StagehandSandboxLeaseError) as raised,
+        ):
+            lease.StagehandSandboxLease().start()
+
+        self.assertEqual(
+            str(raised.exception), "Stagehand sandbox lease failed during setup"
+        )
+        self.assertTrue(process.waited_after_stdin_closed)
+
     def test_connection_parser_rejects_untrusted_shapes(self) -> None:
         invalid_connections = (
             "not-json",
