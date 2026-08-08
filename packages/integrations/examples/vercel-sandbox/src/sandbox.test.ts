@@ -68,6 +68,34 @@ void test("runtime lock rejects non-string resolved values", async () => {
 });
 
 void test("Sandbox.create receives only allowlisted Vercel credentials", async () => {
+  const createOptions = await captureSandboxCreateOptions({
+    teamId: "expected-team",
+    projectId: "expected-project",
+    token: "expected-token",
+    networkPolicy: "deny-all",
+  } as NonNullable<Parameters<typeof createStagehandSandbox>[0]["vercelCredentials"]>);
+  const forwardedOptions = createOptions as typeof createOptions & {
+    projectId: string;
+    teamId: string;
+    token: string;
+  };
+  assert.equal(forwardedOptions.teamId, "expected-team");
+  assert.equal(forwardedOptions.projectId, "expected-project");
+  assert.equal(forwardedOptions.token, "expected-token");
+  assert.equal(createOptions.networkPolicy, "allow-all");
+  assert.deepEqual(createOptions.tags, { purpose: "stagehand-codemode-mcp" });
+});
+
+void test("Sandbox.create preserves SDK credential discovery when credentials are omitted", async () => {
+  const createOptions = await captureSandboxCreateOptions();
+  assert.equal(Object.hasOwn(createOptions, "teamId"), false);
+  assert.equal(Object.hasOwn(createOptions, "projectId"), false);
+  assert.equal(Object.hasOwn(createOptions, "token"), false);
+});
+
+async function captureSandboxCreateOptions(
+  vercelCredentials?: Parameters<typeof createStagehandSandbox>[0]["vercelCredentials"],
+): Promise<Parameters<typeof Sandbox.create>[0]> {
   const artifactRoot = await writeArtifacts("https://registry.npmjs.org/supergateway.tgz");
   let createOptions: Parameters<typeof Sandbox.create>[0] | undefined;
   const fetchMock = mock.method(globalThis, "fetch", async (input) => {
@@ -94,33 +122,18 @@ void test("Sandbox.create receives only allowlisted Vercel credentials", async (
         packageArtifactsPath: artifactRoot,
         browserbaseApiKey: "unused-test-key",
         browserbaseProjectId: "unused-test-project",
-        vercelCredentials: {
-          teamId: "expected-team",
-          projectId: "expected-project",
-          token: "expected-token",
-          networkPolicy: "deny-all",
-        } as NonNullable<Parameters<typeof createStagehandSandbox>[0]["vercelCredentials"]>,
+        vercelCredentials,
       }),
       { name: "StagehandSandboxSetupError" },
     );
-
     assert.ok(createOptions);
-    const forwardedOptions = createOptions as typeof createOptions & {
-      projectId: string;
-      teamId: string;
-      token: string;
-    };
-    assert.equal(forwardedOptions.teamId, "expected-team");
-    assert.equal(forwardedOptions.projectId, "expected-project");
-    assert.equal(forwardedOptions.token, "expected-token");
-    assert.equal(createOptions.networkPolicy, "allow-all");
-    assert.deepEqual(createOptions.tags, { purpose: "stagehand-codemode-mcp" });
+    return createOptions;
   } finally {
     createMock.mock.restore();
     fetchMock.mock.restore();
     await rm(artifactRoot, { force: true, recursive: true });
   }
-});
+}
 
 async function writeArtifacts(resolved: unknown): Promise<string> {
   const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "stagehand-artifacts-"));

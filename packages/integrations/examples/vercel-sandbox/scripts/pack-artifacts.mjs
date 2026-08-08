@@ -1,12 +1,9 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { runArtifactPackCommand } from "./pack-command.mjs";
 
-const execFileAsync = promisify(execFile);
-const commandMaxBuffer = 16 * 1024 * 1024;
 const exampleRoot = fileURLToPath(new URL("..", import.meta.url));
 const repositoryRoot = path.resolve(exampleRoot, "../../../..");
 const sdkRoot = path.join(repositoryRoot, "packages", "sdk-ts");
@@ -16,26 +13,18 @@ const packageRoot = path.join(artifactRoot, "packages");
 const runtimeRoot = path.join(artifactRoot, "runtime");
 const publicRegistry = "https://registry.npmjs.org";
 
-class StagehandArtifactPackCommandError extends Error {
-  name = "StagehandArtifactPackCommandError";
-
-  constructor() {
-    super("Stagehand sandbox artifact preparation failed.");
-  }
-}
-
 await rm(artifactRoot, { force: true, recursive: true });
 await Promise.all([
   mkdir(packageRoot, { recursive: true }),
   mkdir(runtimeRoot, { recursive: true }),
 ]);
-await run(
+await runArtifactPackCommand(
   "pnpm",
   ["exec", "turbo", "run", "build", "--filter", "@browserbasehq/stagehand-codemode"],
   repositoryRoot,
 );
-await run("pnpm", ["pack", "--pack-destination", packageRoot], sdkRoot);
-await run("pnpm", ["pack", "--pack-destination", packageRoot], codeModeRoot);
+await runArtifactPackCommand("pnpm", ["pack", "--pack-destination", packageRoot], sdkRoot);
+await runArtifactPackCommand("pnpm", ["pack", "--pack-destination", packageRoot], codeModeRoot);
 
 const packed = await readdir(packageRoot);
 const stagehandSource = requiredArtifact(packed, /^browserbasehq-stagehand-(?!codemode-).+\.tgz$/);
@@ -59,7 +48,7 @@ await writeFile(
   path.join(runtimeRoot, "package.json"),
   `${JSON.stringify(runtimeManifest, null, 2)}\n`,
 );
-await run(
+await runArtifactPackCommand(
   "npm",
   [
     "install",
@@ -91,14 +80,6 @@ function requiredArtifact(files, pattern) {
     throw new Error(`Expected exactly one packed artifact matching ${pattern}`);
   }
   return matches[0];
-}
-
-async function run(file, args, cwd) {
-  try {
-    return await execFileAsync(file, args, { cwd, maxBuffer: commandMaxBuffer });
-  } catch {
-    throw new StagehandArtifactPackCommandError();
-  }
 }
 
 async function artifactSummary(artifactPath) {
