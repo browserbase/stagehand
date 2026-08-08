@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+from builtins import BaseExceptionGroup
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -73,6 +75,61 @@ class StagehandCodeToolsTest(unittest.TestCase):
             pass
         self.assertEqual(
             str(raised.exception), "Could not close the CrewAI Stagehand MCP adapter."
+        )
+
+    def test_adapter_cleanup_has_a_deadline(self) -> None:
+        release = Event()
+        adapter = FakeAdapter([])
+        adapter.stop = release.wait
+        try:
+            with (
+                patch.object(agent, "ADAPTER_STOP_TIMEOUT_SECONDS", 0.001),
+                self.assertRaises(agent.StagehandCrewAICleanupError),
+            ):
+                agent.stop_adapter(adapter)
+        finally:
+            release.set()
+
+    def test_setup_and_cleanup_failures_preserve_order_and_types(self) -> None:
+        adapter = FakeAdapter([], discovery_error=RuntimeError("discovery-secret"))
+        adapter.stop_error = RuntimeError("cleanup-secret")
+        with (
+            patch.object(agent, "MCPServerAdapter", return_value=adapter),
+            self.assertRaises(BaseExceptionGroup) as raised,
+            agent.stagehand_code_tools(self.connection),
+        ):
+            pass
+
+        self.assertEqual(len(raised.exception.exceptions), 2)
+        self.assertIsInstance(
+            raised.exception.exceptions[0], agent.StagehandCrewAIConnectionError
+        )
+        self.assertIsInstance(
+            raised.exception.exceptions[1], agent.StagehandCrewAICleanupError
+        )
+
+    def test_run_and_cleanup_failures_preserve_order_and_types(self) -> None:
+        adapter = FakeAdapter(
+            [
+                SimpleNamespace(
+                    name="code_execute",
+                    description="# Stagehand V4 code-mode syntax",
+                )
+            ]
+        )
+        adapter.stop_error = RuntimeError("cleanup-secret")
+        primary = ValueError("run failed")
+        with (
+            patch.object(agent, "MCPServerAdapter", return_value=adapter),
+            self.assertRaises(BaseExceptionGroup) as raised,
+            agent.stagehand_code_tools(self.connection),
+        ):
+            raise primary
+
+        self.assertEqual(len(raised.exception.exceptions), 2)
+        self.assertIs(raised.exception.exceptions[0], primary)
+        self.assertIsInstance(
+            raised.exception.exceptions[1], agent.StagehandCrewAICleanupError
         )
 
 
