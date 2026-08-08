@@ -31,7 +31,8 @@ def local_stagehand_code_tools_for_ci() -> Iterator[list[BaseTool]]:
         "PATH": os.environ.get("PATH", ""),
         "STAGEHAND_BROWSER": "local",
     }
-    for name in ("HOME", "TMPDIR", "CHROME_PATH"):
+    # Stagehand's local launcher uses CI to add Chrome's --no-sandbox flag.
+    for name in ("HOME", "TMPDIR", "CHROME_PATH", "CI"):
         if value := os.environ.get(name):
             child_env[name] = value
     parameters = StdioServerParameters(
