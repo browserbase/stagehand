@@ -94,9 +94,13 @@ outer agent's model key into the microVM or broaden egress implicitly.
 
 Only the Browserbase key and optional project ID cross the sandbox boundary by default. A complete
 commit hash prevents the source install from silently following a moving branch. The helper makes the
-bare source mirror read-only, but the hard lifecycle boundary is **one framework MCP session per
-sandbox**. Readiness finishes before any untrusted tool call. After generated code runs, destroy the
-microVM instead of reconnecting or reusing its guest filesystem and caches.
+bare source mirror read-only. Readiness finishes before any untrusted tool call.
+
+E2B's current custom-server gateway starts a fresh stdio process for each tool invocation, so it does
+not preserve Stagehand browser state across separate `code_execute` calls. Treat one call as one
+complete job: batch all dependent browser work into that call, then destroy the sandbox. Do not
+reconnect or reuse the guest filesystem and caches after generated code runs. Framework adapters must
+cap the agent at one tool call unless E2B adds a documented long-lived custom-server mode.
 
 Always close the MCP client and call `close()`; the latter kills the complete microVM. Apply a
 host-side deadline and kill the microVM when untrusted code stops responding.

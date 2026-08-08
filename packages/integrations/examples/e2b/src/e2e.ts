@@ -52,19 +52,6 @@ try {
       `,
     },
   });
-  const second = await client.callTool({
-    name: toolName,
-    arguments: {
-      code: `
-        const fs = await import("node:fs/promises");
-        return {
-          title: await page.title(),
-          pages: (await context.pages()).length,
-          marker: await fs.readFile(${JSON.stringify(markerPath)}, "utf8"),
-        };
-      `,
-    },
-  });
 
   assert.ok(
     containsState(first.structuredContent, {
@@ -75,18 +62,10 @@ try {
     }),
     JSON.stringify(first.structuredContent),
   );
-  assert.ok(
-    containsState(second.structuredContent, {
-      title: "Example Domain",
-      pages: 2,
-      marker: "inside-e2b",
-    }),
-    JSON.stringify(second.structuredContent),
-  );
   assert.equal(existsSync(markerPath), false, "sandbox marker escaped to the host filesystem");
 
   process.stdout.write(
-    `${JSON.stringify({ status: "PASS", tools: [toolName], statePersisted: true, unrelatedEgressBlocked: true, hostMarkerPresent: false })}\n`,
+    `${JSON.stringify({ status: "PASS", tools: [toolName], toolCalls: 1, unrelatedEgressBlocked: true, hostMarkerPresent: false })}\n`,
   );
 } catch (error) {
   primaryError = error;
