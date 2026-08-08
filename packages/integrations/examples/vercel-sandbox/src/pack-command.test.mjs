@@ -9,7 +9,7 @@ void test("artifact pack command failures expose only a fixed typed error", asyn
   await assert.rejects(
     runArtifactPackCommand(
       process.execPath,
-      ["-e", `process.stderr.write(${JSON.stringify(secret)}); process.exit(1)`],
+      ["-e", `require("node:fs").writeSync(2, ${JSON.stringify(secret)}); process.exit(1)`],
       process.cwd(),
     ),
     (error) => {
