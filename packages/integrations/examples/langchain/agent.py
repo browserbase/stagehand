@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+from builtins import BaseExceptionGroup
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -15,6 +16,26 @@ from langchain_mcp_adapters.tools import load_mcp_tools
 from mcp import ClientSession
 
 DEFAULT_STAGEHAND_MODEL = "openai:gpt-5-mini"
+
+
+class StagehandLangChainConnectionError(RuntimeError):
+    """LangChain could not establish the authenticated Stagehand MCP connection."""
+
+
+class StagehandLangChainToolContractError(RuntimeError):
+    """The remote Stagehand MCP tool contract was not the expected code-mode API."""
+
+
+class StagehandLangChainCleanupError(RuntimeError):
+    """LangChain could not close its Stagehand MCP session."""
+
+
+class StagehandLangChainSetupError(RuntimeError):
+    """LangChain could not construct the Stagehand browser agent."""
+
+
+class StagehandLangChainRunError(RuntimeError):
+    """The LangChain Stagehand browser run failed."""
 
 
 class StagehandSandboxConnection(Protocol):
@@ -41,12 +62,21 @@ def create_stagehand_mcp_client(
 
 async def load_stagehand_code_tool(session: ClientSession) -> BaseTool:
     """Discover the one canonical tool without creating another MCP session."""
-    tools = await load_mcp_tools(session)
+    try:
+        tools = await load_mcp_tools(session)
+    except Exception:  # noqa: BLE001 -- MCP discovery is an untyped boundary.
+        raise StagehandLangChainConnectionError(
+            "Could not discover the Stagehand MCP tool."
+        ) from None
     tool_names = [tool.name for tool in tools]
     if tool_names != ["code_execute"]:
-        raise RuntimeError(f"Expected exactly code_execute, got {tool_names}")
+        raise StagehandLangChainToolContractError(
+            "The Stagehand MCP server returned an invalid tool contract."
+        )
     if "# Stagehand V4 code-mode syntax" not in tools[0].description:
-        raise RuntimeError("code_execute did not include the canonical guidance")
+        raise StagehandLangChainToolContractError(
+            "The Stagehand MCP server returned an invalid tool contract."
+        )
     return tools[0]
 
 
@@ -55,9 +85,45 @@ async def stagehand_code_session(
     connection: StagehandSandboxConnection,
 ) -> AsyncIterator[BaseTool]:
     """Keep one remote MCP session open for every tool call in an agent run."""
-    client = create_stagehand_mcp_client(connection)
-    async with client.session("stagehand") as session:
-        yield await load_stagehand_code_tool(session)
+    try:
+        client = create_stagehand_mcp_client(connection)
+    except Exception:  # noqa: BLE001 -- client construction is an untyped boundary.
+        raise StagehandLangChainConnectionError(
+            "Could not connect LangChain to the Stagehand MCP server."
+        ) from None
+
+    primary_error: BaseException | None = None
+    try:
+        async with client.session("stagehand") as session:
+            try:
+                code_tool = await load_stagehand_code_tool(session)
+                yield code_tool
+            except BaseException as error:
+                primary_error = error
+                raise
+    except (
+        StagehandLangChainConnectionError,
+        StagehandLangChainToolContractError,
+    ):
+        raise
+    except BaseException as error:
+        if primary_error is not None:
+            if error is primary_error:
+                raise
+            raise BaseExceptionGroup(
+                "LangChain run and MCP cleanup both failed",
+                [
+                    primary_error,
+                    StagehandLangChainCleanupError(
+                        "Could not close the LangChain Stagehand MCP session."
+                    ),
+                ],
+            ) from None
+        if not isinstance(error, Exception):
+            raise
+        raise StagehandLangChainConnectionError(
+            "Could not connect LangChain to the Stagehand MCP server."
+        ) from None
 
 
 def build_stagehand_agent(
@@ -65,12 +131,19 @@ def build_stagehand_agent(
     model: str | Any = DEFAULT_STAGEHAND_MODEL,
 ) -> Any:
     if code_tool.name != "code_execute":
-        raise ValueError("LangChain Stagehand agent requires code_execute")
-    return create_deep_agent(
-        model=model,
-        tools=[code_tool],
-        system_prompt=code_tool.description,
-    )
+        raise StagehandLangChainToolContractError(
+            "The Stagehand MCP server returned an invalid tool contract."
+        )
+    try:
+        return create_deep_agent(
+            model=model,
+            tools=[code_tool],
+            system_prompt=code_tool.description,
+        )
+    except Exception:  # noqa: BLE001 -- Deep Agent construction is untyped.
+        raise StagehandLangChainSetupError(
+            "Could not configure the LangChain Stagehand agent."
+        ) from None
 
 
 def stagehand_tool_call_count(result: dict[str, Any]) -> int:
@@ -94,10 +167,20 @@ async def run_stagehand_agent(
     model: str | Any = DEFAULT_STAGEHAND_MODEL,
 ) -> dict[str, Any]:
     async with stagehand_code_session(connection) as code_tool:
-        return await build_stagehand_agent(code_tool, model).ainvoke(
-            {"messages": [{"role": "user", "content": prompt}]},
-            config={"recursion_limit": 20},
-        )
+        try:
+            return await build_stagehand_agent(code_tool, model).ainvoke(
+                {"messages": [{"role": "user", "content": prompt}]},
+                config={"recursion_limit": 20},
+            )
+        except (
+            StagehandLangChainSetupError,
+            StagehandLangChainToolContractError,
+        ):
+            raise
+        except Exception:  # noqa: BLE001 -- Deep Agent execution is untyped.
+            raise StagehandLangChainRunError(
+                "The LangChain Stagehand agent run failed."
+            ) from None
 
 
 def _last_message_text(result: dict[str, Any]) -> str:

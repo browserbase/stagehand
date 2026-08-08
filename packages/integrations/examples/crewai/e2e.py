@@ -5,17 +5,35 @@ import os
 from typing import Any
 from uuid import uuid4
 
-from crewai.events import ToolUsageFinishedEvent, crewai_event_bus
-
 from agent import build_stagehand_agent, stagehand_code_tools
+from crewai.events import ToolUsageFinishedEvent, crewai_event_bus
 from sandbox import StagehandSandboxLease
 
 
+class StagehandCrewAIResultError(RuntimeError):
+    """code_execute returned a malformed or unsuccessful result."""
+
+
+class StagehandCrewAIIsolationError(RuntimeError):
+    """A host-only value crossed the Vercel Sandbox boundary."""
+
+
 def successful_result(raw_result: Any) -> dict[str, Any]:
-    result = json.loads(str(raw_result))
-    assert result["ok"] is True, result
+    try:
+        result = json.loads(str(raw_result))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        raise StagehandCrewAIResultError(
+            "Stagehand code_execute returned an invalid result."
+        ) from None
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        raise StagehandCrewAIResultError(
+            "Stagehand code_execute returned an invalid result."
+        )
     value = result.get("value")
-    assert isinstance(value, dict), result
+    if not isinstance(value, dict):
+        raise StagehandCrewAIResultError(
+            "Stagehand code_execute returned an invalid result."
+        )
     return value
 
 
@@ -26,12 +44,14 @@ def main() -> None:
     model_tool_calls: list[str] = []
     final_state: dict[str, Any]
 
-    with StagehandSandboxLease() as connection:
-        with stagehand_code_tools(connection) as tools:
-            code_execute = tools[0]
-            first = successful_result(
-                code_execute.run(
-                    code=f"""
+    with (
+        StagehandSandboxLease() as connection,
+        stagehand_code_tools(connection) as tools,
+    ):
+        code_execute = tools[0]
+        first = successful_result(
+            code_execute.run(
+                code=f"""
 await page.goto("https://example.com", {{ waitUntil: "domcontentloaded" }});
 await page.evaluate((marker) => {{
   document.documentElement.dataset.crewaiDirectMarker = marker;
@@ -46,16 +66,21 @@ return {{
   hostMarkerVisible: process.env.CREWAI_HOST_ONLY_MARKER ?? null,
 }};
 """
-                )
             )
-            assert first["title"] == "Example Domain"
-            assert first["directMarker"] == direct_marker
-            assert first["modelKeyVisible"] is None
-            assert first["hostMarkerVisible"] is None
+        )
+        assert first["title"] == "Example Domain"
+        assert first["directMarker"] == direct_marker
+        if (
+            first["modelKeyVisible"] is not None
+            or first["hostMarkerVisible"] is not None
+        ):
+            raise StagehandCrewAIIsolationError(
+                "A host-only value crossed the CrewAI sandbox boundary."
+            )
 
-            second = successful_result(
-                code_execute.run(
-                    code="""
+        second = successful_result(
+            code_execute.run(
+                code="""
 return {
   pageId: page.pageId,
   title: await page.title(),
@@ -64,38 +89,38 @@ return {
   ),
 };
 """
-                )
             )
-            assert second["title"] == "Example Domain"
-            assert second["pageId"] == first["pageId"]
-            assert second["directMarker"] == direct_marker
+        )
+        assert second["title"] == "Example Domain"
+        assert second["pageId"] == first["pageId"]
+        assert second["directMarker"] == direct_marker
 
-            @crewai_event_bus.on(ToolUsageFinishedEvent)
-            def record_model_tool(_source: Any, event: ToolUsageFinishedEvent) -> None:
-                if event.tool_name == "code_execute":
-                    model_tool_calls.append(event.tool_name)
+        @crewai_event_bus.on(ToolUsageFinishedEvent)
+        def record_model_tool(_source: Any, event: ToolUsageFinishedEvent) -> None:
+            if event.tool_name == "code_execute":
+                model_tool_calls.append(event.tool_name)
 
-            try:
-                agent = build_stagehand_agent(tools)
-                agent.kickoff(
-                    " ".join(
-                        (
-                            "Use code_execute to modify the already-open page.",
-                            "Set document.documentElement.dataset.crewaiModelMarker to",
-                            f"{json.dumps(model_marker)}.",
-                            "Then read that dataset value and the current pageId and report them.",
-                            "You must call code_execute; do not merely describe JavaScript.",
-                        )
+        try:
+            agent = build_stagehand_agent(tools)
+            agent.kickoff(
+                " ".join(
+                    (
+                        "Use code_execute to modify the already-open page.",
+                        "Set document.documentElement.dataset.crewaiModelMarker to",
+                        f"{json.dumps(model_marker)}.",
+                        "Then read that dataset value and the current pageId and report them.",
+                        "You must call code_execute; do not merely describe JavaScript.",
                     )
                 )
-                assert crewai_event_bus.flush(), "CrewAI tool events did not finish"
-            finally:
-                crewai_event_bus.off(ToolUsageFinishedEvent, record_model_tool)
-            assert model_tool_calls, "the real CrewAI model must select code_execute"
+            )
+            assert crewai_event_bus.flush(), "CrewAI tool events did not finish"
+        finally:
+            crewai_event_bus.off(ToolUsageFinishedEvent, record_model_tool)
+        assert model_tool_calls, "the real CrewAI model must select code_execute"
 
-            final_state = successful_result(
-                code_execute.run(
-                    code="""
+        final_state = successful_result(
+            code_execute.run(
+                code="""
 return {
   pageId: page.pageId,
   title: await page.title(),
@@ -107,12 +132,12 @@ return {
   ),
 };
 """
-                )
             )
-            assert final_state["title"] == "Example Domain"
-            assert final_state["pageId"] == first["pageId"]
-            assert final_state["directMarker"] == direct_marker
-            assert final_state["modelMarker"] == model_marker
+        )
+        assert final_state["title"] == "Example Domain"
+        assert final_state["pageId"] == first["pageId"]
+        assert final_state["directMarker"] == direct_marker
+        assert final_state["modelMarker"] == model_marker
 
     print(
         json.dumps(

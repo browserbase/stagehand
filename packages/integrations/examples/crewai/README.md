@@ -27,7 +27,6 @@ Build and pack the exact Stagehand packages under review:
 
 ```bash
 pnpm install
-pnpm exec turbo run build --filter @browserbasehq/stagehand-codemode
 pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-sandbox pack:artifacts
 ```
 
@@ -55,6 +54,13 @@ The proof uses one live package-installed sandbox and one context-managed CrewAI
 5. closes the CrewAI MCP adapter before ending the sandbox lease, emitting `PASS` only afterward.
 
 ## Use the agent
+
+Run the snippet with the example directory as the working directory so its local `agent.py` and
+`sandbox.py` modules resolve:
+
+```bash
+cd packages/integrations/examples/crewai
+```
 
 ```python
 from agent import run_stagehand_agent

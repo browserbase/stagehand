@@ -14,29 +14,53 @@ from agent import (
 from sandbox import StagehandSandboxLease
 
 
-def successful_result(raw_result: Any) -> dict[str, Any]:
-    if isinstance(raw_result, str):
-        result = json.loads(raw_result)
-    elif isinstance(raw_result, dict):
-        structured = raw_result.get("structuredContent")
-        result = structured if isinstance(structured, dict) else raw_result
-    elif isinstance(raw_result, list) and len(raw_result) == 1:
-        block = raw_result[0]
-        text = (
-            block.get("text")
-            if isinstance(block, dict)
-            else getattr(block, "text", None)
-        )
-        if not isinstance(text, str):
-            raise TypeError(f"Unexpected MCP content block: {type(block).__name__}")
-        result = json.loads(text)
-    else:
-        raise TypeError(f"Unexpected code_execute result: {type(raw_result).__name__}")
+class StagehandLangChainResultError(RuntimeError):
+    """code_execute returned a malformed or unsuccessful result."""
 
-    assert isinstance(result, dict), result
-    assert result["ok"] is True, result
+
+class StagehandLangChainIsolationError(RuntimeError):
+    """A host-only value crossed the Vercel Sandbox boundary."""
+
+
+def successful_result(raw_result: Any) -> dict[str, Any]:
+    try:
+        if isinstance(raw_result, str):
+            result = json.loads(raw_result)
+        elif isinstance(raw_result, dict):
+            structured = raw_result.get("structuredContent")
+            result = structured if isinstance(structured, dict) else raw_result
+        elif isinstance(raw_result, list) and len(raw_result) == 1:
+            block = raw_result[0]
+            text = (
+                block.get("text")
+                if isinstance(block, dict)
+                else getattr(block, "text", None)
+            )
+            if not isinstance(text, str):
+                raise StagehandLangChainResultError(
+                    "Stagehand code_execute returned an invalid result."
+                )
+            result = json.loads(text)
+        else:
+            raise StagehandLangChainResultError(
+                "Stagehand code_execute returned an invalid result."
+            )
+    except StagehandLangChainResultError:
+        raise
+    except Exception:  # noqa: BLE001 -- MCP result objects are untyped.
+        raise StagehandLangChainResultError(
+            "Stagehand code_execute returned an invalid result."
+        ) from None
+
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        raise StagehandLangChainResultError(
+            "Stagehand code_execute returned an invalid result."
+        )
     value = result.get("value")
-    assert isinstance(value, dict), result
+    if not isinstance(value, dict):
+        raise StagehandLangChainResultError(
+            "Stagehand code_execute returned an invalid result."
+        )
     return value
 
 
@@ -72,8 +96,13 @@ return {{
             )
             assert first["title"] == "Example Domain"
             assert first["directMarker"] == direct_marker
-            assert first["modelKeyVisible"] is None
-            assert first["hostMarkerVisible"] is None
+            if (
+                first["modelKeyVisible"] is not None
+                or first["hostMarkerVisible"] is not None
+            ):
+                raise StagehandLangChainIsolationError(
+                    "A host-only value crossed the LangChain sandbox boundary."
+                )
 
             second = successful_result(
                 await code_tool.ainvoke(
