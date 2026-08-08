@@ -51,16 +51,22 @@ export async function createStagehandSandboxGateway(
   provider: SandboxProvider,
   options: {
     image?: string;
+    startupTimeoutMs?: number;
     timeoutMs?: number;
     environment?: GuestEnvironment;
   } = {},
 ): Promise<{ url: string; token: string; close: () => Promise<void> }> {
   const port = 3000;
   const token = randomBytes(32).toString("hex");
+  const timeoutMs = options.timeoutMs ?? 15 * 60_000;
+  const startupTimeoutMs = Math.min(options.startupTimeoutMs ?? 2 * 60_000, timeoutMs - 1_000);
+  if (startupTimeoutMs <= 0) {
+    throw new Error("the sandbox timeout must leave at least one second for gateway startup");
+  }
   const sandbox = await provider.create({
     stdioImage: options.image ?? PROPOSED_STAGEHAND_CODEMODE_IMAGE,
     exposedPorts: [port],
-    timeoutMs: options.timeoutMs ?? 15 * 60_000,
+    timeoutMs,
   });
 
   try {
@@ -85,7 +91,7 @@ export async function createStagehandSandboxGateway(
       },
     });
     const baseUrl = (await sandbox.publicUrl(port)).replace(/\/$/, "");
-    await waitForGateway(baseUrl, token);
+    await waitForGateway(baseUrl, token, startupTimeoutMs);
     const url = `${baseUrl}/mcp`;
 
     return {
@@ -107,13 +113,18 @@ export async function createStagehandSandboxGateway(
   }
 }
 
-async function waitForGateway(baseUrl: string, token: string): Promise<void> {
-  for (let attempt = 0; attempt < 150; attempt += 1) {
+async function waitForGateway(
+  baseUrl: string,
+  token: string,
+  startupTimeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + startupTimeoutMs;
+  while (Date.now() < deadline) {
     const response = await fetch(`${baseUrl}/healthz`, {
       headers: { authorization: `Bearer ${token}` },
     }).catch(() => undefined);
     if (response?.ok) return;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error("the sandboxed Stagehand gateway did not become healthy");
 }

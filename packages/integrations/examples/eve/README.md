@@ -102,8 +102,10 @@ proxy run inside the guest. The adapter must also materialize the pinned Stageha
 inside the guest—such as through a mirrored runtime image or an exact source build—and return the
 resulting local Node command as `stdioCommand`; do not assume nested Docker is available.
 
-`createStagehandSandboxGateway` polls the authenticated `/healthz` endpoint before returning. This
-prevents Eve from racing the guest bootstrap or public port publication.
+`createStagehandSandboxGateway` polls the authenticated `/healthz` endpoint before returning. The
+default startup deadline is two minutes, is configurable with `startupTimeoutMs`, and is capped
+below the complete sandbox lifetime. This prevents Eve from racing a cold guest bootstrap or
+public port publication without permitting an unbounded wait.
 
 The host starts one authenticated proxy and one stateful `supergateway` process per sandbox.
 `supergateway` starts one Stagehand stdio child for each MCP session. `supergateway` is a
