@@ -8,6 +8,31 @@ import { fileURLToPath } from "node:url";
 const TOKEN = "auth-proxy-contract-token";
 const AUTHORIZATION = `Bearer ${TOKEN}`;
 const REQUEST_TIMEOUT_MS = 2_000;
+const PROXY_PATH = fileURLToPath(new URL("./auth-proxy.mjs", import.meta.url));
+
+for (const scenario of [
+  {
+    name: "a non-decimal bridge port",
+    environment: { BRIDGE_PORT: "8000.5", PROXY_PORT: "0" },
+    expectedError: /BRIDGE_PORT must be a valid port/,
+  },
+  {
+    name: "an out-of-range proxy port",
+    environment: { BRIDGE_PORT: "8000", PROXY_PORT: "65536" },
+    expectedError: /PROXY_PORT must be a valid port/,
+  },
+  {
+    name: "an ephemeral bridge port",
+    environment: { BRIDGE_PORT: "0", PROXY_PORT: "0" },
+    expectedError: /BRIDGE_PORT must be a valid port/,
+  },
+]) {
+  test(`auth proxy rejects ${scenario.name}`, async () => {
+    const result = await runSparseProxy(scenario.environment);
+    assert.notEqual(result.code, 0);
+    assert.match(result.stderr, scenario.expectedError);
+  });
+}
 
 test("auth proxy restricts ingress and closes abandoned upstream requests", async (context) => {
   let upstreamRequests = 0;
@@ -27,19 +52,15 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   const bridgePort = await listen(bridge, 0);
   context.after(() => closeServer(bridge));
 
-  const proxy = spawn(
-    process.execPath,
-    [fileURLToPath(new URL("./auth-proxy.mjs", import.meta.url))],
-    {
-      env: {
-        ...process.env,
-        BRIDGE_TOKEN_SHA256: createHash("sha256").update(TOKEN).digest("hex"),
-        BRIDGE_PORT: String(bridgePort),
-        PROXY_PORT: "0",
-      },
-      stdio: ["ignore", "ignore", "inherit", "ipc"],
+  const proxy = spawn(process.execPath, [PROXY_PATH], {
+    env: {
+      ...process.env,
+      BRIDGE_TOKEN_SHA256: createHash("sha256").update(TOKEN).digest("hex"),
+      BRIDGE_PORT: String(bridgePort),
+      PROXY_PORT: "0",
     },
-  );
+    stdio: ["ignore", "ignore", "inherit", "ipc"],
+  });
   context.after(() => stopProcess(proxy));
   const proxyPort = await waitForProxyPort(proxy);
   const proxyOrigin = `http://127.0.0.1:${proxyPort}`;
@@ -103,6 +124,30 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   abandoned.destroy();
   await withTimeout(stalledResponseClosed, "proxy did not close the abandoned upstream request");
 });
+
+function runSparseProxy(environment) {
+  return withTimeout(
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [PROXY_PATH], {
+        env: {
+          BRIDGE_TOKEN_SHA256: createHash("sha256").update(TOKEN).digest("hex"),
+          ...environment,
+        },
+        stdio: ["ignore", "ignore", "pipe"],
+      });
+      let stderr = "";
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      child.once("error", reject);
+      child.once("close", (code, signal) => {
+        resolve({ code, signal, stderr });
+      });
+    }),
+    "Timed out waiting for invalid auth-proxy configuration to fail",
+  );
+}
 
 function waitForProxyPort(child) {
   return withTimeout(
