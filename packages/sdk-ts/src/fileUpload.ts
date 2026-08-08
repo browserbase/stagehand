@@ -78,7 +78,10 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
   if (!file.name) throw new TypeError("setInputFiles(): file payload name cannot be empty");
   if (typeof file.buffer === "string") {
     const nodeBuffer = (globalThis as typeof globalThis & { Buffer?: typeof Buffer }).Buffer;
-    if (nodeBuffer && nodeBuffer.byteLength(file.buffer, "utf8") > MAX_INPUT_FILE_BYTES) {
+    const exceedsLimit = nodeBuffer
+      ? nodeBuffer.byteLength(file.buffer, "utf8") > MAX_INPUT_FILE_BYTES
+      : utf8ByteLengthExceeds(file.buffer, MAX_INPUT_FILE_BYTES);
+    if (exceedsLimit) {
       throw new RangeError(`setInputFiles(): file is larger than the 50 MiB upload limit`);
     }
   }
@@ -103,6 +106,32 @@ async function normalizeFile(file: string | FilePayload): Promise<InputFilePaylo
     data: encodeBase64(bytes),
     ...(file.lastModified === undefined ? {} : { lastModified: file.lastModified }),
   };
+}
+
+function utf8ByteLengthExceeds(value: string, limit: number): boolean {
+  let byteLength = 0;
+  for (let index = 0; index < value.length; index++) {
+    const codeUnit = value.charCodeAt(index);
+    if (codeUnit <= 0x7f) {
+      byteLength += 1;
+    } else if (codeUnit <= 0x7ff) {
+      byteLength += 2;
+    } else if (
+      codeUnit >= 0xd800 &&
+      codeUnit <= 0xdbff &&
+      index + 1 < value.length &&
+      value.charCodeAt(index + 1) >= 0xdc00 &&
+      value.charCodeAt(index + 1) <= 0xdfff
+    ) {
+      byteLength += 4;
+      index += 1;
+    } else {
+      // BMP characters and lone surrogates both encode to three bytes.
+      byteLength += 3;
+    }
+    if (byteLength > limit) return true;
+  }
+  return false;
 }
 
 function encodeBase64(bytes: Uint8Array): string {

@@ -1783,6 +1783,26 @@ describe("Stagehand TS object wrapper", () => {
     }
   });
 
+  it("rejects oversized string file payloads before encoding in a worker", async () => {
+    const client = new FakeProtocolClient();
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const encode = vi.spyOn(TextEncoder.prototype, "encode");
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      await expect(
+        locator.setInputFiles({
+          name: "oversized.txt",
+          buffer: "a".repeat(50 * 1024 * 1024 + 1),
+        }),
+      ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+      expect(encode).not.toHaveBeenCalled();
+      expect(client.calls).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+      encode.mockRestore();
+    }
+  });
+
   it("creates descriptor-backed nth locators without sending protocol calls", async () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.locatorClick, { clicked: true });
