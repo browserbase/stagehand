@@ -8,6 +8,7 @@ catalog:
   "@mastra/core": ^1.55.0
   "@mastra/mcp": ^1.15.0
   "@modelcontextprotocol/sdk": 1.29.0
+  eve: 0.29.4
   "@vercel/sandbox": 2.9.2
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6

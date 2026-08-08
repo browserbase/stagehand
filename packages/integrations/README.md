@@ -85,3 +85,5 @@ implementation modules and an in-process arbitrary-code executor are not public 
   one crew execution.
 - [LangChain Deep Agents](./examples/langchain) uses one explicit MCP session so every tool call
   reaches the same browser.
+- [Eve](./examples/eve) discovers the same authenticated remote MCP connection and exposes only
+  `code_execute` to the agent.

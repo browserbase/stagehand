@@ -1,0 +1,28 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-eve",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "eve build",
+    "contract": "tsx src/contract.ts",
+    "dev": "eve dev",
+    "e2e": "tsx src/e2e.ts",
+    "typecheck": "eve build && tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand-integrations-example-vercel-sandbox": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "eve": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
