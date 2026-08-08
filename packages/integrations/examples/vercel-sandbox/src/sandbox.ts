@@ -1,0 +1,418 @@
+import { createHash, randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
+
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { Sandbox, type SandboxUser } from "@vercel/sandbox";
+
+const BROWSERBASE_API_HOST = "api.browserbase.com";
+const BROWSERBASE_API_KEY_PLACEHOLDER = "bb_brokered_by_vercel";
+const BRIDGE_PORT = 3000;
+const GATEWAY_PORT = 8000;
+const MCP_PROTOCOL_VERSION = "2025-11-25";
+const MCP_USER = "stagehand-mcp";
+const PROXY_USER = "stagehand-proxy";
+const SANDBOX_ROOT = "/vercel/sandbox";
+const STAGEHAND_ROOT = `${SANDBOX_ROOT}/stagehand`;
+const GATEWAY_ROOT = `${SANDBOX_ROOT}/gateway`;
+const GATEWAY_BIN = `${GATEWAY_ROOT}/node_modules/.bin/supergateway`;
+const AUTH_PROXY_PATH = `${SANDBOX_ROOT}/auth-proxy.mjs`;
+const STDIO_WRAPPER_PATH = `${SANDBOX_ROOT}/stdio-wrapper.mjs`;
+
+export type StagehandSandboxOptions = {
+  stagehandRevision: string;
+  browserbaseApiKey: string;
+  browserbaseProjectId: string;
+  readinessTimeoutMs?: number;
+  sandboxTimeoutMs?: number;
+  cleanupTimeoutMs?: number;
+};
+
+export type StagehandSandboxConnection = {
+  url: URL;
+  token: string;
+  close: () => Promise<void>;
+};
+
+/**
+ * Build Stagehand from an exact revision inside a Vercel Sandbox, replace the
+ * setup network with Browserbase-only egress, and expose its stdio MCP server
+ * through an authenticated, stateful Streamable HTTP bridge.
+ */
+export async function createStagehandSandbox(
+  options: StagehandSandboxOptions,
+): Promise<StagehandSandboxConnection> {
+  assertCommitHash(options.stagehandRevision);
+  assertNonEmpty(options.browserbaseApiKey, "browserbaseApiKey");
+  assertNonEmpty(options.browserbaseProjectId, "browserbaseProjectId");
+
+  const cdpHost = await discoverBrowserbaseCdpHost(options);
+  const sandbox = await Sandbox.create({
+    runtime: "node24",
+    resources: { vcpus: 4 },
+    timeout: options.sandboxTimeoutMs ?? 40 * 60_000,
+    ports: [BRIDGE_PORT],
+    persistent: false,
+    networkPolicy: "allow-all",
+    tags: { purpose: "stagehand-codemode-mcp" },
+  });
+  const close = sandboxCloser(sandbox, options.cleanupTimeoutMs ?? 30_000);
+
+  try {
+    await installStagehand(sandbox, options.stagehandRevision);
+    await installGateway(sandbox);
+    await sandbox.writeFiles([
+      {
+        path: AUTH_PROXY_PATH,
+        content: await readFile(new URL("./guest/auth-proxy.mjs", import.meta.url)),
+        mode: 0o555,
+      },
+      {
+        path: STDIO_WRAPPER_PATH,
+        content: await readFile(new URL("./guest/stdio-wrapper.mjs", import.meta.url)),
+        mode: 0o555,
+      },
+    ]);
+
+    const mcpUser = await sandbox.createUser(MCP_USER);
+    const proxyUser = await sandbox.createUser(PROXY_USER);
+    await assertUnprivileged(mcpUser, MCP_USER);
+    await assertUnprivileged(proxyUser, PROXY_USER);
+    await protectRuntimeFiles(sandbox);
+
+    // This update is the trust transition: everything above is trusted setup;
+    // everything below may eventually execute model-generated JavaScript.
+    await sandbox.update({
+      networkPolicy: {
+        allow: {
+          [BROWSERBASE_API_HOST]: [
+            {
+              transform: [{ headers: { "X-BB-API-Key": options.browserbaseApiKey } }],
+            },
+          ],
+          [cdpHost]: [],
+        },
+      },
+    });
+
+    const token = randomBytes(32).toString("base64url");
+    const tokenDigest = createHash("sha256").update(token).digest("hex");
+    await startGateway(mcpUser, options.browserbaseProjectId);
+    await startAuthProxy(proxyUser, tokenDigest);
+
+    const origin = new URL(sandbox.domain(BRIDGE_PORT));
+    await waitForHealth(origin, token, options.readinessTimeoutMs ?? 2 * 60_000);
+    const unauthorized = await fetch(new URL("/healthz", origin));
+    if (unauthorized.status !== 401) {
+      throw new Error(
+        `Expected unauthenticated bridge health to return 401, received ${unauthorized.status}`,
+      );
+    }
+
+    return {
+      url: new URL("/mcp", origin),
+      token,
+      close,
+    };
+  } catch (error) {
+    try {
+      await close();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Stagehand sandbox setup failed and cleanup also failed",
+      );
+    }
+    throw error;
+  }
+}
+
+export function stagehandTransport(
+  connection: Pick<StagehandSandboxConnection, "url" | "token">,
+): StreamableHTTPClientTransport {
+  const transport = new StreamableHTTPClientTransport(connection.url, {
+    requestInit: {
+      headers: { Authorization: `Bearer ${connection.token}` },
+    },
+  });
+  transport.setProtocolVersion(MCP_PROTOCOL_VERSION);
+  return transport;
+}
+
+async function installStagehand(sandbox: Sandbox, revision: string): Promise<void> {
+  await run(sandbox, "initialize Stagehand checkout", "git", ["init", STAGEHAND_ROOT]);
+  await run(sandbox, "add Stagehand remote", "git", [
+    "-C",
+    STAGEHAND_ROOT,
+    "remote",
+    "add",
+    "origin",
+    "https://github.com/browserbase/stagehand.git",
+  ]);
+  await run(sandbox, "fetch Stagehand revision", "git", [
+    "-C",
+    STAGEHAND_ROOT,
+    "fetch",
+    "--depth=1",
+    "origin",
+    revision,
+  ]);
+  await run(sandbox, "checkout Stagehand revision", "git", [
+    "-C",
+    STAGEHAND_ROOT,
+    "checkout",
+    "--detach",
+    "FETCH_HEAD",
+  ]);
+  const resolved = await run(sandbox, "resolve Stagehand revision", "git", [
+    "-C",
+    STAGEHAND_ROOT,
+    "rev-parse",
+    "HEAD",
+  ]);
+  if (resolved.trim() !== revision) {
+    throw new Error(`Stagehand checkout resolved to an unexpected revision: ${resolved.trim()}`);
+  }
+
+  await run(sandbox, "activate pnpm", "corepack", ["prepare", "pnpm@11.10.0", "--activate"]);
+  await run(
+    sandbox,
+    "install Stagehand dependencies",
+    "pnpm",
+    ["install", "--frozen-lockfile"],
+    STAGEHAND_ROOT,
+  );
+  await run(
+    sandbox,
+    "build Stagehand extension",
+    "pnpm",
+    ["--filter", "@browserbasehq/stagehand-extension", "build"],
+    STAGEHAND_ROOT,
+  );
+  await run(
+    sandbox,
+    "build Stagehand integrations",
+    "pnpm",
+    ["--filter", "@browserbasehq/stagehand-integrations...", "build"],
+    STAGEHAND_ROOT,
+  );
+}
+
+async function installGateway(sandbox: Sandbox): Promise<void> {
+  await run(sandbox, "install the MCP HTTP bridge", "npm", [
+    "install",
+    "--prefix",
+    GATEWAY_ROOT,
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+    "supergateway@3.4.3",
+  ]);
+}
+
+async function protectRuntimeFiles(sandbox: Sandbox): Promise<void> {
+  await run(sandbox.asUser("root"), "protect the trusted runtime", "bash", [
+    "-lc",
+    [
+      `chown -R root:root ${STAGEHAND_ROOT} ${GATEWAY_ROOT}`,
+      `chown root:root ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
+      `chmod -R a-w ${STAGEHAND_ROOT} ${GATEWAY_ROOT}`,
+      `chmod 0555 ${AUTH_PROXY_PATH} ${STDIO_WRAPPER_PATH}`,
+    ].join(" && "),
+  ]);
+}
+
+async function startGateway(user: SandboxUser, browserbaseProjectId: string): Promise<void> {
+  await user.runCommand({
+    cmd: GATEWAY_BIN,
+    args: [
+      "--stdio",
+      `node ${STDIO_WRAPPER_PATH}`,
+      "--outputTransport",
+      "streamableHttp",
+      "--stateful",
+      "--sessionTimeout",
+      "600000",
+      "--protocolVersion",
+      MCP_PROTOCOL_VERSION,
+      "--port",
+      String(GATEWAY_PORT),
+      "--healthEndpoint",
+      "/healthz",
+      "--logLevel",
+      "none",
+    ],
+    detached: true,
+    env: {
+      BROWSERBASE_API_KEY: BROWSERBASE_API_KEY_PLACEHOLDER,
+      BROWSERBASE_PROJECT_ID: browserbaseProjectId,
+      STAGEHAND_BROWSER: "browserbase",
+      STAGEHAND_SANDBOX_BOUNDARY: "vercel-firecracker-microvm",
+    },
+  });
+}
+
+async function startAuthProxy(user: SandboxUser, tokenDigest: string): Promise<void> {
+  await user.runCommand({
+    cmd: "node",
+    args: [AUTH_PROXY_PATH],
+    detached: true,
+    env: { BRIDGE_TOKEN_SHA256: tokenDigest },
+  });
+}
+
+async function assertUnprivileged(user: SandboxUser, name: string): Promise<void> {
+  const sudoProbe = await user.runCommand({ cmd: "sudo", args: ["-n", "true"] });
+  if (sudoProbe.exitCode === 0) throw new Error(`${name} unexpectedly has sudo access`);
+}
+
+async function waitForHealth(origin: URL, token: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus: number | undefined;
+  while (Date.now() < deadline) {
+    const response = await fetch(new URL("/healthz", origin), {
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => undefined);
+    if (response?.ok) return;
+    lastStatus = response?.status;
+    await delay(250);
+  }
+  throw new Error(
+    `Authenticated Stagehand bridge readiness timed out (last status ${lastStatus ?? "unreachable"})`,
+  );
+}
+
+async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Promise<string> {
+  let sessionId: string | undefined;
+  let discoveredHost: string | undefined;
+  let primaryError: unknown;
+
+  try {
+    const response = await fetch(`https://${BROWSERBASE_API_HOST}/v1/sessions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-BB-API-Key": options.browserbaseApiKey,
+      },
+      body: JSON.stringify({ projectId: options.browserbaseProjectId }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) {
+      throw new Error(`Browserbase CDP host discovery returned ${response.status}`);
+    }
+    const session = (await response.json()) as { id?: unknown; connectUrl?: unknown };
+    if (typeof session.id !== "string" || typeof session.connectUrl !== "string") {
+      throw new Error("Browserbase CDP host discovery returned an invalid session");
+    }
+    sessionId = session.id;
+    discoveredHost = assertBrowserbaseCdpHost(new URL(session.connectUrl).hostname);
+  } catch (error) {
+    primaryError = error;
+  }
+
+  let cleanupError: unknown;
+  if (sessionId) {
+    try {
+      const response = await fetch(
+        `https://${BROWSERBASE_API_HOST}/v1/sessions/${encodeURIComponent(sessionId)}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "X-BB-API-Key": options.browserbaseApiKey,
+          },
+          body: JSON.stringify({ status: "REQUEST_RELEASE" }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Browserbase discovery-session release returned ${response.status}`);
+    } catch (error) {
+      cleanupError = error;
+    }
+  }
+
+  if (primaryError !== undefined && cleanupError !== undefined) {
+    throw new AggregateError(
+      [primaryError, cleanupError],
+      "Browserbase CDP host discovery and session release both failed",
+    );
+  }
+  if (primaryError !== undefined) throw primaryError;
+  if (cleanupError !== undefined) throw cleanupError;
+  if (!discoveredHost) throw new Error("Browserbase CDP host discovery returned no hostname");
+  return discoveredHost;
+}
+
+function sandboxCloser(sandbox: Sandbox, timeoutMs: number): () => Promise<void> {
+  let closePromise: Promise<void> | undefined;
+  return () => {
+    closePromise ??= disposeSandbox(sandbox, timeoutMs);
+    return closePromise;
+  };
+}
+
+async function disposeSandbox(sandbox: Sandbox, timeoutMs: number): Promise<void> {
+  const errors: unknown[] = [];
+  await withTimeout(sandbox.stop(), timeoutMs, "Vercel Sandbox stop").catch((error: unknown) => {
+    errors.push(error);
+  });
+  await withTimeout(sandbox.delete(), timeoutMs, "Vercel Sandbox delete").catch(
+    (error: unknown) => {
+      errors.push(error);
+    },
+  );
+  if (errors.length > 0)
+    throw new AggregateError(errors, "Could not stop and delete Vercel Sandbox");
+}
+
+async function run(
+  target: Pick<Sandbox, "runCommand"> | SandboxUser,
+  label: string,
+  cmd: string,
+  args: string[],
+  cwd?: string,
+): Promise<string> {
+  const result = await target.runCommand({ cmd, args, cwd });
+  const [stdout, stderr] = await Promise.all([result.stdout(), result.stderr()]);
+  if (result.exitCode !== 0) {
+    const detail = stderr.trim() || stdout.trim() || "no command output";
+    throw new Error(`${label} failed with exit ${result.exitCode}: ${detail.slice(-2_000)}`);
+  }
+  return stdout;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeout: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(
+      () => reject(new Error(`${label} timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+  });
+  try {
+    return await Promise.race([promise, deadline]);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function assertCommitHash(revision: string): void {
+  if (!/^[0-9a-f]{40}$/.test(revision)) {
+    throw new Error("stagehandRevision must be a complete 40-character Git commit hash");
+  }
+}
+
+function assertNonEmpty(value: string, name: string): void {
+  if (!value.trim()) throw new Error(`${name} must not be empty`);
+}
+
+function assertBrowserbaseCdpHost(hostname: string): string {
+  if (!/^connect(?:\.[a-z0-9-]+)?\.browserbase\.com$/.test(hostname)) {
+    throw new Error(`Browserbase returned an unexpected CDP hostname: ${hostname}`);
+  }
+  return hostname;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}

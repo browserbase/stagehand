@@ -46,7 +46,7 @@ The process stays alive across calls and closes when its input stream ends. `SIG
 
 ### Framework examples
 
-- [E2B sandbox](./examples/e2b) source-installs the stdio server inside a Firecracker microVM and returns a framework-neutral, bearer-authenticated MCP connection.
+- [Vercel Sandbox](./examples/vercel-sandbox) source-installs the stdio server inside a Firecracker microVM and returns a framework-neutral, bearer-authenticated MCP connection.
 
 ### Configuration
 
@@ -75,4 +75,5 @@ Native callers run generated JavaScript in their own process. An `AbortSignal` c
 The code-mode executor does not provide a sandbox. Generated JavaScript runs in the host process and inherits that process's filesystem, network, and environment access. A framework may place the tool inside its own sandbox, container, or other isolation boundary.
 
 For untrusted generated code, use the source-installed microVM architecture in the
-[E2B sandbox example](./examples/e2b). The sandbox provider supplies the security boundary.
+[Vercel Sandbox example](./examples/vercel-sandbox). The sandbox provider supplies the security
+boundary.

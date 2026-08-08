@@ -48,8 +48,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: E2B source-installed MCP
-            package: "@browserbasehq/stagehand-integrations-example-e2b"
+          - name: Vercel Sandbox source-installed MCP
+            package: "@browserbasehq/stagehand-integrations-example-vercel-sandbox"
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
