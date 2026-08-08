@@ -645,10 +645,14 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
+// Chromium clamps timer delays to a signed 32-bit integer. Reserve the SDK's
+// 10-second RPC response grace period so both timers remain within that limit.
+export const MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000;
+
 export const CallbackBatchOptionsSchema = z
   .strictObject({
     pageId: z.string().min(1).optional(),
-    timeout: z.number().int().positive().default(30_000),
+    timeout: z.number().int().positive().max(MAX_CALLBACK_BATCH_TIMEOUT_MS).default(30_000),
   })
   .meta({ id: "CallbackBatchOptions" });
 

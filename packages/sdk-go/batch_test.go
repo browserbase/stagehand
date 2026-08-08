@@ -238,3 +238,39 @@ func TestExperimentalBatchRejectsPageWithoutIDBeforeTransport(t *testing.T) {
 		t.Fatalf("callback transport called %d times", rpc.calls)
 	}
 }
+
+func TestExperimentalBatchBoundsTimeoutBelowChromiumTimerLimit(t *testing.T) {
+	rpc := &recordingBatchProtocolClient{recordingProtocolClient: &recordingProtocolClient{
+		responses: map[string]any{"stagehand.callback_batch": map[string]any{}},
+	}}
+	client := &Stagehand{rpc: rpc, initialized: true}
+	var result any
+	maximum := time.Duration(maxExperimentalBatchTimeoutMilliseconds) * time.Millisecond
+
+	if err := client.ExperimentalBatch(
+		context.Background(),
+		`() => undefined`,
+		nil,
+		&result,
+		ExperimentalBatchOptions{Timeout: maximum},
+	); err != nil {
+		t.Fatalf("ExperimentalBatch() at maximum timeout error = %v", err)
+	}
+	if rpc.timeout != maximum {
+		t.Fatalf("callback timeout = %s, want %s", rpc.timeout, maximum)
+	}
+
+	err := client.ExperimentalBatch(
+		context.Background(),
+		`() => undefined`,
+		nil,
+		&result,
+		ExperimentalBatchOptions{Timeout: maximum + time.Millisecond},
+	)
+	if err == nil || err.Error() != "stagehand callback batch timeout exceeds the maximum supported timeout" {
+		t.Fatalf("ExperimentalBatch() oversized timeout error = %v", err)
+	}
+	if rpc.calls != 1 {
+		t.Fatalf("callback transport called %d times, want 1", rpc.calls)
+	}
+}

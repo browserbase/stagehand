@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { StagehandMethods, StagehandRpcRequestSchema } from "../../schema-registry.js";
-import { CallbackBatchResultSchema } from "../../schemas.js";
+import {
+  CallbackBatchOptionsSchema,
+  CallbackBatchResultSchema,
+  MAX_CALLBACK_BATCH_TIMEOUT_MS,
+} from "../../schemas.js";
 
 describe("callback batch protocol", () => {
   it("registers a wire-safe Stagehand request", () => {
@@ -31,5 +35,14 @@ describe("callback batch protocol", () => {
       value: null,
     });
     expect(CallbackBatchResultSchema.safeParse({ ok: true }).success).toBe(false);
+  });
+
+  it("reserves the RPC grace period below Chromium's maximum timer delay", () => {
+    expect(
+      CallbackBatchOptionsSchema.parse({ timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS }).timeout,
+    ).toBe(MAX_CALLBACK_BATCH_TIMEOUT_MS);
+    expect(
+      CallbackBatchOptionsSchema.safeParse({ timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS + 1 }).success,
+    ).toBe(false);
   });
 });

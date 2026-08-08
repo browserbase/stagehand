@@ -3,7 +3,10 @@ import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import {
+  MAX_CALLBACK_BATCH_TIMEOUT_MS,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "../../protocol/schemas.js";
 import { RPCClient, rpcResponseTimeoutMs, type CDPTransport } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
@@ -467,6 +470,14 @@ describe("RPCClient", () => {
       client.close();
       vi.useRealTimers();
     }
+  });
+
+  it("keeps the maximum callback batch deadline within Chromium's timer limit", () => {
+    expect(
+      rpcResponseTimeoutMs(StagehandMethods.stagehandCallbackBatch.name, {
+        options: { timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS },
+      }),
+    ).toBe(2_147_483_647);
   });
 
   it("rejects initialization RPCs that have no lifecycle signal", async () => {

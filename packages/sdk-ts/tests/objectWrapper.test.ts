@@ -5,6 +5,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import {
   BrowserClipboard,
@@ -185,6 +186,24 @@ describe("Stagehand TS object wrapper", () => {
       stagehand._experimental_batch(async () => undefined, undefined, null as never),
     ).rejects.toThrow(new TypeError("stagehand._experimental_batch() options must be an object"));
     expect(client.batchCalls).toHaveLength(0);
+  });
+
+  it("bounds experimental batch timeouts below Chromium's timer limit", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    client.batchHandler = async () => undefined;
+
+    await expect(
+      stagehand._experimental_batch(async () => undefined, undefined, {
+        timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      stagehand._experimental_batch(async () => undefined, undefined, {
+        timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS + 1,
+      }),
+    ).rejects.toThrow(`must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`);
+    expect(client.batchCalls).toHaveLength(1);
   });
 
   it("allows native-code text inside a serializable experimental batch callback", async () => {

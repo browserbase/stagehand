@@ -66,6 +66,7 @@ from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
 _CONSTRUCTION_TOKEN = object()
+_MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000
 _UNAVAILABLE_MESSAGE = (
     "Stagehand is unavailable. Create a new instance with await Stagehand.create()."
 )
@@ -187,6 +188,10 @@ class Stagehand:
             raise TypeError("source must be a non-empty JavaScript string")
         if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
             raise ValueError("timeout must be a positive number of milliseconds")
+        if timeout > _MAX_CALLBACK_BATCH_TIMEOUT_MS:
+            raise ValueError(
+                f"timeout must not exceed {_MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds"
+            )
         try:
             json.dumps(input, allow_nan=False)
         except (TypeError, ValueError) as error:

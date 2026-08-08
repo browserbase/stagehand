@@ -312,7 +312,7 @@ class CallbackBatchOptions(WireModel):
         validate_by_name=True,
     )
     page_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
-    timeout: Annotated[StrictInt, Field(gt=0, le=9007199254740991)] = 30000
+    timeout: Annotated[StrictInt, Field(gt=0, le=2147473647)] = 30000
 
 
 class CallbackBatchParams(WireModel):

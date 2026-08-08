@@ -184,9 +184,8 @@ func (s *Stagehand) ExperimentalBatch(
 		return errors.New("stagehand callback batch timeout must be at least one millisecond")
 	}
 	timeoutMilliseconds := timeout.Milliseconds()
-	maxInt := int64(^uint(0) >> 1)
-	if timeoutMilliseconds > maxInt {
-		return errors.New("stagehand callback batch timeout exceeds the supported millisecond range")
+	if timeoutMilliseconds > maxExperimentalBatchTimeoutMilliseconds {
+		return errors.New("stagehand callback batch timeout exceeds the maximum supported timeout")
 	}
 	rpc, err := s.connectedProtocol()
 	if err != nil {

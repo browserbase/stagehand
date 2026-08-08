@@ -1,6 +1,7 @@
 import { RPCClient } from "./rpcClient.js";
 import {
   DefaultExtractDataSchema,
+  MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
   StagehandInitParamsSchema,
 } from "../../protocol/schemas.js";
@@ -136,8 +137,13 @@ export class Stagehand {
     }
     const parsedInput = input === undefined ? undefined : z.json().parse(input);
     const timeout = options.timeout ?? 30_000;
-    if (!Number.isFinite(timeout) || timeout <= 0) {
-      throw new RangeError("stagehand._experimental_batch() timeout must be greater than zero");
+    if (!Number.isInteger(timeout) || timeout <= 0) {
+      throw new RangeError("stagehand._experimental_batch() timeout must be a positive integer");
+    }
+    if (timeout > MAX_CALLBACK_BATCH_TIMEOUT_MS) {
+      throw new RangeError(
+        `stagehand._experimental_batch() timeout must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`,
+      );
     }
     const callbackSource = Function.prototype.toString.call(callback);
     if (nativeFunctionSourcePattern.test(callbackSource)) {

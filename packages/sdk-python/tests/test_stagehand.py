@@ -149,6 +149,7 @@ def test_stagehand_does_not_expose_context() -> None:
         ("async () => undefined", None, True, ValueError, "positive number"),
         ("async () => undefined", None, 0, ValueError, "positive number"),
         ("async () => undefined", None, 1.5, ValueError, "positive number"),
+        ("async () => undefined", None, 2_147_473_648, ValueError, "must not exceed"),
         ("async () => undefined", object(), 30_000, TypeError, "JSON-serializable"),
     ],
 )
@@ -197,6 +198,26 @@ async def test_experimental_batch_uses_registered_rpc_method(
         assert params.callback_source == source
         assert params.options.timeout == 2_000
         assert params.options.model_dump(mode="json", exclude_unset=True) == {"timeout": 2_000}
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_accepts_maximum_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand._experimental_batch(
+            "async () => undefined",
+            timeout=2_147_473_647,
+        )
+        _, params, _ = recording.calls[-1]
+        assert isinstance(params, CallbackBatchParams)
+        assert params.options.timeout == 2_147_473_647
     finally:
         await stagehand.close()
 
