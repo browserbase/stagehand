@@ -10,12 +10,13 @@ try {
   const packageArtifactsPath = requiredEnvironment("STAGEHAND_SANDBOX_ARTIFACTS");
   const browserbaseApiKey = requiredEnvironment("BROWSERBASE_API_KEY");
   const browserbaseProjectId = requiredEnvironment("BROWSERBASE_PROJECT_ID");
+  const vercelCredentials = vercelCredentialsFromEnvironment();
   const leaseEnd = waitForLeaseEnd();
   const connection = await createStagehandSandbox({
     packageArtifactsPath,
     browserbaseApiKey,
     browserbaseProjectId,
-    vercelCredentials: vercelCredentialsFromEnvironment(),
+    vercelCredentials,
   });
 
   process.stdout.write(
