@@ -1,20 +1,20 @@
-import { fileURLToPath } from "node:url";
-
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
+import type { StagehandSandboxConnection } from "@browserbasehq/stagehand-integrations-example-vercel-sandbox";
 
-const DEFAULT_STDIO_SERVER_PATH = fileURLToPath(
-  new URL("../../../dist/codemode/stdio-server.mjs", import.meta.url),
-);
+type RemoteStagehandConnection = Pick<StagehandSandboxConnection, "url" | "token">;
 
-export function createStagehandMcpClient(stdioServerPath = DEFAULT_STDIO_SERVER_PATH): MCPClient {
+export function createStagehandMcpClient(connection: RemoteStagehandConnection): MCPClient {
   return new MCPClient({
     id: "stagehand-codemode",
     servers: {
       stagehand: {
-        command: process.execPath,
-        args: [stdioServerPath],
-        env: definedEnvironment(process.env),
+        url: connection.url,
+        fetch: async (input, init) => {
+          const headers = new Headers(init?.headers);
+          headers.set("Authorization", `Bearer ${connection.token}`);
+          return fetch(input, { ...init, headers });
+        },
       },
     },
   });
@@ -51,13 +51,15 @@ export type StagehandCodeTools = Awaited<ReturnType<typeof loadStagehandCodeTool
 
 export type StagehandAgentHandle = {
   agent: Agent;
+  tools: StagehandCodeTools;
   close: () => Promise<void>;
 };
 
 export async function createStagehandAgent(
+  connection: RemoteStagehandConnection,
   model = process.env.MASTRA_MODEL ?? "openai/gpt-5-mini",
 ): Promise<StagehandAgentHandle> {
-  const mcp = createStagehandMcpClient();
+  const mcp = createStagehandMcpClient(connection);
 
   try {
     const tools = await loadStagehandCodeTools(mcp);
@@ -76,6 +78,7 @@ export async function createStagehandAgent(
 
     return {
       agent,
+      tools,
       close: () => mcp.disconnect(),
     };
   } catch (error) {
@@ -84,8 +87,12 @@ export async function createStagehandAgent(
   }
 }
 
-export async function runStagehandAgent(prompt: string, model?: string): Promise<string> {
-  const handle = await createStagehandAgent(model);
+export async function runStagehandAgent(
+  connection: RemoteStagehandConnection,
+  prompt: string,
+  model?: string,
+): Promise<string> {
+  const handle = await createStagehandAgent(connection, model);
 
   try {
     const result = await handle.agent.generate(prompt, { maxSteps: 8 });
@@ -93,14 +100,6 @@ export async function runStagehandAgent(prompt: string, model?: string): Promise
   } finally {
     await handle.close();
   }
-}
-
-function definedEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(environment).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
-    ),
-  );
 }
 
 function formatErrors(errors: Record<string, unknown>): string {

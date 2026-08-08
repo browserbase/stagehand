@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "smoke": "tsx src/smoke.ts",
+    "e2e": "tsx src/e2e.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
