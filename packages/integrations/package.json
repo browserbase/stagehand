@@ -1,29 +1,50 @@
 {
-  "name": "@browserbasehq/stagehand-integrations",
+  "name": "@browserbasehq/stagehand-codemode",
   "version": "4.0.0",
-  "private": true,
-  "description": "Shared integration surfaces for Stagehand V4",
+  "description": "A stateful code-execution MCP server for Stagehand",
+  "keywords": [
+    "ai",
+    "browser",
+    "mcp",
+    "stagehand"
+  ],
+  "homepage": "https://stagehand.dev",
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
+  },
+  "license": "MIT",
+  "author": "Browserbase",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/browserbase/stagehand.git",
+    "directory": "packages/integrations"
+  },
+  "bin": {
+    "stagehand-codemode": "dist/codemode/stdio-server.mjs"
+  },
   "files": [
     "dist",
     "codemode/SKILL.md",
-    "codemode/REFERENCE.md"
+    "codemode/REFERENCE.md",
+    "LICENSE",
+    "README.md"
   ],
   "type": "module",
   "exports": {
-    "./codemode": {
-      "types": "./dist/codemode/index.d.mts",
-      "import": "./dist/codemode/index.mjs"
-    },
-    "./codemode/stdio-server": {
-      "import": "./dist/codemode/stdio-server.mjs"
-    },
-    "./codemode/SKILL.md": "./codemode/SKILL.md",
-    "./codemode/REFERENCE.md": "./codemode/REFERENCE.md"
+    "./SKILL.md": "./codemode/SKILL.md",
+    "./REFERENCE.md": "./codemode/REFERENCE.md"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
-    "build": "pnpm run check:generated && tsdown",
+    "build": "pnpm run check:generated && tsdown && node scripts/prepare-package.mjs",
     "check:generated": "node scripts/generate-codemode-content.mjs --check",
     "generate": "node scripts/generate-codemode-content.mjs",
+    "lint:package": "publint",
+    "prepack": "pnpm run build && pnpm run lint:package",
+    "smoke:package": "node scripts/package-smoke.mjs",
     "test": "pnpm run build && vitest run --root ../.. packages/integrations/tests",
     "test:unit": "vitest run --root ../.. packages/integrations/tests",
     "typecheck": "pnpm run check:generated && tsc --noEmit -p tsconfig.json"
@@ -35,6 +56,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "publint": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
