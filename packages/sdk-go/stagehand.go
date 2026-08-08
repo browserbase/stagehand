@@ -198,9 +198,12 @@ func (s *Stagehand) ExperimentalBatch(
 			return errors.New("stagehand callback batch page must have a non-empty page ID")
 		}
 	}
-	inputJSON, err := json.Marshal(input)
-	if err != nil {
-		return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
+	var inputJSON json.RawMessage
+	if input != nil {
+		inputJSON, err = json.Marshal(input)
+		if err != nil {
+			return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
+		}
 	}
 	params := CallbackBatchParams{
 		CallbackSource: source,

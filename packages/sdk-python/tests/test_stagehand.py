@@ -203,6 +203,48 @@ async def test_experimental_batch_uses_registered_rpc_method(
 
 
 @pytest.mark.asyncio
+async def test_experimental_batch_normalizes_json_object_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand._experimental_batch("async (_batch, input) => input", {1: "one"})
+        _, params, _ = recording.calls[-1]
+        assert isinstance(params, CallbackBatchParams)
+        assert params.input is not None
+        assert params.input.model_dump(mode="json") == {"1": "one"}
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_distinguishes_omitted_input_from_null(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand._experimental_batch("async () => undefined")
+        _, omitted_params, _ = recording.calls[-1]
+        assert isinstance(omitted_params, CallbackBatchParams)
+        assert "input" not in omitted_params.model_fields_set
+
+        await stagehand._experimental_batch("async () => undefined", None)
+        _, null_params, _ = recording.calls[-1]
+        assert isinstance(null_params, CallbackBatchParams)
+        assert "input" in null_params.model_fields_set
+        assert null_params.input is not None
+        assert null_params.input.root is None
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_experimental_batch_accepts_maximum_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

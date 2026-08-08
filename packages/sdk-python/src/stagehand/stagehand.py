@@ -66,6 +66,7 @@ from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
 _CONSTRUCTION_TOKEN = object()
+_UNSET_BATCH_INPUT = object()
 _MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000
 _UNAVAILABLE_MESSAGE = (
     "Stagehand is unavailable. Create a new instance with await Stagehand.create()."
@@ -178,7 +179,7 @@ class Stagehand:
     async def _experimental_batch(
         self,
         source: str,
-        input: object = None,
+        input: object = _UNSET_BATCH_INPUT,
         *,
         timeout: int = 30_000,
         page: Page | None = None,
@@ -192,20 +193,35 @@ class Stagehand:
             raise ValueError(
                 f"timeout must not exceed {_MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds"
             )
-        try:
-            json.dumps(input, allow_nan=False)
-        except (TypeError, ValueError) as error:
-            raise TypeError("input must be JSON-serializable") from error
-        result = await self._connected_rpc_client.send(
-            "stagehand.callback_batch",
+        input_model: _models.FieldSchema2 | None = None
+        if input is not _UNSET_BATCH_INPUT:
+            try:
+                serialized_input = json.dumps(input, allow_nan=False)
+                input_model = _models.FieldSchema2.model_validate_json(
+                    serialized_input,
+                    strict=True,
+                )
+            except (TypeError, ValueError) as error:
+                raise TypeError("input must be JSON-serializable") from error
+        options_model = CallbackBatchOptions(
+            **({"page_id": page.page_id} if page is not None else {}),
+            timeout=timeout,
+        )
+        params = (
             CallbackBatchParams(
                 callback_source=source,
-                input=_models.FieldSchema2.model_validate(input),
-                options=CallbackBatchOptions(
-                    **({"page_id": page.page_id} if page is not None else {}),
-                    timeout=timeout,
-                ),
-            ),
+                options=options_model,
+            )
+            if input is _UNSET_BATCH_INPUT
+            else CallbackBatchParams(
+                callback_source=source,
+                input=input_model,
+                options=options_model,
+            )
+        )
+        result = await self._connected_rpc_client.send(
+            "stagehand.callback_batch",
+            params,
             CallbackBatchResult,
         )
         return (

@@ -86,7 +86,6 @@ async def test_callback_batch_uses_the_normal_pending_request_path(
                 "stagehand.callback_batch",
                 models.CallbackBatchParams(
                     callback_source=source,
-                    input=models.FieldSchema2.model_validate(None),
                     options=models.CallbackBatchOptions(
                         **({"page_id": page_id} if page_id is not None else {}),
                         timeout=30_000,
