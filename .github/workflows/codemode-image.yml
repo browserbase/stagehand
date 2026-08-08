@@ -1,0 +1,121 @@
+name: Code-mode MCP image
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - ".dockerignore"
+      - "Dockerfile.codemode"
+      - ".github/workflows/codemode-image.yml"
+      - "packages/integrations/**"
+      - "packages/extension/**"
+      - "packages/protocol/**"
+      - "packages/sdk-ts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.json"
+      - "turbo.json"
+  push:
+    tags:
+      - "stagehand-codemode-v*.*.*-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/browserbase/stagehand-codemode
+
+jobs:
+  build:
+    name: Build unprivileged image
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.repo.full_name == github.repository ||
+       contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Build image without publishing
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile.codemode
+          load: true
+          platforms: linux/amd64
+          push: false
+          tags: stagehand-codemode:ci
+
+      - name: Discover MCP tools without network access
+        run: |
+          request='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"container-smoke","version":"1.0.0"}}}'
+          initialized='{"jsonrpc":"2.0","method":"notifications/initialized"}'
+          list_tools='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+          output="$(printf '%s\n%s\n%s\n' "$request" "$initialized" "$list_tools" | docker run --rm -i --network none stagehand-codemode:ci)"
+          grep -qF '"name":"code_execute"' <<<"$output"
+          printf 'code_execute discovery PASS\n'
+
+  publish:
+    name: Publish immutable image
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate immutable tags and OCI labels
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          flavor: latest=false
+          tags: |
+            type=sha,format=long,prefix=sha-
+            type=match,pattern=stagehand-codemode-v(.*),group=1
+          labels: |
+            org.opencontainers.image.source=https://github.com/browserbase/stagehand
+            org.opencontainers.image.description=Stagehand code-mode MCP stdio server
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and publish image
+        id: publish
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: Dockerfile.codemode
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true

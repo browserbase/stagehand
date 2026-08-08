@@ -69,3 +69,7 @@ Native callers run generated JavaScript in their own process. An `AbortSignal` c
 ### Security boundary
 
 The code-mode executor does not provide a sandbox. Generated JavaScript runs in the host process and inherits that process's filesystem, network, and environment access. A framework may place the tool inside its own sandbox, container, or other isolation boundary.
+
+For untrusted generated code, use the OCI image and microVM architecture in
+[`codemode/SANDBOX.md`](./codemode/SANDBOX.md). The image packages the stdio server; the sandbox
+provider supplies the security boundary.
