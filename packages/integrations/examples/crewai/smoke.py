@@ -2,13 +2,46 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
+from crewai.tools import BaseTool
+from crewai_tools import MCPServerAdapter
+
 from agent import (
-    STAGEHAND_CODEMODE_SKILL,
+    REPOSITORY_ROOT,
     build_stagehand_agent,
-    stagehand_code_tools,
+    load_stagehand_codemode_skill,
 )
+from mcp import StdioServerParameters
+
+LOCAL_STDIO_SERVER_PATH = REPOSITORY_ROOT / "packages/integrations/dist/codemode/stdio-server.mjs"
+
+
+@contextmanager
+def local_stagehand_code_tools_for_ci() -> Iterator[list[BaseTool]]:
+    """Launch the MCP directly only for the credential-free local CI smoke."""
+    if not LOCAL_STDIO_SERVER_PATH.is_file():
+        raise FileNotFoundError(
+            "Build @browserbasehq/stagehand-integrations before running the smoke"
+        )
+    child_env = {
+        "PATH": os.environ.get("PATH", ""),
+        "STAGEHAND_BROWSER": "local",
+    }
+    for name in ("HOME", "TMPDIR", "CHROME_PATH"):
+        if value := os.environ.get(name):
+            child_env[name] = value
+    parameters = StdioServerParameters(
+        command="node",
+        args=[str(LOCAL_STDIO_SERVER_PATH)],
+        cwd=Path(REPOSITORY_ROOT),
+        env=child_env,
+    )
+    with MCPServerAdapter(parameters) as discovered_tools:
+        yield list(discovered_tools)
 
 
 def successful_result(raw_result: Any) -> dict[str, Any]:
@@ -18,15 +51,14 @@ def successful_result(raw_result: Any) -> dict[str, Any]:
 
 
 def main() -> None:
-    os.environ.setdefault("STAGEHAND_BROWSER", "local")
     os.environ.setdefault("OPENAI_API_KEY", "smoke-only-placeholder")
 
-    with stagehand_code_tools() as tools:
+    with local_stagehand_code_tools_for_ci() as tools:
         assert [tool.name for tool in tools] == ["code_execute"]
         assert "Stagehand V4 code-mode syntax" in tools[0].description
-        assert "stagehand.extract" in STAGEHAND_CODEMODE_SKILL
+        assert "stagehand.extract" in load_stagehand_codemode_skill()
 
-        agent = build_stagehand_agent(tools, llm="openai/gpt-4o-mini")
+        agent = build_stagehand_agent(tools)
         code_execute = agent.tools[0]
 
         first = successful_result(
@@ -68,10 +100,10 @@ return {
         assert second_value["pageId"] == first_value["pageId"]
 
         print(
-            "CrewAI Stagehand MCP persistence PASS:",
+            "CrewAI local CI-only Stagehand MCP persistence PASS:",
             json.dumps(
                 {
-                    "browser": os.environ["STAGEHAND_BROWSER"],
+                    "browser": "local",
                     "tool": "code_execute",
                     "pageId": second_value["pageId"],
                     "title": second_value["title"],

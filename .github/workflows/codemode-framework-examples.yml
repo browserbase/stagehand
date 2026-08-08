@@ -96,6 +96,11 @@ jobs:
 
       - run: pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
       - run: python -m pip install -r packages/integrations/examples/crewai/requirements.txt
+      - run: >-
+          python -m py_compile
+          packages/integrations/examples/shared/modal_stdio_bridge.py
+          packages/integrations/examples/crewai/agent.py
+          packages/integrations/examples/crewai/smoke.py
       - run: python packages/integrations/examples/crewai/smoke.py
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
