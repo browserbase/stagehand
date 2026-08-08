@@ -122,6 +122,34 @@ describe("callback batch runner", () => {
     ).resolves.toEqual({});
   });
 
+  it("rejects operations started after the callback completes", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+    let capturedBatch: Parameters<CallbackBatchFunction>[0] | undefined;
+
+    await runCallbackBatch(
+      router,
+      async (batch) => {
+        capturedBatch = batch;
+        return "done";
+      },
+      null,
+      { timeout: 1_000 },
+    );
+
+    if (!capturedBatch) throw new Error("missing captured batch context");
+    await expect(capturedBatch.page.title()).rejects.toThrow(
+      "Stagehand callback batch has completed",
+    );
+    expect(requests.map((request) => request.method)).toEqual(["context.active_page"]);
+  });
+
   it("enforces the callback timeout in the worker", async () => {
     vi.useFakeTimers();
     try {

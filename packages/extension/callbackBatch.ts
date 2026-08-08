@@ -180,6 +180,9 @@ export function createCallbackBatchController(router: RPCRouter) {
       return { value: jsonRoundTrip(result) };
     } finally {
       clearTimeout(timeoutId);
+      if (!controller.signal.aborted) {
+        controller.abort(new Error("Stagehand callback batch has completed"));
+      }
     }
   }
 
