@@ -27,15 +27,17 @@ test("lease setup failure exits while the parent keeps stdin open", async () => 
   child.stdout.on("data", (chunk) => stdout.push(chunk));
   child.stderr.on("data", (chunk) => stderr.push(chunk));
 
+  let timeout;
   const exit = await Promise.race([
-    new Promise((resolve) => child.once("exit", (code, signal) => resolve({ code, signal }))),
-    new Promise((_, reject) =>
-      setTimeout(
+    new Promise((resolve) => child.once("close", (code, signal) => resolve({ code, signal }))),
+    new Promise((_, reject) => {
+      timeout = setTimeout(
         () => reject(new Error("Lease did not exit after setup failure")),
         EXIT_TIMEOUT_MS,
-      ),
-    ),
+      );
+    }),
   ]).finally(() => {
+    clearTimeout(timeout);
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
   });
 

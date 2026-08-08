@@ -7,7 +7,6 @@ import { fileURLToPath } from "node:url";
 
 const TOKEN = "auth-proxy-contract-token";
 const AUTHORIZATION = `Bearer ${TOKEN}`;
-const PROXY_ORIGIN = "http://127.0.0.1:3000";
 const REQUEST_TIMEOUT_MS = 2_000;
 
 test("auth proxy restricts ingress and closes abandoned upstream requests", async (context) => {
@@ -25,7 +24,7 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ path: request.url, method: request.method }));
   });
-  await listen(bridge, 8000);
+  const bridgePort = await listen(bridge, 0);
   context.after(() => closeServer(bridge));
 
   const proxy = spawn(
@@ -35,17 +34,20 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
       env: {
         ...process.env,
         BRIDGE_TOKEN_SHA256: createHash("sha256").update(TOKEN).digest("hex"),
+        BRIDGE_PORT: String(bridgePort),
+        PROXY_PORT: "0",
       },
-      stdio: ["ignore", "ignore", "inherit"],
+      stdio: ["ignore", "ignore", "inherit", "ipc"],
     },
   );
   context.after(() => stopProcess(proxy));
-  await waitForProxy();
+  const proxyPort = await waitForProxyPort(proxy);
+  const proxyOrigin = `http://127.0.0.1:${proxyPort}`;
 
-  assert.equal((await fetchWithTimeout(`${PROXY_ORIGIN}/healthz`)).status, 401);
+  assert.equal((await fetchWithTimeout(`${proxyOrigin}/healthz`)).status, 401);
   assert.equal(
     (
-      await fetchWithTimeout(`${PROXY_ORIGIN}/healthz`, {
+      await fetchWithTimeout(`${proxyOrigin}/healthz`, {
         headers: { Authorization: `bEaReR ${TOKEN}` },
       })
     ).status,
@@ -53,7 +55,7 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   );
   assert.equal(
     (
-      await fetchWithTimeout(`${PROXY_ORIGIN}/private`, {
+      await fetchWithTimeout(`${proxyOrigin}/private`, {
         headers: { Authorization: AUTHORIZATION },
       })
     ).status,
@@ -61,7 +63,7 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   );
   assert.equal(
     (
-      await fetchWithTimeout(`${PROXY_ORIGIN}/mcp`, {
+      await fetchWithTimeout(`${proxyOrigin}/mcp`, {
         method: "PUT",
         headers: { Authorization: AUTHORIZATION },
       })
@@ -70,20 +72,20 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   );
   assert.equal(
     (
-      await fetchWithTimeout(`${PROXY_ORIGIN}/mcp`, {
+      await fetchWithTimeout(`${proxyOrigin}/mcp`, {
         headers: { Authorization: AUTHORIZATION },
       })
     ).status,
     405,
   );
-  const forwarded = await fetchWithTimeout(`${PROXY_ORIGIN}/mcp`, {
+  const forwarded = await fetchWithTimeout(`${proxyOrigin}/mcp`, {
     method: "POST",
     headers: { Authorization: AUTHORIZATION, "content-type": "application/json" },
     body: "{}",
   });
   assert.equal(forwarded.status, 200);
   assert.deepEqual(await forwarded.json(), { path: "/mcp", method: "POST" });
-  const deleted = await fetchWithTimeout(`${PROXY_ORIGIN}/mcp`, {
+  const deleted = await fetchWithTimeout(`${proxyOrigin}/mcp`, {
     method: "DELETE",
     headers: { Authorization: AUTHORIZATION },
   });
@@ -91,7 +93,7 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   assert.deepEqual(await deleted.json(), { path: "/mcp", method: "DELETE" });
   assert.equal(upstreamRequests, 3, "rejected routes must not reach the bridge");
 
-  const abandoned = http.request(`${PROXY_ORIGIN}/mcp?stall=1`, {
+  const abandoned = http.request(`${proxyOrigin}/mcp?stall=1`, {
     method: "POST",
     headers: { Authorization: AUTHORIZATION, "content-type": "application/json" },
   });
@@ -102,11 +104,33 @@ test("auth proxy restricts ingress and closes abandoned upstream requests", asyn
   await withTimeout(stalledResponseClosed, "proxy did not close the abandoned upstream request");
 });
 
-async function waitForProxy() {
-  await waitFor(async () => {
-    const response = await fetchWithTimeout(`${PROXY_ORIGIN}/healthz`).catch(() => undefined);
-    return response?.status === 401;
-  });
+function waitForProxyPort(child) {
+  return withTimeout(
+    new Promise((resolve, reject) => {
+      const onMessage = (message) => {
+        if (!message || typeof message !== "object" || typeof message.port !== "number") return;
+        cleanup();
+        resolve(message.port);
+      };
+      const onError = (error) => {
+        cleanup();
+        reject(error);
+      };
+      const onExit = (code, signal) => {
+        cleanup();
+        reject(new Error(`auth proxy exited before listening (${signal ?? code ?? "unknown"})`));
+      };
+      const cleanup = () => {
+        child.off("message", onMessage);
+        child.off("error", onError);
+        child.off("exit", onExit);
+      };
+      child.on("message", onMessage);
+      child.once("error", onError);
+      child.once("exit", onExit);
+    }),
+    "Timed out waiting for auth proxy to listen",
+  );
 }
 
 async function waitFor(predicate) {
@@ -122,17 +146,31 @@ async function fetchWithTimeout(url, init = {}) {
   return fetch(url, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
 }
 
-function withTimeout(promise, message) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), REQUEST_TIMEOUT_MS)),
-  ]);
+async function withTimeout(promise, message) {
+  let timeout;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), REQUEST_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function listen(server, port) {
   return new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
+    server.listen(port, "127.0.0.1", () => {
+      const address = server.address();
+      if (typeof address !== "object" || address === null) {
+        reject(new Error("Test bridge did not bind a TCP port"));
+        return;
+      }
+      resolve(address.port);
+    });
   });
 }
 

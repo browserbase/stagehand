@@ -8,7 +8,8 @@ const stdioServerPath = fileURLToPath(
   new URL("../../../dist/codemode/stdio-server.mjs", import.meta.url),
 );
 const client = new Client({ name: "stagehand-vercel-sandbox-smoke", version: "1.0.0" });
-let primaryError: unknown;
+const NO_ERROR = Symbol("no error");
+let primaryError: unknown = NO_ERROR;
 
 try {
   await client.connect(
@@ -58,18 +59,18 @@ try {
   primaryError = error;
 }
 
-let cleanupError: unknown;
+let cleanupError: unknown = NO_ERROR;
 await client.close().catch((error: unknown) => {
   cleanupError = error;
 });
-if (primaryError !== undefined && cleanupError !== undefined) {
+if (primaryError !== NO_ERROR && cleanupError !== NO_ERROR) {
   throw new AggregateError(
     [primaryError, cleanupError],
     "Stagehand sandbox smoke failed and MCP client cleanup also failed",
   );
 }
-if (primaryError !== undefined) throw primaryError;
-if (cleanupError !== undefined) throw cleanupError;
+if (primaryError !== NO_ERROR) throw primaryError;
+if (cleanupError !== NO_ERROR) throw cleanupError;
 
 process.stdout.write(
   `${JSON.stringify({ status: "PASS", tools: ["code_execute"], calls: 2, statePersisted: true })}\n`,
