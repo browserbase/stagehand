@@ -34,12 +34,9 @@ describe("generated code-mode content", () => {
 
   it("resolves the raw Markdown assets through package exports", async () => {
     const [skill, reference] = await Promise.all([
+      readFile(new URL(import.meta.resolve("@browserbasehq/stagehand-codemode/SKILL.md")), "utf8"),
       readFile(
-        new URL(import.meta.resolve("@browserbasehq/stagehand-integrations/codemode/SKILL.md")),
-        "utf8",
-      ),
-      readFile(
-        new URL(import.meta.resolve("@browserbasehq/stagehand-integrations/codemode/REFERENCE.md")),
+        new URL(import.meta.resolve("@browserbasehq/stagehand-codemode/REFERENCE.md")),
         "utf8",
       ),
     ]);
