@@ -153,15 +153,33 @@ describe("callback batch runner", () => {
   it("enforces the callback timeout in the worker", async () => {
     vi.useFakeTimers();
     try {
+      const requests: StagehandRpcRequest[] = [];
       const router = {
         handle: vi.fn(async (request: StagehandRpcRequest) => {
+          requests.push(request);
           if (request.method === "context.active_page") return { pageId: "page-1" };
           throw new Error(`Unexpected method: ${request.method}`);
         }),
       } as unknown as RPCRouter;
+      let releaseCallback: () => void = () => {};
+      const callbackGate = new Promise<void>((resolve) => {
+        releaseCallback = resolve;
+      });
+      let recordLateOperationError: (error: unknown) => void = () => {};
+      const lateOperationError = new Promise<unknown>((resolve) => {
+        recordLateOperationError = resolve;
+      });
       const pending = runCallbackBatch(
         router,
-        async () => await new Promise<never>(() => {}),
+        async (batch) => {
+          await callbackGate;
+          try {
+            await batch.act("click Continue", { page: batch.page });
+            recordLateOperationError(undefined);
+          } catch (error) {
+            recordLateOperationError(error);
+          }
+        },
         null,
         { timeout: 25 },
       );
@@ -171,6 +189,12 @@ describe("callback batch runner", () => {
 
       await vi.advanceTimersByTimeAsync(25);
       await rejected;
+      releaseCallback();
+
+      const lateError = await lateOperationError;
+      expect(lateError).toBeInstanceOf(Error);
+      expect((lateError as Error).message).toBe("Stagehand callback batch timed out after 25ms");
+      expect(requests.map((request) => request.method)).toEqual(["context.active_page"]);
     } finally {
       vi.useRealTimers();
     }
