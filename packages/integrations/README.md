@@ -83,3 +83,5 @@ implementation modules and an in-process arbitrary-code executor are not public 
 - [Mastra](./examples/mastra) consumes that connection with one persistent remote MCP client.
 - [CrewAI](./examples/crewai) keeps its context-managed MCP adapter open across every tool call in
   one crew execution.
+- [LangChain Deep Agents](./examples/langchain) uses one explicit MCP session so every tool call
+  reaches the same browser.
