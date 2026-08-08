@@ -150,11 +150,20 @@ def stop_adapter(adapter: MCPServerAdapter) -> None:
         except BaseException as error:  # noqa: BLE001 -- adapter shutdown is an untyped boundary.
             result.put(error)
 
-    threading.Thread(
-        target=stop,
-        name="stagehand-crewai-mcp-cleanup",
-        daemon=True,
-    ).start()
+    # MCPServerAdapter exposes only a synchronous stop with no cancellation hook or
+    # documented thread affinity. A daemon supervisor bounds that call; after a
+    # timeout the sandbox lease may unwind while the orphaned stop finishes, and
+    # its result is intentionally ignored because cleanup failure was reported.
+    try:
+        threading.Thread(
+            target=stop,
+            name="stagehand-crewai-mcp-cleanup",
+            daemon=True,
+        ).start()
+    except BaseException:  # noqa: BLE001 -- cleanup startup is an untyped boundary.
+        raise StagehandCrewAICleanupError(
+            "Could not close the CrewAI Stagehand MCP adapter."
+        ) from None
     try:
         error = result.get(timeout=ADAPTER_STOP_TIMEOUT_SECONDS)
     except queue.Empty:

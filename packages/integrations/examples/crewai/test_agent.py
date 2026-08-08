@@ -108,6 +108,27 @@ class StagehandCodeToolsTest(unittest.TestCase):
             raised.exception.exceptions[1], agent.StagehandCrewAICleanupError
         )
 
+    def test_setup_and_cleanup_thread_start_failures_preserve_types(self) -> None:
+        adapter = FakeAdapter([], discovery_error=RuntimeError("discovery-secret"))
+        with (
+            patch.object(agent, "MCPServerAdapter", return_value=adapter),
+            patch.object(
+                agent.threading.Thread,
+                "start",
+                side_effect=RuntimeError("thread-start-secret"),
+            ),
+            self.assertRaises(BaseExceptionGroup) as raised,
+            agent.stagehand_code_tools(self.connection),
+        ):
+            pass
+
+        self.assertIsInstance(
+            raised.exception.exceptions[0], agent.StagehandCrewAIConnectionError
+        )
+        self.assertIsInstance(
+            raised.exception.exceptions[1], agent.StagehandCrewAICleanupError
+        )
+
     def test_run_and_cleanup_failures_preserve_order_and_types(self) -> None:
         adapter = FakeAdapter(
             [

@@ -369,7 +369,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
     }
     discoveredHost = assertBrowserbaseCdpHost(new URL(session.connectUrl).hostname);
   } catch (error) {
-    primaryError = error;
+    primaryError = options.signal?.aborted ? new StagehandSandboxSetupError() : error;
   }
 
   let cleanupError: unknown = NO_ERROR;
@@ -395,6 +395,7 @@ async function discoverBrowserbaseCdpHost(options: StagehandSandboxOptions): Pro
   }
 
   if (primaryError !== NO_ERROR || cleanupError !== NO_ERROR || !discoveredHost) {
+    if (primaryError instanceof StagehandSandboxSetupError) throw primaryError;
     throw new StagehandCdpDiscoveryError();
   }
   return discoveredHost;

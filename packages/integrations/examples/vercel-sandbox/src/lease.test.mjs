@@ -98,7 +98,7 @@ test("lease preserves signal exit semantics during setup", async () => {
     ],
     {
       env: {
-        ...process.env,
+        PATH: process.env.PATH ?? "",
         NODE_OPTIONS: `--import=${pathToFileURL(preloadPath).href}`,
         STAGEHAND_SIGNAL_READY_FILE: readyPath,
         STAGEHAND_SANDBOX_ARTIFACTS: artifactRoot,
@@ -113,6 +113,8 @@ test("lease preserves signal exit semantics during setup", async () => {
     await waitForFile(readyPath);
     child.kill("SIGTERM");
     const exit = await waitForExit(child, "Lease did not preserve the setup signal");
+    // The production lease is launched through the tsx executable, whose signal
+    // proxy reports the conventional 128 + SIGTERM status rather than signalCode.
     assert.deepEqual(exit, { code: 143, signal: null });
   } finally {
     if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");

@@ -92,6 +92,44 @@ void test("an already-aborted setup never creates a sandbox", async () => {
   }
 });
 
+void test("abort during CDP discovery is reported as setup cancellation", async () => {
+  const artifactRoot = await writeArtifacts("https://registry.npmjs.org/supergateway.tgz");
+  const controller = new AbortController();
+  let discoveryStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    discoveryStarted = resolve;
+  });
+  const fetchMock = mock.method(globalThis, "fetch", async (_input, init) => {
+    discoveryStarted();
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+        once: true,
+      });
+    });
+  });
+  const createMock = mock.method(Sandbox, "create", async () => {
+    throw new Error("Sandbox.create must not run");
+  });
+
+  try {
+    const setup = createStagehandSandbox({
+      packageArtifactsPath: artifactRoot,
+      browserbaseApiKey: "unused-test-key",
+      browserbaseProjectId: "unused-test-project",
+      signal: controller.signal,
+    });
+    await started;
+    controller.abort();
+    await assert.rejects(setup, { name: "StagehandSandboxSetupError" });
+    assert.equal(createMock.mock.callCount(), 0);
+    assert.equal(getEventListeners(controller.signal, "abort").length, 0);
+  } finally {
+    createMock.mock.restore();
+    fetchMock.mock.restore();
+    await rm(artifactRoot, { force: true, recursive: true });
+  }
+});
+
 void test("abort during readiness stops polling, clears listeners, and disposes", async () => {
   const resolved = "https://registry.npmjs.org/supergateway.tgz";
   const artifactRoot = await writeArtifacts(resolved);
@@ -211,43 +249,25 @@ async function writeArtifacts(resolved: unknown): Promise<string> {
   const artifactRoot = await mkdtemp(path.join(os.tmpdir(), "stagehand-artifacts-"));
   const packageRoot = path.join(artifactRoot, "packages");
   const runtimeRoot = path.join(artifactRoot, "runtime");
+  const contents = artifactContents(resolved);
   await Promise.all([mkdir(packageRoot), mkdir(runtimeRoot)]);
   await Promise.all([
-    writeFile(path.join(packageRoot, "stagehand.tgz"), Buffer.from([0x1f, 0x8b])),
-    writeFile(path.join(packageRoot, "stagehand-codemode.tgz"), Buffer.from([0x1f, 0x8b])),
-    writeFile(path.join(runtimeRoot, "package.json"), JSON.stringify({ dependencies })),
-    writeFile(
-      path.join(runtimeRoot, "package-lock.json"),
-      JSON.stringify({
-        lockfileVersion: 3,
-        packages: {
-          "": { dependencies },
-          "node_modules/supergateway": { resolved },
-        },
-      }),
-    ),
+    writeFile(path.join(packageRoot, "stagehand.tgz"), contents.gzip),
+    writeFile(path.join(packageRoot, "stagehand-codemode.tgz"), contents.gzip),
+    writeFile(path.join(runtimeRoot, "package.json"), contents.manifest),
+    writeFile(path.join(runtimeRoot, "package-lock.json"), contents.lock),
   ]);
   return artifactRoot;
 }
 
 function readySandboxFake(resolved: unknown) {
-  const gzip = Buffer.from([0x1f, 0x8b]);
-  const manifest = Buffer.from(JSON.stringify({ dependencies }));
-  const lock = Buffer.from(
-    JSON.stringify({
-      lockfileVersion: 3,
-      packages: {
-        "": { dependencies },
-        "node_modules/supergateway": { resolved },
-      },
-    }),
-  );
+  const contents = artifactContents(resolved);
   const sha256 = (content: Buffer) => createHash("sha256").update(content).digest("hex");
   const artifactDigests = new Map([
-    ["/vercel/sandbox/packages/stagehand.tgz", sha256(gzip)],
-    ["/vercel/sandbox/packages/stagehand-codemode.tgz", sha256(gzip)],
-    ["/vercel/sandbox/stagehand-runtime/package.json", sha256(manifest)],
-    ["/vercel/sandbox/stagehand-runtime/package-lock.json", sha256(lock)],
+    ["/vercel/sandbox/packages/stagehand.tgz", sha256(contents.gzip)],
+    ["/vercel/sandbox/packages/stagehand-codemode.tgz", sha256(contents.gzip)],
+    ["/vercel/sandbox/stagehand-runtime/package.json", sha256(contents.manifest)],
+    ["/vercel/sandbox/stagehand-runtime/package-lock.json", sha256(contents.lock)],
   ]);
   const runCommand = mock.fn(async ({ cmd, args }: { cmd: string; args?: string[] }) => ({
     exitCode: cmd === "sudo" ? 1 : 0,
@@ -269,4 +289,20 @@ function readySandboxFake(resolved: unknown) {
     delete: deleteSandbox,
   } as unknown as Sandbox;
   return { sandbox, stop, deleteSandbox };
+}
+
+function artifactContents(resolved: unknown) {
+  return {
+    gzip: Buffer.from([0x1f, 0x8b]),
+    manifest: Buffer.from(JSON.stringify({ dependencies })),
+    lock: Buffer.from(
+      JSON.stringify({
+        lockfileVersion: 3,
+        packages: {
+          "": { dependencies },
+          "node_modules/supergateway": { resolved },
+        },
+      }),
+    ),
+  };
 }
