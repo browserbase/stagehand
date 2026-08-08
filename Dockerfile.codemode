@@ -1,0 +1,41 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS build
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+ENV TURBO_TELEMETRY_DISABLED=1
+
+RUN npm install --global pnpm@11.10.0
+
+WORKDIR /workspace
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json turbo.json ./
+COPY packages/protocol ./packages/protocol
+COPY packages/extension ./packages/extension
+COPY packages/sdk-ts ./packages/sdk-ts
+COPY packages/integrations ./packages/integrations
+
+RUN pnpm install --frozen-lockfile
+RUN pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations...
+RUN pnpm --filter @browserbasehq/stagehand-integrations deploy \
+  --prod \
+  --legacy \
+  /opt/stagehand-codemode
+
+FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime
+
+LABEL org.opencontainers.image.source="https://github.com/browserbase/stagehand" \
+  org.opencontainers.image.description="Stagehand code-mode MCP stdio server" \
+  org.opencontainers.image.licenses="MIT"
+
+ENV NODE_ENV=production
+ENV NODE_OPTIONS=--enable-source-maps
+
+WORKDIR /opt/stagehand-codemode
+
+COPY --from=build --chown=node:node /opt/stagehand-codemode ./
+
+USER node
+
+CMD ["node", "dist/codemode/stdio-server.mjs"]
