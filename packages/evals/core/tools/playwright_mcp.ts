@@ -1,4 +1,5 @@
 import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
+import type { ProbeEvidence } from "stagehand-v3";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
@@ -980,6 +981,47 @@ class PlaywrightMcpSession implements CoreSession {
   }
 }
 
+async function capturePlaywrightMcpEvidence(session: CoreSession): Promise<ProbeEvidence> {
+  const page = await session.activePage().catch((): undefined => undefined);
+  if (!page) return {};
+
+  const evidence: ProbeEvidence = {};
+  try {
+    evidence.screenshot = await page.screenshot();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.url = page.url();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.ariaTree = (await page.represent?.())?.content;
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  return evidence;
+}
+
+function buildPlaywrightMcpAgentPromptInstructions(): string {
+  return [
+    "Browser tool surface: playwright_mcp.",
+    "Browser automation runs through the `playwright` MCP server's tools (browser_navigate, browser_click, browser_type, browser_snapshot, ...). It is already attached to the task's browser.",
+    "The first browser action should usually be navigating to the start URL with browser_navigate.",
+    "Never launch your own browser process; the MCP server is the only browser access.",
+    "Do not edit repository files.",
+  ].join("\n");
+}
+
+/** Launch spec for a playwright MCP server instance bound to this start input. */
+export function buildPlaywrightMcpLaunchSpec(input: ToolStartInput): {
+  command: string;
+  args: string[];
+} {
+  return { command: resolvePnpmCommand(), args: buildPlaywrightMcpArgs(input) };
+}
+
 function buildPlaywrightMcpArgs(input: ToolStartInput): string[] {
   const args = ["dlx", "@playwright/mcp@latest"];
 
@@ -1047,6 +1089,21 @@ export class PlaywrightMcpTool implements CoreTool {
 
     return {
       session,
+      // The agent mount is the *spec* for a second server instance the agent
+      // harness spawns as the agent's own MCP client target. It requires a
+      // providedEndpoint so both instances attach to the same browser — under
+      // tool_launch_local the agent's copy would launch a separate isolated
+      // browser and the harness would observe the wrong one.
+      ...(input.providedEndpoint && {
+        agentMount: {
+          via: "mcp" as const,
+          promptInstructions: buildPlaywrightMcpAgentPromptInstructions(),
+          mcpServers: {
+            playwright: buildPlaywrightMcpLaunchSpec(input),
+          },
+        },
+      }),
+      captureEvidence: () => capturePlaywrightMcpEvidence(session),
       cleanup: async () => {
         await session.close();
       },

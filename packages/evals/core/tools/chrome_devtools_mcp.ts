@@ -1,3 +1,4 @@
+import type { ProbeEvidence } from "stagehand-v3";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
@@ -973,6 +974,47 @@ class ChromeDevtoolsMcpSession implements CoreSession {
   }
 }
 
+async function captureChromeDevtoolsMcpEvidence(session: CoreSession): Promise<ProbeEvidence> {
+  const page = await session.activePage().catch((): undefined => undefined);
+  if (!page) return {};
+
+  const evidence: ProbeEvidence = {};
+  try {
+    evidence.screenshot = await page.screenshot();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.url = page.url();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.ariaTree = (await page.represent?.())?.content;
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  return evidence;
+}
+
+function buildChromeDevtoolsMcpAgentPromptInstructions(): string {
+  return [
+    "Browser tool surface: chrome_devtools_mcp.",
+    "Browser automation runs through the `chrome-devtools` MCP server's tools (navigate_page, click, fill, take_snapshot, ...). It is already attached to the task's browser.",
+    "The first browser action should usually be navigating to the start URL with navigate_page.",
+    "Never launch your own browser process; the MCP server is the only browser access.",
+    "Do not edit repository files.",
+  ].join("\n");
+}
+
+/** Launch spec for a chrome-devtools MCP server instance bound to this start input. */
+export function buildChromeDevtoolsMcpLaunchSpec(input: ToolStartInput): {
+  command: string;
+  args: string[];
+} {
+  return { command: resolvePnpmCommand(), args: buildChromeDevtoolsMcpArgs(input) };
+}
+
 function buildChromeDevtoolsMcpArgs(input: ToolStartInput): string[] {
   const args = [
     "dlx",
@@ -1050,6 +1092,21 @@ export class ChromeDevtoolsMcpTool implements CoreTool {
 
     return {
       session,
+      // The agent mount is the *spec* for a second server instance the agent
+      // harness spawns as the agent's own MCP client target. It requires a
+      // providedEndpoint so both instances attach to the same browser — under
+      // tool-owned launch the agent's copy would start a separate browser and
+      // the harness would observe the wrong one.
+      ...(input.providedEndpoint && {
+        agentMount: {
+          via: "mcp" as const,
+          promptInstructions: buildChromeDevtoolsMcpAgentPromptInstructions(),
+          mcpServers: {
+            "chrome-devtools": buildChromeDevtoolsMcpLaunchSpec(input),
+          },
+        },
+      }),
+      captureEvidence: () => captureChromeDevtoolsMcpEvidence(session),
       cleanup: async () => {
         await session.close();
       },

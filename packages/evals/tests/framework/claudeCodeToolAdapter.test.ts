@@ -51,7 +51,18 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, cdp_code, or stagehand_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
+    );
+  });
+
+  it("supports the MCP surfaces with runner-provided startup profiles", () => {
+    expect(resolveClaudeCodeToolSurface("playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveClaudeCodeToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(resolveClaudeCodeStartupProfile("playwright_mcp", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
+    expect(resolveClaudeCodeStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
     );
   });
 
@@ -75,11 +86,22 @@ describe("claude code tool adapter resolution", () => {
     expect(resolveCodexStartupProfile("playwright_code", "BROWSERBASE")).toBe(
       "runner_provided_browserbase_cdp",
     );
-    expect(() => resolveCodexToolSurface("playwright_mcp")).toThrow(
-      /browse_cli, playwright_code, cdp_code, or stagehand_code/,
+    expect(() => resolveCodexToolSurface("understudy_code")).toThrow(
+      /browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
     );
     expect(resolveCodexStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
     expect(resolveCodexStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
+  });
+
+  it("supports the MCP surfaces on Codex with runner-provided startup profiles", () => {
+    expect(resolveCodexToolSurface("playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveCodexToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(resolveCodexStartupProfile("playwright_mcp", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+    expect(resolveCodexStartupProfile("chrome_devtools_mcp", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
   });
 
   it("allows only direct browse commands through Bash", () => {
