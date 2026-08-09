@@ -1,5 +1,24 @@
 import { z } from "zod/v4";
 
+/**
+ * This file intentionally carries the same contract twice:
+ *
+ * - The JSON-schema literals below are the WIRE contract — the exact bytes
+ *   advertised to MCP clients via tools/list. They are hand-written because
+ *   they cannot be generated from the zod schemas: the run tool's top-level
+ *   `oneOf` (code XOR actions), the `const`-typed `op` discriminators, and
+ *   the per-property guidance descriptions do not survive zod-to-JSON-schema
+ *   conversion, and `.refine()` emits nothing at all. Their wording is pinned
+ *   string-exact to the reference contract (models are prompted against these
+ *   descriptions) — see tests/facade-contract.test.ts.
+ *
+ * - The zod schemas at the bottom are the RUNTIME validators: they parse
+ *   tools/call arguments into typed values and enforce what the wire schema
+ *   states (e.g. the code/actions exclusivity via `.refine`).
+ *
+ * If you change one half, change the other; the contract test exists to
+ * catch drift between them.
+ */
 const actionSchema = (op: string, extra: Record<string, Record<string, unknown>> = {}) => ({
   type: "object",
   properties: {
