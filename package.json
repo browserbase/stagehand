@@ -37,7 +37,7 @@
     "example": "pnpm --filter @browserbasehq/stagehand run example --",
     "cache:clear": "turbo run build --force",
     "prepare": "node packages/core/scripts/prepare.js && husky",
-    "release": "turbo run build && changeset publish",
+    "release": "turbo run build && changeset publish --tag v3",
     "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
   "devDependencies": {

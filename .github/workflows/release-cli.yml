@@ -12,7 +12,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 jobs:
   release-cli:
     name: Prepare browse release PR
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/v3'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo

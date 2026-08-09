@@ -3,7 +3,7 @@ name: Release stagehand/server-v4
 on:
   push:
     branches:
-      - main
+      - v3
     paths:
       - .changeset/**
       - .github/workflows/stagehand-server-v4-release.yml

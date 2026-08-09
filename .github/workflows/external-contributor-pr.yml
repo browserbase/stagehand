@@ -249,7 +249,7 @@ env:
           repo: context.repo.repo,
           state: 'all',
           head: `${context.repo.owner}:${branch}`,
-          base: 'main',
+          base: 'v3',
           per_page: 100,
         });
 
@@ -308,7 +308,7 @@ env:
             pull_number: Number(existingNumber),
             title,
             body,
-            base: 'main',
+            base: 'v3',
             state: 'open',
           });
           ownedPr = data;
@@ -319,7 +319,7 @@ env:
             title,
             body,
             head: branch,
-            base: 'main',
+            base: 'v3',
           });
           ownedPr = data;
         }

@@ -4,7 +4,7 @@
   "fixed": [],
   "linked": [],
   "ignore": ["browse"],
-  "baseBranch": "main",
+  "baseBranch": "v3",
   "updateInternalDependencies": "patch",
   "access": "public",
   "changelog": [
