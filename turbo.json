@@ -81,10 +81,7 @@
         "tests/**",
         "src/**",
         "**/*.test.ts",
-        "$TURBO_ROOT$/vitest.config.ts",
-        "!$TURBO_ROOT$/packages/*/dist/**",
-        "!$TURBO_ROOT$/packages/*/.turbo/**",
-        "!$TURBO_ROOT$/packages/*/node_modules/**"
+        "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
