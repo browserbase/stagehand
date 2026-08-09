@@ -130,7 +130,7 @@ describe("claude code tool adapter resolution", () => {
   it("exposes browse cli metadata for Braintrust rows", () => {
     expect(getBrowseCliToolMetadata()).toMatchObject({
       toolCommand: "browse",
-      browseCliVersion: "0.9.5",
+      browseCliVersion: "0.9.6",
       browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
     });
   });
