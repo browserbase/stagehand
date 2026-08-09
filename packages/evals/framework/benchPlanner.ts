@@ -31,7 +31,6 @@ export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
   useApi?: boolean;
   modelOverride?: string;
-  provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
   harness?: Harness;
@@ -157,10 +156,13 @@ export function buildBenchMatrixRow(
     environment,
     options.coreStartupProfile,
   );
+  // Provider is derived from the model id ("provider/model") for metadata;
+  // there is no independent provider selector.
+  const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const config = buildBenchHarnessConfig({
     harness,
     model: modelName,
-    provider: options.provider,
+    provider,
     environment,
     useApi,
     toolSurface,
@@ -174,7 +176,7 @@ export function buildBenchMatrixRow(
     category: task.primaryCategory,
     taskKind: inferBenchTaskKind(task),
     model: modelName,
-    provider: options.provider,
+    provider,
     environment,
     useApi,
     toolSurface,

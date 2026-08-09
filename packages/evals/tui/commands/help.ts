@@ -62,10 +62,6 @@ export function printRunHelp(): void {
     row(`${cyan("-c, --concurrency")} ${dim("<n>")}`, "Max parallel sessions"),
     row(`${cyan("-e, --env")} ${dim("<env>")}`, `Environment: ${gray("local | browserbase")}`),
     row(`${cyan("-m, --model")} ${dim("<model>")}`, "Model override"),
-    row(
-      `${cyan("-p, --provider")} ${dim("<name>")}`,
-      `Provider: ${gray("openai | anthropic | google | ...")}`,
-    ),
     row(cyan("--api"), "Use Stagehand API mode"),
     "",
     `  ${bold("Core options:")}`,
@@ -160,7 +156,7 @@ export function printConfigHelp(): void {
     row(cyan("path"), "Print the evals.config.json file path"),
     row(
       `${cyan("set")} ${dim("<key> <value>")}`,
-      `Set a default ${gray("(env/trials/concurrency/provider/model/api/verbose)")}`,
+      `Set a default ${gray("(env/trials/concurrency/model/api/verbose)")}`,
     ),
     row(`${cyan("reset")} ${dim("[key]")}`, "Reset one key or all defaults"),
     row(`${cyan("core")} ${dim("[...]")}`, "Configure core tier tool + startup defaults"),

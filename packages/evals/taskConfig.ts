@@ -302,41 +302,11 @@ function getDefaultAgentModels(): string[] {
 }
 
 const getModelList = (category?: string): string[] => {
-  const provider = process.env.EVAL_PROVIDER?.toLowerCase();
-
   if (category === "agent" || category === "external_agent_benchmarks") {
     return getDefaultAgentModels();
   }
 
-  if (provider) {
-    return ALL_EVAL_MODELS.filter((model) => filterModelByProvider(model, provider));
-  }
-
   return DEFAULT_EVAL_MODELS;
-};
-
-const filterModelByProvider = (model: string, provider: string): boolean => {
-  const modelLower = model.toLowerCase();
-  if (provider === "openai") {
-    return modelLower.startsWith("gpt");
-  } else if (provider === "anthropic") {
-    return modelLower.startsWith("claude");
-  } else if (provider === "google") {
-    return modelLower.startsWith("gemini");
-  } else if (provider === "together") {
-    return (
-      modelLower.startsWith("meta-llama") ||
-      modelLower.startsWith("llama") ||
-      modelLower.startsWith("deepseek") ||
-      modelLower.startsWith("qwen")
-    );
-  } else if (provider === "groq") {
-    return modelLower.startsWith("groq");
-  } else if (provider === "cerebras") {
-    return modelLower.startsWith("cerebras");
-  }
-  console.warn(`Unknown provider specified or model doesn't match: ${provider}`);
-  return false;
 };
 
 const MODELS: AvailableModel[] = getModelList().map((model) => {

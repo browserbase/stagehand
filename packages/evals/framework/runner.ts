@@ -58,7 +58,6 @@ export interface RunEvalsOptions {
   environment?: "LOCAL" | "BROWSERBASE";
   useApi?: boolean;
   modelOverride?: string;
-  provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
   harness?: Harness;
@@ -344,7 +343,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
   if (runModel) process.env.EVAL_TRAJECTORY_MODEL = runModel;
   else delete process.env.EVAL_TRAJECTORY_MODEL;
   if (options.modelOverride) process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
-  if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
   const braintrustProjectName = hasCoreOnly
     ? process.env.CI === "true"
@@ -387,7 +385,6 @@ export async function runEvals(options: RunEvalsOptions): Promise<RunEvalsResult
             startupProfile: effectiveCoreStartupProfile,
           }),
           ...(effectiveBenchHarness && { harness: effectiveBenchHarness }),
-          ...(options.provider && { provider: options.provider }),
           ...(options.modelOverride && { model: options.modelOverride }),
           ...(options.useApi && { api: true }),
         },

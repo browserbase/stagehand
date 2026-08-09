@@ -22,7 +22,6 @@ type Defaults = {
   env?: string | null;
   trials?: number | null;
   concurrency?: number | null;
-  provider?: string | null;
   model?: string | null;
   api?: boolean | null;
   verbose?: boolean | null;
@@ -57,7 +56,6 @@ const VALID_KEYS: Array<keyof Defaults> = [
   "env",
   "trials",
   "concurrency",
-  "provider",
   "model",
   "api",
   "verbose",
@@ -67,7 +65,6 @@ const DEFAULT_VALUES: Defaults = {
   env: "local",
   trials: 3,
   concurrency: 3,
-  provider: null,
   model: null,
   api: false,
   verbose: false,
@@ -123,13 +120,11 @@ export function printConfig(entryDir: string): void {
   console.log(`    ${cyan("api")}          ${defaults.api ?? false}`);
   console.log(`    ${cyan("verbose")}      ${defaults.verbose ?? false}`);
   console.log(`    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`);
-  console.log(`    ${cyan("provider")}     ${defaults.provider ?? gray("(all)")}`);
 
   const env = process.env;
   const overrides: string[] = [];
   if (env.EVAL_ENV) overrides.push(`EVAL_ENV=${env.EVAL_ENV}`);
   if (env.EVAL_MODELS) overrides.push(`EVAL_MODELS=${env.EVAL_MODELS}`);
-  if (env.EVAL_PROVIDER) overrides.push(`EVAL_PROVIDER=${env.EVAL_PROVIDER}`);
   if (env.USE_API) overrides.push(`USE_API=${env.USE_API}`);
   if (env.STAGEHAND_BROWSER_TARGET)
     overrides.push(`STAGEHAND_BROWSER_TARGET=${env.STAGEHAND_BROWSER_TARGET}`);

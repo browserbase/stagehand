@@ -25,7 +25,6 @@ export interface RunFlags {
   concurrency?: number;
   env?: string;
   model?: string;
-  provider?: string;
   api?: boolean;
   tool?: string;
   startup?: string;
@@ -56,7 +55,6 @@ export interface ConfigDefaults {
   env?: string;
   trials?: number;
   concurrency?: number;
-  provider?: string | null;
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
@@ -69,7 +67,6 @@ export interface ResolvedRunOptions {
   concurrency: number;
   environment: "LOCAL" | "BROWSERBASE";
   model?: string;
-  provider?: string;
   useApi: boolean;
   coreToolSurface?: string;
   coreStartupProfile?: string;
@@ -99,7 +96,6 @@ const VALUE_FLAGS = new Set([
   "sample",
   "env",
   "model",
-  "provider",
   "tool",
   "startup",
   "harness",
@@ -112,7 +108,6 @@ const FLAG_ALIASES: Record<string, string> = {
   c: "concurrency",
   e: "env",
   m: "model",
-  p: "provider",
   l: "limit",
   s: "sample",
   f: "filter",
@@ -214,9 +209,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "model":
           flags.model = value;
-          break;
-        case "provider":
-          flags.provider = value;
           break;
         case "tool":
           flags.tool = value;
@@ -354,7 +346,6 @@ export function resolveRunOptions(
   } = applyBenchmarkShorthand(flags.target, flags);
 
   const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
-  const provider = flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
   const useApi = flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
   const trials =
     flags.trials ??
@@ -374,9 +365,6 @@ export function resolveRunOptions(
   envOverrides.USE_API = String(Boolean(useApi));
   envOverrides.EVAL_TRIAL_COUNT = String(trials);
   envOverrides.EVAL_MAX_CONCURRENCY = String(concurrency);
-  if (provider !== undefined) {
-    envOverrides.EVAL_PROVIDER = provider;
-  }
   if (model !== undefined) {
     envOverrides.EVAL_MODEL_OVERRIDE = model;
   }
@@ -396,7 +384,6 @@ export function resolveRunOptions(
     concurrency,
     environment,
     model: model ?? undefined,
-    provider: provider ?? undefined,
     useApi: Boolean(useApi),
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,

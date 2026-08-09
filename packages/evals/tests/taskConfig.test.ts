@@ -59,13 +59,6 @@ describe("getModelList", () => {
     const models = getModelList("external_agent_benchmarks");
     expect(models).toEqual(getModelList("agent"));
   });
-
-  it("filters by provider when EVAL_PROVIDER is set", async () => {
-    process.env.EVAL_PROVIDER = "openai";
-    const { getModelList } = await loadTaskConfig();
-    const models = getModelList();
-    expect(models.every((m) => m.toLowerCase().startsWith("gpt"))).toBe(true);
-  });
 });
 
 describe("getAgentModelEntries", () => {
