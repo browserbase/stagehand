@@ -6,7 +6,12 @@ import type {
   StagehandInitResult,
   StagehandObserveParams,
 } from "../../protocol/types.js";
+import {
+  checkProtocolCompatibility,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "../../protocol/protocol-version.js";
 import type { HandlerContext } from "../rpcRouter.js";
+import { StagehandProtocolCompatibilityError } from "../errors.js";
 import type { StagehandRuntime } from "../runtime.js";
 import * as actService from "../services/actService.js";
 import * as cacheService from "../services/cacheService.js";
@@ -36,6 +41,13 @@ export function createStagehandController(
   }
 
   async function init(params: StagehandInitParams, { logger }: HandlerContext) {
+    const compatibility = checkProtocolCompatibility(
+      params.protocolVersion,
+      STAGEHAND_PROTOCOL_VERSION,
+    );
+    if (!compatibility.compatible) {
+      throw new StagehandProtocolCompatibilityError(compatibility.reason);
+    }
     logger.setLevel(params.logLevel);
     logger.info("stagehand.init", {});
     return options.initialize

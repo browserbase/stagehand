@@ -8,6 +8,8 @@ import {
 import { wireSchema } from "./json-rpc/wire-casing.ts";
 import {
   ActResultSchema,
+  CallbackBatchParamsSchema,
+  CallbackBatchResultSchema,
   ContextActivePageResultSchema,
   ContextAddCookiesParamsSchema,
   ContextAddInitScriptParamsSchema,
@@ -156,6 +158,13 @@ export const StagehandMethods = {
     name: "stagehand.metrics",
     params: EmptyParamsSchema,
     result: StagehandMetricsSchema,
+  },
+  stagehandCallbackBatch: {
+    name: "stagehand.callback_batch",
+    params: CallbackBatchParamsSchema,
+    result: CallbackBatchResultSchema,
+    paramsWire: { opaqueKeys: ["input"] },
+    resultWire: { opaqueKeys: ["value"] },
   },
   llmGenerate: {
     name: "llm.generate",

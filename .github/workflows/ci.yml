@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       extension: ${{ steps.filter.outputs.extension }}
+      is_internal_head: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       sdk-ts: ${{ steps.filter.outputs.sdk-ts }}
       sdk-python: ${{ steps.filter.outputs.sdk-python }}
       sdk-go: ${{ steps.filter.outputs.sdk-go }}
@@ -39,6 +40,7 @@ jobs:
               - 'packages/sdk-ts/**'
               - 'packages/extension/**'
               - 'packages/protocol/**'
+              - 'packages/integrations/**'
               - 'pnpm-lock.yaml'
               - 'turbo.json'
               - '.github/**'
@@ -167,6 +169,7 @@ jobs:
             packages/extension/dist/**
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
+            packages/integrations/dist/**
             packages/evals/dist/**
           retention-days: 1
 
@@ -211,6 +214,7 @@ jobs:
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
       - name: Browserbase smoke test
+        if: needs.determine-changes.outputs.is_internal_head == 'true'
         run: >-
           pnpm exec vitest run --root .
           packages/sdk-ts/tests/browser-runtime/stagehandBrowserbaseSmoke.test.ts

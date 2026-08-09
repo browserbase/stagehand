@@ -43,6 +43,19 @@ describe("buildGatewayContext", () => {
     expect(buildGatewayContext({ ...initParams, apiKey: undefined })).toBeUndefined();
     expect(buildGatewayContext({ ...initParams, browser: undefined })).toBeUndefined();
   });
+
+  it("uses an explicit Stagehand API URL instead of the regional default", () => {
+    expect(
+      buildGatewayContext({
+        ...initParams,
+        apiUrl: "https://api.stagehand.dev.browserbase.com/",
+      }),
+    ).toEqual({
+      apiUrl: "https://api.stagehand.dev.browserbase.com/v1",
+      apiKey: "bb-api-key",
+      sessionId: "session-123",
+    });
+  });
 });
 
 describe("createGatewayLanguageModel", () => {

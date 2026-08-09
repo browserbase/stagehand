@@ -1,11 +1,71 @@
+import { runInNewContext } from "node:vm";
 import { describe, expect, it, vi } from "vitest";
 import {
   CDPClient,
   CDPConnectionClosedError,
   openCDPWebSocket,
+  stagehandMessageExpression,
   waitForRuntimeReady,
   waitForServiceWorker,
 } from "../src/cdpClient.js";
+
+describe("callback batch expression", () => {
+  it("serializes input separately from executable callback source", () => {
+    const callbackSource = "async ({ page }, input) => ({ title: await page.title(), input })";
+    const message = {
+      jsonrpc: "2.0" as const,
+      id: 8,
+      method: "stagehand.callback_batch",
+      params: {
+        callback_source: callbackSource,
+        input: { text: '"); globalThis.__injectionSucceeded = true; ("' },
+        options: { page_id: "page-1", timeout: 2_000 },
+      },
+    };
+    const expression = stagehandMessageExpression(message);
+
+    expect(expression).toContain("__stagehandReceiveFromHost");
+    expect(expression).toContain("stagehand.callback_batch");
+    expect(expression).toContain(String.raw`\"page_id\":\"page-1\"`);
+    expect(expression).not.toContain('"); globalThis.__injectionSucceeded = true; ("');
+    expect(expression).toContain("Object.defineProperty");
+    expect(expression).toContain("callback: (async");
+
+    let receivedRaw: unknown;
+    const workerGlobal = {
+      __stagehandReceiveFromHost: (raw: unknown) => {
+        receivedRaw = raw;
+      },
+    };
+    expect(runInNewContext(expression, { globalThis: workerGlobal })).toBe(true);
+    expect(JSON.parse(receivedRaw as string)).toEqual(message);
+    expect(workerGlobal).not.toHaveProperty("__injectionSucceeded");
+  });
+
+  it("provides the lexical __name helper used by bundled callback source", async () => {
+    const expression = stagehandMessageExpression({
+      jsonrpc: "2.0",
+      id: 8,
+      method: "stagehand.callback_batch",
+      params: {
+        callback_source: '__name(async () => "ok", "bundledCallback")',
+      },
+    });
+    let attachment: unknown;
+    const evaluated = runInNewContext(expression, {
+      globalThis: {
+        __stagehandReceiveFromHost: (_raw: unknown, received: unknown) => {
+          attachment = received;
+        },
+      },
+    }) as unknown;
+
+    expect(evaluated).toBe(true);
+    const callback = (attachment as { callback: () => Promise<string> }).callback;
+    expect(callback.name).toBe("bundledCallback");
+    await expect(callback()).resolves.toBe("ok");
+  });
+});
 
 class FakeWebSocket extends EventTarget {
   readyState = 0;

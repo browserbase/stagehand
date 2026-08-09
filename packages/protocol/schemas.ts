@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
-import protocolPackageJson from "./package.json" with { type: "json" };
+import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
+
+export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
 
 // Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
 // Stagehand owns these allowlists: changes are reviewed and maintained here
@@ -644,6 +646,31 @@ export const StagehandMetricsSchema = z
     totalInferenceTimeMs: z.number(),
   })
   .meta({ id: "StagehandMetrics" });
+
+// Chromium clamps timer delays to a signed 32-bit integer. Reserve the SDK's
+// 10-second RPC response grace period so both timers remain within that limit.
+export const MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000;
+
+export const CallbackBatchOptionsSchema = z
+  .strictObject({
+    pageId: z.string().min(1).optional(),
+    timeout: z.number().int().positive().max(MAX_CALLBACK_BATCH_TIMEOUT_MS).default(30_000),
+  })
+  .meta({ id: "CallbackBatchOptions" });
+
+export const CallbackBatchParamsSchema = z
+  .strictObject({
+    callbackSource: z.string().min(1),
+    input: z.json().optional(),
+    options: CallbackBatchOptionsSchema,
+  })
+  .meta({ id: "CallbackBatchParams" });
+
+export const CallbackBatchResultSchema = z
+  .strictObject({
+    value: z.json().optional(),
+  })
+  .meta({ id: "CallbackBatchResult" });
 
 export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
@@ -1510,12 +1537,6 @@ export const DEFAULT_TELEMETRY_CONFIG = {
   },
 };
 
-const protocolMajor = Number.parseInt(protocolPackageJson.version.split(".", 1)[0] ?? "", 10);
-if (!Number.isSafeInteger(protocolMajor) || protocolMajor <= 0) {
-  throw new Error(`Invalid Stagehand protocol package version: ${protocolPackageJson.version}`);
-}
-export const STAGEHAND_PROTOCOL_VERSION = protocolMajor;
-
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1525,7 +1546,7 @@ export const ImplementationInfoSchema = z
 
 export const RuntimeDescriptorSchema = z
   .strictObject({
-    protocolVersion: z.int().positive(),
+    protocolVersion: StagehandProtocolVersionSchema,
     serverInfo: ImplementationInfoSchema.extend({
       name: z.literal("stagehand"),
     }),
@@ -1547,10 +1568,24 @@ export const TelemetryConfigSchema = z
 
 export const StagehandInitParamsSchema = z
   .strictObject({
-    protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+    protocolVersion: StagehandProtocolVersionSchema,
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
+    apiUrl: z
+      .url()
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:
