@@ -713,7 +713,7 @@ for _, field := range observed.Data {
 
 ### Scope extractions
 
-Use `observe()` to find a container, then pass its selector to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
+Use `observe()` to find a container, then create a page locator from the observed selector and pass that locator to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
 
 <Tabs>
 <Tab title="TypeScript">
