@@ -660,7 +660,7 @@ The cache lives on Browserbase, keyed on the instruction, page content, and call
 
 ### Secure your automations
 
-Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so results record the placeholder rather than the secret. One exception: with [server-side caching](/v4/best-practices/caching) enabled, variable values travel to the cache service as part of the request, so pass `cache: false` on calls that carry credentials.
+Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so results record the placeholder rather than the secret. One exception: with [server-side caching](/v4/best-practices/caching) enabled, variable values travel to the cache service as part of the request, so turn the `cache` option off for calls that carry credentials.
 
 <Note>
 Load sensitive data from environment variables. Never hardcode API keys, passwords, or other secrets directly in your code.

@@ -1134,12 +1134,12 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-DOM settling applies to `act()`. `observe()` and `extract()` read a snapshot of the page as they find it.
+DOM settling applies to `act()` calls that take a natural-language instruction. Replaying an observed `Action` skips the wait, and `observe()` and `extract()` read a snapshot of the page as they find it.
 </Note>
 
 #### What is DOM settling?
 
-Before `act()` runs, Stagehand waits for the page's network activity to go quiet, up to the timeout. That gives lazy-loaded content, JavaScript updates, and other dynamic rendering time to finish before the action targets an element.
+Before an instruction-based `act()` call runs, Stagehand waits for the page's network activity to go quiet, up to the timeout. That gives lazy-loaded content, JavaScript updates, and other dynamic rendering time to finish before the action targets an element.
 
 #### When to adjust
 

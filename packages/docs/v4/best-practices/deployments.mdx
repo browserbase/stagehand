@@ -517,7 +517,7 @@ vercel link
 
 <Step title="Environment variables">
 
-Never commit secrets. Add variables via the Vercel CLI, then read them in your handler and pass them to `browserbase.launch()` and `Stagehand.create()`. `CRON_SECRET` is the secret the handler compares against the `Authorization` header, and Vercel sends it automatically when a cron job invokes the function:
+Never commit secrets. Add variables via the Vercel CLI, then read them in your handler and pass them where you launch the browser and create the Stagehand client. `CRON_SECRET` is the secret the handler compares against the `Authorization` header, and Vercel sends it automatically when a cron job invokes the function:
 
 <Tabs>
 <Tab title="TypeScript">
