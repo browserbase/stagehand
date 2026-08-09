@@ -111,8 +111,66 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 Supported regions: `us-west-2` (default), `us-east-1`, `eu-central-1`, `ap-southeast-1`.
 
 <Note>
-  There is no regional endpoint to configure. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v4/best-practices/caching).
+  You normally do not need to configure a regional endpoint. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v4/best-practices/caching). An explicit Stagehand `apiUrl` overrides that regional selection.
 </Note>
+
+### API endpoint overrides
+
+Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service. The SDKs do not read either URL from an environment variable. Pass `baseUrl` to Browserbase and `apiUrl` to Stagehand when testing another deployment. Use the service origin without `/v1`.
+
+<View title="TypeScript" icon="js">
+```typescript
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  baseUrl: "https://api.dev.browserbase.com",
+});
+
+const stagehand = await Stagehand.create({
+  browser,
+  apiUrl: "https://api.stagehand.dev.browserbase.com",
+});
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    base_url="https://api.dev.browserbase.com",
+)
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    api_url="https://api.stagehand.dev.browserbase.com",
+)
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+stagehandAPIURL := "https://api.stagehand.dev.browserbase.com"
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:  apiKey,
+	BaseURL: "https://api.dev.browserbase.com",
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	APIURL:  &stagehandAPIURL,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</View>
+
+The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
 
 ### Environment variables
 

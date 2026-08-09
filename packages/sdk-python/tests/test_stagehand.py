@@ -335,6 +335,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     stagehand = await Stagehand.create(
         browser=browser,
         api_key="caller-key",
+        api_url="https://api.stagehand.dev.browserbase.com",
         model=generate,
         logging={"level": "debug"},
     )
@@ -348,6 +349,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert params.log_level == "debug"
     assert params.model == ClientModelReference(source="client")
     assert params.api_key == "worker-key"
+    assert str(params.api_url) == "https://api.stagehand.dev.browserbase.com"
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
 

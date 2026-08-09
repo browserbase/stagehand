@@ -1100,6 +1100,7 @@ class StagehandInitParams(TypedDict):
     client_info: ImplementationInfo
     browser_cdp_url: NotRequired[str]
     api_key: NotRequired[str]
+    api_url: NotRequired[str]
     browser: NotRequired[BrowserSessionMetadata]
     model: NotRequired[ModelConfig | ClientModelReference]
     telemetry: NotRequired[TelemetryConfig]

@@ -2099,11 +2099,14 @@ class StagehandInitParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
     protocol_version: Literal[1]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    api_url: Optional[WireUrl] = None
+    """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""

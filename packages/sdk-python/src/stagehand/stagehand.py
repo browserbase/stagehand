@@ -100,6 +100,7 @@ class Stagehand:
         *,
         browser: StagehandBrowser,
         api_key: str | None = None,
+        api_url: str | None = None,
         model: str | LLMGenerateCallback | None = None,
         model_api_key: str | None = None,
         model_headers: Mapping[str, str] | None = None,
@@ -134,6 +135,7 @@ class Stagehand:
             name: value
             for name, value in (
                 ("api_key", api_key),
+                ("api_url", api_url),
                 ("system_prompt", system_prompt),
                 ("self_heal", self_heal),
                 ("dom_settle_timeout_ms", dom_settle_timeout_ms),

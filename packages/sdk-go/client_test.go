@@ -106,6 +106,7 @@ func TestStagehandDoesNotExposeContext(t *testing.T) {
 
 func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	t.Parallel()
+	apiURL := "https://api.stagehand.dev.browserbase.com"
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init":      StagehandInitResult{Initialized: true},
@@ -116,7 +117,7 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 		}},
 		"stagehand.close": StagehandCloseResult{Closed: true},
 	}}
-	client, err := newStagehandWithClient(CreateOptions{}, rpc)
+	client, err := newStagehandWithClient(CreateOptions{APIURL: &apiURL}, rpc)
 	ctx := context.Background()
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
@@ -188,6 +189,9 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 		Version: stagehandSDKVersion,
 	}) {
 		t.Fatalf("client info = %#v", initParams.ClientInfo)
+	}
+	if initParams.APIURL == nil || *initParams.APIURL != apiURL {
+		t.Fatalf("API URL = %#v, want %q", initParams.APIURL, apiURL)
 	}
 	if !rpc.closed {
 		t.Error("protocol client was not closed")

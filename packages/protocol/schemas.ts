@@ -1576,6 +1576,20 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
+    apiUrl: z
+      .url()
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:

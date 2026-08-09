@@ -65,6 +65,8 @@ export BROWSERBASE_API_KEY=your_api_key
 <Note>
 Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
 
+This also applies to API routing: pass non-production Browserbase and Stagehand API URLs explicitly rather than setting `BROWSERBASE_BASE_URL` or `STAGEHAND_API_URL`. See [API endpoint overrides](/v4/configuration/browser#api-endpoint-overrides).
+
 Read the values in your own app code and pass them explicitly to the browser factory:
 
 <View title="TypeScript" icon="js">
