@@ -9,9 +9,10 @@
     "packages/*/package.json",
     "tsconfig.json",
     "tsconfig.base.json",
-    "eslint.config.mjs",
-    ".prettierrc",
-    ".prettierignore"
+    ".oxlintrc.json",
+    "packages/cli/.oxlintrc.json",
+    ".oxfmtrc.json",
+    "packages/cli/.oxfmtrc.json"
   ],
   "tasks": {
     "build": {

@@ -85,9 +85,8 @@ describe("driver commands", () => {
     }));
 
     try {
-      const { resolveTargetForCommand } = await import(
-        "../src/lib/driver/command-cli.js"
-      );
+      const { resolveTargetForCommand } =
+        await import("../src/lib/driver/command-cli.js");
 
       await expect(
         resolveTargetForCommand("reuse-local", { local: true }),
@@ -124,9 +123,8 @@ describe("driver commands", () => {
     }));
 
     try {
-      const { runDriverCommandWithTarget } = await import(
-        "../src/lib/driver/runtime.js"
-      );
+      const { runDriverCommandWithTarget } =
+        await import("../src/lib/driver/runtime.js");
       const target = {
         endpoint: "ws://127.0.0.1:9222/devtools/browser/test",
         kind: "cdp" as const,

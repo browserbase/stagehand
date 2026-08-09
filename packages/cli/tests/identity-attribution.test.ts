@@ -98,9 +98,8 @@ describe("remoteStagehandOptions — userMetadata", () => {
       // Seed the version the way base.ts does from Config.version at startup.
       identityModule.setCliVersion("1.2.3");
 
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } =
+        await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<
         string,
@@ -125,9 +124,8 @@ describe("remoteStagehandOptions — userMetadata", () => {
     await writeFile(installIdFile, "test-install-uuid-123\n", "utf8");
 
     try {
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } =
+        await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<
         string,
@@ -156,9 +154,8 @@ describe("remoteStagehandOptions — userMetadata", () => {
     );
 
     try {
-      const { remoteStagehandOptions } = await import(
-        "../src/lib/driver/remote.js"
-      );
+      const { remoteStagehandOptions } =
+        await import("../src/lib/driver/remote.js");
       const opts = await remoteStagehandOptions();
       const meta = opts.browserbaseSessionCreateParams?.userMetadata as Record<
         string,
@@ -382,25 +379,22 @@ describe("getCliVersion / setCliVersion", () => {
   });
 
   it("returns the value seeded via setCliVersion", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } =
+      await import("../src/lib/identity.js");
     setCliVersion("0.9.0");
     expect(getCliVersion()).toBe("0.9.0");
   });
 
   it("ignores an empty seed, leaving the 'unknown' fallback intact", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } =
+      await import("../src/lib/identity.js");
     setCliVersion("");
     expect(getCliVersion()).toBe("unknown");
   });
 
   it("keeps a previously-seeded version when later seeded with empty", async () => {
-    const { getCliVersion, setCliVersion } = await import(
-      "../src/lib/identity.js"
-    );
+    const { getCliVersion, setCliVersion } =
+      await import("../src/lib/identity.js");
     setCliVersion("1.4.2");
     setCliVersion("");
     expect(getCliVersion()).toBe("1.4.2");

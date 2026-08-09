@@ -124,9 +124,8 @@ async function setCoreKey(
     return;
   }
 
-  const { listCoreTools, getCoreTool } = await import(
-    "../../core/tools/registry.js"
-  );
+  const { listCoreTools, getCoreTool } =
+    await import("../../core/tools/registry.js");
   const validTools = listCoreTools();
 
   const config = readConfig(entryDir);

@@ -44,9 +44,7 @@ export interface CodexRunResult {
   usage?: Partial<Trajectory["usage"]>;
 }
 
-export class CodexTrajectoryAdapter
-  implements TrajectoryAdapter<CodexRunResult>
-{
+export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
   fromHarnessResult(result: CodexRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
     let pendingReasoning = "";

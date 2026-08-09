@@ -139,9 +139,8 @@ describe("driverInitHints", () => {
   });
 
   it("stays key-free in the local-only capability", async () => {
-    const { driverInitHints } = await import(
-      "../src/lib/driver/remote.disabled.js"
-    );
+    const { driverInitHints } =
+      await import("../src/lib/driver/remote.disabled.js");
     const hints = driverInitHints();
     expect(hints.chromeNotFound).not.toContain("BROWSERBASE_API_KEY");
     expect(hints.repeatedInitFailure).not.toContain("BROWSERBASE_API_KEY");
