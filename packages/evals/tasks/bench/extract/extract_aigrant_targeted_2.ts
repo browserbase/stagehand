@@ -6,7 +6,7 @@ export default defineBenchTask(
   async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
+      // The locator engine prefix is required for XPath selectors.
       const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
       const { data: company } = await stagehand.extract(
         "Extract the name of the company that comes after 'Coframe'.",
