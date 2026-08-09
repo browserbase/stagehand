@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
@@ -24,6 +25,13 @@ PROTOCOL_PACKAGE_PATH = SDK_ROOT.parent / "protocol" / "package.json"
 MODELS_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "models.py"
 INPUT_TYPES_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "input_types.py"
 PROTOCOL_VERSION_PATH = SDK_ROOT / "src" / "stagehand" / "_generated" / "protocol_version.py"
+SEMVER_PATTERN_TEXT = (
+    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
+    r"(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+)
+SEMVER_PATTERN = re.compile(SEMVER_PATTERN_TEXT)
 PYDANTIC_CONFIG = GenerateConfig(
     preset="practical-py311-20260619",
     input_file_type=InputFileType.JsonSchema,
@@ -122,6 +130,7 @@ def main() -> None:
 
     wire_protocol = deepcopy(protocol)
     use_wire_urls(wire_protocol)
+    preserve_json_value_integers(wire_protocol)
     models = _generate_module(wire_protocol, PYDANTIC_CONFIG)
     input_types = _generate_module(protocol, TYPED_DICT_CONFIG)
 
@@ -154,13 +163,13 @@ def generate_protocol_version_module() -> str:
     if not isinstance(version, str):
         raise TypeError("expected protocol package version to be a string")
 
-    major_text = version.split(".", 1)[0]
-    if not major_text.isdecimal() or int(major_text) <= 0:
+    if SEMVER_PATTERN.fullmatch(version) is None:
         raise ValueError(f"invalid Stagehand protocol package version: {version}")
 
     return (
         '"""Generated from packages/protocol/package.json. Do not edit."""\n\n'
-        f"STAGEHAND_PROTOCOL_VERSION = {int(major_text)}\n"
+        f"PROTOCOL_SEMVER_PATTERN = {SEMVER_PATTERN_TEXT!r}\n"
+        f"STAGEHAND_PROTOCOL_VERSION = {version!r}\n"
     )
 
 
@@ -177,6 +186,52 @@ def use_wire_urls(value: object) -> None:
         mapping["customTypePath"] = "stagehand._validation.WireUrl"
     for entry in mapping.values():
         use_wire_urls(entry)
+
+
+def preserve_json_value_integers(protocol: dict[str, object]) -> None:
+    """Keep JSON integers as ints instead of routing them through StrictFloat."""
+    definitions = protocol.get("$defs")
+    if not isinstance(definitions, dict):
+        raise TypeError("expected protocol definitions to be a JSON object")
+
+    for name, value in definitions.items():
+        if not isinstance(name, str) or not isinstance(value, dict):
+            continue
+        schema = cast(dict[str, object], value)
+        choices = schema.get("anyOf")
+        if not isinstance(choices, list):
+            continue
+        choices = cast(list[object], choices)
+
+        reference = {"$ref": f"#/$defs/{name}"}
+        has_recursive_array = any(
+            isinstance(choice, dict)
+            and choice.get("type") == "array"
+            and choice.get("items") == reference
+            for choice in choices
+        )
+        has_recursive_object = any(
+            isinstance(choice, dict)
+            and choice.get("type") == "object"
+            and choice.get("additionalProperties") == reference
+            for choice in choices
+        )
+        if not has_recursive_array or not has_recursive_object:
+            continue
+
+        number_index = next(
+            (
+                index
+                for index, choice in enumerate(choices)
+                if isinstance(choice, dict) and choice.get("type") == "number"
+            ),
+            None,
+        )
+        has_integer = any(
+            isinstance(choice, dict) and choice.get("type") == "integer" for choice in choices
+        )
+        if number_index is not None and not has_integer:
+            choices.insert(number_index, {"type": "integer"})
 
 
 if __name__ == "__main__":

@@ -16,6 +16,21 @@ type pageInfo struct {
 	Domain  string `json:"domain"`
 }
 
+var pageInfoSchema = json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "heading": {"type": "string"},
+    "domain": {"type": "string"}
+  },
+  "required": ["heading", "domain"],
+  "additionalProperties": false
+}`)
+
+const (
+	browserbaseBaseURL = "https://api.browserbase.com"
+	stagehandAPIURL    = "https://api.stagehand.browserbase.com"
+)
+
 func main() {
 	if err := run(context.Background()); err != nil {
 		log.Fatal(err)
@@ -29,13 +44,20 @@ func run(ctx context.Context) (err error) {
 	}
 	// With no model, Browserbase Model Gateway selects one automatically for
 	// each inference call. The Browserbase API key and session authenticate it.
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey:  apiKey,
+		BaseURL: browserbaseBaseURL,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	stagehandURL := stagehandAPIURL
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		APIURL:  &stagehandURL,
+	})
 	if err != nil {
 		return err
 	}

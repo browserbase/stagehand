@@ -538,6 +538,7 @@ def _rpc_response_timeout_seconds(method: str, params: BaseModel) -> float | Non
         "stagehand.act",
         "stagehand.extract",
         "stagehand.observe",
+        "stagehand.callback_batch",
         "page.goto",
         "page.reload",
         "page.go_back",

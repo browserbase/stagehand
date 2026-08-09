@@ -63,6 +63,22 @@ def test_generated_models_validate_and_serialize_wire_values() -> None:
     }
 
 
+def test_generated_json_values_preserve_integer_and_float_types() -> None:
+    value = {
+        "count": 7,
+        "ratio": 7.5,
+        "large": 9_007_199_254_740_993,
+        "nested": [1, 1.5],
+    }
+
+    for model in (models.FieldSchema2, models.FieldSchema3):
+        decoded = model.model_validate(value).model_dump(mode="json")
+        assert decoded == value
+        assert type(decoded["count"]) is int
+        assert type(decoded["ratio"]) is float
+        assert type(decoded["nested"][0]) is int
+
+
 def test_generated_models_retain_cross_field_validation() -> None:
     with pytest.raises(ValidationError, match="fullPage and clip"):
         models.PageScreenshotOptions.model_validate({

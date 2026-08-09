@@ -12,7 +12,8 @@ The nullable result is not an error. Navigations to URLs such as `data:` and `ab
   Response bodies and complete metadata are retrieved lazily. Use the response while its Stagehand session is open. Response handles become invalid when the session closes and older handles may be collected after enough newer responses are created.
 </Note>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 
 ## Navigation
 
@@ -79,9 +80,9 @@ response.finished(): Promise<null | Error>
 
 Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `json()` preserves JSON parse errors. `finished()` resolves to `null` after success or an `Error` describing the loading failure.
 
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 
 ## Navigation
 
@@ -147,9 +148,9 @@ await response.finished() -> Exception | None
 
 Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. UTF-8 decoding and JSON parsing preserve their native errors. `finished()` returns `None` after success or an exception describing the loading failure.
 
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 
 ## Navigation
 
@@ -223,4 +224,5 @@ func (r *Response) Finished(ctx context.Context) error
 
 Body access is lazy. Each SDK call requests the body through the response handle; Stagehand reuses the underlying browser body retrieval. `JSON()` decodes into the supplied destination. `Finished()` returns the loading failure or an RPC error, and returns `nil` after success.
 
-</View>
+</Tab>
+</Tabs>

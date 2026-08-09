@@ -20,11 +20,26 @@ def _ready_marker() -> dict[str, object]:
     return {
         "marker": {
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
             "state": "ready",
         },
         "hasReceiver": True,
     }
+
+
+def test_callback_batch_source_allows_native_code_text() -> None:
+    expression = cdp_client._callback_batch_expression(
+        message={
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "stagehand.callback_batch",
+            "params": {},
+        },
+        source='async () => "[native code]"',
+    )
+
+    assert 'async () => "[native code]"' in expression
+    assert "const __name = (fn, name)" in expression
 
 
 class FakeWebSocket:
@@ -200,6 +215,70 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
         assert (
             "__stagehandReceiveFromHost" in cast(dict[str, str], evaluated["params"])["expression"]
         )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_request_is_delivered_with_a_runtime_attachment() -> None:
+    socket = FakeWebSocket(lambda _: {"result": {"result": {"value": True}}})
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    source = "async ({ page }, input) => ({ title: await page.title(), input })"
+    message: dict[str, object] = {
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "stagehand.callback_batch",
+        "params": {
+            "callback_source": source,
+            "input": {"quote": '"); globalThis.__injectionSucceeded = true; ("'},
+            "options": {"page_id": "page-1", "timeout": 2_000},
+        },
+    }
+
+    try:
+        await client.send(message)
+        params = cast(dict[str, object], socket.sent[0]["params"])
+        assert params["awaitPromise"] is False
+        assert params["returnByValue"] is True
+        expression = cast(str, params["expression"])
+        assert "__stagehandReceiveFromHost" in expression
+        assert "stagehand.callback_batch" in expression
+        assert r"\"page_id\":\"page-1\"" in expression
+        assert "callback: (async" in expression
+        serialized_message = json.dumps(
+            json.dumps(message, allow_nan=False, separators=(",", ":")),
+            separators=(",", ":"),
+        )
+        assert serialized_message in expression
+        assert '"); globalThis.__injectionSucceeded = true; ("' not in expression
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_delivery_reconstructs_runtime_exception_details() -> None:
+    socket = FakeWebSocket(
+        lambda _: {
+            "result": {
+                "exceptionDetails": {
+                    "exception": {"description": "callback syntax failed"},
+                }
+            }
+        },
+    )
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    try:
+        with pytest.raises(RuntimeError, match="callback syntax failed"):
+            await client.send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 8,
+                    "method": "stagehand.callback_batch",
+                    "params": {"callback_source": "async () => undefined"},
+                },
+            )
     finally:
         await client.close()
 
@@ -715,7 +794,7 @@ class TestNegotiateRuntime:
     def test_accepts_a_current_marker(self) -> None:
         compatible, detail = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
         })
         assert compatible is True
         assert f"protocolVersion={STAGEHAND_PROTOCOL_VERSION}" in detail
@@ -724,7 +803,7 @@ class TestNegotiateRuntime:
         # A newer runtime may publish fields this client has never heard of, e.g. `status`.
         compatible, _ = cdp_client._negotiate_runtime({
             "protocolVersion": STAGEHAND_PROTOCOL_VERSION,
-            "serverInfo": {"name": "stagehand", "version": "4.0.0"},
+            "serverInfo": {"name": "stagehand", "version": "1.0.0"},
             "status": {"state": "ready"},
         })
         assert compatible is True
@@ -736,17 +815,17 @@ class TestNegotiateRuntime:
             ({}, "serverInfo.name=None"),
             (
                 {
-                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION - 1,
+                    "protocolVersion": "2.0.0",
                     "serverInfo": {"name": "stagehand", "version": "0"},
                 },
-                "below",
+                "major mismatch",
             ),
             (
                 {
-                    "protocolVersion": STAGEHAND_PROTOCOL_VERSION + 1,
+                    "protocolVersion": "not-semver",
                     "serverInfo": {"name": "stagehand", "version": "2"},
                 },
-                "above",
+                "invalid protocol version",
             ),
             (
                 {
@@ -757,10 +836,10 @@ class TestNegotiateRuntime:
             ),
             (
                 {
-                    "protocolVersion": str(STAGEHAND_PROTOCOL_VERSION),
+                    "protocolVersion": 1,
                     "serverInfo": {"name": "stagehand", "version": "1"},
                 },
-                repr(str(STAGEHAND_PROTOCOL_VERSION)),
+                "protocolVersion=1",
             ),
         ],
     )
@@ -772,3 +851,13 @@ class TestNegotiateRuntime:
     def test_never_raises_on_hostile_input(self) -> None:
         for marker in ("string", 42, [], {"serverInfo": "not-a-mapping"}, {"serverInfo": None}):
             assert cdp_client._negotiate_runtime(marker)[0] is False
+
+    def test_protocol_semver_directionality(self) -> None:
+        assert cdp_client._protocol_compatibility("1.2.4", "1.2.0") is None
+        assert cdp_client._protocol_compatibility("1.2.4", "1.9.0") is None
+        assert "older" in (cdp_client._protocol_compatibility("1.2.4", "1.1.99") or "")
+        assert "major mismatch" in (cdp_client._protocol_compatibility("1.2.4", "2.0.0") or "")
+        assert cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.1") is None
+        assert "match exactly" in (
+            cdp_client._protocol_compatibility("1.3.0-beta.1", "1.3.0-beta.2") or ""
+        )

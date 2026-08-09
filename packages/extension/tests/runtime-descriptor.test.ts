@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RuntimeDescriptorSchema } from "../../protocol/schemas.ts";
+import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.ts";
 import extensionPackageJson from "../package.json" with { type: "json" };
 import {
   startStagehandServiceWorker,
@@ -16,7 +16,7 @@ describe("runtime descriptor", () => {
       scope.__stagehand_runtime,
     );
     expect(scope.__stagehand_runtime).toStrictEqual({
-      protocolVersion: 1,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       serverInfo: {
         name: "stagehand",
         version: extensionPackageJson.version,
@@ -30,7 +30,7 @@ describe("runtime descriptor", () => {
 
   it("rejects unknown descriptor fields", () => {
     const descriptor = {
-      protocolVersion: 1,
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
       serverInfo: {
         name: "stagehand",
         version: extensionPackageJson.version,
