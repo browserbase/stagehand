@@ -34,6 +34,8 @@
     "access": "public"
   },
   "scripts": {
+    "prepack": "rm -f README.md && cp ../../README.md README.md",
+    "postpack": "rm -f README.md && ln -s ../../README.md README.md",
     "build": "tsdown",
     "test": "vitest run --root ../.. packages/sdk-ts/tests",
     "test:unit": "vitest run --root ../.. packages/sdk-ts/tests --exclude=packages/sdk-ts/tests/browser-runtime/**",

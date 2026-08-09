@@ -14,7 +14,7 @@ export function buildGatewayContext(initParams: StagehandInitParams): GatewayCon
   const sessionId = initParams.browser?.sessionId;
   if (!initParams.apiKey || !sessionId) return undefined;
   return {
-    apiUrl: apiUrlForRegion(initParams.browser?.region),
+    apiUrl: apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
     apiKey: initParams.apiKey,
     sessionId,
   };

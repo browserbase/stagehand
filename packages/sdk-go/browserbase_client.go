@@ -11,7 +11,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -87,9 +86,6 @@ func newBrowserbaseHTTPClient(
 	}
 
 	baseURL := options.baseURL
-	if baseURL == "" {
-		baseURL = os.Getenv("BROWSERBASE_BASE_URL")
-	}
 	if baseURL == "" {
 		baseURL = defaultBrowserbaseBaseURL
 	}

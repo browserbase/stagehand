@@ -34,6 +34,11 @@
     "browse#typecheck": {
       "dependsOn": ["@browserbasehq/stagehand#build"]
     },
+    "@browserbasehq/stagehand-integrations#build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
+      "outputs": ["dist/**"]
+    },
     "@browserbasehq/stagehand-evals#build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", "!dist/**"],
@@ -73,6 +78,19 @@
     },
     "@browserbasehq/stagehand-evals#typecheck": {
       "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations#test:unit": {
+      "dependsOn": ["^build", "@browserbasehq/stagehand-integrations#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "tests/**",
+        "src/**",
+        "**/*.test.ts",
+        "$TURBO_ROOT$/vitest.config.ts"
+      ]
     },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {

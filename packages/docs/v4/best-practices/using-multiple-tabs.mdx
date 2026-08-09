@@ -11,7 +11,8 @@ Stagehand automatically adapts to multitab workflows. The active page always poi
 
 This means you can continue using familiar patterns:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const page = await browser.context.activePage();
 await page.goto("https://example.com");
@@ -24,9 +25,9 @@ const { data } = await stagehand.extract(
 );
 console.log(data.value);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 page = await browser.context.active_page()
 await page.goto("https://example.com")
@@ -44,9 +45,9 @@ result = await stagehand.extract(
 )
 print(result.data.value)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 page, err := browserContext.ActivePage(ctx)
 if err != nil {
@@ -75,7 +76,8 @@ if err != nil {
 
 fmt.Println(extracted.Data.Value)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 **Important**: The page object you captured before the click still refers to the *original* tab. Re-read the active page, or hold an explicit reference to each tab, when you need to reach back to it.
@@ -85,7 +87,8 @@ fmt.Println(extracted.Data.Value)
 
 For more control or multitab workflows, you can manage multiple tabs explicitly. Set the active page when you want the default target to follow you:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Create a second page
 await browser.context.newPage();
@@ -111,9 +114,9 @@ console.log(`Stagehand-Python stars: ${stagehandPythonStars.data.stars}`);
 // Make one of them the default target for later calls
 await browser.context.setActivePage(githubPage);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import asyncio
 
@@ -150,9 +153,9 @@ print(f"Stagehand-Python stars: {stagehand_python_stars.data.stars}")
 # Make one of them the default target for later calls
 await browser.context.set_active_page(github_page)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type stars struct {
 	Stars int `json:"stars"`
@@ -206,7 +209,8 @@ if err := browserContext.SetActivePage(ctx, githubPage); err != nil {
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Locators belong to the page they were created on. `page.locator(selector)` carries that page's identity, so a locator from one tab never resolves against another.

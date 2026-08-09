@@ -590,6 +590,18 @@ func TestNewBrowserbaseHTTPClientValidatesConfiguration(t *testing.T) {
 	}
 }
 
+func TestNewBrowserbaseHTTPClientIgnoresBaseURLEnvironmentVariable(t *testing.T) {
+	t.Setenv("BROWSERBASE_BASE_URL", "https://ambient.example")
+
+	client, err := newBrowserbaseHTTPClient("bb_test", browserbaseHTTPClientOptions{})
+	if err != nil {
+		t.Fatalf("newBrowserbaseHTTPClient() error = %v", err)
+	}
+	if client.baseURL != defaultBrowserbaseBaseURL {
+		t.Fatalf("base URL = %q, want %q", client.baseURL, defaultBrowserbaseBaseURL)
+	}
+}
+
 func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 	keepAlive := true
 	advancedStealth := true

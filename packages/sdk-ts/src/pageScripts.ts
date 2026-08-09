@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { z } from "zod/v4";
 
 export type InitScriptSource<Arg> =
@@ -45,6 +44,10 @@ export async function normalizeInitScriptSource<Arg>(
   if (hasContent) return script.content as string;
 
   const filePath = script.path as string;
+  const moduleName = "node:" + "fs/promises";
+  const { readFile } = (await import(
+    /* @vite-ignore */ moduleName
+  )) as typeof import("node:fs/promises");
   const source = await readFile(filePath, "utf8");
   return `${source}\n//# sourceURL=${filePath.replace(/\n/g, "")}`;
 }

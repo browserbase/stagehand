@@ -60,7 +60,10 @@ export function buildCacheContext(initParams: StagehandInitParams): CacheContext
   if (!initParams.apiKey || !sessionId) return undefined;
   return {
     sessionId,
-    client: new CacheClient(apiUrlForRegion(initParams.browser?.region), initParams.apiKey),
+    client: new CacheClient(
+      apiUrlForRegion(initParams.browser?.region, initParams.apiUrl),
+      initParams.apiKey,
+    ),
     defaultCaching: initParams.cache ?? false,
   };
 }

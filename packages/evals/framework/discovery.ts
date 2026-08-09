@@ -53,7 +53,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
  * augmented) during discovery. External agent benchmarks are grouped here.
  */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
@@ -173,11 +172,43 @@ async function loadTaskModule(
  * @param eager - If true, imports modules to read defineTask metadata.
  *                If false (default), only uses filesystem-based inference.
  */
+/**
+ * Agent benchmark suites are planner-level constructs (dataset builders in
+ * suites/), not task files: they run exclusively through the external
+ * harnesses, so discovery registers them as virtual entries.
+ */
+const AGENT_SUITE_NAMES = [
+  "agent/webvoyager",
+  "agent/onlineMind2Web",
+  "agent/webtailbench",
+  "agent/odysseysbench",
+] as const;
+
 export async function discoverTasks(tasksRoot: string, eager = false): Promise<TaskRegistry> {
   const tasks: DiscoveredTask[] = [];
   const byName = new Map<string, DiscoveredTask>();
   const byTier = new Map<Tier, DiscoveredTask[]>();
   const byCategory = new Map<string, DiscoveredTask[]>();
+
+  for (const name of AGENT_SUITE_NAMES) {
+    const task: DiscoveredTask = {
+      name,
+      tier: "bench",
+      primaryCategory: "external_agent_benchmarks",
+      categories: ["external_agent_benchmarks"],
+      tags: [],
+      filePath: "",
+      isLegacy: false,
+    };
+    tasks.push(task);
+    byName.set(task.name, task);
+    if (!byTier.has("bench")) byTier.set("bench", []);
+    byTier.get("bench")!.push(task);
+    if (!byCategory.has("external_agent_benchmarks")) {
+      byCategory.set("external_agent_benchmarks", []);
+    }
+    byCategory.get("external_agent_benchmarks")!.push(task);
+  }
 
   for (const tier of TIERS) {
     const tierRoots = getTierRoots(tasksRoot, tier);

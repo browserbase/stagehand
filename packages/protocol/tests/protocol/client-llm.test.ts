@@ -59,6 +59,36 @@ describe("client-side LLM protocol", () => {
     });
   });
 
+  it("requires the Stagehand API URL to omit the /v1 path", () => {
+    const params = {
+      protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+      clientInfo: { name: "stagehand-sdk-ts", version: "4.0.0" },
+    };
+
+    expect(
+      StagehandInitParamsSchema.parse({
+        ...params,
+        apiUrl: "https://api.stagehand.dev.browserbase.com",
+      }).apiUrl,
+    ).toBe("https://api.stagehand.dev.browserbase.com");
+    expect(() =>
+      StagehandInitParamsSchema.parse({
+        ...params,
+        apiUrl: "https://api.stagehand.dev.browserbase.com/v1/",
+      }),
+    ).toThrow("Stagehand apiUrl must be a service origin without /v1");
+    for (const apiUrl of [
+      "https://api.stagehand.dev.browserbase.com?",
+      "https://api.stagehand.dev.browserbase.com?tenant=test",
+      "https://api.stagehand.dev.browserbase.com#",
+      "https://api.stagehand.dev.browserbase.com#gateway",
+    ]) {
+      expect(() => StagehandInitParamsSchema.parse({ ...params, apiUrl })).toThrow(
+        "Stagehand apiUrl must not include a query string or fragment",
+      );
+    }
+  });
+
   it("requires structured content when a client LLM returns JSON schema output", () => {
     const baseResult = {
       role: "assistant" as const,

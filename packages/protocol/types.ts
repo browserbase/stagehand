@@ -25,6 +25,9 @@ import type {
   BrowserbaseProxyGeolocationSchema,
   BrowserbaseRegionSchema,
   BrowserbaseSessionCreateParamsSchema,
+  CallbackBatchOptionsSchema,
+  CallbackBatchParamsSchema,
+  CallbackBatchResultSchema,
   BrowserbaseViewportSchema,
   CacheMetadataSchema,
   CacheStatusSchema,
@@ -238,6 +241,9 @@ export type PageLocator = z.infer<typeof PageLocatorSchema>;
 export type Locator = z.infer<typeof LocatorSchema>;
 export type MouseButton = z.infer<typeof MouseButtonSchema>;
 export type StagehandMetrics = z.infer<typeof StagehandMetricsSchema>;
+export type CallbackBatchOptions = z.infer<typeof CallbackBatchOptionsSchema>;
+export type CallbackBatchParams = z.infer<typeof CallbackBatchParamsSchema>;
+export type CallbackBatchResult = z.infer<typeof CallbackBatchResultSchema>;
 export type GoogleServiceAccountCredentials = z.infer<typeof GoogleServiceAccountCredentialsSchema>;
 export type GoogleServiceAccountAuth = z.infer<typeof GoogleServiceAccountAuthSchema>;
 export type AzureEntraIdAuth = z.infer<typeof AzureEntraIdAuthSchema>;

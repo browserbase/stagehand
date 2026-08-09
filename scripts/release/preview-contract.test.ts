@@ -47,7 +47,7 @@ function previewManifest() {
       },
       extension: {
         package: "@browserbasehq/stagehand-extension",
-        version: "4.0.0",
+        version: "1.0.0",
         file: "stagehand-extension.zip",
         sha256: sha256(files["stagehand-extension.zip"]),
       },

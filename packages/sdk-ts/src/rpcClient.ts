@@ -513,6 +513,7 @@ export function rpcResponseTimeoutMs(method: string, params: unknown): number | 
     case StagehandMethods.stagehandAct.name:
     case StagehandMethods.stagehandExtract.name:
     case StagehandMethods.stagehandObserve.name:
+    case StagehandMethods.stagehandCallbackBatch.name:
     case StagehandMethods.pageGoto.name:
     case StagehandMethods.pageReload.name:
     case StagehandMethods.pageGoBack.name:

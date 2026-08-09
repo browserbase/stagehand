@@ -1,7 +1,7 @@
 import type { ContextClipboardPasteParams } from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type { Page } from "./page.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 
 export type ClipboardOptions = {
   page?: Page;
@@ -12,7 +12,7 @@ export type ClipboardPasteOptions = ClipboardOptions & {
 };
 
 export class BrowserClipboard {
-  constructor(readonly rpcClient: RPCClient) {}
+  constructor(readonly rpcClient: StagehandCommandClient) {}
 
   async readText(options?: ClipboardOptions): Promise<string> {
     return await this.rpcClient.send(

@@ -30,7 +30,6 @@ interface PreviewPayload {
   target: string | null;
   normalizedTarget: string | null;
   tasks: string[];
-  skippedTasks: string[];
   envOverrides: Record<string, string>;
   runOptions: Record<string, unknown>;
   matrix: MatrixRow[];
@@ -88,7 +87,6 @@ export function renderPreview(payload: unknown): void {
   }
 
   renderHeader(p);
-  renderSkipped(p);
   renderCombinations(p);
   renderTasks(p);
   renderFooter(p);
@@ -143,18 +141,6 @@ function uniqueTiers(matrix: MatrixRow[]): string[] {
   const seen = new Set<string>();
   for (const row of matrix) seen.add(String(row.tier ?? "?"));
   return [...seen];
-}
-
-// ---------------------------------------------------------------------------
-// Skipped tasks
-// ---------------------------------------------------------------------------
-
-function renderSkipped(p: PreviewPayload): void {
-  if (p.skippedTasks.length === 0) return;
-  console.log(
-    `  ${bold("Skipped:")} ${p.skippedTasks.length} legacy-only task(s) ${dim(p.skippedTasks.join(", "))}`,
-  );
-  console.log("");
 }
 
 // ---------------------------------------------------------------------------
