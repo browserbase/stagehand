@@ -127,7 +127,7 @@ describe("deriveCategoryFilter", () => {
     expect(payload.tasks.sort()).toEqual(["agent/webvoyager", "dropdown"]);
     // The suite is omitted from the planned matrix (external harness only),
     // while the deterministic task still plans.
-    expect(payload.matrix.every((row: { task: string }) => row.task === "dropdown")).toBe(true);
+    expect(payload.matrix.map((row: { task: string }) => row.task)).toEqual(["dropdown"]);
     expect(process.exitCode).toBeUndefined();
   });
 

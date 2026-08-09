@@ -150,12 +150,10 @@ export async function runCodexAgent({
   // gives every published run a citable, reproducible action budget.
   const maxToolSteps = readCodexMaxToolSteps();
   const budgetController = new AbortController();
+  const forwardAbort = () => budgetController.abort(signal?.reason);
   if (signal) {
     if (signal.aborted) budgetController.abort(signal.reason);
-    else
-      signal.addEventListener("abort", () => budgetController.abort(signal.reason), {
-        once: true,
-      });
+    else signal.addEventListener("abort", forwardAbort, { once: true });
   }
   let toolStepCount = 0;
 
@@ -221,6 +219,10 @@ export async function runCodexAgent({
       },
     });
   }
+
+  // Long batches share one abort signal; detach the forwarder so completed
+  // runs don't accumulate listeners on it.
+  signal?.removeEventListener("abort", forwardAbort);
 
   const transcriptText = buildCodexTranscript(events);
   const iterationErrorMessage = stringifyError(iterationError);
