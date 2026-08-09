@@ -38,7 +38,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
       await fs.writeFile(options.path, buffer);
       return { saved: options.path };
     }
-    return { base64: buffer.toString("base64") };
+    return { base64: Buffer.from(buffer).toString("base64") };
   },
 
   async viewport(manager, params) {
