@@ -18,7 +18,7 @@ import type {
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
-import { Locator } from "./locator.js";
+import { serializeClientLocatorOptions } from "./clientLocatorOptions.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -59,37 +59,6 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
-
-function serializeClientLocator(locator: Locator, pageId: string, method: string) {
-  if (locator.descriptor.pageId !== pageId) {
-    throw new TypeError(`${method}(): locator must belong to the target page`);
-  }
-  const { selector, nth } = locator.descriptor;
-  return {
-    selector,
-    ...(nth === undefined ? {} : { nth }),
-  };
-}
-
-function serializeClientLocatorOptions<
-  Options extends {
-    locator?: Locator;
-    ignoreLocators?: Locator[];
-  },
->(method: string, pageId: string, options: Options) {
-  const { locator, ignoreLocators, ...rest } = options;
-  return {
-    ...rest,
-    ...(locator ? { locator: serializeClientLocator(locator, pageId, method) } : {}),
-    ...(ignoreLocators
-      ? {
-          ignoreLocators: ignoreLocators.map((ignoredLocator) =>
-            serializeClientLocator(ignoredLocator, pageId, method),
-          ),
-        }
-      : {}),
-  };
-}
 
 export class Stagehand {
   isInitialized = false;

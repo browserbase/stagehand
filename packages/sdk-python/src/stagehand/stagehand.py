@@ -77,10 +77,9 @@ _UNAVAILABLE_MESSAGE = (
 def _serialize_locator(locator: Locator, page_id: str, method: str) -> ProtocolLocator:
     if locator.page_id != page_id:
         raise TypeError(f"{method}() locator must belong to the target page")
-    values: dict[str, object] = {"selector": locator.selector}
     if locator.nth_index is not None:
-        values["nth"] = locator.nth_index
-    return ProtocolLocator(**values)
+        return ProtocolLocator(selector=locator.selector, nth=locator.nth_index)
+    return ProtocolLocator(selector=locator.selector)
 
 
 def _serialize_locators(

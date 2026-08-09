@@ -42,7 +42,8 @@ export async function a11yForFrame(
   let scopeApplied = false;
   const nodesForOutline = await (async () => {
     const locator = opts.focusLocator;
-    const sel = locator?.selector.trim();
+    if (!locator) return nodes;
+    const sel = locator.selector.trim();
     if (!sel) return nodes;
     try {
       const looksLikeXPath = /^xpath=/i.test(sel) || sel.startsWith("/");

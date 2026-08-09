@@ -172,13 +172,16 @@ export async function tryScopedSnapshot(
   logger: StagehandLogger,
 ): Promise<HybridSnapshot | null> {
   const focusLocator = options?.focusLocator;
-  const requestedFocus = focusLocator?.selector.trim();
+  if (!focusLocator) return null;
+  const requestedFocus = focusLocator.selector.trim();
   if (!requestedFocus) return null;
+  const focusNth = focusLocator.nth;
 
   const logScopeFallback = () => {
-    logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
-      locator: focusLocator,
-    });
+    logger.warn(
+      "Unable to narrow scope with locator; falling back to the full DOM",
+      focusLocator ? { locator: focusLocator } : {},
+    );
   };
 
   try {
@@ -226,7 +229,7 @@ export async function tryScopedSnapshot(
       focusLocator: tailSelector
         ? {
             selector: tailSelector,
-            ...(focusLocator.nth === undefined ? {} : { nth: focusLocator.nth }),
+            ...(focusNth === undefined ? {} : { nth: focusNth }),
           }
         : undefined,
       isIgnoredBackendNode: makeIsIgnoredBackendNode(
