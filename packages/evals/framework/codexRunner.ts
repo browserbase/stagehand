@@ -219,6 +219,10 @@ export async function runCodexAgent({
     toolAdapter && "captureEvidence" in toolAdapter
       ? await toolAdapter.captureEvidence?.().catch((): undefined => undefined)
       : undefined;
+  const stepObservations =
+    toolAdapter && "drainStepObservations" in toolAdapter
+      ? toolAdapter.drainStepObservations?.()
+      : undefined;
 
   // Build a Trajectory from the codex event stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
@@ -228,6 +232,7 @@ export async function runCodexAgent({
         {
           events,
           ...(finalObservation && { finalObservation }),
+          ...(stepObservations?.length && { stepObservations }),
           finalAnswer: parsed.finalAnswer ?? finalResponse,
           status: status === "completed" ? "complete" : "error",
           usage: {

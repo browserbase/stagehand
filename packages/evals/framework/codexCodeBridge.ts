@@ -76,6 +76,8 @@ export async function startCodeBridge(input: {
   mount: Extract<AgentMount, { via: "handles" }>;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
+  /** Awaited after every bridge run, success or failure (per-step probe). */
+  onRunExecuted?: () => Promise<void>;
 }): Promise<CodeBridge> {
   const { mount, plan, logger } = input;
   const handles = mount.handles;
@@ -106,6 +108,16 @@ export async function startCodeBridge(input: {
     );
   }
 
+  // Evidence collection is best-effort: a probe failure must never hang a
+  // bridge request or turn a successful run into an error response.
+  async function notifyRunExecuted(): Promise<void> {
+    try {
+      await input.onRunExecuted?.();
+    } catch {
+      // best-effort only
+    }
+  }
+
   const server = http.createServer((req, res) => {
     if (req.method !== "POST" || req.url !== "/run") {
       res.writeHead(404).end();
@@ -132,6 +144,7 @@ export async function startCodeBridge(input: {
           level: 1,
           message: `bridge run completed: ${text.slice(0, 500)}`,
         });
+        await notifyRunExecuted();
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true, result: text }));
       } catch (error) {
@@ -143,6 +156,7 @@ export async function startCodeBridge(input: {
           level: 1,
           message: `bridge run failed: ${message}`,
         });
+        await notifyRunExecuted();
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: message }));
       }
