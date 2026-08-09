@@ -3,6 +3,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
@@ -61,6 +62,7 @@ export function buildClaudeCodePrompt(
     "Instruction:",
     plan.instruction,
     "",
+    datasetPromptGuidance(plan.dataset),
     toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "At the end, print exactly one line beginning with EVAL_RESULT: followed by compact JSON.",
     'The JSON schema is: {"success": boolean, "summary": string, "finalAnswer": string}.',

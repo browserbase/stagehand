@@ -13,6 +13,12 @@ export interface ArmVerifiability {
   arm: string;
   /** Runs the verifier graded (criterionCount present). */
   gradedRuns: number;
+  /**
+   * Verifier-backed runs the verifier failed to grade (`verifierError` set) —
+   * their `_success` is the agent's self-report, so they must never hide
+   * inside a gated batch.
+   */
+  ungradedRuns: number;
   unverifiableCriteria: number;
   totalCriteria: number;
 }
@@ -25,21 +31,28 @@ export function summarizeArmVerifiability(
 ): ArmVerifiability[] {
   const arms = new Map<string, ArmVerifiability>();
   for (const { input, output } of results) {
-    if (typeof output.criterionCount !== "number") continue;
+    const graded = typeof output.criterionCount === "number";
+    const ungraded = !graded && output.verifierError !== undefined;
+    if (!graded && !ungraded) continue;
     const toolSurface =
       typeof input.params?.toolSurface === "string" ? input.params.toolSurface : undefined;
     const key = [harness, toolSurface, input.modelName].filter(Boolean).join(" × ");
     const arm = arms.get(key) ?? {
       arm: key,
       gradedRuns: 0,
+      ungradedRuns: 0,
       unverifiableCriteria: 0,
       totalCriteria: 0,
     };
-    arm.gradedRuns += 1;
-    arm.totalCriteria += output.criterionCount;
-    arm.unverifiableCriteria += Array.isArray(output.evidenceInsufficient)
-      ? output.evidenceInsufficient.length
-      : 0;
+    if (graded) {
+      arm.gradedRuns += 1;
+      arm.totalCriteria += output.criterionCount as number;
+      arm.unverifiableCriteria += Array.isArray(output.evidenceInsufficient)
+        ? output.evidenceInsufficient.length
+        : 0;
+    } else {
+      arm.ungradedRuns += 1;
+    }
     arms.set(key, arm);
   }
   return [...arms.values()];
@@ -59,4 +72,9 @@ export function resolveUnverifiableCriteriaLimit(): number | undefined {
 /** Arms whose unverifiable-criteria count exceeds the limit. */
 export function armsOverLimit(arms: ArmVerifiability[], limit: number): ArmVerifiability[] {
   return arms.filter((arm) => arm.unverifiableCriteria > limit);
+}
+
+/** Arms carrying self-reported (verifier-failed) rows. */
+export function armsWithUngradedRuns(arms: ArmVerifiability[]): ArmVerifiability[] {
+  return arms.filter((arm) => arm.ungradedRuns > 0);
 }

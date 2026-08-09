@@ -22,6 +22,7 @@ import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
 import {
   armsOverLimit,
+  armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
@@ -35,7 +36,6 @@ type RunProgressEvent = {
   total?: number;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function formatNumber(value: number): string {
@@ -134,28 +134,6 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
-function isExplicitLegacyOnlyTarget(target?: string): boolean {
-  return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
-}
-
-function splitLegacyOnlyTasks(tasks: DiscoveredTask[]): {
-  runnableTasks: DiscoveredTask[];
-  skippedTasks: DiscoveredTask[];
-} {
-  const runnableTasks: DiscoveredTask[] = [];
-  const skippedTasks: DiscoveredTask[] = [];
-
-  for (const task of tasks) {
-    if (LEGACY_ONLY_BENCHMARK_TARGETS.has(task.name)) {
-      skippedTasks.push(task);
-    } else {
-      runnableTasks.push(task);
-    }
-  }
-
-  return { runnableTasks, skippedTasks };
-}
-
 export async function runCommand(
   options: ResolvedRunOptions,
   registry?: TaskRegistry,
@@ -181,25 +159,12 @@ export async function runCommand(
     throw err;
   }
 
-  if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
-    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
-    if (planMode) {
-      await emitDryRun(options, tasks, registry, message);
-      process.exitCode = 1;
-      return;
-    }
-    throw new Error(message);
-  }
-
-  const { runnableTasks, skippedTasks } = splitLegacyOnlyTasks(tasks);
-  tasks = runnableTasks;
-
   if (tasks.length === 0) {
     const message = options.normalizedTarget
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
       : "No runnable tasks found.";
     if (planMode) {
-      await emitDryRun(options, tasks, registry, message, skippedTasks);
+      await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
       return;
     }
@@ -213,7 +178,7 @@ export async function runCommand(
   }
 
   if (planMode) {
-    await emitDryRun(options, tasks, registry, undefined, skippedTasks);
+    await emitDryRun(options, tasks, registry);
     return;
   }
 
@@ -226,11 +191,6 @@ export async function runCommand(
 
   console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
   console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  if (skippedTasks.length > 0) {
-    console.log(
-      `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
-    );
-  }
   console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
   console.log(separator());
   console.log("");
@@ -253,7 +213,6 @@ export async function runCommand(
           environment: options.environment,
           useApi: options.useApi,
           modelOverride: options.model,
-          provider: options.provider,
           harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
@@ -288,9 +247,11 @@ export async function runCommand(
       const unverifiableLimit = resolveUnverifiableCriteriaLimit();
       if (arms.length > 0) {
         for (const arm of arms) {
+          const ungradedSuffix =
+            arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
             ),
           );
         }
@@ -301,20 +262,18 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
             );
           }
-          if (over.length > 0) {
+          // A gated batch must never publish self-reported rows as passes:
+          // any verifier failure fails the batch, whatever the criteria count.
+          const ungraded = armsWithUngradedRuns(arms);
+          for (const arm of ungraded) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0) {
             process.exitCode = 1;
           }
         }
-      } else if (
-        unverifiableLimit !== undefined &&
-        result.results.some((row) => row.output.verifierError !== undefined)
-      ) {
-        // A configured gate must never be silently bypassed: verifier-backed
-        // runs happened, but none produced a graded arm to measure.
-        console.error(
-          `  ✗ verifiability gate: EVAL_MAX_UNVERIFIABLE_CRITERIA=${unverifiableLimit} is set but no runs were graded`,
-        );
-        process.exitCode = 1;
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));
@@ -364,10 +323,8 @@ async function emitDryRun(
   tasks: DiscoveredTask[],
   registry: TaskRegistry,
   error?: string,
-  skippedTasks: DiscoveredTask[] = [],
 ): Promise<void> {
   const sortedTasks = tasks.map((t) => t.name).sort();
-  const sortedSkippedTasks = skippedTasks.map((t) => t.name).sort();
 
   const envOverrides: Record<string, string> = {};
   for (const key of Object.keys(options.envOverrides).sort()) {
@@ -382,7 +339,6 @@ async function emitDryRun(
     environment: options.environment,
     harness: options.harness,
     model: options.model ?? null,
-    provider: options.provider ?? null,
     trials: options.trials,
     useApi: options.useApi,
     verbose: options.verbose,
@@ -403,7 +359,6 @@ async function emitDryRun(
     target: options.target ?? null,
     normalizedTarget: options.normalizedTarget ?? null,
     tasks: sortedTasks,
-    skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
     matrix,
@@ -444,7 +399,6 @@ async function buildDryRunMatrix(
         environment: options.environment,
         useApi: options.useApi,
         modelOverride: options.model,
-        provider: options.provider,
         harness: options.harness,
         categoryFilter,
         datasetFilter: options.datasetFilter,
@@ -480,7 +434,7 @@ async function buildDryRunMatrix(
             harness: testcase.metadata.harness ?? options.harness,
             environment: testcase.metadata.environment ?? options.environment,
             useApi: testcase.metadata.api ?? options.useApi,
-            provider: testcase.metadata.provider ?? options.provider ?? null,
+            provider: testcase.metadata.provider ?? null,
             toolSurface: testcase.metadata.toolSurface ?? null,
             startupProfile: testcase.metadata.startupProfile ?? null,
             toolCommand: testcase.metadata.toolCommand ?? null,

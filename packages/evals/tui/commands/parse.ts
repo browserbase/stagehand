@@ -25,7 +25,6 @@ export interface RunFlags {
   concurrency?: number;
   env?: string;
   model?: string;
-  provider?: string;
   api?: boolean;
   tool?: string;
   startup?: string;
@@ -43,8 +42,6 @@ export interface RunFlags {
    * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
    */
   success?: SuccessMode;
-  /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
-  legacy?: boolean;
 }
 
 export type SuccessMode = "outcome" | "process" | "both";
@@ -58,7 +55,6 @@ export interface ConfigDefaults {
   env?: string;
   trials?: number;
   concurrency?: number;
-  provider?: string | null;
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
@@ -71,7 +67,6 @@ export interface ResolvedRunOptions {
   concurrency: number;
   environment: "LOCAL" | "BROWSERBASE";
   model?: string;
-  provider?: string;
   useApi: boolean;
   coreToolSurface?: string;
   coreStartupProfile?: string;
@@ -85,10 +80,7 @@ export interface ResolvedRunOptions {
   verbose: boolean;
 }
 
-/**
- * Suites wired into the unified runner. GAIA remains legacy-only;
- * WebBench never had a unified suite implementation.
- */
+/** Suites wired into the unified runner. */
 const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
@@ -96,9 +88,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "odysseysbench",
 ]);
 
-const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
-
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -106,7 +96,6 @@ const VALUE_FLAGS = new Set([
   "sample",
   "env",
   "model",
-  "provider",
   "tool",
   "startup",
   "harness",
@@ -119,7 +108,6 @@ const FLAG_ALIASES: Record<string, string> = {
   c: "concurrency",
   e: "env",
   m: "model",
-  p: "provider",
   l: "limit",
   s: "sample",
   f: "filter",
@@ -190,7 +178,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
-        else if (name === "legacy") flags.legacy = true;
         i++;
         continue;
       }
@@ -222,9 +209,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
           break;
         case "model":
           flags.model = value;
-          break;
-        case "provider":
-          flags.provider = value;
           break;
         case "tool":
           flags.tool = value;
@@ -303,15 +287,7 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
-    if (!flags.legacy) {
-      throw new Error(
-        `Benchmark "${benchmarkName}" is legacy-only. Use --legacy or choose one of: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-      );
-    }
-  }
-
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName) && !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
+  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
     throw new Error(
       `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
     );
@@ -370,7 +346,6 @@ export function resolveRunOptions(
   } = applyBenchmarkShorthand(flags.target, flags);
 
   const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
-  const provider = flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
   const useApi = flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
   const trials =
     flags.trials ??
@@ -390,9 +365,6 @@ export function resolveRunOptions(
   envOverrides.USE_API = String(Boolean(useApi));
   envOverrides.EVAL_TRIAL_COUNT = String(trials);
   envOverrides.EVAL_MAX_CONCURRENCY = String(concurrency);
-  if (provider !== undefined) {
-    envOverrides.EVAL_PROVIDER = provider;
-  }
   if (model !== undefined) {
     envOverrides.EVAL_MODEL_OVERRIDE = model;
   }
@@ -412,7 +384,6 @@ export function resolveRunOptions(
     concurrency,
     environment,
     model: model ?? undefined,
-    provider: provider ?? undefined,
     useApi: Boolean(useApi),
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,

@@ -90,12 +90,12 @@ describe("deriveCategoryFilter", () => {
     expect(deriveCategoryFilter(registry, "agent/webvoyager")).toBeUndefined();
   });
 
-  it("omits legacy-only suite tasks from broad dry-runs", async () => {
+  it("omits agent suites from broad dry-runs on the stagehand harness", async () => {
     const registry = makeRegistry([
       makeTask({
-        name: "agent/gaia",
-        primaryCategory: "agent",
-        categories: ["agent"],
+        name: "dropdown",
+        primaryCategory: "act",
+        categories: ["act"],
       }),
       makeTask({
         name: "agent/webvoyager",
@@ -124,8 +124,12 @@ describe("deriveCategoryFilter", () => {
     );
 
     const payload = JSON.parse(String(log.mock.calls[0][0]));
-    expect(payload.tasks).toEqual(["agent/webvoyager"]);
-    expect(payload.skippedTasks).toEqual(["agent/gaia"]);
+    expect(payload.tasks.sort()).toEqual(["agent/webvoyager", "dropdown"]);
+    // The suite is omitted from the planned matrix (external harness only),
+    // while the deterministic task still plans.
+    expect([...new Set(payload.matrix.map((row: { task: string }) => row.task))]).toEqual([
+      "dropdown",
+    ]);
     expect(process.exitCode).toBeUndefined();
   });
 

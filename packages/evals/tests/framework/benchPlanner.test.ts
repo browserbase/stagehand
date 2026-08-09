@@ -30,7 +30,6 @@ describe("benchPlanner", () => {
     const task = makeTask();
     const row = buildBenchMatrixRow(task, "openai/gpt-4.1-mini" as AvailableModel, {
       environment: "BROWSERBASE",
-      provider: "openai",
       useApi: true,
     });
 

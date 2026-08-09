@@ -53,7 +53,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
  * augmented) during discovery. External agent benchmarks are grouped here.
  */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
