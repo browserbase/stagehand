@@ -295,10 +295,7 @@ async function cleanupStoppedDaemonFiles(session: string): Promise<void> {
   }
 }
 
-async function acquireLock(
-  session: string,
-  timeoutMs = 10_000,
-): Promise<boolean> {
+async function acquireLock(session: string, timeoutMs = 10_000): Promise<boolean> {
   const lockPath = getLockPath(session);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
@@ -361,12 +358,8 @@ function isDaemonUnavailableError(error: Error): boolean {
   return code === "ECONNREFUSED" || code === "ENOENT";
 }
 
-function daemonNotRunningError(
-  session: string,
-  request: DriverRequest,
-): CommandFailure {
-  const sessionFlag =
-    session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
+function daemonNotRunningError(session: string, request: DriverRequest): CommandFailure {
+  const sessionFlag = session === "default" ? "" : ` --session ${formatCommandArgument(session)}`;
   const startCommand =
     request.type === "open"
       ? `browse open ${formatCommandArgument(request.url)}${sessionFlag}`

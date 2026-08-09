@@ -1,13 +1,6 @@
 import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
-import {
-  access,
-  mkdtemp,
-  open as openFile,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { access, mkdtemp, open as openFile, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -884,10 +877,7 @@ describe("driver foundation", () => {
 
     try {
       await expect(
-        openViaDaemon(
-          "missing-daemon",
-          "https://example.com/search?q=test&page=1",
-        ),
+        openViaDaemon("missing-daemon", "https://example.com/search?q=test&page=1"),
       ).rejects.toMatchObject({
         message:
           "Driver daemon session \"missing-daemon\" is not running. Start it with: browse open 'https://example.com/search?q=test&page=1' --session missing-daemon",
