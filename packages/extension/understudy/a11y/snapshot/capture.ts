@@ -1,4 +1,5 @@
 import type { Protocol } from "devtools-protocol";
+import type { Locator } from "../../../../protocol/types.js";
 import type { CDPSessionLike } from "../../cdp.js";
 import { Page } from "../../page.js";
 import { Frame } from "../../frame.js";
@@ -41,7 +42,7 @@ const toWellFormed = (value: string): string => (value as StringWithToWellFormed
  * Capture a hybrid DOM + Accessibility snapshot for the provided page.
  *
  * Flow overview:
- * 1. (Optional) Scope directly to a requested selector. We walk iframe hops to
+ * 1. (Optional) Scope directly to a requested locator. We walk iframe hops to
  *    find the owning frame, build just that frame’s DOM + AX tree, and bail out
  *    early when the subtree satisfies the caller.
  * 2. Build DOM indexes for every unique CDP session. DOM.getDocument is called
@@ -62,7 +63,7 @@ export async function captureHybridSnapshot(
 ): Promise<HybridSnapshot> {
   const pierce = options?.pierceShadow ?? true;
   const includeIframes = options?.includeIframes !== false;
-  const hasIgnoreSelectors = (options?.ignoreSelectors?.length ?? 0) > 0;
+  const hasIgnoreLocators = (options?.ignoreLocators?.length ?? 0) > 0;
 
   const context = buildFrameContext(page);
   const framesInScope = includeIframes ? [...context.frames] : [context.rootId];
@@ -70,7 +71,7 @@ export async function captureHybridSnapshot(
     framesInScope.unshift(context.rootId);
   }
 
-  if (!hasIgnoreSelectors) {
+  if (!hasIgnoreLocators) {
     const scopedSnapshot = await tryScopedSnapshot(
       page,
       options,
@@ -86,7 +87,7 @@ export async function captureHybridSnapshot(
   const sessionToIndex = await buildSessionIndexes(page, framesInScope, pierce);
   const ignoredNodesByFrame = await resolveIgnoredNodes(
     page,
-    options?.ignoreSelectors,
+    options?.ignoreLocators,
     context,
     sessionToIndex,
   );
@@ -96,7 +97,7 @@ export async function captureHybridSnapshot(
     sessionToIndex,
     ignoredNodesByFrame,
   );
-  if (hasIgnoreSelectors) {
+  if (hasIgnoreLocators) {
     const scopedSnapshot = await tryScopedSnapshot(
       page,
       options,
@@ -153,12 +154,12 @@ export function buildFrameContext(page: Page): FrameContext {
 }
 
 /**
- * Step 1 – scoped snapshot fast-path. If a selector is provided we try to:
- *  1) Resolve the selector (XPath or CSS) across iframes.
+ * Step 1 – scoped snapshot fast-path. If a locator is provided we try to:
+ *  1) Resolve the selector portion (XPath or CSS) across iframes.
  *  2) Build DOM + AX data only for the owning frame.
  *  3) Bail out early when the selector's subtree satisfies the request.
  *
- * Returns `null` when scoping fails (e.g., selector miss) so the caller can
+ * Returns `null` when scoping fails (e.g., locator miss) so the caller can
  * fall back to the full multi-frame snapshot.
  */
 export async function tryScopedSnapshot(
@@ -170,12 +171,13 @@ export async function tryScopedSnapshot(
   exclusionIntervalsByFrame: ExclusionIntervalsByFrame,
   logger: StagehandLogger,
 ): Promise<HybridSnapshot | null> {
-  const requestedFocus = options?.focusSelector?.trim();
+  const focusLocator = options?.focusLocator;
+  const requestedFocus = focusLocator?.selector.trim();
   if (!requestedFocus) return null;
 
   const logScopeFallback = () => {
-    logger.warn("Unable to narrow scope with selector; falling back to the full DOM", {
-      selector: options?.focusSelector?.trim() ?? "",
+    logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
+      locator: focusLocator,
     });
   };
 
@@ -221,7 +223,12 @@ export async function tryScopedSnapshot(
     );
 
     const { outline, urlMap, scopeApplied } = await a11yForFrame(owningSess, targetFrameId, {
-      focusSelector: tailSelector || undefined,
+      focusLocator: tailSelector
+        ? {
+            selector: tailSelector,
+            ...(focusLocator.nth === undefined ? {} : { nth: focusLocator.nth }),
+          }
+        : undefined,
       isIgnoredBackendNode: makeIsIgnoredBackendNode(
         targetFrameId,
         ownerSessionIndexForFrame(page, targetFrameId, sessionToIndex),
@@ -385,20 +392,20 @@ export async function collectPerFrameMaps(
 
 export async function resolveIgnoredNodes(
   page: Page,
-  ignoreSelectors: string[] | undefined,
+  ignoreLocators: Locator[] | undefined,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
 ): Promise<IgnoredNodeMap> {
   const ignoredNodesByFrame: IgnoredNodeMap = new Map();
 
-  for (const rawSelector of ignoreSelectors ?? []) {
-    const selector = rawSelector.trim();
+  for (const locator of ignoreLocators ?? []) {
+    const selector = locator.selector.trim();
     if (!selector) continue;
 
     try {
-      const resolved = await resolveIgnoredNodesForSelector(
+      const resolved = await resolveIgnoredNodesForLocator(
         page,
-        selector,
+        { ...locator, selector },
         context,
         sessionToIndex,
       );
@@ -415,12 +422,13 @@ export async function resolveIgnoredNodes(
   return ignoredNodesByFrame;
 }
 
-async function resolveIgnoredNodesForSelector(
+async function resolveIgnoredNodesForLocator(
   page: Page,
-  selector: string,
+  locator: Locator,
   context: FrameContext,
   sessionToIndex: Map<string, SessionDomIndex>,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
+  const selector = locator.selector;
   const looksLikeXPath = /^xpath=/i.test(selector) || selector.startsWith("/");
 
   if (looksLikeXPath) {
@@ -446,10 +454,15 @@ async function resolveIgnoredNodesForSelector(
       );
       return [{ frameId: targetFrameId, backendNodeId }];
     }
-    return resolveIgnoredNodesInFrame(page, targetFrameId, {
-      kind: "xpath",
-      value: tailXPath,
-    });
+    return resolveIgnoredNodesInFrame(
+      page,
+      targetFrameId,
+      {
+        kind: "xpath",
+        value: tailXPath,
+      },
+      locator.nth,
+    );
   }
 
   const hit = await resolveCssFocusFrameAndTail(
@@ -459,21 +472,30 @@ async function resolveIgnoredNodesForSelector(
     context.rootId,
   );
   const targetFrameId = hit.targetFrameId;
-  return resolveIgnoredNodesInFrame(page, targetFrameId, {
-    kind: "css",
-    value: hit.tailSelector || selector,
-  });
+  return resolveIgnoredNodesInFrame(
+    page,
+    targetFrameId,
+    {
+      kind: "css",
+      value: hit.tailSelector || selector,
+    },
+    locator.nth,
+  );
 }
 
 async function resolveIgnoredNodesInFrame(
   page: Page,
   frameId: string,
   query: SelectorQuery,
+  nth: number | undefined,
 ): Promise<Array<{ frameId: string; backendNodeId: number }>> {
   const session = ownerSession(page, frameId);
   const frame = new Frame(session, frameId, "", false, page.logger);
   const resolver = new FrameSelectorResolver(frame);
-  const resolvedNodes = await resolver.resolveAll(query);
+  const resolvedNodes =
+    nth === undefined
+      ? await resolver.resolveAll(query)
+      : [await resolver.resolveAtIndex(query, nth)].filter((node): node is ResolvedNode => !!node);
   if (!resolvedNodes.length) return [];
 
   const backendNodeIds = await describeResolvedNodes(session, resolvedNodes);

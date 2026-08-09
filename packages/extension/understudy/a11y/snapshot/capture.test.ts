@@ -93,7 +93,7 @@ describe("snapshot Unicode repair", () => {
 
     const snapshot = await tryScopedSnapshot(
       {} as Page,
-      { focusSelector: "#target" },
+      { focusLocator: { selector: "#target" } },
       {
         rootId: "root",
         frames: ["root"],

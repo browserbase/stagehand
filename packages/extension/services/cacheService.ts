@@ -3,6 +3,7 @@ import type {
   Action,
   CacheMetadata,
   Caching,
+  Locator,
   StagehandActParams,
   StagehandExtractParams,
   StagehandInitParams,
@@ -96,8 +97,8 @@ export function buildObserveCacheData(params: StagehandObserveParams): Record<st
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
-          selector: params.options.selector,
-          ignoreSelectors: params.options.ignoreSelectors,
+          locator: params.options.locator,
+          ignoreLocators: params.options.ignoreLocators,
         }
       : undefined,
   };
@@ -110,8 +111,8 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
     options: params.options
       ? {
           timeout: params.options.timeout,
-          selector: params.options.selector,
-          ignoreSelectors: params.options.ignoreSelectors,
+          locator: params.options.locator,
+          ignoreLocators: params.options.ignoreLocators,
           screenshot: params.options.screenshot,
         }
       : undefined,
@@ -198,7 +199,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   method,
   page,
   data,
-  selector,
+  locator,
   caching,
   context,
   logger,
@@ -208,9 +209,9 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   method: CacheMethod;
   page: unknown;
   data: Record<string, unknown>;
-  /** Focus selector (observe/extract); resolved to a backendNodeId so the
+  /** Focus locator (observe/extract); resolved to a backendNodeId so the
    * server scopes the DOM hash exactly like the live v3 routes. */
-  selector?: string;
+  locator?: Locator;
   /** Per-request override from options.cache. */
   caching?: Caching;
   context: CacheContext | undefined;
@@ -224,7 +225,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
     return (await execute()).result;
   }
 
-  const cdpTree = await collectCdpTree(cachePage, selector, logger);
+  const cdpTree = await collectCdpTree(cachePage, locator, logger);
   if (!cdpTree) {
     return (await execute()).result;
   }
@@ -340,13 +341,13 @@ function asCachePage(page: unknown): CachePage | null {
 
 /**
  * Collects the verbatim Accessibility.getFullAXTree nodes for every frame,
- * plus the resolved backendNodeId for the focus selector when one is set —
- * the server requires it to scope the DOM hash to the selector's subtree.
+ * plus the resolved backendNodeId for the focus locator when one is set —
+ * the server requires it to scope the DOM hash to the locator's subtree.
  * Returns null (skip caching) when the payload can't be assembled.
  */
 async function collectCdpTree(
   page: CachePage,
-  selector: string | undefined,
+  locator: Locator | undefined,
   logger: StagehandLogger,
 ): Promise<CdpTree | null> {
   try {
@@ -360,12 +361,12 @@ async function collectCdpTree(
     }
 
     let focusBackendNodeId: number | undefined;
-    if (selector) {
-      focusBackendNodeId = await resolveBackendNodeId(mainFrame, selector);
+    if (locator) {
+      focusBackendNodeId = await resolveBackendNodeId(mainFrame, locator);
       if (focusBackendNodeId === undefined) {
-        logger.debug("Cache skipped: focus selector did not resolve to a node", {
+        logger.debug("Cache skipped: focus locator did not resolve to a node", {
           category: "cache",
-          selector,
+          locator,
         });
         return null;
       }
@@ -385,9 +386,12 @@ async function collectCdpTree(
   }
 }
 
-async function resolveBackendNodeId(frame: Frame, selector: string): Promise<number | undefined> {
+async function resolveBackendNodeId(frame: Frame, locator: Locator): Promise<number | undefined> {
   const resolver = new FrameSelectorResolver(frame);
-  const resolved = await resolver.resolveFirst(FrameSelectorResolver.parseSelector(selector));
+  const resolved = await resolver.resolveAtIndex(
+    FrameSelectorResolver.parseSelector(locator.selector),
+    locator.nth ?? 0,
+  );
   if (!resolved) return undefined;
 
   const { node } = await frame.session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
