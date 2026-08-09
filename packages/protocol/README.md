@@ -46,13 +46,26 @@ a request object without an `id`, so it does not receive a response.
 
 ## Runtime protocol versions
 
-Use `protocolVersion` as the only compatibility gate. Bump it only for breaking wire changes:
+SDK, extension, and protocol packages are versioned independently. Their package versions identify
+the released artifacts; only `protocolVersion`, sourced from this package's `package.json`, gates
+runtime compatibility.
 
-| Bump for                       | Never bump for      |
-| ------------------------------ | ------------------- |
-| Renamed or removed parameters  | New methods         |
-| Removed or retyped result data | New optional fields |
-| Changed notification semantics |                     |
-| Transport changes              |                     |
+Use standard SemVer for the protocol:
+
+| Bump  | Use when                                                                                        |
+| ----- | ----------------------------------------------------------------------------------------------- |
+| Patch | Correcting the protocol without requiring a new runtime capability                              |
+| Minor | Adding a backward-compatible capability that a newer client may require                         |
+| Major | Breaking communication with a previously released client or server, including transport changes |
+
+Do not bump the protocol for an SDK-only or extension-only implementation change. A breaking public
+SDK API with no wire change affects that SDK's package version, not the protocol version.
+
+Stable releases are compatible when the client and server protocol majors match and the server
+protocol minor is greater than or equal to the client protocol minor. Protocol patch differences are
+compatible. Prerelease protocol versions must match exactly.
+
+In short: if a new client must reject an older extension, bump the protocol minor; if an existing
+released client or server can no longer communicate correctly, bump the protocol major.
 
 Keep `RuntimeDescriptorSchema` TypeScript-only. The runtime marker is read as a camel-cased JavaScript object through CDP, not through the snake-cased JSON-RPC schema artifact.

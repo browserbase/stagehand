@@ -1,4 +1,3 @@
-import { writeFile } from "node:fs/promises";
 import type {
   LoadState,
   PageCDPEvent,
@@ -18,15 +17,15 @@ import type {
   PageWaitForSelectorParams,
   PageWaitForTimeoutParams,
 } from "../../protocol/types.js";
-import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { StagehandNotifications } from "../../protocol/schema-registry.js";
+import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-registry.js";
+import { decodeBase64 } from "./base64.js";
 import { Locator } from "./locator.js";
 import {
   type InitScriptSource,
   normalizeEvaluationExpression,
   normalizeInitScriptSource,
 } from "./pageScripts.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 import { Response } from "./response.js";
 import { WebMCPTool } from "./webmcp.js";
 import type { WebMCPToolsOptions } from "./clientSchemas.js";
@@ -44,7 +43,7 @@ export class CDPSubscription {
   private unsubscribePromise: Promise<void> | undefined;
 
   constructor(
-    private readonly rpcClient: RPCClient,
+    private readonly rpcClient: StagehandCommandClient,
     private readonly subscriptionId: string,
     private readonly removeLocalListener: () => void,
     private readonly onDisposed: () => void,
@@ -72,7 +71,7 @@ export class Page {
   private readonly eventSubscriptions = new Set<CDPSubscription>();
 
   constructor(
-    readonly rpcClient: RPCClient,
+    readonly rpcClient: StagehandCommandClient,
     ref: PageRef,
   ) {
     this.currentRef = ref;
@@ -291,7 +290,7 @@ export class Page {
     return result.matched;
   }
 
-  async screenshot(options?: ScreenshotOptions): Promise<Buffer> {
+  async screenshot(options?: ScreenshotOptions): Promise<Uint8Array> {
     const { path, mask, ...screenshotOptions } = options ?? {};
     const result = await this.rpcClient.send(StagehandMethods.pageScreenshot, {
       pageId: this.pageId,
@@ -300,8 +299,16 @@ export class Page {
         ...(mask ? { mask: mask.map((locator) => locator.descriptor) } : {}),
       },
     });
-    const bytes = Buffer.from(result.data, "base64");
-    if (path) await writeFile(path, bytes);
+    const bytes = decodeBase64(result.data, "page.screenshot");
+    if (path) {
+      const moduleName = "node:" + "fs/promises";
+      const { writeFile } = (await import(/* @vite-ignore */ moduleName).catch(() => {
+        throw new TypeError(
+          "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
+        );
+      })) as typeof import("node:fs/promises");
+      await writeFile(path, bytes);
+    }
     return bytes;
   }
 

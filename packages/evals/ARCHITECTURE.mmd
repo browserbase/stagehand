@@ -4,7 +4,6 @@ flowchart TB
         REPL["tui/repl.ts<br/>interactive shell<br/>Esc abort support"]
         BuildCLI["scripts/build-cli.ts<br/>bundled dist/cli bin"]
         BuildESM["scripts/build-esm.ts<br/>dist/esm + assets + datasets"]
-        LegacyCLI["cli-legacy.ts / index.eval.ts<br/>--legacy escape hatch"]
     end
 
     subgraph TUI["TUI Command Layer"]
@@ -33,7 +32,7 @@ flowchart TB
         BenchPlanner["framework/benchPlanner.ts<br/>model matrix<br/>suite expansion<br/>metadata/tags"]
         TaskConfig["taskConfig.ts<br/>default models<br/>agent model entries"]
         Datasets[("datasets/*<br/>WebVoyager<br/>OnlineMind2Web<br/>WebTailBench")]
-        DryRun["dry-run JSON<br/>tasks, skippedTasks,<br/>envOverrides, runOptions"]
+        DryRun["dry-run JSON<br/>target, normalizedTarget, tasks,<br/>envOverrides, runOptions,<br/>matrix, error?"]
     end
 
     subgraph Runner["Unified Runner"]
@@ -94,7 +93,6 @@ flowchart TB
     REPL --> RunCmd
     BuildCLI --> CLI
     BuildESM --> RuntimePaths
-    LegacyCLI --> LegacyRunner["legacy runner path<br/>pre-refactor behavior"]
 
     %% TUI and config
     ConfigCmd <--> ConfigFile

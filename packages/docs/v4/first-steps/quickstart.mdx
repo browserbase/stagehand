@@ -5,41 +5,44 @@ description: "Build your first Stagehand automation with act, extract, and obser
 
 The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps.
 
-<Note>
-Use the language selector on this page to switch every code sample between TypeScript, Python, and Go.
-</Note>
+<Steps>
 
-## 1) Create a sample project
+<Step title="Create a sample project">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 mkdir my-stagehand-app && cd my-stagehand-app
 pnpm init -y
 pnpm install @browserbasehq/stagehand zod
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 mkdir my-stagehand-app && cd my-stagehand-app
 python -m venv .venv && source .venv/bin/activate
 pip install stagehand
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 mkdir my-stagehand-app && cd my-stagehand-app
 go mod init example.com/my-stagehand-app
 go get github.com/browserbase/stagehand/packages/sdk-go
 ```
-</View>
+</Tab>
+</Tabs>
 
-## 2) Write the script
+</Step>
+
+<Step title="Write the script">
 
 Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises all three primitives: act, extract, and observe.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
@@ -79,9 +82,9 @@ main().catch((err) => {
   process.exit(1);
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import asyncio
 import os
@@ -124,9 +127,9 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 package main
 
@@ -209,40 +212,48 @@ func run(ctx context.Context) (err error) {
 	return nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the browser factory, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
 </Note>
 
-## 3) Run it
+</Step>
+
+<Step title="Run it">
 
 Set your Browserbase API key, then run the script. Model Gateway selects and authenticates the model automatically, so no model provider key is required.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
 npx tsx index.ts                         # Run the example script
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
 python main.py                           # Run the example script
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
 go run .                                 # Run the example script
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Prefer to run against a browser on your own machine while you develop? Swap `browserbase.launch()` for `localBrowser.launch()` and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
 </Tip>
+
+</Step>
+</Steps>
 
 ## Next steps
 

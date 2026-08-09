@@ -1,6 +1,7 @@
 import { RPCClient } from "./rpcClient.js";
 import {
   DefaultExtractDataSchema,
+  MAX_CALLBACK_BATCH_TIMEOUT_MS,
   STAGEHAND_PROTOCOL_VERSION,
   StagehandInitParamsSchema,
 } from "../../protocol/schemas.js";
@@ -9,6 +10,7 @@ import { StagehandMethods, StagehandNotifications } from "../../protocol/schema-
 import type {
   Action,
   ActResult,
+  CallbackBatchResult,
   DefaultExtractData,
   ObserveResult,
   StagehandMetrics,
@@ -38,6 +40,7 @@ import {
 } from "./browser/factories.js";
 import { attachStagehandBrowserContext, detachStagehandBrowserContext } from "./browser/index.js";
 import { withStagehandInitDeadline } from "./timeouts.js";
+import type { ExperimentalBatchCallback, ExperimentalBatchOptions } from "./batch.js";
 
 type ProtocolExtractResult = import("../../protocol/types.js").ExtractResult;
 
@@ -52,6 +55,9 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
   typeof value.parse === "function" &&
   "safeParse" in value &&
   typeof value.safeParse === "function";
+
+const nativeFunctionSourcePattern =
+  /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
 
 export class Stagehand {
   isInitialized = false;
@@ -108,6 +114,54 @@ export class Stagehand {
 
   async metrics(): Promise<StagehandMetrics> {
     return this.connectedRpcClient.send(StagehandMethods.stagehandMetrics, {});
+  }
+
+  async experimentalBatch<Result>(
+    callback: ExperimentalBatchCallback<undefined, Result>,
+  ): Promise<Awaited<Result>>;
+  async experimentalBatch<Input, Result>(
+    callback: ExperimentalBatchCallback<Input, Result>,
+    input: Input,
+    options?: ExperimentalBatchOptions,
+  ): Promise<Awaited<Result>>;
+  async experimentalBatch<Input, Result>(
+    callback: ExperimentalBatchCallback<Input, Result>,
+    input?: Input,
+    options: ExperimentalBatchOptions = {},
+  ): Promise<Awaited<Result>> {
+    if (typeof callback !== "function") {
+      throw new TypeError("stagehand.experimentalBatch() requires a callback function");
+    }
+    if (options === null || typeof options !== "object" || Array.isArray(options)) {
+      throw new TypeError("stagehand.experimentalBatch() options must be an object");
+    }
+    const parsedInput = input === undefined ? undefined : z.json().parse(input);
+    const timeout = options.timeout ?? 30_000;
+    if (!Number.isInteger(timeout) || timeout <= 0) {
+      throw new RangeError("stagehand.experimentalBatch() timeout must be a positive integer");
+    }
+    if (timeout > MAX_CALLBACK_BATCH_TIMEOUT_MS) {
+      throw new RangeError(
+        `stagehand.experimentalBatch() timeout must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`,
+      );
+    }
+    const callbackSource = Function.prototype.toString.call(callback);
+    if (nativeFunctionSourcePattern.test(callbackSource)) {
+      throw new TypeError("stagehand.experimentalBatch() callback must be serializable JavaScript");
+    }
+
+    const result: CallbackBatchResult = await this.connectedRpcClient.send(
+      StagehandMethods.stagehandCallbackBatch,
+      {
+        callbackSource,
+        ...(parsedInput === undefined ? {} : { input: parsedInput }),
+        options: {
+          ...(options.page ? { pageId: options.page.pageId } : {}),
+          timeout,
+        },
+      },
+    );
+    return result.value as Awaited<Result>;
   }
 
   private async initialize(browser: ClaimedStagehandBrowser, signal: AbortSignal): Promise<void> {
