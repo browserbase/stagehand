@@ -3,6 +3,7 @@ import type { ModelMessage } from "ai";
 // Vision action tools that include screenshots in their results
 const VISION_ACTION_TOOLS = [
   "click",
+  "clickAndHold",
   "type",
   "dragAndDrop",
   "wait",
