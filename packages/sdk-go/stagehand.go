@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -155,6 +156,81 @@ func (s *Stagehand) Metrics(ctx context.Context) (StagehandMetrics, error) {
 	var result StagehandMetrics
 	err = rpc.call(ctx, "stagehand.metrics", EmptyParams{}, &result)
 	return result, err
+}
+
+// ExperimentalBatch runs trusted JavaScript against the worker-local public Stagehand object model.
+func (s *Stagehand) ExperimentalBatch(
+	ctx context.Context,
+	source string,
+	input any,
+	result any,
+	options ExperimentalBatchOptions,
+) error {
+	if ctx == nil {
+		return errors.New("stagehand callback batch context is required")
+	}
+	if strings.TrimSpace(source) == "" {
+		return errors.New("stagehand callback batch source must be JavaScript")
+	}
+	resultValue := reflect.ValueOf(result)
+	if result == nil || resultValue.Kind() != reflect.Pointer || resultValue.IsNil() {
+		return errors.New("stagehand callback batch result must be a non-nil pointer")
+	}
+	timeout := options.Timeout
+	if timeout == 0 {
+		timeout = defaultExperimentalBatchTimeout
+	}
+	if timeout < time.Millisecond {
+		return errors.New("stagehand callback batch timeout must be at least one millisecond")
+	}
+	timeoutMilliseconds := timeout.Milliseconds()
+	if timeoutMilliseconds > maxExperimentalBatchTimeoutMilliseconds {
+		return errors.New("stagehand callback batch timeout exceeds the maximum supported timeout")
+	}
+	rpc, err := s.connectedProtocol()
+	if err != nil {
+		return err
+	}
+	pageID := ""
+	if options.Page != nil {
+		pageID = options.Page.PageID()
+		if pageID == "" {
+			return errors.New("stagehand callback batch page must have a non-empty page ID")
+		}
+	}
+	var inputJSON json.RawMessage
+	if input != nil {
+		inputJSON, err = json.Marshal(input)
+		if err != nil {
+			return fmt.Errorf("stagehand callback batch input must be JSON-serializable: %w", err)
+		}
+	}
+	params := CallbackBatchParams{
+		CallbackSource: source,
+		Input:          inputJSON,
+		Options: CallbackBatchOptions{
+			Timeout: int(timeoutMilliseconds),
+		},
+	}
+	if pageID != "" {
+		params.Options.PageID = &pageID
+	}
+	var batchResult CallbackBatchResult
+	if err := rpc.call(
+		ctx,
+		"stagehand.callback_batch",
+		params,
+		&batchResult,
+	); err != nil {
+		return err
+	}
+	if len(batchResult.Value) == 0 {
+		batchResult.Value = json.RawMessage("null")
+	}
+	if err := json.Unmarshal(batchResult.Value, result); err != nil {
+		return fmt.Errorf("decode stagehand callback batch result: %w", err)
+	}
+	return nil
 }
 
 // Act performs an AI-guided action on the selected or active page.

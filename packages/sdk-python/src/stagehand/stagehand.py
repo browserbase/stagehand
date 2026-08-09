@@ -20,6 +20,9 @@ from ._generated.models import (
     Action,
     ActOptions,
     ActResult,
+    CallbackBatchOptions,
+    CallbackBatchParams,
+    CallbackBatchResult,
     ClientModelReference,
     EmptyParams,
     ExtractOptions,
@@ -63,6 +66,8 @@ from .timeouts import with_stagehand_init_deadline
 
 ResultModel = TypeVar("ResultModel", bound=BaseModel)
 _CONSTRUCTION_TOKEN = object()
+_UNSET_BATCH_INPUT = object()
+_MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000
 _UNAVAILABLE_MESSAGE = (
     "Stagehand is unavailable. Create a new instance with await Stagehand.create()."
 )
@@ -169,6 +174,60 @@ class Stagehand:
             "stagehand.metrics",
             EmptyParams(),
             StagehandMetrics,
+        )
+
+    async def experimental_batch(
+        self,
+        source: str,
+        input: object = _UNSET_BATCH_INPUT,
+        *,
+        timeout: int = 30_000,
+        page: Page | None = None,
+    ) -> object:
+        """Run trusted JavaScript against the worker-local Stagehand object model."""
+        if not isinstance(source, str) or not source.strip():
+            raise TypeError("source must be a non-empty JavaScript string")
+        if isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0:
+            raise ValueError("timeout must be a positive number of milliseconds")
+        if timeout > _MAX_CALLBACK_BATCH_TIMEOUT_MS:
+            raise ValueError(
+                f"timeout must not exceed {_MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds"
+            )
+        input_model: _models.FieldSchema2 | None = None
+        if input is not _UNSET_BATCH_INPUT:
+            try:
+                serialized_input = json.dumps(input, allow_nan=False)
+                input_model = _models.FieldSchema2.model_validate_json(
+                    serialized_input,
+                    strict=True,
+                )
+            except (TypeError, ValueError) as error:
+                raise TypeError("input must be JSON-serializable") from error
+        options_model = CallbackBatchOptions(
+            **({"page_id": page.page_id} if page is not None else {}),
+            timeout=timeout,
+        )
+        params = (
+            CallbackBatchParams(
+                callback_source=source,
+                options=options_model,
+            )
+            if input is _UNSET_BATCH_INPUT
+            else CallbackBatchParams(
+                callback_source=source,
+                input=input_model,
+                options=options_model,
+            )
+        )
+        result = await self._connected_rpc_client.send(
+            "stagehand.callback_batch",
+            params,
+            CallbackBatchResult,
+        )
+        return (
+            result.value.model_dump(mode="json")
+            if isinstance(result.value, BaseModel)
+            else result.value
         )
 
     async def _initialize(self, claimed: _ClaimedBrowser) -> None:

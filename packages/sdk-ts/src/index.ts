@@ -22,6 +22,13 @@ export {
 export { WebMCPInvocation, WebMCPTool } from "./webmcp.js";
 export type { InitScriptSource } from "./pageScripts.js";
 export { Stagehand, type ExtractResult } from "./stagehand.js";
+export type {
+  ExperimentalBatchCallback,
+  ExperimentalBatchBrowserContext,
+  ExperimentalBatchContext,
+  ExperimentalBatchExtractOptions,
+  ExperimentalBatchOptions,
+} from "./batch.js";
 export { browserbase, localBrowser } from "./browser/factories.js";
 export type {
   BrowserbaseBrowser,

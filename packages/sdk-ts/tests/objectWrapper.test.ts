@@ -1,18 +1,21 @@
 import { mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import { z } from "zod/v4";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
+import { MAX_CALLBACK_BATCH_TIMEOUT_MS } from "../../protocol/schemas.js";
 import type { StagehandRpcNotification } from "../../protocol/types.js";
 import {
   BrowserClipboard,
   BrowserContext,
+  type ExperimentalBatchContext,
   Locator,
   Page,
   Response,
   Stagehand,
+  type StagehandMetrics,
   WebMCPInvocation,
   WebMCPTool,
 } from "../src/index.js";
@@ -24,9 +27,19 @@ import {
 } from "../src/browser/index.js";
 
 type ProtocolCall = { method: string; params: unknown };
+type CallbackBatchCall = {
+  callbackSource: string;
+  input: unknown;
+  pageId?: string;
+  timeout: number;
+};
 
 class FakeProtocolClient extends RPCClient {
   readonly calls: ProtocolCall[] = [];
+  readonly batchCalls: CallbackBatchCall[] = [];
+  batchHandler: (input: CallbackBatchCall) => Promise<unknown> = async () => ({
+    title: "Example",
+  });
   responses = new Map<string, unknown[]>();
   readonly listeners = new Set<(notification: StagehandRpcNotification) => void>();
 
@@ -58,6 +71,24 @@ class FakeProtocolClient extends RPCClient {
     params: z.input<Method["params"]>,
   ): Promise<z.output<Method["result"]>> {
     this.calls.push({ method: method.name, params });
+    if (method.name === StagehandMethods.stagehandCallbackBatch.name) {
+      const batchParams = params as {
+        callbackSource: string;
+        input?: unknown;
+        options: { pageId?: string; timeout: number };
+      };
+      const call: CallbackBatchCall = {
+        callbackSource: batchParams.callbackSource,
+        input: batchParams.input,
+        ...(batchParams.options.pageId ? { pageId: batchParams.options.pageId } : {}),
+        timeout: batchParams.options.timeout,
+      };
+      this.batchCalls.push(call);
+      const value = await this.batchHandler(call);
+      return method.result.parse(value === undefined ? {} : { value }) as z.output<
+        Method["result"]
+      >;
+    }
     const responses = this.responses.get(method.name);
     if (!responses?.length) {
       throw new Error(`No fake response queued for ${method.name}`);
@@ -110,6 +141,94 @@ const zeroUsage = {
   inferenceTimeMs: 0,
 };
 describe("Stagehand TS object wrapper", () => {
+  it("preserves the metrics type in experimental batch callbacks", () => {
+    expectTypeOf<ExperimentalBatchContext["metrics"]>().returns.toEqualTypeOf<
+      Promise<StagehandMetrics>
+    >();
+  });
+
+  it("exposes an async callback-first experimental batch API", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const callback = async ({ page }: { page: Page }, input: { id: number }) => ({
+      title: await page.title(),
+      id: input.id,
+    });
+
+    const pending = stagehand.experimentalBatch(callback, { id: 7 }, { timeout: 2_000 });
+    expect(pending).toBeInstanceOf(Promise);
+    await expect(pending).resolves.toEqual({ title: "Example" });
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.callbackSource).toContain("async");
+    expect(client.batchCalls[0]?.input).toEqual({ id: 7 });
+    expect(client.batchCalls[0]?.timeout).toBe(2_000);
+  });
+
+  it("forwards the selected page to the callback batch transport", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-2" });
+    client.batchHandler = async () => undefined;
+
+    await expect(
+      stagehand.experimentalBatch(async () => undefined, undefined, { page }),
+    ).resolves.toBeUndefined();
+
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.pageId).toBe("page-2");
+  });
+
+  it("rejects null experimental batch options with a controlled error", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await expect(
+      stagehand.experimentalBatch(async () => undefined, undefined, null as never),
+    ).rejects.toThrow(new TypeError("stagehand.experimentalBatch() options must be an object"));
+    expect(client.batchCalls).toHaveLength(0);
+  });
+
+  it("bounds experimental batch timeouts below Chromium's timer limit", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    client.batchHandler = async () => undefined;
+
+    await expect(
+      stagehand.experimentalBatch(async () => undefined, undefined, {
+        timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      stagehand.experimentalBatch(async () => undefined, undefined, {
+        timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS + 1,
+      }),
+    ).rejects.toThrow(`must not exceed ${MAX_CALLBACK_BATCH_TIMEOUT_MS} milliseconds`);
+    expect(client.batchCalls).toHaveLength(1);
+  });
+
+  it("allows native-code text inside a serializable experimental batch callback", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await stagehand.experimentalBatch(async () => {
+      // Regression probe: this text does not make the callback a native function.
+      return "[native code]";
+    });
+
+    expect(client.batchCalls).toHaveLength(1);
+    expect(client.batchCalls[0]?.callbackSource).toContain('return "[native code]"');
+  });
+
+  it("rejects actual native functions as experimental batch callbacks", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+
+    await expect(stagehand.experimentalBatch(Math.max as never)).rejects.toThrow(
+      "stagehand.experimentalBatch() callback must be serializable JavaScript",
+    );
+    expect(client.batchCalls).toHaveLength(0);
+  });
+
   it("provides an initialized Stagehand test wrapper", () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
@@ -821,8 +940,8 @@ describe("Stagehand TS object wrapper", () => {
         path: screenshotPath,
       });
 
-      expect(bytes).toStrictEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
-      expect(await readFile(screenshotPath)).toStrictEqual(bytes);
+      expect(bytes).toStrictEqual(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      expect(await readFile(screenshotPath)).toStrictEqual(Buffer.from(bytes));
       expect(client.calls).toStrictEqual([
         requestCall(StagehandMethods.pageScreenshot, {
           pageId: "page-1",
@@ -834,6 +953,68 @@ describe("Stagehand TS object wrapper", () => {
       ]);
     } finally {
       await rm(directory, { recursive: true });
+    }
+  });
+
+  it("returns browser-native screenshot bytes when Buffer is unavailable", async () => {
+    const NodeBuffer = Buffer;
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "iVBORw0KGgo=",
+      type: "png",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      const bytes: Uint8Array = await page.screenshot();
+
+      expect(bytes).toBeInstanceOf(Uint8Array);
+      expect(bytes).not.toBeInstanceOf(NodeBuffer);
+      expect([...bytes]).toStrictEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("rejects malformed screenshot base64 consistently across runtimes", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "Zh==",
+      type: "png",
+    });
+    client.queueResponse(StagehandMethods.pageScreenshot, {
+      data: "Zh==",
+      type: "png",
+    });
+    const page = new Page(client, { pageId: "page-1" });
+
+    await expect(page.screenshot()).rejects.toThrow("page.screenshot returned invalid base64");
+
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      await expect(page.screenshot()).rejects.toThrow("page.screenshot returned invalid base64");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reports when screenshot paths are unavailable outside Node.js", async () => {
+    vi.doMock("node:fs/promises", () => {
+      throw new Error("module resolution failed");
+    });
+    try {
+      const client = new FakeProtocolClient();
+      client.queueResponse(StagehandMethods.pageScreenshot, {
+        data: "iVBORw0KGgo=",
+        type: "png",
+      });
+      const page = new Page(client, { pageId: "page-1" });
+
+      await expect(page.screenshot({ path: "screenshot.png" })).rejects.toThrow(
+        "page.screenshot(): path is only supported in Node.js; omit path to receive screenshot bytes",
+      );
+    } finally {
+      vi.doUnmock("node:fs/promises");
     }
   });
 
@@ -1544,6 +1725,81 @@ describe("Stagehand TS object wrapper", () => {
       }
     } finally {
       await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("reports when file paths are unavailable outside Node.js", async () => {
+    vi.doMock("node:fs/promises", () => {
+      throw new Error("module resolution failed");
+    });
+    try {
+      const client = new FakeProtocolClient();
+      const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+
+      await expect(locator.setInputFiles("example.txt")).rejects.toThrow(
+        "setInputFiles(): file paths are only supported in Node.js; use a file payload instead",
+      );
+      expect(client.calls).toHaveLength(0);
+    } finally {
+      vi.doUnmock("node:fs/promises");
+    }
+  });
+
+  it("encodes string file payloads only once", async () => {
+    const client = new FakeProtocolClient();
+    client.queueResponse(StagehandMethods.locatorSetInputFiles, { set: true });
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const encode = vi.spyOn(TextEncoder.prototype, "encode");
+    try {
+      await locator.setInputFiles({ name: "message.txt", buffer: "hello" });
+
+      expect(encode).toHaveBeenCalledTimes(1);
+      expect(client.calls[0]).toStrictEqual(
+        requestCall(StagehandMethods.locatorSetInputFiles, {
+          pageId: "page-1",
+          selector: "#upload",
+          files: [{ name: "message.txt", data: "aGVsbG8=" }],
+        }),
+      );
+    } finally {
+      encode.mockRestore();
+    }
+  });
+
+  it("rejects oversized string file payloads before encoding in Node.js", async () => {
+    const client = new FakeProtocolClient();
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const byteLength = vi.spyOn(Buffer, "byteLength").mockReturnValue(50 * 1024 * 1024 + 1);
+    const encode = vi.spyOn(TextEncoder.prototype, "encode");
+    try {
+      await expect(
+        locator.setInputFiles({ name: "oversized.txt", buffer: "oversized" }),
+      ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+      expect(encode).not.toHaveBeenCalled();
+      expect(client.calls).toHaveLength(0);
+    } finally {
+      byteLength.mockRestore();
+      encode.mockRestore();
+    }
+  });
+
+  it("rejects oversized string file payloads before encoding in a worker", async () => {
+    const client = new FakeProtocolClient();
+    const locator = new Page(client, { pageId: "page-1" }).locator("#upload");
+    const encode = vi.spyOn(TextEncoder.prototype, "encode");
+    vi.stubGlobal("Buffer", undefined);
+    try {
+      await expect(
+        locator.setInputFiles({
+          name: "oversized.txt",
+          buffer: "a".repeat(50 * 1024 * 1024 + 1),
+        }),
+      ).rejects.toThrow("file is larger than the 50 MiB upload limit");
+      expect(encode).not.toHaveBeenCalled();
+      expect(client.calls).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+      encode.mockRestore();
     }
   });
 
