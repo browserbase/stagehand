@@ -203,6 +203,56 @@ describe("act service", () => {
     });
   });
 
+  it("plans actions from the locator-filtered snapshot context", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async (options) => {
+      expect(options).toStrictEqual({
+        focusLocator: { selector: "main" },
+        ignoreLocators: [{ selector: ".promo" }],
+      });
+      return {
+        combinedTree: "[0-12] button: Checkout",
+        combinedXpathMap: { "0-12": "/html/body/main/button" },
+        combinedUrlMap: {},
+      };
+    });
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Checkout button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click checkout",
+        options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: ".promo" }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    const prompt = clientLLMGenerate.mock.calls[0]?.[0].messages[0]?.content;
+    expect(prompt).toMatchObject({
+      type: "text",
+      text: expect.stringContaining("[0-12] button: Checkout"),
+    });
+    expect(prompt).toMatchObject({
+      type: "text",
+      text: expect.not.stringContaining("Promo modal"),
+    });
+  });
+
   it("zeroes usage when a supplied Action succeeds without inference", async () => {
     const frame = {};
     const page = actPage(
