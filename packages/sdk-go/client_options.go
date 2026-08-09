@@ -104,3 +104,20 @@ type StagehandClientExtractOptions struct {
 	Locator        *PageLocator
 	IgnoreLocators []*PageLocator
 }
+
+// ScreenshotOptions configures page screenshot capture. PageLocator wrappers
+// never cross the JSON-RPC boundary.
+type ScreenshotOptions struct {
+	Animations     *PageScreenshotOptionsAnimations
+	Caret          *PageScreenshotOptionsCaret
+	Clip           *PageScreenshotClip
+	FullPage       *bool
+	Mask           []*PageLocator
+	MaskColor      *string
+	OmitBackground *bool
+	Quality        *int
+	Scale          *PageScreenshotOptionsScale
+	Style          *string
+	Timeout        *float64
+	Type           *PageScreenshotOptionsType
+}

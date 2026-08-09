@@ -305,6 +305,95 @@ func TestPageRefreshesReferenceAndDecodesScreenshot(t *testing.T) {
 	}
 }
 
+func TestPageScreenshotSerializesOptionsAndMaskLocators(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.screenshot": PageScreenshotResult{
+			Data: "cG5nLWJ5dGVz",
+			Type: PageScreenshotResultTypePNG,
+		},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	fullPage := true
+	maskColor := "#ff00ff"
+	quality := 80
+	timeout := 2500.0
+	screenshotType := PageScreenshotOptionsTypeJPEG
+	scale := PageScreenshotOptionsScaleCSS
+	animations := PageScreenshotOptionsAnimationsDisabled
+	caret := PageScreenshotOptionsCaretHide
+	omitBackground := true
+	style := "body { color: red; }"
+	maskIndex := 2
+	mask := mustNth(t, page.Locator(".secret"), 2)
+
+	_, err := page.Screenshot(context.Background(), &ScreenshotOptions{
+		Animations:     &animations,
+		Caret:          &caret,
+		Clip:           &PageScreenshotClip{X: 1, Y: 2, Width: 300, Height: 200},
+		FullPage:       &fullPage,
+		Mask:           []*PageLocator{mask},
+		MaskColor:      &maskColor,
+		OmitBackground: &omitBackground,
+		Quality:        &quality,
+		Scale:          &scale,
+		Style:          &style,
+		Timeout:        &timeout,
+		Type:           &screenshotType,
+	})
+	if err != nil {
+		t.Fatalf("Screenshot() error = %v", err)
+	}
+
+	params, ok := rpc.calls[0].params.(PageScreenshotParams)
+	if !ok || params.PageID != "page-1" || params.Options == nil {
+		t.Fatalf("Screenshot() params = %#v", rpc.calls[0].params)
+	}
+	options := params.Options
+	if options.Animations != &animations ||
+		options.Caret != &caret ||
+		options.Clip == nil ||
+		options.Clip.X != 1 ||
+		options.Clip.Y != 2 ||
+		options.Clip.Width != 300 ||
+		options.Clip.Height != 200 ||
+		options.FullPage != &fullPage ||
+		options.MaskColor != &maskColor ||
+		options.OmitBackground != &omitBackground ||
+		options.Quality != &quality ||
+		options.Scale != &scale ||
+		options.Style != &style ||
+		options.Timeout != &timeout ||
+		options.Type != &screenshotType {
+		t.Fatalf("Screenshot() options = %#v", options)
+	}
+	wantMask := []LocatorDescriptor{{PageID: "page-1", Selector: ".secret", Nth: &maskIndex}}
+	if !reflect.DeepEqual(options.Mask, wantMask) {
+		t.Fatalf("Screenshot() mask = %#v, want %#v", options.Mask, wantMask)
+	}
+}
+
+func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	otherPage := &Page{rpc: rpc, ref: PageRef{PageID: "page-2"}}
+
+	_, err := page.Screenshot(context.Background(), &ScreenshotOptions{
+		Mask: []*PageLocator{otherPage.Locator(".secret")},
+	})
+	if err == nil || !strings.Contains(err.Error(), "mask locator must belong to the target page") {
+		t.Fatalf("Screenshot() error = %v", err)
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("Screenshot() RPC calls = %#v", rpc.calls)
+	}
+}
+
 func TestPageNavigationMethodsReturnNilWithoutNetworkResponse(t *testing.T) {
 	t.Parallel()
 
