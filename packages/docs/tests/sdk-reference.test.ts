@@ -1619,16 +1619,20 @@ async function readReferencePages(): Promise<ReferencePage[]> {
   );
 }
 
+// Sections of a reference page that document something other than a method, so
+// they carry no signature to check against the SDK.
+const NON_METHOD_SECTIONS = new Set(["Quick start", "Properties"]);
+
 function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[] {
   const children = view.children ?? [];
   return children.flatMap((child, index): ReferenceMethod[] => {
     if (child.type !== "heading" || child.depth !== 2) return [];
     const heading = mdxText(child).trim();
-    if (heading === "Quick start") return [];
+    if (NON_METHOD_SECTIONS.has(heading)) return [];
     const methodName = heading.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\(\)$/u)?.[1];
     if (!methodName) {
       throw new Error(
-        `${filePath} language tab headings must be "Quick start" or an exact method name ending in (): ${heading}`,
+        `${filePath} language tab headings must be an exact method name ending in (), or one of: ${[...NON_METHOD_SECTIONS].join(", ")}. Got: ${heading}`,
       );
     }
 

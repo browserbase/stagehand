@@ -5,7 +5,7 @@ description: Use any LLM with Stagehand
 ---
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **(NEW) Automatic Model Router**: Omit `model` and let Browserbase select a model for every `act`, `extract`, and `observe` call. One key, one bill, no provider accounts needed.
+  **New: automatic model selection.** Omit `model` and let the Model Gateway pick one for every `act`, `extract`, and `observe` call. One key, one bill, no provider accounts needed.
 </Callout>
 
 ## Model Gateway
@@ -60,11 +60,28 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. An explicit model without a provider-specific API key still routes through Model Gateway, but pins that model instead.
+When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. Selection happens server-side on every call, so your code never pins a model name and picks up new models as Browserbase adds them.
+
+What you pass decides where a call goes:
+
+| Configuration | Where inference runs |
+| --- | --- |
+| No `model` | Model Gateway, with Browserbase selecting the model per call |
+| `model` with no `apiKey` | Model Gateway, pinned to that model |
+| `model` with an `apiKey` | Straight to that provider, bypassing Gateway |
+| A client-side LLM callback | Your callback, bypassing Gateway. See [bring your own LLM](#custom-models) |
 
 <Note>
   Model Gateway requires Browserbase-hosted browsers. It does not work with local browsers, because those have no Browserbase session to bill and authorize against.
 </Note>
+
+<Note>
+  Omitting `model` from `Stagehand.create()` enables routing for that Stagehand instance. Selection itself happens per call, so one run can use different models at different steps. [Per-call overrides](#per-call-model-overrides) enable selecting a specific model instead of routing it.
+</Note>
+
+<Warning>
+  Model Gateway rejects `stopSequences`. Pin a model with its own provider API key when you need them.
+</Warning>
 
 ### Switching models
 
@@ -224,7 +241,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - **One key, one bill:** LLM inference, browser infrastructure, and caching all run through your Browserbase API key.
 - **Market-price tokens:** Browserbase charges the same price as going direct to the provider. No markup.
-- **Built-in reliability:** Retries, backoff, and rate limit handling are managed for you.
+- **Built-in reliability:** Browserbase handles retries, backoff, and rate limits.
 - **No tier-gating:** Access new models immediately without hitting provider spend thresholds.
 - **Action caching:** Model Gateway works with Stagehand's [managed action caching](/v4/best-practices/caching), so repeated steps are reused instead of re-run. Both features run off the same Browserbase session, so turning on `cache` costs you nothing extra to set up.
 
@@ -311,13 +328,13 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
+Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand ships a list of known model IDs per provider and validates the full name when you call `Stagehand.create()` or pass a per-call override, so a name it does not recognize fails before any request reaches the provider. Upgrade the SDK to pick up newly released models. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
 </Note>
 
 
 ---
 
-### First class models
+### First-class models
 
 Use any model from the following supported providers.
 
@@ -1674,6 +1691,43 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ## Troubleshooting
 
 <AccordionGroup>
+<Accordion title="Error: an LLM was not configured during Stagehand initialization">
+**Error:** `An LLM was not configured during Stagehand initialization`
+
+You omitted `model` to get automatic routing, but the browser is not a Browserbase session, so there is no Model Gateway to route through. Automatic selection has no local fallback. `Stagehand.create()` still succeeds, because Stagehand resolves the model when a call needs one, so the first `act()`, `extract()`, or `observe()` raises this instead.
+
+**Solutions:**
+
+- Launch with `browserbase.launch({ apiKey })` so the session has a Browserbase API key and session ID to authorize against
+- Or pass a `model` with its own provider `apiKey`, which works on any browser including local ones
+- Or supply a client-side LLM callback, which runs inference in your own process
+
+</Accordion>
+
+<Accordion title="Error: model inference requires a provider API key or a Browserbase session">
+**Error:** `Model inference requires a provider API key or a Browserbase session`
+
+You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserbase session. A model without a key is a Model Gateway request, and Gateway needs a Browserbase session to bill and authorize against. This is the usual result of copying a Gateway example onto a local browser.
+
+**Solutions:**
+
+- Add the provider `apiKey` to the model configuration to call the provider directly
+- Or launch with `browserbase.launch({ apiKey })` to keep the call on Gateway
+
+</Accordion>
+
+<Accordion title="Error: Browserbase Model Gateway does not support stop sequences">
+**Error:** `Browserbase Model Gateway does not support stop sequences`
+
+`stopSequences` is not available on Gateway inference, whether Browserbase selected the model or you pinned one without a provider key.
+
+**Solutions:**
+
+- Pass a `model` with its own provider `apiKey` so the call goes straight to the provider
+- Or drop `stopSequences` and constrain the output with an `extract()` schema instead
+
+</Accordion>
+
 <Accordion title="Error: API key not found">
 **Error:** `API key not found`
 
@@ -1703,9 +1757,11 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
 - Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
+- Upgrade the SDK if the model shipped after your installed version
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)
 
-Only the provider prefix is checked. The model ID itself is not validated, so a typo or a model your key cannot reach surfaces as the provider's own error (usually a `400`) on the first inference, not as an `Unsupported model` error. Verify the model name against the provider's documentation and confirm your model API key has access to it.
+A model that passes validation can still fail at request time if your model API key cannot reach it. That surfaces as the provider's own error, usually a `400`.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
@@ -1723,7 +1779,7 @@ Only the provider prefix is checked. The model ID itself is not validated, so a 
 **Solutions:**
 
 - Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
-- Use faster models for simple tasks and reach for powerful ones per call with a [model override](#per-call-model-overrides)
+- Use a fast model for simple tasks and reach for a stronger one per call with a [model override](#per-call-model-overrides)
 - Implement [caching](/v4/best-practices/caching) for repeated patterns
 </Accordion>
 <Accordion title="Python SDK or custom models">

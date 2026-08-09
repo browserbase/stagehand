@@ -101,5 +101,5 @@ jobs:
     name: Release Python SDK
     needs: python-release-status
     if: needs.python-release-status.outputs.should-publish == 'true'
-    uses: ./.github/workflows/publish-python.yaml
+    uses: ./.github/workflows/publish-python.yml
     secrets: inherit
