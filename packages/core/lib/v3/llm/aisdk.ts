@@ -23,6 +23,7 @@ import {
   extractLlmPromptSummary,
 } from "../flowlogger/FlowLogger.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 
 type ProviderOptionValue = JSONValue;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
@@ -251,6 +252,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
           model: this.model,
           messages: formattedMessages,
           schema: options.response_model.schema,
+          ...(getActiveAbortSignal()
+            ? { abortSignal: getActiveAbortSignal() }
+            : {}),
           temperature,
           allowSystemInMessages: true,
           ...(Object.keys(providerOptions).length > 0
@@ -374,6 +378,9 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
       textResponse = await generateText({
         model: this.model,
         messages: formattedMessages,
+        ...(getActiveAbortSignal()
+          ? { abortSignal: getActiveAbortSignal() }
+          : {}),
         tools: Object.keys(tools).length > 0 ? tools : undefined,
         toolChoice:
           Object.keys(tools).length > 0

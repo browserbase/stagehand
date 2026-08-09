@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { getActiveAbortSignal } from "../../cancellation.js";
 
 export interface BraveSearchResult {
   title: string;
@@ -38,6 +39,7 @@ async function performBraveSearch(query: string): Promise<SearchResponse> {
       `https://api.search.brave.com/res/v1/web/search?q=${encodedQuery}`,
       {
         method: "GET",
+        signal: getActiveAbortSignal(),
         headers: {
           Accept: "application/json",
           "Accept-Encoding": "gzip",

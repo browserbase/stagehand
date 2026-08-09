@@ -122,7 +122,15 @@ function wrapToolWithTimeout<T extends Record<string, any>>(
     ...agentTool,
     execute: async (...args: unknown[]) => {
       try {
-        return await withTimeout(originalExecute(...args), timeoutMs, toolName);
+        const executionOptions = args[1] as
+          | { abortSignal?: AbortSignal }
+          | undefined;
+        return await withTimeout(
+          () => originalExecute(...args),
+          timeoutMs,
+          toolName,
+          { signal: executionOptions?.abortSignal },
+        );
       } catch (error) {
         if (error instanceof TimeoutError) {
           const message = `TimeoutError: ${error.message}${timeoutHint ? ` ${timeoutHint}` : ""}`;
@@ -151,11 +159,10 @@ export function createAgentTools(v3: V3, options?: V3AgentToolOptions) {
   const toolTimeout = options?.toolTimeout;
 
   const timeoutHints: Record<string, string> = {
-    act: "(it may continue executing in the background) — try using a different description for the action",
+    act: "— try using a different description for the action",
     ariaTree: "— the page may be too large",
     extract: "— try using a smaller or simpler schema",
-    fillForm:
-      "(it may continue executing in the background) — try filling fewer fields at once or use a different tool",
+    fillForm: "— try filling fewer fields at once or use a different tool",
   };
 
   const unwrappedTools: ToolSet = {

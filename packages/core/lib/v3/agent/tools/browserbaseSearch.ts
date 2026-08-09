@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { V3 } from "../../v3.js";
+import { getActiveAbortSignal } from "../../cancellation.js";
 
 export interface SearchResult {
   title: string;
@@ -27,6 +28,7 @@ async function performBrowserbaseSearch(
   try {
     const response = await fetch("https://api.browserbase.com/v1/search", {
       method: "POST",
+      signal: getActiveAbortSignal(),
       headers: {
         "Content-Type": "application/json",
         "x-bb-api-key": apiKey,

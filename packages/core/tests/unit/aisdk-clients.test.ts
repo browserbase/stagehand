@@ -3,6 +3,8 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AISdkClient } from "../../lib/v3/llm/aisdk.js";
+import { withTimeout } from "../../lib/v3/timeoutConfig.js";
+import { TimeoutError } from "../../lib/v3/types/public/sdkErrors.js";
 
 vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
@@ -171,5 +173,43 @@ describe("AISdkClient allowSystemInMessages", () => {
     expect(mockGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({ allowSystemInMessages: true }),
     );
+  });
+});
+
+describe("AISdkClient cancellation", () => {
+  it("passes the timeout signal to the provider request", async () => {
+    let providerSignal: AbortSignal | undefined;
+    mockGenerateText.mockImplementation(
+      ({ abortSignal }) =>
+        new Promise((_, reject) => {
+          providerSignal = abortSignal;
+          abortSignal?.addEventListener(
+            "abort",
+            () => reject(abortSignal.reason),
+            { once: true },
+          );
+        }),
+    );
+
+    const client = new AISdkClient({
+      model: createModel("openai/gpt-4.1"),
+      logger: vi.fn(),
+    });
+
+    await expect(
+      withTimeout(
+        () =>
+          client.createChatCompletion({
+            options: {
+              messages: [{ role: "user", content: "hello" }],
+            },
+            logger: vi.fn(),
+          }),
+        5,
+        "LLM request",
+      ),
+    ).rejects.toBeInstanceOf(TimeoutError);
+
+    expect(providerSignal?.aborted).toBe(true);
   });
 });

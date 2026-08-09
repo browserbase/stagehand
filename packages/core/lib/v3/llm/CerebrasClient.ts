@@ -10,6 +10,7 @@ import {
 } from "./LLMClient.js";
 import { CreateChatCompletionResponseError } from "../types/public/sdkErrors.js";
 import { toJsonSchema } from "../zodCompat.js";
+import { getActiveAbortSignal } from "../cancellation.js";
 
 export class CerebrasClient extends LLMClient {
   public type = "cerebras" as const;
@@ -126,7 +127,7 @@ export class CerebrasClient extends LLMClient {
 
     try {
       // Use OpenAI client with Cerebras API
-      const apiResponse = await this.client.chat.completions.create({
+      const request = {
         model: this.modelName.split("cerebras-")[1],
         messages: [
           ...formattedMessages,
@@ -146,7 +147,11 @@ export class CerebrasClient extends LLMClient {
         max_tokens: options.maxOutputTokens,
         tools: tools,
         tool_choice: options.tool_choice || "auto",
-      });
+      };
+      const signal = getActiveAbortSignal();
+      const apiResponse = await (signal
+        ? this.client.chat.completions.create(request, { signal })
+        : this.client.chat.completions.create(request));
 
       // Format the response to match the expected LLMResponse format
       const response: LLMResponse = {
