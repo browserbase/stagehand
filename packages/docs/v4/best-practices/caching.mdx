@@ -341,7 +341,9 @@ Cache behavior is also visible in the [Browserbase session replay dashboard](htt
 <AccordionGroup>
 
 <Accordion title="Scope by locator">
-When targeting a specific part of a page, pass a locator to scope the accessibility tree snapshot to that container. This reduces token costs, speeds up inference, and, crucially for caching, means that changes *outside* the container don't affect the cache key.
+When targeting a specific part of a page, pass a locator to scope the accessibility tree snapshot to that container. This reduces token costs and speeds up inference.
+
+Locator-scoped `observe()` and `extract()` calls currently bypass the server-side result cache, because the cache contract is keyed on unscoped requests. Their cache status is `DISABLED` even when instance-level caching is enabled.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -353,8 +355,8 @@ async function example(stagehand: Stagehand) {
   await page.waitForLoadState("networkidle");
 
   const result = await stagehand.observe("click the first search result", {
-    // Scope to the search results container so ads, headers,
-    // and other surrounding content don't pollute the cache key.
+    // Scope to the search results container so surrounding content
+    // stays out of the snapshot sent to the model.
     locator: page.locator("#rcnt"),
   });
 }
@@ -371,8 +373,8 @@ async def example(stagehand: Stagehand) -> None:
 
     result = await stagehand.observe(
         instruction="click the first search result",
-        # Scope to the search results container so ads, headers,
-        # and other surrounding content don't pollute the cache key.
+        # Scope to the search results container so surrounding content
+        # stays out of the snapshot sent to the model.
         locator=page.locator("#rcnt"),
     )
 ```
@@ -389,8 +391,8 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 		return err
 	}
 
-	// Scope to the search results container so ads, headers,
-	// and other surrounding content don't pollute the cache key.
+	// Scope to the search results container so surrounding content
+	// stays out of the snapshot sent to the model.
 	instruction := "click the first search result"
 	_, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
 		Page:    page,
@@ -403,7 +405,7 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 </Tabs>
 
 <Note>
-When you set a locator, Stagehand hashes only that subtree. If the locator fails to resolve, Stagehand skips caching for that call rather than falling back to the whole page.
+When you set `locator` or `ignoreLocators` on `observe()` or `extract()`, Stagehand skips server-side cache reads and writes for that call.
 </Note>
 </Accordion>
 
