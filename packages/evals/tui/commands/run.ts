@@ -78,29 +78,12 @@ function buildPlanLine(
   const modelCount = uniqueStringValues(matrix, "model", {
     exclude: ["none"],
   }).length;
-  const modeCount = uniqueStringValues(matrix, "agentMode", {
-    requireTruthy: true,
-  }).length;
-  const modelModeConfigCount = new Set(
-    matrix
-      .filter((row) => row.model !== undefined && row.model !== "none")
-      .map((row) => `${String(row.model)}\u0000${String(row.agentMode ?? "")}`),
-  ).size;
   const harnessCount = uniqueStringValues(matrix, "harness").length;
   const toolSurfaceCount = uniqueStringValues(matrix, "toolSurface", {
     requireTruthy: true,
   }).length;
-  const useSeparateModelAndModeFactors =
-    modelCount > 0 && modeCount > 0 && modelModeConfigCount === modelCount * modeCount;
-  const modelModeFactor =
-    modelCount === 0
-      ? 1
-      : useSeparateModelAndModeFactors
-        ? modelCount * modeCount
-        : modelModeConfigCount;
-
   const nonBaseFactors = [
-    modelModeFactor,
+    modelCount === 0 ? 1 : modelCount,
     harnessCount > 1 ? harnessCount : 1,
     toolSurfaceCount > 1 ? toolSurfaceCount : 1,
   ];
@@ -116,12 +99,7 @@ function buildPlanLine(
 
   const factors = [formatCount(baseCount, baseLabel)];
   if (canFactorCleanly) {
-    if (useSeparateModelAndModeFactors) {
-      factors.push(formatCount(modelCount, "model"));
-      factors.push(formatCount(modeCount, "mode"));
-    } else if (modeCount > 0 && modelModeConfigCount > 0) {
-      factors.push(formatCount(modelModeConfigCount, "model/mode config"));
-    } else if (modelCount > 0) {
+    if (modelCount > 0) {
       factors.push(formatCount(modelCount, "model"));
     }
     if (harnessCount > 1) factors.push(formatCount(harnessCount, "harness"));
@@ -276,8 +254,6 @@ export async function runCommand(
           useApi: options.useApi,
           modelOverride: options.model,
           provider: options.provider,
-          agentMode: options.agentMode,
-          agentModes: options.agentModes,
           harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
@@ -405,14 +381,23 @@ async function emitDryRun(
     datasetFilter: options.datasetFilter ?? null,
     environment: options.environment,
     harness: options.harness,
-    agentMode: options.agentMode ?? null,
-    agentModes: options.agentModes ?? null,
     model: options.model ?? null,
     provider: options.provider ?? null,
     trials: options.trials,
     useApi: options.useApi,
     verbose: options.verbose,
   });
+
+  let matrix: Array<Record<string, unknown>> = [];
+  let planError = error;
+  if (!planError) {
+    try {
+      matrix = await buildDryRunMatrix(options, tasks, registry);
+    } catch (matrixError) {
+      planError = matrixError instanceof Error ? matrixError.message : String(matrixError);
+      process.exitCode = 1;
+    }
+  }
 
   const payload: Record<string, unknown> = {
     target: options.target ?? null,
@@ -421,9 +406,9 @@ async function emitDryRun(
     skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
-    matrix: error ? [] : await buildDryRunMatrix(options, tasks, registry),
+    matrix,
   };
-  if (error) payload.error = error;
+  if (planError) payload.error = planError;
 
   if (options.preview) {
     renderPreview(payload);
@@ -463,8 +448,6 @@ async function buildDryRunMatrix(
         harness: options.harness,
         categoryFilter,
         datasetFilter: options.datasetFilter,
-        agentMode: options.agentMode,
-        agentModes: options.agentModes,
         coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
         coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
       });
@@ -485,8 +468,6 @@ async function buildDryRunMatrix(
                 coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
               },
               testcase.input.params,
-              testcase.input.isCUA,
-              testcase.input.agentMode,
             )
           : undefined;
         rows.push(
@@ -497,7 +478,6 @@ async function buildDryRunMatrix(
             dataset: testcase.metadata.dataset ?? null,
             model: testcase.input.modelName as AvailableModel,
             harness: testcase.metadata.harness ?? options.harness,
-            agentMode: testcase.input.agentMode ?? null,
             environment: testcase.metadata.environment ?? options.environment,
             useApi: testcase.metadata.api ?? options.useApi,
             provider: testcase.metadata.provider ?? options.provider ?? null,

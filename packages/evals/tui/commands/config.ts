@@ -17,8 +17,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { bold, dim, cyan, gray, green, red } from "../format.js";
-import { parseAgentModes } from "./parse.js";
-import type { AgentToolMode } from "stagehand-v3";
 
 type Defaults = {
   env?: string | null;
@@ -28,7 +26,6 @@ type Defaults = {
   model?: string | null;
   api?: boolean | null;
   verbose?: boolean | null;
-  agentModes?: AgentToolMode[] | null;
 };
 
 export type CoreConfigSection = {
@@ -64,7 +61,6 @@ const VALID_KEYS: Array<keyof Defaults> = [
   "model",
   "api",
   "verbose",
-  "agentModes",
 ];
 
 const DEFAULT_VALUES: Defaults = {
@@ -75,7 +71,6 @@ const DEFAULT_VALUES: Defaults = {
   model: null,
   api: false,
   verbose: false,
-  agentModes: null,
 };
 
 export function resolveConfigPath(entryDir: string): string {
@@ -127,11 +122,6 @@ export function printConfig(entryDir: string): void {
   console.log(`    ${cyan("concurrency")}  ${defaults.concurrency ?? 3}`);
   console.log(`    ${cyan("api")}          ${defaults.api ?? false}`);
   console.log(`    ${cyan("verbose")}      ${defaults.verbose ?? false}`);
-  console.log(
-    `    ${cyan("agentModes")}   ${
-      defaults.agentModes?.length ? defaults.agentModes.join(",") : gray("(default per model)")
-    }`,
-  );
   console.log(`    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`);
   console.log(`    ${cyan("provider")}     ${defaults.provider ?? gray("(all)")}`);
 
@@ -246,7 +236,7 @@ const parseError = Symbol("parse-error");
 function parseValue(
   key: keyof Defaults,
   raw: string,
-): string | number | boolean | AgentToolMode[] | null | typeof parseError {
+): string | number | boolean | null | typeof parseError {
   if (raw === "null" || raw === "none") return null;
   if (key === "env") {
     const normalized = raw.toLowerCase();
@@ -274,14 +264,6 @@ function parseValue(
       return parseError;
     }
     return raw === "true";
-  }
-  if (key === "agentModes") {
-    try {
-      return parseAgentModes(raw);
-    } catch (error) {
-      console.error(red(error instanceof Error ? `  ${error.message}` : String(error)));
-      return parseError;
-    }
   }
   return raw;
 }
