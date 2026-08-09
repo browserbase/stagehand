@@ -138,7 +138,7 @@ export interface SessionStore {
    * This method handles:
    * - Checking the cache for an existing V3 instance
    * - On cache miss: loading config, creating V3, caching it
-   * - Updating the logger reference for streaming
+   * - Sharing in-flight initialization between concurrent callers
    *
    * @param sessionId - The session identifier
    * @param ctx - Request-time context containing values from headers
@@ -146,6 +146,18 @@ export interface SessionStore {
    * @throws Error if session not found
    */
   getOrCreateStagehand(sessionId: string, ctx: RequestContext): Promise<V3>;
+
+  /**
+   * Run an operation with request-scoped context.
+   *
+   * Stores may use this to route logs and other request-local state while a
+   * shared V3 instance is executing. Implementations that do not need
+   * request-scoped state can omit this method.
+   */
+  runWithRequestContext?<T>(
+    ctx: RequestContext,
+    operation: () => Promise<T>,
+  ): Promise<T>;
 
   /**
    * Create a new session with the given parameters.
@@ -172,7 +184,7 @@ export interface SessionStore {
    * Update cache configuration dynamically.
    * @param config - New cache configuration values
    */
-  updateCacheConfig?(config: SessionCacheConfig): void;
+  updateCacheConfig?(config: SessionCacheConfig): void | Promise<void>;
 
   /**
    * Get current cache configuration.

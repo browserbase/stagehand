@@ -211,7 +211,10 @@ export async function createStreamingResponse<TV3>({
   let handlerError: Error | null = null;
 
   try {
-    result = await handler({ stagehand, data: parsedData });
+    const executeHandler = () => handler({ stagehand, data: parsedData });
+    result = sessionStore.runWithRequestContext
+      ? await sessionStore.runWithRequestContext(requestContext, executeHandler)
+      : await executeHandler();
   } catch (err) {
     handlerError = err instanceof Error ? err : new Error("Unknown error");
     request.log.error(
