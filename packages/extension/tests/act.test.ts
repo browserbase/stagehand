@@ -168,6 +168,41 @@ describe("act service", () => {
     });
   });
 
+  it("captures the requested locator scope and ignored locator subtrees", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click submit",
+        options: {
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: "main", nth: 1 },
+      ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+    });
+  });
+
   it("zeroes usage when a supplied Action succeeds without inference", async () => {
     const frame = {};
     const page = actPage(
