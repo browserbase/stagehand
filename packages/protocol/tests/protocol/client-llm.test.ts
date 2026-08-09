@@ -77,6 +77,16 @@ describe("client-side LLM protocol", () => {
         apiUrl: "https://api.stagehand.dev.browserbase.com/v1/",
       }),
     ).toThrow("Stagehand apiUrl must be a service origin without /v1");
+    for (const apiUrl of [
+      "https://api.stagehand.dev.browserbase.com?",
+      "https://api.stagehand.dev.browserbase.com?tenant=test",
+      "https://api.stagehand.dev.browserbase.com#",
+      "https://api.stagehand.dev.browserbase.com#gateway",
+    ]) {
+      expect(() => StagehandInitParamsSchema.parse({ ...params, apiUrl })).toThrow(
+        "Stagehand apiUrl must not include a query string or fragment",
+      );
+    }
   });
 
   it("requires structured content when a client LLM returns JSON schema output", () => {
