@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Mapping
 from contextlib import suppress
@@ -9,12 +10,14 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from urllib.request import urlopen
 
-from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from stagehand._generated.protocol_version import (
+    PROTOCOL_SEMVER_PATTERN,
+    STAGEHAND_PROTOCOL_VERSION,
+)
 
 STAGEHAND_SEND_TO_HOST_BINDING = "__stagehandSendToHost"
 _RUNTIME_NAME = "stagehand"
-_MINIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
-_MAXIMUM_PROTOCOL_VERSION = STAGEHAND_PROTOCOL_VERSION
+_PROTOCOL_SEMVER_PATTERN = re.compile(PROTOCOL_SEMVER_PATTERN)
 
 # Constant on purpose: the TypeScript SDK evaluates the identical expression, so the two cannot
 # drift. All judgement happens here rather than in the page.
@@ -66,14 +69,32 @@ def _negotiate_runtime(marker: object) -> tuple[bool, str]:
         return False, f"serverInfo.name={name!r}"
 
     protocol_version = marker.get("protocolVersion")
-    if not isinstance(protocol_version, int) or isinstance(protocol_version, bool):
+    if not isinstance(protocol_version, str):
         return False, f"protocolVersion={protocol_version!r}"
-    if protocol_version < _MINIMUM_PROTOCOL_VERSION:
-        return False, f"protocolVersion={protocol_version} below {_MINIMUM_PROTOCOL_VERSION}"
-    if protocol_version > _MAXIMUM_PROTOCOL_VERSION:
-        return False, f"protocolVersion={protocol_version} above {_MAXIMUM_PROTOCOL_VERSION}"
+    compatibility = _protocol_compatibility(STAGEHAND_PROTOCOL_VERSION, protocol_version)
+    if compatibility is not None:
+        return False, compatibility
 
     return True, f"protocolVersion={protocol_version}"
+
+
+def _protocol_compatibility(client_version: str, server_version: str) -> str | None:
+    client = _PROTOCOL_SEMVER_PATTERN.fullmatch(client_version)
+    server = _PROTOCOL_SEMVER_PATTERN.fullmatch(server_version)
+    if client is None or server is None:
+        return f"invalid protocol version: client={client_version!r} server={server_version!r}"
+    if client.group(4) is not None or server.group(4) is not None:
+        if client_version != server_version:
+            return (
+                "protocol prereleases must match exactly: "
+                f"client={client_version} server={server_version}"
+            )
+        return None
+    if client.group(1) != server.group(1):
+        return f"protocol major mismatch: client={client_version} server={server_version}"
+    if int(server.group(2)) < int(client.group(2)):
+        return f"server protocol {server_version} is older than client requirement {client_version}"
+    return None
 
 
 class _WebSocket(Protocol):

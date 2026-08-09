@@ -1,5 +1,7 @@
 import { z } from "zod/v4";
-import protocolPackageJson from "./package.json" with { type: "json" };
+import { StagehandProtocolVersionSchema } from "./protocol-version.ts";
+
+export { STAGEHAND_PROTOCOL_VERSION } from "./protocol-version.ts";
 
 // Seeded from the explicit model IDs in Vercel AI SDK's provider packages.
 // Stagehand owns these allowlists: changes are reviewed and maintained here
@@ -1535,12 +1537,6 @@ export const DEFAULT_TELEMETRY_CONFIG = {
   },
 };
 
-const protocolMajor = Number.parseInt(protocolPackageJson.version.split(".", 1)[0] ?? "", 10);
-if (!Number.isSafeInteger(protocolMajor) || protocolMajor <= 0) {
-  throw new Error(`Invalid Stagehand protocol package version: ${protocolPackageJson.version}`);
-}
-export const STAGEHAND_PROTOCOL_VERSION = protocolMajor;
-
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1550,7 +1546,7 @@ export const ImplementationInfoSchema = z
 
 export const RuntimeDescriptorSchema = z
   .strictObject({
-    protocolVersion: z.int().positive(),
+    protocolVersion: StagehandProtocolVersionSchema,
     serverInfo: ImplementationInfoSchema.extend({
       name: z.literal("stagehand"),
     }),
@@ -1572,7 +1568,7 @@ export const TelemetryConfigSchema = z
 
 export const StagehandInitParamsSchema = z
   .strictObject({
-    protocolVersion: z.literal(STAGEHAND_PROTOCOL_VERSION),
+    protocolVersion: StagehandProtocolVersionSchema,
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),

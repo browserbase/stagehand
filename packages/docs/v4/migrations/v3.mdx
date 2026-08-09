@@ -380,9 +380,10 @@ Then work through the sections below for anything it missed.
 
 ## Coming from Python or Go
 
-v3 shipped Python and Go as clients for the hosted Stagehand API. You created a session and called methods on it:
+v3 shipped Python and Go as clients for the hosted Stagehand API. You created a session and called methods on it.
 
-<View title="Python" icon="python">
+Python:
+
 ```python
 from stagehand import AsyncStagehand
 
@@ -391,9 +392,9 @@ session = await client.sessions.create(model_name="openai/gpt-5-nano")
 await session.navigate(url="https://example.com")
 act_response = await session.act(input="click the sign in button")
 ```
-</View>
 
-<View title="Go" icon="golang">
+Go:
+
 ```go
 client := stagehand.NewClient(
 	option.WithBrowserbaseAPIKey(os.Getenv("BROWSERBASE_API_KEY")),
@@ -405,7 +406,6 @@ _, err = client.Sessions.Navigate(ctx, sessionID, stagehand.SessionNavigateParam
 	URL: "https://example.com",
 })
 ```
-</View>
 
 v4 gives all three languages the same SDK: a browser from a factory, a Stagehand instance built on it, and `act()`, `extract()`, and `observe()` on that instance. Sessions and their IDs are gone from the calling surface, and the package names changed, so this is a rewrite against the new shape rather than a rename pass. The [code mode](#code-mode) examples show the target in each language.
 
