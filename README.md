@@ -168,6 +168,7 @@ We'd like to thank the following people for their major contributions to Stageha
 - [Nick Sweeting](https://github.com/pirate)
 - [Sam Finton](https://github.com/monadoid)
 - [Shrey Pandya](https://github.com/shrey150)
+- [Shriya Lolabattu](https://github.com/shriyatheunicorn)
 - [Alyssa Maruyama](https://github.com/akeimach)
 
 ## License
