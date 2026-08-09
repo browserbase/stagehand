@@ -1193,24 +1193,24 @@ export const ExtractOptionsSchema = z
       description: "Timeout in ms for the extraction",
       example: 30000,
     }),
-    selector: z.string().optional().meta({
-      description: "CSS selector to scope extraction to a specific element",
-      example: "#main-content",
+    locator: LocatorSchema.optional().meta({
+      description: "Locator that scopes extraction to a specific element",
     }),
-    ignoreSelectors: z
-      .array(z.string())
+    ignoreLocators: z
+      .array(LocatorSchema)
       .optional()
       .meta({
-        description: "Selectors for elements and subtrees that should be excluded from extraction",
-        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+        description: "Locators for elements and subtrees that should be excluded from extraction",
+        example: [
+          { selector: "nav" },
+          { selector: ".cookie-banner" },
+          { selector: "#sidebar-ads" },
+        ],
       }),
     screenshot: z.boolean().optional().meta({
       description:
         "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
       example: false,
-    }),
-    locator: LocatorSchema.optional().meta({
-      description: "Serializable element locator for the extraction target",
     }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
@@ -1252,20 +1252,20 @@ export const ObserveOptionsSchema = z
       description: "Timeout in ms for the observation",
       example: 30000,
     }),
-    selector: z.string().optional().meta({
-      description: "CSS selector to scope observation to a specific element",
-      example: "nav",
+    locator: LocatorSchema.optional().meta({
+      description: "Locator that scopes observation to a specific element",
     }),
-    ignoreSelectors: z
-      .array(z.string())
+    ignoreLocators: z
+      .array(LocatorSchema)
       .optional()
       .meta({
-        description: "Selectors for elements and subtrees that should be excluded from observation",
-        example: ["nav", ".cookie-banner", "#sidebar-ads"],
+        description: "Locators for elements and subtrees that should be excluded from observation",
+        example: [
+          { selector: "nav" },
+          { selector: ".cookie-banner" },
+          { selector: "#sidebar-ads" },
+        ],
       }),
-    locator: LocatorSchema.optional().meta({
-      description: "Serializable element locator for the observation target",
-    }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
     }),

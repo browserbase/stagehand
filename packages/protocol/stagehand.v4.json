@@ -1782,22 +1782,27 @@
           "example": 30000,
           "type": "number"
         },
-        "selector": {
-          "description": "CSS selector to scope observation to a specific element",
-          "example": "nav",
-          "type": "string"
+        "locator": {
+          "description": "Locator that scopes observation to a specific element",
+          "$ref": "#/$defs/Locator"
         },
-        "ignore_selectors": {
-          "description": "Selectors for elements and subtrees that should be excluded from observation",
-          "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+        "ignore_locators": {
+          "description": "Locators for elements and subtrees that should be excluded from observation",
+          "example": [
+            {
+              "selector": "nav"
+            },
+            {
+              "selector": ".cookie-banner"
+            },
+            {
+              "selector": "#sidebar-ads"
+            }
+          ],
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/Locator"
           }
-        },
-        "locator": {
-          "description": "Serializable element locator for the observation target",
-          "$ref": "#/$defs/Locator"
         },
         "cache": {
           "description": "Override the instance-level cache setting for this request",
@@ -1897,27 +1902,32 @@
           "example": 30000,
           "type": "number"
         },
-        "selector": {
-          "description": "CSS selector to scope extraction to a specific element",
-          "example": "#main-content",
-          "type": "string"
+        "locator": {
+          "description": "Locator that scopes extraction to a specific element",
+          "$ref": "#/$defs/Locator"
         },
-        "ignore_selectors": {
-          "description": "Selectors for elements and subtrees that should be excluded from extraction",
-          "example": ["nav", ".cookie-banner", "#sidebar-ads"],
+        "ignore_locators": {
+          "description": "Locators for elements and subtrees that should be excluded from extraction",
+          "example": [
+            {
+              "selector": "nav"
+            },
+            {
+              "selector": ".cookie-banner"
+            },
+            {
+              "selector": "#sidebar-ads"
+            }
+          ],
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/Locator"
           }
         },
         "screenshot": {
           "description": "When true, include a screenshot of the current viewport in the extraction LLM call. Defaults to false.",
           "example": false,
           "type": "boolean"
-        },
-        "locator": {
-          "description": "Serializable element locator for the extraction target",
-          "$ref": "#/$defs/Locator"
         },
         "cache": {
           "description": "Override the instance-level cache setting for this request",

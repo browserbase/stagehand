@@ -251,7 +251,7 @@ describe("JSON-RPC wire casing", () => {
       pageId: "page_1",
       instruction: "Find the email field",
       options: {
-        ignoreSelectors: ["nav"],
+        ignoreLocators: [{ selector: "nav", nth: 0 }],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -264,7 +264,7 @@ describe("JSON-RPC wire casing", () => {
       page_id: "page_1",
       instruction: "Find the email field",
       options: {
-        ignore_selectors: ["nav"],
+        ignore_locators: [{ selector: "nav", nth: 0 }],
         variables: {
           accountEmail: {
             value: "user@example.com",
