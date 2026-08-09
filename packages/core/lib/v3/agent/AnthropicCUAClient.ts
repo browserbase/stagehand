@@ -53,6 +53,7 @@ export class AnthropicCUAClient extends AgentClient {
   private thinkingEffort: ThinkingEffort | null = null;
   private userTemperature: number | undefined;
   private tools?: ToolSet;
+  private pendingContextNotes: string[] = [];
 
   constructor(
     type: AgentType,
@@ -121,6 +122,10 @@ export class AnthropicCUAClient extends AgentClient {
     this.tools = tools;
   }
 
+  addContextNote(note: string): void {
+    this.pendingContextNotes.push(note);
+  }
+
   /**
    * Execute a task with the Anthropic CUA
    * This is the main entry point for the agent
@@ -180,9 +185,20 @@ export class AnthropicCUAClient extends AgentClient {
         // Update completion status
         completed = result.completed;
 
+        const contextNotes = this.drainContextNotes();
+
         // Update the input items for the next step if we're continuing
         if (!completed) {
           inputItems = result.nextInputItems;
+          if (contextNotes.length > 0) {
+            inputItems = [
+              ...inputItems,
+              ...contextNotes.map((note) => ({
+                role: "user",
+                content: note,
+              })),
+            ];
+          }
         }
 
         // Record any message for this step
@@ -427,6 +443,16 @@ export class AnthropicCUAClient extends AgentClient {
         content: instruction,
       },
     ];
+  }
+
+  private drainContextNotes(): string[] {
+    if (this.pendingContextNotes.length === 0) {
+      return [];
+    }
+
+    const notes = [...this.pendingContextNotes];
+    this.pendingContextNotes = [];
+    return notes;
   }
 
   async getAction(
