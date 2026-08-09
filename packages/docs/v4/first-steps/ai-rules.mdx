@@ -233,15 +233,15 @@ console.log(data.buttonText); // "Sign in"
 
 ### Targeted Extraction
 
-Scope extraction to a specific element with `selector`, and prune noise with `ignoreSelectors`:
+Scope extraction to a specific element with `locator`, and prune noise with `ignoreLocators`:
 
 ```typescript
 const { data } = await stagehand.extract(
   "extract the reason why script injection fails",
   z.object({ reason: z.string() }),
   {
-    selector: "#main-content",
-    ignoreSelectors: ["nav", ".cookie-banner"],
+    locator: page.locator("#main-content"),
+    ignoreLocators: [page.locator("nav"), page.locator(".cookie-banner")],
   },
 );
 ```
@@ -535,7 +535,7 @@ print(result.data.button_text)  # "Sign in"
 
 ### Targeted Extraction
 
-Scope extraction to a specific element with `selector`, and prune noise with `ignore_selectors`:
+Scope extraction to a specific element with `locator`, and prune noise with `ignore_locators`:
 
 ```python
 class Reason(BaseModel):
@@ -544,8 +544,8 @@ class Reason(BaseModel):
 result = await stagehand.extract(
     "extract the reason why script injection fails",
     Reason,
-    selector="#main-content",
-    ignore_selectors=["nav", ".cookie-banner"],
+    locator=page.locator("#main-content"),
+    ignore_locators=[page.locator("nav"), page.locator(".cookie-banner")],
 )
 ```
 
@@ -909,18 +909,19 @@ fmt.Println(result.Metadata.Cache.Status)
 
 ### Targeted Extraction
 
-Scope extraction to a specific element with `Selector`, and prune noise with `IgnoreSelectors`:
+Scope extraction to a specific element with `Locator`, and prune noise with `IgnoreLocators`:
 
 ```go
 type article struct {
 	Body string `json:"body"`
 }
 
-selector := "#main-content"
 result, err := stagehand.Extract[article](ctx, client, "extract the article body", &stagehand.StagehandClientExtractOptions{
-	ExtractOptions: stagehand.ExtractOptions{
-		Selector:        &selector,
-		IgnoreSelectors: []string{"nav", ".cookie-banner"},
+	Page:    page,
+	Locator: page.Locator("#main-content"),
+	IgnoreLocators: []*stagehand.PageLocator{
+		page.Locator("nav"),
+		page.Locator(".cookie-banner"),
 	},
 })
 if err != nil {

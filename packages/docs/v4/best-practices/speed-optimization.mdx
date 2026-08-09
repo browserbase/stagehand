@@ -80,15 +80,19 @@ for _, field := range observed.Data {
 
 ### Optimize DOM processing
 
-Reduce DOM complexity before Stagehand processes the page. Scoping is usually the biggest win: pass a selector so Stagehand snapshots one container instead of the whole document, and prune known-noisy subtrees.
+Reduce DOM complexity before Stagehand processes the page. Scoping is usually the biggest win: pass a locator so Stagehand snapshots one container instead of the whole document, and prune known-noisy subtrees.
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
 // Scope the snapshot to the region you care about
 await stagehand.observe("Find the checkout actions", {
-  selector: "#checkout",
-  ignoreSelectors: ["nav", ".cookie-banner", "#sidebar-ads"],
+  locator: page.locator("#checkout"),
+  ignoreLocators: [
+    page.locator("nav"),
+    page.locator(".cookie-banner"),
+    page.locator("#sidebar-ads"),
+  ],
 });
 
 // Or strip heavy elements before Stagehand reads the page
@@ -109,8 +113,12 @@ await stagehand.act("Click the submit button");
 # Scope the snapshot to the region you care about
 await stagehand.observe(
     instruction="Find the checkout actions",
-    selector="#checkout",
-    ignore_selectors=["nav", ".cookie-banner", "#sidebar-ads"],
+    locator=page.locator("#checkout"),
+    ignore_locators=[
+        page.locator("nav"),
+        page.locator(".cookie-banner"),
+        page.locator("#sidebar-ads"),
+    ],
 )
 
 # Or strip heavy elements before Stagehand reads the page
@@ -129,12 +137,14 @@ await stagehand.act("Click the submit button")
 <Tab title="Go">
 ```go
 // Scope the snapshot to the region you care about
-selector := "#checkout"
 instruction := "Find the checkout actions"
 if _, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
-	ObserveOptions: stagehand.ObserveOptions{
-		Selector:        &selector,
-		IgnoreSelectors: []string{"nav", ".cookie-banner", "#sidebar-ads"},
+	Page:    page,
+	Locator: page.Locator("#checkout"),
+	IgnoreLocators: []*stagehand.PageLocator{
+		page.Locator("nav"),
+		page.Locator(".cookie-banner"),
+		page.Locator("#sidebar-ads"),
 	},
 }); err != nil {
 	return err

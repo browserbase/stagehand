@@ -368,7 +368,7 @@ extracted, err := stagehand.Extract[contactLink](
 
 ## Advanced configuration
 
-You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
+You can pass additional options to configure the model, timeout, locator scope, and whether to include a screenshot:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -382,7 +382,7 @@ const result = await stagehand.extract(
       apiKey: process.env.ANTHROPIC_API_KEY,
     },
     timeout: 30000,
-    selector: "//header", // Focus on specific area
+    locator: page.locator("xpath=//header"), // Focus on specific area
   },
 );
 ```
@@ -402,7 +402,7 @@ result = await stagehand.extract(
         api_key=os.environ["ANTHROPIC_API_KEY"],
     ),
     timeout=30000,
-    selector="//header",  # Focus on specific area
+    locator=page.locator("xpath=//header"),  # Focus on specific area
 )
 ```
 </Tab>
@@ -416,14 +416,12 @@ model := stagehand.ModelConfig{
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0
-selector := "//header" // Focus on specific area
 
 result, err := stagehand.Extract[repository](ctx, client, "extract the repository name", &stagehand.StagehandClientExtractOptions{
-	ExtractOptions: stagehand.ExtractOptions{
-		Model:    &model,
-		Timeout:  &timeout,
-		Selector: &selector,
-	},
+	Page:    page,
+	Model:   &model,
+	Timeout: &timeout,
+	Locator: page.Locator("xpath=//header"), // Focus on specific area
 })
 if err != nil {
 	return err
@@ -518,7 +516,7 @@ if err != nil {
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
 result, err := stagehand.Extract[repository](ctx, client, "extract the repository name", &stagehand.StagehandClientExtractOptions{
-	ExtractOptions: stagehand.ExtractOptions{Cache: &off},
+	Cache: &off,
 })
 if err != nil {
 	return err
@@ -532,7 +530,7 @@ fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 
 ### Targeted extract
 
-Pass a selector to `extract` to target a specific element on the page.
+Pass a page locator to `extract` to target a specific element on the page.
 <Tip>
 This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
 </Tip>
@@ -546,8 +544,7 @@ const { data: tableData } = await stagehand.extract(
     values: z.array(z.string()),
   }),
   {
-    // xPath or CSS selector
-    selector: "xpath=/html/body/div/table/",
+    locator: page.locator("xpath=/html/body/div/table/"),
   },
 );
 ```
@@ -562,8 +559,7 @@ class TableRow(BaseModel):
 table_data = (await stagehand.extract(
     "Extract the values of the third row",
     TableRow,
-    # xPath or CSS selector
-    selector="xpath=/html/body/div/table/",
+    locator=page.locator("xpath=/html/body/div/table/"),
 )).data
 ```
 </Tab>
@@ -574,23 +570,20 @@ type tableRow struct {
 	Values []string `json:"values"`
 }
 
-
-// xPath or CSS selector
-selector := "xpath=/html/body/div/table/"
-
 tableData, err := stagehand.Extract[tableRow](
 	ctx,
 	client,
 	"Extract the values of the third row",
 	&stagehand.StagehandClientExtractOptions{
-		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+		Page:    page,
+		Locator: page.Locator("xpath=/html/body/div/table/"),
 	},
 )
 ```
 </Tab>
 </Tabs>
 
-You can also exclude specific nodes (including their descendant nodes) with the ignore-selectors option.
+You can also exclude specific nodes (including their descendant nodes) with ignored locators.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -602,7 +595,11 @@ const { data: article } = await stagehand.extract(
     body: z.string(),
   }),
   {
-    ignoreSelectors: [".ad", ".newsletter-modal", "nav.related-posts"],
+    ignoreLocators: [
+      page.locator(".ad"),
+      page.locator(".newsletter-modal"),
+      page.locator("nav.related-posts"),
+    ],
   },
 );
 ```
@@ -618,7 +615,11 @@ class Article(BaseModel):
 article = (await stagehand.extract(
     "extract the article title and body",
     Article,
-    ignore_selectors=[".ad", ".newsletter-modal", "nav.related-posts"],
+    ignore_locators=[
+        page.locator(".ad"),
+        page.locator(".newsletter-modal"),
+        page.locator("nav.related-posts"),
+    ],
 )).data
 ```
 </Tab>
@@ -636,8 +637,11 @@ extracted, err := stagehand.Extract[article](
 	client,
 	"extract the article title and body",
 	&stagehand.StagehandClientExtractOptions{
-		ExtractOptions: stagehand.ExtractOptions{
-			IgnoreSelectors: []string{".ad", ".newsletter-modal", "nav.related-posts"},
+		Page: page,
+		IgnoreLocators: []*stagehand.PageLocator{
+			page.Locator(".ad"),
+			page.Locator(".newsletter-modal"),
+			page.Locator("nav.related-posts"),
 		},
 	},
 )
@@ -646,7 +650,7 @@ extracted, err := stagehand.Extract[article](
 </Tabs>
 
 <Note>
-  The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes extraction to a single resolved subtree.
+  Ignored locators remove all matches for each locator, along with each matched node's descendants. The locator option still scopes extraction to a single resolved subtree.
 </Note>
 
 ### Visual extract

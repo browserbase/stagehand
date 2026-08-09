@@ -254,7 +254,7 @@ if _, err := client.Observe(ctx, &title, nil); err != nil {
 
 ## Advanced configuration
 
-You can pass additional options to configure the model, timeout, selector scope, ignored page regions, and placeholder variables:
+You can pass additional options to configure the model, timeout, locator scope, ignored page regions, and placeholder variables:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -266,7 +266,7 @@ const { data: actions } = await stagehand.observe("find navigation links", {
     apiKey: process.env.OPENAI_API_KEY,
   },
   timeout: 30000,
-  selector: "//header", // Focus on specific area
+  locator: page.locator("xpath=//header"), // Focus on specific area
 });
 ```
 </Tab>
@@ -285,7 +285,7 @@ result = await stagehand.observe(
         api_key=os.environ["OPENAI_API_KEY"],
     ),
     timeout=30000,
-    selector="//header",  # Focus on specific area
+    locator=page.locator("xpath=//header"),  # Focus on specific area
 )
 ```
 </Tab>
@@ -299,15 +299,13 @@ model := stagehand.ModelConfig{
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0
-selector := "//header" // Focus on specific area
 
 instruction := "find navigation links"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
-	ObserveOptions: stagehand.ObserveOptions{
-		Model:    &model,
-		Timeout:  &timeout,
-		Selector: &selector,
-	},
+	Page:    page,
+	Model:   &model,
+	Timeout: &timeout,
+	Locator: page.Locator("xpath=//header"), // Focus on specific area
 })
 if err != nil {
 	return err
@@ -317,16 +315,16 @@ fmt.Println("found", len(result.Data), "navigation links")
 </Tab>
 </Tabs>
 
-You can also exclude specific nodes, including their descendant nodes, with the ignore-selectors option.
+You can also exclude specific nodes, including their descendant nodes, with ignored locators.
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
 const { data: actions } = await stagehand.observe("find the main call-to-action buttons", {
-  ignoreSelectors: [
-    "//aside[contains(@class, 'promo-rail')]",
-    "//div[@id='floating-chat-launcher']",
-    "//section[@aria-label='recommended articles']",
+  ignoreLocators: [
+    page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+    page.locator("xpath=//div[@id='floating-chat-launcher']"),
+    page.locator("xpath=//section[@aria-label='recommended articles']"),
   ],
 });
 ```
@@ -336,10 +334,10 @@ const { data: actions } = await stagehand.observe("find the main call-to-action 
 ```python
 result = await stagehand.observe(
     "find the main call-to-action buttons",
-    ignore_selectors=[
-        "//aside[contains(@class, 'promo-rail')]",
-        "//div[@id='floating-chat-launcher']",
-        "//section[@aria-label='recommended articles']",
+    ignore_locators=[
+        page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+        page.locator("xpath=//div[@id='floating-chat-launcher']"),
+        page.locator("xpath=//section[@aria-label='recommended articles']"),
     ],
 )
 ```
@@ -349,12 +347,11 @@ result = await stagehand.observe(
 ```go
 instruction := "find the main call-to-action buttons"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
-	ObserveOptions: stagehand.ObserveOptions{
-		IgnoreSelectors: []string{
-			"//aside[contains(@class, 'promo-rail')]",
-			"//div[@id='floating-chat-launcher']",
-			"//section[@aria-label='recommended articles']",
-		},
+	Page: page,
+	IgnoreLocators: []*stagehand.PageLocator{
+		page.Locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+		page.Locator("xpath=//div[@id='floating-chat-launcher']"),
+		page.Locator("xpath=//section[@aria-label='recommended articles']"),
 	},
 })
 if err != nil {
@@ -725,7 +722,7 @@ const [table] = tables;
 const { data: pricing } = await stagehand.extract(
   "extract all pricing tiers",
   PricingSchema,
-  { selector: table.selector },
+  { locator: page.locator(table.selector) },
 );
 
 for (const tier of pricing.tiers) {
@@ -750,7 +747,7 @@ observed = await stagehand.observe("find the pricing table")
 pricing = (await stagehand.extract(
     "extract all pricing tiers",
     Pricing,
-    selector=observed.data[0].selector,
+    locator=page.locator(observed.data[0].selector),
 )).data
 
 for tier in pricing.tiers:
@@ -779,13 +776,13 @@ if len(observed.Data) == 0 {
 	return errors.New("pricing table not found")
 }
 
-selector := observed.Data[0].Selector
 pricing, err := stagehand.Extract[pricingTiers](
 	ctx,
 	client,
 	"extract all pricing tiers",
 	&stagehand.StagehandClientExtractOptions{
-		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+		Page:    page,
+		Locator: page.Locator(observed.Data[0].Selector),
 	},
 )
 if err != nil {

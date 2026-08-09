@@ -537,21 +537,28 @@ const actions = await stagehand.observe("Find the sign in button");
 
   </ParamField>
 
-<ParamField path="options.ignoreSelectors" type="string[]" optional>
-  Selectors to exclude.
+<ParamField path="options.ignoreLocators" type="Locator[]" optional>
+  Page locators to exclude from consideration.
+
+  <ParamField path="options.ignoreLocators.selector" type="string">
+    The locator selector.
+  </ParamField>
+
+  <ParamField path="options.ignoreLocators.nth" type="number" optional>
+    The zero-based index used when the selector matches multiple elements.
+  </ParamField>
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The page locator that scopes the operation.
 
     <ParamField path="options.locator.selector" type="string">
-      The selector to target.
+      The locator selector.
     </ParamField>
 
     <ParamField path="options.locator.nth" type="number" optional>
       The zero-based index used when the selector matches multiple elements.
     </ParamField>
-
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -570,10 +577,6 @@ const actions = await stagehand.observe("Find the sign in button");
     </ParamField>
 
   </ParamField>
-
-<ParamField path="options.selector" type="string" optional>
-  A selector that scopes the operation.
-</ParamField>
 
 <ParamField path="options.timeout" type="number" optional>
   The operation timeout in milliseconds.
@@ -709,21 +712,28 @@ console.log(product.data, product.metadata.cache.status);
 
   </ParamField>
 
-<ParamField path="options.ignoreSelectors" type="string[]" optional>
-  Selectors to exclude.
+<ParamField path="options.ignoreLocators" type="Locator[]" optional>
+  Page locators to exclude from consideration.
+
+  <ParamField path="options.ignoreLocators.selector" type="string">
+    The locator selector.
+  </ParamField>
+
+  <ParamField path="options.ignoreLocators.nth" type="number" optional>
+    The zero-based index used when the selector matches multiple elements.
+  </ParamField>
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The page locator that scopes the operation.
 
     <ParamField path="options.locator.selector" type="string">
-      The selector to target.
+      The locator selector.
     </ParamField>
 
     <ParamField path="options.locator.nth" type="number" optional>
       The zero-based index used when the selector matches multiple elements.
     </ParamField>
-
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -745,10 +755,6 @@ console.log(product.data, product.metadata.cache.status);
 
 <ParamField path="options.screenshot" type="boolean" optional>
   Whether the operation may use a screenshot.
-</ParamField>
-
-<ParamField path="options.selector" type="string" optional>
-  A selector that scopes the operation.
 </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
@@ -1332,22 +1338,26 @@ actions = await stagehand.observe("Find the sign in button")
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="selector" type="str | None" optional>
-  The selector to target.
-</ParamField>
-
-<ParamField path="ignore_selectors" type="list[str] | None" optional>
-  Selectors to exclude from consideration.
-</ParamField>
-
-<ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+<ParamField path="locator" type="Locator | None" optional>
+  The page locator that scopes the operation.
 
 <ParamField path="locator.selector" type="str">
-  The selector to target.
+  The locator selector.
 </ParamField>
 
   <ParamField path="locator.nth" type="int" optional>
+    The zero-based index used when the selector matches multiple elements.
+  </ParamField>
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page locators to exclude from consideration.
+
+<ParamField path="ignore_locators.selector" type="str">
+  The locator selector.
+</ParamField>
+
+  <ParamField path="ignore_locators.nth" type="int" optional>
     The zero-based index used when the selector matches multiple elements.
   </ParamField>
 </ParamField>
@@ -1496,26 +1506,30 @@ print(product.data, product.metadata.cache.status)
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="selector" type="str | None" optional>
-  The selector to target.
+<ParamField path="locator" type="Locator | None" optional>
+  The page locator that scopes the operation.
+
+<ParamField path="locator.selector" type="str">
+  The locator selector.
 </ParamField>
 
-<ParamField path="ignore_selectors" type="list[str] | None" optional>
-  Selectors to exclude from consideration.
+  <ParamField path="locator.nth" type="int" optional>
+    The zero-based index used when the selector matches multiple elements.
+  </ParamField>
 </ParamField>
 
 <ParamField path="screenshot" type="bool | None" optional>
   Whether extraction may use a screenshot.
 </ParamField>
 
-<ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page locators to exclude from consideration.
 
-<ParamField path="locator.selector" type="str">
-  The selector to target.
+<ParamField path="ignore_locators.selector" type="str">
+  The locator selector.
 </ParamField>
 
-  <ParamField path="locator.nth" type="int" optional>
+  <ParamField path="ignore_locators.nth" type="int" optional>
     The zero-based index used when the selector matches multiple elements.
   </ParamField>
 </ParamField>
