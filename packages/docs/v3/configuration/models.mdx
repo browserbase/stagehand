@@ -60,7 +60,7 @@ With `model: "auto"`, the Stagehand API selects the model for each `act`, `extra
 Because the router matches each call to the cheapest model that can handle it (instead of sending every request to one frontier model), teams typically see **30–40% lower inference cost** with no change to their automation code.
 
 <Note>
-  Model Router runs on Model Gateway, so inference is billed to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
+  Model Router runs on Model Gateway, which bills inference to your Browserbase API key at market-price tokens. You don't need any provider accounts or keys.
 </Note>
 
 #### Requirements
@@ -94,7 +94,7 @@ const { extraction } = await stagehand.extract("get the page headline", {
 });
 ```
 
-Per-call overrides never inherit the session model's provider or API key. The server picks the provider. Explicit options are still passed through:
+Per-call overrides never inherit the session model's provider or API key. The server picks the provider. Explicit options still pass through:
 
 ```typescript
 await stagehand.observe("find the login button", {
@@ -103,11 +103,11 @@ await stagehand.observe("find the login button", {
 ```
 
 <Note>
-  `stagehand.agent()` supports `"auto"` in the default `dom` and `hybrid` modes. It is **not** supported with `mode: "cua"`, which requires an explicit [CUA model](/v3/configuration/models#agent-models-with-cua-support).
+  `stagehand.agent()` supports `"auto"` in the default `dom` and `hybrid` modes. It does **not** support `mode: "cua"`, which requires an explicit [CUA model](/v3/configuration/models#agent-models-with-cua-support).
 </Note>
 
 <Tip>
-  Model Router works with [caching](/v3/best-practices/caching), but replay is handled by the API's server-side cache rather than the local cache. There's no local client available to self-heal a stale cached action. Pin a concrete model if you need local cache replay.
+  Model Router works with [caching](/v3/best-practices/caching), but the API's server-side cache handles replay rather than the local cache. There's no local client available to self-heal a stale cached action. Pin a concrete model if you need local cache replay.
 </Tip>
 
 ### Switching models
