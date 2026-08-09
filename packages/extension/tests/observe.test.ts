@@ -242,6 +242,60 @@ describe("observe service", () => {
     expect(set).not.toHaveBeenCalled();
   });
 
+  it("bypasses cache reads and writes for locator-scoped observations", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const page = {
+      captureSnapshot: vi.fn(async () => ({
+        combinedTree: "[0-12] button: Submit",
+        combinedXpathMap: { "0-12": "/html/body/button" },
+        combinedUrlMap: {},
+      })),
+      url: () => "https://example.com",
+      frames: () => [frame],
+      mainFrame: () => frame,
+    };
+    const get = vi.fn();
+    const set = vi.fn();
+    const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => observationResult());
+
+    const result = await observeService.observe({
+      params: {
+        pageId: "page-1",
+        instruction: "Find the submit button",
+        options: {
+          cache: true,
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: "nav", nth: 2 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: new StagehandLogger(
+        { tracer: trace.getTracer("observe-locator-cache-bypass-test") },
+        () => {},
+      ),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: true,
+      },
+    });
+
+    expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+    expect(page.captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: "main", nth: 1 },
+      ignoreLocators: [{ selector: "nav", nth: 2 }],
+    });
+    expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+  });
+
   it("enforces the configured timeout at service checkpoints", async () => {
     const now = vi
       .spyOn(Date, "now")

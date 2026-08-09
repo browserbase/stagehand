@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RPCMethod } from "../../protocol/json-rpc/schemas.js";
-import { serializeClientLocator, serializeClientLocatorOptions } from "../src/clientLocatorOptions.js";
+import {
+  serializeClientLocator,
+  serializeClientLocatorOptions,
+} from "../src/clientLocatorOptions.js";
 import type { StagehandCommandClient } from "../src/commandClient.js";
 import { Page } from "../src/page.js";
 
