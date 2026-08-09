@@ -1,0 +1,16 @@
+{
+  "name": "browse",
+  "displayName": "Browserbase Browse",
+  "version": "0.8.4",
+  "description": "Drive a local or Browserbase-hosted browser, inspect pages with accessibility snapshots and screenshots, and manage Browserbase cloud resources, Functions, and templates.",
+  "author": {
+    "name": "Browserbase"
+  },
+  "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli",
+  "repository": "https://github.com/browserbase/stagehand",
+  "license": "MIT",
+  "keywords": ["browser-automation", "browserbase", "stagehand", "scraping", "agents"],
+  "category": "automation",
+  "tags": ["browser", "automation", "browserbase", "stagehand", "agents"],
+  "skills": "./skills/"
+}

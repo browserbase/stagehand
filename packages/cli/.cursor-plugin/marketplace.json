@@ -1,0 +1,17 @@
+{
+  "name": "browse-cli",
+  "owner": {
+    "name": "Browserbase",
+    "email": "support@browserbase.com"
+  },
+  "metadata": {
+    "description": "Browserbase Browse CLI — lets agents drive local or hosted browsers, inspect and interact with pages, and call Browserbase cloud APIs."
+  },
+  "plugins": [
+    {
+      "name": "browse",
+      "source": "plugins/browse",
+      "description": "Drive a local or Browserbase-hosted browser, inspect pages with accessibility snapshots and screenshots, and manage Browserbase cloud resources, Functions, and templates."
+    }
+  ]
+}
