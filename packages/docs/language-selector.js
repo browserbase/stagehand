@@ -36,6 +36,18 @@
   let currentSelectedLanguage = "TypeScript";
   let isSelecting = false;
 
+  // Everything in this file is v3-only DOM surgery. Mintlify injects it on every
+  // page, so it must stay inert elsewhere: v4 switches languages with native
+  // <Tabs>, and running the v3 logic there hides the version switcher and paints
+  // stale checkmarks into unrelated menus.
+  const isV3Page = () => window.location.pathname.startsWith("/v3");
+
+  // Undo the body-level state this script sets, for when a reader leaves v3 by
+  // client-side navigation and the classes would otherwise persist.
+  function clearGlobalState() {
+    document.body.classList.remove("stagehand-hide-version-switcher", "stagehand-selecting");
+  }
+
   // ============================================
   // UTILITIES
   // ============================================
@@ -275,6 +287,9 @@
   }
 
   function selectCodeBlockLanguage(targetLanguage) {
+    // Guarded at the source: this is what sets `stagehand-selecting`, whose CSS
+    // blanks out every [role="menu"] on the page.
+    if (!isV3Page()) return;
     if (isSelecting) return;
 
     const current = getCodeBlockLanguageDropdown();
@@ -300,6 +315,7 @@
 
   function setupDropdownMenuObserver() {
     const menuObserver = new MutationObserver(() => {
+      if (!isV3Page()) return;
       const menu = getDropdownMenu();
       if (menu) {
         updateDropdownCheckIndicator();
@@ -317,6 +333,7 @@
     document.addEventListener(
       "click",
       (e) => {
+        if (!isV3Page()) return;
         const target = e.target;
 
         // Check if we clicked on a sidebar dropdown menu item
@@ -371,6 +388,7 @@
   }
 
   function restoreLanguageSelection() {
+    if (!isV3Page()) return;
     try {
       const stored = sessionStorage.getItem("stagehand-selected-language");
       if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
@@ -395,6 +413,7 @@
     let sdkUpdatePending = false;
 
     const observer = new MutationObserver(() => {
+      if (!isV3Page()) return;
       // Check if button needs updating
       const button = getDropdownButton();
       if (button) {
@@ -440,6 +459,7 @@
     let lastCodeBlockDropdown = null;
 
     const observer = new MutationObserver(() => {
+      if (!isV3Page()) return;
       const dropdown = getCodeBlockLanguageDropdown();
       if (dropdown && dropdown.element !== lastCodeBlockDropdown) {
         lastCodeBlockDropdown = dropdown.element;
@@ -463,11 +483,21 @@
   // ============================================
 
   function init() {
+    // Listeners are always attached because a reader can reach v3 by client-side
+    // navigation; each one checks isV3Page() before touching the DOM.
     setupMenuClickHandler();
     setupDropdownMenuObserver();
     setupPageChangeObserver();
     setupCodeBlockObserver();
 
+    applyForCurrentPage();
+  }
+
+  function applyForCurrentPage() {
+    if (!isV3Page()) {
+      clearGlobalState();
+      return;
+    }
     restoreLanguageSelection();
     updateVersionSwitcherVisibility();
     updateSDKReferenceVisibility();
@@ -490,10 +520,8 @@
         item.classList.remove("stagehand-sdk-processed");
       });
       onNextFrame(() => {
-        restoreLanguageSelection();
+        applyForCurrentPage();
         syncCodeBlockLanguage();
-        updateVersionSwitcherVisibility();
-        updateSDKReferenceVisibility();
       });
     }
   });
