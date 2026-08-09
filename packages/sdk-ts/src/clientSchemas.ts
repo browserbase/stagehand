@@ -21,6 +21,7 @@ import {
   StagehandLogLevelSchema,
 } from "../../protocol/schemas.js";
 import { Page } from "./page.js";
+import { Locator } from "./locator.js";
 import { isStagehandBrowser, type StagehandBrowser } from "./browser/index.js";
 
 export const LocalBrowserLaunchOptionsSchema = z
@@ -167,10 +168,14 @@ export const StagehandClientActOptionsSchema = ActOptionsSchema.extend({
 }).meta({ id: "StagehandClientActOptions" });
 
 export const StagehandClientObserveOptionsSchema = ObserveOptionsSchema.extend({
+  locator: z.instanceof(Locator).optional(),
+  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientObserveOptions" });
 
 export const StagehandClientExtractOptionsSchema = ExtractOptionsSchema.extend({
+  locator: z.instanceof(Locator).optional(),
+  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientExtractOptions" });
 

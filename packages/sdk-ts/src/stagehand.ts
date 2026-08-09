@@ -18,6 +18,7 @@ import type {
 } from "../../protocol/types.js";
 import { z } from "zod/v4";
 import { BrowserContext } from "./browserContext.js";
+import { Locator } from "./locator.js";
 import {
   StagehandClientActOptionsSchema,
   StagehandClientExtractOptionsSchema,
@@ -58,6 +59,37 @@ const isZodSchema = (value: unknown): value is z.ZodType =>
 
 const nativeFunctionSourcePattern =
   /^\s*function(?:\s+[^()]*)?\([^)]*\)\s*\{\s*\[native code\]\s*\}\s*$/;
+
+function serializeClientLocator(locator: Locator, pageId: string, method: string) {
+  if (locator.descriptor.pageId !== pageId) {
+    throw new TypeError(`${method}(): locator must belong to the target page`);
+  }
+  const { selector, nth } = locator.descriptor;
+  return {
+    selector,
+    ...(nth === undefined ? {} : { nth }),
+  };
+}
+
+function serializeClientLocatorOptions<
+  Options extends {
+    locator?: Locator;
+    ignoreLocators?: Locator[];
+  },
+>(method: string, pageId: string, options: Options) {
+  const { locator, ignoreLocators, ...rest } = options;
+  return {
+    ...rest,
+    ...(locator ? { locator: serializeClientLocator(locator, pageId, method) } : {}),
+    ...(ignoreLocators
+      ? {
+          ignoreLocators: ignoreLocators.map((ignoredLocator) =>
+            serializeClientLocator(ignoredLocator, pageId, method),
+          ),
+        }
+      : {}),
+  };
+}
 
 export class Stagehand {
   isInitialized = false;
@@ -221,9 +253,14 @@ export class Stagehand {
     instruction?: string,
     options?: StagehandClientObserveOptions,
   ): Promise<ObserveResult> {
-    const { page, ...protocolOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
+    const { page, ...clientOptions } = StagehandClientObserveOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
+    const protocolOptions = serializeClientLocatorOptions(
+      "observe",
+      targetPage.pageId,
+      clientOptions,
+    );
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandObserve, {
       pageId: targetPage.pageId,
       ...(instruction === undefined ? {} : { instruction }),
@@ -250,11 +287,16 @@ export class Stagehand {
     const hasCustomSchema = isZodSchema(schema);
     const resolvedSchema = hasCustomSchema ? schema : DefaultExtractDataSchema;
     const resolvedOptions = hasCustomSchema ? options : schema;
-    const { page, ...protocolOptions } = StagehandClientExtractOptionsSchema.parse(
+    const { page, ...clientOptions } = StagehandClientExtractOptionsSchema.parse(
       resolvedOptions ?? {},
     );
     const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
+    const protocolOptions = serializeClientLocatorOptions(
+      "extract",
+      targetPage.pageId,
+      clientOptions,
+    );
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandExtract, {
       pageId: targetPage.pageId,
       instruction,
