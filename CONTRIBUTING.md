@@ -82,7 +82,7 @@ just check # formatting, lint, types, generated-code drift, and go vet
 just test  # vitest, pytest, and go test
 ```
 
-`just check` fails when generated output has drifted from the protocol, so if you touched
+`just check` validates generated clients against the committed protocol schema. If you touched
 `packages/protocol`, regenerate first:
 
 ```bash
