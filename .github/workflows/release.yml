@@ -219,7 +219,7 @@ jobs:
       - name: Publish Canary
         if: github.ref == 'refs/heads/v3'
         run: |
-          git checkout main
+          git checkout ${{ github.sha }}
           pnpm run release-canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

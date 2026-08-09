@@ -116,14 +116,14 @@ jobs:
           PR_TITLE="Release browse@${VERSION}"
           PR_BODY_FILE=$(mktemp)
           cat > "$PR_BODY_FILE" <<EOF
-          Prepare the next browse release by versioning the package on \`main\`.
+          Prepare the next browse release by versioning the package on \`v3\`.
 
           What this PR does:
           - bumps \`packages/cli/package.json\` to \`${VERSION}\`
           - updates the browse changelog
           - consumes the pending browse changesets
 
-          After this PR merges, the \`Release\` workflow on \`main\` will publish \`browse@${VERSION}\` from that exact commit using \`pnpm pack\` + \`npm publish --provenance\`.
+          After this PR merges, the \`Release\` workflow on \`v3\` will publish \`browse@${VERSION}\` from that exact commit using \`pnpm pack\` + \`npm publish --provenance\`.
           EOF
 
           git checkout -B "$BRANCH"
@@ -139,7 +139,7 @@ jobs:
           PR_NUMBER=$(gh pr list \
             --repo "$GITHUB_REPOSITORY" \
             --head "$BRANCH" \
-            --base main \
+            --base v3 \
             --state open \
             --json number \
             --jq '.[0].number')
@@ -155,7 +155,7 @@ jobs:
 
           gh pr create \
             --repo "$GITHUB_REPOSITORY" \
-            --base main \
+            --base v3 \
             --head "$BRANCH" \
             --title "$PR_TITLE" \
             --body-file "$PR_BODY_FILE"

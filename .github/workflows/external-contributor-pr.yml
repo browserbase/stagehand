@@ -249,7 +249,7 @@ env:
           repo: context.repo.repo,
           state: 'all',
           head: `${context.repo.owner}:${branch}`,
-          base: 'v3',
+          base: pr.base.ref,
           per_page: 100,
         });
 
@@ -280,6 +280,13 @@ env:
           refreshReason,
         } = input;
 
+        const { data: sourcePr } = await github.rest.pulls.get({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: Number(prNumber),
+        });
+        const baseRef = sourcePr.base.ref;
+
         if (refreshStatus !== 'updated') {
           if (existingNumber) {
             await syncLabels(github, context, Number(existingNumber), ['external-contributor', 'external-contributor:stale']);
@@ -308,7 +315,7 @@ env:
             pull_number: Number(existingNumber),
             title,
             body,
-            base: 'v3',
+            base: baseRef,
             state: 'open',
           });
           ownedPr = data;
@@ -319,7 +326,7 @@ env:
             title,
             body,
             head: branch,
-            base: 'v3',
+            base: baseRef,
           });
           ownedPr = data;
         }
@@ -390,10 +397,10 @@ env:
           await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:completed']);
           await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:completed']);
           await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
-            `This mirrored PR has been merged into \`main\`. The original external PR ${externalPr.html_url} is now completed.`,
+            `This mirrored PR has been merged into \`${pr.base.ref}\`. The original external PR ${externalPr.html_url} is now completed.`,
           ]);
           await upsertComment(github, context, sourcePrNumber, `<!-- external-contributor-pr:completed owned-pr=${pr.number} -->`, [
-            `The mirrored PR ${pr.html_url} has been merged into \`main\`. This original external contributor PR will stay closed as completed.`,
+            `The mirrored PR ${pr.html_url} has been merged into \`${pr.base.ref}\`. This original external contributor PR will stay closed as completed.`,
           ]);
           return;
         }
