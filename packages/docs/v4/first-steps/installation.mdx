@@ -13,28 +13,30 @@ Node.js is the recommended runtime environment for Stagehand scripts. Stagehand 
 
 ### Install dependencies
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 pnpm install @browserbasehq/stagehand zod
 # npm add @browserbasehq/stagehand zod
 # yarn add @browserbasehq/stagehand zod
 # bun add @browserbasehq/stagehand zod
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 pip install stagehand
 # uv add stagehand
 # poetry add stagehand
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 go get github.com/browserbase/stagehand/packages/sdk-go
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 If you plan to run locally, you need to have [Chrome](https://www.google.com/chrome/) installed on your machine. For cloud browser sessions, skip this.
@@ -44,23 +46,25 @@ If you plan to run locally, you need to have [Chrome](https://www.google.com/chr
 
 Set your Browserbase API key. When no model is configured, Model Gateway selects one automatically, so no model provider key is required:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
@@ -69,7 +73,8 @@ This also applies to API routing: pass non-production Browserbase and Stagehand 
 
 Read the values in your own app code and pass them explicitly to the browser factory:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Optional: install dotenv first (pnpm add dotenv), then load an env file yourself
 import "dotenv/config";
@@ -79,9 +84,9 @@ const browser = await browserbase.launch({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -92,9 +97,9 @@ browser = await browserbase.launch(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Every optional field is a pointer, so read your key into a variable first
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
@@ -105,14 +110,16 @@ if err != nil {
 }
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
-</View>
+</Tab>
+</Tabs>
 </Note>
 
 ### Use in your codebase
 
 Add Stagehand where you need browser automation.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
@@ -151,9 +158,9 @@ main().catch((err) => {
   process.exit(1);
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import asyncio
 import os
@@ -192,9 +199,9 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 package main
 
@@ -274,7 +281,8 @@ func run(ctx context.Context) (err error) {
 	return nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Next steps
 

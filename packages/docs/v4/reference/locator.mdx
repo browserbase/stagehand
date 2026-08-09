@@ -12,7 +12,8 @@ Selectors pierce shadow DOM, including closed roots.
 **Closed roots require a navigated page.** Piercing them needs a frame with a real origin, and a tab still sitting at `about:blank` has none, so a selector crossing a closed root will not match there. Open roots still resolve. Navigate the tab to an `http:` or `https:` URL first.
 </Warning>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 
 ## Quick start
 
@@ -387,9 +388,9 @@ const third = locator.nth(2);
   The operation result.
 </ResponseField>
 
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 
 ## Quick start
 
@@ -746,4 +747,5 @@ third = locator.nth(2)
   The operation result.
 </ResponseField>
 
-</View>
+</Tab>
+</Tabs>

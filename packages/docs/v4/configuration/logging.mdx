@@ -5,13 +5,14 @@ description: "Control terminal output and forward structured Stagehand logs."
 
 Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
 
-All logging is configured through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record. Use the language selector to see the exact shape your SDK accepts.
+All logging is configured through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record.
 
 ## Quick start
 
 Choose your logging setup based on your environment:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
@@ -35,9 +36,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
@@ -63,9 +64,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Development: full debug output, human-readable
 development := &stagehand.StagehandClientLoggingConfig{
@@ -111,7 +112,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 ---
 
@@ -127,7 +129,8 @@ Control how much detail you see in logs. The level is always applied at the sour
 <Tab title="Level: debug">
 **Use for:** Development, debugging specific issues
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser,
@@ -135,9 +138,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 stagehand = await Stagehand.create(
     browser=browser,
@@ -145,9 +148,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
@@ -162,7 +165,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Accordion title="Example output">
 
@@ -180,7 +184,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Tab title="Level: info (default)">
 **Use for:** Standard operations, staging, production
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser,
@@ -188,9 +193,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 stagehand = await Stagehand.create(
     browser=browser,
@@ -198,9 +203,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
@@ -215,7 +220,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 
 <Accordion title="Example output">
@@ -233,7 +239,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Tab title="Level: error or off">
 **Use for:** Production with external monitoring, minimal noise, or handling secrets
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const errorsOnly = { level: "error" } as const; // Errors only
 const silent = { level: "off" } as const; // Nothing at all
@@ -244,9 +251,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 errors_only = {"level": "error"}  # Errors only
 silent = {"level": "off"}  # Nothing at all
@@ -257,9 +264,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Errors only
 errorsOnly := &stagehand.StagehandClientLoggingConfig{
@@ -287,7 +294,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Accordion title="Example output">
 
@@ -316,7 +324,8 @@ Human-readable, single-line console output written to standard error.
 
 **When to use:** Development and interactive debugging
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Enabled by default: level "info", format "pretty"
 const stagehand = await Stagehand.create({
@@ -325,9 +334,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Enabled by default: level "info", format "pretty"
 stagehand = await Stagehand.create(
@@ -336,9 +345,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
@@ -354,7 +363,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Accordion title="Output shape">
 Each line is `[stagehand] LEVEL message {json data}`, with the data object omitted when empty. Stagehand writes it to standard error so it never mixes with your program's own standard output.
@@ -366,7 +376,8 @@ One JSON object per line, ready for log shippers and structured search.
 
 **When to use:** Containers, CI, or anywhere a collector tails standard error
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser,
@@ -374,9 +385,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 stagehand = await Stagehand.create(
     browser=browser,
@@ -384,9 +395,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
@@ -402,7 +413,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Accordion title="Output shape">
 ```json
@@ -420,7 +432,8 @@ capabilities.
 
 <Step title="Create a simple logger">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 
 // Simple logger without parsing (for basic console output)
@@ -438,9 +451,9 @@ const simpleLogger = (log: {
   }
 };
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 
 # Simple logger without parsing (for basic console output)
@@ -452,9 +465,9 @@ def simple_logger(log) -> None:
     if data:
         print("  Context:", data)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Simple logger without parsing (for basic console output)
 func simpleLogger(entry stagehand.StagehandLog) {
@@ -466,13 +479,15 @@ func simpleLogger(entry stagehand.StagehandLog) {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 </Step>
 
 <Step title="Pass the logger in your Stagehand instance">
 Then pass the logger in your Stagehand instance:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await localBrowser.launch(),
@@ -483,9 +498,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await local_browser.launch()
 
@@ -495,9 +510,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
@@ -517,7 +532,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Step>
 </Steps>
@@ -540,7 +556,8 @@ The same callback, pointed at an observability platform.
 
 <Tab title="Sentry">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import * as Sentry from "@sentry/node";
 
@@ -558,9 +575,9 @@ const productionLogger = (log: {
   }
 };
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import sentry_sdk
 
@@ -573,9 +590,9 @@ def production_logger(log) -> None:
             extras=log.data.model_dump(mode="json"),
         )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func productionLogger(entry stagehand.StagehandLog) {
 	// Send errors to Sentry
@@ -593,12 +610,14 @@ func productionLogger(entry stagehand.StagehandLog) {
 	})
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Tab>
 <Tab title="DataDog">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { datadogLogs } from "@datadog/browser-logs";
 
@@ -615,9 +634,9 @@ const productionLogger = (log: {
   });
 };
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from datadog_api_client import ApiClient, Configuration
 from datadog_api_client.v2.api.logs_api import LogsApi
@@ -633,9 +652,9 @@ def production_logger(log) -> None:
         **log.data.model_dump(mode="json"),
     }])
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func productionLogger(entry stagehand.StagehandLog) {
 	// Send all logs to DataDog
@@ -656,7 +675,8 @@ func productionLogger(entry stagehand.StagehandLog) {
 	_ = submitDataDogLog(payload)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 </Tab>
 </Tabs>
 
@@ -664,7 +684,8 @@ func productionLogger(entry stagehand.StagehandLog) {
 
 <Step title="Pass the logger in your Stagehand instance">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await localBrowser.launch(),
@@ -676,9 +697,9 @@ const stagehand = await Stagehand.create({
   // restOfYourConfiguration...
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await local_browser.launch()
 
@@ -692,9 +713,9 @@ stagehand = await Stagehand.create(
     # rest_of_your_configuration...
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
@@ -714,7 +735,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Step>
 </Steps>
@@ -736,7 +758,8 @@ Route the log callback to a file to get a durable, per-session record of every S
 
 Pick a directory for your session logs and open a file per run:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { createWriteStream } from "node:fs";
 import { mkdirSync } from "node:fs";
@@ -745,9 +768,9 @@ mkdirSync("./stagehand-logs", { recursive: true });
 const sessionId = new Date().toISOString().replace(/[:.]/g, "-");
 const logFile = createWriteStream(`./stagehand-logs/${sessionId}.jsonl`, { flags: "a" });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from datetime import datetime, timezone
 from pathlib import Path
@@ -756,9 +779,9 @@ Path("./stagehand-logs").mkdir(parents=True, exist_ok=True)
 session_id = datetime.now(timezone.utc).isoformat().replace(":", "-").replace(".", "-")
 log_file = open(f"./stagehand-logs/{session_id}.jsonl", "a", encoding="utf-8")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 if err := os.MkdirAll("./stagehand-logs", 0o755); err != nil {
 	return err
@@ -775,13 +798,15 @@ if err != nil {
 }
 fmt.Fprintf(os.Stderr, "writing Stagehand logs to %s\n", logFile.Name())
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Usage
 
 Write each record as one JSON line, then run your Stagehand script as normal:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { finished } from "node:stream/promises";
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
@@ -805,9 +830,9 @@ try {
   await finished(logFile);
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
@@ -853,9 +878,9 @@ finally:
     await stagehand.close()
     log_file.close()
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
@@ -927,7 +952,8 @@ func run(ctx context.Context) (err error) {
 }
 ```
 
-</View>
+</Tab>
+</Tabs>
 
 ### Viewing logs
 
@@ -994,7 +1020,8 @@ This is especially useful for debugging long workflows where you need to trace t
 
 Run at the `debug` level to see the complete inference path: the snapshot that was captured, the prompt category, the model's chosen element, and the token counts for each call.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await localBrowser.launch(),
@@ -1010,9 +1037,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 def capture_inference(log) -> None:
     # Persist only the LLM records for offline analysis
@@ -1031,9 +1058,9 @@ stagehand = await Stagehand.create(
     },
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func captureInference(inferenceFile *os.File) func(stagehand.StagehandLog) {
 	return func(entry stagehand.StagehandLog) {
@@ -1062,7 +1089,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Debug-level records include:
 
@@ -1130,7 +1158,8 @@ Token counters are also aggregated across the whole session. See [Observability]
 
 All logging options are passed as a single object to `Stagehand.create()`:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // The shape of the `logging` value in the Stagehand.create() options.
 type StagehandClientLoggingConfig = {
@@ -1139,9 +1168,9 @@ type StagehandClientLoggingConfig = {
   onLog?: (log: StagehandLog) => void | Promise<void>; // default: undefined
 };
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 stagehand = await Stagehand.create(
     browser=browser,
@@ -1153,9 +1182,9 @@ stagehand = await Stagehand.create(
     },
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
@@ -1173,7 +1202,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -1191,7 +1221,8 @@ The level is also forwarded to the Stagehand runtime, so suppressed records are 
 
 Each log entry follows a structured format:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 interface StagehandLog {
   level: "debug" | "info" | "warn" | "error"; // Severity
@@ -1199,18 +1230,18 @@ interface StagehandLog {
   data: Record<string, unknown>;              // Structured metadata, JSON-serializable
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class StagehandLog(BaseModel):
     level: StagehandLogLevel  # "debug" | "info" | "warn" | "error"
     message: str              # "act completed successfully"
     data: StagehandLogData    # Structured metadata, JSON-serializable
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type StagehandLog struct {
 	Level   StagehandLogLevel // "debug" | "info" | "warn" | "error"
@@ -1218,7 +1249,8 @@ type StagehandLog struct {
 	Data    StagehandLogData  // map[string]json.RawMessage
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Unlike v3's `LogLine`, `data` is a flat JSON object: values are already typed, so there is no `{ value, type }` wrapper to parse. Fields such as `category` and `timestamp` appear inside `data` when the emitting operation provides them.

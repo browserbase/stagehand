@@ -12,7 +12,8 @@ Persist browser data between sessions.
 
 For local sessions, point `localBrowser.launch()` at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
@@ -22,9 +23,9 @@ const stagehand = await Stagehand.create({
   }),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
@@ -32,9 +33,9 @@ browser = await local_browser.launch(user_data_dir="./browser-data")
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
 	UserDataDir: "./browser-data",
@@ -51,7 +52,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. A directory you pass yourself is kept either way, so nothing extra is required for the setup above.
@@ -59,24 +61,27 @@ When no user data directory is set, Stagehand launches Chrome against a temporar
 
 The preserve flag governs only that generated temporary profile, never a directory you passed yourself:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 `preserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 `preserve_user_data_dir` keeps the generated temporary directory after shutdown when you turn it on.
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 `PreserveUserDataDir` keeps the generated temporary directory after shutdown when you turn it on.
-</View>
+</Tab>
+</Tabs>
 
 
 ### Browserbase sessions
 
 For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -92,9 +97,9 @@ const stagehand = await Stagehand.create({
   }),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -112,9 +117,9 @@ browser = await browserbase.launch(
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 persist := true
@@ -140,7 +145,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 A persisted profile carries cookies, tokens, and site data across runs. Treat the directory or context ID as a credential: keep it out of version control and scope it to a single automation.

@@ -9,7 +9,8 @@ Good prompts make Stagehand reliable. Bad prompts cause failures. Here's how to 
 
 Use `act()` for single actions on web pages. Each action should be focused and clear.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Single, specific actions
 await stagehand.act("click the 'Add to Cart' button");
@@ -19,9 +20,9 @@ await stagehand.act("type 'user@example.com' into the email field");
 await stagehand.act("fill out the form and submit it");
 await stagehand.act("login with credentials and navigate to dashboard");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Single, specific actions
 await stagehand.act("click the 'Add to Cart' button")
@@ -31,9 +32,9 @@ await stagehand.act("type 'user@example.com' into the email field")
 await stagehand.act("fill out the form and submit it")
 await stagehand.act("login with credentials and navigate to dashboard")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Single, specific actions
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Add to Cart' button"), nil); err != nil {
@@ -51,13 +52,15 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("login with credentials an
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Use element types, not colors
 
 Describe elements by their type and function rather than visual attributes like color.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Element types and descriptive text
 await stagehand.act("click the 'Sign In' button");
@@ -67,9 +70,9 @@ await stagehand.act("type into the email input field");
 await stagehand.act("click the blue button");
 await stagehand.act("type into the white input");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Element types and descriptive text
 await stagehand.act("click the 'Sign In' button")
@@ -79,9 +82,9 @@ await stagehand.act("type into the email input field")
 await stagehand.act("click the blue button")
 await stagehand.act("type into the white input")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Element types and descriptive text
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Sign In' button"), nil); err != nil {
@@ -99,11 +102,13 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type into the white input
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Use descriptive language
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Clear element identification
 await stagehand.act("click the 'Next' button at the bottom of the form");
@@ -113,9 +118,9 @@ await stagehand.act("type into the search bar at the top of the page");
 await stagehand.act("click next");
 await stagehand.act("type into search");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Clear element identification
 await stagehand.act("click the 'Next' button at the bottom of the form")
@@ -125,9 +130,9 @@ await stagehand.act("type into the search bar at the top of the page")
 await stagehand.act("click next")
 await stagehand.act("type into search")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Clear element identification
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the 'Next' button at the bottom of the form"), nil); err != nil {
@@ -145,7 +150,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type into search"), nil);
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Choose the right action verbs
 
@@ -155,7 +161,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type into search"), nil);
 - **Check/uncheck** for checkboxes
 - **Upload** for file inputs
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good
 await stagehand.act("click the submit button");
@@ -165,9 +172,9 @@ await stagehand.act("select 'Option 1' from dropdown");
 await stagehand.act("click submit");
 await stagehand.act("choose option 1");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good
 await stagehand.act("click the submit button")
@@ -177,9 +184,9 @@ await stagehand.act("select 'Option 1' from dropdown")
 await stagehand.act("click submit")
 await stagehand.act("choose option 1")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button"), nil); err != nil {
@@ -197,7 +204,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("choose option 1"), nil); 
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Protect sensitive data
 
@@ -207,7 +215,8 @@ Variables keep sensitive information out of prompts and logs. Stagehand shows th
 Variables are part of the payload that builds the [cache key](/v4/best-practices/caching). Caching is off by default, so the values stay inside the run unless you opt in. Once you enable it with `cache` on `Stagehand.create()` or on a call, the variables you pass travel to the cache service with the rest of the request, so pass `cache: false` on the calls that carry credentials.
 </Warning>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Use variables for sensitive data
 await stagehand.act("type %username% into the email field", {
@@ -219,9 +228,9 @@ await stagehand.act("type %password% into the password field", {
   variables: { password: process.env.USER_PASSWORD },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Use variables for sensitive data
 await stagehand.act(
@@ -235,9 +244,9 @@ await stagehand.act(
     variables={"password": os.environ["USER_PASSWORD"]},
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Use variables for sensitive data
 if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the email field"), &stagehand.StagehandClientActOptions{
@@ -263,7 +272,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the 
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 Set the log level to `off` in your Stagehand config to prevent secrets from appearing in logs.
@@ -277,7 +287,8 @@ Use `extract()` to pull structured data from pages. Define clear schemas and pro
 
 Use descriptive field names, correct types, and detailed descriptions. Field descriptions provide context that helps the model understand exactly what to extract.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Descriptive names, correct types, and helpful descriptions
 const { data: productData } = await stagehand.extract(
@@ -299,9 +310,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from pydantic import BaseModel, Field
 
@@ -330,9 +341,9 @@ class Data(BaseModel):
 
 data = (await stagehand.extract(instruction="Get product details", schema=Data)).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Descriptive names, correct types, and helpful descriptions
 type productData struct {
@@ -348,13 +359,15 @@ type data struct {
 	Stock string `json:"stock"`
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Use proper URL types
 
 Type link fields as URLs so Stagehand resolves them to real addresses instead of the internal element IDs the model chooses.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Tells Stagehand to extract URLs
 const { data } = await stagehand.extract(
@@ -373,9 +386,9 @@ const { data: contact } = await stagehand.extract(
   z.object({ contactUrl: z.url() }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from pydantic import AnyUrl, BaseModel
 
@@ -406,9 +419,9 @@ contact = (await stagehand.extract(
     schema=ContactUrl,
 )).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Tells Stagehand to extract URLs
 type link struct {
@@ -429,7 +442,8 @@ for _, l := range extracted.Data.Links {
 	fmt.Println(l.Text, l.URL)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Observe method
 
@@ -439,7 +453,8 @@ Use `observe()` to discover actionable elements before acting on them.
 
 Verify elements exist before taking action to avoid errors.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Check for elements first
 const { data: loginButtons } = await stagehand.observe("Find the login button");
@@ -450,9 +465,9 @@ if (loginButtons.length > 0) {
   console.log("No login button found");
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Check for elements first
 login_buttons = (await stagehand.observe(instruction="Find the login button")).data
@@ -462,9 +477,9 @@ if login_buttons:
 else:
     print("No login button found")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Check for elements first
 instruction := "Find the login button"
@@ -481,11 +496,13 @@ if len(observed.Data) > 0 {
 	fmt.Println("No login button found")
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Be specific about element types
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Specific element types
 const { data: submitButtons } = await stagehand.observe("Find submit button in the form");
@@ -495,9 +512,9 @@ const { data: dropdowns } = await stagehand.observe("Find the state dropdown men
 const { data: elements } = await stagehand.observe("Find submit stuff");
 const { data: things } = await stagehand.observe("Find state selection");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Specific element types
 submit_buttons = (await stagehand.observe(instruction="Find submit button in the form")).data
@@ -507,9 +524,9 @@ dropdowns = (await stagehand.observe(instruction="Find the state dropdown menu")
 elements = (await stagehand.observe(instruction="Find submit stuff")).data
 things = (await stagehand.observe(instruction="Find state selection")).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Specific element types
 submit := "Find submit button in the form"
@@ -537,7 +554,8 @@ if _, err := client.Observe(ctx, &alsoVague, nil); err != nil {
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Sequencing multi-step work
 
@@ -547,7 +565,8 @@ Stagehand v4 has no autonomous agent, so multi-step flows are your control flow.
 
 Don't put navigation inside an instruction. Handle it separately with `goto`.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Navigate first, then act
 await page.goto("https://amazon.com");
@@ -556,9 +575,9 @@ await stagehand.act("type 'wireless headphones' into the search box");
 // Bad - Navigation inside the instruction
 await stagehand.act("go to Amazon and search for headphones");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Navigate first, then act
 await page.goto("https://amazon.com")
@@ -567,9 +586,9 @@ await stagehand.act("type 'wireless headphones' into the search box")
 # Bad - Navigation inside the instruction
 await stagehand.act("go to Amazon and search for headphones")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Navigate first, then act
 if _, err := page.Goto(ctx, "https://amazon.com", nil); err != nil {
@@ -584,13 +603,15 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("go to Amazon and search f
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Break work into steps
 
 One instruction per action. Sequence them yourself so each step is independently debuggable and cacheable.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Explicit, ordered steps
 await stagehand.act("type 'wireless headphones' into the search box");
@@ -607,9 +628,9 @@ const { data } = await stagehand.extract(
 // Bad - One instruction carrying a whole workflow
 await stagehand.act("search for wireless headphones under $100 and add the best rated one to cart");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Explicit, ordered steps
 await stagehand.act("type 'wireless headphones' into the search box")
@@ -636,9 +657,9 @@ await stagehand.act(
     "search for wireless headphones under $100 and add the best rated one to cart"
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Explicit, ordered steps
 if _, err := client.Act(ctx, stagehand.ActInstruction("type 'wireless headphones' into the search box"), nil); err != nil {
@@ -680,13 +701,15 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("search for wireless headp
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Include success criteria
 
 Verify each step landed instead of assuming it did.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Good - Verify the outcome
 await stagehand.act("click the add to cart button");
@@ -703,9 +726,9 @@ if (cart.itemCount !== 1) {
 // Bad - No validation
 await stagehand.act("add some items to cart");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Good - Verify the outcome
 await stagehand.act("click the add to cart button")
@@ -726,9 +749,9 @@ if cart.item_count != 1:
 # Bad - No validation
 await stagehand.act("add some items to cart")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Good - Verify the outcome
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the add to cart button"), nil); err != nil {
@@ -759,7 +782,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("add some items to cart"),
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Common mistakes to avoid
 
