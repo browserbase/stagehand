@@ -7,13 +7,13 @@ export default defineBenchTask(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
       // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const selector = "/html/body/div/ul[5]/li[28]";
+      const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
       const { data: company } = await stagehand.extract(
         "Extract the name of the company that comes after 'Coframe'.",
         z.object({
           company_name: z.string(),
         }),
-        { selector: selector },
+        { locator },
       );
       const companyName = company.company_name;
 

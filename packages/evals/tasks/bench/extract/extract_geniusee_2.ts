@@ -7,13 +7,13 @@ export default defineBenchTask(
     try {
       await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
       // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const selector = "/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]";
+      const locator = page.locator("xpath=/html/body/main/div[2]/div[2]/div[2]/table/tbody/tr[9]");
       const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",
         z.object({
           scalability: z.string(),
         }),
-        { selector: selector },
+        { locator },
       );
 
       const scalabilityComment = scalability.scalability;
