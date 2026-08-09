@@ -363,7 +363,7 @@ fmt.Println("found", len(result.Data), "call-to-action buttons")
 </Tabs>
 
 <Note>
-  The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes observation to a single resolved subtree.
+  `ignoreLocators` remove each resolved locator target and its descendants from the snapshot. A locator without `nth` removes all matching targets; a locator with `nth` removes only that indexed match. The `locator` option scopes observation to one resolved subtree, using `nth` when present.
 </Note>
 
 ### Validate then act with variables

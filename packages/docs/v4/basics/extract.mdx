@@ -652,7 +652,7 @@ extracted, err := stagehand.Extract[article](
 </Tabs>
 
 <Note>
-  Ignored locators remove all matches for each locator, along with each matched node's descendants. The locator option still scopes extraction to a single resolved subtree.
+  `ignoreLocators` remove each resolved locator target and its descendants from the snapshot. A locator without `nth` removes all matching targets; a locator with `nth` removes only that indexed match. The `locator` option scopes extraction to one resolved subtree, using `nth` when present.
 </Note>
 
 ### Visual extract
