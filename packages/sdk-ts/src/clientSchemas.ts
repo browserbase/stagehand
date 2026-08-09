@@ -60,7 +60,17 @@ export const LocalBrowserConnectOptionsSchema = z
   })
   .meta({ id: "LocalBrowserConnectOptions" });
 
-type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & { apiKey: string };
+export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
+
+type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
+  apiKey: string;
+  baseUrl?: string;
+};
+
+type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
+  apiKey: string;
+  baseUrl: string;
+};
 
 /**
  * Browserbase owns the session option surface. Keep this object loose so newly added SDK options
@@ -69,13 +79,19 @@ type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & { apiKey:
 export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
+    baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
+    apiUrl: z.never().optional(),
     type: z.never().optional(),
   })
-  .meta({ id: "BrowserbaseLaunchOptions" }) as z.ZodType<BrowserbaseLaunchOptionsInput>;
+  .meta({ id: "BrowserbaseLaunchOptions" }) as z.ZodType<
+  BrowserbaseLaunchOptionsOutput,
+  BrowserbaseLaunchOptionsInput
+>;
 
 export const BrowserbaseConnectOptionsSchema = z
   .strictObject({
     apiKey: z.string().min(1),
+    baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
     sessionId: z.string().min(1),
     extensionId: z.string().min(1).optional(),
   })
@@ -196,8 +212,8 @@ export type StagehandClientObserveOptions = z.input<typeof StagehandClientObserv
 export type StagehandClientExtractOptions = z.input<typeof StagehandClientExtractOptionsSchema>;
 export type LocalBrowserLaunchOptions = z.infer<typeof LocalBrowserLaunchOptionsSchema>;
 export type LocalBrowserConnectOptions = z.infer<typeof LocalBrowserConnectOptionsSchema>;
-export type BrowserbaseLaunchOptions = z.infer<typeof BrowserbaseLaunchOptionsSchema>;
-export type BrowserbaseConnectOptions = z.infer<typeof BrowserbaseConnectOptionsSchema>;
+export type BrowserbaseLaunchOptions = z.input<typeof BrowserbaseLaunchOptionsSchema>;
+export type BrowserbaseConnectOptions = z.input<typeof BrowserbaseConnectOptionsSchema>;
 export type BrowserbaseSessionCreateResult = z.infer<typeof BrowserbaseSessionCreateResultSchema>;
 export type BrowserbaseSessionRetrieveResult = z.infer<
   typeof BrowserbaseSessionRetrieveResultSchema

@@ -17,6 +17,14 @@ const packageChangelogs = [
     label: "Extension Runtime",
     path: path.join(repositoryRoot, "packages/extension/CHANGELOG.md"),
   },
+  {
+    label: "Go SDK",
+    path: path.join(repositoryRoot, "packages/sdk-go/CHANGELOG.md"),
+  },
+  {
+    label: "Protocol",
+    path: path.join(repositoryRoot, "packages/protocol/CHANGELOG.md"),
+  },
 ];
 
 function isFileNotFound(error: unknown): boolean {

@@ -14,7 +14,8 @@ Selectors also cross iframe boundaries. Separate a frame from a target inside it
 **Closed roots require a navigated page.** Stagehand resolves elements inside iframes and shadow DOMs for you, so you rarely need to target nested documents manually. This relies on privileged browser APIs that aren't available on `about:blank` or `data:` URLs, so navigate to a `http:` or `https:` URL first when a target sits inside an iframe or a closed shadow root (see [locator limitations](/v4/reference/locator)).
 </Warning>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 
 ## Quick start
 
@@ -389,9 +390,9 @@ const third = locator.nth(2);
   The operation result.
 </ResponseField>
 
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 
 ## Quick start
 
@@ -748,4 +749,5 @@ third = locator.nth(2)
   The operation result.
 </ResponseField>
 
-</View>
+</Tab>
+</Tabs>

@@ -306,6 +306,33 @@ class Caching(RootModel[Union[StrictBool, Caching1]]):
     root: Union[StrictBool, Caching1]
 
 
+class CallbackBatchOptions(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    page_id: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    timeout: Annotated[StrictInt, Field(gt=0, le=2147473647)] = 30000
+
+
+class CallbackBatchParams(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    callback_source: Annotated[StrictStr, Field(min_length=1)]
+    input: Optional[FieldSchema2] = None
+    options: CallbackBatchOptions
+
+
+class CallbackBatchResult(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    value: Optional[FieldSchema3] = None
+
+
 class Caret(StrEnum):
     hide = "hide"
     initial = "initial"
@@ -593,81 +620,93 @@ class ExtractResult(WireModel):
 
 
 class FieldSchema0(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema0"]], dict[StrictStr, Optional["FieldSchema0"]]]]
 
 
 class FieldSchema1(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema1"]], dict[StrictStr, Optional["FieldSchema1"]]]]
 
 
 class FieldSchema10(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema10"]], dict[StrictStr, Optional["FieldSchema10"]]]]
 
 
 class FieldSchema11(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema11"]], dict[StrictStr, Optional["FieldSchema11"]]]]
 
 
 class FieldSchema12(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema12"]], dict[StrictStr, Optional["FieldSchema12"]]]]
+
+
+class FieldSchema13(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema13"]], dict[StrictStr, Optional["FieldSchema13"]]]]
+
+
+class FieldSchema14(
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]]
+):
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema14"]], dict[StrictStr, Optional["FieldSchema14"]]]]
 
 
 class FieldSchema2(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema2"]], dict[StrictStr, Optional["FieldSchema2"]]]]
 
 
 class FieldSchema3(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema3"]], dict[StrictStr, Optional["FieldSchema3"]]]]
 
 
 class FieldSchema4(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema4"]], dict[StrictStr, Optional["FieldSchema4"]]]]
 
 
 class FieldSchema5(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema5"]], dict[StrictStr, Optional["FieldSchema5"]]]]
 
 
 class FieldSchema6(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema6"]], dict[StrictStr, Optional["FieldSchema6"]]]]
 
 
 class FieldSchema7(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema7"]], dict[StrictStr, Optional["FieldSchema7"]]]]
 
 
 class FieldSchema8(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema8"]], dict[StrictStr, Optional["FieldSchema8"]]]]
 
 
 class FieldSchema9(
-    RootModel[Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]]
+    RootModel[Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]]
 ):
-    root: Optional[Union[StrictStr, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]
+    root: Optional[Union[StrictStr, StrictInt, StrictFloat, StrictBool, list[Optional["FieldSchema9"]], dict[StrictStr, Optional["FieldSchema9"]]]]
 
 
 class GoogleModelName(RootModel[StrictStr]):
@@ -733,7 +772,7 @@ class JSONRPCErrorObject(WireModel):
     )
     code: Annotated[StrictInt, Field(ge=-9007199254740991, le=9007199254740991)]
     message: StrictStr
-    data: Optional[FieldSchema12] = None
+    data: Optional[FieldSchema14] = None
 
 
 class JSONRPCRequestId(RootModel[StrictInt]):
@@ -794,7 +833,7 @@ class LLMJsonSchemaResponseFormat(WireModel):
     type: Literal["json_schema"]
     name: StrictStr
     description: Optional[StrictStr] = None
-    schema_: Annotated[Optional[FieldSchema4], Field(alias="schema")]
+    schema_: Annotated[Optional[FieldSchema6], Field(alias="schema")]
 
 
 class LLMMessage(WireModel):
@@ -865,7 +904,7 @@ class LLMStructuredGenerateResult(WireModel):
     stop_reason: Optional[StrictStr] = None
     usage: Optional[LLMUsage] = None
     output_format: Literal["json_schema"]
-    structured_content: Optional[FieldSchema6]
+    structured_content: Optional[FieldSchema8]
 
 
 class LLMGenerateResult(
@@ -939,7 +978,7 @@ class LLMToolJson(WireModel):
     )
     field_schema: Annotated[Optional[StrictStr], Field(alias="$schema")] = None
     type: Literal["object"]
-    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema5]]]] = (
+    properties: Optional[dict[StrictStr, dict[StrictStr, Optional[FieldSchema7]]]] = (
         None
     )
     required: Optional[list[StrictStr]] = None
@@ -953,7 +992,7 @@ class LLMToolResultContent(WireModel):
     type: Literal["tool_result"]
     tool_use_id: StrictStr
     content: list[LLMToolResultContentBlock]
-    structured_content: Optional[dict[StrictStr, Optional[FieldSchema3]]] = None
+    structured_content: Optional[dict[StrictStr, Optional[FieldSchema5]]] = None
     is_error: Optional[StrictBool] = None
 
 
@@ -969,7 +1008,7 @@ class LLMToolUseContent(WireModel):
     type: Literal["tool_use"]
     id: StrictStr
     name: StrictStr
-    input: dict[StrictStr, Optional[FieldSchema2]]
+    input: dict[StrictStr, Optional[FieldSchema4]]
 
 
 class LLMMessageContentBlock(
@@ -1457,8 +1496,8 @@ class PageCDPEventNotification(WireModel):
     event: PageCDPEvent
 
 
-class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema10]]]):
-    root: dict[StrictStr, Optional[FieldSchema10]]
+class PageCDPEventParams(RootModel[dict[StrictStr, Optional[FieldSchema12]]]):
+    root: dict[StrictStr, Optional[FieldSchema12]]
 
 
 class PageClickOptions(WireModel):
@@ -1497,6 +1536,7 @@ class PageDragAndDropOptions(WireModel):
     button: Optional[MouseButton] = None
     steps: Annotated[Optional[StrictInt], Field(gt=0, le=9007199254740991)] = None
     delay: Annotated[Optional[StrictFloat], Field(ge=0.0)] = None
+    route: Optional[list[PageDragAndDropRoutePoint]] = None
 
 
 class PageDragAndDropParams(WireModel):
@@ -1510,6 +1550,15 @@ class PageDragAndDropParams(WireModel):
     to_x: StrictFloat
     to_y: StrictFloat
     options: Optional[PageDragAndDropOptions] = None
+
+
+class PageDragAndDropRoutePoint(WireModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        validate_by_name=True,
+    )
+    x: StrictFloat
+    y: StrictFloat
 
 
 class PageEvaluateParams(WireModel):
@@ -1526,7 +1575,7 @@ class PageEvaluateResult(WireModel):
         extra="forbid",
         validate_by_name=True,
     )
-    value: Optional[FieldSchema7]
+    value: Optional[FieldSchema9]
 
 
 class PageEventName(RootModel[Literal["console"]]):
@@ -2050,11 +2099,19 @@ class StagehandInitParams(WireModel):
     model_config = ConfigDict(
         extra="forbid",
         validate_by_name=True,
+        arbitrary_types_allowed=True,
     )
-    protocol_version: Literal[1]
+    protocol_version: Annotated[
+        StrictStr,
+        Field(
+            pattern="^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(?:-((?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+        ),
+    ]
     client_info: ImplementationInfo
     browser_cdp_url: Annotated[Optional[StrictStr], Field(min_length=1)] = None
     api_key: Annotated[Optional[StrictStr], Field(min_length=1)] = None
+    api_url: Optional[WireUrl] = None
+    """Stagehand API base URL override for managed services such as Model Gateway and server-side caching"""
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
@@ -2090,8 +2147,8 @@ class StagehandLog(WireModel):
     data: StagehandLogData
 
 
-class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema9]]]):
-    root: dict[StrictStr, Optional[FieldSchema9]]
+class StagehandLogData(RootModel[dict[StrictStr, Optional[FieldSchema11]]]):
+    root: dict[StrictStr, Optional[FieldSchema11]]
 
 
 class StagehandLogLevel(StrEnum):
@@ -2250,8 +2307,8 @@ class WebMCPInvocationStatus(StrEnum):
     error = "Error"
 
 
-class WebMCPJsonValue(RootModel[Optional[FieldSchema8]]):
-    root: Optional[FieldSchema8]
+class WebMCPJsonValue(RootModel[Optional[FieldSchema10]]):
+    root: Optional[FieldSchema10]
 
 
 class WebMCPRemoteObject(RootModel[dict[StrictStr, WebMCPJsonValue]]):
@@ -2306,6 +2363,8 @@ FieldSchema1.model_rebuild()
 FieldSchema10.model_rebuild()
 FieldSchema11.model_rebuild()
 FieldSchema12.model_rebuild()
+FieldSchema13.model_rebuild()
+FieldSchema14.model_rebuild()
 FieldSchema2.model_rebuild()
 FieldSchema3.model_rebuild()
 FieldSchema4.model_rebuild()

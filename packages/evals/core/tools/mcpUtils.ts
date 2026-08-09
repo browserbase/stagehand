@@ -320,3 +320,160 @@ export class StdioMcpRuntime {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Visible-tab resolution
+// ---------------------------------------------------------------------------
+
+interface CdpEndpoint {
+  kind: "ws" | "http";
+  url: string;
+  headers?: Record<string, string>;
+}
+
+/**
+ * Resolves the URL of the browser's currently visible page tab over a direct
+ * CDP connection, independent of any MCP server's own tab selection.
+ *
+ * Two MCP server instances (the agent's and the harness observer's) attach to
+ * the same browser but track tab selection separately — when the agent
+ * switches tabs, the observer keeps probing its stale selection. The browser
+ * itself knows which tab is visible (`document.visibilityState`), so evidence
+ * capture asks it directly and re-points the observer session before probing.
+ *
+ * Best-effort: returns undefined on any failure or when no tab reports
+ * visible (e.g. a minimized headful window).
+ */
+export async function resolveVisiblePageUrl(
+  endpoint: CdpEndpoint,
+  timeoutMs = 4_000,
+): Promise<string | undefined> {
+  if (endpoint.kind !== "ws") return undefined;
+  // Typed locally: the evals package ships ws without @types/ws.
+  type WsLike = {
+    send(data: string, cb?: (err?: Error) => void): void;
+    on(event: "message", cb: (raw: unknown) => void): void;
+    once(event: "open" | "error", cb: (arg?: unknown) => void): void;
+    close(): void;
+  };
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const { WebSocket: WsCtor } = (await import("ws" as string)) as unknown as {
+    WebSocket: new (
+      url: string,
+      opts?: { headers?: Record<string, string>; maxPayload?: number },
+    ) => WsLike;
+  };
+  const socket = new WsCtor(endpoint.url, {
+    headers: endpoint.headers,
+    maxPayload: 32 * 1024 * 1024,
+  });
+
+  let nextId = 1;
+  const inflight = new Map<number, (result: Record<string, unknown>) => void>();
+
+  const send = (
+    method: string,
+    params: Record<string, unknown> = {},
+    sessionId?: string,
+  ): Promise<Record<string, unknown>> =>
+    new Promise((resolve, reject) => {
+      const id = nextId++;
+      inflight.set(id, resolve);
+      socket.send(
+        JSON.stringify({ id, method, params, ...(sessionId && { sessionId }) }),
+        (err?: Error) => {
+          if (err) {
+            inflight.delete(id);
+            reject(err);
+          }
+        },
+      );
+    });
+
+  const resolveVisible = async (): Promise<string | undefined> => {
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", () => resolve());
+      socket.once("error", (error) => reject(error));
+    });
+    socket.on("message", (raw: unknown) => {
+      try {
+        const message = JSON.parse(String(raw)) as {
+          id?: number;
+          result?: Record<string, unknown>;
+          error?: { message?: string };
+        };
+        if (typeof message.id === "number") {
+          inflight.get(message.id)?.(message.result ?? {});
+          inflight.delete(message.id);
+        }
+      } catch {
+        // ignore malformed frames
+      }
+    });
+
+    const targets = (await send("Target.getTargets")) as {
+      targetInfos?: Array<{ targetId: string; type: string; url: string }>;
+    };
+    const pages = (targets.targetInfos ?? []).filter(
+      (t) => t.type === "page" && !t.url.startsWith("devtools://"),
+    );
+    for (const target of pages) {
+      const attached = (await send("Target.attachToTarget", {
+        targetId: target.targetId,
+        flatten: true,
+      })) as { sessionId?: string };
+      if (!attached.sessionId) continue;
+      const evaluated = (await send(
+        "Runtime.evaluate",
+        { expression: "document.visibilityState", returnByValue: true },
+        attached.sessionId,
+      )) as { result?: { value?: unknown } };
+      if (evaluated.result?.value === "visible") {
+        return target.url;
+      }
+    }
+    return undefined;
+  };
+
+  const timeout = new Promise<undefined>((resolve) => setTimeout(resolve, timeoutMs, undefined));
+  try {
+    return await Promise.race([resolveVisible().catch((): undefined => undefined), timeout]);
+  } finally {
+    socket.close();
+  }
+}
+
+/**
+ * Points `session` at the browser's visible tab before an evidence capture.
+ * No-ops (best-effort) when resolution fails, the URL is ambiguous across
+ * tabs, or the session is already there. Selecting the visible tab is safe:
+ * the underlying bringToFront is a no-op for a tab that is already front.
+ */
+export async function syncSessionToVisiblePage(
+  session: {
+    listPages(): Promise<Array<{ id: string; url(): string }>>;
+    activePage(): Promise<{ id: string }>;
+    selectPage(pageId: string): Promise<void>;
+  },
+  endpoint: CdpEndpoint | undefined,
+): Promise<void> {
+  if (!endpoint) return;
+  try {
+    const visibleUrl = await resolveVisiblePageUrl(endpoint);
+    if (!visibleUrl) return;
+    const pages = await session.listPages();
+    const matches = pages.filter((page) => {
+      try {
+        return page.url() === visibleUrl;
+      } catch {
+        return false;
+      }
+    });
+    if (matches.length !== 1) return;
+    const active = await session.activePage().catch((): undefined => undefined);
+    if (active?.id === matches[0].id) return;
+    await session.selectPage(matches[0].id);
+  } catch {
+    // best-effort only — capture falls back to the session's own selection
+  }
+}

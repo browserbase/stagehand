@@ -27,7 +27,8 @@ Browserbase provides real-time visibility into your automation sessions:
 
 **Session management & API access**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
 import { browserbase as stagehandBrowserbase, Stagehand } from "@browserbasehq/stagehand";
@@ -55,9 +56,9 @@ console.log("CPU usage:", sessionInfo.avgCpuUsage);
 console.log("Memory usage:", sessionInfo.memoryUsage);
 console.log("Proxy bytes:", sessionInfo.proxyBytes);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -87,9 +88,9 @@ print("CPU usage:", session_info.avg_cpu_usage)
 print("Memory usage:", session_info.memory_usage)
 print("Proxy bytes:", session_info.proxy_bytes)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Create the session with your Browserbase client of choice so you hold the
 // session ID, then attach Stagehand to it.
@@ -125,7 +126,8 @@ fmt.Println("CPU usage:", info.AvgCPUUsage)
 fmt.Println("Memory usage:", info.MemoryUsage)
 fmt.Println("Proxy bytes:", info.ProxyBytes)
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Session analytics & insights
 
@@ -151,7 +153,8 @@ fmt.Println("Proxy bytes:", info.ProxyBytes)
 
 Query and monitor sessions by status and metadata:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
 
@@ -201,9 +204,9 @@ async function querySessionsByMetadata(query: string) {
   return sessions;
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -234,9 +237,9 @@ def get_filtered_sessions():
 def query_sessions_by_metadata(query: str):
     return browserbase.sessions.list(q=query)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type sessionSummary struct {
 	ID           string
@@ -279,7 +282,8 @@ func querySessionsByMetadata(ctx context.Context, query string) ([]browserbaseSe
 	return listBrowserbaseSessions(ctx, listOptions{Query: query})
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Tag every session with `userMetadata` on `browserbase.launch()` so you can slice these queries by workflow, customer, or deployment.
@@ -293,7 +297,8 @@ For local development, Stagehand provides performance monitoring and resource tr
 
 {/* TODO: these samples call stagehand.metrics(), which is typed end to end but currently throws "Method not implemented" in the runtime. Same caveat as the "Real-time metrics & monitoring" section below; verify both before publishing. */}
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
@@ -331,9 +336,9 @@ console.log("Local Performance Summary:", {
   tokensPerSecond: (tokensUsed / (executionTime / 1000)).toFixed(2),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from time import perf_counter
 
@@ -377,9 +382,9 @@ print("Local Performance Summary:", {
     "tokens_per_second": f"{tokens_used / (execution_time / 1000):.2f}",
 })
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type data struct {
 	Title string `json:"title"`
@@ -448,13 +453,15 @@ fmt.Printf(
 	tokensUsed/executionTime.Seconds(),
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Resource usage monitoring
 
 When running locally, monitor system resource usage and browser performance:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import * as os from "node:os";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
@@ -498,9 +505,9 @@ const stagehand = await Stagehand.create({ browser });
 clearInterval(interval);
 console.log("Resource Usage:", monitor.getResourceSummary());
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import asyncio
 import os
@@ -547,9 +554,9 @@ stagehand = await Stagehand.create(browser=browser)
 task.cancel()
 print("Resource Usage:", monitor.get_resource_summary())
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type localResourceMonitor struct {
 	mu          sync.Mutex
@@ -607,7 +614,8 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 stopMonitor()
 fmt.Println("Resource Usage:", monitor.getResourceSummary())
 ```
-</View>
+</Tab>
+</Tabs>
 
 
   <Card title="Speed and cost tuning" icon="chart-line" href="/v4/best-practices/cost-optimization">
@@ -623,7 +631,8 @@ Monitor your automation's resource usage in real-time by calling the metrics met
 
 {/* TODO: stagehand.metrics() is typed end to end but the runtime currently throws "Method not implemented". Verify before publishing. */}
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
@@ -664,9 +673,9 @@ console.log("Automation Summary:", {
   avgInferenceTime: `${finalMetrics.totalInferenceTimeMs / 3}ms`,
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 from time import perf_counter
@@ -715,9 +724,9 @@ print("Automation Summary:", {
     "avg_inference_time": f"{final_metrics.total_inference_time_ms / 3}ms",
 })
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type user struct {
 	Name  string `json:"name"`
@@ -793,13 +802,15 @@ fmt.Printf(
 	finalMetrics.TotalInferenceTimeMs/3,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Understanding metrics data
 
 The metrics object provides a detailed breakdown by Stagehand operation:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 interface StagehandMetrics {
   // Act operation metrics
@@ -831,9 +842,9 @@ interface StagehandMetrics {
   totalInferenceTimeMs: number;
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class StagehandMetrics(BaseModel):
     # Act operation metrics
@@ -864,9 +875,9 @@ class StagehandMetrics(BaseModel):
     total_cached_input_tokens: float
     total_inference_time_ms: float
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type StagehandMetrics struct {
 	// Act operation metrics
@@ -898,11 +909,13 @@ type StagehandMetrics struct {
 	TotalInferenceTimeMs   float64
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 **Example metrics output:**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const metrics = await stagehand.metrics();
 console.log(metrics);
@@ -930,9 +943,9 @@ console.log(metrics);
 //   totalInferenceTimeMs: 6888
 // }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 metrics = await stagehand.metrics()
 print(metrics)
@@ -960,9 +973,9 @@ print(metrics)
 #     total_inference_time_ms=6888,
 # )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 metrics, err := client.Metrics(ctx)
 if err != nil {
@@ -993,7 +1006,8 @@ fmt.Printf("%+v\n", metrics)
 //     TotalInferenceTimeMs:     6888,
 // }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Cached input tokens are reported separately so you can see how much of your prompt spend was served from your provider's prompt cache. This is distinct from Stagehand's own [server-side result cache](/v4/best-practices/caching), which avoids the inference call entirely.
@@ -1003,7 +1017,8 @@ Cached input tokens are reported separately so you can see how much of your prom
 
 Metrics give you the totals. When you want the sequence of what happened, build the timeline yourself from the log callback: every act, observe, and extract emits records with their structured data already attached. There is no history accessor on the `Stagehand` instance.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Record each log entry with the time you receive it
 const history: Array<{
@@ -1030,9 +1045,9 @@ const stagehand = await Stagehand.create({
 console.log(history.filter((entry) => entry.level === "error"));
 console.log(await stagehand.metrics());
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -1060,9 +1075,9 @@ stagehand = await Stagehand.create(
 print([entry for entry in history if entry["level"] == "error"])
 print(await stagehand.metrics())
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 var history []stagehand.StagehandLog
 var mu sync.Mutex
@@ -1113,7 +1128,8 @@ if err != nil {
 }
 fmt.Printf("%+v\n", metrics)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 The records you capture depend on the level. Raise it to `debug` for the fullest timeline; the default is `info` and above.
@@ -1127,7 +1143,8 @@ On Browserbase, the session replay dashboard gives you the same timeline visuall
 
 Stagehand emits OpenTelemetry spans for every operation and for every log record, and propagates W3C trace context across the SDK and runtime boundary. Point it at your own OTLP collector to see full traces alongside the rest of your system.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -1142,9 +1159,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -1163,9 +1180,9 @@ stagehand = await Stagehand.create(
     }),
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -1190,7 +1207,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 | Field | Description |
 |-------|-------------|

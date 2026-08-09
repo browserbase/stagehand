@@ -14,7 +14,8 @@ Model Gateway lets you use Stagehand without wiring up model providers yourself.
 
 ### Setup
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -22,9 +23,9 @@ const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -34,9 +35,9 @@ browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -56,7 +57,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. An explicit model without a provider-specific API key still routes through Model Gateway, but pins that model instead.
 
@@ -71,16 +73,17 @@ With Model Gateway, switching between providers is a config change: no new accou
 <Tabs>
 <Tab title="OpenAI">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "openai/gpt-5" },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -89,9 +92,9 @@ stagehand = await Stagehand.create(
     model="openai/gpt-5",
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
@@ -114,20 +117,22 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 </Tab>
 <Tab title="Anthropic">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "anthropic/claude-sonnet-4-6" },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -136,9 +141,9 @@ stagehand = await Stagehand.create(
     model="anthropic/claude-sonnet-4-6",
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
@@ -161,20 +166,22 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 </Tab>
 <Tab title="Google">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { modelName: "google/gemini-3-flash-preview" },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -183,9 +190,9 @@ stagehand = await Stagehand.create(
     model="google/gemini-3-flash-preview",
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 // No model API key: requests route through Model Gateway
@@ -208,7 +215,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 </Tab>
 </Tabs>
 
@@ -244,7 +252,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 Get started with Google Gemini (recommended for speed and cost):
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -255,9 +264,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -271,9 +280,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
@@ -298,7 +307,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
@@ -314,7 +324,8 @@ Use any model from the following supported providers.
 <Tabs>
 <Tab title="Google">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -325,9 +336,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -341,9 +352,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["GOOGLE_GENERATIVE_AI_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GOOGLE_GENERATIVE_AI_API_KEY")
@@ -368,7 +379,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Commonly used: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`, `google/gemini-3.5-flash`, `google/gemini-2.5-flash`, `google/gemini-flash-latest`.
 
@@ -377,7 +389,8 @@ Commonly used: `google/gemini-3.1-pro-preview`, `google/gemini-3-flash-preview`,
 
 <Tab title="Anthropic">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -388,9 +401,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -404,9 +417,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["ANTHROPIC_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
@@ -431,7 +444,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Commonly used: `anthropic/claude-sonnet-5`, `anthropic/claude-fable-5`, `anthropic/claude-opus-4-8`, `anthropic/claude-sonnet-4-6`, `anthropic/claude-haiku-4-5`.
 
@@ -440,7 +454,8 @@ Commonly used: `anthropic/claude-sonnet-5`, `anthropic/claude-fable-5`, `anthrop
 
 <Tab title="OpenAI">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -451,9 +466,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -467,9 +482,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["OPENAI_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
@@ -494,7 +509,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Commonly used: `openai/gpt-5.6`, `openai/gpt-5.5`, `openai/gpt-5.4`, `openai/gpt-5.4-mini`, `openai/gpt-5.4-nano`, `openai/o4-mini`.
 
@@ -507,7 +523,8 @@ OpenAI models are called through the Responses API.
 
 <Tab title="Groq">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -518,9 +535,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -534,9 +551,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["GROQ_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("GROQ_API_KEY")
@@ -561,7 +578,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq/moonshotai/kimi-k2-instruct-0905`, `groq/qwen/qwen3-32b`.
 
@@ -570,7 +588,8 @@ Commonly used: `groq/llama-3.3-70b-versatile`, `groq/openai/gpt-oss-120b`, `groq
 
 <Tab title="Cerebras">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -581,9 +600,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -597,9 +616,9 @@ stagehand = await Stagehand.create(
     model_api_key=os.environ["CEREBRAS_API_KEY"],
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("CEREBRAS_API_KEY")
@@ -624,7 +643,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Commonly used: `cerebras/gpt-oss-120b`, `cerebras/qwen-3-235b-a22b-instruct-2507`, `cerebras/zai-glm-4.7`, `cerebras/llama3.1-8b`.
 
@@ -648,31 +668,34 @@ Stagehand sends a provider-neutral request (messages, system prompt, temperature
 <Step title="Install dependencies">
 Install your provider's SDK.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 npm install @aws-sdk/client-bedrock-runtime
 # pnpm add @aws-sdk/client-bedrock-runtime
 # yarn add @aws-sdk/client-bedrock-runtime
 # bun add @aws-sdk/client-bedrock-runtime
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 pip install boto3
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 go get github.com/aws/aws-sdk-go-v2/service/bedrockruntime
 ```
-</View>
+</Tab>
+</Tabs>
 </Step>
 
 <Step title="Write the generate callback">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import {
   BedrockRuntimeClient,
@@ -739,9 +762,9 @@ async function generateWithBedrock(params: LLMGenerateParams) {
   };
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import base64
 import json
@@ -787,9 +810,9 @@ async def generate_with_bedrock(params):
         "structured_content": json.loads(text),
     })
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // A message's content is a slice of blocks, each one text, image, tool-use, or
 // tool-result. Converse takes its own content blocks, so map text to a text
@@ -853,21 +876,23 @@ func generateWithBedrock(
 	}), nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 </Step>
 
 <Step title="Pass the callback to Stagehand">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithBedrock },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -876,9 +901,9 @@ stagehand = await Stagehand.create(
     model=generate_with_bedrock,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -898,7 +923,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Step>
 </Steps>
@@ -909,31 +935,34 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Step title="Install dependencies">
 Install your provider's SDK.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 npm install openai
 # pnpm add openai
 # yarn add openai
 # bun add openai
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 pip install openai
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 go get github.com/openai/openai-go
 ```
-</View>
+</Tab>
+</Tabs>
 </Step>
 
 <Step title="Write the generate callback">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import OpenAI from "openai";
 
@@ -1004,9 +1033,9 @@ async function generateWithOpenAI(params: LLMGenerateParams) {
   };
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 import json
@@ -1062,9 +1091,9 @@ async def generate_with_openai(params):
         "structured_content": json.loads(response.output_text),
     })
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func generateWithOpenAI(
 	ctx context.Context,
@@ -1094,7 +1123,8 @@ func generateWithOpenAI(
 	}), nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Reporting token usage is optional. To report it, add a `usage` field to the result and map your provider's own usage field names onto Stagehand's: input tokens, output tokens, and total tokens are required, while reasoning tokens and cached input tokens are optional. Providers spell these differently, so read the names off your provider's response type rather than assuming they match Stagehand's.
@@ -1103,16 +1133,17 @@ Reporting token usage is optional. To report it, add a `usage` field to the resu
 
 <Step title="Pass the callback to Stagehand">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithOpenAI },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -1121,9 +1152,9 @@ stagehand = await Stagehand.create(
     model=generate_with_openai,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -1143,7 +1174,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Step>
 </Steps>
@@ -1158,7 +1190,8 @@ Install your provider's SDK.
 </Step>
 <Step title="Write the generate callback">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // The shape Stagehand passes to your callback. The TypeScript SDK does not
 // re-export `LLMGenerateParams` yet, so spell out the fields you read.
@@ -1187,9 +1220,9 @@ async function generateWithYourProvider(params: LLMGenerateParams) {
   };
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 async def generate_with_your_provider(params):
     # params.messages         Conversation so far
@@ -1206,9 +1239,9 @@ async def generate_with_your_provider(params):
         "structured_content": json.loads(text),
     })
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func generateWithYourProvider(
 	ctx context.Context,
@@ -1236,7 +1269,8 @@ func generateWithYourProvider(
 	}), nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 A message's content is one content block or an array of them. Text blocks carry a string, and image blocks carry base64 data plus a MIME type. [`extract()` with the screenshot option](/v4/basics/extract) sends a viewport screenshot as an image block, so map image blocks onto your provider's own image format. A callback that reads only the text blocks answers a visual extraction from the accessibility tree alone.
@@ -1244,16 +1278,17 @@ A message's content is one content block or an array of them. Text blocks carry 
 </Step>
 <Step title="Pass the callback to Stagehand">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
   model: { generate: generateWithYourProvider },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 
@@ -1262,9 +1297,9 @@ stagehand = await Stagehand.create(
     model=generate_with_your_provider,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -1284,7 +1319,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Step>
 </Steps>
@@ -1325,7 +1361,8 @@ Different models excel at different tasks. Consider speed, accuracy, and cost fo
 
 Every primitive accepts a model configuration for a single call, so you can run cheap inference by default and reach for a stronger model only where it matters:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const PricingSchema = z.object({ summary: z.string() });
 
@@ -1349,9 +1386,9 @@ const { data } = await stagehand.extract("summarize the pricing table", PricingS
 
 console.log(data.summary);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -1385,9 +1422,9 @@ data = (await stagehand.extract(
 
 print(data.summary)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type pricing struct {
 	Summary string `json:"summary"`
@@ -1442,7 +1479,8 @@ if err != nil {
 
 fmt.Println(extracted.Data.Summary)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Model configuration is deliberately excluded from the [cache key](/v4/best-practices/caching), so switching models per call does not invalidate cached results.
@@ -1454,7 +1492,8 @@ Model configuration is deliberately excluded from the [cache key](/v4/best-pract
 
 Some enterprise gateways require extra headers on every model request. Attach them to the model configuration:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
@@ -1464,9 +1503,9 @@ const stagehand = await Stagehand.create({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -1481,9 +1520,9 @@ stagehand = await Stagehand.create(
     model_headers={"x-tenant-id": "acme"},
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 modelAPIKey := os.Getenv("OPENAI_API_KEY")
@@ -1510,7 +1549,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 There is no base URL option. A model configuration always names one of the five supported providers, so Azure OpenAI deployments, self-hosted models, and any other custom endpoint go through the [bring-your-own-LLM callback](#custom-models) instead, where you own the client, the transport, and the credentials.
@@ -1522,7 +1562,8 @@ There is no base URL option. A model configuration always names one of the five 
 
 For advanced use cases like custom retries or caching logic, wrap your generate callback. Because the callback is ordinary code in your process, you can layer whatever behavior you need around it:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Generic in the callback's own params and result, so the wrapper stays
 // interchangeable with the callback it wraps.
@@ -1548,9 +1589,9 @@ const stagehand = await Stagehand.create({
   model: { generate: withRetries(generateWithOpenAI) },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import asyncio
 import os
@@ -1576,9 +1617,9 @@ stagehand = await Stagehand.create(
     model=with_retries(generate_with_openai),
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 func withRetries(generate stagehand.LLMGenerateFunc, attempts int) stagehand.LLMGenerateFunc {
 	return func(ctx context.Context, params stagehand.LLMGenerateParams) (stagehand.LLMGenerateResult, error) {
@@ -1620,7 +1661,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
   Need result caching rather than request retries? Use the built-in [caching

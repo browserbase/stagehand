@@ -291,6 +291,30 @@ type CacheTokenSavings struct {
 	TotalTokens int `json:"total_tokens,omitempty,omitzero"`
 }
 
+type CallbackBatchOptions struct {
+	// PageID corresponds to the JSON schema field "page_id".
+	PageID *string `json:"page_id,omitempty,omitzero"`
+
+	// Timeout corresponds to the JSON schema field "timeout".
+	Timeout int `json:"timeout,omitempty,omitzero"`
+}
+
+type CallbackBatchParams struct {
+	// CallbackSource corresponds to the JSON schema field "callback_source".
+	CallbackSource string `json:"callback_source"`
+
+	// Input corresponds to the JSON schema field "input".
+	Input json.RawMessage `json:"input,omitempty,omitzero"`
+
+	// Options corresponds to the JSON schema field "options".
+	Options CallbackBatchOptions `json:"options"`
+}
+
+type CallbackBatchResult struct {
+	// Value corresponds to the JSON schema field "value".
+	Value json.RawMessage `json:"value,omitempty,omitzero"`
+}
+
 type CerebrasModelName string
 
 type ClearCookieOptions struct {
@@ -1244,6 +1268,9 @@ type PageDragAndDropOptions struct {
 	// Delay corresponds to the JSON schema field "delay".
 	Delay *float64 `json:"delay,omitempty,omitzero"`
 
+	// Route corresponds to the JSON schema field "route".
+	Route []PageDragAndDropRoutePoint `json:"route,omitempty,omitzero"`
+
 	// Steps corresponds to the JSON schema field "steps".
 	Steps *int `json:"steps,omitempty,omitzero"`
 }
@@ -1266,6 +1293,14 @@ type PageDragAndDropParams struct {
 
 	// ToY corresponds to the JSON schema field "to_y".
 	ToY float64 `json:"to_y"`
+}
+
+type PageDragAndDropRoutePoint struct {
+	// X corresponds to the JSON schema field "x".
+	X float64 `json:"x"`
+
+	// Y corresponds to the JSON schema field "y".
+	Y float64 `json:"y"`
 }
 
 type PageEvaluateParams struct {
@@ -1790,6 +1825,10 @@ type StagehandInitParams struct {
 	// APIKey corresponds to the JSON schema field "api_key".
 	APIKey *string `json:"api_key,omitempty,omitzero"`
 
+	// Stagehand API base URL override for managed services such as Model Gateway and
+	// server-side caching
+	APIURL *string `json:"api_url,omitempty,omitzero"`
+
 	// Browser corresponds to the JSON schema field "browser".
 	Browser *BrowserSessionMetadata `json:"browser,omitempty,omitzero"`
 
@@ -1813,7 +1852,7 @@ type StagehandInitParams struct {
 	Model *StagehandInitModel `json:"model,omitempty,omitzero"`
 
 	// ProtocolVersion corresponds to the JSON schema field "protocol_version".
-	ProtocolVersion float64 `json:"protocol_version"`
+	ProtocolVersion string `json:"protocol_version"`
 
 	// SelfHeal corresponds to the JSON schema field "self_heal".
 	SelfHeal *bool `json:"self_heal,omitempty,omitzero"`
@@ -2147,6 +2186,16 @@ type generatedModelCatalog struct {
 
 	// Caching corresponds to the JSON schema field "Caching".
 	Caching *Caching `json:"Caching,omitempty,omitzero"`
+
+	// CallbackBatchOptions corresponds to the JSON schema field
+	// "CallbackBatchOptions".
+	CallbackBatchOptions *CallbackBatchOptions `json:"CallbackBatchOptions,omitempty,omitzero"`
+
+	// CallbackBatchParams corresponds to the JSON schema field "CallbackBatchParams".
+	CallbackBatchParams *CallbackBatchParams `json:"CallbackBatchParams,omitempty,omitzero"`
+
+	// CallbackBatchResult corresponds to the JSON schema field "CallbackBatchResult".
+	CallbackBatchResult *CallbackBatchResult `json:"CallbackBatchResult,omitempty,omitzero"`
 
 	// CerebrasModelName corresponds to the JSON schema field "CerebrasModelName".
 	CerebrasModelName *CerebrasModelName `json:"CerebrasModelName,omitempty,omitzero"`
@@ -2534,6 +2583,10 @@ type generatedModelCatalog struct {
 	// "PageDragAndDropParams".
 	PageDragAndDropParams *PageDragAndDropParams `json:"PageDragAndDropParams,omitempty,omitzero"`
 
+	// PageDragAndDropRoutePoint corresponds to the JSON schema field
+	// "PageDragAndDropRoutePoint".
+	PageDragAndDropRoutePoint *PageDragAndDropRoutePoint `json:"PageDragAndDropRoutePoint,omitempty,omitzero"`
+
 	// PageEvaluateParams corresponds to the JSON schema field "PageEvaluateParams".
 	PageEvaluateParams *PageEvaluateParams `json:"PageEvaluateParams,omitempty,omitzero"`
 
@@ -2807,6 +2860,12 @@ type generatedModelCatalog struct {
 
 	// Schema10 corresponds to the JSON schema field "__schema10".
 	Schema10 json.RawMessage `json:"__schema10,omitempty,omitzero"`
+
+	// Schema11 corresponds to the JSON schema field "__schema11".
+	Schema11 json.RawMessage `json:"__schema11,omitempty,omitzero"`
+
+	// Schema12 corresponds to the JSON schema field "__schema12".
+	Schema12 json.RawMessage `json:"__schema12,omitempty,omitzero"`
 
 	// Schema2 corresponds to the JSON schema field "__schema2".
 	Schema2 json.RawMessage `json:"__schema2,omitempty,omitzero"`

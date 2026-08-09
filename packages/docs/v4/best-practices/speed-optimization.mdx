@@ -8,11 +8,12 @@ Stagehand performance depends on several factors: DOM processing speed, LLM infe
 
 ## Quick performance wins
 
-### 1. Plan ahead with observe
+### Plan ahead with observe
 
 Use a single `observe()` call to plan multiple actions, then replay each returned `Action` through `act()`:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Instead of sequential operations with multiple LLM calls
 await stagehand.act("Fill name field");         // LLM call #1
@@ -27,9 +28,9 @@ for (const field of formFields) {
   await stagehand.act(field);
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Instead of sequential operations with multiple LLM calls
 await stagehand.act("Fill name field")          # LLM call #1
@@ -43,9 +44,9 @@ form_fields = (await stagehand.observe(instruction="Find all form fields to fill
 for field in form_fields:
     await stagehand.act(field)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Instead of sequential operations with multiple LLM calls
 _, err := client.Act(ctx, stagehand.ActInstruction("Fill name field"), nil)          // LLM call #1
@@ -66,7 +67,8 @@ for _, field := range observed.Data {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 **Performance tip**: Passing an observed `Action` back to `act()` replays its recorded method and arguments without another inference call. A planned workflow therefore costs one `observe()` inference instead of one per step, which is the recommended pattern for multi-step workflows.
@@ -76,11 +78,12 @@ for _, field := range observed.Data {
   Learn advanced caching patterns and cache invalidation strategies
 </Card>
 
-### 2. Optimize DOM processing
+### Optimize DOM processing
 
 Reduce DOM complexity before Stagehand processes the page. Scoping is usually the biggest win: pass a selector so Stagehand snapshots one container instead of the whole document, and prune known-noisy subtrees.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Scope the snapshot to the region you care about
 await stagehand.observe("Find the checkout actions", {
@@ -99,9 +102,9 @@ await page.evaluate(`
 // Then perform Stagehand operations
 await stagehand.act("Click the submit button");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Scope the snapshot to the region you care about
 await stagehand.observe(
@@ -121,9 +124,9 @@ await page.evaluate("""
 # Then perform Stagehand operations
 await stagehand.act("Click the submit button")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Scope the snapshot to the region you care about
 selector := "#checkout"
@@ -150,17 +153,19 @@ if _, err := page.Evaluate(ctx, `
 // Then perform Stagehand operations
 _, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), nil)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 Removing iframes speeds up snapshots, but Stagehand traverses iframes by default. Only strip them when you know the content you need lives in the main frame.
 </Warning>
 
-### 3. Set appropriate timeouts
+### Set appropriate timeouts
 
 Use shorter timeouts for simple operations and longer ones for complex page loads. Lowering the DOM settle timeout also shaves time off every `act()` call on stable pages.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Stable pages: shorten the settle wait (default is 5000ms)
 const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
@@ -182,9 +187,9 @@ await page.goto("https://heavy-spa.com", {
   timeout: 15000,
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Stable pages: shorten the settle wait (default is 5000ms)
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
@@ -205,9 +210,9 @@ await page.goto(
     timeout=15000,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Stable pages: shorten the settle wait (default is 5000ms)
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
@@ -257,7 +262,8 @@ if _, err := page.Goto(ctx, "https://heavy-spa.com", &stagehand.PageNavigationOp
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Performance monitoring and benchmarking
 
@@ -265,7 +271,8 @@ Track performance metrics and measure optimization impact:
 
 ### Performance tracking
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 class PerformanceTracker {
   private speedMetrics: Map<string, number[]> = new Map();
@@ -291,9 +298,9 @@ class PerformanceTracker {
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from time import perf_counter
 
@@ -317,9 +324,9 @@ class PerformanceTracker:
         times = self.speed_metrics.get(prompt, [])
         return sum(times) / len(times) if times else 0.0
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type performanceTracker struct {
 	mu           sync.Mutex
@@ -361,7 +368,8 @@ func (t *performanceTracker) getAverageTime(prompt string) time.Duration {
 	return total / time.Duration(len(times))
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 Example Output:
 ```
@@ -372,7 +380,8 @@ Action "Confirm submission" took 5000ms
 
 ### Before vs after benchmarking
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Before optimization
 console.time("workflow");
@@ -391,9 +400,9 @@ for (const action of workflowActions) {
 }
 console.timeEnd("workflow-optimized"); // 500ms
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from time import perf_counter
 
@@ -415,9 +424,9 @@ for action in workflow_actions:
     await stagehand.act(action)
 print(f"workflow-optimized: {(perf_counter() - start) * 1000:.0f}ms")  # 500ms
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Before optimization
 start := time.Now()
@@ -448,7 +457,8 @@ for _, action := range observed.Data {
 }
 fmt.Printf("workflow-optimized: %dms\n", time.Since(start).Milliseconds()) // 500ms
 ```
-</View>
+</Tab>
+</Tabs>
 
 Example Output:
 ```

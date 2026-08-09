@@ -266,6 +266,42 @@ describe("Stagehand TS SDK launch/connect smoke", () => {
     await page.waitForTimeout(1);
   });
 
+  it("preserves custom drag routes through the page wrapper", async () => {
+    const activeStagehand = requireStagehand(stagehand);
+    const page = await activeStagehand.browser.context.newPage();
+
+    try {
+      await page.evaluate(`(() => {
+        globalThis.__stagehandDragMoves = [];
+        document.addEventListener("mousemove", (event) => {
+          if (event.buttons === 1) {
+            globalThis.__stagehandDragMoves.push({ x: event.clientX, y: event.clientY });
+          }
+        });
+      })()`);
+
+      await expect(
+        page.dragAndDrop(10, 10, 90, 90, {
+          steps: 99,
+          route: [
+            { x: 10, y: 10 },
+            { x: 25, y: 60 },
+            { x: 70, y: 20 },
+            { x: 90, y: 90 },
+          ],
+        }),
+      ).resolves.toBeUndefined();
+
+      await expect(page.evaluate("globalThis.__stagehandDragMoves")).resolves.toStrictEqual([
+        { x: 25, y: 60 },
+        { x: 70, y: 20 },
+        { x: 90, y: 90 },
+      ]);
+    } finally {
+      await page.close();
+    }
+  });
+
   it("applies page configuration and captures browser state", async () => {
     const activeStagehand = requireStagehand(stagehand);
     const activeFixtureServer = requireFixtureServer(fixtureServer);

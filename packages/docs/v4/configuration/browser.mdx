@@ -12,7 +12,8 @@ You get a browser from one of Stagehand's browser factories and hand it to `Stag
 
 Stagehand closes only the browsers it launched, so `browser.close()` is yours to call.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const cloud = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
 const local = await localBrowser.launch({ headless: true });
@@ -20,9 +21,9 @@ const connected = await localBrowser.connect({ cdpUrl: "http://127.0.0.1:9222" }
 
 await Stagehand.create({ browser: cloud });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 cloud = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 local = await local_browser.launch(headless=True)
@@ -30,9 +31,9 @@ connected = await local_browser.connect(cdp_url="http://127.0.0.1:9222")
 
 await Stagehand.create(browser=cloud)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -45,7 +46,8 @@ stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
 	CDPURL: "http://127.0.0.1:9222",
 })
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Browserbase environment
 
@@ -59,7 +61,8 @@ Browserbase provides managed cloud browser infrastructure optimized for web auto
 
 Browserbase runs browsers in four regions, so you can cut latency by starting the browser near your users or your target site, and keep session data in a required jurisdiction. Set the region on `browserbase.launch()`; `us-west-2` is the default.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -69,9 +72,9 @@ const browser = await browserbase.launch({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -83,9 +86,9 @@ browser = await browserbase.launch(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 region := stagehand.BrowserbaseRegionEUCentral1 // Browser runs in Frankfurt
@@ -106,35 +109,98 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 Supported regions: `us-west-2` (default), `us-east-1`, `eu-central-1`, `ap-southeast-1`.
 
 <Note>
-  There is no regional endpoint to configure. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v4/best-practices/caching).
+  You normally do not need to configure a regional endpoint. Stagehand picks the API deployment that matches your session's region on its own, including for [server-side caching](/v4/best-practices/caching). An explicit Stagehand `apiUrl` overrides that regional selection.
 </Note>
+
+### API endpoint overrides
+
+Browserbase session management and Stagehand managed services use separate APIs. Both default to the production service. The SDKs do not read either URL from an environment variable. Pass `baseUrl` to Browserbase and `apiUrl` to Stagehand when testing another deployment. Use the service origin without `/v1`.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  baseUrl: "https://api.dev.browserbase.com",
+});
+
+const stagehand = await Stagehand.create({
+  browser,
+  apiUrl: "https://api.stagehand.dev.browserbase.com",
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    base_url="https://api.dev.browserbase.com",
+)
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    api_url="https://api.stagehand.dev.browserbase.com",
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+stagehandAPIURL := "https://api.stagehand.dev.browserbase.com"
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey:  apiKey,
+	BaseURL: "https://api.dev.browserbase.com",
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	APIURL:  &stagehandAPIURL,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+The Browserbase URL controls extension, session, and connection requests that `browserbase.launch()` and `browserbase.connect()` make. The Stagehand URL controls Model Gateway and managed-cache requests that the browser runtime makes.
 
 ### Environment variables
 
 Before getting started, set up the required environment variables:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key_here
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key_here
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key_here
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Get your API key from the [Browserbase Dashboard](https://browserbase.com/overview). Stagehand does not read this variable for you: read it in your own code and pass it to `browserbase.launch()`.
@@ -146,7 +212,8 @@ Get your API key from the [Browserbase Dashboard](https://browserbase.com/overvi
 
 The simplest way to get started is with default settings. `browserbase.launch()` needs nothing but your Browserbase API key:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -155,9 +222,9 @@ const browser = await browserbase.launch({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -168,9 +235,9 @@ browser = await browserbase.launch(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -187,13 +254,15 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 #### Advanced configuration
 
 Configure browser settings, proxy support, and other session parameters directly on `browserbase.launch()`:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -208,9 +277,9 @@ const browser = await browserbase.launch({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -227,9 +296,9 @@ browser = await browserbase.launch(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 region := stagehand.BrowserbaseRegionUSWest2
@@ -258,11 +327,13 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Accordion title="Advanced Browserbase configuration example">
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
@@ -286,9 +357,9 @@ const browser = await browserbase.launch({
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
@@ -312,9 +383,9 @@ browser = await browserbase.launch(
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 region := stagehand.BrowserbaseRegionUSWest2
@@ -360,18 +431,20 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 </Accordion>
 
 <Note>
-Stagehand provisions its own browser extension on every Browserbase session, so `browserbase.launch()` uploads that extension to your Browserbase account, starts the session against it, and deletes it again when you call `browser.close()`.
+When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session without `keepAlive` enabled.
 </Note>
 
 ### Alternative: Browserbase SDK
 
 If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting session through `browserbase.connect()`:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { Browserbase } from "@browserbasehq/sdk";
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
@@ -392,9 +465,9 @@ const browser = await browserbase.connect({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -417,9 +490,9 @@ browser = await stagehand_browserbase.connect(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Create the session with your Browserbase client of choice, then attach by
 // session ID so the browser keeps its Browserbase identity.
@@ -444,13 +517,15 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 #### Connecting to an existing session
 
 `localBrowser.connect()` attaches to any Chromium browser that is already running and exposing a DevTools endpoint, whether that is a Browserbase session you created earlier or a browser on your own machine:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
@@ -459,9 +534,9 @@ const browser = await localBrowser.connect({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
@@ -470,9 +545,9 @@ browser = await local_browser.connect(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
 	CDPURL: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
@@ -488,7 +563,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
@@ -516,25 +592,26 @@ The local environment runs browsers directly on your machine, providing full con
 
 ### Basic local setup
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await localBrowser.launch();
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
 browser = await local_browser.launch()
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
 if err != nil {
@@ -549,13 +626,15 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Advanced local configuration
 
 Customize browser launch options for local development:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
@@ -589,9 +668,9 @@ const browser = await localBrowser.launch({
 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
@@ -622,9 +701,9 @@ browser = await local_browser.launch(
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 chromiumSandbox := false // Disable sandbox (adds --no-sandbox)
 acceptDownloads := true  // Allow downloads
@@ -670,7 +749,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Authenticated local proxies are not supported yet. Setting a proxy `username` or `password` raises in all three SDKs; a proxy `server` and `bypass` list work everywhere.
@@ -680,7 +760,8 @@ Authenticated local proxies are not supported yet. Setting a proxy `username` or
 
 When Stagehand launches a local browser, it adds the following Chrome arguments before any values you pass in the launch `args`:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 [
   "--enable-unsafe-extension-debugging",
@@ -689,9 +770,9 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
   "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 [
     "--enable-unsafe-extension-debugging",
@@ -700,9 +781,9 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
     "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 []string{
 	"--enable-unsafe-extension-debugging",
@@ -711,7 +792,8 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 	"--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 `--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
@@ -719,7 +801,8 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await localBrowser.launch({
   ignoreDefaultArgs: ["--disable-sync"],
@@ -729,9 +812,9 @@ const browser = await localBrowser.launch({
   ],
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await local_browser.launch(
     ignore_default_args=["--disable-sync"],
@@ -743,9 +826,9 @@ browser = await local_browser.launch(
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
 	IgnoreDefaultArgs: &stagehand.IgnoreDefaultArgs{
@@ -762,7 +845,8 @@ if err != nil {
 
 stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
-</View>
+</Tab>
+</Tabs>
 
 Set the ignore-default-args option to `true` to remove all default arguments. Use a list to remove only exact matches while preserving the rest.
 
@@ -774,7 +858,8 @@ The keep-alive option controls whether the browser remains running after `close(
 
 By default, Stagehand terminates the browser it launched and cleans up all resources when it shuts down. Turning keep-alive on keeps the browser running independently so you can reconnect to it later.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
@@ -792,9 +877,9 @@ await browser.close();
 const browser2 = await localBrowser.connect({ cdpUrl: existingConnectUrl });
 const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -814,9 +899,9 @@ await browser.close()
 browser2 = await local_browser.connect(cdp_url=existing_connect_url)
 stagehand2 = await Stagehand.create(browser=browser2)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 keepAlive := true
@@ -857,7 +942,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client2.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 #### Behavior by environment
 
@@ -871,7 +957,8 @@ defer func() { err = errors.Join(err, client2.Close(ctx)) }()
 
 When running locally with keep-alive on, Stagehand leaves the Chrome process running when your script exits. This is useful for debugging or for handing off a browser session to another process. Combine it with a fixed `port` so you can reattach with `localBrowser.connect()`.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await localBrowser.launch({
   keepAlive: true,
@@ -886,9 +973,9 @@ await page.goto("https://example.com");
 await stagehand.close();
 await browser.close();
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await local_browser.launch(
     keep_alive=True,
@@ -903,9 +990,9 @@ await page.goto("https://example.com")
 await stagehand.close()
 await browser.close()
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{
 	KeepAlive: true,
@@ -939,7 +1026,8 @@ if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
 // Browser window stays open after the program exits
 return errors.Join(client.Close(ctx), browser.Close(ctx))
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 A temporary user data directory is deleted when a local browser shuts down. Set `userDataDir` (or turn on the preserve option) if you want the profile to survive.
@@ -957,25 +1045,26 @@ Keeping sessions alive is available on the Browserbase Startup plan and above.
 
 Specify a fixed Chrome DevTools Protocol (CDP) debugging port instead of using a randomly assigned one.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await localBrowser.launch({ port: 9222 });
 const stagehand = await Stagehand.create({ browser });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from stagehand import Stagehand, local_browser
 
 browser = await local_browser.launch(port=9222)
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Port: 9222})
 if err != nil {
@@ -990,7 +1079,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 If no port is specified, a random free port will be assigned.
@@ -1000,7 +1090,8 @@ If no port is specified, a random free port will be assigned.
 
 Configure how long Stagehand waits for the DOM to stabilize before taking actions. The default is 5000 ms.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
 const stagehand = await Stagehand.create({
@@ -1008,9 +1099,9 @@ const stagehand = await Stagehand.create({
   domSettleTimeoutMs: 3000, // Wait up to 3 seconds for DOM to settle
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
 stagehand = await Stagehand.create(
@@ -1018,9 +1109,9 @@ stagehand = await Stagehand.create(
     dom_settle_timeout_ms=3000,  # Wait up to 3 seconds for DOM to settle
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 domSettleTimeoutMs := 3000 // Wait up to 3 seconds for DOM to settle
@@ -1039,7 +1130,8 @@ if err != nil {
 
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 DOM settling applies to `act()`. `observe()` and `extract()` read a snapshot of the page as they find it.
@@ -1061,7 +1153,8 @@ Increase the DOM settle timeout for pages with:
 - Dynamic JavaScript frameworks (React, Vue, Angular)
 - Complex single-page applications
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // For fast, static pages
 const fastBrowser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
@@ -1077,9 +1170,9 @@ const dynamic = await Stagehand.create({
   domSettleTimeoutMs: 5000, // Longer wait for stability
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # For fast, static pages
 fast_browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
@@ -1095,9 +1188,9 @@ dynamic = await Stagehand.create(
     dom_settle_timeout_ms=5000,  # Longer wait for stability
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 
@@ -1118,7 +1211,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 Setting the DOM settle timeout too low may cause actions to fail on elements that aren't ready. Setting it too high increases execution time unnecessarily.

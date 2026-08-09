@@ -117,6 +117,14 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 		t.Fatalf("stagehand.act timeout = %v, %t; want 40s, true", actTimeout, ok)
 	}
 
+	batchTimeout, ok := rpcResponseTimeout(
+		"stagehand.callback_batch",
+		json.RawMessage(`{"options":{"timeout":30000}}`),
+	)
+	if !ok || batchTimeout != 40*time.Second {
+		t.Fatalf("stagehand.callback_batch timeout = %v, %t; want 40s, true", batchTimeout, ok)
+	}
+
 	webMCPTimeout, ok := rpcResponseTimeout(
 		"page.webmcp_invocation_result",
 		json.RawMessage(
@@ -202,12 +210,12 @@ func TestRPCResponseTimeoutPolicy(t *testing.T) {
 	}
 
 	hugeTimeout, ok := rpcResponseTimeout(
-		"stagehand.act",
+		"stagehand.callback_batch",
 		json.RawMessage(`{"options":{"timeout":1e1000}}`),
 	)
 	if !ok || hugeTimeout != maxRPCResponseTimeout {
 		t.Fatalf(
-			"huge stagehand.act timeout = %v, %t; want %v, true",
+			"huge stagehand.callback_batch timeout = %v, %t; want %v, true",
 			hugeTimeout,
 			ok,
 			maxRPCResponseTimeout,

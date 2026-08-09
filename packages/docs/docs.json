@@ -24,10 +24,6 @@
         "version": "v4",
         "groups": [
           {
-            "group": "Getting started",
-            "pages": ["v4/index"]
-          },
-          {
             "group": "First steps",
             "pages": [
               "v4/first-steps/introduction",
@@ -62,6 +58,10 @@
               "v4/best-practices/deployments",
               "v4/best-practices/mcp-integrations"
             ]
+          },
+          {
+            "group": "Migration guide",
+            "pages": ["v4/migrations/v3"]
           },
           {
             "group": "SDK reference",

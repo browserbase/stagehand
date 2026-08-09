@@ -277,7 +277,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       "chrome-extension://currentext/service-worker.js",
     );
     const attachedSessions = ["stale-session", "current-session"];
-    const readiness = [runtimeReadiness(3), readyRuntime()];
+    const readiness = [runtimeReadiness("2.0.0"), readyRuntime()];
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
       .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
@@ -310,7 +310,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
       .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
       .on("Runtime.evaluate", () => ({
-        result: { value: runtimeReadiness(3) },
+        result: { value: runtimeReadiness("2.0.0") },
       }))
       .on("Target.detachFromTarget", () => ({}));
 
@@ -339,7 +339,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
       .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
-      .on("Runtime.evaluate", () => ({ result: { value: runtimeReadiness(3) } }))
+      .on("Runtime.evaluate", () => ({ result: { value: runtimeReadiness("2.0.0") } }))
       .on("Target.detachFromTarget", () => ({}));
 
     await expect(
@@ -364,7 +364,7 @@ describe("waitForPreloadedStagehandServiceWorker", () => {
       "chrome-extension://currentext/service-worker.js",
     );
     const attachedSessions = ["stale-session", "current-session"];
-    const readiness = [runtimeReadiness(3), readyRuntime()];
+    const readiness = [runtimeReadiness("2.0.0"), readyRuntime()];
     const cdp = new FakeCdp()
       .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
       .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
@@ -523,7 +523,7 @@ describe("waitForRuntimeReady", () => {
     const controller = new AbortController();
     const reason = new Error("initialization cancelled");
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: { value: runtimeReadiness(3) },
+      result: { value: runtimeReadiness("2.0.0") },
     }));
 
     const error = await rejectedError(
@@ -541,7 +541,7 @@ describe("waitForRuntimeReady", () => {
 
   it("throws for an out-of-range attached runtime when fallback installation is disabled", async () => {
     const cdp = new FakeCdp().on("Runtime.evaluate", () => ({
-      result: { value: runtimeReadiness(3) },
+      result: { value: runtimeReadiness("2.0.0") },
     }));
 
     await expect(
@@ -593,17 +593,17 @@ function readyRuntime(): Record<string, unknown> {
   };
 }
 
-function runtimeReadiness(protocolVersion: number): Record<string, unknown> {
+function runtimeReadiness(protocolVersion: string): Record<string, unknown> {
   return {
     marker: runtimeMarker(protocolVersion),
     hasReceiver: true,
   };
 }
 
-function runtimeMarker(protocolVersion: number): Record<string, unknown> {
+function runtimeMarker(protocolVersion: string): Record<string, unknown> {
   return {
     protocolVersion,
-    serverInfo: { name: "stagehand", version: "4.0.0" },
+    serverInfo: { name: "stagehand", version: "1.0.0" },
   };
 }
 

@@ -6,7 +6,8 @@ icon: "hand-horns"
 
 `Stagehand` owns the browser connection and exposes top-level lifecycle, metrics, and AI methods.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 
 ## Quick start
 
@@ -59,6 +60,174 @@ await stagehand.close();
 <ResponseField name="result" type="Promise<void>">
   Resolves after the operation completes.
 </ResponseField>
+
+## experimentalBatch()
+
+Run a trusted, self-contained JavaScript callback inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding an
+SDK-to-browser round trip for every command.
+
+<Note>
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```typescript
+const result = await stagehand.experimentalBatch(
+  async (batch, input) => {
+    await batch.page.goto(input.url);
+    await batch.act("Click More information");
+
+    return {
+      title: await batch.page.title(),
+      heading: await batch.page.locator("h1").innerText(),
+    };
+  },
+  { url: "https://example.com" },
+);
+```
+
+### Callback arguments
+
+Stagehand invokes the function in the service worker with two arguments: a worker-local
+`ExperimentalBatchContext` and the JSON input supplied to `experimentalBatch()`.
+
+```typescript
+await callback(
+  {
+    page: workerPage,
+    context: workerContext,
+    act: workerAct,
+    observe: workerObserve,
+    extract: workerExtract,
+    metrics: workerMetrics,
+  },
+  input,
+);
+```
+
+The function parameter names are chosen by the caller. Destructuring is ordinary JavaScript
+shorthand, not special Stagehand injection syntax:
+
+```typescript
+async ({ page, act }, input) => {
+  await page.goto(input.url);
+  await act("Click More information");
+};
+
+// Equivalent to:
+async (batch, input) => {
+  const page = batch.page;
+  const act = batch.act;
+};
+```
+
+Callbacks may ignore arguments they do not need. For example,
+`await stagehand.experimentalBatch(async () => "done")` is valid.
+
+<ParamField path="callback" type="ExperimentalBatchCallback&lt;Input, Result&gt;">
+  A self-contained callback executed in the extension service worker. It receives the batch
+  context first and `input` second. Values from the caller's lexical scope are not captured.
+</ParamField>
+
+<ParamField path="input" type="Input" optional>
+  JSON-serializable input passed as the callback's second argument. When omitted, the callback
+  receives `undefined`; pass `null` explicitly to receive `null`.
+</ParamField>
+
+<ParamField path="options" type="ExperimentalBatchOptions" optional>
+  Options controlling the selected page and overall deadline.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page exposed as the callback context's `page`. The active page at batch startup is used
+    when omitted. This does not change the default target of `act()`, `observe()`, or `extract()`;
+    those methods use their own `page` option or the active page when called.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The overall callback deadline in milliseconds. Defaults to 30,000.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise&lt;Awaited&lt;Result&gt;&gt;">
+  The callback's JSON-serializable return value.
+</ResponseField>
+
+### Batch callback context
+
+The callback receives an `ExperimentalBatchContext`, not the outer SDK `Stagehand` instance:
+
+- `page`: the worker-local `Page` selected when the batch starts;
+- `context`: a worker-local browser context facade;
+- `act`, `observe`, and `extract`: the normal Stagehand AI operations;
+- `metrics`: the normal Stagehand metrics operation.
+
+The context intentionally does not expose `context.close()`, Stagehand lifecycle methods, nested
+callback batches, or page event subscriptions. Host-only behavior such as local file paths and
+screenshot output paths is also unavailable because the callback runs in a browser service worker,
+not Node.js.
+
+### Passing data across the worker boundary
+
+The callback is serialized and evaluated in a different JavaScript runtime, so it cannot capture
+variables from the calling process. Pass external data through `input`, similarly to
+`page.evaluate()`:
+
+```typescript
+const selector = "button[type=submit]";
+
+// Incorrect: selector is not defined in the service worker.
+await stagehand.experimentalBatch(async ({ page }) => {
+  await page.locator(selector).click();
+});
+
+// Correct: input explicitly crosses the runtime boundary.
+await stagehand.experimentalBatch(
+  async ({ page }, input) => {
+    await page.locator(input.selector).click();
+  },
+  { selector },
+);
+```
+
+Both `input` and the callback's return value must be JSON-serializable.
+
+### Selecting and targeting pages
+
+`options.page` transfers an SDK page ID to the worker. The callback receives the corresponding
+worker-local page as `batch.page`; the outer `Page` object itself does not cross the boundary.
+
+```typescript
+const [myPage] = await stagehand.browser.context.pages();
+
+await stagehand.experimentalBatch(
+  async ({ page: selectedPage }, input) => {
+    await selectedPage.goto(input.url);
+  },
+  { url: "https://example.com" },
+  { page: myPage },
+);
+```
+
+`batch.page` is fixed when the batch starts: it represents `options.page`, or the active page at
+startup when no page is supplied. The AI methods follow the same targeting rules as the regular
+SDK: an operation-level `page` option wins; otherwise they resolve the active page when the
+operation runs. Changing the active page therefore affects later `act()`, `observe()`, and
+`extract()` calls, but does not replace `batch.page`.
+
+```typescript
+await stagehand.experimentalBatch(async (batch) => {
+  const nextPage = await batch.context.newPage("https://example.com/next");
+  await batch.context.setActivePage(nextPage);
+
+  await batch.act("Click Continue"); // Uses nextPage, the current active page.
+  await batch.act("Click Back", { page: batch.page }); // Explicitly uses the startup page.
+});
+```
+
+Timeout cancellation prevents the callback from starting further Stagehand operations. An
+operation already running when the timeout occurs may still finish, so a batch is not an atomic
+transaction.
 
 ## metrics()
 
@@ -666,9 +835,9 @@ console.log(product.data, product.metadata.cache.status);
   </ResponseField>
 </ResponseField>
 
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 
 ## Quick start
 
@@ -721,6 +890,126 @@ await stagehand.close()
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
 </ResponseField>
+
+## experimental_batch()
+
+Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding a
+Python-to-browser round trip for every command. Python source is not translated to JavaScript;
+this method accepts an explicit JavaScript function string.
+
+<Note>
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```python
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.goto(input.url);
+      await batch.act("Click More information");
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"url": "https://example.com"},
+)
+```
+
+Stagehand evaluates the function in the service worker and calls it with two JavaScript arguments:
+
+1. a worker-local batch context containing `page`, `context`, `act`, `observe`, `extract`, and
+   `metrics`;
+2. the decoded JSON value passed as the Python method's `input` argument.
+
+JavaScript destructuring such as `async ({ page, act }, input) => { ... }` simply creates local
+variables from that context. It does not select a page or tell Stagehand which values to inject.
+
+<ParamField path="source" type="str">
+  Self-contained JavaScript function source executed in the extension service worker. Python
+  variables and closures are not captured.
+</ParamField>
+
+<ParamField path="input" type="object" optional>
+  JSON-serializable input passed as the JavaScript callback's second argument. When omitted, the
+  callback receives JavaScript `undefined`; explicitly passing `None` produces JavaScript `null`.
+</ParamField>
+
+<ParamField path="timeout" type="int" optional>
+  The overall callback deadline in milliseconds. Defaults to 30,000.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The page exposed as the callback context's `page`. The active page at batch startup is used when
+  omitted. This does not change the default target of `act()`, `observe()`, or `extract()`; those
+  methods use their own `page` option or the active page when called.
+</ParamField>
+
+<ResponseField name="result" type="object">
+  The callback's decoded JSON return value.
+</ResponseField>
+
+### Batch callback context
+
+The first JavaScript argument is a batch context, not the outer Python `Stagehand` object:
+
+- `batch.page`: the worker-local page selected when the batch starts;
+- `batch.context`: a worker-local browser context facade;
+- `batch.act()`, `batch.observe()`, and `batch.extract()`: Stagehand AI operations;
+- `batch.metrics()`: Stagehand metrics.
+
+The context does not expose `context.close()`, Stagehand lifecycle methods, nested batches, or page
+event subscriptions. Node.js APIs, local filesystem paths, screenshot output paths, and other
+host-only behavior are unavailable in the browser service worker.
+
+### Passing input instead of capturing variables
+
+The JavaScript source cannot reference Python variables. Transfer values explicitly through the
+method's second argument:
+
+```python
+selector = "button[type=submit]"
+
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.locator(input.selector).click();
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"selector": selector},
+)
+```
+
+Both input and output must be JSON-serializable.
+
+### Selecting and targeting pages
+
+Passing `page=my_page` transfers the Python page's ID. The service worker reconstructs it as
+`batch.page`; the Python `Page` object itself is not available inside the JavaScript source.
+
+```python
+my_page = (await stagehand.browser.context.pages())[0]
+
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.goto(input.url);
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"url": "https://example.com"},
+    page=my_page,
+)
+```
+
+`batch.page` is fixed at batch startup. It represents the supplied page, or the active page at
+startup when `page` is omitted. `batch.act()`, `batch.observe()`, and `batch.extract()` instead use
+their own operation-level `page` option or resolve the active page when called, matching ordinary
+Stagehand behavior.
+
+Timeout cancellation prevents later Stagehand operations from starting, but an operation already
+running at the deadline may still finish. Callback batches are not atomic transactions.
 
 ## metrics()
 
@@ -1318,4 +1607,5 @@ print(product.data, product.metadata.cache.status)
   </ResponseField>
 </ResponseField>
 
-</View>
+</Tab>
+</Tabs>

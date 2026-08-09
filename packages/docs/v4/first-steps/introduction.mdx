@@ -30,7 +30,8 @@ Three primitives let you choose how much AI each step uses:
   </Card>
 </CardGroup>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Act: execute natural language actions
 await stagehand.act("click the login button");
@@ -44,9 +45,9 @@ const { data } = await stagehand.extract(
 // Observe: discover available actions
 const { data: actions } = await stagehand.observe("find submit buttons");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Act: execute natural language actions
 await stagehand.act("click the login button")
@@ -64,9 +65,9 @@ price = result.data.price
 # Observe: discover available actions
 actions = (await stagehand.observe("find submit buttons")).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // ctx and client come from the quickstart
 
@@ -95,7 +96,8 @@ if err != nil {
 }
 fmt.Println(len(observed.Data), "candidate actions")
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Why developers choose Stagehand
 

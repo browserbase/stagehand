@@ -48,7 +48,8 @@ export class RPCClient {
     readonly runtime: ChromeRuntimeClient,
     readonly router: RPCRouter,
   ) {
-    this.runtime.onmessage = (message) => this.receive(message);
+    this.runtime.onmessage = (message, runtimeAttachments) =>
+      this.receive(message, runtimeAttachments);
     this.runtime.onclose = (reason) => this.close(reason);
     this.runtime.onerror = (error) => this.close(error);
   }
@@ -135,7 +136,7 @@ export class RPCClient {
     });
   }
 
-  async receive(raw: unknown): Promise<void> {
+  async receive(raw: unknown, runtimeAttachments?: { callback?: unknown }): Promise<void> {
     const wireInput = JSONRPCWireInputSchema.safeParse(raw);
     if (!wireInput.success) {
       await this.sendError(null, JSONRPCErrorCodes.parseError, "Parse error");
@@ -199,7 +200,7 @@ export class RPCClient {
     }
 
     try {
-      const result = await this.router.handle(stagehandRequest.data);
+      const result = await this.router.handle(stagehandRequest.data, runtimeAttachments);
       const parsedResult = method.result.safeParse(result);
       if (!parsedResult.success) {
         await this.sendError(
