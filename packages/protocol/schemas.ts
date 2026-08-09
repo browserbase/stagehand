@@ -1145,6 +1145,13 @@ export const ActOptionsSchema = z
     locator: LocatorSchema.optional().meta({
       description: "Serializable element locator for the action target",
     }),
+    ignoreLocators: z
+      .array(LocatorSchema)
+      .optional()
+      .meta({
+        description: "Locators for elements and subtrees that should be excluded from action planning",
+        example: [{ selector: "nav" }, { selector: ".cookie-banner" }, { selector: "#sidebar-ads" }],
+      }),
     cache: CachingSchema.optional().meta({
       description: "Override the instance-level cache setting for this request",
     }),

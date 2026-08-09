@@ -1512,6 +1512,24 @@
           "description": "Serializable element locator for the action target",
           "$ref": "#/$defs/Locator"
         },
+        "ignore_locators": {
+          "description": "Locators for elements and subtrees that should be excluded from action planning",
+          "example": [
+            {
+              "selector": "nav"
+            },
+            {
+              "selector": ".cookie-banner"
+            },
+            {
+              "selector": "#sidebar-ads"
+            }
+          ],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Locator"
+          }
+        },
         "cache": {
           "description": "Override the instance-level cache setting for this request",
           "$ref": "#/$defs/Caching"
