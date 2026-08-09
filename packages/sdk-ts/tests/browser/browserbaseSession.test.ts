@@ -25,7 +25,11 @@ describe("Browserbase session creation", () => {
       },
       sessions: { create, retrieve, update },
     }));
-    const client = createBrowserbaseApiClient("bb_key", createSdk);
+    const client = createBrowserbaseApiClient(
+      "bb_key",
+      "https://api.dev.browserbase.com",
+      createSdk,
+    );
 
     await expect(client.createSession({ region: "us-west-2" })).resolves.toStrictEqual({
       id: "session_123",
@@ -38,14 +42,14 @@ describe("Browserbase session creation", () => {
       region: "us-west-2",
     });
 
-    expect(createSdk).toHaveBeenCalledWith("bb_key");
+    expect(createSdk).toHaveBeenCalledWith("bb_key", "https://api.dev.browserbase.com");
     expect(create).toHaveBeenCalledWith({ region: "us-west-2" });
     expect(update).toHaveBeenCalledWith("session_123", { status: "REQUEST_RELEASE" });
     expect(retrieve).toHaveBeenCalledWith("session_123");
   });
 
   it("validates session data returned by the Browserbase SDK", async () => {
-    const client = createBrowserbaseApiClient("bb_key", () => ({
+    const client = createBrowserbaseApiClient("bb_key", "https://api.browserbase.com", () => ({
       extensions: {
         create: vi.fn(async () => ({ id: "ext_stagehand" })),
         delete: vi.fn(async () => {}),
@@ -72,7 +76,7 @@ describe("Browserbase session creation", () => {
       region: "eu-central-1" as const,
     }));
     const releaseSession = vi.fn(async () => {});
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase: fakeBrowserbaseApiClient({ retrieveSession, releaseSession }),
       provisionExtension: vi.fn(),
     });
@@ -87,7 +91,7 @@ describe("Browserbase session creation", () => {
   });
 
   it("rejects a Browserbase session without a connection URL", async () => {
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase: fakeBrowserbaseApiClient({
         retrieveSession: async () => ({ id: "session_123" }),
       }),
@@ -100,7 +104,7 @@ describe("Browserbase session creation", () => {
   });
 
   it("sanitizes Browserbase session retrieval failures", async () => {
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase: fakeBrowserbaseApiClient({
         retrieveSession: async () => {
           throw new Error("request failed for bb_secret at wss://private.example");
@@ -128,7 +132,7 @@ describe("Browserbase session creation", () => {
       extensionId: "ext_stagehand",
       cleanup: cleanupExtension,
     }));
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase,
       provisionExtension,
     });
@@ -173,7 +177,7 @@ describe("Browserbase session creation", () => {
       }));
       const releaseSession = vi.fn(async () => {});
       const provisionExtension = vi.fn();
-      const client = createBrowserbaseSessionClient("bb_key", {
+      const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
         browserbase: fakeBrowserbaseApiClient({ createSession, releaseSession }),
         provisionExtension,
       });
@@ -202,7 +206,7 @@ describe("Browserbase session creation", () => {
         throw createError;
       }),
     });
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase,
       provisionExtension: async () => ({
         extensionId: "ext_stagehand",
@@ -235,7 +239,7 @@ describe("Browserbase session creation", () => {
       createSession: vi.fn(async () => testCase.response),
       releaseSession,
     });
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase,
       provisionExtension: async () => ({
         extensionId: "ext_stagehand",
@@ -260,7 +264,7 @@ describe("Browserbase session creation", () => {
         throw releaseError;
       }),
     });
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase,
       provisionExtension: async () => ({
         extensionId: "ext_stagehand",
@@ -281,7 +285,7 @@ describe("Browserbase session creation", () => {
       .mockResolvedValueOnce();
     const releaseSession = vi.fn(async () => {});
     const browserbase = fakeBrowserbaseApiClient({ releaseSession });
-    const client = createBrowserbaseSessionClient("bb_key", {
+    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
       browserbase,
       provisionExtension: async () => ({
         extensionId: "ext_stagehand",

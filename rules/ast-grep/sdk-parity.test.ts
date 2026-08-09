@@ -329,11 +329,15 @@ describe("All language SDK operations remain in sync", () => {
 
         for (const optionName of optionNames) {
           const publicName =
-            language === "typescript"
-              ? camelCase(optionName)
-              : language === "python"
-                ? snakeCase(optionName)
-                : exportedGoName(optionName);
+            language === "python" &&
+            binding.wireMethod === "stagehand.callback_batch" &&
+            optionName === "page_id"
+              ? "page"
+              : language === "typescript"
+                ? camelCase(optionName)
+                : language === "python"
+                  ? snakeCase(optionName)
+                  : exportedGoName(optionName);
           const parameterType = parameters.get(publicName);
           if (parameterType === undefined) {
             mismatches.push(`${language} ${binding.wireMethod}: missing ${publicName}`);

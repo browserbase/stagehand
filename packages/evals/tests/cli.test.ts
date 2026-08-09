@@ -220,8 +220,6 @@ describe("CLI entrypoint", () => {
       "-e",
       "browserbase",
       "--api",
-      "-p",
-      "openai",
     ]);
 
     expect(code).toBe(0);
@@ -229,7 +227,7 @@ describe("CLI entrypoint", () => {
     expect(payload.normalizedTarget).toBe("act");
     expect(payload.envOverrides.EVAL_ENV).toBe("BROWSERBASE");
     expect(payload.envOverrides.USE_API).toBe("true");
-    expect(payload.envOverrides.EVAL_PROVIDER).toBe("openai");
+    expect(payload.envOverrides.EVAL_PROVIDER).toBeUndefined();
     expect(payload.runOptions.harness).toBe("stagehand");
     expect(payload.runOptions.verbose).toBe(false);
   });

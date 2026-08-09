@@ -1,4 +1,4 @@
-import type { AgentToolMode, AvailableModel } from "stagehand-v3";
+import type { AvailableModel } from "stagehand-v3";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 
 export type Harness = "stagehand" | "claude_code" | "codex";
@@ -41,8 +41,6 @@ export interface StagehandHarnessConfig {
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";
   useApi: boolean;
-  agentMode?: AgentToolMode;
-  isCUA?: boolean;
   toolSurface?: ToolSurface;
   startupProfile?: StartupProfile;
   dataset?: string;
@@ -85,7 +83,5 @@ export interface BenchMatrixRow {
   trial: number;
   dataset?: string;
   params?: Record<string, unknown>;
-  agentMode?: AgentToolMode;
-  isCUA?: boolean;
   config: BenchHarnessConfig;
 }

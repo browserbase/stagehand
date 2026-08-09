@@ -44,6 +44,11 @@ export interface NormalizedToolCall {
    * the verifier can ground visual criteria against them.
    */
   images?: Array<{ bytes: Buffer; mediaType: string }>;
+  /**
+   * Harness-observed page state after this call (url/screenshot probe).
+   * Attached by adapters when the run collected per-step observations.
+   */
+  probeEvidence?: ProbeEvidence;
 }
 
 /**
@@ -107,10 +112,10 @@ export function toolCallToTrajectoryStep(call: NormalizedToolCall): TrajectorySt
     actionArgs: call.args,
     reasoning: call.reasoning ?? "",
     agentEvidence: actionToAgentEvidence(call),
-    // External harnesses don't natively produce screenshots/aria/scroll, so
-    // probeEvidence stays empty. The verifier handles this via the
+    // Runs that collected per-step observations carry them here; otherwise
+    // probeEvidence stays empty and the verifier degrades via the
     // evidence_insufficient path.
-    probeEvidence: {},
+    probeEvidence: call.probeEvidence ?? {},
     toolOutput: {
       ok: call.ok,
       result: call.result,

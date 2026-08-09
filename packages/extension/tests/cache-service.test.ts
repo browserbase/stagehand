@@ -1,12 +1,22 @@
 import { trace } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
-import type { CacheMetadata } from "../../protocol/types.js";
+import type { CacheMetadata, StagehandInitParams } from "../../protocol/types.js";
 import type { CacheClient } from "../clients/cacheClient.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";
 
 describe("cache service", () => {
+  it("uses an explicit Stagehand API URL for the cache client", () => {
+    const context = cacheService.buildCacheContext({
+      apiKey: "bb-key",
+      apiUrl: "https://api.stagehand.dev.browserbase.com/",
+      browser: { sessionId: "session-id", region: "eu-central-1" },
+    } as StagehandInitParams);
+
+    expect(context?.client.apiUrl).toBe("https://api.stagehand.dev.browserbase.com/v1");
+  });
+
   it("marks a cache hit without executing the live request", async () => {
     const get = vi.fn().mockResolvedValue({ hit: true, value: { answer: 42 }, cacheKey: "key" });
     const execute = executesTo({ answer: 0 });

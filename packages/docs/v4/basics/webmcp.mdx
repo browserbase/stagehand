@@ -12,7 +12,8 @@ Some pages expose their own capabilities as callable tools rather than making yo
 
 {/* TODO(go): confirm the Go samples once a Go toolchain is available; they are symbol-checked but not compiled. */}
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const tools = await page.tools();
 const [checkout] = tools;
@@ -22,9 +23,9 @@ const response = await invocation.result();
 
 console.log(response.status, response.output);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 tools = await page.tools()
 checkout = tools[0]
@@ -34,9 +35,9 @@ response = await invocation.result()
 
 print(response.status, response.output)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 tools, err := page.Tools(ctx, nil)
 if err != nil {
@@ -56,7 +57,8 @@ if err != nil {
 
 fmt.Println(response.Status, response.Output)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 WebMCP tools are registered *by the page*. That makes them distinct from tools you wire into a model yourself: you do not define them, you discover whatever the site chose to publish.
@@ -78,7 +80,8 @@ Stagehand can only set launch flags on browsers it launches. If you attach to a 
 
 `page.tools()` takes a snapshot of what the page currently exposes. Call it again after navigating or after the page mounts new UI; the result is not live.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Wait up to 3 seconds for the page to register its tools
 const tools = await page.tools({ timeout: 3000 });
@@ -90,9 +93,9 @@ for (const tool of tools) {
   console.log(tool.frameId);       // the frame that registered the tool
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Wait up to 3 seconds for the page to register its tools
 tools = await page.tools(timeout=3000)
@@ -103,9 +106,9 @@ for tool in tools:
     print(tool.annotations)   # read_only / untrusted_content / autosubmit
     print(tool.frame_id)      # the frame that registered the tool
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Wait up to 3 seconds for the page to register its tools
 timeout := 3000.0
@@ -122,7 +125,8 @@ for _, tool := range tools {
 	fmt.Println(descriptor.FrameID)      // the frame that registered the tool
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 The listing timeout defaults to 1000 ms. Tools declared in iframes are included, each tagged with the `frameId` that registered it.
 
@@ -141,7 +145,8 @@ Annotations are hints from the page, not guarantees enforced by the browser. Tre
 
 Invoking is two steps: `invoke()` hands the call to the browser and returns immediately with a handle, then `result()` waits for the terminal response. Splitting them means a long-running tool does not block you, and you can cancel while it is in flight.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const [search] = await page.tools();
 
@@ -153,9 +158,9 @@ console.log(invocation.invocationId, invocation.toolName, invocation.input);
 // Blocks until the tool reaches a terminal state
 const response = await invocation.result({ timeout: 30000 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 tools = await page.tools()
 search = tools[0]
@@ -168,9 +173,9 @@ print(invocation.invocation_id, invocation.tool_name, invocation.input)
 # Blocks until the tool reaches a terminal state
 response = await invocation.result(timeout=30000)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 tools, err := page.Tools(ctx, nil)
 if err != nil {
@@ -196,7 +201,8 @@ if err != nil {
 
 fmt.Println(response.Status, response.Output)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
 Omitting the input sends an empty object. Validate your input against the tool's `inputSchema` before invoking if you want a clear failure locally rather than an `Error` response from the page.
@@ -212,7 +218,8 @@ A terminal response reports one of three statuses:
 | `Canceled` | Cancellation was honored | neither |
 | `Error` | The tool failed | `errorText`, and `exception` when the page threw |
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const response = await invocation.result();
 
@@ -228,9 +235,9 @@ switch (response.status) {
     break;
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 response = await invocation.result()
 
@@ -241,9 +248,9 @@ elif response.status == "Canceled":
 else:
     print(response.error_text, response.exception)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 response, err := invocation.Result(ctx, nil)
 if err != nil {
@@ -267,13 +274,15 @@ case stagehand.WebMCPInvocationStatusError:
 	fmt.Println(response.ErrorText, response.Exception)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 `result()` caches the terminal response, so calling it twice is cheap and returns the same value. A timeout or transport failure is not cached and can be retried.
 
 ### Canceling an invocation
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const invocation = await slowTool.invoke({ input: {} });
 
@@ -283,9 +292,9 @@ await invocation.cancel();
 const response = await invocation.result();
 console.log(response.status); // often "Canceled", but the tool may have finished first
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 invocation = await slow_tool.invoke(input={})
 
@@ -295,9 +304,9 @@ await invocation.cancel()
 response = await invocation.result()
 print(response.status)  # often "Canceled", but the tool may have finished first
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 invocation, err := slowTool.Invoke(ctx, nil)
 if err != nil {
@@ -315,7 +324,8 @@ if err != nil {
 }
 fmt.Println(response.Status) // often "Canceled", but the tool may have finished first
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Warning>
 Cancellation is a request, not a guarantee. Chrome decides the terminal status, so always read it from `result()` rather than assuming the invocation stopped.
@@ -334,7 +344,8 @@ Raise the listing timeout on pages that register tools after an async bootstrap.
 
 WebMCP and the primitives solve different problems, and mixing them is normal: use a tool where the page gives you one, and fall back to [`observe()`](/v4/basics/observe) and [`act()`](/v4/basics/act) where it does not.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const tools = await page.tools();
 const addToCart = tools.find((tool) => tool.name === "addToCart");
@@ -348,9 +359,9 @@ if (addToCart) {
   await stagehand.act("add the item to the cart");
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 tools = await page.tools()
 add_to_cart = next((tool for tool in tools if tool.name == "addToCart"), None)
@@ -363,9 +374,9 @@ else:
     # The page publishes no tool for this, so drive the UI
     await stagehand.act("add the item to the cart")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 tools, err := page.Tools(ctx, nil)
 if err != nil {
@@ -396,7 +407,8 @@ if addToCart != nil {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 A tool invocation costs no LLM tokens and cannot pick the wrong element, so prefer one over an `act()` call whenever the page offers it.

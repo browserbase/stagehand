@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -94,7 +94,8 @@ describe("contexts store", () => {
       return;
     }
     const path = contextsStorePath(env);
-    await writeFile(path, "{}", { mode: 0o644 });
+    await writeFile(path, "{}");
+    await chmod(path, 0o644);
     expect((await stat(path)).mode & 0o777).toBe(0o644);
 
     await saveContextAlias("github", { id: "ctx_g", createdAt: "2026-01-01T00:00:00.000Z" }, env);

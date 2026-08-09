@@ -3,6 +3,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
@@ -61,6 +62,7 @@ export function buildClaudeCodePrompt(
     "Instruction:",
     plan.instruction,
     "",
+    datasetPromptGuidance(plan.dataset),
     toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "At the end, print exactly one line beginning with EVAL_RESULT: followed by compact JSON.",
     'The JSON schema is: {"success": boolean, "summary": string, "finalAnswer": string}.',
@@ -178,6 +180,9 @@ export async function runClaudeCodeAgent({
   let resultText = "";
   let resultMessage: ClaudeSdkMessage | undefined;
   let iterationError: unknown;
+  // tool_use id -> tool name, so tool_result blocks (which carry only the id)
+  // can be attributed for per-step observation triggers.
+  const toolUseNames = new Map<string, string>();
 
   try {
     for await (const message of sdk.query({
@@ -213,6 +218,7 @@ export async function runClaudeCodeAgent({
     })) {
       messages.push(message);
       logClaudeCodeMessage(logger, message);
+      notifyToolResults(message, toolUseNames, toolAdapter?.onToolResult);
       if (message.type === "result") {
         resultMessage = message;
         if (typeof message.result === "string") {
@@ -266,6 +272,13 @@ export async function runClaudeCodeAgent({
     return baseResult;
   }
 
+  // Artifact-grounded grading: capture the terminal page state through the
+  // tool surface (harness-observed, independent of the agent's self-report)
+  // before cleanup, and drain the per-step probe observations collected by
+  // the run tool.
+  const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
+  const stepObservations = await toolAdapter?.drainStepObservations?.();
+
   // Build a Trajectory from the SDK message stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
@@ -273,6 +286,11 @@ export async function runClaudeCodeAgent({
       claudeCodeAdapter.fromHarnessResult(
         {
           messages,
+          ...(finalObservation && { finalObservation }),
+          ...(stepObservations?.length && { stepObservations }),
+          ...(toolAdapter?.observedToolMatcher && {
+            observedToolName: toolAdapter.observedToolMatcher,
+          }),
           finalAnswer: parsed.finalAnswer ?? resultText,
           status: status === "completed" ? "complete" : "error",
           usage: {
@@ -289,6 +307,41 @@ export async function runClaudeCodeAgent({
     category: "claude_code",
     logger,
   });
+}
+
+/**
+ * Surfaces completed tool_results to the tool adapter. Assistant messages
+ * register tool_use id -> name; user messages carry the tool_result blocks.
+ * onToolResult is called in stream order, so observation indexes assigned at
+ * call time line up with tool_use ordinals in the trajectory adapter.
+ */
+function notifyToolResults(
+  message: ClaudeSdkMessage,
+  toolUseNames: Map<string, string>,
+  onToolResult?: (toolName: string) => void,
+): void {
+  const type = String((message as Record<string, unknown>).type ?? "");
+  const inner = (message as Record<string, unknown>).message;
+  if (!isRecord(inner) || !Array.isArray(inner.content)) return;
+
+  if (type === "assistant") {
+    for (const block of inner.content) {
+      if (!isRecord(block) || block.type !== "tool_use") continue;
+      if (typeof block.id === "string" && typeof block.name === "string") {
+        toolUseNames.set(block.id, block.name);
+      }
+    }
+    return;
+  }
+
+  if (type === "user" && onToolResult) {
+    for (const block of inner.content) {
+      if (!isRecord(block) || block.type !== "tool_result") continue;
+      const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : "";
+      const name = toolUseNames.get(toolUseId);
+      if (name) onToolResult(name);
+    }
+  }
 }
 
 function buildClaudeCodeMetrics(

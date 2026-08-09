@@ -13,6 +13,8 @@ _STAGEHAND_SESSION_METADATA = {
     "stagehand_sdk_language": "python",
 }
 
+DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
+
 
 class BrowserbaseSessionError(RuntimeError):
     pass
@@ -83,20 +85,21 @@ class _BrowserbaseAPI(Protocol):
 
 
 class _OfficialBrowserbaseAPI:
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, base_url: str) -> None:
         self._api_key = api_key
+        self._base_url = base_url
 
     async def upload_extension(self, archive: bytes) -> str:
         from browserbase import AsyncBrowserbase
 
-        async with AsyncBrowserbase(api_key=self._api_key) as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             extension = await client.extensions.create(file=("stagehand-extension.zip", archive))
         return extension.id
 
     async def delete_extension(self, extension_id: str) -> None:
         from browserbase import AsyncBrowserbase, omit
 
-        async with AsyncBrowserbase(api_key=self._api_key) as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             await client.extensions.delete(extension_id, extra_headers={"Content-Type": omit})
 
     async def create_session(
@@ -113,7 +116,7 @@ class _OfficialBrowserbaseAPI:
             user_metadata=user_metadata,
             extension_id=extension_id,
         )
-        async with AsyncBrowserbase(api_key=self._api_key) as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             session = await client.sessions.create(**kwargs)
         return session.id, session.connect_url
 
@@ -123,7 +126,7 @@ class _OfficialBrowserbaseAPI:
     ) -> tuple[str, str | None, BrowserbaseRegion | None]:
         from browserbase import AsyncBrowserbase
 
-        async with AsyncBrowserbase(api_key=self._api_key) as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             session = await client.sessions.retrieve(session_id)
         return (
             session.id,
@@ -134,7 +137,7 @@ class _OfficialBrowserbaseAPI:
     async def release_session(self, session_id: str) -> None:
         from browserbase import AsyncBrowserbase
 
-        async with AsyncBrowserbase(api_key=self._api_key) as client:
+        async with AsyncBrowserbase(api_key=self._api_key, base_url=self._base_url) as client:
             await client.sessions.update(session_id, status="REQUEST_RELEASE")
 
 
@@ -282,5 +285,5 @@ class _BrowserbaseSessionClient:
         await self._delete_extension_best_effort(extension_id)
 
 
-def _create_browserbase_session_client(api_key: str) -> _BrowserbaseSessionClient:
-    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key))
+def _create_browserbase_session_client(api_key: str, base_url: str) -> _BrowserbaseSessionClient:
+    return _BrowserbaseSessionClient(_OfficialBrowserbaseAPI(api_key, base_url))

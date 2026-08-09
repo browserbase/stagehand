@@ -1,20 +1,24 @@
 import type { ImplementationInfo, RuntimeDescriptor } from "../../protocol/types.js";
 import { RuntimeDescriptorSchema, STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import { checkProtocolCompatibility } from "../../protocol/protocol-version.js";
 import { z } from "zod/v4";
 
 export type RuntimeRequirement = {
-  minimumProtocolVersion: number;
-  maximumProtocolVersion: number;
+  protocolVersion: string;
 };
 export type RuntimeCompatibility =
   | {
       kind: "compatible";
-      protocolVersion: number;
+      protocolVersion: string;
       serverInfo: ImplementationInfo;
     }
   | {
       kind: "incompatible";
-      reason: "protocol-below-minimum" | "protocol-above-maximum";
+      reason:
+        | "protocol-invalid-version"
+        | "protocol-major-mismatch"
+        | "protocol-server-too-old"
+        | "protocol-prerelease-mismatch";
       detail: string;
       required: RuntimeRequirement;
       reported: RuntimeDescriptor;
@@ -26,8 +30,7 @@ export type RuntimeCompatibility =
     };
 
 export const DEFAULT_RUNTIME_REQUIREMENT: RuntimeRequirement = Object.freeze({
-  minimumProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
-  maximumProtocolVersion: STAGEHAND_PROTOCOL_VERSION,
+  protocolVersion: STAGEHAND_PROTOCOL_VERSION,
 });
 
 export function negotiateRuntimeCompatibility(
@@ -51,17 +54,18 @@ export function negotiateRuntimeCompatibility(
       };
 
     const reported = descriptor(result.data);
-    if (reported.protocolVersion < required.minimumProtocolVersion)
+    const compatibility = checkProtocolCompatibility(
+      required.protocolVersion,
+      reported.protocolVersion,
+    );
+    if (!compatibility.compatible)
       return incompatible(
-        "protocol-below-minimum",
-        `Protocol ${reported.protocolVersion} is below minimum ${required.minimumProtocolVersion}`,
-        required,
-        reported,
-      );
-    if (reported.protocolVersion > required.maximumProtocolVersion)
-      return incompatible(
-        "protocol-above-maximum",
-        `Protocol ${reported.protocolVersion} is above maximum ${required.maximumProtocolVersion}`,
+        compatibility.reason,
+        compatibilityDetail(
+          compatibility.reason,
+          required.protocolVersion,
+          reported.protocolVersion,
+        ),
         required,
         reported,
       );
@@ -76,6 +80,23 @@ export function negotiateRuntimeCompatibility(
       reason: "unreadable-marker",
       detail: "Runtime marker could not be read",
     };
+  }
+}
+
+function compatibilityDetail(
+  reason: Extract<RuntimeCompatibility, { kind: "incompatible" }>["reason"],
+  clientVersion: string,
+  serverVersion: string,
+): string {
+  switch (reason) {
+    case "protocol-invalid-version":
+      return `Invalid protocol version: client ${clientVersion}, server ${serverVersion}`;
+    case "protocol-major-mismatch":
+      return `Protocol major mismatch: client ${clientVersion}, server ${serverVersion}`;
+    case "protocol-server-too-old":
+      return `Server protocol ${serverVersion} is older than client requirement ${clientVersion}`;
+    case "protocol-prerelease-mismatch":
+      return `Protocol prereleases must match exactly: client ${clientVersion}, server ${serverVersion}`;
   }
 }
 

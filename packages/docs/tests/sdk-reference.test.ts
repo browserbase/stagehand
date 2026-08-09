@@ -28,10 +28,10 @@ type MdxNode = {
 type ReferencePage = {
   classSlug: string;
   filePath: string;
-  views: ReferenceView[];
+  views: ReferenceTab[];
 };
 
-type ReferenceView = {
+type ReferenceTab = {
   methods: ReferenceMethod[];
   title?: string;
 };
@@ -137,6 +137,9 @@ const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
 const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+// Language tabs are the selector; every other <Tab> on a page is a different axis
+// (model provider, output shape, ...). Go ships snippets but has no native reference pages.
+const LANGUAGE_TAB_TITLES = new Set(["TypeScript", "Python", "Go"]);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
@@ -219,7 +222,7 @@ describe("SDK reference surface", () => {
       await readFile(pagePath, "utf8"),
     ) as MdxNode;
     const views = new Map(
-      findElements(tree, "View").map((view) => [stringAttribute(view, "title"), view]),
+      findLanguageTabs(tree).map((view) => [stringAttribute(view, "title"), view]),
     );
     const [typescriptMembers, pythonMembers] = await Promise.all([
       readTypescriptResponseMembers(),
@@ -231,7 +234,7 @@ describe("SDK reference surface", () => {
       ["Python", pythonMembers],
     ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
       const view = views.get(language);
-      expect(view, `response.mdx must contain one ${language} View`).toBeDefined();
+      expect(view, `response.mdx must contain one ${language} tab`).toBeDefined();
       expect(
         responseMemberSignatures(readDocumentedResponseMembers(view as MdxNode, language)),
         `response.mdx ${language} signatures must match the public Response surface`,
@@ -264,11 +267,11 @@ describe("SDK reference surface", () => {
 
     expect(
       differences,
-      "Use each language's exact public method name in its consolidated page View",
+      "Use each language's exact public method name in its consolidated page tab",
     ).toEqual([]);
   });
 
-  it("uses exactly one TypeScript View and one Python View on every reference page", async () => {
+  it("uses exactly one TypeScript tab and one Python tab on every reference page", async () => {
     const invalidPages = (await readReferencePages()).flatMap((page) => {
       const titles = page.views.map(({ title }) => title ?? "<missing title>").sort();
       return arraysEqual(titles, [...LANGUAGES].sort())
@@ -278,11 +281,11 @@ describe("SDK reference surface", () => {
 
     expect(
       invalidPages,
-      "Each reference page must contain exactly the two native SDK Views",
+      "Each reference page must contain exactly the two native SDK language tabs",
     ).toEqual([]);
   });
 
-  it("documents the exact direct signature parameters inside each language View", async () => {
+  it("documents the exact direct signature parameters inside each language tab", async () => {
     const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
@@ -455,7 +458,12 @@ describe("SDK reference surface", () => {
         )) {
           const actual = documented.get(field.key);
           if (!actual) continue;
-          const expectedType = canonicalSchemaType(field.schema, language, protocol);
+          const expectedType =
+            language === "TypeScript" &&
+            method.operationName === "stagehand.callback_batch" &&
+            field.key === "options.page"
+              ? "Page"
+              : canonicalSchemaType(field.schema, language, protocol);
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -645,8 +653,8 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
-  it("documents one public response root inside every method View", async () => {
-    const invalidViews = (await readReferencePages()).flatMap((page) =>
+  it("documents one public response root inside every method tab", async () => {
+    const invalidTabs = (await readReferencePages()).flatMap((page) =>
       page.views.flatMap((view) =>
         view.methods.flatMap((method) =>
           method.responseNames.filter((name) => name === "result").length === 1
@@ -659,8 +667,8 @@ describe("SDK reference surface", () => {
     );
 
     expect(
-      invalidViews,
-      "Each SDK method View must contain exactly one top-level ResponseField named result",
+      invalidTabs,
+      "Each SDK method tab must contain exactly one top-level ResponseField named result",
     ).toEqual([]);
   });
 
@@ -797,7 +805,7 @@ describe("SDK reference surface", () => {
 });
 
 describe("Mintlify customization boundary", () => {
-  it("uses SDK-native field spellings inside each language View", async () => {
+  it("uses SDK-native field spellings inside each language tab", async () => {
     const [typescriptNames, pythonNames, contentPages] = await Promise.all([
       readTypescriptPublicFieldNames(),
       readPythonPublicFieldNames(),
@@ -820,7 +828,7 @@ describe("Mintlify customization boundary", () => {
         await readFile(filePath, "utf8"),
       ) as MdxNode;
       const pagePath = relative(DOCS_ROOT, filePath).split(sep).join("/");
-      for (const view of findElements(tree, "View")) {
+      for (const view of findLanguageTabs(tree)) {
         const language = stringAttribute(view, "title");
         if (language !== "TypeScript" && language !== "Python") continue;
         const spellings = language === "TypeScript" ? typescriptSpellings : pythonSpellings;
@@ -869,7 +877,7 @@ describe("Mintlify customization boundary", () => {
     );
   });
 
-  it("gives every View group the same complete language set", async () => {
+  it("gives every language tab group the same complete language set", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
     );
@@ -879,7 +887,7 @@ describe("Mintlify customization boundary", () => {
           const tree = createProcessor({ format: "mdx" }).parse(
             await readFile(filePath, "utf8"),
           ) as MdxNode;
-          const views = findElements(tree, "View").map((view) => ({
+          const views = findLanguageTabs(tree).map((view) => ({
             title: stringAttribute(view, "title"),
             icon: stringAttribute(view, "icon"),
           }));
@@ -890,7 +898,7 @@ describe("Mintlify customization boundary", () => {
             (view): view is { title: string; icon: string | undefined } => view.title !== undefined,
           );
           if (titled.length !== views.length) {
-            found.push(`${pagePath}: a View is missing a title`);
+            found.push(`${pagePath}: a language tab is missing a title`);
           }
           if (titled.length === 0) return found;
 
@@ -904,7 +912,7 @@ describe("Mintlify customization boundary", () => {
           const short = tallies.filter(([, count]) => count !== expected);
           if (short.length > 0) {
             found.push(
-              `${pagePath}: uneven View groups (${tallies
+              `${pagePath}: uneven language tab groups (${tallies
                 .map(([title, count]) => `${title} x${count}`)
                 .join(", ")})`,
             );
@@ -923,10 +931,12 @@ describe("Mintlify customization boundary", () => {
             }
           }
 
-          // Two adjacent Views sharing a title means a malformed group.
+          // Two adjacent language tabs sharing a title means a malformed group.
           for (let index = 1; index < titled.length; index += 1) {
             if (titled[index].title === titled[index - 1].title) {
-              found.push(`${pagePath}: two adjacent Views both titled ${titled[index].title}`);
+              found.push(
+                `${pagePath}: two adjacent language tabs both titled ${titled[index].title}`,
+              );
               break;
             }
           }
@@ -938,7 +948,36 @@ describe("Mintlify customization boundary", () => {
 
     expect(
       problems,
-      "Every View group must offer the same languages, so switching never hides a snippet",
+      "Every language tab group must offer the same languages, so switching never hides a snippet",
+    ).toEqual([]);
+  });
+
+  it("never mixes language tabs with other tabs in one group", async () => {
+    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
+      (filePath) => extname(filePath) === ".mdx",
+    );
+    const problems = (
+      await Promise.all(
+        contentPages.map(async (filePath) => {
+          const tree = createProcessor({ format: "mdx" }).parse(
+            await readFile(filePath, "utf8"),
+          ) as MdxNode;
+          const pagePath = relative(DOCS_ROOT, filePath).split(sep).join("/");
+
+          return findElements(tree, "Tabs").flatMap((group) => {
+            const tabs = (group.children ?? []).filter((child) => child.name === "Tab");
+            const languages = tabs.filter(isLanguageTab);
+            if (languages.length === 0 || languages.length === tabs.length) return [];
+            const titles = tabs.map((tab) => stringAttribute(tab, "title") ?? "<missing title>");
+            return [`${pagePath}: ${titles.join(", ")}`];
+          });
+        }),
+      )
+    ).flat();
+
+    expect(
+      problems,
+      "A tab group switches on exactly one axis: either language or something else, never both",
     ).toEqual([]);
   });
 
@@ -1564,7 +1603,7 @@ async function readReferencePages(): Promise<ReferencePage[]> {
         const tree = createProcessor({ format: "mdx" }).parse(
           await readFile(filePath, "utf8"),
         ) as MdxNode;
-        const views = findElements(tree, "View").map((view): ReferenceView => {
+        const views = findLanguageTabs(tree).map((view): ReferenceTab => {
           return {
             title: stringAttribute(view, "title"),
             methods: readReferenceMethods(view, filePath),
@@ -1589,7 +1628,7 @@ function readReferenceMethods(view: MdxNode, filePath: string): ReferenceMethod[
     const methodName = heading.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\(\)$/u)?.[1];
     if (!methodName) {
       throw new Error(
-        `${filePath} View headings must be "Quick start" or an exact method name ending in (): ${heading}`,
+        `${filePath} language tab headings must be "Quick start" or an exact method name ending in (): ${heading}`,
       );
     }
 
@@ -1658,6 +1697,16 @@ function shouldInspectDocsDirectory(name: string): boolean {
 function findElements(node: MdxNode, name: string): MdxNode[] {
   const matches = node.name === name ? [node] : [];
   return matches.concat(node.children?.flatMap((child) => findElements(child, name)) ?? []);
+}
+
+function isLanguageTab(node: MdxNode): boolean {
+  const title = stringAttribute(node, "title");
+  return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
+}
+
+// Document-order language tabs, ignoring tabs that switch on any other axis.
+function findLanguageTabs(node: MdxNode): MdxNode[] {
+  return findElements(node, "Tab").filter(isLanguageTab);
 }
 
 function mdxText(node: MdxNode): string {
@@ -1953,7 +2002,9 @@ function projectedInputPaths(
     }
     const path = [
       parameter,
-      ...wirePath.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
+      ...wirePath
+        .slice(matchedIndex + 1)
+        .map((segment) => projectedInputFieldName(method, segment, language)),
     ];
     return path.length > 1 ? [path.join(".")] : [];
   });
@@ -2006,7 +2057,9 @@ function projectedInputFields(
     }
     const path = [
       parameter,
-      ...field.path.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
+      ...field.path
+        .slice(matchedIndex + 1)
+        .map((segment) => projectedInputFieldName(method, segment, language)),
     ];
     return path.length > 1
       ? [{ key: path.join("."), optional: !field.required, schema: field.schema }]
@@ -2270,6 +2323,17 @@ function publicFieldName(wireName: string, language: Language): string {
     TYPESCRIPT_FIELD_SPELLINGS.get(wireName) ??
     wireName.replace(/_([a-z\d])/gu, (_, character: string) => character.toUpperCase())
   );
+}
+
+function projectedInputFieldName(method: SdkMethod, wireName: string, language: Language): string {
+  if (
+    language === "TypeScript" &&
+    method.operationName === "stagehand.callback_batch" &&
+    wireName === "page_id"
+  ) {
+    return "page";
+  }
+  return publicFieldName(wireName, language);
 }
 
 async function readTypescriptPublicFieldNames(): Promise<Set<string>> {

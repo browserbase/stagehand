@@ -10,13 +10,14 @@ Cost optimization in Stagehand involves balancing LLM inference costs and browse
 
 Start with these simple optimizations that can reduce costs:
 
-### 1. Use the right model for the job
+### Use the right model for the job
 
 Browserbase doesn't recommend using larger, more premium models for simple tasks. See the [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
 
 Reach for a stronger model only on the calls that need it, with a per-call model override:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
@@ -35,9 +36,9 @@ await stagehand.extract("summarize the contract terms", termsSchema, {
   },
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -64,9 +65,9 @@ await stagehand.extract(
     ),
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type terms struct {
 	Summary string `json:"summary"`
@@ -111,7 +112,8 @@ if err != nil {
 
 fmt.Println(result.Data.Summary)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <CardGroup cols={2}>
 <Card title="Model selection guide" icon="brain" href="/v4/configuration/models">
@@ -122,11 +124,12 @@ fmt.Println(result.Data.Summary)
 </Card>
 </CardGroup>
 
-### 2. Implement caching
+### Implement caching
 
 Enable server-side caching to eliminate redundant LLM calls. Turn on the `cache` option when initializing Stagehand:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
@@ -137,9 +140,9 @@ const stagehand = await Stagehand.create({
 // Subsequent runs: reuses the cached action (no LLM cost)
 await stagehand.act("Click the sign in button");
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -156,9 +159,9 @@ stagehand = await Stagehand.create(
 # Subsequent runs: reuses the cached action (no LLM cost)
 await stagehand.act("Click the sign in button")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 cache := stagehand.CacheWithThreshold(1) // Serve hits after one identical result
@@ -184,7 +187,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"
 	return err
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <CardGroup cols={1}>
 <Card title="Caching guide" icon="database" href="/v4/best-practices/caching">
@@ -192,11 +196,12 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"
 </Card>
 </CardGroup>
 
-### 3. Optimize browser sessions
+### Optimize browser sessions
 
 Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/v4/configuration/browser) for details:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const stagehand = await Stagehand.create({
   browser: await browserbase.launch({
@@ -206,9 +211,9 @@ const stagehand = await Stagehand.create({
   }),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
@@ -218,9 +223,9 @@ browser = await browserbase.launch(
 
 stagehand = await Stagehand.create(browser=browser)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 apiKey := os.Getenv("BROWSERBASE_API_KEY")
 timeout := 1800.0 // 30 minutes instead of default 1 hour
@@ -243,7 +248,8 @@ if err != nil {
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
-</View>
+</Tab>
+</Tabs>
 
 <CardGroup cols={1}>
 <Card title="Browserbase cost optimization" icon="window-maximize" href="https://docs.browserbase.com/guides/cost-optimization">
@@ -257,7 +263,8 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 Automatically fall back to cheaper models for simple tasks. Escalate on `observe()` rather than `act()`: `observe()` only plans and never touches the page, so a retry cannot repeat a click, submit, or purchase that already landed before the error surfaced. The winning plan is then handed to `act()` exactly once.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Use models from least to most expensive based on task complexity
 // See stagehand.dev/evals for performance comparisons
@@ -283,9 +290,9 @@ async function smartAct(stagehand: Stagehand, prompt: string) {
   throw new Error(`No model could complete: ${prompt}`);
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Use models from least to most expensive based on task complexity
 # See stagehand.dev/evals for performance comparisons
@@ -315,9 +322,9 @@ async def smart_act(stagehand: Stagehand, prompt: str):
 
     raise RuntimeError(f"No model could complete: {prompt}")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Use models from least to most expensive based on task complexity
 // See stagehand.dev/evals for performance comparisons
@@ -356,13 +363,15 @@ func smartAct(ctx context.Context, client *stagehand.Stagehand, prompt string) (
 	return stagehand.ActResult{}, fmt.Errorf("no model could complete: %s", prompt)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Session pooling
 
 Reuse browser sessions across multiple tasks:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 class SessionManager {
   // Store the in-flight promise, not the resolved instance: two callers racing
@@ -401,9 +410,9 @@ class SessionManager {
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 import asyncio
@@ -440,9 +449,9 @@ class SessionManager:
         sessions = await asyncio.gather(*tasks, return_exceptions=True)
         await asyncio.gather(*(s.close() for s in sessions if isinstance(s, Stagehand)))
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type sessionManager struct {
 	mu       sync.Mutex
@@ -497,7 +506,8 @@ func (m *sessionManager) closeAll(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ## Cost monitoring
 
@@ -505,7 +515,8 @@ Track your spending to identify optimization opportunities. See the [observabili
 
 Stagehand reports token counts, not dollars. Keep prompt and completion tokens separate: providers bill them at different rates, so a single blended rate over the total is wrong for every model. Multiply each count by the input and output rates on your provider's pricing page to turn these into currency.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Monitor token usage
 const metrics = await stagehand.metrics();
@@ -515,9 +526,9 @@ console.log(`Completion tokens: ${metrics.totalCompletionTokens}`);
 // Tokens served from your provider's prompt cache cost less
 console.log(`Cached input tokens: ${metrics.totalCachedInputTokens}`);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Monitor token usage
 metrics = await stagehand.metrics()
@@ -527,9 +538,9 @@ print(f"Completion tokens: {metrics.total_completion_tokens}")
 # Tokens served from your provider's prompt cache cost less
 print(f"Cached input tokens: {metrics.total_cached_input_tokens}")
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Monitor token usage
 metrics, err := client.Metrics(ctx)
@@ -542,7 +553,8 @@ fmt.Printf("Completion tokens: %.0f\n", metrics.TotalCompletionTokens)
 // Tokens served from your provider's prompt cache cost less
 fmt.Printf("Cached input tokens: %.0f\n", metrics.TotalCachedInputTokens)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <CardGroup cols={1}>
 <Card title="Observability & metrics" icon="chart-line" href="/v4/configuration/observability">
@@ -554,7 +566,8 @@ fmt.Printf("Cached input tokens: %.0f\n", metrics.TotalCachedInputTokens)
 
 Set spending limits to prevent unexpected costs:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 class BudgetGuard {
   private dailySpend = 0;
@@ -581,9 +594,9 @@ class BudgetGuard {
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from datetime import date
 
@@ -605,9 +618,9 @@ class BudgetGuard:
             raise RuntimeError(f"Daily budget exceeded: ${self.max_daily_budget}")
         self.daily_spend += estimated_cost
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type budgetGuard struct {
 	mu             sync.Mutex
@@ -644,7 +657,8 @@ func (g *budgetGuard) checkBudget(estimatedCost float64) error {
 	return nil
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Using the [Model Gateway](/v4/configuration/models#model-gateway) puts inference, browsers, and caching on a single Browserbase bill, which makes spend easier to attribute and cap in one place.
