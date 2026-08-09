@@ -17,11 +17,14 @@ Two changes account for most of this migration:
 
 Now, that built-in orchestrator is gone. v4 exposes discrete tools and leaves the control flow to you. Keep calling `act()`, `extract()`, and `observe()` where a natural-language instruction beats a selector, but stop treating them as the whole toolset you hand a model.
 
-v4 has two approaches that replace `agent()`.
+Two approaches replace it:
+
+- **[Code mode](#code-mode)** puts the model in front of the run. A coding assistant writes a Stagehand script, and you run that script. Browserbase recommends starting here.
+- **[Tool calling](#tool-calling)** keeps a model in the loop during the run, driving the browser through the full Stagehand API as its tools.
 
 ## Code mode
 
-Browserbase recommends this path. Ask your coding assistant to write a Stagehand script, then run the script. The model writes the code once instead of driving the browser on every run.
+Ask your coding assistant to write a Stagehand script, then run the script. The model writes the code once instead of driving the browser on every run.
 
 You get ordinary code: reviewable, diffable, and free of per-step inference. When a site changes, re-run the assistant on the step that broke.
 
@@ -122,9 +125,73 @@ asyncio.run(main())
 ```
 </View>
 
+<View title="Go" icon="golang">
+```go
+type comment struct {
+	Author string `json:"author"`
+	Body   string `json:"body"`
+}
+
+type comments struct {
+	Comments []comment `json:"comments"`
+}
+
+func run(ctx context.Context) (err error) {
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	page, err := browserContext.NewPage(ctx, "https://news.ycombinator.com")
+	if err != nil {
+		return err
+	}
+
+	// Deterministic where the page allows it: no inference, no variance.
+	if err := page.Locator("a.morelink").First().Click(ctx, nil); err != nil {
+		return err
+	}
+	if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
+		return err
+	}
+
+	// A model call where the page needs judgement.
+	instruction := stagehand.ActInstruction("Open the comments for the story with the most comments")
+	if _, err := client.Act(ctx, instruction, nil); err != nil {
+		return err
+	}
+
+	result, err := stagehand.Extract[comments](
+		ctx,
+		client,
+		"Extract the top five comments, with each author and body",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Println(result.Data.Comments)
+	return nil
+}
+```
+</View>
+
 Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. `agent()` couldn't make that split, because every step it ran was an inference call.
 
-## Tool calling with the full API
+## Tool calling
 
 To keep a model in the loop at runtime, give it the whole Stagehand surface rather than three broad tools. Each method maps to one tool with a narrow contract, so a step names a specific browser operation instead of routing through a sentence of English.
 
@@ -240,6 +307,47 @@ TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
 ```
 </View>
 
+<View title="Go" icon="golang">
+```go
+// One handler per tool. Register these with your agent framework's tool API.
+
+func gotoTool(ctx context.Context, page *stagehand.Page, url string) (string, error) {
+	if _, err := page.Goto(ctx, url, nil); err != nil {
+		return "", err
+	}
+	return page.URL(ctx)
+}
+
+func snapshotTool(ctx context.Context, page *stagehand.Page) (string, error) {
+	snapshot, err := page.Snapshot(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.FormattedTree, nil
+}
+
+func clickTool(ctx context.Context, page *stagehand.Page, selector string) error {
+	return page.Locator(selector).Click(ctx, nil)
+}
+
+func fillTool(ctx context.Context, page *stagehand.Page, selector, value string) error {
+	return page.Locator(selector).Fill(ctx, value)
+}
+
+func readTextTool(ctx context.Context, page *stagehand.Page, selector string) (string, error) {
+	return page.Locator(selector).TextContent(ctx)
+}
+
+func actTool(ctx context.Context, client *stagehand.Stagehand, instruction string) (string, error) {
+	result, err := client.Act(ctx, stagehand.ActInstruction(instruction), nil)
+	if err != nil {
+		return "", err
+	}
+	return result.Data.Message, nil
+}
+```
+</View>
+
 <Tip>
 Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
 </Tip>
@@ -248,36 +356,70 @@ Escalate on `observe()`, never on `act()`. A failed `act()` may already have cli
 
 ## Let a coding assistant do the rest
 
-The rest of this guide is mechanical, so hand it to the same assistant that writes your v4 code. Set up [AI rules](/v4/first-steps/ai-rules) first, then point it at a file:
+The rest of this guide is a mapping table, so hand it to a coding assistant. Point it at this page instead of retyping the rules:
 
 ```text
-Migrate this file from Stagehand v3 to v4. Apply these changes:
-  - new Stagehand(...) + init()  ->  browserbase.launch() or localBrowser.launch(),
-    then Stagehand.create({ browser })
-  - stagehand.page / stagehand.context  ->  await browser.context.activePage() /
-    browser.context
-  - page.act/extract/observe  ->  stagehand.act/extract/observe
-  - act/extract/observe now return { data, metadata }; read .data
-  - extract({ instruction, schema })  ->  extract(instruction, schema)
-  - page.deepLocator(sel)  ->  page.locator(sel)
-  - modelName + modelClientOptions  ->  model: { modelName, apiKey }
-  - enableCaching  ->  cache
-  - verbose + logger  ->  logging: { level, format, onLog }
-  - await stagehand.metrics  ->  await stagehand.metrics()
-Leave agent() calls alone and list them for me instead.
+Migrate this file from Stagehand v3 to v4.
+
+Follow https://docs.stagehand.dev/v4/migrations/v3, and use its quick
+reference table as the mapping. Leave agent() calls alone and list them
+for me instead.
 ```
 
-Work through the sections below for anything it flags or misses.
+Set up [AI rules](/v4/first-steps/ai-rules) first so the assistant stays on the v4 API instead of the v2 and v3 patterns in its training data.
+
+Then work through the sections below for anything it missed.
 
 ## Recommended migration order
 
 1. Get one script constructing and closing cleanly on v4, before changing any instructions.
 2. Replace page and context access, since it moved.
 3. Unwrap results: every primitive now returns `{ data, metadata }`.
-4. Replace `agent()` calls, using either approach above.
+4. Replace `agent()` calls with [code mode](#code-mode) or [tool calling](#tool-calling).
 5. Turn on server-side caching once the flow is stable.
 
+## Coming from Python or Go
+
+v3 shipped Python and Go as clients for the hosted Stagehand API. You created a session and called methods on it:
+
+<View title="Python" icon="python">
+```python
+from stagehand import AsyncStagehand
+
+client = AsyncStagehand()
+session = await client.sessions.create(model_name="openai/gpt-5-nano")
+await session.navigate(url="https://example.com")
+act_response = await session.act(input="click the sign in button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+client := stagehand.NewClient(
+	option.WithBrowserbaseAPIKey(os.Getenv("BROWSERBASE_API_KEY")),
+	option.WithModelAPIKey(os.Getenv("MODEL_API_KEY")),
+)
+started, err := client.Sessions.Start(ctx, stagehand.SessionStartParams{ModelName: "gpt-5-nano"})
+sessionID := started.Data.SessionID
+_, err = client.Sessions.Navigate(ctx, sessionID, stagehand.SessionNavigateParams{
+	URL: "https://example.com",
+})
+```
+</View>
+
+v4 gives all three languages the same SDK: a browser from a factory, a Stagehand instance built on it, and `act()`, `extract()`, and `observe()` on that instance. Sessions and their IDs are gone from the calling surface, and the package names changed, so this is a rewrite against the new shape rather than a rename pass. The [code mode](#code-mode) examples show the target in each language.
+
+| v3 | v4 |
+| --- | --- |
+| `AsyncStagehand()` / `stagehand.NewClient(...)` | A browser factory, then `Stagehand.create()` |
+| `client.sessions.create()` / `client.Sessions.Start()` | The browser factory returns the handle; no session object |
+| `session.navigate(url=...)` | `page.goto(url)` |
+| `session.act(...)` / `session.extract(...)` | `stagehand.act(...)` / `stagehand.extract(...)` |
+| `response.data.result` | `result.data` |
+
 ## Breaking changes
+
+These diffs are TypeScript, because v3's TypeScript SDK is the one whose surface maps onto v4 rename by rename. The v4 side of each diff is the shape for every language.
 
 ### Initialization
 
@@ -438,13 +580,13 @@ Metrics became a method:
 | `await stagehand.observe(...)` returns an array | `.data` holds the array |
 | `extract({ instruction, schema })` | `extract(instruction, schema)` |
 | `page.deepLocator()` | `page.locator()`, same selector syntax |
-| `stagehand.agent()`, `agent.execute()` | A generated script, or your own tool-calling loop |
+| `stagehand.agent()`, `agent.execute()` | Code mode, or a tool-calling loop you own |
 | `execute({ maxSteps })` | Your loop bound, or the length of the script |
 | `agent({ systemPrompt })` | `systemPrompt` on `Stagehand.create()` |
 | `agent({ tools })` | Page-declared tools via [WebMCP](/v4/basics/webmcp), or your own tool definitions |
 | `agent({ mode: "cua" })`, `execute({ highlightCursor })` | No equivalent |
 | Agent stopping when the task is done | The script ends, or your loop's own stop condition |
-| Agent step-by-step action selection | The [full tool surface](#tool-calling-with-the-full-api) |
+| Agent step-by-step action selection | The [full tool surface](#tool-calling) |
 | Agent variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
 | Agent structured output | `extract()` with a schema |
 | Agent streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
