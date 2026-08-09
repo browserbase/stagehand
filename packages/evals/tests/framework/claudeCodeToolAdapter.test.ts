@@ -51,8 +51,16 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, or stagehand_code/,
     );
+  });
+
+  it("accepts stagehand_code with SDK-owned startup profiles", () => {
+    expect(resolveClaudeCodeToolSurface("stagehand_code")).toBe("stagehand_code");
+    expect(resolveClaudeCodeStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
+    expect(resolveClaudeCodeStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
   });
 
   it("supports browse_cli as the first Codex tool surface", () => {
