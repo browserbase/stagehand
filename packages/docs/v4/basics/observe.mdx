@@ -114,7 +114,7 @@ fmt.Println("found", len(result.Data), "actions")
 </Accordion>
 
 
-### Return value of `observe()`?
+### Return value of `observe()`
 When you use `observe()`, Stagehand returns a result whose `data` field is a list of `Action` objects, alongside `metadata` carrying the action ID and server-side cache status. Each `Action` can be passed straight to [`act()`](/v4/basics/act) for deterministic replay:
 
 <Tabs>
@@ -1056,7 +1056,7 @@ if _, err := client.Observe(ctx, &specific, nil); err != nil {
 **Solutions**:
 - Validate the method before using it
 - Check [supported actions](/v4/basics/act) for valid method names
-- Reach for a [locator](/v4/reference/stagehand) when you want to call a specific method instead of trusting the suggestion
+- Reach for a [locator](/v4/reference/locator) when you want to call a specific method instead of trusting the suggestion
 
 <Tabs>
 <Tab title="TypeScript">

@@ -1139,11 +1139,7 @@ DOM settling applies to `act()`. `observe()` and `extract()` read a snapshot of 
 
 #### What is DOM settling?
 
-DOM settling ensures that:
-- **Animations complete** before interacting with elements
-- **Lazy-loaded content** has time to appear
-- **JavaScript updates** finish before actions are taken
-- **Dynamic content** is fully rendered
+Before `act()` runs, Stagehand waits for the page's network activity to go quiet, up to the timeout. That gives lazy-loaded content, JavaScript updates, and other dynamic rendering time to finish before the action targets an element.
 
 #### When to adjust
 
