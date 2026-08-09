@@ -373,6 +373,8 @@ You can pass additional options to configure the model, timeout, locator scope, 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 const result = await stagehand.extract(
   "extract the repository name",
   z.object({ name: z.string() }),
@@ -393,6 +395,8 @@ const result = await stagehand.extract(
 import os
 
 from stagehand import ModelConfig
+
+page = await stagehand.browser.context.active_page()
 
 result = await stagehand.extract(
     "extract the repository name",
@@ -540,6 +544,8 @@ This helps reduce the context passed to the LLM, optimizing token usage/speed an
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 const { data: tableData } = await stagehand.extract(
   "Extract the values of the third row",
   z.object({
@@ -557,6 +563,8 @@ const { data: tableData } = await stagehand.extract(
 class TableRow(BaseModel):
     values: list[str]
 
+
+page = await stagehand.browser.context.active_page()
 
 table_data = (await stagehand.extract(
     "Extract the values of the third row",
@@ -590,6 +598,8 @@ You can also exclude specific nodes (including their descendant nodes) with igno
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 const { data: article } = await stagehand.extract(
   "extract the article title and body",
   z.object({
@@ -613,6 +623,8 @@ class Article(BaseModel):
     title: str
     body: str
 
+
+page = await stagehand.browser.context.active_page()
 
 article = (await stagehand.extract(
     "extract the article title and body",

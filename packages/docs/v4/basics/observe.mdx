@@ -259,6 +259,8 @@ You can pass additional options to configure the model, timeout, locator scope, 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 // Custom model configuration
 const { data: actions } = await stagehand.observe("find navigation links", {
   model: {
@@ -276,6 +278,8 @@ const { data: actions } = await stagehand.observe("find navigation links", {
 import os
 
 from stagehand import ModelConfig
+
+page = await stagehand.browser.context.active_page()
 
 # Custom model configuration
 result = await stagehand.observe(
@@ -320,6 +324,8 @@ You can also exclude specific nodes, including their descendant nodes, with igno
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 const { data: actions } = await stagehand.observe("find the main call-to-action buttons", {
   ignoreLocators: [
     page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
@@ -332,6 +338,8 @@ const { data: actions } = await stagehand.observe("find the main call-to-action 
 
 <Tab title="Python">
 ```python
+page = await stagehand.browser.context.active_page()
+
 result = await stagehand.observe(
     "find the main call-to-action buttons",
     ignore_locators=[
@@ -721,6 +729,7 @@ const PricingSchema = z.object({
 
 const { data: tables } = await stagehand.observe("find the pricing table");
 const [table] = tables;
+const page = await stagehand.browser.context.activePage();
 
 const { data: pricing } = await stagehand.extract(
   "extract all pricing tiers",
@@ -746,6 +755,7 @@ class Pricing(BaseModel):
 
 
 observed = await stagehand.observe("find the pricing table")
+page = await stagehand.browser.context.active_page()
 
 pricing = (await stagehand.extract(
     "extract all pricing tiers",
