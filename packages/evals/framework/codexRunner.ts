@@ -276,7 +276,7 @@ export async function runCodexAgent({
       : undefined;
   const stepObservations =
     toolAdapter && "drainStepObservations" in toolAdapter
-      ? toolAdapter.drainStepObservations?.()
+      ? await toolAdapter.drainStepObservations?.()
       : undefined;
 
   // Build a Trajectory from the codex event stream and grade it with the

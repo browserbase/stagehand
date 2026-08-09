@@ -13,7 +13,12 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import { extractMcpImage, resolvePnpmCommand, StdioMcpRuntime } from "./mcpUtils.js";
+import {
+  extractMcpImage,
+  resolvePnpmCommand,
+  StdioMcpRuntime,
+  syncSessionToVisiblePage,
+} from "./mcpUtils.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -981,7 +986,14 @@ class PlaywrightMcpSession implements CoreSession {
   }
 }
 
-async function capturePlaywrightMcpEvidence(session: CoreSession): Promise<ProbeEvidence> {
+async function capturePlaywrightMcpEvidence(
+  session: CoreSession,
+  endpoint?: { kind: "ws" | "http"; url: string; headers?: Record<string, string> },
+): Promise<ProbeEvidence> {
+  // The agent drives its own MCP server instance; this observer session's tab
+  // selection does not follow the agent's tab switches. Re-point at the
+  // browser's visible tab before probing (best-effort).
+  await syncSessionToVisiblePage(session, endpoint);
   const page = await session.activePage().catch((): undefined => undefined);
   if (!page) return {};
 
@@ -1103,7 +1115,7 @@ export class PlaywrightMcpTool implements CoreTool {
           },
         },
       }),
-      captureEvidence: () => capturePlaywrightMcpEvidence(session),
+      captureEvidence: () => capturePlaywrightMcpEvidence(session, input.providedEndpoint),
       cleanup: async () => {
         await session.close();
       },

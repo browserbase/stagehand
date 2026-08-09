@@ -277,7 +277,7 @@ export async function runClaudeCodeAgent({
   // before cleanup, and drain the per-step probe observations collected by
   // the run tool.
   const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
-  const stepObservations = toolAdapter?.drainStepObservations?.();
+  const stepObservations = await toolAdapter?.drainStepObservations?.();
 
   // Build a Trajectory from the SDK message stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.

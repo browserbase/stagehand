@@ -45,6 +45,23 @@ describe("observation recorder", () => {
     expect(recorder.drain()).toEqual([]);
   });
 
+  it("settle() waits for in-flight captures before drain", async () => {
+    let release: (() => void) | undefined;
+    const recorder = new ObservationRecorder(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ url: "https://example.com/late" });
+        }),
+    );
+    // Fire-and-forget, as the MCP tool-result stream does.
+    void recorder.record();
+    expect(recorder.drain()).toEqual([]);
+    const settled = recorder.settle();
+    release?.();
+    await settled;
+    expect(recorder.drain().map((o) => o.evidence.url)).toEqual(["https://example.com/late"]);
+  });
+
   it("drops empty artifacts", async () => {
     const recorder = new ObservationRecorder(async () => ({}));
     await recorder.record();

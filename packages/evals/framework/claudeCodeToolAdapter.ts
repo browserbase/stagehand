@@ -49,7 +49,7 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  drainStepObservations?: () => StepObservation[];
+  drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed tool_result with the originating
    * tool name; MCP-mounted surfaces use it to record per-step observations
@@ -486,7 +486,12 @@ async function prepareAgentMountAdapter(
           }
         },
       }),
-      ...(recorder && { drainStepObservations: () => recorder.drain() }),
+      ...(recorder && {
+        drainStepObservations: async () => {
+          await recorder.settle();
+          return recorder.drain();
+        },
+      }),
       cleanup: async () => {
         cleanupPromise ??= (async () => {
           try {

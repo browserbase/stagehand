@@ -37,7 +37,7 @@ export interface PreparedCodexCodeAdapter {
   codexConfig?: Record<string, unknown>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  drainStepObservations?: () => StepObservation[];
+  drainStepObservations?: () => Promise<StepObservation[]>;
   /**
    * Runner calls this on every completed mcp_tool_call event; MCP mounts use
    * it to record per-step observations (their tool calls never pass through
@@ -54,6 +54,22 @@ export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | Prepare
 const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
 const MCP_SURFACES = new Set<ToolSurface>(["playwright_mcp", "chrome_devtools_mcp"]);
 
+/** Mirrors the claude adapter's bounded, best-effort terminal capture. */
+function boundedCaptureEvidence(
+  capture: () => Promise<ProbeEvidence>,
+): () => Promise<ProbeEvidence> {
+  return async () => {
+    try {
+      return await withCaptureTimeout(
+        capture(),
+        readCapturePositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000),
+      );
+    } catch {
+      return {};
+    }
+  };
+}
+
 function readCapturePositiveIntEnv(key: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[key] ?? "", 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -62,7 +78,7 @@ function readCapturePositiveIntEnv(key: string, fallback: number): number {
 function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`codex adapter teardown timed out after ${timeoutMs}ms`)),
+      () => reject(new Error(`codex adapter operation timed out after ${timeoutMs}ms`)),
       timeoutMs,
     );
     promise.then(
@@ -143,10 +159,13 @@ export async function prepareCodexToolAdapter(
         promptInstructions: mount.promptInstructions,
         codexConfig: { mcp_servers: mount.mcpServers },
         ...(runtime.running.captureEvidence && {
-          captureEvidence: runtime.running.captureEvidence,
+          captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
         }),
         ...(recorder && {
-          drainStepObservations: () => recorder.drain(),
+          drainStepObservations: async () => {
+            await recorder.settle();
+            return recorder.drain();
+          },
           recordObservation: () => void recorder.record(),
         }),
         observedToolMatcher: (name: string) =>
@@ -197,9 +216,14 @@ export async function prepareCodexToolAdapter(
       env: { ...process.env } as Record<string, string>,
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
       ...(runtime.running.captureEvidence && {
-        captureEvidence: runtime.running.captureEvidence,
+        captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
-      ...(recorder && { drainStepObservations: () => recorder.drain() }),
+      ...(recorder && {
+        drainStepObservations: async () => {
+          await recorder.settle();
+          return recorder.drain();
+        },
+      }),
       cleanup: async () => {
         try {
           await capturedBridge.close();

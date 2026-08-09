@@ -18,6 +18,7 @@ import {
   parseLooseJson,
   resolvePnpmCommand,
   StdioMcpRuntime,
+  syncSessionToVisiblePage,
 } from "./mcpUtils.js";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 15_000;
@@ -974,7 +975,14 @@ class ChromeDevtoolsMcpSession implements CoreSession {
   }
 }
 
-async function captureChromeDevtoolsMcpEvidence(session: CoreSession): Promise<ProbeEvidence> {
+async function captureChromeDevtoolsMcpEvidence(
+  session: CoreSession,
+  endpoint?: { kind: "ws" | "http"; url: string; headers?: Record<string, string> },
+): Promise<ProbeEvidence> {
+  // The agent drives its own MCP server instance; this observer session's tab
+  // selection does not follow the agent's tab switches. Re-point at the
+  // browser's visible tab before probing (best-effort).
+  await syncSessionToVisiblePage(session, endpoint);
   const page = await session.activePage().catch((): undefined => undefined);
   if (!page) return {};
 
@@ -1106,7 +1114,7 @@ export class ChromeDevtoolsMcpTool implements CoreTool {
           },
         },
       }),
-      captureEvidence: () => captureChromeDevtoolsMcpEvidence(session),
+      captureEvidence: () => captureChromeDevtoolsMcpEvidence(session, input.providedEndpoint),
       cleanup: async () => {
         await session.close();
       },

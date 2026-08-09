@@ -27,19 +27,39 @@ export function harnessObservationsEnabled(): boolean {
  */
 export class ObservationRecorder {
   private readonly observations: StepObservation[] = [];
+  private readonly pending = new Set<Promise<void>>();
   private runIndex = 0;
 
   constructor(private readonly capture: () => Promise<ProbeEvidence>) {}
 
   async record(): Promise<void> {
     const runIndex = this.runIndex++;
-    try {
-      const evidence = await withTimeout(this.capture(), observationTimeoutMs());
-      if (evidence.screenshot || evidence.url || evidence.ariaTree) {
-        this.observations.push({ runIndex, evidence });
+    const attempt = (async () => {
+      try {
+        const evidence = await withTimeout(this.capture(), observationTimeoutMs());
+        if (evidence.screenshot || evidence.url || evidence.ariaTree) {
+          this.observations.push({ runIndex, evidence });
+        }
+      } catch {
+        // best-effort only — a failed probe must never fail the run tool
       }
-    } catch {
-      // best-effort only — a failed probe must never fail the run tool
+    })();
+    this.pending.add(attempt);
+    try {
+      await attempt;
+    } finally {
+      this.pending.delete(attempt);
+    }
+  }
+
+  /**
+   * Waits for in-flight captures. Callers that fire record() without
+   * awaiting it (MCP tool-result streams) must settle() before drain(), or
+   * the last observations of a run race the drain and silently go missing.
+   */
+  async settle(): Promise<void> {
+    while (this.pending.size > 0) {
+      await Promise.allSettled([...this.pending]);
     }
   }
 
