@@ -30,7 +30,10 @@ pnpm install
 cp .env.example .env
 ```
 
-4. Configure your `.env` file with the environment variables required by `src/lib/env.ts` (BB environment, API base URLs, etc.).
+4. Configure your `.env` file with the environment variables required by
+   `src/lib/env.ts` (BB environment, API base URLs, etc.). For self-hosted
+   authentication, set `STAGEHAND_SERVER_API_KEY` and send the same value in
+   the `x-stagehand-api-key` header. Requests may alternatively authenticate
+   with a valid Browserbase API key in `x-bb-api-key`.
 
 5. `pnpm dev`
-

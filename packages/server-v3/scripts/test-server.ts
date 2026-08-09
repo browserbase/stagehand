@@ -191,6 +191,9 @@ if (!fs.existsSync(allTestsDir)) {
 const serverTarget = (
   process.env.STAGEHAND_SERVER_TARGET ?? "sea"
 ).toLowerCase();
+if (serverTarget !== "remote") {
+  process.env.STAGEHAND_SERVER_API_KEY ??= "stagehand-integration-test-key";
+}
 const explicitBaseUrl =
   process.env.STAGEHAND_API_URL ?? process.env.STAGEHAND_BASE_URL;
 const baseUrl = explicitBaseUrl ?? "http://stagehand-api.localhost:3106"; // different than server-v4 to avoid clash

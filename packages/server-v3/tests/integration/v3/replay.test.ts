@@ -8,9 +8,39 @@ import {
   getBaseUrl,
   getHeaders,
   HTTP_OK,
+  HTTP_UNAUTHORIZED,
 } from "../utils.js";
 
 describe("GET /v1/sessions/:id/replay (V3)", () => {
+  it("rejects requests without authentication", async () => {
+    const ctx = await fetchWithContext<unknown>(
+      `${getBaseUrl()}/v1/sessions/test-session-id/replay`,
+      { method: "GET" },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_UNAUTHORIZED,
+      "Replay should reject missing authentication",
+    );
+  });
+
+  it("rejects requests with an invalid self-hosted server key", async () => {
+    const ctx = await fetchWithContext<unknown>(
+      `${getBaseUrl()}/v1/sessions/test-session-id/replay`,
+      {
+        method: "GET",
+        headers: { "x-stagehand-api-key": "invalid-key" },
+      },
+    );
+
+    assertFetchStatus(
+      ctx,
+      HTTP_UNAUTHORIZED,
+      "Replay should reject invalid authentication",
+    );
+  });
+
   it("should return an empty replay result for local server", async () => {
     const url = getBaseUrl();
     const headers = getHeaders("3.0.0");

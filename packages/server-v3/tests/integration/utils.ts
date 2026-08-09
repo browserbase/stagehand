@@ -8,6 +8,7 @@ import { chromium } from "playwright";
 
 export const HTTP_OK = 200;
 export const HTTP_BAD_REQUEST = 400;
+export const HTTP_UNAUTHORIZED = 401;
 export const HTTP_NOT_FOUND = 404;
 export const HTTP_GONE = 410;
 export const HTTP_UNPROCESSABLE_ENTITY = 422;
@@ -34,6 +35,7 @@ export const {
   OPENAI_API_KEY,
   GEMINI_API_KEY,
   ANTHROPIC_API_KEY,
+  STAGEHAND_SERVER_API_KEY,
 } = process.env;
 
 // =============================================================================
@@ -61,6 +63,10 @@ export function getHeaders(
 ): Record<string, string> {
   return {
     "Content-Type": "application/json",
+    "x-stagehand-api-key": requireEnv(
+      "STAGEHAND_SERVER_API_KEY",
+      STAGEHAND_SERVER_API_KEY,
+    ),
     "x-model-api-key": requireEnv("OPENAI_API_KEY", OPENAI_API_KEY),
     "x-language": language,
     "x-sdk-version": sdkVersion,

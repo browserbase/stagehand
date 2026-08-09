@@ -119,7 +119,7 @@ const startRouteHandler: RouteHandler = withErrorHandling(
         ? browser.launchOptions
         : undefined;
 
-    let bbApiKey: string | undefined;
+    const bbApiKey = getOptionalHeader(request, "x-bb-api-key");
     let browserbaseProjectId: string | undefined;
     let browserbaseSessionId: string | undefined;
     let connectUrl: string | undefined;
@@ -140,8 +140,6 @@ const startRouteHandler: RouteHandler = withErrorHandling(
     }
 
     if (browserType === "browserbase") {
-      bbApiKey = getOptionalHeader(request, "x-bb-api-key");
-
       if (!bbApiKey) {
         return error(
           reply,
