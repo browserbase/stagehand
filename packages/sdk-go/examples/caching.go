@@ -66,8 +66,8 @@ func run(ctx context.Context) (err error) {
 
 	cache := stagehand.CacheWithThreshold(1)
 	extractOptions := &stagehand.StagehandClientExtractOptions{
-		ExtractOptions: stagehand.ExtractOptions{Cache: &cache},
-		Page:           page,
+		Page:  page,
+		Cache: &cache,
 	}
 	extractCompanies := func() (companies, time.Duration, error) {
 		start := time.Now()

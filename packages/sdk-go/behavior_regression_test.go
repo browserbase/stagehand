@@ -197,7 +197,11 @@ func TestStagehandOperationsPreserveResultEnvelopes(t *testing.T) {
 				return client.Observe(
 					context.Background(),
 					&instruction,
-					&StagehandClientObserveOptions{Page: page},
+					&StagehandClientObserveOptions{
+						Page:           page,
+						Locator:        page.Locator("main"),
+						IgnoreLocators: []*PageLocator{mustNth(t, page.Locator("nav"), 1)},
+					},
 				)
 			},
 		},
@@ -256,8 +260,8 @@ func TestExtractDerivesSchemaAndPreservesTypedDataAndMetadata(t *testing.T) {
 		client,
 		"extract heading",
 		&StagehandClientExtractOptions{
-			ExtractOptions: ExtractOptions{Screenshot: &screenshot},
-			Page:           page,
+			Page:       page,
+			Screenshot: &screenshot,
 		},
 	)
 	if err != nil {
@@ -314,6 +318,99 @@ func TestExtractDerivesSchemaAndPreservesTypedDataAndMetadata(t *testing.T) {
 	}
 	if !reflect.DeepEqual(itemSchema["required"], []any{"name"}) {
 		t.Fatalf("derived tags item required = %#v", itemSchema["required"])
+	}
+}
+
+func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
+	t.Parallel()
+
+	type pageInfo struct {
+		Heading string `json:"heading"`
+	}
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.observe": ObserveResult{Metadata: StagehandResultMetadata{
+			Cache: CacheMetadata{Status: CacheStatusDISABLED},
+		}},
+		"stagehand.extract": ExtractResult{
+			Data: json.RawMessage(`{"heading":"Example"}`),
+			Metadata: StagehandResultMetadata{
+				Cache: CacheMetadata{Status: CacheStatusDISABLED},
+			},
+		},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	instruction := "find main"
+	if _, err := client.Observe(context.Background(), &instruction, &StagehandClientObserveOptions{
+		Page:           page,
+		Locator:        mustNth(t, page.Locator("main"), 1),
+		IgnoreLocators: []*PageLocator{page.Locator("nav")},
+	}); err != nil {
+		t.Fatalf("Observe() error = %v", err)
+	}
+	if _, err := Extract[pageInfo](context.Background(), client, "extract main", &StagehandClientExtractOptions{
+		Page:           page,
+		Locator:        page.Locator("main"),
+		IgnoreLocators: []*PageLocator{mustNth(t, page.Locator(".ad"), 2)},
+	}); err != nil {
+		t.Fatalf("Extract() error = %v", err)
+	}
+
+	observeParams, ok := rpc.calls[0].params.(StagehandObserveParams)
+	if !ok || observeParams.Options == nil || observeParams.Options.Locator == nil {
+		t.Fatalf("observe params = %#v", rpc.calls[0].params)
+	}
+	if observeParams.Options.Locator.Selector != "main" ||
+		observeParams.Options.Locator.Nth == nil ||
+		*observeParams.Options.Locator.Nth != 1 {
+		t.Fatalf("observe locator = %#v", observeParams.Options.Locator)
+	}
+	if len(observeParams.Options.IgnoreLocators) != 1 ||
+		observeParams.Options.IgnoreLocators[0].Selector != "nav" {
+		t.Fatalf("observe ignore locators = %#v", observeParams.Options.IgnoreLocators)
+	}
+
+	extractParams, ok := rpc.calls[1].params.(StagehandExtractParams)
+	if !ok || extractParams.Options == nil || extractParams.Options.Locator == nil {
+		t.Fatalf("extract params = %#v", rpc.calls[1].params)
+	}
+	if extractParams.Options.Locator.Selector != "main" {
+		t.Fatalf("extract locator = %#v", extractParams.Options.Locator)
+	}
+	if len(extractParams.Options.IgnoreLocators) != 1 ||
+		extractParams.Options.IgnoreLocators[0].Selector != ".ad" ||
+		extractParams.Options.IgnoreLocators[0].Nth == nil ||
+		*extractParams.Options.IgnoreLocators[0].Nth != 2 {
+		t.Fatalf("extract ignore locators = %#v", extractParams.Options.IgnoreLocators)
+	}
+}
+
+func TestStagehandObserveAndExtractRejectCrossPageLocators(t *testing.T) {
+	t.Parallel()
+
+	type pageInfo struct {
+		Heading string `json:"heading"`
+	}
+
+	rpc := &recordingProtocolClient{responses: map[string]any{}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+	otherPage := &Page{rpc: rpc, ref: PageRef{PageID: "page-2"}}
+	client := &Stagehand{initialized: true, rpc: rpc}
+
+	instruction := "find main"
+	if _, err := client.Observe(context.Background(), &instruction, &StagehandClientObserveOptions{
+		Page:    page,
+		Locator: otherPage.Locator("main"),
+	}); err == nil || !strings.Contains(err.Error(), "stagehand.Observe: locator must belong") {
+		t.Fatalf("Observe() error = %v", err)
+	}
+	if _, err := Extract[pageInfo](context.Background(), client, "extract main", &StagehandClientExtractOptions{
+		Page:           page,
+		IgnoreLocators: []*PageLocator{otherPage.Locator("nav")},
+	}); err == nil || !strings.Contains(err.Error(), "stagehand.Extract: locator must belong") {
+		t.Fatalf("Extract() error = %v", err)
 	}
 }
 
@@ -422,4 +519,14 @@ func TestExtractPreservesMetadataOnDecodeError(t *testing.T) {
 	if !reflect.DeepEqual(result.Metadata, metadata) {
 		t.Fatalf("Extract() metadata = %#v, want %#v", result.Metadata, metadata)
 	}
+}
+
+func mustNth(t *testing.T, locator *PageLocator, index int) *PageLocator {
+	t.Helper()
+
+	nth, err := locator.Nth(index)
+	if err != nil {
+		t.Fatalf("Locator.Nth(%d) error = %v", index, err)
+	}
+	return nth
 }

@@ -530,10 +530,10 @@ type ExtractOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
 
-	// Selectors for elements and subtrees that should be excluded from extraction
-	IgnoreSelectors []string `json:"ignore_selectors,omitempty,omitzero"`
+	// Locators for elements and subtrees that should be excluded from extraction
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
 
-	// Serializable element locator for the extraction target
+	// Locator that scopes extraction to a specific element
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
@@ -544,9 +544,6 @@ type ExtractOptions struct {
 	// When true, include a screenshot of the current viewport in the extraction LLM
 	// call. Defaults to false.
 	Screenshot *bool `json:"screenshot,omitempty,omitzero"`
-
-	// CSS selector to scope extraction to a specific element
-	Selector *string `json:"selector,omitempty,omitzero"`
 
 	// Timeout in ms for the extraction
 	Timeout *float64 `json:"timeout,omitempty,omitzero"`
@@ -1166,19 +1163,16 @@ type ObserveOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
 
-	// Selectors for elements and subtrees that should be excluded from observation
-	IgnoreSelectors []string `json:"ignore_selectors,omitempty,omitzero"`
+	// Locators for elements and subtrees that should be excluded from observation
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
 
-	// Serializable element locator for the observation target
+	// Locator that scopes observation to a specific element
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
 	// Complete model configuration for this call; when omitted, the initialized
 	// Stagehand model is used, or Browserbase selects one automatically when no
 	// initialized model exists
 	Model *ModelConfig `json:"model,omitempty,omitzero"`
-
-	// CSS selector to scope observation to a specific element
-	Selector *string `json:"selector,omitempty,omitzero"`
 
 	// Timeout in ms for the observation
 	Timeout *float64 `json:"timeout,omitempty,omitzero"`
