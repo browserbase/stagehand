@@ -538,11 +538,11 @@ const actions = await stagehand.observe("Find the sign in button");
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -697,11 +697,11 @@ console.log(product.data, product.metadata.cache.status);
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -1307,11 +1307,11 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1459,7 +1459,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
 </ParamField>
 
 <ParamField path="screenshot" type="bool | None" optional>
@@ -1467,7 +1467,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>

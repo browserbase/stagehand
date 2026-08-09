@@ -653,6 +653,7 @@ extracted, err := stagehand.Extract[article](
 
 <Note>
   `ignoreLocators` remove each resolved locator target and its descendants from the snapshot. A locator without `nth` removes all matching targets; a locator with `nth` removes only that indexed match. The `locator` option scopes extraction to one resolved subtree, using `nth` when present.
+  Scoped `extract` currently supports CSS and XPath locators. `text=` locators are supported by locator methods, but not yet by extract snapshot scoping.
 </Note>
 
 ### Visual extract

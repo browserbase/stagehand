@@ -364,6 +364,7 @@ fmt.Println("found", len(result.Data), "call-to-action buttons")
 
 <Note>
   `ignoreLocators` remove each resolved locator target and its descendants from the snapshot. A locator without `nth` removes all matching targets; a locator with `nth` removes only that indexed match. The `locator` option scopes observation to one resolved subtree, using `nth` when present.
+  Scoped `observe` currently supports CSS and XPath locators. `text=` locators are supported by locator methods, but not yet by observe snapshot scoping.
 </Note>
 
 ### Validate then act with variables
