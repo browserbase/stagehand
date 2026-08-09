@@ -3,6 +3,9 @@
   "version": "4.0.0",
   "private": true,
   "description": "Shared integration surfaces for Stagehand V4",
+  "bin": {
+    "stagehand-facade": "./dist/facade/stdio-server.mjs"
+  },
   "files": [
     "dist"
   ],
@@ -10,6 +13,9 @@
   "exports": {
     "./codemode/stdio-server": {
       "import": "./dist/codemode/stdio-server.mjs"
+    },
+    "./facade/stdio-server": {
+      "import": "./dist/facade/stdio-server.mjs"
     }
   },
   "scripts": {
@@ -19,7 +25,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:"
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
