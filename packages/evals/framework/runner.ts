@@ -28,7 +28,11 @@ import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask, TaskRegistry, TaskResult } from "./types.js";
 import type { Testcase, EvalInput } from "../types/evals.js";
 import { generateBenchTestcases } from "./benchPlanner.js";
-import { DEFAULT_BENCH_HARNESS, type Harness } from "./benchTypes.js";
+import {
+  DEFAULT_BENCH_HARNESS,
+  type Harness,
+  type SkillDeliveryMode,
+} from "./benchTypes.js";
 import { executeBenchTask } from "./benchRunner.js";
 import {
   hasBraintrustApiKey,
@@ -70,6 +74,8 @@ export interface RunEvalsOptions {
   agentMode?: AgentToolMode;
   agentModes?: AgentToolMode[];
   harness?: Harness;
+  /** Skill-delivery mode for external harnesses (none | prompt_show | injected). */
+  skillMode?: SkillDeliveryMode;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
   onProgress?: (event: RunProgressEvent) => void;

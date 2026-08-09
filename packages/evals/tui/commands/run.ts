@@ -23,6 +23,7 @@ import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import {
+  EXECUTABLE_BENCH_HARNESSES,
   isExecutableBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
@@ -257,7 +258,7 @@ export async function runCommand(
     tasks.some((t) => t.tier === "bench")
   ) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use an executable harness (${EXECUTABLE_BENCH_HARNESSES.join(", ")}) for bench runs.`,
     );
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
@@ -298,6 +299,7 @@ export async function runCommand(
           agentMode: options.agentMode,
           agentModes: options.agentModes,
           harness: options.harness,
+          skillMode: options.skillMode,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
@@ -401,6 +403,7 @@ async function emitDryRun(
     datasetFilter: options.datasetFilter ?? null,
     environment: options.environment,
     harness: options.harness,
+    skillMode: options.skillMode ?? null,
     agentMode: options.agentMode ?? null,
     agentModes: options.agentModes ?? null,
     model: options.model ?? null,
@@ -460,6 +463,7 @@ async function buildDryRunMatrix(
         modelOverride: options.model,
         provider: options.provider,
         harness: options.harness,
+        skillMode: options.skillMode,
         categoryFilter,
         datasetFilter: options.datasetFilter,
         agentMode: options.agentMode,
