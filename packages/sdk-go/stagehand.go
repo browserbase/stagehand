@@ -249,7 +249,11 @@ func (s *Stagehand) Act(
 	}
 	params := StagehandActParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
-		params.Options = &options.ActOptions
+		protocolOptions, err := actProtocolOptions(options, page.PageID())
+		if err != nil {
+			return ActResult{}, err
+		}
+		params.Options = protocolOptions
 	}
 	var result ActResult
 	if err := rpc.call(ctx, "stagehand.act", params, &result); err != nil {
@@ -441,6 +445,37 @@ func locatorDescriptorsForPage(locators []*PageLocator, pageID string, method st
 		descriptors = append(descriptors, descriptor)
 	}
 	return descriptors, nil
+}
+
+func actProtocolOptions(options *StagehandClientActOptions, pageID string) (*ActOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	protocolOptions := ActOptions{
+		Cache:     options.Cache,
+		Model:     options.Model,
+		Timeout:   options.Timeout,
+		Variables: options.Variables,
+	}
+	if options.Locator != nil {
+		locator, err := locatorDescriptorForPage(options.Locator, pageID, "stagehand.Act")
+		if err != nil {
+			return nil, err
+		}
+		protocolOptions.Locator = &locator
+	}
+	if options.IgnoreLocators != nil {
+		ignoreLocators, err := locatorDescriptorsForPage(
+			options.IgnoreLocators,
+			pageID,
+			"stagehand.Act",
+		)
+		if err != nil {
+			return nil, err
+		}
+		protocolOptions.IgnoreLocators = ignoreLocators
+	}
+	return &protocolOptions, nil
 }
 
 func observeProtocolOptions(options *StagehandClientObserveOptions, pageID string) (*ObserveOptions, error) {

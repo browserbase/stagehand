@@ -10,6 +10,9 @@ type ActOptions struct {
 	// Cache corresponds to the JSON schema field "cache".
 	Cache *Caching `json:"cache,omitempty,omitzero"`
 
+	// Locators for elements and subtrees that should be excluded from action planning
+	IgnoreLocators []Locator `json:"ignore_locators,omitempty,omitzero"`
+
 	// Serializable element locator for the action target
 	Locator *Locator `json:"locator,omitempty,omitzero"`
 
