@@ -226,8 +226,15 @@ export class DriverSessionManager {
     this.refMaps = refMaps;
   }
 
-  async openResult(page: DriverPage): Promise<OpenResult> {
-    return {
+  /**
+   * Build the `open`/`reload`/`back`/`forward` result. When a navigation
+   * response was captured, `httpStatus` is the top-level document's HTTP status,
+   * so the driving agent can tell a loaded 4xx/5xx error page apart from a real
+   * 200. The field is optional/additive — a normal 200 page is unchanged, and a
+   * navigation with no captured response omits it entirely.
+   */
+  async openResult(page: DriverPage, httpStatus?: number): Promise<OpenResult> {
+    const result: OpenResult = {
       ...this.browserbaseIdentity(),
       mode: this.target.kind,
       pages: await this.pageSummaries(),
@@ -236,6 +243,12 @@ export class DriverSessionManager {
       title: await this.safeTitle(page),
       url: page.url(),
     };
+
+    if (typeof httpStatus === "number") {
+      result.httpStatus = httpStatus;
+    }
+
+    return result;
   }
 
   async pageSummaries(): Promise<PageSummary[]> {
@@ -272,29 +285,30 @@ export class DriverSessionManager {
           `Target ${target.targetId} was not found in the attached browser.`,
         );
       }
-      this.activateIfNeeded(page);
-      this.selectedTargetId = page.targetId();
-      return page;
+      return this.finalizePage(page);
     }
 
     const existingPage = this.activePageIfPresent() ?? this.context.pages()[0];
     if (existingPage) {
-      this.activateIfNeeded(existingPage);
-      this.selectedTargetId = existingPage.targetId();
-      return existingPage;
+      return this.finalizePage(existingPage);
     }
 
     if (options.createIfMissing) {
       const page = await this.context.newPage();
-      this.activateIfNeeded(page);
-      this.selectedTargetId = page.targetId();
-      return page;
+      return this.finalizePage(page);
     }
 
     throw new DriverError(
       `No active page in session "${this.session}". Run browse open <url> --session ${this.session} or browse tab new <url> --session ${this.session}.`,
       { code: "no_active_page" },
     );
+  }
+
+  /** Activate the resolved page and record its target. */
+  private finalizePage(page: DriverPage): DriverPage {
+    this.activateIfNeeded(page);
+    this.selectedTargetId = page.targetId();
+    return page;
   }
 
   private activePageIfPresent(): DriverPage | undefined {

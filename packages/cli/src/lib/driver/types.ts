@@ -51,4 +51,9 @@ export interface OpenResult extends BrowserbaseIdentity {
   session: string;
   title: string;
   url: string;
+  /**
+   * HTTP status of the top-level document, when the navigation returned one.
+   * Present for `open`/`reload`/`back`/`forward` when a response was captured.
+   */
+  httpStatus?: number;
 }
