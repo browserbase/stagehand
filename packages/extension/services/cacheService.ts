@@ -115,6 +115,12 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
   };
 }
 
+export function shouldBypassCacheForLocatorScope(
+  options: StagehandObserveParams["options"] | StagehandExtractParams["options"],
+): boolean {
+  return Boolean(options?.locator || options?.ignoreLocators?.length);
+}
+
 /**
  * Cached act/observe values are Action arrays that round-tripped through
  * Redis cjson, which can mangle shapes (e.g. empty arrays become objects).

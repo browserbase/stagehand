@@ -76,7 +76,7 @@ export async function extract({
     data: cacheService.buildExtractCacheData(params),
     locator: options?.locator,
     caching: options?.cache,
-    bypass: hasLocatorScope(options),
+    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
     onHit: (value) => ({
@@ -203,8 +203,4 @@ export async function extract({
       },
     };
   }
-}
-
-function hasLocatorScope(options: StagehandExtractParams["options"]): boolean {
-  return Boolean(options?.locator || options?.ignoreLocators?.length);
 }

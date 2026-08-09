@@ -58,7 +58,7 @@ export async function observe({
     data: cacheService.buildObserveCacheData(params),
     locator: options?.locator,
     caching: options?.cache,
-    bypass: hasLocatorScope(options),
+    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
     onHit: (value) => {
@@ -174,8 +174,4 @@ export async function observe({
       },
     };
   }
-}
-
-function hasLocatorScope(options: StagehandObserveParams["options"]): boolean {
-  return Boolean(options?.locator || options?.ignoreLocators?.length);
 }
