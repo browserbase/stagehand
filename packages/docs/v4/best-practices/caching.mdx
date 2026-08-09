@@ -411,7 +411,7 @@ When you set a selector, Stagehand hashes only that subtree. If the selector fai
 Variables keep a literal value out of the instruction you write. Stagehand sends the model the variable name and substitutes the real value into the resolved action right before it runs, so the value never reaches the model and the logged action keeps its `%placeholder%`.
 
 <Warning>
-Do not assume two runs with different values share a cache entry. The variables you pass travel to the cache service with the rest of the request, so a different value may produce different key data and miss. Because Stagehand transmits them, pass `cache: false` on any call carrying a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
+Do not assume two runs with different values share a cache entry. The variables you pass travel to the cache service with the rest of the request, so a different value may produce different key data and miss. Because Stagehand transmits them, turn the `cache` option off on any call carrying a credential. See [prompting with variables](/v4/best-practices/prompting-best-practices) for the full caveat.
 </Warning>
 
 <Tabs>
