@@ -362,11 +362,24 @@ const result = await stagehand.act("Click the sign in button");
 
   </ParamField>
 
+  <ParamField path="options.ignoreLocators" type="Locator[]" optional>
+    Page locators to exclude from instruction-planning context.
+
+    <ParamField path="options.ignoreLocators.selector" type="string">
+      The locator selector.
+    </ParamField>
+
+    <ParamField path="options.ignoreLocators.nth" type="number" optional>
+      The zero-based index used when the selector matches multiple elements.
+    </ParamField>
+
+  </ParamField>
+
   <ParamField path="options.locator" type="Locator" optional>
-    The serialized page or element target.
+    The page locator that scopes instruction planning.
 
     <ParamField path="options.locator.selector" type="string">
-      The selector to target.
+      The locator selector.
     </ParamField>
 
     <ParamField path="options.locator.nth" type="number" optional>
@@ -1134,14 +1147,26 @@ result = await stagehand.act("Click the sign in button")
   Maximum wait time in milliseconds.
 </ParamField>
 
-<ParamField path="locator" type="ProtocolLocator" optional>
-  The serialized page or element target.
+<ParamField path="locator" type="Locator | None" optional>
+  The page locator that scopes instruction planning.
 
 <ParamField path="locator.selector" type="str">
-  The selector to target.
+  The locator selector.
 </ParamField>
 
   <ParamField path="locator.nth" type="int" optional>
+    The zero-based index used when the selector matches multiple elements.
+  </ParamField>
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page locators to exclude from instruction-planning context.
+
+<ParamField path="ignore_locators.selector" type="str">
+  The locator selector.
+</ParamField>
+
+  <ParamField path="ignore_locators.nth" type="int" optional>
     The zero-based index used when the selector matches multiple elements.
   </ParamField>
 </ParamField>

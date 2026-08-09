@@ -86,7 +86,7 @@ Reduce DOM complexity before Stagehand processes the page. Scoping is usually th
 <Tab title="TypeScript">
 ```typescript
 // Scope the snapshot to the region you care about
-await stagehand.observe("Find the checkout actions", {
+await stagehand.act("Click the submit button", {
   locator: page.locator("#checkout"),
   ignoreLocators: [
     page.locator("nav"),
@@ -103,16 +103,15 @@ await page.evaluate(`
   });
 `);
 
-// Then perform Stagehand operations
-await stagehand.act("Click the submit button");
+// Then continue with other Stagehand operations
 ```
 </Tab>
 
 <Tab title="Python">
 ```python
 # Scope the snapshot to the region you care about
-await stagehand.observe(
-    instruction="Find the checkout actions",
+await stagehand.act(
+    "Click the submit button",
     locator=page.locator("#checkout"),
     ignore_locators=[
         page.locator("nav"),
@@ -129,16 +128,14 @@ await page.evaluate("""
   });
 """)
 
-# Then perform Stagehand operations
-await stagehand.act("Click the submit button")
+# Then continue with other Stagehand operations
 ```
 </Tab>
 
 <Tab title="Go">
 ```go
 // Scope the snapshot to the region you care about
-instruction := "Find the checkout actions"
-if _, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
+if _, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), &stagehand.StagehandClientActOptions{
 	Page:    page,
 	Locator: page.Locator("#checkout"),
 	IgnoreLocators: []*stagehand.PageLocator{
@@ -160,7 +157,7 @@ if _, err := page.Evaluate(ctx, `
 	return err
 }
 
-// Then perform Stagehand operations
+// Then continue with other Stagehand operations
 _, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), nil)
 ```
 </Tab>
@@ -245,7 +242,7 @@ if err != nil {
 // Simple actions: reduce the action timeout
 timeout := 5000.0
 if _, err := client.Act(ctx, stagehand.ActInstruction("Click the login button"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{Timeout: &timeout},
+	Timeout: &timeout,
 }); err != nil {
 	return err
 }

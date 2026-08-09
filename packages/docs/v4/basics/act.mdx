@@ -279,7 +279,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel, c
 
 ## Advanced configuration
 
-You can pass additional options to configure the model, timeout, variables, and target page:
+You can pass additional options to configure the model, timeout, variables, target page, and locator scope:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -291,6 +291,8 @@ await stagehand.act("choose 'Peach' from the favorite color dropdown", {
     apiKey: process.env.GOOGLE_API_KEY,
   },
   timeout: 10000,
+  locator: page.locator("form"),
+  ignoreLocators: [page.locator(".promo-modal")],
 });
 ```
 </Tab>
@@ -309,6 +311,8 @@ await stagehand.act(
         api_key=os.environ["GOOGLE_API_KEY"],
     ),
     timeout=10000,
+    locator=page.locator("form"),
+    ignore_locators=[page.locator(".promo-modal")],
 )
 ```
 </Tab>
@@ -324,9 +328,12 @@ model := stagehand.ModelConfig{
 timeout := 10000.0
 
 if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the favorite color dropdown"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{
-		Model:   &model,
-		Timeout: &timeout,
+	Page:    page,
+	Model:   &model,
+	Timeout: &timeout,
+	Locator: page.Locator("form"),
+	IgnoreLocators: []*stagehand.PageLocator{
+		page.Locator(".promo-modal"),
 	},
 }); err != nil {
 	return err
@@ -334,6 +341,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the f
 ```
 </Tab>
 </Tabs>
+
+Locator scoping only affects instruction-based `act()` calls. When you pass an `Action` returned by `observe()`, Stagehand replays that action's selector directly.
 
 ### Server-side caching
 
@@ -413,7 +422,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 // Or disable it for a single call
 off := stagehand.CacheEnabled(false)
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{Cache: &off},
+	Cache: &off,
 }); err != nil {
 	return err
 }
@@ -421,7 +430,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"),
 // Or lower the hit-count threshold for a single call
 eager := stagehand.CacheWithThreshold(1)
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the login button"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{Cache: &eager},
+	Cache: &eager,
 }); err != nil {
 	return err
 }
@@ -703,10 +712,8 @@ await stagehand.act("click the login button")
 ```go
 // Variables use %variableName% syntax in the instruction
 if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the email field"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{
-		Variables: stagehand.Variables{
-			"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
-		},
+	Variables: stagehand.Variables{
+		"username": stagehand.PrimitiveVariable(stagehand.StringVariable("user@example.com")),
 	},
 }); err != nil {
 	return err
@@ -714,10 +721,8 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type %username% into the 
 
 userPassword := os.Getenv("USER_PASSWORD")
 if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{
-		Variables: stagehand.Variables{
-			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
-		},
+	Variables: stagehand.Variables{
+		"password": stagehand.PrimitiveVariable(stagehand.StringVariable(userPassword)),
 	},
 }); err != nil {
 	return err
@@ -896,7 +901,7 @@ const maxRetries = 3
 for attempt := 0; attempt <= maxRetries; attempt++ {
 	timeout := float64(10000 + attempt*5000)
 	_, err := client.Act(ctx, stagehand.ActInstruction(prompt), &stagehand.StagehandClientActOptions{
-		ActOptions: stagehand.ActOptions{Timeout: &timeout},
+		Timeout: &timeout,
 	})
 	if err == nil {
 		break // Success, exit retry loop
@@ -924,7 +929,7 @@ for attempt := 0; attempt <= maxRetries; attempt++ {
 
 **Solutions**:
 - Ensure page has fully loaded
-- Check if content is in iframes: Stagehand traverses them automatically, but a scoped `selector` can help
+- Check if content is in iframes: Stagehand traverses them automatically, but a scoped locator can help
 - Increase action timeout
 - Use `observe()` first to verify element exists
 - Raise `domSettleTimeoutMs` on the constructor if the page keeps mutating after load
@@ -979,7 +984,7 @@ except Exception:
 // Handle timeout and element not found issues
 timeout := 30000.0
 if _, err := client.Act(ctx, stagehand.ActInstruction("click the submit button"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{Timeout: &timeout},
+	Timeout: &timeout,
 }); err != nil {
 	// Check if page is fully loaded
 	if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {

@@ -832,10 +832,8 @@ Use variables for secrets. Values are substituted locally and never sent to the 
 ```go
 password := os.Getenv("USER_PASSWORD")
 if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the password field"), &stagehand.StagehandClientActOptions{
-	ActOptions: stagehand.ActOptions{
-		Variables: stagehand.Variables{
-			"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
-		},
+	Variables: stagehand.Variables{
+		"password": stagehand.PrimitiveVariable(stagehand.StringVariable(password)),
 	},
 }); err != nil {
 	return err
