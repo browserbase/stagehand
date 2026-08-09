@@ -1,6 +1,7 @@
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import {
   STAGEHAND_SEND_TO_HOST_BINDING,
+  StagehandMethods,
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.js";
 import { z } from "zod/v4";
@@ -72,6 +73,36 @@ type ResolveBrowserWebSocketUrlOptions = {
   delayFn?: (ms: number) => Promise<void>;
   signal: AbortSignal;
 };
+
+function callbackBatchExpression(input: {
+  message: JSONRPCMessage;
+  callbackSource: string;
+}): string {
+  const serializedMessage = JSON.stringify(JSON.stringify(input.message));
+  return `(() => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; void globalThis.__stagehandReceiveFromHost(${serializedMessage}, { callback: (${input.callbackSource}) }); return true; })()`;
+}
+
+function callbackSourceFromMessage(message: JSONRPCMessage): string | undefined {
+  if (!("method" in message) || message.method !== StagehandMethods.stagehandCallbackBatch.name) {
+    return undefined;
+  }
+  const params = message.params;
+  if (typeof params !== "object" || params === null || Array.isArray(params)) {
+    throw new TypeError("Stagehand callback batch request is missing callback_source");
+  }
+  const source = params.callback_source;
+  if (typeof source !== "string" || !source.trim()) {
+    throw new TypeError("Stagehand callback batch request is missing callback_source");
+  }
+  return source;
+}
+
+export function stagehandMessageExpression(message: JSONRPCMessage): string {
+  const callbackSource = callbackSourceFromMessage(message);
+  return callbackSource
+    ? callbackBatchExpression({ message, callbackSource })
+    : `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(JSON.stringify(message))}); true`;
+}
 
 export class StagehandRuntimeIncompatibleError extends Error {
   readonly reason;
@@ -259,11 +290,11 @@ export class CDPClient {
     if (this.closed) throw new Error("CDP client is closed");
     if (!this.sessionId) throw new Error("Stagehand service worker is not attached");
 
-    const serializedMessage = JSON.stringify(message);
+    const expression = stagehandMessageExpression(message);
     const evaluated = await this.sendCommand<RuntimeEvaluateResult>(
       "Runtime.evaluate",
       {
-        expression: `void globalThis.__stagehandReceiveFromHost(${JSON.stringify(serializedMessage)}); true`,
+        expression,
         awaitPromise: false,
         returnByValue: true,
       },

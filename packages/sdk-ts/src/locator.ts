@@ -10,12 +10,12 @@ import type {
   LocatorSendClickEventParams,
   LocatorTypeParams,
 } from "../../protocol/types.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
 export class Locator {
   constructor(
-    readonly rpcClient: RPCClient,
+    readonly rpcClient: StagehandCommandClient,
     readonly descriptor: LocatorDescriptor,
   ) {}
 
