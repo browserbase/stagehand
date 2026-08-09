@@ -436,7 +436,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Accordion>
 
 <Note>
-Stagehand runs as a browser extension, so `browserbase.launch()` uploads that extension to your Browserbase account, starts the session against it, and deletes it again when you call `browser.close()`.
+When `browserbase.launch()` creates a session without an `extensionId`, Stagehand uploads its extension and starts the session against it. Stagehand deletes the upload when you call `browser.close()` for a launched session without `keepAlive` enabled.
 </Note>
 
 ### Alternative: Browserbase SDK
@@ -572,23 +572,23 @@ Stagehand never closes a browser it did not launch. When you connect to an exist
 
 ## Local environment
 
-The local environment runs browsers directly on your machine, providing full control over browser instances and configurations. Ideal for development, debugging, and scenarios requiring custom browser setups.
+Run browsers directly on your machine when you want full control over the browser process and its launch flags. This suits development, debugging, and custom browser setups.
 
 ### Environment comparison
 
 | Feature | Browserbase | Local |
 | --- | --- | --- |
 | **Scalability** | High (cloud-managed) | Limited (local resources) |
-| **Stealth Features** | Advanced fingerprinting | Basic stealth |
-| **Proxy Support** | Built-in residential proxies | Manual configuration |
-| **Session Persistence** | Cloud context storage | File-based user data |
-| **Geographic Distribution** | Multi-region deployment | Single machine |
-| **Debugging** | Session recordings & logs | Direct DevTools access |
-| **Setup Complexity** | API key only | Browser installation required |
+| **Stealth features** | Advanced fingerprinting | Basic stealth |
+| **Proxy support** | Built-in residential proxies | Manual configuration |
+| **Session persistence** | Cloud context storage | File-based user data |
+| **Geographic distribution** | Multi-region deployment | Single machine |
+| **Debugging** | Session recordings and logs | Direct DevTools access |
+| **Setup complexity** | API key only | Browser installation required |
 | **Server-side caching** | Supported | Not available |
 | **Model Gateway** | Supported | Not available |
-| **Cost** | Usage-based pricing | Infrastructure & maintenance |
-| **Best For** | Production, scale, compliance | Development, debugging |
+| **Cost** | Usage-based pricing | Infrastructure and maintenance |
+| **Best for** | Production, scale, compliance | Development, debugging |
 
 ### Basic local setup
 
@@ -796,7 +796,7 @@ When Stagehand launches a local browser, it adds the following Chrome arguments 
 </Tabs>
 
 <Note>
-`--enable-unsafe-extension-debugging` is required: Stagehand runs as a browser extension and needs the debugger to reach its service worker. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
+`--enable-unsafe-extension-debugging` is required so the SDK can attach a CDP session to the service worker hosting Stagehand's runtime. Chrome blocks debugger access to extension targets without it. `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` turns on the browser support behind [WebMCP](/v4/basics/webmcp). `--window-size` follows the `viewport` option and falls back to `1280,800` when you do not set one.
 </Note>
 
 A larger set of standard Chrome automation flags (disabling background networking, component updates, sync, translation, and similar) is prepended as well. To remove some of them, list the exact flags in the ignore-default-args option:
@@ -1083,7 +1083,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Tip>
-If no port is specified, a random free port will be assigned.
+Stagehand picks a random free port when you do not set one.
 </Tip>
 
 ### DOM settle timeout
@@ -1134,16 +1134,12 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-DOM settling applies to `act()`. `observe()` and `extract()` read a snapshot of the page as they find it.
+DOM settling applies to `act()` calls that take a natural-language instruction. Replaying an observed `Action` skips the wait, and `observe()` and `extract()` read a snapshot of the page as they find it.
 </Note>
 
 #### What is DOM settling?
 
-DOM settling ensures that:
-- **Animations complete** before interacting with elements
-- **Lazy-loaded content** has time to appear
-- **JavaScript updates** finish before actions are taken
-- **Dynamic content** is fully rendered
+Before an instruction-based `act()` call runs, Stagehand waits for the page's network activity to go quiet, up to the timeout. That gives lazy-loaded content, JavaScript updates, and other dynamic rendering time to finish before the action targets an element.
 
 #### When to adjust
 
