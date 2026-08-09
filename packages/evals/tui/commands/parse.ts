@@ -43,8 +43,6 @@ export interface RunFlags {
    * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
    */
   success?: SuccessMode;
-  /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
-  legacy?: boolean;
 }
 
 export type SuccessMode = "outcome" | "process" | "both";
@@ -85,10 +83,7 @@ export interface ResolvedRunOptions {
   verbose: boolean;
 }
 
-/**
- * Suites wired into the unified runner. GAIA remains legacy-only;
- * WebBench never had a unified suite implementation.
- */
+/** Suites wired into the unified runner. */
 const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
@@ -96,9 +91,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "odysseysbench",
 ]);
 
-const LEGACY_ONLY_BENCHMARKS = new Set(["osworld"]);
-
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -190,7 +183,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
-        else if (name === "legacy") flags.legacy = true;
         i++;
         continue;
       }
@@ -303,15 +295,7 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
-    if (!flags.legacy) {
-      throw new Error(
-        `Benchmark "${benchmarkName}" is legacy-only. Use --legacy or choose one of: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-      );
-    }
-  }
-
-  if (!SUPPORTED_BENCHMARKS.has(benchmarkName) && !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
+  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
     throw new Error(
       `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
     );

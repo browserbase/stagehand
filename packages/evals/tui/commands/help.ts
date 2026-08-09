@@ -100,13 +100,6 @@ export function printRunHelp(): void {
       `Print a human-readable plan ${gray("(combinations + tasks)")} and exit`,
     ),
     "",
-    `  ${bold("Escape hatch:")}`,
-    "",
-    row(
-      cyan("--legacy"),
-      `Spawn the pre-refactor ${dim("index.eval.ts")} runner ${gray("(argv only)")}`,
-    ),
-    "",
     `  ${bold("Examples:")}`,
     "",
     `    ${dim("$")} evals run act -t 3 -c 5`,

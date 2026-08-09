@@ -339,15 +339,6 @@ export function generateSuiteTestcases(
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
     "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
-  const legacyOnlySuites = new Set<string>();
-
-  for (const suiteName of legacyOnlySuites) {
-    const idx = remaining.findIndex((t) => t.name === suiteName);
-    if (idx === -1) continue;
-    throw new EvalsError(
-      `Benchmark "${suiteName}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`,
-    );
-  }
 
   for (const [suiteName, builder] of Object.entries(suiteMap)) {
     const idx = remaining.findIndex((t) => t.name === suiteName);

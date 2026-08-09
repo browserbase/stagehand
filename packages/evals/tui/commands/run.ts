@@ -36,7 +36,6 @@ type RunProgressEvent = {
   total?: number;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set<string>();
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function formatNumber(value: number): string {
@@ -135,28 +134,6 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
-function isExplicitLegacyOnlyTarget(target?: string): boolean {
-  return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
-}
-
-function splitLegacyOnlyTasks(tasks: DiscoveredTask[]): {
-  runnableTasks: DiscoveredTask[];
-  skippedTasks: DiscoveredTask[];
-} {
-  const runnableTasks: DiscoveredTask[] = [];
-  const skippedTasks: DiscoveredTask[] = [];
-
-  for (const task of tasks) {
-    if (LEGACY_ONLY_BENCHMARK_TARGETS.has(task.name)) {
-      skippedTasks.push(task);
-    } else {
-      runnableTasks.push(task);
-    }
-  }
-
-  return { runnableTasks, skippedTasks };
-}
-
 export async function runCommand(
   options: ResolvedRunOptions,
   registry?: TaskRegistry,
@@ -182,25 +159,12 @@ export async function runCommand(
     throw err;
   }
 
-  if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
-    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
-    if (planMode) {
-      await emitDryRun(options, tasks, registry, message);
-      process.exitCode = 1;
-      return;
-    }
-    throw new Error(message);
-  }
-
-  const { runnableTasks, skippedTasks } = splitLegacyOnlyTasks(tasks);
-  tasks = runnableTasks;
-
   if (tasks.length === 0) {
     const message = options.normalizedTarget
       ? `No runnable tasks found matching "${options.normalizedTarget}".`
       : "No runnable tasks found.";
     if (planMode) {
-      await emitDryRun(options, tasks, registry, message, skippedTasks);
+      await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
       return;
     }
@@ -214,7 +178,7 @@ export async function runCommand(
   }
 
   if (planMode) {
-    await emitDryRun(options, tasks, registry, undefined, skippedTasks);
+    await emitDryRun(options, tasks, registry);
     return;
   }
 
@@ -227,11 +191,6 @@ export async function runCommand(
 
   console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
   console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  if (skippedTasks.length > 0) {
-    console.log(
-      `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
-    );
-  }
   console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
   console.log(separator());
   console.log("");
@@ -365,10 +324,8 @@ async function emitDryRun(
   tasks: DiscoveredTask[],
   registry: TaskRegistry,
   error?: string,
-  skippedTasks: DiscoveredTask[] = [],
 ): Promise<void> {
   const sortedTasks = tasks.map((t) => t.name).sort();
-  const sortedSkippedTasks = skippedTasks.map((t) => t.name).sort();
 
   const envOverrides: Record<string, string> = {};
   for (const key of Object.keys(options.envOverrides).sort()) {
@@ -404,7 +361,6 @@ async function emitDryRun(
     target: options.target ?? null,
     normalizedTarget: options.normalizedTarget ?? null,
     tasks: sortedTasks,
-    skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
     matrix,
