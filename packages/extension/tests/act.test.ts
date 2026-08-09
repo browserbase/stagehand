@@ -242,7 +242,9 @@ describe("act service", () => {
       logger: testLogger(),
     });
 
-    const prompt = clientLLMGenerate.mock.calls[0]?.[0].messages[0]?.content;
+    expect(clientLLMGenerate).toHaveBeenCalled();
+    const [generateParams] = clientLLMGenerate.mock.calls[0] as unknown as [LLMGenerateParams];
+    const prompt = generateParams.messages[0]?.content;
     expect(prompt).toMatchObject({
       type: "text",
       text: expect.stringContaining("[0-12] button: Checkout"),
