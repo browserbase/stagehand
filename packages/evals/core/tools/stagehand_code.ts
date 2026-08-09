@@ -167,7 +167,7 @@ class StagehandPageHandle implements CorePageHandle {
     type?: "png" | "jpeg";
     quality?: number;
   }): Promise<Buffer> {
-    return this.page.screenshot(opts);
+    return Buffer.from(await this.page.screenshot(opts));
   }
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
@@ -416,7 +416,7 @@ async function captureStagehandEvidence(stagehand: Stagehand): Promise<ProbeEvid
 
   const evidence: ProbeEvidence = {};
   try {
-    evidence.screenshot = await page.screenshot();
+    evidence.screenshot = Buffer.from(await page.screenshot());
   } catch {
     // Best effort: preserve other evidence modalities.
   }

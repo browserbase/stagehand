@@ -9,6 +9,7 @@ import {
 } from "../../framework/observationRecorder.js";
 import {
   armsOverLimit,
+  armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
@@ -166,12 +167,14 @@ describe("verifiability gate", () => {
       {
         arm: "claude_code × stagehand_code × model-a",
         gradedRuns: 2,
+        ungradedRuns: 0,
         unverifiableCriteria: 1,
         totalCriteria: 7,
       },
       {
         arm: "claude_code × playwright_code × model-a",
         gradedRuns: 1,
+        ungradedRuns: 0,
         unverifiableCriteria: 2,
         totalCriteria: 5,
       },
@@ -183,10 +186,30 @@ describe("verifiability gate", () => {
     process.env.EVAL_MAX_UNVERIFIABLE_CRITERIA = "1";
     expect(resolveUnverifiableCriteriaLimit()).toBe(1);
     const arms = [
-      { arm: "a", gradedRuns: 1, unverifiableCriteria: 1, totalCriteria: 4 },
-      { arm: "b", gradedRuns: 1, unverifiableCriteria: 2, totalCriteria: 4 },
+      { arm: "a", gradedRuns: 1, ungradedRuns: 0, unverifiableCriteria: 1, totalCriteria: 4 },
+      { arm: "b", gradedRuns: 1, ungradedRuns: 0, unverifiableCriteria: 2, totalCriteria: 4 },
     ];
     expect(armsOverLimit(arms, 1).map((a) => a.arm)).toEqual(["b"]);
+  });
+
+  it("counts verifier-failed rows as ungraded runs on their arm", () => {
+    const arms = summarizeArmVerifiability(
+      [
+        {
+          input: { name: "agent/webvoyager", modelName: "m" as never },
+          output: { criterionCount: 3, evidenceInsufficient: [] },
+        },
+        {
+          input: { name: "agent/webvoyager", modelName: "m" as never },
+          output: { verifierError: "rubric generation failed", _success: true },
+        },
+      ],
+      "claude_code",
+    );
+    expect(arms).toHaveLength(1);
+    expect(arms[0].gradedRuns).toBe(1);
+    expect(arms[0].ungradedRuns).toBe(1);
+    expect(armsWithUngradedRuns(arms).map((a) => a.arm)).toEqual([arms[0].arm]);
   });
 
   it("treats malformed limit values as report-only", () => {

@@ -96,7 +96,7 @@ const SUPPORTED_BENCHMARKS = new Set([
   "odysseysbench",
 ]);
 
-const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
+const LEGACY_ONLY_BENCHMARKS = new Set(["osworld"]);
 
 const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
 const VALUE_FLAGS = new Set([

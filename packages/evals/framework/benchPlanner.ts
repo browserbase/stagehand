@@ -226,12 +226,13 @@ export function generateBenchTestcases(
   options: BenchPlanOptions,
 ): Testcase[] {
   // Agent suites run exclusively through the external harnesses — the
-  // stagehand harness has no agent loop. An explicit suite target (dataset
-  // shorthand) errors with guidance; broad targets simply omit the suites.
+  // stagehand harness has no agent loop. A selection that leaves nothing to
+  // run (suite name, agent category, dataset shorthand) errors with guidance
+  // instead of planning zero cases; broad targets simply omit the suites.
   let plannedTasks = benchTasks;
   if ((options.harness ?? DEFAULT_BENCH_HARNESS) === "stagehand") {
     plannedTasks = benchTasks.filter((task) => inferBenchTaskKind(task) !== "suite");
-    if (plannedTasks.length < benchTasks.length && options.datasetFilter) {
+    if (plannedTasks.length === 0 && benchTasks.length > 0) {
       throw new EvalsError(
         "Agent benchmark suites require an external harness. Re-run with --harness claude_code or --harness codex.",
       );
@@ -338,7 +339,7 @@ export function generateSuiteTestcases(
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
     "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
-  const legacyOnlySuites = new Set(["agent/gaia"]);
+  const legacyOnlySuites = new Set<string>();
 
   for (const suiteName of legacyOnlySuites) {
     const idx = remaining.findIndex((t) => t.name === suiteName);
@@ -377,7 +378,13 @@ function withBenchMetadata(
   return {
     ...testcase,
     input: inputWithoutStagehandMode,
-    tags: [...testcase.tags, `harness/${row.harness}`],
+    // Suite builders still emit Stagehand agent-mode tags (dom/hybrid/cua);
+    // stripping them keeps Braintrust tag filters from pooling external-
+    // harness rows with historical Stagehand agent runs.
+    tags: [
+      ...testcase.tags.filter((tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua"),
+      `harness/${row.harness}`,
+    ],
     metadata: {
       ...testcase.metadata,
       tier: "bench",

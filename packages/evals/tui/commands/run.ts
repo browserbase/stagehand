@@ -22,6 +22,7 @@ import { getRuntimeTasksRoot } from "../../runtimePaths.js";
 import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
 import {
   armsOverLimit,
+  armsWithUngradedRuns,
   resolveUnverifiableCriteriaLimit,
   summarizeArmVerifiability,
 } from "../../framework/verifierGate.js";
@@ -35,7 +36,7 @@ type RunProgressEvent = {
   total?: number;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
+const LEGACY_ONLY_BENCHMARK_TARGETS = new Set<string>();
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function formatNumber(value: number): string {
@@ -288,9 +289,11 @@ export async function runCommand(
       const unverifiableLimit = resolveUnverifiableCriteriaLimit();
       if (arms.length > 0) {
         for (const arm of arms) {
+          const ungradedSuffix =
+            arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
           console.log(
             dim(
-              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs`,
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
             ),
           );
         }
@@ -301,20 +304,18 @@ export async function runCommand(
               `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
             );
           }
-          if (over.length > 0) {
+          // A gated batch must never publish self-reported rows as passes:
+          // any verifier failure fails the batch, whatever the criteria count.
+          const ungraded = armsWithUngradedRuns(arms);
+          for (const arm of ungraded) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0) {
             process.exitCode = 1;
           }
         }
-      } else if (
-        unverifiableLimit !== undefined &&
-        result.results.some((row) => row.output.verifierError !== undefined)
-      ) {
-        // A configured gate must never be silently bypassed: verifier-backed
-        // runs happened, but none produced a graded arm to measure.
-        console.error(
-          `  ✗ verifiability gate: EVAL_MAX_UNVERIFIABLE_CRITERIA=${unverifiableLimit} is set but no runs were graded`,
-        );
-        process.exitCode = 1;
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));

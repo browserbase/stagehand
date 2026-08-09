@@ -135,7 +135,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
  * NOT appear in the plain "agent" category.
  */
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],

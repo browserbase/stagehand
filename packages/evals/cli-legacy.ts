@@ -96,7 +96,6 @@ const EXTRA_CATEGORIES: Record<string, string[]> = {
 };
 
 const CATEGORY_OVERRIDES: Record<string, string[]> = {
-  "agent/gaia": ["external_agent_benchmarks"],
   "agent/webvoyager": ["external_agent_benchmarks"],
   "agent/onlineMind2Web": ["external_agent_benchmarks"],
   "agent/webtailbench": ["external_agent_benchmarks"],
@@ -641,7 +640,6 @@ function handleRun(args: string[]): void {
 
       // Map to the actual eval name
       const benchmarkMap: Record<string, string> = {
-        gaia: "agent/gaia",
         webvoyager: "agent/webvoyager",
         osworld: "agent/osworld",
         onlineMind2Web: "agent/onlineMind2Web",

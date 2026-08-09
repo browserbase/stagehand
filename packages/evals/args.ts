@@ -137,7 +137,7 @@ function buildUsage(detailed = false): string {
     (default ${chalk.dim("25")})
 
   ${chalk.cyan("--dataset".padEnd(12))} ${"filter to specific benchmark".padEnd(24)}
-    (optional)              [${chalk.yellow("gaia")}, ${chalk.yellow("webvoyager")}, ${chalk.yellow("osworld")}, ${chalk.yellow("onlineMind2Web")}]
+    (optional)              [${chalk.yellow("webvoyager")}, ${chalk.yellow("osworld")}, ${chalk.yellow("onlineMind2Web")}]
 
 
     ${chalk.magenta.underline("Positional filters\n")}
@@ -162,21 +162,6 @@ function buildUsage(detailed = false): string {
   const externalBenchmarksSection = dedent`
     ${chalk.magenta.underline("\nExternal Benchmarks\n")}
     
-    ${chalk.cyan.bold("GAIA")} - General AI Assistant benchmark for complex reasoning
-    
-      ${chalk.dim("Run:")} ${chalk.green("pnpm run evals")} ${chalk.cyan("name=")}${chalk.yellow("agent/gaia")}
-      
-      ${chalk.dim("Or:")}  ${chalk.green("EVAL_DATASET=gaia pnpm run evals")}
-      
-      ${chalk.gray("Environment Variables:")}
-      
-      EVAL_GAIA_LIMIT           max tasks to run (default: 25)
-      EVAL_GAIA_SAMPLE          random sample count before limit
-      EVAL_GAIA_LEVEL           filter by difficulty level [${chalk.yellow("1")}, ${chalk.yellow("2")}, ${chalk.yellow("3")}]
-      
-      ${chalk.dim("Example:")}
-      
-      ${chalk.green("EVAL_GAIA_LEVEL=1 EVAL_GAIA_LIMIT=10 pnpm run evals name=agent/gaia")}
     
     
     ${chalk.cyan.bold("WebVoyager")} - Web navigation and task completion benchmark

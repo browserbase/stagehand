@@ -50,7 +50,6 @@ import { getEnv } from "./env.js";
 const env = getEnv();
 import { initV3 } from "./initV3.js";
 import { generateSummary } from "./summary.js";
-import { buildGAIATestcases } from "./suites/gaia.js";
 import { buildWebVoyagerTestcases } from "./suites/webvoyager.js";
 import { buildOnlineMind2WebTestcases } from "./suites/onlineMind2Web.js";
 import { endBrowserbaseSession } from "./browserbaseCleanup.js";
@@ -66,7 +65,7 @@ const moduleDir = getCurrentDirPath();
 /**
  * Resolve a task module path by searching the new directory structure.
  *
- * Task names like "dropdown" or "agent/gaia" need to be found under
+ * Task names like "dropdown" or "agent/webvoyager" need to be found under
  * tasks/bench/<category>/. We scan bench subdirectories for a matching file.
  * Falls back to the old flat tasks/ layout for backward compatibility.
  */
@@ -173,23 +172,12 @@ const generateFilteredTestcases = (): Testcase[] => {
   // Check for dataset filter from environment
   const datasetFilter = process.env.EVAL_DATASET;
 
-  // Special handling: fan out GAIA dataset for agent/gaia
-  const isGAIATaskIncluded = taskNamesToRun.includes("agent/gaia");
   // Special handling: fan out WebVoyager dataset for agent/webvoyager
   const isWebVoyagerTaskIncluded = taskNamesToRun.includes("agent/webvoyager");
   // Special handling: fan out Mind2Web dataset for agent/onlineMind2Web
   const isMind2WebTaskIncluded = taskNamesToRun.includes("agent/onlineMind2Web");
 
   let allTestcases: Testcase[] = [];
-
-  // Only include GAIA if no dataset filter or if gaia is selected
-  if (isGAIATaskIncluded && (!datasetFilter || datasetFilter === "gaia")) {
-    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
-    allTestcases.push(...buildGAIATestcases(currentModels));
-  } else if (isGAIATaskIncluded && datasetFilter && datasetFilter !== "gaia") {
-    // Remove GAIA from tasks to run if dataset filter excludes it
-    taskNamesToRun = taskNamesToRun.filter((t) => t !== "agent/gaia");
-  }
 
   // Only include WebVoyager if no dataset filter or if webvoyager is selected
   if (isWebVoyagerTaskIncluded && (!datasetFilter || datasetFilter === "webvoyager")) {

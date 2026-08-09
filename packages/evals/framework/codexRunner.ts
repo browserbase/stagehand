@@ -3,6 +3,7 @@ import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
@@ -66,6 +67,16 @@ const EVAL_RESULT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** Tool-step budget: EVAL_CODEX_MAX_STEPS, falling back to the pre-migration
+ * AGENT_EVAL_MAX_STEPS knob so carried-forward run configs keep working. */
+function readCodexMaxToolSteps(): number {
+  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
+    const parsed = Number.parseInt(process.env[key] ?? "", 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 50;
+}
+
 export function normalizeCodexModel(model: AvailableModel): string {
   if (model === ("codex/default" as AvailableModel)) return "gpt-5.4-mini";
   return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
@@ -82,6 +93,7 @@ export function buildCodexPrompt(plan: ExternalHarnessTaskPlan, toolInstructions
     "Instruction:",
     plan.instruction,
     "",
+    datasetPromptGuidance(plan.dataset),
     toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "Do not edit repository files.",
     "At the end, return compact JSON matching this schema:",
@@ -132,6 +144,21 @@ export async function runCodexAgent({
   let iterationError: unknown;
   let stopReason: string | undefined;
 
+  // Codex has no native turn/step limit, so a run could grind indefinitely.
+  // Cap tool steps (command executions + MCP tool calls) and abort the
+  // stream at the budget — the analogue of Claude Code's maxTurns, and it
+  // gives every published run a citable, reproducible action budget.
+  const maxToolSteps = readCodexMaxToolSteps();
+  const budgetController = new AbortController();
+  if (signal) {
+    if (signal.aborted) budgetController.abort(signal.reason);
+    else
+      signal.addEventListener("abort", () => budgetController.abort(signal.reason), {
+        once: true,
+      });
+  }
+  let toolStepCount = 0;
+
   try {
     const thread = sdk.startThread({
       model: normalizeCodexModel(model),
@@ -146,7 +173,7 @@ export async function runCodexAgent({
     });
     const streamed = await thread.runStreamed(prompt, {
       outputSchema: EVAL_RESULT_SCHEMA,
-      ...(signal && { signal }),
+      signal: budgetController.signal,
     });
 
     for await (const event of streamed.events) {
@@ -168,6 +195,16 @@ export async function runCodexAgent({
         typeof item.text === "string"
       ) {
         finalResponse = item.text;
+      }
+      if (
+        event.type === "item.completed" &&
+        (item?.type === "command_execution" || item?.type === "mcp_tool_call")
+      ) {
+        toolStepCount += 1;
+        if (toolStepCount >= maxToolSteps && !budgetController.signal.aborted) {
+          stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
+          budgetController.abort(new Error(stopReason));
+        }
       }
     }
   } catch (error) {

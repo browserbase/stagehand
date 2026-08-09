@@ -48,8 +48,8 @@ describe("resolveRunOptions", () => {
     expect(webtailbench.envOverrides.EVAL_WEBTAILBENCH_LIMIT).toBe("2");
   });
 
-  it("marks GAIA as legacy-only in the unified runner", () => {
-    expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(/legacy-only/);
+  it("no longer recognizes GAIA (removed benchmark)", () => {
+    expect(() => applyBenchmarkShorthand("b:gaia", {})).toThrow(/Unknown benchmark/);
   });
 
   it("does not advertise nonexistent WebBench", () => {

@@ -1,6 +1,6 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, GAIA).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
 
