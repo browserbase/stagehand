@@ -137,7 +137,26 @@ describe("cache service", () => {
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 
-  it("omits locator descriptors from observe and extract cache data", () => {
+  it("includes act locator descriptors and omits observe/extract locator descriptors in cache data", () => {
+    expect(
+      cacheService.buildActCacheData({
+        pageId: "page-1",
+        instruction: "Click the answer",
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+        },
+      }),
+    ).toStrictEqual({
+      input: "Click the answer",
+      options: {
+        variables: undefined,
+        timeout: undefined,
+        locator: { selector: ".card", nth: 1 },
+        ignoreLocators: [{ selector: ".ad", nth: 2 }],
+      },
+    });
+
     expect(
       cacheService.buildObserveCacheData({
         pageId: "page-1",
