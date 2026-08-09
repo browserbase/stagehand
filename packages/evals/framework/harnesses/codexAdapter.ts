@@ -50,6 +50,12 @@ export interface CodexRunResult {
   finalObservation?: ProbeEvidence;
   /** Per-step probe observations, indexed by bridge-run execution order. */
   stepObservations?: StepObservation[];
+  /**
+   * Which normalized tool-call names consume observation indexes. Defaults
+   * to bridge runs (command_execution invoking browser_run.mjs); MCP mounts
+   * match their server's `<server>.<tool>` calls instead.
+   */
+  observedToolName?: (name: string) => boolean;
 }
 
 export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
@@ -92,16 +98,17 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
     // nothing and let the verifier take its evidence_insufficient path.
     const observations = result.stepObservations ?? [];
     if (observations.length > 0) {
-      const bridgeCalls = toolCalls.filter(
-        (call) =>
-          typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
+      const observedCalls = toolCalls.filter((call) =>
+        result.observedToolName
+          ? result.observedToolName(call.name)
+          : typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
       );
-      // runIndex counts every bridge run (failed captures leave gaps), so
+      // runIndex counts every observed run (failed captures leave gaps), so
       // max+1 is the number of runs the recorder actually saw.
-      const totalBridgeRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
-      if (bridgeCalls.length === totalBridgeRuns) {
+      const totalObservedRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
+      if (observedCalls.length === totalObservedRuns) {
         const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
-        bridgeCalls.forEach((call, ordinal) => {
+        observedCalls.forEach((call, ordinal) => {
           const observation = observationsByRunIndex.get(ordinal);
           if (observation) call.probeEvidence = observation;
         });

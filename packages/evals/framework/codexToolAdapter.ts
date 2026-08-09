@@ -33,15 +33,42 @@ export interface PreparedCodexCodeAdapter {
   cwd: string;
   env: Record<string, string>;
   promptInstructions: string;
+  /** Extra Codex `--config` overrides (e.g. mcp_servers for MCP mounts). */
+  codexConfig?: Record<string, unknown>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  drainStepObservations?: () => StepObservation[];
+  drainStepObservations?: () => Promise<StepObservation[]>;
+  /**
+   * Runner calls this on every completed mcp_tool_call event; MCP mounts use
+   * it to record per-step observations (their tool calls never pass through
+   * the workspace bridge).
+   */
+  recordObservation?: () => void;
+  /** Which normalized tool-call names consume observation indexes. */
+  observedToolMatcher?: (name: string) => boolean;
   cleanup: () => Promise<void>;
 }
 
 export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | PreparedCodexCodeAdapter;
 
 const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
+const MCP_SURFACES = new Set<ToolSurface>(["playwright_mcp", "chrome_devtools_mcp"]);
+
+/** Mirrors the claude adapter's bounded, best-effort terminal capture. */
+function boundedCaptureEvidence(
+  capture: () => Promise<ProbeEvidence>,
+): () => Promise<ProbeEvidence> {
+  return async () => {
+    try {
+      return await withCaptureTimeout(
+        capture(),
+        readCapturePositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000),
+      );
+    } catch {
+      return {};
+    }
+  };
+}
 
 function readCapturePositiveIntEnv(key: string, fallback: number): number {
   const parsed = Number.parseInt(process.env[key] ?? "", 10);
@@ -51,7 +78,7 @@ function readCapturePositiveIntEnv(key: string, fallback: number): number {
 function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`codex adapter teardown timed out after ${timeoutMs}ms`)),
+      () => reject(new Error(`codex adapter operation timed out after ${timeoutMs}ms`)),
       timeoutMs,
     );
     promise.then(
@@ -101,6 +128,58 @@ export async function prepareCodexToolAdapter(
     if (!mount) {
       throw new EvalsError(`Tool surface "${toolSurface}" does not provide an agent mount.`);
     }
+    if (mount.via === "mcp") {
+      // MCP mounts skip the workspace bridge entirely: the agent gets its own
+      // server instance via Codex mcp_servers config, and per-step
+      // observations are triggered from the runner's mcp_tool_call events.
+      const recorder = runtime.running.captureEvidence
+        ? new ObservationRecorder(runtime.running.captureEvidence)
+        : undefined;
+      cwd = await fsp.mkdtemp(
+        path.join(os.tmpdir(), `stagehand-evals-codex-${toolSurface.replace(/_/g, "-")}-`),
+      );
+      const capturedCwd = cwd;
+      const serverNames = Object.keys(mount.mcpServers);
+
+      input.logger.log({
+        category: "codex",
+        message: `Initialized ${toolSurface} MCP mount for Codex (servers: ${serverNames.join(", ")}).`,
+        level: 1,
+        auxiliary: {
+          startupProfile: { value: startupProfile, type: "string" },
+          environment: { value: input.environment, type: "string" },
+        },
+      });
+
+      return {
+        toolSurface,
+        startupProfile,
+        cwd,
+        env: { ...process.env } as Record<string, string>,
+        promptInstructions: mount.promptInstructions,
+        codexConfig: { mcp_servers: mount.mcpServers },
+        ...(runtime.running.captureEvidence && {
+          captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
+        }),
+        ...(recorder && {
+          drainStepObservations: async () => {
+            await recorder.settle();
+            return recorder.drain();
+          },
+          recordObservation: () => void recorder.record(),
+        }),
+        observedToolMatcher: (name: string) =>
+          serverNames.some((server) => name.startsWith(`${server}.`)),
+        cleanup: async () => {
+          try {
+            await runtime.cleanup();
+          } catch {
+            // best-effort only
+          }
+          await fsp.rm(capturedCwd, { recursive: true, force: true });
+        },
+      };
+    }
     if (mount.via !== "handles") {
       throw new EvalsError(`Codex does not support agent mounts delivered via "${mount.via}" yet.`);
     }
@@ -137,9 +216,14 @@ export async function prepareCodexToolAdapter(
       env: { ...process.env } as Record<string, string>,
       promptInstructions: buildCodexCodePromptInstructions(mount, toolSurface),
       ...(runtime.running.captureEvidence && {
-        captureEvidence: runtime.running.captureEvidence,
+        captureEvidence: boundedCaptureEvidence(runtime.running.captureEvidence),
       }),
-      ...(recorder && { drainStepObservations: () => recorder.drain() }),
+      ...(recorder && {
+        drainStepObservations: async () => {
+          await recorder.settle();
+          return recorder.drain();
+        },
+      }),
       cleanup: async () => {
         try {
           await capturedBridge.close();
@@ -193,11 +277,11 @@ function buildCodexCodePromptInstructions(
 
 export function resolveCodexToolSurface(requested?: ToolSurface): ToolSurface {
   if (!requested) return "browse_cli";
-  if (requested === "browse_cli" || CODE_SURFACES.has(requested)) {
+  if (requested === "browse_cli" || CODE_SURFACES.has(requested) || MCP_SURFACES.has(requested)) {
     return requested;
   }
   throw new EvalsError(
-    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, or stagehand_code for execution right now; received "${requested}".`,
+    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
   );
 }
 
@@ -213,7 +297,13 @@ export function resolveCodexStartupProfile(
   if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
     return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
-  if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
+  // MCP surfaces need a runner-provided endpoint so the harness-side session
+  // (evidence capture) and the agent's own server instance share one browser.
+  if (
+    toolSurface === "playwright_code" ||
+    toolSurface === "cdp_code" ||
+    MCP_SURFACES.has(toolSurface)
+  ) {
     return environment === "BROWSERBASE"
       ? "runner_provided_browserbase_cdp"
       : "runner_provided_local_cdp";

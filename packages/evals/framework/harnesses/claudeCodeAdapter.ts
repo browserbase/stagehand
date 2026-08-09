@@ -49,6 +49,12 @@ export interface ClaudeCodeRunResult {
   finalObservation?: ProbeEvidence;
   /** Per-step probe observations, indexed by run-tool execution order. */
   stepObservations?: StepObservation[];
+  /**
+   * Which tool names consume step-observation indexes. Defaults to the
+   * harness run tool; MCP mounts match their server's `mcp__<server>__*`
+   * tools instead.
+   */
+  observedToolName?: (name: string) => boolean;
 }
 
 interface ToolUseBlock {
@@ -154,14 +160,17 @@ export class ClaudeCodeTrajectoryAdapter implements TrajectoryAdapter<ClaudeCode
       (result.stepObservations ?? []).map((o) => [o.runIndex, o.evidence]),
     );
     let runOrdinal = 0;
+    const isObservedTool =
+      result.observedToolName ?? ((name: string) => name === AGENT_RUN_TOOL_NAME);
     const toolCalls: NormalizedToolCall[] = toolUses.map((use) => {
       const matched = toolResults.get(use.id);
       const ok = matched ? !matched.isError : true;
       const resultPayload = matched?.raw !== undefined ? matched.raw : (matched?.text ?? "");
-      // The Nth run-tool call pairs with the Nth recorded observation; other
-      // tools (Bash etc.) never consume an index.
-      const observation =
-        use.name === AGENT_RUN_TOOL_NAME ? observationsByRunIndex.get(runOrdinal++) : undefined;
+      // The Nth observed tool call pairs with the Nth recorded observation;
+      // other tools (Bash etc.) never consume an index.
+      const observation = isObservedTool(use.name)
+        ? observationsByRunIndex.get(runOrdinal++)
+        : undefined;
       return {
         name: use.name,
         args: use.input,

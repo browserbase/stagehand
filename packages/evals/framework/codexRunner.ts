@@ -136,7 +136,12 @@ export async function runCodexAgent({
   sdk: injectedSdk,
   verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
-  const sdk = injectedSdk ?? (await loadCodexSdk(toolAdapter?.env));
+  const sdk =
+    injectedSdk ??
+    (await loadCodexSdk(
+      toolAdapter?.env,
+      toolAdapter && "codexConfig" in toolAdapter ? toolAdapter.codexConfig : undefined,
+    ));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
   const events: CodexEvent[] = [];
   let finalResponse = "";
@@ -204,6 +209,17 @@ export async function runCodexAgent({
           budgetController.abort(new Error(stopReason));
         }
       }
+      // MCP-mounted surfaces: each completed MCP tool call consumes one
+      // observation index, in stream order (mirrors the bridge's
+      // onRunExecuted for code surfaces).
+      if (
+        event.type === "item.completed" &&
+        item?.type === "mcp_tool_call" &&
+        toolAdapter &&
+        "recordObservation" in toolAdapter
+      ) {
+        toolAdapter.recordObservation?.();
+      }
     }
   } catch (error) {
     iterationError = error;
@@ -260,7 +276,7 @@ export async function runCodexAgent({
       : undefined;
   const stepObservations =
     toolAdapter && "drainStepObservations" in toolAdapter
-      ? toolAdapter.drainStepObservations?.()
+      ? await toolAdapter.drainStepObservations?.()
       : undefined;
 
   // Build a Trajectory from the codex event stream and grade it with the
@@ -272,6 +288,11 @@ export async function runCodexAgent({
           events,
           ...(finalObservation && { finalObservation }),
           ...(stepObservations?.length && { stepObservations }),
+          ...(toolAdapter &&
+            "observedToolMatcher" in toolAdapter &&
+            toolAdapter.observedToolMatcher && {
+              observedToolName: toolAdapter.observedToolMatcher,
+            }),
           finalAnswer: parsed.finalAnswer ?? finalResponse,
           status: status === "completed" ? "complete" : "error",
           usage: {
@@ -438,7 +459,10 @@ function summarizeCodexEvent(event: CodexEvent): {
   };
 }
 
-async function loadCodexSdk(env?: Record<string, string>): Promise<CodexSdk> {
+async function loadCodexSdk(
+  env?: Record<string, string>,
+  extraConfig?: Record<string, unknown>,
+): Promise<CodexSdk> {
   try {
     const specifier = CODEX_SDK_PACKAGE;
     const mod = (await import(specifier)) as {
@@ -460,6 +484,8 @@ async function loadCodexSdk(env?: Record<string, string>): Promise<CodexSdk> {
       }),
       config: {
         show_raw_agent_reasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
+        // Adapter-provided overrides (e.g. mcp_servers for MCP mounts).
+        ...extraConfig,
       },
     });
   } catch (error) {

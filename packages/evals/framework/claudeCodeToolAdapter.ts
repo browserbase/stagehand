@@ -49,7 +49,15 @@ export interface PreparedClaudeCodeToolAdapter {
   ) => Promise<Record<string, unknown>>;
   /** Best-effort evidence from the currently running tool surface. */
   captureEvidence?: () => Promise<ProbeEvidence>;
-  drainStepObservations?: () => StepObservation[];
+  drainStepObservations?: () => Promise<StepObservation[]>;
+  /**
+   * Runner calls this on every completed tool_result with the originating
+   * tool name; MCP-mounted surfaces use it to record per-step observations
+   * (their tool calls never pass through harness code).
+   */
+  onToolResult?: (toolName: string) => void;
+  /** Which tool names consume observation indexes in the trajectory adapter. */
+  observedToolMatcher?: (toolName: string) => boolean;
   cleanup: () => Promise<void>;
 }
 
@@ -168,7 +176,9 @@ export async function prepareClaudeCodeToolAdapter(
       });
     case "playwright_code":
     case "cdp_code":
-    case "stagehand_code": {
+    case "stagehand_code":
+    case "playwright_mcp":
+    case "chrome_devtools_mcp": {
       return prepareMountedCoreToolAdapter({
         ...input,
         toolSurface,
@@ -177,7 +187,7 @@ export async function prepareClaudeCodeToolAdapter(
     }
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or stagehand_code for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${toolSurface}".`,
       );
   }
 }
@@ -188,12 +198,14 @@ export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurfa
     requested === "browse_cli" ||
     requested === "playwright_code" ||
     requested === "cdp_code" ||
-    requested === "stagehand_code"
+    requested === "stagehand_code" ||
+    requested === "playwright_mcp" ||
+    requested === "chrome_devtools_mcp"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, or stagehand_code for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
   );
 }
 
@@ -209,7 +221,15 @@ export function resolveClaudeCodeStartupProfile(
   if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
     return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
-  if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
+  // The MCP surfaces need a runner-provided endpoint so the harness-side
+  // session (evidence capture) and the agent's own server instance attach to
+  // the same browser.
+  if (
+    toolSurface === "playwright_code" ||
+    toolSurface === "cdp_code" ||
+    toolSurface === "playwright_mcp" ||
+    toolSurface === "chrome_devtools_mcp"
+  ) {
     return environment === "BROWSERBASE"
       ? "runner_provided_browserbase_cdp"
       : "runner_provided_local_cdp";
@@ -388,11 +408,13 @@ async function prepareAgentMountAdapter(
     if (!mount) {
       throw new EvalsError(`Tool surface "${input.toolSurface}" does not provide an agent mount.`);
     }
-    if (mount.via !== "handles") {
+    if (mount.via !== "handles" && mount.via !== "mcp") {
       throw new EvalsError(
         `Claude Code does not support agent mounts delivered via "${mount.via}" yet.`,
       );
     }
+    const handlesMount = mount.via === "handles" ? mount : undefined;
+    const mcpMount = mount.via === "mcp" ? mount : undefined;
 
     cwd = await fsp.mkdtemp(path.join(os.tmpdir(), `stagehand-evals-claude-${input.toolSurface}-`));
     const cleanupCwd = cwd;
@@ -400,13 +422,29 @@ async function prepareAgentMountAdapter(
     const recorder = running.captureEvidence
       ? new ObservationRecorder(running.captureEvidence)
       : undefined;
-    const mcpServers = await buildCodeExposureRunMcpServers({
-      handles: mount.handles,
-      runToolSpec: mount.runTool,
-      plan: input.plan,
-      logger: input.logger,
-      recordObservation: recorder ? () => recorder.record() : undefined,
-    });
+    // handles mounts wrap the surface in the harness's run tool (which owns
+    // per-step observation); mcp mounts pass the agent's own server spec
+    // through, and observation is triggered from the runner's tool_result
+    // stream instead.
+    const mcpServers = handlesMount
+      ? await buildCodeExposureRunMcpServers({
+          handles: handlesMount.handles,
+          runToolSpec: handlesMount.runTool,
+          plan: input.plan,
+          logger: input.logger,
+          recordObservation: recorder ? () => recorder.record() : undefined,
+        })
+      : mcpMount!.mcpServers;
+    // "mcp__<server>" allows every tool the named server exposes.
+    const mcpToolPrefixes = mcpMount
+      ? Object.keys(mcpMount.mcpServers).map((name) => `mcp__${name}`)
+      : [];
+    const isMountToolName = (toolName: string): boolean =>
+      handlesMount
+        ? toolName === RUN_TOOL_NAME
+        : mcpToolPrefixes.some(
+            (prefix) => toolName === prefix || toolName.startsWith(`${prefix}__`),
+          );
     let cleanupPromise: Promise<void> | undefined;
 
     return {
@@ -414,18 +452,27 @@ async function prepareAgentMountAdapter(
       startupProfile: input.startupProfile,
       cwd,
       env,
-      allowedTools: ["Bash", RUN_TOOL_NAME],
+      allowedTools: ["Bash", ...(handlesMount ? [RUN_TOOL_NAME] : mcpToolPrefixes)],
       settingSources: [],
       mcpServers,
       canUseTool: async (toolName, commandInput) => {
-        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
+        if (toolName === "Bash" || isMountToolName(toolName)) {
           return { behavior: "allow", updatedInput: commandInput };
         }
         return {
           behavior: "deny",
-          message: mount.runTool.denyMessage,
+          message:
+            handlesMount?.runTool.denyMessage ??
+            `Only Bash and the ${mcpToolPrefixes.join(", ")} tools are allowed.`,
         };
       },
+      ...(mcpMount &&
+        recorder && {
+          onToolResult: (toolName: string) => {
+            if (isMountToolName(toolName)) void recorder.record();
+          },
+          observedToolMatcher: isMountToolName,
+        }),
       promptInstructions: mount.promptInstructions,
       ...(running.captureEvidence && {
         captureEvidence: async (): Promise<ProbeEvidence> => {
@@ -439,7 +486,12 @@ async function prepareAgentMountAdapter(
           }
         },
       }),
-      ...(recorder && { drainStepObservations: () => recorder.drain() }),
+      ...(recorder && {
+        drainStepObservations: async () => {
+          await recorder.settle();
+          return recorder.drain();
+        },
+      }),
       cleanup: async () => {
         cleanupPromise ??= (async () => {
           try {

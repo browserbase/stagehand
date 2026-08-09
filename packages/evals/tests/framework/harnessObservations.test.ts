@@ -45,6 +45,23 @@ describe("observation recorder", () => {
     expect(recorder.drain()).toEqual([]);
   });
 
+  it("settle() waits for in-flight captures before drain", async () => {
+    let release: (() => void) | undefined;
+    const recorder = new ObservationRecorder(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ url: "https://example.com/late" });
+        }),
+    );
+    // Fire-and-forget, as the MCP tool-result stream does.
+    void recorder.record();
+    expect(recorder.drain()).toEqual([]);
+    const settled = recorder.settle();
+    release?.();
+    await settled;
+    expect(recorder.drain().map((o) => o.evidence.url)).toEqual(["https://example.com/late"]);
+  });
+
   it("drops empty artifacts", async () => {
     const recorder = new ObservationRecorder(async () => ({}));
     await recorder.record();
@@ -123,6 +140,57 @@ describe("per-step observations in trajectories", () => {
     expect(trajectory.steps.map((s) => s.probeEvidence.url)).toEqual([
       "https://example.com/a",
       undefined,
+      "https://example.com/b",
+    ]);
+  });
+
+  it("attaches claude_code observations to MCP tool steps under an observedToolName matcher", () => {
+    const messages = [
+      assistantToolUse("u1", "Bash", { command: "ls" }),
+      toolResult("u1", "ok"),
+      assistantToolUse("u2", "mcp__playwright__browser_navigate", { url: "https://example.com" }),
+      toolResult("u2", "navigated"),
+      assistantToolUse("u3", "mcp__playwright__browser_click", { selector: "#go" }),
+      toolResult("u3", "clicked"),
+    ];
+    const trajectory = claudeCodeAdapter.fromHarnessResult(
+      {
+        messages,
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/a" } },
+          { runIndex: 1, evidence: { url: "https://example.com/b" } },
+        ],
+        observedToolName: (name) => name.startsWith("mcp__playwright__"),
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps.map((s) => s.probeEvidence.url)).toEqual([
+      undefined,
+      "https://example.com/a",
+      "https://example.com/b",
+    ]);
+  });
+
+  it("attaches codex observations to mcp_tool_call steps under an observedToolName matcher", () => {
+    const events = [
+      commandExecution("ls"),
+      mcpToolCall("playwright", "browser_navigate"),
+      mcpToolCall("playwright", "browser_click"),
+    ];
+    const trajectory = codexAdapter.fromHarnessResult(
+      {
+        events,
+        stepObservations: [
+          { runIndex: 0, evidence: { url: "https://example.com/a" } },
+          { runIndex: 1, evidence: { url: "https://example.com/b" } },
+        ],
+        observedToolName: (name) => name.startsWith("playwright."),
+      },
+      TASK_SPEC,
+    );
+    expect(trajectory.steps.map((s) => s.probeEvidence.url)).toEqual([
+      undefined,
+      "https://example.com/a",
       "https://example.com/b",
     ]);
   });
@@ -238,6 +306,19 @@ function toolResult(toolUseId: string, text: string): Record<string, unknown> {
     type: "user",
     message: {
       content: [{ type: "tool_result", tool_use_id: toolUseId, content: text }],
+    },
+  };
+}
+
+function mcpToolCall(server: string, tool: string): Record<string, unknown> {
+  return {
+    type: "item.completed",
+    item: {
+      type: "mcp_tool_call",
+      server,
+      tool,
+      arguments: {},
+      status: "completed",
     },
   };
 }
