@@ -90,6 +90,10 @@ describe("LLM and Agents public API types", () => {
       "google/gemini-3-flash-preview",
       "google/gemini-3.5-flash",
       "google/gemini-3-pro-preview",
+      "vertex/gemini-2.5-computer-use-preview-10-2025",
+      "vertex/gemini-3-flash-preview",
+      "vertex/gemini-3.5-flash",
+      "vertex/gemini-3-pro-preview",
       "microsoft/fara-7b",
     ] as const;
 

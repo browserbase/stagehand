@@ -228,10 +228,11 @@ export const VertexModelConfigObjectSchema = ModelConfigBaseSchema.extend({
   provider: z.literal("vertex").meta({
     description: "Vertex AI model provider",
   }),
-  auth: GoogleServiceAccountAuthSchema.meta({
-    description: "Vertex provider authentication configuration",
+  auth: GoogleServiceAccountAuthSchema.optional().meta({
+    description:
+      "Vertex provider authentication configuration. Optional when using an express-mode apiKey or ambient application default credentials",
   }),
-  providerOptions: VertexModelProviderOptionsSchema.meta({
+  providerOptions: VertexModelProviderOptionsSchema.optional().meta({
     description: "Vertex provider-specific model configuration",
   }),
 })

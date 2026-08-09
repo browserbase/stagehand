@@ -181,7 +181,9 @@ describe("API model config schemas", () => {
     });
   });
 
-  it("requires explicit Vertex provider configs to include service account auth and provider options", () => {
+  it("accepts explicit Vertex provider configs without service account auth or provider options", () => {
+    // auth and providerOptions are individually optional: express-mode API
+    // keys and ambient ADC need neither, and each can appear on its own.
     for (const model of [
       {
         provider: "vertex",
@@ -205,13 +207,18 @@ describe("API model config schemas", () => {
           },
         },
       },
+      {
+        provider: "vertex",
+        modelName: "vertex/gemini-2.5-flash",
+        apiKey: "vertex-express-key",
+      },
     ]) {
       const result = Api.ActRequestSchema.safeParse({
         input: "click the search button",
         options: { model },
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
     }
   });
 
