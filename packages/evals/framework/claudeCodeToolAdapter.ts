@@ -789,19 +789,6 @@ function clip(value: string, maxLength: number): string {
   return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
 
-function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
-  catch: (handler: (error: unknown) => void) => unknown;
-} {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "then" in value &&
-    typeof (value as { then?: unknown }).then === "function" &&
-    "catch" in value &&
-    typeof (value as { catch?: unknown }).catch === "function"
-  );
-}
-
 async function runBrowseCommand(
   wrapperPath: string,
   args: string[],
