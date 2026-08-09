@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     branches:
-      - main
+      - v3
 
 permissions:
   contents: write
@@ -96,7 +96,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if browse publish is needed
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/v3'
         id: browse_cli
         run: |
           # Restore working tree — changesets/action may have switched branches
@@ -138,7 +138,7 @@ jobs:
           npm publish "$TARBALL" --provenance --access public --tag latest
 
       - name: Tag browse release
-        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        if: github.ref == 'refs/heads/v3' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
         run: |
           TAG="browse@${{ steps.browse_cli.outputs.version }}"
           if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
@@ -183,7 +183,7 @@ jobs:
             ghcr.io/browserbase/browse:latest
 
       - name: Publish browse canary
-        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
+        if: github.ref == 'refs/heads/v3' && steps.browse_cli.outputs.should_publish != 'true'
         run: |
           # Skip if no browse files changed in this push
           if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/; then
@@ -217,9 +217,9 @@ jobs:
           echo "Published browse@${CANARY_VERSION}"
 
       - name: Publish Canary
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/v3'
         run: |
-          git checkout main
+          git checkout ${{ github.sha }}
           pnpm run release-canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
