@@ -60,11 +60,28 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. An explicit model without a provider-specific API key still routes through Model Gateway, but pins that model instead.
+When no model is configured, Stagehand routes inference through Model Gateway without a `model` field and Browserbase selects one automatically. Selection happens server-side on every call, so your code never pins a model name and picks up new models as Browserbase adds them.
+
+What you pass decides where a call goes:
+
+| Configuration | Where inference runs |
+| --- | --- |
+| No `model` | Model Gateway, with Browserbase selecting the model per call |
+| `model` with no `apiKey` | Model Gateway, pinned to that model |
+| `model` with an `apiKey` | Straight to that provider, bypassing Gateway |
+| A client-side LLM callback | Your callback, bypassing Gateway. See [bring your own LLM](#custom-models) |
 
 <Note>
   Model Gateway requires Browserbase-hosted browsers. It does not work with local browsers, because those have no Browserbase session to bill and authorize against.
 </Note>
+
+<Note>
+  Omitting `model` from `Stagehand.create()` enables routing for that Stagehand instance. Selection itself happens per call, so one run can use different models at different steps. [Per-call overrides](#per-call-model-overrides) enable selecting a specific model instead of routing it.
+</Note>
+
+<Warning>
+  Model Gateway rejects `stopSequences`. Pin a model with its own provider API key when you need them.
+</Warning>
 
 ### Switching models
 
@@ -1674,6 +1691,43 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ## Troubleshooting
 
 <AccordionGroup>
+<Accordion title="Error: an LLM was not configured during Stagehand initialization">
+**Error:** `An LLM was not configured during Stagehand initialization`
+
+You omitted `model` to get automatic routing, but the browser is not a Browserbase session, so there is no Model Gateway to route through. Automatic selection has no local fallback. `Stagehand.create()` still succeeds, because Stagehand resolves the model when a call needs one, so the first `act()`, `extract()`, or `observe()` raises this instead.
+
+**Solutions:**
+
+- Launch with `browserbase.launch({ apiKey })` so the session has a Browserbase API key and session ID to authorize against
+- Or pass a `model` with its own provider `apiKey`, which works on any browser including local ones
+- Or supply a client-side LLM callback, which runs inference in your own process
+
+</Accordion>
+
+<Accordion title="Error: model inference requires a provider API key or a Browserbase session">
+**Error:** `Model inference requires a provider API key or a Browserbase session`
+
+You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserbase session. A model without a key is a Model Gateway request, and Gateway needs a Browserbase session to bill and authorize against. This is the usual result of copying a Gateway example onto a local browser.
+
+**Solutions:**
+
+- Add the provider `apiKey` to the model configuration to call the provider directly
+- Or launch with `browserbase.launch({ apiKey })` to keep the call on Gateway
+
+</Accordion>
+
+<Accordion title="Error: Browserbase Model Gateway does not support stop sequences">
+**Error:** `Browserbase Model Gateway does not support stop sequences`
+
+`stopSequences` is not available on Gateway inference, whether Browserbase selected the model or you pinned one without a provider key.
+
+**Solutions:**
+
+- Pass a `model` with its own provider `apiKey` so the call goes straight to the provider
+- Or drop `stopSequences` and constrain the output with an `extract()` schema instead
+
+</Accordion>
+
 <Accordion title="Error: API key not found">
 **Error:** `API key not found`
 
