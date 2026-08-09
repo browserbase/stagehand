@@ -3,6 +3,10 @@ export interface RunTelemetryState {
   httpStatus?: number;
   requestHadHttpResponse?: boolean;
   skillId?: string;
+  /** Resolved driver session kind, e.g. "managed-local" | "remote" | "cdp". */
+  sessionMode?: string;
+  /** For managed-local sessions, whether the resolved window mode was headless. */
+  headless?: boolean;
 }
 
 let currentRunTelemetry: RunTelemetryState = {};

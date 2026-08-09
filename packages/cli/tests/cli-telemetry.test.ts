@@ -65,6 +65,9 @@ describe("CLI telemetry", () => {
       expect(completedPayload.properties.http_status).toBe(null);
       expect(completedPayload.properties.request_had_http_response).toBe(null);
       expect(completedPayload.properties.skill_id).toBe(null);
+      // status is not a driver command, so no session mode is resolved.
+      expect(completedPayload.properties.session_mode).toBe(null);
+      expect(completedPayload.properties.headless).toBe(null);
     } finally {
       await telemetryServer.close();
     }

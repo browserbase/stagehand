@@ -25,6 +25,7 @@ import {
 } from "./mode.js";
 import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
+import { setRunTelemetryCompletion } from "../run-telemetry.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
 
 export const driverCommandFlags = {
@@ -83,6 +84,19 @@ export async function resolveTargetForCommand(
   session: string,
   flags: DriverFlags,
 ) {
+  const target = await selectTargetForCommand(session, flags);
+  // Record the effective session mode (and, for managed-local, the resolved
+  // headed/headless choice) so it rides along on cli.command_completed. This is
+  // the only place every driver command resolves a target, and it captures the
+  // reused-session case too — i.e. the mode the command actually ran in.
+  setRunTelemetryCompletion({
+    sessionMode: target.kind,
+    ...(target.kind === "managed-local" ? { headless: target.headless } : {}),
+  });
+  return target;
+}
+
+async function selectTargetForCommand(session: string, flags: DriverFlags) {
   const hasExplicitTarget = hasExplicitDriverTarget(flags);
   if (!hasExplicitTarget || hasModeOnlyFlag(flags)) {
     const status = await getDriverStatus(session);
