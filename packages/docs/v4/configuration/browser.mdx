@@ -572,23 +572,23 @@ Stagehand never closes a browser it did not launch. When you connect to an exist
 
 ## Local environment
 
-The local environment runs browsers directly on your machine, providing full control over browser instances and configurations. Ideal for development, debugging, and scenarios requiring custom browser setups.
+Run browsers directly on your machine when you want full control over the browser process and its launch flags. This suits development, debugging, and custom browser setups.
 
 ### Environment comparison
 
 | Feature | Browserbase | Local |
 | --- | --- | --- |
 | **Scalability** | High (cloud-managed) | Limited (local resources) |
-| **Stealth Features** | Advanced fingerprinting | Basic stealth |
-| **Proxy Support** | Built-in residential proxies | Manual configuration |
-| **Session Persistence** | Cloud context storage | File-based user data |
-| **Geographic Distribution** | Multi-region deployment | Single machine |
-| **Debugging** | Session recordings & logs | Direct DevTools access |
-| **Setup Complexity** | API key only | Browser installation required |
+| **Stealth features** | Advanced fingerprinting | Basic stealth |
+| **Proxy support** | Built-in residential proxies | Manual configuration |
+| **Session persistence** | Cloud context storage | File-based user data |
+| **Geographic distribution** | Multi-region deployment | Single machine |
+| **Debugging** | Session recordings and logs | Direct DevTools access |
+| **Setup complexity** | API key only | Browser installation required |
 | **Server-side caching** | Supported | Not available |
 | **Model Gateway** | Supported | Not available |
-| **Cost** | Usage-based pricing | Infrastructure & maintenance |
-| **Best For** | Production, scale, compliance | Development, debugging |
+| **Cost** | Usage-based pricing | Infrastructure and maintenance |
+| **Best for** | Production, scale, compliance | Development, debugging |
 
 ### Basic local setup
 
@@ -1083,7 +1083,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Tip>
-If no port is specified, a random free port will be assigned.
+Stagehand picks a random free port when you do not set one.
 </Tip>
 
 ### DOM settle timeout

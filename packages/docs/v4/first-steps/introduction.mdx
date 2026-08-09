@@ -101,9 +101,9 @@ fmt.Println(len(observed.Data), "candidate actions")
 
 ## Why developers choose Stagehand
 
-- **Precise Control:** Mix AI-powered actions with deterministic code. You decide exactly how much AI to use.
+- **Precise control:** Mix AI-powered actions with deterministic code. You decide exactly how much AI to use.
 - **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
-- **First-class TypeScript and Python SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
+- **First-class TypeScript, Python, and Go SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
 - **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/v4/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/v4/reference/page).
 - **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
 - **Models are flexible:** Use a supported provider by name or supply your own client-side LLM callback.
@@ -123,7 +123,7 @@ Stagehand is designed for developers building production browser automations and
 
 ## Get started in 60 seconds
 <Info>
-  **Pro tip**: For best results, Browserbase recommends using Stagehand with [Browserbase](https://www.browserbase.com) for reliable cloud browser infrastructure. It unlocks [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
+  Browserbase recommends running Stagehand on [Browserbase](https://www.browserbase.com). A hosted browser is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway).
 </Info>
 <CardGroup cols={2}>
   <Card

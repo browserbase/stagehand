@@ -922,7 +922,7 @@ Stagehand evaluates the function in the service worker and calls it with two Jav
    `metrics`;
 2. the decoded JSON value passed as the Python method's `input` argument.
 
-JavaScript destructuring such as `async ({ page, act }, input) => { ... }` simply creates local
+JavaScript destructuring such as `async ({ page, act }, input) => { ... }` only creates local
 variables from that context. It does not select a page or tell Stagehand which values to inject.
 
 <ParamField path="source" type="str">

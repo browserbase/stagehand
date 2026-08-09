@@ -5,7 +5,7 @@ description: Use any LLM with Stagehand
 ---
 
 <Callout icon="sparkles" color="#FFC107" iconType="regular">
-  **(NEW) Automatic Model Router**: Omit `model` and let Browserbase select a model for every `act`, `extract`, and `observe` call. One key, one bill, no provider accounts needed.
+  **New: automatic model selection.** Omit `model` and let the Model Gateway pick one for every `act`, `extract`, and `observe` call. One key, one bill, no provider accounts needed.
 </Callout>
 
 ## Model Gateway
@@ -311,7 +311,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand does not keep a list of valid model IDs: whatever follows the prefix is passed through to the provider untouched, so new model releases and early-access models work without a Stagehand upgrade. A model ID that the provider does not recognize, or that your key cannot reach, fails at request time with the provider's own error. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
+Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand ships a list of known model IDs per provider and validates the full name when you call `Stagehand.create()` or pass a per-call override, so a name it does not recognize fails before any request reaches the provider. Upgrade the SDK to pick up newly released models. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
 </Note>
 
 
@@ -1703,9 +1703,11 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 
 - Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
 - Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
+- Upgrade the SDK if the model shipped after your installed version
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)
 
-Only the provider prefix is checked. The model ID itself is not validated, so a typo or a model your key cannot reach surfaces as the provider's own error (usually a `400`) on the first inference, not as an `Unsupported model` error. Verify the model name against the provider's documentation and confirm your model API key has access to it.
+A model that passes validation can still fail at request time if your model API key cannot reach it. That surfaces as the provider's own error, usually a `400`.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
@@ -1723,7 +1725,7 @@ Only the provider prefix is checked. The model ID itself is not validated, so a 
 **Solutions:**
 
 - Switch to cost-effective models (check [evals](https://www.stagehand.dev/evals) for comparisons)
-- Use faster models for simple tasks and reach for powerful ones per call with a [model override](#per-call-model-overrides)
+- Use a fast model for simple tasks and reach for a stronger one per call with a [model override](#per-call-model-overrides)
 - Implement [caching](/v4/best-practices/caching) for repeated patterns
 </Accordion>
 <Accordion title="Python SDK or custom models">
