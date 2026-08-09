@@ -430,7 +430,10 @@ func locatorDescriptorsForPage(locators []*PageLocator, pageID string, method st
 		return nil, nil
 	}
 	descriptors := make([]Locator, 0, len(locators))
-	for _, locator := range locators {
+	for index, locator := range locators {
+		if locator == nil {
+			return nil, fmt.Errorf("%s: ignore locator at index %d is nil", method, index)
+		}
 		descriptor, err := locatorDescriptorForPage(locator, pageID, method)
 		if err != nil {
 			return nil, err

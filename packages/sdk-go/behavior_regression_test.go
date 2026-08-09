@@ -414,6 +414,65 @@ func TestStagehandObserveAndExtractRejectCrossPageLocators(t *testing.T) {
 	}
 }
 
+func TestStagehandObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
+	t.Parallel()
+
+	type pageInfo struct {
+		Heading string `json:"heading"`
+	}
+
+	tests := []struct {
+		name    string
+		method  string
+		run     func(context.Context, *Stagehand, *Page) error
+		wantErr string
+	}{
+		{
+			name:   "observe",
+			method: "stagehand.Observe",
+			run: func(ctx context.Context, client *Stagehand, page *Page) error {
+				instruction := "find main"
+				_, err := client.Observe(ctx, &instruction, &StagehandClientObserveOptions{
+					Page:           page,
+					IgnoreLocators: []*PageLocator{nil},
+				})
+				return err
+			},
+			wantErr: "stagehand.Observe: ignore locator at index 0 is nil",
+		},
+		{
+			name:   "extract",
+			method: "stagehand.Extract",
+			run: func(ctx context.Context, client *Stagehand, page *Page) error {
+				_, err := Extract[pageInfo](ctx, client, "extract main", &StagehandClientExtractOptions{
+					Page:           page,
+					IgnoreLocators: []*PageLocator{nil},
+				})
+				return err
+			},
+			wantErr: "stagehand.Extract: ignore locator at index 0 is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rpc := &recordingProtocolClient{responses: map[string]any{}}
+			page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+			client := &Stagehand{initialized: true, rpc: rpc}
+
+			err := tt.run(context.Background(), client, page)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("%s error = %v", tt.method, err)
+			}
+			if len(rpc.calls) != 0 {
+				t.Fatalf("%s RPC calls = %#v", tt.method, rpc.calls)
+			}
+		})
+	}
+}
+
 func TestSchemaForTypeSupportsRecursiveTypes(t *testing.T) {
 	t.Parallel()
 
