@@ -32,7 +32,7 @@ flowchart TB
         BenchPlanner["framework/benchPlanner.ts<br/>model matrix<br/>suite expansion<br/>metadata/tags"]
         TaskConfig["taskConfig.ts<br/>default models<br/>agent model entries"]
         Datasets[("datasets/*<br/>WebVoyager<br/>OnlineMind2Web<br/>WebTailBench")]
-        DryRun["dry-run JSON<br/>tasks, envOverrides,<br/>runOptions"]
+        DryRun["dry-run JSON<br/>target, normalizedTarget, tasks,<br/>envOverrides, runOptions,<br/>matrix, error?"]
     end
 
     subgraph Runner["Unified Runner"]

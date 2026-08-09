@@ -43,6 +43,30 @@ export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | Prepare
 
 const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
 
+function readCapturePositiveIntEnv(key: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[key] ?? "", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function withCaptureTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`codex adapter teardown timed out after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
 export async function prepareCodexToolAdapter(
   input: CodexToolAdapterInput,
 ): Promise<PreparedCodexToolAdapter> {
@@ -132,7 +156,12 @@ export async function prepareCodexToolAdapter(
     };
   } catch (error) {
     await bridge?.close().catch((): undefined => undefined);
-    await runtime.cleanup().catch((): undefined => undefined);
+    // Same bound as normal teardown — a hung cleanup must not wedge the row
+    // on the setup-failure path either.
+    await withCaptureTimeout(
+      runtime.cleanup(),
+      readCapturePositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+    ).catch((): undefined => undefined);
     if (cwd) await fsp.rm(cwd, { recursive: true, force: true });
     throw error;
   }

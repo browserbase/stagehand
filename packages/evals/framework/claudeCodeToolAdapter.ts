@@ -356,7 +356,12 @@ async function prepareMountedCoreToolAdapter(
   try {
     return await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input);
   } catch (error) {
-    await runtime.cleanup().catch((): undefined => undefined);
+    // Same bound as normal teardown — a hung cleanup must not wedge the row
+    // on the setup-failure path either.
+    await withTimeout(
+      runtime.cleanup(),
+      readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
+    ).catch((): undefined => undefined);
     throw error;
   }
 }
