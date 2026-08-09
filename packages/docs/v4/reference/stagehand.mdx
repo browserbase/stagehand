@@ -538,27 +538,11 @@ const actions = await stagehand.observe("Find the sign in button");
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page locators to exclude from consideration.
-
-  <ParamField path="options.ignoreLocators.selector" type="string">
-    The locator selector.
-  </ParamField>
-
-  <ParamField path="options.ignoreLocators.nth" type="number" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The page locator that scopes the operation.
-
-    <ParamField path="options.locator.selector" type="string">
-      The locator selector.
-    </ParamField>
-
-    <ParamField path="options.locator.nth" type="number" optional>
-      The zero-based index used when the selector matches multiple elements.
-    </ParamField>
+    A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -713,27 +697,11 @@ console.log(product.data, product.metadata.cache.status);
   </ParamField>
 
 <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-  Page locators to exclude from consideration.
-
-  <ParamField path="options.ignoreLocators.selector" type="string">
-    The locator selector.
-  </ParamField>
-
-  <ParamField path="options.ignoreLocators.nth" type="number" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
 </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The page locator that scopes the operation.
-
-    <ParamField path="options.locator.selector" type="string">
-      The locator selector.
-    </ParamField>
-
-    <ParamField path="options.locator.nth" type="number" optional>
-      The zero-based index used when the selector matches multiple elements.
-    </ParamField>
+    A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -1339,27 +1307,11 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  The page locator that scopes the operation.
-
-<ParamField path="locator.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="locator.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page locators to exclude from consideration.
-
-<ParamField path="ignore_locators.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="ignore_locators.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
@@ -1507,15 +1459,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  The page locator that scopes the operation.
-
-<ParamField path="locator.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="locator.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  A page-created locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
 </ParamField>
 
 <ParamField path="screenshot" type="bool | None" optional>
@@ -1523,15 +1467,7 @@ print(product.data, product.metadata.cache.status)
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page locators to exclude from consideration.
-
-<ParamField path="ignore_locators.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="ignore_locators.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  Page-created locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
