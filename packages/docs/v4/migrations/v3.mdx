@@ -399,7 +399,7 @@ client := stagehand.NewClient(
 	option.WithBrowserbaseAPIKey(os.Getenv("BROWSERBASE_API_KEY")),
 	option.WithModelAPIKey(os.Getenv("MODEL_API_KEY")),
 )
-started, err := client.Sessions.Start(ctx, stagehand.SessionStartParams{ModelName: "gpt-5-nano"})
+started, err := client.Sessions.Start(ctx, stagehand.SessionStartParams{ModelName: "openai/gpt-5-nano"})
 sessionID := started.Data.SessionID
 _, err = client.Sessions.Navigate(ctx, sessionID, stagehand.SessionNavigateParams{
 	URL: "https://example.com",
