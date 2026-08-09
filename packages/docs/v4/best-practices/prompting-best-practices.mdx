@@ -212,7 +212,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("choose option 1"), nil); 
 Variables keep sensitive information out of prompts and logs. Stagehand shows the model only the variable name and its optional description, then substitutes the real value into the resolved action right before it runs, so the secret never reaches the model and never appears in the logged action.
 
 <Warning>
-Variables are part of the payload that builds the [cache key](/v4/best-practices/caching). Caching is off by default, so the values stay inside the run unless you opt in. Once you enable it with `cache` on `Stagehand.create()` or on a call, the variables you pass travel to the cache service with the rest of the request, so pass `cache: false` on the calls that carry credentials.
+Variables are part of the payload that builds the [cache key](/v4/best-practices/caching). Caching is off by default, so the values stay inside the run unless you opt in. Once you enable the `cache` option on create or on a call, the variables you pass travel to the cache service with the rest of the request, so turn it off on the calls that carry credentials.
 </Warning>
 
 <Tabs>

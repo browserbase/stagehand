@@ -3,13 +3,13 @@ title: 'Using multiple tabs'
 description: 'Act on multiple tabs with Stagehand'
 ---
 
-Many modern web applications open new tabs when users click certain buttons or links. Without proper multitab support, automation scripts break when expected content appears in a new tab rather than the current one. Stagehand's multitab capabilities ensure your automations work seamlessly across multitab workflows.
+Web applications often open a new tab when someone clicks a button or link, and a script that only watches the original tab breaks when the content lands elsewhere. Stagehand follows the new tab for you.
 
 ## The Stagehand page
 
-Stagehand automatically adapts to multitab workflows. The active page always points to the most recently opened or active tab, ensuring your automations continue working even when new tabs are created. `act()`, `observe()`, and `extract()` all default to the active page.
+The active page is whichever tab Chrome has focused in its last-focused window, so a tab the browser opens and activates becomes the target on its own. `act()`, `observe()`, and `extract()` all default to that page.
 
-This means you can continue using familiar patterns:
+The usual patterns keep working:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -232,6 +232,6 @@ Locators belong to the page they were created on. `page.locator(selector)` carri
   </Card>
 
   <Card title="Logging & debugging" icon="bug" iconType="sharp-solid" href="/v4/configuration/logging">
-    Handle errors gracefully and debug automation issues effectively.
+    Set log levels and read structured records while you debug.
   </Card>
 </CardGroup>

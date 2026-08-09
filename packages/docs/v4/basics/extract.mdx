@@ -45,7 +45,7 @@ extracted, err := stagehand.Extract[repository](
 </Tab>
 </Tabs>
 
-`extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. The result is validated against that shape before it is returned, so what you get back is already typed.
+`extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. Stagehand validates the result against that shape before returning it, so what you get back is already typed.
 
 ## Why use `extract()`?
 

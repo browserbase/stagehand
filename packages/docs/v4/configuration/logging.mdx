@@ -3,9 +3,7 @@ title: "Logging"
 description: "Control terminal output and forward structured Stagehand logs."
 ---
 
-Stagehand provides comprehensive logging capabilities to help you debug automation workflows, track execution, and diagnose issues. Configure logging levels, structured output, and debugging tools for both development and production environments.
-
-All logging is configured through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record.
+Configure logging through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record. Use the language selector to see the exact shape your SDK accepts.
 
 ## Quick start
 
@@ -316,7 +314,7 @@ Turning logging off suppresses the record callback as well as console output. Do
 
 ### Log destinations
 
-Logs can be sent to different destinations, including your console and external observability platforms. Every destination is driven by the record callback, so anything you can write to from your own code is a valid sink:
+Send logs to your console or to an external observability platform. The record callback drives every destination, so anything your own code can write to is a valid sink:
 
 <Tabs>
 <Tab title="Pretty (default)">
@@ -1156,7 +1154,7 @@ Token counters are also aggregated across the whole session. See [Observability]
 
 ### Logging configuration
 
-All logging options are passed as a single object to `Stagehand.create()`:
+Pass all logging options as a single object to `Stagehand.create()`:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -1321,7 +1319,7 @@ Monitor token usage and performance in real-time. Track costs per operation, ide
 </Card>
 
 <Card title="LLM inference debugging" icon="microscope" href="/v4/configuration/logging#llm-inference-debugging">
-Run at debug level to see exactly what was sent to the model and why it made specific decisions.
+Run at the debug level to see exactly what Stagehand sent to the model and why the model chose each action.
 </Card>
 
 <Card title="Browserbase session monitoring" icon="video" href="/v4/configuration/observability#browserbase-session-monitoring">
