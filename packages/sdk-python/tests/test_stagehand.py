@@ -18,7 +18,6 @@ from stagehand import (
     LLMImageContent,
     ModelConfig,
     Page,
-    ProtocolLocator,
     Stagehand,
     TelemetryConfig,
 )
@@ -802,7 +801,8 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
     model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
-    act_locator = ProtocolLocator(selector="main")
+    act_locator = page.locator("main").nth(2)
+    act_ignored_locator = page.locator(".promo")
     locator = page.locator("main").nth(1)
     ignored_locator = page.locator("nav")
 
@@ -813,6 +813,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         model=model,
         timeout=30_000,
         locator=act_locator,
+        ignore_locators=[act_ignored_locator],
         cache={"threshold": 1},
     )
     observed = await stagehand.observe(
@@ -847,6 +848,11 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         if method == "stagehand.act"
     )
     assert act_params.options is not None
+    assert act_params.options.locator is not None
+    assert act_params.options.locator.selector == "main"
+    assert act_params.options.locator.nth == 2
+    assert act_params.options.ignore_locators is not None
+    assert [locator.selector for locator in act_params.options.ignore_locators] == [".promo"]
     assert act_params.options.cache is not None
     observe_params = next(
         cast(StagehandObserveParams, params)
@@ -944,7 +950,7 @@ async def test_stagehand_observe_and_extract_serialize_active_page_locators(
 
 
 @pytest.mark.asyncio
-async def test_stagehand_observe_and_extract_reject_cross_page_locators(
+async def test_stagehand_act_observe_and_extract_reject_cross_page_locators(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     recording = _recording()
@@ -953,6 +959,9 @@ async def test_stagehand_observe_and_extract_reject_cross_page_locators(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
     other_page = Page(cast(RPCClient, recording), PageRef(page_id="page-2"))
+
+    with pytest.raises(TypeError, match=r"act\(\) locator must belong to the target page"):
+        await stagehand.act("Click the link", page=page, locator=other_page.locator("a"))
 
     with pytest.raises(TypeError, match=r"observe\(\) locator must belong to the target page"):
         await stagehand.observe("Find the link", page=page, locator=other_page.locator("a"))

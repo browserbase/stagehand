@@ -49,6 +49,17 @@ class ActOptions(WireModel):
     """
     locator: Optional[Locator] = None
     """Serializable element locator for the action target"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
+    ] = None
+    """
+    Locators for elements and subtrees that should be excluded from action planning
+
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
+    """
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""
 

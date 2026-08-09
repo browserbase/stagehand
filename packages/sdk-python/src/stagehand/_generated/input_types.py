@@ -1129,6 +1129,7 @@ class ActOptions(TypedDict):
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
     locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
     cache: NotRequired[Caching]
 
 
