@@ -57,17 +57,56 @@ describe("claude code tool adapter resolution", () => {
 
   it("rejects unsupported Claude Code tool surfaces for now", () => {
     expect(() => resolveClaudeCodeToolSurface("understudy_code")).toThrow(
-      /supports --tool browse_cli, playwright_code, or cdp_code/,
+      /supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
     );
   });
 
-  it("supports browse_cli as the first Codex tool surface", () => {
+  it("supports the MCP surfaces with runner-provided startup profiles", () => {
+    expect(resolveClaudeCodeToolSurface("playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveClaudeCodeToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(resolveClaudeCodeStartupProfile("playwright_mcp", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
+    );
+    expect(resolveClaudeCodeStartupProfile("chrome_devtools_mcp", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+  });
+
+  it("accepts stagehand_code with SDK-owned startup profiles", () => {
+    expect(resolveClaudeCodeToolSurface("stagehand_code")).toBe("stagehand_code");
+    expect(resolveClaudeCodeStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
+    expect(resolveClaudeCodeStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
+  });
+
+  it("supports browse_cli and the code surfaces on Codex", () => {
     expect(resolveCodexToolSurface()).toBe("browse_cli");
     expect(resolveCodexToolSurface("browse_cli")).toBe("browse_cli");
+    expect(resolveCodexToolSurface("stagehand_code")).toBe("stagehand_code");
+    expect(resolveCodexToolSurface("playwright_code")).toBe("playwright_code");
+    expect(resolveCodexToolSurface("cdp_code")).toBe("cdp_code");
+    expect(resolveCodexStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
+    expect(resolveCodexStartupProfile("playwright_code", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+    expect(() => resolveCodexToolSurface("understudy_code")).toThrow(
+      /browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp/,
+    );
     expect(resolveCodexStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
     expect(resolveCodexStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
-    expect(() => resolveCodexToolSurface("playwright_code")).toThrow(
-      /Codex harness supports --tool browse_cli/,
+  });
+
+  it("supports the MCP surfaces on Codex with runner-provided startup profiles", () => {
+    expect(resolveCodexToolSurface("playwright_mcp")).toBe("playwright_mcp");
+    expect(resolveCodexToolSurface("chrome_devtools_mcp")).toBe("chrome_devtools_mcp");
+    expect(resolveCodexStartupProfile("playwright_mcp", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+    expect(resolveCodexStartupProfile("chrome_devtools_mcp", "LOCAL")).toBe(
+      "runner_provided_local_cdp",
     );
   });
 

@@ -524,6 +524,62 @@ func TestCDPClientBridgesJSONRPCThroughRuntimeBinding(t *testing.T) {
 	assertJSONEqual(t, received, incoming)
 }
 
+func TestCDPClientDeliversCallbackBatchWithRuntimeAttachment(t *testing.T) {
+	t.Parallel()
+
+	socket := newFakeCDPWebSocket()
+	socket.writeHook = responseHook(t, socket, nil, func(
+		method string,
+		_ map[string]json.RawMessage,
+	) map[string]any {
+		if method != "Runtime.evaluate" {
+			t.Errorf("CDP method = %q, want Runtime.evaluate", method)
+		}
+		return map[string]any{"result": map[string]any{
+			"result": map[string]any{"value": true},
+		}}
+	})
+	client := newTestCDPClient(t, socket, "ws://127.0.0.1/devtools/browser/test")
+	client.mu.Lock()
+	client.sessionID = "worker-session"
+	client.mu.Unlock()
+
+	const source = `async ({ page }) => ({ title: await page.title() })`
+	message := json.RawMessage(fmt.Sprintf(`{"jsonrpc":"2.0","id":8,"method":"stagehand.callback_batch","params":{"callback_source":%q,"input":{"value":1},"options":{"page_id":"page-1","timeout":2000}}}`, source))
+	err := client.Send(context.Background(), message)
+	if err != nil {
+		t.Fatalf("Send() error = %v", err)
+	}
+	written := receiveCDPWrite(t, socket)
+	var command struct {
+		Params struct {
+			Expression    string `json:"expression"`
+			AwaitPromise  bool   `json:"awaitPromise"`
+			ReturnByValue bool   `json:"returnByValue"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(written, &command); err != nil {
+		t.Fatalf("decode Runtime.evaluate command: %v", err)
+	}
+	if command.Params.AwaitPromise || !command.Params.ReturnByValue ||
+		!strings.Contains(command.Params.Expression, stagehandReceiveFromHostFunction) ||
+		!strings.Contains(command.Params.Expression, `\"method\":\"stagehand.callback_batch\"`) ||
+		!strings.Contains(command.Params.Expression, "callback: (async") ||
+		!strings.Contains(command.Params.Expression, "const __name = (fn, name)") ||
+		!strings.Contains(command.Params.Expression, `\"page_id\":\"page-1\"`) {
+		t.Fatalf("Runtime.evaluate callback params = %#v", command.Params)
+	}
+}
+
+func TestCallbackSourceFromMessageSkipsNonBatchMessages(t *testing.T) {
+	t.Parallel()
+
+	source, ok, err := callbackSourceFromMessage(json.RawMessage(`not-json`))
+	if err != nil || ok || source != "" {
+		t.Fatalf("callbackSourceFromMessage() = %q, %t, %v; want empty, false, nil", source, ok, err)
+	}
+}
+
 func TestCDPClientCommandCancellationAndErrors(t *testing.T) {
 	t.Parallel()
 

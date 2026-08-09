@@ -1,4 +1,6 @@
 import asyncio
+import json
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -18,6 +20,15 @@ from stagehand.file_upload import FilePayload, normalize_file_input
 from stagehand.rpc_client import RPCClient, RPCError
 
 JSON = dict[str, object]
+CALLBACK_BATCH_WIRE_FIXTURES = json.loads(
+    (
+        Path(__file__).resolve().parents[2]
+        / "protocol"
+        / "tests"
+        / "fixtures"
+        / "callback-batch-wire.json"
+    ).read_text()
+)
 
 
 class RPCResult(BaseModel):
@@ -52,6 +63,93 @@ class FailingReceiveTransport(QueueTransport):
     async def receive(self) -> object:
         await self.fail.wait()
         raise RuntimeError("transport reader failed")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("page_id", "fixture_name"),
+    [
+        (None, "pageOmitted"),
+        ("page-1", "pageProvided"),
+    ],
+)
+async def test_callback_batch_uses_the_normal_pending_request_path(
+    page_id: str | None,
+    fixture_name: str,
+) -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    try:
+        source = "async () => undefined"
+        call = asyncio.create_task(
+            client.send(
+                "stagehand.callback_batch",
+                models.CallbackBatchParams(
+                    callback_source=source,
+                    options=models.CallbackBatchOptions(
+                        **({"page_id": page_id} if page_id is not None else {}),
+                        timeout=30_000,
+                    ),
+                ),
+                models.CallbackBatchResult,
+            )
+        )
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        assert request == CALLBACK_BATCH_WIRE_FIXTURES[fixture_name]
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": {},
+        })
+        result = await call
+        assert isinstance(result, models.CallbackBatchResult)
+        assert result.value is None
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_preserves_json_numbers_on_the_wire() -> None:
+    transport = QueueTransport()
+    client = RPCClient(transport)
+    value = {
+        "count": 7,
+        "ratio": 7.5,
+        "large": 9_007_199_254_740_993,
+        "nested": [1, 1.5],
+    }
+    try:
+        call = asyncio.create_task(
+            client.send(
+                "stagehand.callback_batch",
+                models.CallbackBatchParams(
+                    callback_source="async (_batch, input) => input",
+                    input=models.FieldSchema2.model_validate(value),
+                    options=models.CallbackBatchOptions(timeout=30_000),
+                ),
+                models.CallbackBatchResult,
+            )
+        )
+        request = await asyncio.wait_for(transport.outgoing.get(), timeout=1)
+        params = cast(dict[str, object], request["params"])
+        assert params["input"] == value
+        encoded_input = cast(dict[str, object], params["input"])
+        assert type(encoded_input["count"]) is int
+        assert type(encoded_input["ratio"]) is float
+        await transport.incoming.put({
+            "jsonrpc": "2.0",
+            "id": request["id"],
+            "result": {"value": value},
+        })
+
+        result = await call
+        assert result.value is not None
+        decoded = result.value.model_dump(mode="json")
+        assert decoded == value
+        assert type(decoded["count"]) is int
+        assert type(decoded["ratio"]) is float
+    finally:
+        await client.close()
 
 
 @pytest.mark.asyncio
@@ -648,3 +746,14 @@ async def test_close_can_detach_without_closing_transport() -> None:
     assert client._pending_notifications == []
     with pytest.raises(RuntimeError, match="RPC client is closed"):
         await client.send("test.request", models.EmptyParams(), RPCResult)
+
+    with pytest.raises(RuntimeError, match="RPC client is closed"):
+        await client.send(
+            "stagehand.callback_batch",
+            models.CallbackBatchParams(
+                callback_source="async ({ page }) => page.title()",
+                input=models.FieldSchema2.model_validate(None),
+                options=models.CallbackBatchOptions(timeout=30_000),
+            ),
+            models.CallbackBatchResult,
+        )

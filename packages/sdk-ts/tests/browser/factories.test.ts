@@ -95,13 +95,15 @@ describe("Stagehand browser factories", () => {
       close: closeSource,
     }));
     const cdp = fakeCdpClient();
+    const createBrowserbaseSessionClient = vi.fn(() => ({ createSession }));
     const { browserbase } = createBrowserFactoriesForTest({
-      createBrowserbaseSessionClient: () => ({ createSession }),
+      createBrowserbaseSessionClient,
       connectCdp: async () => cdp,
     });
 
     const browser = await browserbase.launch({
       apiKey: "bb_key",
+      baseUrl: "https://api.dev.browserbase.com",
       projectId: "project_123",
       region: "us-west-2",
     });
@@ -111,6 +113,10 @@ describe("Stagehand browser factories", () => {
       projectId: "project_123",
       region: "us-west-2",
     });
+    expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
+      "bb_key",
+      "https://api.dev.browserbase.com",
+    );
     expect(claimed.workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
       browser: {
@@ -129,21 +135,27 @@ describe("Stagehand browser factories", () => {
     }));
     const cdp = fakeCdpClient();
     const connectCdp = vi.fn(async () => cdp);
+    const createBrowserbaseSessionClient = vi.fn(() => ({
+      createSession: vi.fn(),
+      connectSession,
+    }));
     const { browserbase } = createBrowserFactoriesForTest({
-      createBrowserbaseSessionClient: () => ({
-        createSession: vi.fn(),
-        connectSession,
-      }),
+      createBrowserbaseSessionClient,
       connectCdp,
     });
 
     const browser = await browserbase.connect({
       apiKey: "bb_key",
+      baseUrl: "https://api.dev.browserbase.com",
       sessionId: "session_123",
       extensionId: "extension-id",
     });
 
     expect(connectSession).toHaveBeenCalledWith("session_123");
+    expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
+      "bb_key",
+      "https://api.dev.browserbase.com",
+    );
     expect(connectCdp).toHaveBeenCalledWith(
       expect.objectContaining({ extensionId: "extension-id" }),
     );

@@ -5,16 +5,17 @@ description: "Extract structured data from a webpage."
 
 ## What is `extract()`?
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 await stagehand.extract(
   "extract the name of the repository",
   z.object({ name: z.string() }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class Repository(BaseModel):
     name: str
@@ -25,9 +26,9 @@ await stagehand.extract(
     Repository,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type repository struct {
 	Name string `json:"name"`
@@ -41,7 +42,8 @@ extracted, err := stagehand.Extract[repository](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 `extract()` grabs structured data from a webpage. Every call takes an instruction and an output shape: [Zod](https://github.com/colinhacks/zod) in TypeScript, [Pydantic](https://docs.pydantic.dev) in Python, and a Go type parameter whose JSON Schema Stagehand derives automatically. The result is validated against that shape before it is returned, so what you get back is already typed.
 
@@ -64,7 +66,8 @@ extracted, err := stagehand.Extract[repository](
 
 When extracting with an object schema, the return type is inferred from that schema:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "extract product details",
@@ -75,9 +78,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class Product(BaseModel):
     name: str
@@ -90,9 +93,9 @@ result = await stagehand.extract(
     Product,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type product struct {
 	Name    string  `json:"name"`
@@ -108,11 +111,13 @@ extracted, err := stagehand.Extract[product](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 **Example result:**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 {
   name: "Wireless Mouse",
@@ -120,27 +125,29 @@ extracted, err := stagehand.Extract[product](
   inStock: true
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 Product(name="Wireless Mouse", price=29.99, in_stock=True)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 result := product{Name: "Wireless Mouse", Price: 29.99, InStock: true}
 fmt.Println(result.Name, result.Price, result.InStock)
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Tab>
 <Tab title="Array">
 
 To extract a list, wrap it in a field on your schema:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "extract all apartment listings",
@@ -155,9 +162,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class Apartment(BaseModel):
     address: str
@@ -174,9 +181,9 @@ result = await stagehand.extract(
     Apartments,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type apartment struct {
 	Address string `json:"address"`
@@ -196,11 +203,13 @@ extracted, err := stagehand.Extract[apartments](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 **Example result:**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 {
   apartments: [
@@ -217,18 +226,18 @@ extracted, err := stagehand.Extract[apartments](
   ]
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 Apartments(apartments=[
     Apartment(address="123 Main St", price="$1,200/mo", sqft=750),
     Apartment(address="456 Oak Ave", price="$1,500/mo", sqft=900),
 ])
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 result := apartments{Apartments: []apartment{
 	{Address: "123 Main St", Price: "$1,200/mo", Sqft: 750},
@@ -236,23 +245,25 @@ result := apartments{Apartments: []apartment{
 }}
 fmt.Println(result.Apartments[0].Address, result.Apartments[0].Sqft)
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Tab>
 <Tab title="Primitive">
 
 To extract a single value, give it a named field:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "extract the price",
   z.object({ price: z.number() }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class Price(BaseModel):
     price: float
@@ -263,9 +274,9 @@ result = await stagehand.extract(
     Price,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type price struct {
 	Price float64 `json:"price"`
@@ -279,43 +290,47 @@ extracted, err := stagehand.Extract[price](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 **Example result:**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 {
   price: 19.99
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 Price(price=19.99)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 result := price{Price: 19.99}
 fmt.Println(result.Price)
 ```
-</View>
+</Tab>
+</Tabs>
 
 You can also extract strings, booleans, and URLs:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "extract the contact page link",
   z.object({ url: z.url() }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from pydantic import AnyUrl
 
@@ -329,9 +344,9 @@ result = await stagehand.extract(
     ContactLink,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type contactLink struct {
 	URL string `json:"url" jsonschema:"format=uri"`
@@ -345,7 +360,8 @@ extracted, err := stagehand.Extract[contactLink](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 </Tab>
 </Tabs>
@@ -354,7 +370,8 @@ extracted, err := stagehand.Extract[contactLink](
 
 You can pass additional options to configure the model, timeout, selector scope, and whether to include a screenshot:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const result = await stagehand.extract(
   "extract the repository name",
@@ -369,9 +386,9 @@ const result = await stagehand.extract(
   },
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -388,9 +405,9 @@ result = await stagehand.extract(
     selector="//header",  # Focus on specific area
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 
 modelAPIKey := os.Getenv("ANTHROPIC_API_KEY")
@@ -414,7 +431,8 @@ if err != nil {
 
 fmt.Println(result.Data.Name)
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Server-side caching
 
@@ -424,7 +442,8 @@ fmt.Println(result.Data.Name)
 
 When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on `Stagehand.create()` and override it per call:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
@@ -446,9 +465,9 @@ const result = await stagehand.extract(
 // Cache status travels on the result metadata
 console.log(result.metadata.cache.status); // "HIT", "MISS", or "DISABLED"
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 import os
 
@@ -472,9 +491,9 @@ result = await stagehand.extract(
 # Cache status travels on the result metadata
 print(result.metadata.cache.status)  # "HIT", "MISS", or "DISABLED"
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 
 // Enable server-side caching for the entire instance
@@ -508,7 +527,8 @@ if err != nil {
 // Cache status travels on the result metadata
 fmt.Println(result.Metadata.Cache.Status) // "HIT", "MISS", or "DISABLED"
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Targeted extract
 
@@ -517,7 +537,8 @@ Pass a selector to `extract` to target a specific element on the page.
 This helps reduce the context passed to the LLM, optimizing token usage/speed and improving accuracy.
 </Tip>
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data: tableData } = await stagehand.extract(
   "Extract the values of the third row",
@@ -530,9 +551,9 @@ const { data: tableData } = await stagehand.extract(
   },
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class TableRow(BaseModel):
     values: list[str]
@@ -545,9 +566,9 @@ table_data = (await stagehand.extract(
     selector="xpath=/html/body/div/table/",
 )).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type tableRow struct {
 	Values []string `json:"values"`
@@ -566,11 +587,13 @@ tableData, err := stagehand.Extract[tableRow](
 	},
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 You can also exclude specific nodes (including their descendant nodes) with the ignore-selectors option.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data: article } = await stagehand.extract(
   "extract the article title and body",
@@ -583,9 +606,9 @@ const { data: article } = await stagehand.extract(
   },
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class Article(BaseModel):
     title: str
@@ -598,9 +621,9 @@ article = (await stagehand.extract(
     ignore_selectors=[".ad", ".newsletter-modal", "nav.related-posts"],
 )).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type article struct {
 	Title string `json:"title"`
@@ -619,7 +642,8 @@ extracted, err := stagehand.Extract[article](
 	},
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
   The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes extraction to a single resolved subtree.
@@ -629,7 +653,8 @@ extracted, err := stagehand.Extract[article](
 
 Turn the screenshot option on when the extraction needs visual information from the current viewport in addition to the page accessibility tree.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data: saleBadge } = await stagehand.extract(
   "extract the text shown in the visible sale badge",
@@ -641,9 +666,9 @@ const { data: saleBadge } = await stagehand.extract(
   },
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class SaleBadge(BaseModel):
     text: str
@@ -655,9 +680,9 @@ sale_badge = (await stagehand.extract(
     screenshot=True,
 )).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type saleBadge struct {
 	Text string `json:"text"`
@@ -675,7 +700,8 @@ saleBadgeData, err := stagehand.Extract[saleBadge](
 	},
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Note>
   The screenshot option captures the current viewport, not the full page. Visual extractions always bypass the server-side cache, because a cache key is built from DOM state and cannot represent the pixels the model saw.
@@ -689,7 +715,8 @@ saleBadgeData, err := stagehand.Extract[saleBadge](
 
 You can provide additional context to your schema to help the model extract the data more accurately.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "Extract ALL the apartment listings and their details, including address, price, and square feet.",
@@ -704,9 +731,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from pydantic import BaseModel, Field
 
@@ -729,9 +756,9 @@ result = await stagehand.extract(
     Apartments,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type apartment struct {
 	Address    string `json:"address" jsonschema:"description=the address of the apartment"`
@@ -752,7 +779,8 @@ extracted, err := stagehand.Extract[apartments](
 	nil,
 )
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Link extraction
 <Note>
@@ -761,7 +789,8 @@ To extract links or URLs, define the relevant field as a URL type.
 
 Here is how an `extract` call might look for extracting a link or URL. This also works for image links.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const { data } = await stagehand.extract(
   "extract the link to the 'contact us' page",
@@ -771,9 +800,9 @@ const { data } = await stagehand.extract(
 
 console.log("the link to the contact us page is: ", data.contactLink);
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 from pydantic import AnyUrl, BaseModel
 
@@ -790,9 +819,9 @@ result = await stagehand.extract(
 
 print("the link to the contact us page is: ", result.data.contact_link)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type contactLink struct {
 	ContactLink string `json:"contact_link" jsonschema:"format=uri"`
@@ -812,7 +841,8 @@ if err != nil {
 
 fmt.Println("the link to the contact us page is: ", extracted.Data.ContactLink)
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Inside Stagehand, extracting links works by asking the LLM to select an ID. Stagehand looks up that ID in a mapping of IDs to URLs. When logging the LLM trace, you should expect to see IDs. The actual URLs will be included in the final result.
@@ -831,7 +861,8 @@ Inside Stagehand, extracting links works by asking the LLM to select an ID. Stag
 
 **Solution: Wait for content before extracting**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // waitForSelector reports whether the selector matched, so check it
 // before extracting: a timeout resolves to false without throwing.
@@ -850,9 +881,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # wait_for_selector reports whether the selector matched, so check it
 # before extracting: a timeout returns False without raising.
@@ -875,9 +906,9 @@ result = await stagehand.extract(
     Products,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // WaitForSelector returns (matched, error), so check matched before
 // extracting: a timeout reports false without returning an error.
@@ -911,7 +942,8 @@ if err != nil {
 
 fmt.Println("extracted", len(extracted.Data.Products), "products")
 ```
-</View>
+</Tab>
+</Tabs>
 </Accordion>
 
 <Accordion title="Schema validation errors">
@@ -924,7 +956,8 @@ fmt.Println("extracted", len(extracted.Data.Products), "products")
 
 **Solution: More flexible schema**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 const schema = z.object({
   price: z.string().describe("price including currency symbol, e.g., '$19.99'"),
@@ -932,18 +965,18 @@ const schema = z.object({
   rating: z.number().optional(),
 });
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 class ProductDetails(BaseModel):
     price: str = Field(description="price including currency symbol, e.g., '$19.99'")
     availability: str | None = Field(default=None, description="stock status if available")
     rating: float | None = None
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Optional fields are pointers, and descriptions live in the JSON Schema
 type productDetails struct {
@@ -953,7 +986,8 @@ type productDetails struct {
 }
 
 ```
-</View>
+</Tab>
+</Tabs>
 </Accordion>
 
 <Accordion title="Inconsistent results">
@@ -966,7 +1000,8 @@ type productDetails struct {
 
 **Solution: Validate with observe first**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // First observe to understand the page structure
 const { data: elements } = await stagehand.observe("find all product listings");
@@ -983,9 +1018,9 @@ const { data } = await stagehand.extract(
   }),
 );
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # First observe to understand the page structure
 observed = await stagehand.observe("find all product listings")
@@ -1007,9 +1042,9 @@ result = await stagehand.extract(
     Products,
 )
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // First observe to understand the page structure
 instruction := "find all product listings"
@@ -1046,7 +1081,8 @@ for _, item := range extracted.Data.Products {
 	fmt.Println(item.Name, item.Price)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 </Accordion>
 
 <Accordion title="Performance issues">
@@ -1060,7 +1096,8 @@ for _, item := range extracted.Data.Products {
 
 **Solution: Break down large extractions**
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Instead of extracting everything at once
 const allData = [];
@@ -1083,9 +1120,9 @@ for (const pageNum of pageNumbers) {
   allData.push(...data.products);
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Instead of extracting everything at once
 all_data = []
@@ -1102,9 +1139,9 @@ for page_num in page_numbers:
 
     all_data.extend(result.data.products)
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type product struct {
 	Name  string  `json:"name"`
@@ -1140,7 +1177,8 @@ for pageNum := 1; pageNum <= 5; pageNum++ {
 	allData = append(allData, extracted.Data.Products...)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 </Accordion>
 </AccordionGroup>
 

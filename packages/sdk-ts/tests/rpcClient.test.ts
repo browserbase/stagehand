@@ -3,7 +3,10 @@ import { z } from "zod/v4";
 import { JSONRPCErrorCodes, type RPCMethod } from "../../protocol/json-rpc/schemas.js";
 import type { JSONRPCMessage } from "../../protocol/json-rpc/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
-import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import {
+  MAX_CALLBACK_BATCH_TIMEOUT_MS,
+  STAGEHAND_PROTOCOL_VERSION,
+} from "../../protocol/schemas.js";
 import { RPCClient, rpcResponseTimeoutMs, type CDPTransport } from "../src/rpcClient.js";
 
 const UppercaseMethod = {
@@ -63,6 +66,28 @@ class ManualCDPTransport implements CDPTransport {
 }
 
 describe("RPCClient", () => {
+  it("keeps callback batches in the ordinary pending RPC path", async () => {
+    const source = "async () => undefined";
+    const cdp = new FakeCDPTransport({});
+    const client = new RPCClient(cdp);
+
+    await expect(
+      client.send(StagehandMethods.stagehandCallbackBatch, {
+        callbackSource: source,
+        options: { timeout: 2_000 },
+      }),
+    ).resolves.toEqual({});
+    expect(cdp.sent).toContainEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "stagehand.callback_batch",
+      params: {
+        callback_source: source,
+        options: { timeout: 2_000 },
+      },
+    });
+  });
+
   it("accepts page methods without SDK wrapper methods", async () => {
     const cdp = new FakeCDPTransport({ matched: true });
     const client = new RPCClient(cdp);
@@ -406,6 +431,14 @@ describe("RPCClient", () => {
       },
     },
     {
+      name: "a callback batch timeout",
+      method: StagehandMethods.stagehandCallbackBatch,
+      params: {
+        callbackSource: "async () => undefined",
+        options: { timeout: 30_000 },
+      },
+    },
+    {
       name: "page.waitForTimeout",
       method: StagehandMethods.pageWaitForTimeout,
       params: { pageId: "page-1", ms: 30_000 },
@@ -437,6 +470,14 @@ describe("RPCClient", () => {
       client.close();
       vi.useRealTimers();
     }
+  });
+
+  it("keeps the maximum callback batch deadline within Chromium's timer limit", () => {
+    expect(
+      rpcResponseTimeoutMs(StagehandMethods.stagehandCallbackBatch.name, {
+        options: { timeout: MAX_CALLBACK_BATCH_TIMEOUT_MS },
+      }),
+    ).toBe(2_147_483_647);
   });
 
   it("rejects initialization RPCs that have no lifecycle signal", async () => {

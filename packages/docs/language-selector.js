@@ -1,5 +1,11 @@
 // Language switcher for Stagehand docs
 // Handles: 1) Sidebar language dropdown selection 2) Code block language syncing
+//
+// v3 ONLY — v4 switches languages with native <Tabs>. Mintlify injects every
+// root-level .js on every page, and the version switcher moves between v3 and v4
+// client-side, so a single guard at load would be wrong in both directions. Each
+// entry point checks isV3Page() instead. No DOM test environment here; verify by
+// hand in `mint dev` after changing this.
 
 (function () {
   // ============================================
@@ -35,6 +41,15 @@
 
   let currentSelectedLanguage = "TypeScript";
   let isSelecting = false;
+
+  const isV3Page = () => window.location.pathname.startsWith("/v3");
+
+  // Drop everything this script owns: the body classes it sets and any in-flight
+  // code-block selection. Runs whenever we find ourselves off v3.
+  function resetState() {
+    isSelecting = false;
+    document.body.classList.remove("stagehand-selecting", "stagehand-hide-version-switcher");
+  }
 
   // ============================================
   // UTILITIES
@@ -245,6 +260,14 @@
   }
 
   function waitForCodeBlockMenuAndSelect(targetLanguage, attempts = 0) {
+    // A client-side navigation can land on v4 while this frame was already
+    // scheduled. Bail before touching the DOM so a v3 selection never clicks a
+    // v4 control.
+    if (!isV3Page()) {
+      resetState();
+      return;
+    }
+
     if (attempts > 30) {
       document.body.classList.remove("stagehand-selecting");
       document.body.click();
@@ -275,6 +298,9 @@
   }
 
   function selectCodeBlockLanguage(targetLanguage) {
+    // Guarded at the source: this is what sets `stagehand-selecting`, whose CSS
+    // blanks out every [role="menu"] on the page.
+    if (!isV3Page()) return;
     if (isSelecting) return;
 
     const current = getCodeBlockLanguageDropdown();
@@ -300,6 +326,7 @@
 
   function setupDropdownMenuObserver() {
     const menuObserver = new MutationObserver(() => {
+      if (!isV3Page()) return;
       const menu = getDropdownMenu();
       if (menu) {
         updateDropdownCheckIndicator();
@@ -317,6 +344,7 @@
     document.addEventListener(
       "click",
       (e) => {
+        if (!isV3Page()) return;
         const target = e.target;
 
         // Check if we clicked on a sidebar dropdown menu item
@@ -371,6 +399,7 @@
   }
 
   function restoreLanguageSelection() {
+    if (!isV3Page()) return;
     try {
       const stored = sessionStorage.getItem("stagehand-selected-language");
       if (stored && DROPDOWN_LANGUAGES.includes(stored)) {
@@ -395,6 +424,7 @@
     let sdkUpdatePending = false;
 
     const observer = new MutationObserver(() => {
+      if (!isV3Page()) return;
       // Check if button needs updating
       const button = getDropdownButton();
       if (button) {
@@ -440,6 +470,7 @@
     let lastCodeBlockDropdown = null;
 
     const observer = new MutationObserver(() => {
+      if (!isV3Page()) return;
       const dropdown = getCodeBlockLanguageDropdown();
       if (dropdown && dropdown.element !== lastCodeBlockDropdown) {
         lastCodeBlockDropdown = dropdown.element;
@@ -463,11 +494,21 @@
   // ============================================
 
   function init() {
+    // Listeners are always attached because a reader can reach v3 by client-side
+    // navigation; each one checks isV3Page() before touching the DOM.
     setupMenuClickHandler();
     setupDropdownMenuObserver();
     setupPageChangeObserver();
     setupCodeBlockObserver();
 
+    applyForCurrentPage();
+  }
+
+  function applyForCurrentPage() {
+    if (!isV3Page()) {
+      resetState();
+      return;
+    }
     restoreLanguageSelection();
     updateVersionSwitcherVisibility();
     updateSDKReferenceVisibility();
@@ -490,10 +531,8 @@
         item.classList.remove("stagehand-sdk-processed");
       });
       onNextFrame(() => {
-        restoreLanguageSelection();
+        applyForCurrentPage();
         syncCodeBlockLanguage();
-        updateVersionSwitcherVisibility();
-        updateSDKReferenceVisibility();
       });
     }
   });

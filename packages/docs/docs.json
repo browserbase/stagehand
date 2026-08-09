@@ -60,6 +60,10 @@
             ]
           },
           {
+            "group": "Migration guide",
+            "pages": ["v4/migrations/v3"]
+          },
+          {
             "group": "SDK reference",
             "pages": [
               "v4/reference/stagehand",

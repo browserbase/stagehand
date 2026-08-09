@@ -103,12 +103,12 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 			value: StagehandInitParams{
 				BrowserCDPURL:   &browserCDPURL,
 				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
-				ProtocolVersion: 1,
+				ProtocolVersion: "1.0.0",
 			},
 			want: `{
 				"browser_cdp_url":"ws://runtime.test",
 				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
-				"protocol_version":1
+				"protocol_version":"1.0.0"
 			}`,
 		},
 		{
@@ -116,13 +116,13 @@ func TestTelemetryOmitZeroAndExplicitDefault(t *testing.T) {
 			value: StagehandInitParams{
 				BrowserCDPURL:   &browserCDPURL,
 				ClientInfo:      ImplementationInfo{Name: "stagehand-sdk-go", Version: "4.0.0"},
-				ProtocolVersion: 1,
+				ProtocolVersion: "1.0.0",
 				Telemetry:       defaultTelemetry,
 			},
 			want: `{
 				"browser_cdp_url":"ws://runtime.test",
 				"client_info":{"name":"stagehand-sdk-go","version":"4.0.0"},
-				"protocol_version":1,
+				"protocol_version":"1.0.0",
 				"telemetry":{"traces":{"endpoint":"https://example.com/v1/traces"}}
 			}`,
 		},

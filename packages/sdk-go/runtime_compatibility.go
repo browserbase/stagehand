@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 const (
@@ -32,27 +35,60 @@ func negotiateRuntimeCompatibility(raw json.RawMessage) (bool, string) {
 		return false, fmt.Sprintf("serverInfo.name=%q", serverInfo.Name)
 	}
 
-	var protocolVersion int
+	var protocolVersion string
 	if err := json.Unmarshal(marker["protocolVersion"], &protocolVersion); err != nil {
 		return false, fmt.Sprintf(
 			"protocolVersion=%s",
 			rawJSONDescription(marker["protocolVersion"]),
 		)
 	}
-	if protocolVersion < stagehandProtocolVersion {
+	return protocolCompatibility(stagehandProtocolVersion, protocolVersion)
+}
+
+func protocolCompatibility(clientProtocolVersion, serverProtocolVersion string) (bool, string) {
+	clientVersion := "v" + clientProtocolVersion
+	serverVersion := "v" + serverProtocolVersion
+	if !validProtocolVersion(clientProtocolVersion) || !validProtocolVersion(serverProtocolVersion) {
 		return false, fmt.Sprintf(
-			"protocolVersion=%d below %d",
-			protocolVersion,
-			stagehandProtocolVersion,
+			"invalid protocol version: client=%q server=%q",
+			clientProtocolVersion,
+			serverProtocolVersion,
 		)
 	}
-	if protocolVersion > stagehandProtocolVersion {
+	if semver.Prerelease(clientVersion) != "" || semver.Prerelease(serverVersion) != "" {
+		if serverProtocolVersion != clientProtocolVersion {
+			return false, fmt.Sprintf(
+				"protocol prereleases must match exactly: client=%s server=%s",
+				clientProtocolVersion,
+				serverProtocolVersion,
+			)
+		}
+		return true, fmt.Sprintf("protocolVersion=%s", serverProtocolVersion)
+	}
+	if semver.Major(clientVersion) != semver.Major(serverVersion) {
 		return false, fmt.Sprintf(
-			"protocolVersion=%d above %d",
-			protocolVersion,
-			stagehandProtocolVersion,
+			"protocol major mismatch: client=%s server=%s",
+			clientProtocolVersion,
+			serverProtocolVersion,
+		)
+	}
+	clientMinor := semver.MajorMinor(clientVersion) + ".0"
+	serverMinor := semver.MajorMinor(serverVersion) + ".0"
+	if semver.Compare(serverMinor, clientMinor) < 0 {
+		return false, fmt.Sprintf(
+			"server protocol %s is older than client requirement %s",
+			serverProtocolVersion,
+			clientProtocolVersion,
 		)
 	}
 
-	return true, fmt.Sprintf("protocolVersion=%d", protocolVersion)
+	return true, fmt.Sprintf("protocolVersion=%s", serverProtocolVersion)
+}
+
+func validProtocolVersion(version string) bool {
+	coreVersion := version
+	if suffixIndex := strings.IndexAny(coreVersion, "-+"); suffixIndex >= 0 {
+		coreVersion = coreVersion[:suffixIndex]
+	}
+	return strings.Count(coreVersion, ".") == 2 && semver.IsValid("v"+version)
 }

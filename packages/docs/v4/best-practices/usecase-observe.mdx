@@ -8,7 +8,8 @@ description: Real-world patterns for planning automations with observe()
 
 ### E-commerce product discovery
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Discover product interaction elements
 const { data: productActions } = await stagehand.observe(
@@ -31,9 +32,9 @@ if (cartButtons.length > 0) {
   await page.locator(cartButtons[0].selector).click(); // Then add to cart
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Discover product interaction elements
 product_actions = (await stagehand.observe(
@@ -50,9 +51,9 @@ if size_options:
 if cart_buttons:
     await page.locator(cart_buttons[0].selector).click()  # Then add to cart
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Discover product interaction elements
 instruction := "Find add to cart buttons, size selectors, and product images"
@@ -85,13 +86,15 @@ if len(cartButtons) > 0 {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Form handling & validation
 
 `valueFor` (`value_for` in Python) is a helper you supply: it maps an observed field description to the value you want to type.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Analyze form structure before filling
 const { data: formElements } = await stagehand.observe(
@@ -110,9 +113,9 @@ for (const field of requiredFields) {
   await page.locator(field.selector).fill(valueFor(field.description));
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Analyze form structure before filling
 form_elements = (await stagehand.observe(
@@ -130,9 +133,9 @@ print(f"Found {len(required_fields)} required fields to complete")
 for field in required_fields:
     await page.locator(field.selector).fill(value_for(field.description))
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Analyze form structure before filling
 instruction := "Find form fields, validation messages, and submit buttons"
@@ -158,11 +161,13 @@ for _, field := range requiredFields {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Dynamic content & SPA navigation
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Wait for and discover dynamically loaded content
 await page.waitForLoadState("networkidle");
@@ -184,9 +189,9 @@ if (scrollTriggers.length > 0) {
   const { data: newContent } = await stagehand.observe("Find additional items");
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Wait for and discover dynamically loaded content
 await page.wait_for_load_state("networkidle")
@@ -208,9 +213,9 @@ if scroll_triggers:
     # Recursively observe new content
     new_content = (await stagehand.observe(instruction="Find additional items")).data
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // Wait for and discover dynamically loaded content
 if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, nil); err != nil {
@@ -246,11 +251,13 @@ if len(scrollTriggers) > 0 {
 	}
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 ### Multi-step workflow planning
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // Plan entire checkout flow upfront
 async function planCheckoutWorkflow() {
@@ -285,9 +292,9 @@ async function planCheckoutWorkflow() {
 const workflow = await planCheckoutWorkflow();
 // Fill shipping, then payment, then submit
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # Plan entire checkout flow upfront
 async def plan_checkout_workflow():
@@ -325,9 +332,9 @@ async def plan_checkout_workflow():
 workflow = await plan_checkout_workflow()
 # Fill shipping, then payment, then submit
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 type checkoutPlan struct {
 	ShippingFields []stagehand.Action
@@ -390,4 +397,5 @@ func planCheckoutWorkflow(
 plan, err := planCheckoutWorkflow(ctx, client, page)
 // Fill shipping, then payment, then submit
 ```
-</View>
+</Tab>
+</Tabs>

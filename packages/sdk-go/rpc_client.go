@@ -283,6 +283,7 @@ func rpcResponseTimeout(method string, params json.RawMessage) (time.Duration, b
 	case "stagehand.act",
 		"stagehand.extract",
 		"stagehand.observe",
+		"stagehand.callback_batch",
 		"page.goto",
 		"page.reload",
 		"page.go_back",

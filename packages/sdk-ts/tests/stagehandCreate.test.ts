@@ -84,7 +84,11 @@ describe("Stagehand.create", () => {
       "Browser context is unavailable. Attach the browser with await Stagehand.create({ browser }).",
     );
 
-    const stagehand = await Stagehand.create({ browser, apiKey: "bb_worker_key" });
+    const stagehand = await Stagehand.create({
+      browser,
+      apiKey: "bb_worker_key",
+      apiUrl: "https://api.stagehand.dev.browserbase.com",
+    });
 
     expect(stagehand.initialized).toBe(true);
     expect(stagehand.browser).toBe(browser);
@@ -96,6 +100,7 @@ describe("Stagehand.create", () => {
         browser_cdp_url: cdp.webSocketDebuggerUrl,
         log_level: "info",
         api_key: "bb_worker_key",
+        api_url: "https://api.stagehand.dev.browserbase.com",
       },
     });
 

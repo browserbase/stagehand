@@ -15,7 +15,9 @@ Run Stagehand on Browserbase inside a Vercel Function. This guide shows a minima
 Every request to this endpoint opens a Browserbase session and spends model tokens. Vercel serves production deployments publicly, so gate the handler before you deploy it. The handlers below reject any request that does not present `Authorization: Bearer $CRON_SECRET`, the same header Vercel sends on cron invocations.
 </Warning>
 
-### 1. Install Vercel CLI
+<Steps>
+
+<Step title="Install Vercel CLI">
 
 To download and install Vercel CLI, run one of the following commands:
 
@@ -26,9 +28,12 @@ pnpm i -g vercel
 # bun add -g vercel
 ```
 
-### 2. Project layout
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="Project layout">
+
+<Tabs>
+<Tab title="TypeScript">
 ```text
 your-project/
   api/
@@ -37,9 +42,9 @@ your-project/
   tsconfig.json
   vercel.json
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```text
 your-project/
   api/
@@ -47,9 +52,9 @@ your-project/
   requirements.txt
   vercel.json
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```text
 your-project/
   api/
@@ -57,35 +62,41 @@ your-project/
   go.mod
   vercel.json
 ```
-</View>
+</Tab>
+</Tabs>
 
 Create the structure with:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 mkdir -p api
 touch api/run.ts package.json vercel.json tsconfig.json
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 mkdir -p api
 touch api/run.py requirements.txt vercel.json
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 mkdir -p api
 touch api/run.go vercel.json
 go mod init example.com/bb-stagehand-on-vercel
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 3. `api/run.ts` (Node.js runtime)
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="api/run.ts (Node.js runtime)">
+
+<Tabs>
+<Tab title="TypeScript">
 ```typescript
 // api/run.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -142,9 +153,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```python
 # api/run.py
 import json
@@ -211,9 +222,9 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(body).encode())
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```go
 // api/run.go
 package main
@@ -331,11 +342,15 @@ func main() {
 	_ = http.ListenAndServe(":"+port, nil)
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 4. `package.json`
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="package.json">
+
+<Tabs>
+<Tab title="TypeScript">
 ```json
 {
     "name": "bb-stagehand-on-vercel",
@@ -353,17 +368,17 @@ func main() {
     }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```text
 # requirements.txt
 stagehand
 anyio
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```text
 // go.mod
 module example.com/bb-stagehand-on-vercel
@@ -372,11 +387,15 @@ go 1.26.0
 
 require github.com/browserbase/stagehand/packages/sdk-go v4.0.0
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 5. `tsconfig.json`
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="tsconfig.json">
+
+<Tabs>
+<Tab title="TypeScript">
 ```json
 {
   "compilerOptions": {
@@ -392,25 +411,29 @@ require github.com/browserbase/stagehand/packages/sdk-go v4.0.0
   "include": ["api/**/*.ts"]
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```text
 Not applicable. Python functions on Vercel need no compiler configuration;
 declare your dependencies in requirements.txt instead.
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```text
 Not applicable. Go functions on Vercel need no compiler configuration;
 declare your dependencies in go.mod instead.
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 6. `vercel.json`
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="vercel.json">
+
+<Tabs>
+<Tab title="TypeScript">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -421,9 +444,9 @@ declare your dependencies in go.mod instead.
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -434,9 +457,9 @@ declare your dependencies in go.mod instead.
   }
 }
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -447,15 +470,19 @@ declare your dependencies in go.mod instead.
   }
 }
 ```
-</View>
+</Tab>
+</Tabs>
 
 See Vercel's [configuring functions](https://vercel.com/docs/functions/configuring-functions) docs for more details.
 
-### 7. Link your project
+</Step>
+
+<Step title="Link your project">
 
 Link your local folder to a Vercel project before configuring environment variables:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 # authenticate if needed
 vercel login
@@ -463,9 +490,9 @@ vercel login
 # link the current directory to a Vercel project (interactive)
 vercel link
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 # authenticate if needed
 vercel login
@@ -473,9 +500,9 @@ vercel login
 # link the current directory to a Vercel project (interactive)
 vercel link
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 # authenticate if needed
 vercel login
@@ -483,13 +510,17 @@ vercel login
 # link the current directory to a Vercel project (interactive)
 vercel link
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 8. Environment variables
+</Step>
+
+<Step title="Environment variables">
 
 Never commit secrets. Add variables via the Vercel CLI, then read them in your handler and pass them to the Stagehand constructor. `CRON_SECRET` is the secret the handler compares against the `Authorization` header, and Vercel sends it automatically when a cron job invokes the function:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 vercel env add BROWSERBASE_API_KEY
 # (and your model key if needed)
@@ -499,9 +530,9 @@ vercel env add GOOGLE_API_KEY
 # generate one with: openssl rand -hex 32
 vercel env add CRON_SECRET
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 vercel env add BROWSERBASE_API_KEY
 # (and your model key if needed)
@@ -511,9 +542,9 @@ vercel env add GOOGLE_API_KEY
 # generate one with: openssl rand -hex 32
 vercel env add CRON_SECRET
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 vercel env add BROWSERBASE_API_KEY
 # (and your model key if needed)
@@ -523,7 +554,8 @@ vercel env add GOOGLE_API_KEY
 # generate one with: openssl rand -hex 32
 vercel env add CRON_SECRET
 ```
-</View>
+</Tab>
+</Tabs>
 
 <Tip>
 Using the [Model Gateway](/v4/configuration/models#model-gateway) means `BROWSERBASE_API_KEY` is the only secret you need to deploy.
@@ -531,11 +563,14 @@ Using the [Model Gateway](/v4/configuration/models#model-gateway) means `BROWSER
 
 See also: [Browser Configuration](/v4/configuration/browser) for details on required variables.
 
-### 9. Test locally
+</Step>
+
+<Step title="Test locally">
 
 Replicate the Vercel environment locally to exercise your Function before deploying. Run from the project root.
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 # ensure dependencies are installed
 npm install
@@ -543,9 +578,9 @@ npm install
 # start the local Vercel dev server
 vercel dev --listen 5005
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 # ensure dependencies are installed
 pip install -r requirements.txt
@@ -553,9 +588,9 @@ pip install -r requirements.txt
 # start the local Vercel dev server
 vercel dev --listen 5005
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 # ensure dependencies are installed
 go mod tidy
@@ -563,36 +598,45 @@ go mod tidy
 # start the local Vercel dev server
 vercel dev --listen 5005
 ```
-</View>
+</Tab>
+</Tabs>
 
-### 10. Deploy
+</Step>
 
-<View title="TypeScript" icon="js">
+<Step title="Deploy">
+
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 vercel
 vercel --prod
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 vercel
 vercel --prod
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 vercel
 vercel --prod
 ```
-</View>
+</Tab>
+</Tabs>
 
-### Execute the function
+</Step>
+
+<Step title="Execute the function">
 
 Every request needs `Authorization: Bearer $CRON_SECRET`. Requests without it get a 401 and never reach Browserbase.
 
-#### Configure protection bypass for automation
+</Step>
+
+<Step title="Configure protection bypass for automation">
 
 If the deployment also sits behind Vercel Deployment Protection, create a Protection Bypass for Automation so scripted callers can reach it:
 
@@ -603,38 +647,43 @@ If the deployment also sits behind Vercel Deployment Protection, create a Protec
 
 Then invoke the function with the bypass header:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```bash
 curl -X POST \
   -H "Authorization: Bearer <your-CRON_SECRET>" \
   -H "x-vercel-protection-bypass: <your-32-character-secret>" \
   https://<your-deployment>/api/run
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```bash
 curl -X POST \
   -H "Authorization: Bearer <your-CRON_SECRET>" \
   -H "x-vercel-protection-bypass: <your-32-character-secret>" \
   https://<your-deployment>/api/run
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```bash
 curl -X POST \
   -H "Authorization: Bearer <your-CRON_SECRET>" \
   -H "x-vercel-protection-bypass: <your-32-character-secret>" \
   https://<your-deployment>/api/run
 ```
-</View>
+</Tab>
+</Tabs>
 
-### Optional: cron on Vercel
+</Step>
+
+<Step title="Optional: cron on Vercel">
 
 Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations arrive as `GET` requests carrying `Authorization: Bearer $CRON_SECRET`, so the handler's secret check passes without extra configuration:
 
-<View title="TypeScript" icon="js">
+<Tabs>
+<Tab title="TypeScript">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -648,9 +697,9 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
   ]
 }
 ```
-</View>
+</Tab>
 
-<View title="Python" icon="python">
+<Tab title="Python">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -664,9 +713,9 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
   ]
 }
 ```
-</View>
+</Tab>
 
-<View title="Go" icon="golang">
+<Tab title="Go">
 ```json
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
@@ -680,7 +729,11 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
   ]
 }
 ```
-</View>
+</Tab>
+</Tabs>
+
+</Step>
+</Steps>
 
 ### Features
 - **No local browsers needed** with a Browserbase browser. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.

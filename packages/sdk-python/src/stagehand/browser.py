@@ -21,7 +21,7 @@ from ._generated.models import (
     BrowserbaseSessionCreateParams,
     BrowserSessionMetadata,
 )
-from .browserbase_session import _create_browserbase_session_client
+from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient
 from .client_models import (
     BrowserbaseConnectOptions,
@@ -474,6 +474,7 @@ class BrowserbaseBrowser:
         self,
         *,
         api_key: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
         browser_settings: BrowserbaseBrowserSettings | None = None,
         extension_id: str | None = None,
         keep_alive: bool | None = None,
@@ -484,6 +485,8 @@ class BrowserbaseBrowser:
     ) -> StagehandBrowser:
         if not api_key:
             raise ValueError("api_key must not be empty")
+        if not base_url.strip():
+            raise ValueError("base_url must not be empty")
         if extension_id is not None and not extension_id.strip():
             raise ValueError("extension_id must not be empty")
         options = BrowserbaseSessionCreateParams.model_validate({
@@ -505,7 +508,9 @@ class BrowserbaseBrowser:
             and not options.browser_settings.extension_id.strip()
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
-        session = await _create_browserbase_session_client(api_key).create_session(options)
+        session = await _create_browserbase_session_client(api_key, base_url).create_session(
+            options
+        )
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
             keep_alive=options.keep_alive or False,
@@ -527,6 +532,7 @@ class BrowserbaseBrowser:
         self,
         *,
         api_key: str,
+        base_url: str = DEFAULT_BROWSERBASE_URL,
         session_id: str,
         extension_id: str | None = None,
     ) -> StagehandBrowser:
@@ -534,14 +540,15 @@ class BrowserbaseBrowser:
             name: value
             for name, value in (
                 ("api_key", api_key),
+                ("base_url", base_url),
                 ("session_id", session_id),
                 ("extension_id", extension_id),
             )
             if value is not None
         })
-        connection = await _create_browserbase_session_client(options.api_key).connect_session(
-            options.session_id
-        )
+        connection = await _create_browserbase_session_client(
+            options.api_key, options.base_url
+        ).connect_session(options.session_id)
         return await _connect_browser(
             provider="browserbase",
             origin="connected",

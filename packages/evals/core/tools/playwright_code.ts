@@ -1,14 +1,16 @@
 import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+import type { ProbeEvidence } from "stagehand-v3";
 import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
-import type {
-  CoreCapability,
-  CoreLocatorHandle,
-  CorePageHandle,
-  CoreSession,
-  CoreTool,
-  StartupProfile,
-  ToolStartInput,
-  ToolStartResult,
+import {
+  AGENT_RUN_TOOL_NAME,
+  type CoreCapability,
+  type CoreLocatorHandle,
+  type CorePageHandle,
+  type CoreSession,
+  type CoreTool,
+  type StartupProfile,
+  type ToolStartInput,
+  type ToolStartResult,
 } from "../contracts/tool.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
@@ -406,6 +408,9 @@ class PlaywrightSession implements CoreSession {
       const handle = this.wrap(initialPage);
       this.activePageId = handle.id;
     }
+    this.context.on("page", (page) => {
+      this.activePageId = this.wrap(page).id;
+    });
   }
 
   private nextPageId(): string {
@@ -513,6 +518,29 @@ function connectionModeFromProfile(
   return "launch";
 }
 
+async function capturePlaywrightEvidence(session: CoreSession): Promise<ProbeEvidence> {
+  const page = await session.activePage().catch((): undefined => undefined);
+  if (!page) return {};
+
+  const evidence: ProbeEvidence = {};
+  try {
+    evidence.screenshot = await page.screenshot();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.url = page.url();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.ariaTree = (await page.represent?.({ includeIframes: true }))?.content;
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  return evidence;
+}
+
 export class PlaywrightCodeTool implements CoreTool {
   readonly id = "playwright_code";
   readonly surface = "code";
@@ -536,7 +564,7 @@ export class PlaywrightCodeTool implements CoreTool {
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     let browser: Browser;
     let context: BrowserContext;
-    let initialPage: Page | undefined;
+    let initialPage: Page;
 
     if (input.startupProfile === "tool_launch_local") {
       const executablePath = resolveLocalChromeExecutablePath();
@@ -575,9 +603,23 @@ export class PlaywrightCodeTool implements CoreTool {
 
     return {
       session,
-      cleanup: async () => {
-        await session.close();
+      agentMount: {
+        via: "handles",
+        handles: { page: initialPage, context, browser },
+        promptInstructions: buildPlaywrightCodePromptInstructions(),
+        runTool: {
+          description: [
+            "Execute JavaScript against the initialized Playwright browser.",
+            "The snippet runs inside an async function with page, context, browser, startUrl, task, and console in scope.",
+            "Use await directly. Return a JSON-serializable value when useful.",
+          ].join(" "),
+          codeParamDescription:
+            "JavaScript function body to execute. page/context/browser/startUrl/task are already in scope.",
+          denyMessage: `Use Bash for inspection and ${AGENT_RUN_TOOL_NAME} for browser automation.`,
+        },
       },
+      captureEvidence: () => capturePlaywrightEvidence(session),
+      cleanup: () => session.close(),
       metadata: {
         environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
@@ -589,4 +631,15 @@ export class PlaywrightCodeTool implements CoreTool {
       },
     };
   }
+}
+
+function buildPlaywrightCodePromptInstructions(): string {
+  return [
+    "Browser tool surface: playwright_code.",
+    `Use the ${AGENT_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Playwright page, context, browser, startUrl, and task object.`,
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
 }

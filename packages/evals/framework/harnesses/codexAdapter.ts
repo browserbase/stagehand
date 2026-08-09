@@ -26,7 +26,8 @@
  *     query in args.
  *   - todo_list items → not surfaced as tool calls (they aren't actions).
  */
-import type { TaskSpec, Trajectory } from "stagehand-v3";
+import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -42,6 +43,19 @@ export interface CodexRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (captured through the tool surface
+   * after the agent finished) — anchors the verifier's final observation.
+   */
+  finalObservation?: ProbeEvidence;
+  /** Per-step probe observations, indexed by bridge-run execution order. */
+  stepObservations?: StepObservation[];
+  /**
+   * Which normalized tool-call names consume observation indexes. Defaults
+   * to bridge runs (command_execution invoking browser_run.mjs); MCP mounts
+   * match their server's `<server>.<tool>` calls instead.
+   */
+  observedToolName?: (name: string) => boolean;
 }
 
 export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
@@ -76,6 +90,31 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       }
     }
 
+    // The Nth recorded observation pairs with the Nth bridge run — the
+    // command_execution items that invoke browser_run.mjs, in stream order.
+    // If a bridge run is not visible under that filter (the agent reached
+    // the bridge some other way), ordinals would shift and attach evidence
+    // to the wrong steps — misattribution is worse than a gap, so attach
+    // nothing and let the verifier take its evidence_insufficient path.
+    const observations = result.stepObservations ?? [];
+    if (observations.length > 0) {
+      const observedCalls = toolCalls.filter((call) =>
+        result.observedToolName
+          ? result.observedToolName(call.name)
+          : typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
+      );
+      // runIndex counts every observed run (failed captures leave gaps), so
+      // max+1 is the number of runs the recorder actually saw.
+      const totalObservedRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
+      if (observedCalls.length === totalObservedRuns) {
+        const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
+        observedCalls.forEach((call, ordinal) => {
+          const observation = observationsByRunIndex.get(ordinal);
+          if (observation) call.probeEvidence = observation;
+        });
+      }
+    }
+
     const finalAnswer = result.finalAnswer ?? latestAgentMessage;
 
     return buildTrajectory({
@@ -84,6 +123,9 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
+      ...(result.finalObservation?.screenshot && {
+        finalObservation: result.finalObservation,
+      }),
     });
   }
 }

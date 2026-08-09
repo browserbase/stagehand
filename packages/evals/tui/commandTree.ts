@@ -380,16 +380,7 @@ export function buildCommandTree(): CommandNode {
       const configFile = readConfig(ctx.entryDir);
       const resolved = resolveRunOptions(flags, configFile.defaults, process.env, configFile.core);
 
-      // Argv mode (no abortRef): handle --legacy here, mirroring cli.ts.
       if (ctx.abortRef === null) {
-        if (flags.legacy) {
-          const { runLegacy } = await import("./commands/legacy.js");
-          const { discoverTasks } = await import("../framework/discovery.js");
-          const { getRuntimeTasksRoot } = await import("../runtimePaths.js");
-          const registry = await discoverTasks(getRuntimeTasksRoot(), false);
-          await runLegacy(resolved, flags, registry);
-          return;
-        }
         await runCommand(resolved);
         return;
       }

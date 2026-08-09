@@ -17,6 +17,10 @@ import type {
 } from "../protocol/types.js";
 import { z } from "zod/v4";
 import { createContextController } from "./controllers/contextController.js";
+import {
+  createCallbackBatchController,
+  type CallbackBatchRuntimeAttachments,
+} from "./callbackBatch.js";
 import { createLocatorController } from "./controllers/locatorController.js";
 import { createPageController } from "./controllers/pageController.js";
 import { createResponseController } from "./controllers/responseController.js";
@@ -29,6 +33,11 @@ const W3C_TRACE_CONTEXT_PROPAGATOR = new W3CTraceContextPropagator();
 export type HandlerContext = {
   logger: StagehandLogger;
   telemetryScope: symbol;
+  traceContext?: {
+    traceparent?: string;
+    tracestate?: string;
+  };
+  runtimeAttachments?: CallbackBatchRuntimeAttachments;
 };
 
 export type RPCRouterOptions = {
@@ -42,6 +51,7 @@ export class RPCRouter {
   readonly pageController;
   readonly locatorController;
   readonly responseController;
+  readonly callbackBatchController;
 
   constructor(
     readonly runtime: StagehandRuntime,
@@ -55,9 +65,13 @@ export class RPCRouter {
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
     this.responseController = createResponseController(runtime);
+    this.callbackBatchController = createCallbackBatchController(this);
   }
 
-  async handle(request: StagehandRpcRequest): Promise<unknown> {
+  async handle(
+    request: StagehandRpcRequest,
+    runtimeAttachments?: CallbackBatchRuntimeAttachments,
+  ): Promise<unknown> {
     // The RPC client validates the complete request before routing; the generated
     // request union does not currently narrow params from the method name.
     const initParams: StagehandInitParams | undefined =
@@ -89,9 +103,17 @@ export class RPCRouter {
       parentContext,
     );
     const requestContext = trace.setSpan(parentContext, span);
-    const handlerContext = {
+    const traceContextFields: { traceparent?: string; tracestate?: string } = {};
+    W3C_TRACE_CONTEXT_PROPAGATOR.inject(requestContext, traceContextFields, {
+      set(carrier, key, value) {
+        if (key === "traceparent" || key === "tracestate") carrier[key] = value;
+      },
+    });
+    const handlerContext: HandlerContext = {
       logger: this.runtime.logger.withContext(requestContext),
       telemetryScope: Symbol(`rpc:${String(request.id)}`),
+      traceContext: traceContextFields,
+      ...(runtimeAttachments ? { runtimeAttachments } : {}),
     };
 
     try {
@@ -147,6 +169,11 @@ export class RPCRouter {
       case "stagehand.metrics":
         return this.stagehandController.metrics(
           parseParams(StagehandMethods.stagehandMetrics, request.params),
+          context,
+        );
+      case "stagehand.callback_batch":
+        return this.callbackBatchController.run(
+          parseParams(StagehandMethods.stagehandCallbackBatch, request.params),
           context,
         );
       case "context.pages":
