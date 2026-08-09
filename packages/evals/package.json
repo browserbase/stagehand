@@ -18,6 +18,7 @@
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "evals:old": "tsx cli-legacy.ts",
     "report:core": "tsx scripts/render-braintrust-core-report.ts",
+    "generate:browse-cli-contract": "tsx scripts/generateBrowseCliContract.ts",
     "lint": "pnpm -w --dir ../.. exec prettier --check packages/evals && pnpm -w --dir ../.. exec eslint packages/evals && pnpm run typecheck",
     "format": "prettier --write ."
   },
