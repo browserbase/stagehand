@@ -63,14 +63,23 @@ describe("claude code tool adapter resolution", () => {
     expect(resolveClaudeCodeStartupProfile("stagehand_code", "LOCAL")).toBe("tool_launch_local");
   });
 
-  it("supports browse_cli as the first Codex tool surface", () => {
+  it("supports browse_cli and the code surfaces on Codex", () => {
     expect(resolveCodexToolSurface()).toBe("browse_cli");
     expect(resolveCodexToolSurface("browse_cli")).toBe("browse_cli");
+    expect(resolveCodexToolSurface("stagehand_code")).toBe("stagehand_code");
+    expect(resolveCodexToolSurface("playwright_code")).toBe("playwright_code");
+    expect(resolveCodexToolSurface("cdp_code")).toBe("cdp_code");
+    expect(resolveCodexStartupProfile("stagehand_code", "BROWSERBASE")).toBe(
+      "tool_create_browserbase",
+    );
+    expect(resolveCodexStartupProfile("playwright_code", "BROWSERBASE")).toBe(
+      "runner_provided_browserbase_cdp",
+    );
+    expect(() => resolveCodexToolSurface("playwright_mcp")).toThrow(
+      /browse_cli, playwright_code, cdp_code, or stagehand_code/,
+    );
     expect(resolveCodexStartupProfile("browse_cli", "LOCAL")).toBe("tool_launch_local");
     expect(resolveCodexStartupProfile("browse_cli", "BROWSERBASE")).toBe("tool_create_browserbase");
-    expect(() => resolveCodexToolSurface("playwright_code")).toThrow(
-      /Codex harness supports --tool browse_cli/,
-    );
   });
 
   it("allows only direct browse commands through Bash", () => {

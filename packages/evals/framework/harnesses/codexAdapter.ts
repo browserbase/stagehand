@@ -26,7 +26,7 @@
  *     query in args.
  *   - todo_list items → not surfaced as tool calls (they aren't actions).
  */
-import type { TaskSpec, Trajectory } from "stagehand-v3";
+import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -42,6 +42,11 @@ export interface CodexRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (captured through the tool surface
+   * after the agent finished) — anchors the verifier's final observation.
+   */
+  finalObservation?: ProbeEvidence;
 }
 
 export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
@@ -84,6 +89,9 @@ export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult>
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
+      ...(result.finalObservation?.screenshot && {
+        finalObservation: result.finalObservation,
+      }),
     });
   }
 }
