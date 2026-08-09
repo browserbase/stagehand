@@ -36,8 +36,19 @@ describe("Stagehand facade contract", () => {
   it("pins the run JSON schema", () => {
     const runSchema = FACADE_TOOLS[0].inputSchema;
     expect(Object.keys(runSchema.properties)).toStrictEqual(["code", "actions"]);
-    expect(runSchema.oneOf).toStrictEqual([{ required: ["code"] }, { required: ["actions"] }]);
+    // Deliberate deviation from the reference: no top-level oneOf — AI-SDK
+    // based MCP clients reject it. Exclusivity is enforced at runtime by
+    // CodeModeRunInputSchema instead (asserted below).
+    expect("oneOf" in runSchema).toBe(false);
     expect(runSchema.additionalProperties).toBe(false);
+    expect(CodeModeRunInputSchema.safeParse({ code: "return 1;" }).success).toBe(true);
+    expect(CodeModeRunInputSchema.safeParse({}).success).toBe(false);
+    expect(
+      CodeModeRunInputSchema.safeParse({
+        code: "return 1;",
+        actions: [{ op: "click", id: "1-1" }],
+      }).success,
+    ).toBe(false);
 
     const actions = runSchema.properties.actions.items.oneOf;
     expect(actions.map((action) => Object.keys(action.properties))).toStrictEqual([

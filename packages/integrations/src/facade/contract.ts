@@ -5,12 +5,13 @@ import { z } from "zod/v4";
  *
  * - The JSON-schema literals below are the WIRE contract — the exact bytes
  *   advertised to MCP clients via tools/list. They are hand-written because
- *   they cannot be generated from the zod schemas: the run tool's top-level
- *   `oneOf` (code XOR actions), the `const`-typed `op` discriminators, and
- *   the per-property guidance descriptions do not survive zod-to-JSON-schema
- *   conversion, and `.refine()` emits nothing at all. Their wording is pinned
- *   string-exact to the reference contract (models are prompted against these
- *   descriptions) — see tests/facade-contract.test.ts.
+ *   they cannot be generated from the zod schemas: the `const`-typed `op`
+ *   discriminators and the per-property guidance descriptions do not survive
+ *   zod-to-JSON-schema conversion, and `.refine()` emits nothing at all.
+ *   Their wording is pinned string-exact to the reference contract (models
+ *   are prompted against these descriptions) — see
+ *   tests/facade-contract.test.ts. One deliberate deviation is documented on
+ *   RUN_INPUT_SCHEMA below.
  *
  * - The zod schemas at the bottom are the RUNTIME validators: they parse
  *   tools/call arguments into typed values and enforce what the wire schema
@@ -76,7 +77,12 @@ export const RUN_INPUT_SCHEMA = {
       minItems: 1,
     },
   },
-  oneOf: [{ required: ["code"] }, { required: ["actions"] }],
+  // Deliberate deviation from the reference contract: no top-level
+  // `oneOf: [{required:["code"]},{required:["actions"]}]` here. AI-SDK-based
+  // MCP clients (Eve, Vercel AI SDK) reject tool input schemas with a
+  // top-level oneOf, failing every `run` call client-side before it reaches
+  // the server. The code/actions exclusivity is stated in the description
+  // and enforced at runtime by CodeModeRunInputSchema's `.refine`.
   additionalProperties: false,
 } as const;
 
