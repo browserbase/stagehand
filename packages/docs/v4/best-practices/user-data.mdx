@@ -56,7 +56,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. A directory you pass yourself is kept either way, so nothing extra is required for the setup above.
+When no user data directory is set, Stagehand launches Chrome against a temporary profile and deletes it on shutdown, so cookies and local storage do not carry over between runs. A directory you pass yourself is kept either way, so the setup above needs nothing extra.
 </Note>
 
 The preserve flag governs only that generated temporary profile, never a directory you passed yourself:

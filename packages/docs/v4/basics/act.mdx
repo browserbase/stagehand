@@ -27,7 +27,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click on add to cart"), n
 </Tab>
 </Tabs>
 
-`act` enables Stagehand to perform **individual** actions on a web page. Use it to build self-healing and deterministic automations that adapt to website changes.
+`act` performs one action on a web page. Chain single-step calls to build automations that survive website changes.
 
 `act` accepts either a natural language instruction or an `Action` returned by [`observe()`](/v4/basics/observe). Passing an instruction runs model inference to find the target; passing an `Action` replays it deterministically with no inference at all.
 
@@ -41,7 +41,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("click on add to cart"), n
     Build automations step by step. Define exactly what happens at every moment.
   </Card>
   <Card title="Self-healing" icon="bandage" href="#ensure-reliable-actions">
-    Actions automatically adapt when websites change.
+    Turn on `selfHeal` to re-infer an action when its recorded selector breaks.
   </Card>
   <Card title="Caching" icon="repeat" href="#reduce-model-costs">
     Cache actions to avoid LLM calls and ensure consistent execution across runs.
@@ -104,7 +104,7 @@ With `act`, breaking complex actions into small, single-step actions works best.
 The `method` column is the value you will see on an `Action` returned by [`observe()`](/v4/basics/observe).
 </Accordion>
 
-### Return value of `act()`?
+### Return value of `act()`
 When you use `act()`, Stagehand returns a result with two fields: `data` holds the action payload, and `metadata` carries the action ID and server-side cache status.
 
 <Tabs>
@@ -578,7 +578,7 @@ Replaying an `Action` skips model inference, the page snapshot, and the DOM-sett
 
 ### Reduce model costs
 
-Enable server-side caching with `cache` when running on Browserbase. The first time an action runs it is cached; once the hit-count threshold is met, subsequent identical calls are served from the cache without an LLM call.
+Enable server-side caching with `cache` when running on Browserbase. Stagehand records the action on the first run; once the hit count meets the threshold, the cache serves identical calls without an LLM call.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -660,7 +660,7 @@ The cache lives on Browserbase, keyed on the instruction, page content, and call
 
 ### Secure your automations
 
-Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so the results and the cache record the placeholder rather than the secret.
+Variables are **not shared with LLM providers**. Use them for passwords, API keys, and other sensitive data. Stagehand exposes only the variable names to the model and substitutes the real values locally, so results record the placeholder rather than the secret. One exception: with [server-side caching](/v4/best-practices/caching) enabled, variable values travel to the cache service as part of the request, so turn the `cache` option off for calls that carry credentials.
 
 <Note>
 Load sensitive data from environment variables. Never hardcode API keys, passwords, or other secrets directly in your code.
