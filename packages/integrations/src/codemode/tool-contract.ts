@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { STAGEHAND_CODEMODE_SKILL } from "./generated-content.js";
 import { MAX_CODE_BYTES } from "./limits.js";
 import type { CodeExecuteResult } from "./types.js";
 
@@ -7,6 +8,8 @@ export const CODE_EXECUTE_DESCRIPTION = [
   "The executor lazily creates a local or Browserbase browser on the first call and reuses it for later calls.",
   "The executor itself is not a security sandbox. The owning framework may run it inside a sandbox or another isolation boundary.",
   "If execution stops responding, the owning framework should terminate and restart the local tool process.",
+  "",
+  STAGEHAND_CODEMODE_SKILL,
 ].join("\n");
 
 export const codeExecuteSchema = z.object({
