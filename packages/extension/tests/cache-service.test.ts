@@ -4,6 +4,7 @@ import type { CacheMetadata, StagehandInitParams } from "../../protocol/types.js
 import type { CacheClient } from "../clients/cacheClient.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
+import type { Frame } from "../understudy/frame.js";
 
 describe("cache service", () => {
   it("uses an explicit Stagehand API URL for the cache client", () => {
