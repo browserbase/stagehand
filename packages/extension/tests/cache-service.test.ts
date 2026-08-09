@@ -4,8 +4,6 @@ import type { CacheMetadata, StagehandInitParams } from "../../protocol/types.js
 import type { CacheClient } from "../clients/cacheClient.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
-import type { Frame } from "../understudy/frame.js";
-import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
 
 describe("cache service", () => {
   it("uses an explicit Stagehand API URL for the cache client", () => {
@@ -138,7 +136,7 @@ describe("cache service", () => {
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 
-  it("includes locator descriptors in observe and extract cache data", () => {
+  it("omits locator descriptors from observe and extract cache data", () => {
     expect(
       cacheService.buildObserveCacheData({
         pageId: "page-1",
@@ -153,8 +151,6 @@ describe("cache service", () => {
       options: {
         variables: undefined,
         timeout: undefined,
-        locator: { selector: ".card", nth: 1 },
-        ignoreLocators: [{ selector: ".ad", nth: 2 }],
       },
     });
 
@@ -174,55 +170,32 @@ describe("cache service", () => {
       schema: { type: "object" },
       options: {
         timeout: undefined,
-        locator: { selector: ".card", nth: 1 },
-        ignoreLocators: [{ selector: ".ad", nth: 2 }],
         screenshot: false,
       },
     });
   });
 
-  it("resolves focused cache DOM hashes with locator nth", async () => {
-    const resolveAtIndex = vi
-      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
-      .mockResolvedValue({ objectId: "object-2" } as never);
-    const session = {
-      send: vi.fn(async (method: string) => {
-        if (method === "DOM.describeNode") {
-          return { node: { backendNodeId: 42 } };
-        }
-        throw new Error(`Unexpected CDP method: ${method}`);
-      }),
-    };
-    const frame = {
-      frameId: "frame-1",
-      session,
-      getAccessibilityTree: async () => [],
-    } as unknown as Frame;
+  it("bypasses cache reads and writes for locator-scoped requests", async () => {
     const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
+    const execute = executesTo({ answer: 42 });
 
-    try {
-      await cacheService.withCache({
-        ...baseArgs(),
-        page: cachePage(frame),
-        locator: { selector: ".card", nth: 2 },
-        context: cacheContext(get, vi.fn().mockResolvedValue({ written: true, cacheKey: "key" })),
-        onHit: (value): TestResult => ({
-          data: value,
-          metadata: { cache: { status: "DISABLED" } },
-        }),
-        execute: executesTo({ answer: 42 }),
-      });
+    const result = await cacheService.withCache({
+      ...baseArgs(),
+      locator: { selector: ".card", nth: 2 },
+      bypass: true,
+      context: cacheContext(get, set),
+      onHit: (value): TestResult => ({
+        data: value,
+        metadata: { cache: { status: "DISABLED" } },
+      }),
+      execute,
+    });
 
-      expect(resolveAtIndex).toHaveBeenCalledWith(expect.objectContaining({ value: ".card" }), 2);
-      expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-2" });
-      expect(get).toHaveBeenCalledWith(
-        expect.objectContaining({
-          cdpTree: expect.objectContaining({ focusBackendNodeId: 42 }),
-        }),
-      );
-    } finally {
-      resolveAtIndex.mockRestore();
-    }
+    expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
+    expect(execute).toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
   });
 });
 

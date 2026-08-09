@@ -97,8 +97,6 @@ export function buildObserveCacheData(params: StagehandObserveParams): Record<st
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
-          locator: params.options.locator,
-          ignoreLocators: params.options.ignoreLocators,
         }
       : undefined,
   };
@@ -111,8 +109,6 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
     options: params.options
       ? {
           timeout: params.options.timeout,
-          locator: params.options.locator,
-          ignoreLocators: params.options.ignoreLocators,
           screenshot: params.options.screenshot,
         }
       : undefined,
@@ -201,6 +197,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   data,
   locator,
   caching,
+  bypass,
   context,
   logger,
   onHit,
@@ -214,6 +211,8 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   locator?: Locator;
   /** Per-request override from options.cache. */
   caching?: Caching;
+  /** Client-side bypass for requests the current server cache contract cannot key safely. */
+  bypass?: boolean;
   context: CacheContext | undefined;
   logger: StagehandLogger;
   onHit: (value: unknown) => Promise<Result> | Result;
@@ -221,7 +220,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
 }): Promise<Result> {
   const resolvedCaching = caching ?? context?.defaultCaching ?? false;
   const cachePage = resolvedCaching !== false ? asCachePage(page) : null;
-  if (!context || !cachePage) {
+  if (bypass || !context || !cachePage) {
     return (await execute()).result;
   }
 
