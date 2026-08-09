@@ -1,5 +1,11 @@
 // Language switcher for Stagehand docs
 // Handles: 1) Sidebar language dropdown selection 2) Code block language syncing
+//
+// v3 ONLY — v4 switches languages with native <Tabs>. Mintlify injects every
+// root-level .js on every page, and the version switcher moves between v3 and v4
+// client-side, so a single guard at load would be wrong in both directions. Each
+// entry point checks isV3Page() instead. No DOM test environment here; verify by
+// hand in `mint dev` after changing this.
 
 (function () {
   // ============================================
@@ -36,16 +42,13 @@
   let currentSelectedLanguage = "TypeScript";
   let isSelecting = false;
 
-  // Everything in this file is v3-only DOM surgery. Mintlify injects it on every
-  // page, so it must stay inert elsewhere: v4 switches languages with native
-  // <Tabs>, and running the v3 logic there hides the version switcher and paints
-  // stale checkmarks into unrelated menus.
   const isV3Page = () => window.location.pathname.startsWith("/v3");
 
-  // Undo the body-level state this script sets, for when a reader leaves v3 by
-  // client-side navigation and the classes would otherwise persist.
-  function clearGlobalState() {
-    document.body.classList.remove("stagehand-hide-version-switcher", "stagehand-selecting");
+  // Drop everything this script owns: the body classes it sets and any in-flight
+  // code-block selection. Runs whenever we find ourselves off v3.
+  function resetState() {
+    isSelecting = false;
+    document.body.classList.remove("stagehand-selecting", "stagehand-hide-version-switcher");
   }
 
   // ============================================
@@ -257,6 +260,14 @@
   }
 
   function waitForCodeBlockMenuAndSelect(targetLanguage, attempts = 0) {
+    // A client-side navigation can land on v4 while this frame was already
+    // scheduled. Bail before touching the DOM so a v3 selection never clicks a
+    // v4 control.
+    if (!isV3Page()) {
+      resetState();
+      return;
+    }
+
     if (attempts > 30) {
       document.body.classList.remove("stagehand-selecting");
       document.body.click();
@@ -495,7 +506,7 @@
 
   function applyForCurrentPage() {
     if (!isV3Page()) {
-      clearGlobalState();
+      resetState();
       return;
     }
     restoreLanguageSelection();

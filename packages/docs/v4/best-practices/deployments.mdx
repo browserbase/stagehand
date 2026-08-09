@@ -15,7 +15,9 @@ Run Stagehand on Browserbase inside a Vercel Function. This guide shows a minima
 Every request to this endpoint opens a Browserbase session and spends model tokens. Vercel serves production deployments publicly, so gate the handler before you deploy it. The handlers below reject any request that does not present `Authorization: Bearer $CRON_SECRET`, the same header Vercel sends on cron invocations.
 </Warning>
 
-### 1. Install Vercel CLI
+<Steps>
+
+<Step title="Install Vercel CLI">
 
 To download and install Vercel CLI, run one of the following commands:
 
@@ -26,7 +28,9 @@ pnpm i -g vercel
 # bun add -g vercel
 ```
 
-### 2. Project layout
+</Step>
+
+<Step title="Project layout">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -87,7 +91,9 @@ go mod init example.com/bb-stagehand-on-vercel
 </Tab>
 </Tabs>
 
-### 3. `api/run.ts` (Node.js runtime)
+</Step>
+
+<Step title="api/run.ts (Node.js runtime)">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -339,7 +345,9 @@ func main() {
 </Tab>
 </Tabs>
 
-### 4. `package.json`
+</Step>
+
+<Step title="package.json">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -382,7 +390,9 @@ require github.com/browserbase/stagehand/packages/sdk-go v4.0.0
 </Tab>
 </Tabs>
 
-### 5. `tsconfig.json`
+</Step>
+
+<Step title="tsconfig.json">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -418,7 +428,9 @@ declare your dependencies in go.mod instead.
 </Tab>
 </Tabs>
 
-### 6. `vercel.json`
+</Step>
+
+<Step title="vercel.json">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -463,7 +475,9 @@ declare your dependencies in go.mod instead.
 
 See Vercel's [configuring functions](https://vercel.com/docs/functions/configuring-functions) docs for more details.
 
-### 7. Link your project
+</Step>
+
+<Step title="Link your project">
 
 Link your local folder to a Vercel project before configuring environment variables:
 
@@ -499,7 +513,9 @@ vercel link
 </Tab>
 </Tabs>
 
-### 8. Environment variables
+</Step>
+
+<Step title="Environment variables">
 
 Never commit secrets. Add variables via the Vercel CLI, then read them in your handler and pass them to the Stagehand constructor. `CRON_SECRET` is the secret the handler compares against the `Authorization` header, and Vercel sends it automatically when a cron job invokes the function:
 
@@ -547,7 +563,9 @@ Using the [Model Gateway](/v4/configuration/models#model-gateway) means `BROWSER
 
 See also: [Browser Configuration](/v4/configuration/browser) for details on required variables.
 
-### 9. Test locally
+</Step>
+
+<Step title="Test locally">
 
 Replicate the Vercel environment locally to exercise your Function before deploying. Run from the project root.
 
@@ -583,7 +601,9 @@ vercel dev --listen 5005
 </Tab>
 </Tabs>
 
-### 10. Deploy
+</Step>
+
+<Step title="Deploy">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -608,11 +628,15 @@ vercel --prod
 </Tab>
 </Tabs>
 
-### Execute the function
+</Step>
+
+<Step title="Execute the function">
 
 Every request needs `Authorization: Bearer $CRON_SECRET`. Requests without it get a 401 and never reach Browserbase.
 
-#### Configure protection bypass for automation
+</Step>
+
+<Step title="Configure protection bypass for automation">
 
 If the deployment also sits behind Vercel Deployment Protection, create a Protection Bypass for Automation so scripted callers can reach it:
 
@@ -652,7 +676,9 @@ curl -X POST \
 </Tab>
 </Tabs>
 
-### Optional: cron on Vercel
+</Step>
+
+<Step title="Optional: cron on Vercel">
 
 Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations arrive as `GET` requests carrying `Authorization: Bearer $CRON_SECRET`, so the handler's secret check passes without extra configuration:
 
@@ -705,6 +731,9 @@ Hit the same endpoint on a schedule by extending `vercel.json`. Cron invocations
 ```
 </Tab>
 </Tabs>
+
+</Step>
+</Steps>
 
 ### Features
 - **No local browsers needed** with a Browserbase browser. [Browserbase](https://www.browserbase.com/) provides the browsers, so your function ships without a Chrome binary.

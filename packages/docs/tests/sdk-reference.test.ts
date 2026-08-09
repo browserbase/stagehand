@@ -965,11 +965,10 @@ describe("Mintlify customization boundary", () => {
           const pagePath = relative(DOCS_ROOT, filePath).split(sep).join("/");
 
           return findElements(tree, "Tabs").flatMap((group) => {
-            const titles = (group.children ?? [])
-              .filter((child) => child.name === "Tab")
-              .map((tab) => stringAttribute(tab, "title") ?? "<missing title>");
-            const languages = titles.filter((title) => LANGUAGE_TAB_TITLES.has(title));
-            if (languages.length === 0 || languages.length === titles.length) return [];
+            const tabs = (group.children ?? []).filter((child) => child.name === "Tab");
+            const languages = tabs.filter(isLanguageTab);
+            if (languages.length === 0 || languages.length === tabs.length) return [];
+            const titles = tabs.map((tab) => stringAttribute(tab, "title") ?? "<missing title>");
             return [`${pagePath}: ${titles.join(", ")}`];
           });
         }),
@@ -1700,12 +1699,14 @@ function findElements(node: MdxNode, name: string): MdxNode[] {
   return matches.concat(node.children?.flatMap((child) => findElements(child, name)) ?? []);
 }
 
+function isLanguageTab(node: MdxNode): boolean {
+  const title = stringAttribute(node, "title");
+  return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
+}
+
 // Document-order language tabs, ignoring tabs that switch on any other axis.
 function findLanguageTabs(node: MdxNode): MdxNode[] {
-  return findElements(node, "Tab").filter((tab) => {
-    const title = stringAttribute(tab, "title");
-    return title !== undefined && LANGUAGE_TAB_TITLES.has(title);
-  });
+  return findElements(node, "Tab").filter(isLanguageTab);
 }
 
 function mdxText(node: MdxNode): string {

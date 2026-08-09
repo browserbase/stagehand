@@ -8,7 +8,7 @@ Stagehand performance depends on several factors: DOM processing speed, LLM infe
 
 ## Quick performance wins
 
-### 1. Plan ahead with observe
+### Plan ahead with observe
 
 Use a single `observe()` call to plan multiple actions, then replay each returned `Action` through `act()`:
 
@@ -78,7 +78,7 @@ for _, field := range observed.Data {
   Learn advanced caching patterns and cache invalidation strategies
 </Card>
 
-### 2. Optimize DOM processing
+### Optimize DOM processing
 
 Reduce DOM complexity before Stagehand processes the page. Scoping is usually the biggest win: pass a selector so Stagehand snapshots one container instead of the whole document, and prune known-noisy subtrees.
 
@@ -160,7 +160,7 @@ _, err := client.Act(ctx, stagehand.ActInstruction("Click the submit button"), n
 Removing iframes speeds up snapshots, but Stagehand traverses iframes by default. Only strip them when you know the content you need lives in the main frame.
 </Warning>
 
-### 3. Set appropriate timeouts
+### Set appropriate timeouts
 
 Use shorter timeouts for simple operations and longer ones for complex page loads. Lowering the DOM settle timeout also shaves time off every `act()` call on stable pages.
 

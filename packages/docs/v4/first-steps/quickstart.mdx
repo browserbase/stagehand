@@ -5,7 +5,9 @@ description: "Build your first Stagehand automation with act, extract, and obser
 
 The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps.
 
-## 1) Create a sample project
+<Steps>
+
+<Step title="Create a sample project">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -33,7 +35,9 @@ go get github.com/browserbase/stagehand/packages/sdk-go
 </Tab>
 </Tabs>
 
-## 2) Write the script
+</Step>
+
+<Step title="Write the script">
 
 Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises all three primitives: act, extract, and observe.
 
@@ -215,7 +219,9 @@ func run(ctx context.Context) (err error) {
 Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the browser factory, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
 </Note>
 
-## 3) Run it
+</Step>
+
+<Step title="Run it">
 
 Set your Browserbase API key, then run the script. Model Gateway selects and authenticates the model automatically, so no model provider key is required.
 
@@ -245,6 +251,9 @@ go run .                                 # Run the example script
 <Tip>
 Prefer to run against a browser on your own machine while you develop? Swap `browserbase.launch()` for `localBrowser.launch()` and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
 </Tip>
+
+</Step>
+</Steps>
 
 ## Next steps
 

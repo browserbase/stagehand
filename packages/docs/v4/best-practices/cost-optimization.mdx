@@ -10,7 +10,7 @@ Cost optimization in Stagehand involves balancing LLM inference costs and browse
 
 Start with these simple optimizations that can reduce costs:
 
-### 1. Use the right model for the job
+### Use the right model for the job
 
 Browserbase doesn't recommend using larger, more premium models for simple tasks. See the [evaluation results](https://stagehand.dev/evals) for model performance and cost comparisons across different task types.
 
@@ -124,7 +124,7 @@ fmt.Println(result.Data.Summary)
 </Card>
 </CardGroup>
 
-### 2. Implement caching
+### Implement caching
 
 Enable server-side caching to eliminate redundant LLM calls. Turn on the `cache` option when initializing Stagehand:
 
@@ -196,7 +196,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"
 </Card>
 </CardGroup>
 
-### 3. Optimize browser sessions
+### Optimize browser sessions
 
 Reuse sessions when possible and set appropriate timeouts. See [Browser Configuration](/v4/configuration/browser) for details:
 
