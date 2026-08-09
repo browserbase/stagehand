@@ -11,7 +11,13 @@ export type InitState =
       createdTempProfile?: boolean;
       preserveUserDataDir?: boolean;
     }
-  | { kind: "BROWSERBASE"; bb: Browserbase; sessionId: string; ws: string };
+  | {
+      kind: "BROWSERBASE";
+      bb: Browserbase;
+      sessionId: string;
+      ws: string;
+      ownsSession: boolean;
+    };
 
 export type EncodedId = `${number}-${number}`;
 

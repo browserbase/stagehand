@@ -195,22 +195,32 @@ export class V3Context {
       const conn = await CdpConnection.connect(wsUrl, {
         headers: opts?.cdpHeaders,
       });
-      const ctx = new V3Context(
-        conn,
-        opts?.env ?? "LOCAL",
-        opts?.apiClient ?? null,
-        opts?.localBrowserLaunchOptions ?? null,
-      );
-      await ctx.bootstrap();
-      // Allow connectTimeoutMs to also govern how long we wait for the first
-      // top-level page to appear.  On slow machines the browser may need more
-      // time after the CDP socket is open before the initial page registers.
-      const firstPageTimeoutMs = Math.max(
-        opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
-        getFirstTopLevelPageTimeoutMs(),
-      );
-      await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
-      return ctx;
+      let ctx: V3Context | null = null;
+      try {
+        ctx = new V3Context(
+          conn,
+          opts?.env ?? "LOCAL",
+          opts?.apiClient ?? null,
+          opts?.localBrowserLaunchOptions ?? null,
+        );
+        await ctx.bootstrap();
+        // Allow connectTimeoutMs to also govern how long we wait for the first
+        // top-level page to appear. On slow machines the browser may need more
+        // time after the CDP socket is open before the initial page registers.
+        const firstPageTimeoutMs = Math.max(
+          opts?.localBrowserLaunchOptions?.connectTimeoutMs ?? 0,
+          getFirstTopLevelPageTimeoutMs(),
+        );
+        await ctx.ensureFirstTopLevelPage(firstPageTimeoutMs);
+        return ctx;
+      } catch (error) {
+        try {
+          await (ctx ? ctx.close() : conn.close());
+        } catch {
+          // best-effort cleanup; preserve the original bootstrap error
+        }
+        throw error;
+      }
     };
 
     const cdpTimeoutMs =

@@ -68,9 +68,19 @@ export async function createBrowserbaseSession(
     bb.sessions.create(createPayload),
     sessionCreateTimeoutMs,
     "Browserbase session create",
-  )) as unknown as { id: string; connectUrl: string };
+  )) as unknown as { id?: string; connectUrl?: string };
 
   if (!created?.connectUrl || !created?.id) {
+    if (created?.id) {
+      try {
+        await bb.sessions.update(created.id, {
+          status: "REQUEST_RELEASE",
+          ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
+        });
+      } catch {
+        // best-effort cleanup; preserve the invalid response error
+      }
+    }
     throw new StagehandInitError(
       "Browserbase session creation returned an unexpected shape.",
     );
