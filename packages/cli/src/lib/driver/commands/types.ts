@@ -4,6 +4,12 @@ import { z } from "zod";
 export const DRIVER_COMMAND_NAMES = [
   "back",
   "click",
+  "clipboard.clear",
+  "clipboard.copy",
+  "clipboard.cut",
+  "clipboard.paste",
+  "clipboard.read",
+  "clipboard.write",
   "cursor",
   "eval",
   "fill",

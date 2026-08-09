@@ -27,6 +27,9 @@ import type { ConnectionTarget } from "./types.js";
 import { outputJson } from "../output.js";
 import { runDriverCommandWithTarget } from "./runtime.js";
 
+export const clipboardScopeNote =
+  "Clipboard scope depends on the session target: Browserbase remote sessions and managed headless local sessions use an isolated per-browser clipboard, while headed local sessions and --cdp attachments share the machine's OS clipboard with every other app and session on that machine.";
+
 export const driverCommandFlags = {
   "auto-connect": autoConnectFlag,
   cdp: cdpFlag,
