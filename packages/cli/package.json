@@ -60,6 +60,9 @@
       "mouse": {
         "description": "Send raw mouse coordinate input."
       },
+      "macro": {
+        "description": "Record and replay browse driver command sequences."
+      },
       "network": {
         "description": "Capture browser network traffic for the active session."
       },
