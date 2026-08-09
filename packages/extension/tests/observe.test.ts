@@ -130,8 +130,8 @@ describe("observe service", () => {
         pageId: "page-1",
         instruction: "Find form and drag controls",
         options: {
-          locator: { selector: "xpath=//main" },
-          ignoreLocators: [{ selector: "nav" }],
+          locator: { selector: "xpath=//main", nth: 1 },
+          ignoreLocators: [{ selector: "nav", nth: 2 }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -148,8 +148,8 @@ describe("observe service", () => {
     });
 
     expect(captureSnapshot).toHaveBeenCalledWith({
-      focusLocator: { selector: "xpath=//main" },
-      ignoreLocators: [{ selector: "nav" }],
+      focusLocator: { selector: "xpath=//main", nth: 1 },
+      ignoreLocators: [{ selector: "nav", nth: 2 }],
     });
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
     expect(result).toStrictEqual({

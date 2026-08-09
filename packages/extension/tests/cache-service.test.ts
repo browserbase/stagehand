@@ -5,6 +5,7 @@ import type { CacheClient } from "../clients/cacheClient.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import type { Frame } from "../understudy/frame.js";
+import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
 
 describe("cache service", () => {
   it("uses an explicit Stagehand API URL for the cache client", () => {
@@ -136,6 +137,93 @@ describe("cache service", () => {
 
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
+
+  it("includes locator descriptors in observe and extract cache data", () => {
+    expect(
+      cacheService.buildObserveCacheData({
+        pageId: "page-1",
+        instruction: "Find the answer",
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+        },
+      }),
+    ).toStrictEqual({
+      instruction: "Find the answer",
+      options: {
+        variables: undefined,
+        timeout: undefined,
+        locator: { selector: ".card", nth: 1 },
+        ignoreLocators: [{ selector: ".ad", nth: 2 }],
+      },
+    });
+
+    expect(
+      cacheService.buildExtractCacheData({
+        pageId: "page-1",
+        instruction: "Extract the answer",
+        schema: { type: "object" },
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+          screenshot: false,
+        },
+      }),
+    ).toStrictEqual({
+      instruction: "Extract the answer",
+      schema: { type: "object" },
+      options: {
+        timeout: undefined,
+        locator: { selector: ".card", nth: 1 },
+        ignoreLocators: [{ selector: ".ad", nth: 2 }],
+        screenshot: false,
+      },
+    });
+  });
+
+  it("resolves focused cache DOM hashes with locator nth", async () => {
+    const resolveAtIndex = vi
+      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
+      .mockResolvedValue({ objectId: "object-2" } as never);
+    const session = {
+      send: vi.fn(async (method: string) => {
+        if (method === "DOM.describeNode") {
+          return { node: { backendNodeId: 42 } };
+        }
+        throw new Error(`Unexpected CDP method: ${method}`);
+      }),
+    };
+    const frame = {
+      frameId: "frame-1",
+      session,
+      getAccessibilityTree: async () => [],
+    } as unknown as Frame;
+    const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
+
+    try {
+      await cacheService.withCache({
+        ...baseArgs(),
+        page: cachePage(frame),
+        locator: { selector: ".card", nth: 2 },
+        context: cacheContext(get, vi.fn().mockResolvedValue({ written: true, cacheKey: "key" })),
+        onHit: (value): TestResult => ({
+          data: value,
+          metadata: { cache: { status: "DISABLED" } },
+        }),
+        execute: executesTo({ answer: 42 }),
+      });
+
+      expect(resolveAtIndex).toHaveBeenCalledWith(expect.objectContaining({ value: ".card" }), 2);
+      expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-2" });
+      expect(get).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cdpTree: expect.objectContaining({ focusBackendNodeId: 42 }),
+        }),
+      );
+    } finally {
+      resolveAtIndex.mockRestore();
+    }
+  });
 });
 
 interface TestResult {
@@ -185,16 +273,19 @@ function cacheContext(get: ReturnType<typeof vi.fn>, set: ReturnType<typeof vi.f
   };
 }
 
-function cachePage() {
-  const frame = {
-    frameId: "frame-1",
-    getAccessibilityTree: async () => [],
-  } as unknown as Frame;
+function cachePage(frame: Frame = defaultFrame()) {
   return {
     url: () => "https://example.com",
     frames: () => [frame],
     mainFrame: () => frame,
   };
+}
+
+function defaultFrame() {
+  return {
+    frameId: "frame-1",
+    getAccessibilityTree: async () => [],
+  } as unknown as Frame;
 }
 
 function testLogger(): StagehandLogger {

@@ -93,7 +93,7 @@ describe("snapshot Unicode repair", () => {
 
     const snapshot = await tryScopedSnapshot(
       {} as Page,
-      { focusLocator: { selector: "#target" } },
+      { focusLocator: { selector: "#target", nth: 2 } },
       {
         rootId: "root",
         frames: ["root"],
@@ -115,5 +115,12 @@ describe("snapshot Unicode repair", () => {
     expect(
       (snapshot!.perFrame![0]!.outline as string & { isWellFormed(): boolean }).isWellFormed(),
     ).toBe(true);
+    expect(a11yForFrame).toHaveBeenCalledWith(
+      expect.anything(),
+      "root",
+      expect.objectContaining({
+        focusLocator: { selector: "#target", nth: 2 },
+      }),
+    );
   });
 });
