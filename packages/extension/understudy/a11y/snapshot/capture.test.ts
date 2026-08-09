@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FrameContext, FrameDomMaps } from "../../../types/private/index.js";
 import type { StagehandLogger } from "../../../logger.js";
 import type { Page } from "../../page.js";
+import { FrameSelectorResolver } from "../../selectorResolver.js";
 import { a11yForFrame } from "./a11yTree.js";
-import { mergeFramesIntoSnapshot, tryScopedSnapshot } from "./capture.js";
+import { mergeFramesIntoSnapshot, resolveIgnoredNodes, tryScopedSnapshot } from "./capture.js";
 import { domMapsForSession } from "./domTree.js";
 import { resolveCssFocusFrameAndTail } from "./focusSelectors.js";
 import { ownerSession } from "./sessions.js";
@@ -122,5 +123,49 @@ describe("snapshot Unicode repair", () => {
         focusLocator: { selector: "#target", nth: 2 },
       }),
     );
+  });
+
+  it("resolves only the indexed ignored locator match", async () => {
+    const session = {
+      id: "root-session",
+      send: vi.fn(async (method: string, params?: Record<string, unknown>) => {
+        if (method === "DOM.describeNode" && params?.objectId === "object-second") {
+          return { node: { backendNodeId: 20 } };
+        }
+        if (method === "Runtime.releaseObject") return {};
+        throw new Error(`Unexpected method: ${method}`);
+      }),
+    };
+    vi.mocked(resolveCssFocusFrameAndTail).mockResolvedValue({
+      targetFrameId: "root",
+      tailSelector: ".card",
+      absPrefix: "",
+    });
+    vi.mocked(ownerSession).mockReturnValue(session as never);
+    const resolveAtIndex = vi
+      .spyOn(FrameSelectorResolver.prototype, "resolveAtIndex")
+      .mockResolvedValue({ objectId: "object-second", nodeId: null });
+    const resolveAll = vi.spyOn(FrameSelectorResolver.prototype, "resolveAll");
+
+    try {
+      const ignoredNodes = await resolveIgnoredNodes(
+        { logger: {} } as Page,
+        [{ selector: ".card", nth: 1 }],
+        {
+          rootId: "root",
+          frames: ["root"],
+          parentByFrame: new Map([["root", null]]),
+        },
+        new Map(),
+      );
+
+      expect(resolveAtIndex).toHaveBeenCalledWith({ kind: "css", value: ".card" }, 1);
+      expect(resolveAll).not.toHaveBeenCalled();
+      expect(ignoredNodes.get("root")).toEqual(new Set([20]));
+      expect(session.send).toHaveBeenCalledWith("DOM.describeNode", { objectId: "object-second" });
+    } finally {
+      resolveAtIndex.mockRestore();
+      resolveAll.mockRestore();
+    }
   });
 });
