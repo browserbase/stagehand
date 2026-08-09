@@ -58,6 +58,7 @@ const (
 type CreateOptions struct {
 	Browser            *Browser
 	APIKey             *string
+	APIURL             *string
 	Cache              *Caching
 	DOMSettleTimeoutMs *int
 	Model              *ModelConfig

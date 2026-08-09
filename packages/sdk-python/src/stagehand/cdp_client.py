@@ -27,6 +27,37 @@ _RUNTIME_READINESS_EXPRESSION = """(() => ({
 }))()"""
 
 
+def _callback_batch_expression(
+    *,
+    message: dict[str, object],
+    source: str,
+) -> str:
+    if not isinstance(source, str) or not source.strip():
+        raise TypeError("stagehand.experimental_batch() source must be JavaScript")
+    serialized_message = json.dumps(
+        json.dumps(message, allow_nan=False, separators=(",", ":")),
+        separators=(",", ":"),
+    )
+    return (
+        "(() => { const __name = (fn, name) => { try { "
+        "Object.defineProperty(fn, 'name', { value: name, configurable: true }); "
+        "} catch {} return fn; }; void globalThis.__stagehandReceiveFromHost("
+        f"{serialized_message}, {{ callback: ({source}) }}); return true; }})()"
+    )
+
+
+def _callback_source_from_message(message: dict[str, object]) -> str | None:
+    if message.get("method") != "stagehand.callback_batch":
+        return None
+    params = message.get("params")
+    if not isinstance(params, Mapping):
+        raise TypeError("Stagehand callback batch request is missing callback_source")
+    source = params.get("callback_source")
+    if not isinstance(source, str) or not source.strip():
+        raise TypeError("Stagehand callback batch request is missing callback_source")
+    return source
+
+
 def _negotiate_runtime(marker: object) -> tuple[bool, str]:
     """Return (compatible, detail). Never raises: a malformed marker is just incompatible."""
     if not isinstance(marker, Mapping):
@@ -184,19 +215,26 @@ class CDPClient:
             raise RuntimeError("Stagehand service worker is not attached")
         return self._service_worker
 
-    async def send(self, message: dict[str, object]) -> None:
+    async def send(
+        self,
+        message: dict[str, object],
+    ) -> None:
         if self._closed:
             raise RuntimeError("CDP client is closed")
         if self._session_id is None:
             raise RuntimeError("Stagehand service worker is not attached")
 
         serialized = json.dumps(message, separators=(",", ":"))
+        callback_source = _callback_source_from_message(message)
+        expression = (
+            _callback_batch_expression(message=message, source=callback_source)
+            if callback_source is not None
+            else f"void globalThis.__stagehandReceiveFromHost({json.dumps(serialized)}); true"
+        )
         evaluated = await self.send_command(
             "Runtime.evaluate",
             {
-                "expression": (
-                    f"void globalThis.__stagehandReceiveFromHost({json.dumps(serialized)}); true"
-                ),
+                "expression": expression,
                 "awaitPromise": False,
                 "returnByValue": True,
             },

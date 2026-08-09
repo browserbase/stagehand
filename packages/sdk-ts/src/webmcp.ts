@@ -6,7 +6,7 @@ import type {
 } from "../../protocol/types.js";
 import { StagehandMethods } from "../../protocol/schema-registry.js";
 import type { WebMCPInvokeOptions, WebMCPResultOptions } from "./clientSchemas.js";
-import type { RPCClient } from "./rpcClient.js";
+import type { StagehandCommandClient } from "./commandClient.js";
 
 export class WebMCPTool {
   readonly name: string;
@@ -16,10 +16,10 @@ export class WebMCPTool {
   readonly frameId: string;
   readonly backendNodeId?: number;
 
-  readonly #rpcClient: RPCClient;
+  readonly #rpcClient: StagehandCommandClient;
   readonly #pageId: string;
 
-  constructor(rpcClient: RPCClient, pageId: string, descriptor: WebMCPToolDescriptor) {
+  constructor(rpcClient: StagehandCommandClient, pageId: string, descriptor: WebMCPToolDescriptor) {
     this.#rpcClient = rpcClient;
     this.#pageId = pageId;
     this.name = descriptor.name;
@@ -47,11 +47,15 @@ export class WebMCPInvocation {
   readonly frameId: string;
   readonly input: WebMCPInvocationDescriptor["input"];
 
-  readonly #rpcClient: RPCClient;
+  readonly #rpcClient: StagehandCommandClient;
   readonly #pageId: string;
   #terminalResult?: WebMCPToolResponse;
 
-  constructor(rpcClient: RPCClient, pageId: string, descriptor: WebMCPInvocationDescriptor) {
+  constructor(
+    rpcClient: StagehandCommandClient,
+    pageId: string,
+    descriptor: WebMCPInvocationDescriptor,
+  ) {
     this.#rpcClient = rpcClient;
     this.#pageId = pageId;
     this.invocationId = descriptor.invocationId;

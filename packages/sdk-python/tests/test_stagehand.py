@@ -31,6 +31,7 @@ from stagehand._generated.models import (
     BrowserSessionMetadata,
     CacheMetadata,
     CacheStatus,
+    CallbackBatchParams,
     ClientModelReference,
     LLMGenerateParams,
     LLMGenerateResult,
@@ -141,6 +142,166 @@ def test_stagehand_does_not_expose_context() -> None:
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("source", "input_value", "timeout", "error_type", "message"),
+    [
+        (123, None, 30_000, TypeError, "non-empty JavaScript string"),
+        ("   ", None, 30_000, TypeError, "non-empty JavaScript string"),
+        ("async () => undefined", None, True, ValueError, "positive number"),
+        ("async () => undefined", None, 0, ValueError, "positive number"),
+        ("async () => undefined", None, 1.5, ValueError, "positive number"),
+        ("async () => undefined", None, 2_147_473_648, ValueError, "must not exceed"),
+        ("async () => undefined", object(), 30_000, TypeError, "JSON-serializable"),
+    ],
+)
+async def test_experimental_batch_validates_arguments_before_transport(
+    monkeypatch: pytest.MonkeyPatch,
+    source: object,
+    input_value: object,
+    timeout: object,
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        with pytest.raises(error_type, match=message):
+            await stagehand.experimental_batch(
+                cast(str, source),
+                input_value,
+                timeout=cast(int, timeout),
+            )
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_uses_registered_rpc_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "async ({ page }, input) => ({ title: await page.title(), input })"
+    recording = _recording({
+        "stagehand.callback_batch": {
+            "value": {"title": "Example", "input": {"id": 7}},
+        }
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        result = await stagehand.experimental_batch(source, {"id": 7}, timeout=2_000)
+        assert result == {"title": "Example", "input": {"id": 7}}
+        method, params, _ = recording.calls[-1]
+        assert method == "stagehand.callback_batch"
+        assert isinstance(params, CallbackBatchParams)
+        assert params.callback_source == source
+        assert params.options.timeout == 2_000
+        assert params.options.model_dump(mode="json", exclude_unset=True) == {"timeout": 2_000}
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_normalizes_json_object_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand.experimental_batch("async (_batch, input) => input", {1: "one"})
+        _, params, _ = recording.calls[-1]
+        assert isinstance(params, CallbackBatchParams)
+        assert params.input is not None
+        assert params.input.model_dump(mode="json") == {"1": "one"}
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_distinguishes_omitted_input_from_null(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand.experimental_batch("async () => undefined")
+        _, omitted_params, _ = recording.calls[-1]
+        assert isinstance(omitted_params, CallbackBatchParams)
+        assert "input" not in omitted_params.model_fields_set
+
+        await stagehand.experimental_batch("async () => undefined", None)
+        _, null_params, _ = recording.calls[-1]
+        assert isinstance(null_params, CallbackBatchParams)
+        assert "input" in null_params.model_fields_set
+        assert null_params.input is not None
+        assert null_params.input.root is None
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_accepts_maximum_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        await stagehand.experimental_batch(
+            "async () => undefined",
+            timeout=2_147_473_647,
+        )
+        _, params, _ = recording.calls[-1]
+        assert isinstance(params, CallbackBatchParams)
+        assert params.options.timeout == 2_147_473_647
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_includes_an_explicit_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    try:
+        await stagehand.experimental_batch("async () => undefined", page=page)
+        method, params, _ = recording.calls[-1]
+        assert method == "stagehand.callback_batch"
+        assert isinstance(params, CallbackBatchParams)
+        assert params.options.model_dump(mode="json", exclude_unset=True) == {
+            "page_id": "page-1",
+            "timeout": 30_000,
+        }
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
+async def test_experimental_batch_maps_an_omitted_value_to_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording({"stagehand.callback_batch": {}})
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        assert await stagehand.experimental_batch("async () => undefined") is None
+    finally:
+        await stagehand.close()
+
+
+@pytest.mark.asyncio
 async def test_create_requires_a_factory_browser_before_validating_config() -> None:
     with pytest.raises(TypeError, match="browser must be created by local_browser or browserbase"):
         await Stagehand.create(
@@ -175,6 +336,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     stagehand = await Stagehand.create(
         browser=browser,
         api_key="caller-key",
+        api_url="https://api.stagehand.dev.browserbase.com",
         model=generate,
         logging={"level": "debug"},
     )
@@ -188,6 +350,7 @@ async def test_create_builds_wire_params_and_worker_metadata_wins(
     assert params.log_level == "debug"
     assert params.model == ClientModelReference(source="client")
     assert params.api_key == "worker-key"
+    assert str(params.api_url) == "https://api.stagehand.dev.browserbase.com"
     assert params.browser == metadata
     assert "llm.generate" in recording.requests
 

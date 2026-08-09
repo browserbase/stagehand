@@ -10,7 +10,10 @@ const ChromeBindingSchema = z.custom<(message: string) => void>(
 
 /** JSON-RPC transport backed by Chrome's Runtime binding mechanism. */
 export class ChromeRuntimeClient {
-  onmessage?: (message: unknown) => void | Promise<void>;
+  onmessage?: (
+    message: unknown,
+    runtimeAttachments?: { callback?: unknown },
+  ) => void | Promise<void>;
   onclose?: (reason?: Error) => void;
   onerror?: (error: Error) => void;
   closed = false;
@@ -27,10 +30,10 @@ export class ChromeRuntimeClient {
     binding(JSON.stringify(JSONRPCMessageSchema.parse(message)));
   }
 
-  async receive(raw: unknown): Promise<void> {
+  async receive(raw: unknown, runtimeAttachments?: { callback?: unknown }): Promise<void> {
     if (this.closed) return;
     const message = ChromeBindingMessageSchema.parse(raw);
-    await this.onmessage?.(message);
+    await this.onmessage?.(message, runtimeAttachments);
   }
 
   close(): void {

@@ -130,6 +130,7 @@ def main() -> None:
 
     wire_protocol = deepcopy(protocol)
     use_wire_urls(wire_protocol)
+    preserve_json_value_integers(wire_protocol)
     models = _generate_module(wire_protocol, PYDANTIC_CONFIG)
     input_types = _generate_module(protocol, TYPED_DICT_CONFIG)
 
@@ -185,6 +186,52 @@ def use_wire_urls(value: object) -> None:
         mapping["customTypePath"] = "stagehand._validation.WireUrl"
     for entry in mapping.values():
         use_wire_urls(entry)
+
+
+def preserve_json_value_integers(protocol: dict[str, object]) -> None:
+    """Keep JSON integers as ints instead of routing them through StrictFloat."""
+    definitions = protocol.get("$defs")
+    if not isinstance(definitions, dict):
+        raise TypeError("expected protocol definitions to be a JSON object")
+
+    for name, value in definitions.items():
+        if not isinstance(name, str) or not isinstance(value, dict):
+            continue
+        schema = cast(dict[str, object], value)
+        choices = schema.get("anyOf")
+        if not isinstance(choices, list):
+            continue
+        choices = cast(list[object], choices)
+
+        reference = {"$ref": f"#/$defs/{name}"}
+        has_recursive_array = any(
+            isinstance(choice, dict)
+            and choice.get("type") == "array"
+            and choice.get("items") == reference
+            for choice in choices
+        )
+        has_recursive_object = any(
+            isinstance(choice, dict)
+            and choice.get("type") == "object"
+            and choice.get("additionalProperties") == reference
+            for choice in choices
+        )
+        if not has_recursive_array or not has_recursive_object:
+            continue
+
+        number_index = next(
+            (
+                index
+                for index, choice in enumerate(choices)
+                if isinstance(choice, dict) and choice.get("type") == "number"
+            ),
+            None,
+        )
+        has_integer = any(
+            isinstance(choice, dict) and choice.get("type") == "integer" for choice in choices
+        )
+        if number_index is not None and not has_integer:
+            choices.insert(number_index, {"type": "integer"})
 
 
 if __name__ == "__main__":

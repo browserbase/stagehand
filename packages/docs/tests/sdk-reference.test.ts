@@ -455,7 +455,12 @@ describe("SDK reference surface", () => {
         )) {
           const actual = documented.get(field.key);
           if (!actual) continue;
-          const expectedType = canonicalSchemaType(field.schema, language, protocol);
+          const expectedType =
+            language === "TypeScript" &&
+            method.operationName === "stagehand.callback_batch" &&
+            field.key === "options.page"
+              ? "Page"
+              : canonicalSchemaType(field.schema, language, protocol);
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -1953,7 +1958,9 @@ function projectedInputPaths(
     }
     const path = [
       parameter,
-      ...wirePath.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
+      ...wirePath
+        .slice(matchedIndex + 1)
+        .map((segment) => projectedInputFieldName(method, segment, language)),
     ];
     return path.length > 1 ? [path.join(".")] : [];
   });
@@ -2006,7 +2013,9 @@ function projectedInputFields(
     }
     const path = [
       parameter,
-      ...field.path.slice(matchedIndex + 1).map((segment) => publicFieldName(segment, language)),
+      ...field.path
+        .slice(matchedIndex + 1)
+        .map((segment) => projectedInputFieldName(method, segment, language)),
     ];
     return path.length > 1
       ? [{ key: path.join("."), optional: !field.required, schema: field.schema }]
@@ -2270,6 +2279,17 @@ function publicFieldName(wireName: string, language: Language): string {
     TYPESCRIPT_FIELD_SPELLINGS.get(wireName) ??
     wireName.replace(/_([a-z\d])/gu, (_, character: string) => character.toUpperCase())
   );
+}
+
+function projectedInputFieldName(method: SdkMethod, wireName: string, language: Language): string {
+  if (
+    language === "TypeScript" &&
+    method.operationName === "stagehand.callback_batch" &&
+    wireName === "page_id"
+  ) {
+    return "page";
+  }
+  return publicFieldName(wireName, language);
 }
 
 async function readTypescriptPublicFieldNames(): Promise<Set<string>> {

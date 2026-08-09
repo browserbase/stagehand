@@ -27,6 +27,21 @@ def _ready_marker() -> dict[str, object]:
     }
 
 
+def test_callback_batch_source_allows_native_code_text() -> None:
+    expression = cdp_client._callback_batch_expression(
+        message={
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "stagehand.callback_batch",
+            "params": {},
+        },
+        source='async () => "[native code]"',
+    )
+
+    assert 'async () => "[native code]"' in expression
+    assert "const __name = (fn, name)" in expression
+
+
 class FakeWebSocket:
     def __init__(
         self,
@@ -200,6 +215,70 @@ async def test_transport_bridges_json_rpc_through_the_runtime_binding() -> None:
         assert (
             "__stagehandReceiveFromHost" in cast(dict[str, str], evaluated["params"])["expression"]
         )
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_request_is_delivered_with_a_runtime_attachment() -> None:
+    socket = FakeWebSocket(lambda _: {"result": {"result": {"value": True}}})
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    source = "async ({ page }, input) => ({ title: await page.title(), input })"
+    message: dict[str, object] = {
+        "jsonrpc": "2.0",
+        "id": 8,
+        "method": "stagehand.callback_batch",
+        "params": {
+            "callback_source": source,
+            "input": {"quote": '"); globalThis.__injectionSucceeded = true; ("'},
+            "options": {"page_id": "page-1", "timeout": 2_000},
+        },
+    }
+
+    try:
+        await client.send(message)
+        params = cast(dict[str, object], socket.sent[0]["params"])
+        assert params["awaitPromise"] is False
+        assert params["returnByValue"] is True
+        expression = cast(str, params["expression"])
+        assert "__stagehandReceiveFromHost" in expression
+        assert "stagehand.callback_batch" in expression
+        assert r"\"page_id\":\"page-1\"" in expression
+        assert "callback: (async" in expression
+        serialized_message = json.dumps(
+            json.dumps(message, allow_nan=False, separators=(",", ":")),
+            separators=(",", ":"),
+        )
+        assert serialized_message in expression
+        assert '"); globalThis.__injectionSucceeded = true; ("' not in expression
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_callback_batch_delivery_reconstructs_runtime_exception_details() -> None:
+    socket = FakeWebSocket(
+        lambda _: {
+            "result": {
+                "exceptionDetails": {
+                    "exception": {"description": "callback syntax failed"},
+                }
+            }
+        },
+    )
+    client = CDPClient(socket, "ws://127.0.0.1/devtools/browser/test")
+    client._session_id = "worker-session"
+    try:
+        with pytest.raises(RuntimeError, match="callback syntax failed"):
+            await client.send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 8,
+                    "method": "stagehand.callback_batch",
+                    "params": {"callback_source": "async () => undefined"},
+                },
+            )
     finally:
         await client.close()
 

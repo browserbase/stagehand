@@ -647,6 +647,31 @@ export const StagehandMetricsSchema = z
   })
   .meta({ id: "StagehandMetrics" });
 
+// Chromium clamps timer delays to a signed 32-bit integer. Reserve the SDK's
+// 10-second RPC response grace period so both timers remain within that limit.
+export const MAX_CALLBACK_BATCH_TIMEOUT_MS = 2_147_483_647 - 10_000;
+
+export const CallbackBatchOptionsSchema = z
+  .strictObject({
+    pageId: z.string().min(1).optional(),
+    timeout: z.number().int().positive().max(MAX_CALLBACK_BATCH_TIMEOUT_MS).default(30_000),
+  })
+  .meta({ id: "CallbackBatchOptions" });
+
+export const CallbackBatchParamsSchema = z
+  .strictObject({
+    callbackSource: z.string().min(1),
+    input: z.json().optional(),
+    options: CallbackBatchOptionsSchema,
+  })
+  .meta({ id: "CallbackBatchParams" });
+
+export const CallbackBatchResultSchema = z
+  .strictObject({
+    value: z.json().optional(),
+  })
+  .meta({ id: "CallbackBatchResult" });
+
 export const CacheStatusSchema = z.enum(["HIT", "MISS", "DISABLED"]).meta({ id: "CacheStatus" });
 
 /** Server-side caching configuration: a boolean toggle, or an object enabling
@@ -1547,6 +1572,20 @@ export const StagehandInitParamsSchema = z
     clientInfo: ImplementationInfoSchema,
     browserCdpUrl: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
+    apiUrl: z
+      .url()
+      .refine(
+        (value) => !value.includes("?") && !value.includes("#"),
+        "Stagehand apiUrl must not include a query string or fragment",
+      )
+      .refine((value) => !new URL(value).pathname.replace(/\/+$/, "").endsWith("/v1"), {
+        message: "Stagehand apiUrl must be a service origin without /v1",
+      })
+      .optional()
+      .meta({
+        description:
+          "Stagehand API base URL override for managed services such as Model Gateway and server-side caching",
+      }),
     browser: BrowserSessionMetadataSchema.optional(),
     model: z.union([ModelConfigSchema, ClientModelReferenceSchema]).optional().meta({
       description:

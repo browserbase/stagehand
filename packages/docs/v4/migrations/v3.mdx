@@ -1,0 +1,630 @@
+---
+title: Migrate v3 to v4
+sidebarTitle: Migrate v3 to v4
+icon: 'arrow-up-right-dots'
+---
+
+Two changes account for most of this migration:
+
+1. **`agent()` is gone.** Nothing in v4 replaces it one-for-one.
+2. **The SDK surface moved.** Construction, page access, and result shapes changed.
+
+`act()`, `extract()`, and `observe()` still exist and still take natural-language instructions, but their place has changed.
+
+## Why agent() is gone
+
+`agent()` was built for models that couldn't reliably drive a browser on their own. It wrapped `act()`, `extract()`, and `observe()` in a loop and asked the model to pick one tool per step, which was the right shape for the models available at the time.
+
+Now, that built-in orchestrator is gone. v4 exposes discrete tools and leaves the control flow to you. Keep calling `act()`, `extract()`, and `observe()` where a natural-language instruction beats a selector, but stop treating them as the whole toolset you hand a model.
+
+Two approaches replace it:
+
+- **[Code mode](#code-mode)** puts the model in front of the run. A coding assistant writes a Stagehand script, and you run that script. Browserbase recommends starting here.
+- **[Tool calling](#tool-calling)** keeps a model in the loop during the run, driving the browser through the full Stagehand API as its tools.
+
+## Code mode
+
+Ask your coding assistant to write a Stagehand script, then run the script. The model writes the code once instead of driving the browser on every run.
+
+You get ordinary code: reviewable, diffable, and free of per-step inference. When a site changes, re-run the assistant on the step that broke.
+
+Start with [AI rules](/v4/first-steps/ai-rules). It carries the rule files and MCP servers that keep generated code on the v4 API instead of the v2 and v3 patterns in training data.
+
+Here's a prompt that produces a working script:
+
+```text
+Using Stagehand v4 (@browserbasehq/stagehand), write a script that:
+  1. Opens news.ycombinator.com
+  2. Finds today's most-commented story
+  3. Opens its comments and extracts the top five comment bodies
+
+Follow the rules in my project's Stagehand rules file. Prefer page.locator()
+and page.goto() for anything with a stable selector, and reserve act() and
+extract() for steps that need a model.
+```
+
+What comes back should read like the script you would have written yourself:
+
+<View title="TypeScript" icon="js">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+const commentSchema = z.object({
+  comments: z.array(z.object({ author: z.string(), body: z.string() })),
+});
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const stagehand = await Stagehand.create({ browser });
+
+try {
+  const page = await browser.context.newPage("https://news.ycombinator.com");
+
+  // Deterministic where the page allows it: no inference, no variance.
+  await page.locator("a.morelink").first().click();
+  await page.waitForLoadState("domcontentloaded");
+
+  // A model call where the page needs judgement.
+  await stagehand.act("Open the comments for the story with the most comments");
+
+  const { data } = await stagehand.extract(
+    "Extract the top five comments, with each author and body",
+    commentSchema,
+  );
+  console.log(data.comments);
+} finally {
+  await stagehand.close();
+  await browser.close();
+}
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand, browserbase
+
+
+class Comment(BaseModel):
+    author: str
+    body: str
+
+
+class Comments(BaseModel):
+    comments: list[Comment]
+
+
+async def main() -> None:
+    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+    stagehand = await Stagehand.create(browser=browser)
+
+    try:
+        page = await browser.context.new_page("https://news.ycombinator.com")
+
+        # Deterministic where the page allows it: no inference, no variance.
+        await page.locator("a.morelink").first().click()
+        await page.wait_for_load_state("domcontentloaded")
+
+        # A model call where the page needs judgement.
+        await stagehand.act("Open the comments for the story with the most comments")
+
+        result = await stagehand.extract(
+            "Extract the top five comments, with each author and body",
+            Comments,
+        )
+        print(result.data.comments)
+    finally:
+        await stagehand.close()
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+type comment struct {
+	Author string `json:"author"`
+	Body   string `json:"body"`
+}
+
+type comments struct {
+	Comments []comment `json:"comments"`
+}
+
+func run(ctx context.Context) (err error) {
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: os.Getenv("BROWSERBASE_API_KEY"),
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	page, err := browserContext.NewPage(ctx, "https://news.ycombinator.com")
+	if err != nil {
+		return err
+	}
+
+	// Deterministic where the page allows it: no inference, no variance.
+	if err := page.Locator("a.morelink").First().Click(ctx, nil); err != nil {
+		return err
+	}
+	if err := page.WaitForLoadState(ctx, stagehand.LoadStateDOMContentLoaded, nil); err != nil {
+		return err
+	}
+
+	// A model call where the page needs judgement.
+	instruction := stagehand.ActInstruction("Open the comments for the story with the most comments")
+	if _, err := client.Act(ctx, instruction, nil); err != nil {
+		return err
+	}
+
+	result, err := stagehand.Extract[comments](
+		ctx,
+		client,
+		"Extract the top five comments, with each author and body",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Println(result.Data.Comments)
+	return nil
+}
+```
+</View>
+
+Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. `agent()` couldn't make that split, because every step it ran was an inference call.
+
+## Tool calling
+
+To keep a model in the loop at runtime, give it the whole Stagehand surface rather than three broad tools. Each method maps to one tool with a narrow contract, so a step names a specific browser operation instead of routing through a sentence of English.
+
+Expose the real API:
+
+| Capability | Tools worth exposing |
+| --- | --- |
+| Navigation | `page.goto()`, `page.reload()`, `page.goBack()`, `page.goForward()` |
+| Perception | `page.snapshot()`, `page.screenshot()`, `page.url()`, `page.title()` |
+| Element interaction | `locator.click()`, `locator.fill()`, `locator.type()`, `locator.selectOption()`, `locator.setInputFiles()`, `locator.scrollTo()` |
+| Element inspection | `locator.textContent()`, `locator.innerText()`, `locator.isVisible()`, `locator.isChecked()`, `locator.count()`, `locator.inputValue()` |
+| Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.keyPress()`, `page.dragAndDrop()` |
+| Tabs and state | `context.newPage()`, `context.pages()`, `context.setActivePage()`, `context.cookies()` |
+| Waiting | `page.waitForSelector()`, `page.waitForLoadState()`, `page.waitForTimeout()` |
+| Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
+| Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
+
+`page.snapshot()` anchors the loop. It returns `formattedTree`, the accessibility tree, plus an `xpathMap`, so the model reads real page structure and hands back a selector you can drive deterministically.
+
+<View title="TypeScript" icon="js">
+```typescript
+import { z } from "zod/v4";
+
+const tools = {
+  goto: {
+    description: "Navigate to a URL",
+    parameters: z.object({ url: z.string() }),
+    execute: async ({ url }: { url: string }) => {
+      await page.goto(url);
+      return await page.url();
+    },
+  },
+  snapshot: {
+    description: "Read the accessibility tree of the current page",
+    parameters: z.object({}),
+    execute: async () => (await page.snapshot()).formattedTree,
+  },
+  click: {
+    description: "Click the element matching a selector from the snapshot",
+    parameters: z.object({ selector: z.string() }),
+    execute: async ({ selector }: { selector: string }) => {
+      await page.locator(selector).click();
+    },
+  },
+  fill: {
+    description: "Fill the input matching a selector",
+    parameters: z.object({ selector: z.string(), value: z.string() }),
+    execute: async ({ selector, value }: { selector: string; value: string }) => {
+      await page.locator(selector).fill(value);
+    },
+  },
+  readText: {
+    description: "Read the text of the element matching a selector",
+    parameters: z.object({ selector: z.string() }),
+    execute: async ({ selector }: { selector: string }) =>
+      await page.locator(selector).textContent(),
+  },
+  act: {
+    description: "Perform one action in natural language when no selector is known",
+    parameters: z.object({ instruction: z.string() }),
+    execute: async ({ instruction }: { instruction: string }) =>
+      (await stagehand.act(instruction)).data.message,
+  },
+  extract: {
+    description: "Read structured data off the current page",
+    parameters: z.object({ instruction: z.string() }),
+    execute: async ({ instruction }: { instruction: string }) =>
+      (await stagehand.extract(instruction)).data.extraction,
+  },
+};
+```
+</View>
+
+<View title="Python" icon="python">
+```python
+async def goto(url: str) -> str:
+    """Navigate to a URL."""
+    await page.goto(url)
+    return await page.url()
+
+
+async def snapshot() -> str:
+    """Read the accessibility tree of the current page."""
+    return (await page.snapshot()).formatted_tree
+
+
+async def click(selector: str) -> None:
+    """Click the element matching a selector from the snapshot."""
+    await page.locator(selector).click()
+
+
+async def fill(selector: str, value: str) -> None:
+    """Fill the input matching a selector."""
+    await page.locator(selector).fill(value)
+
+
+async def read_text(selector: str) -> str:
+    """Read the text of the element matching a selector."""
+    return await page.locator(selector).text_content()
+
+
+async def act(instruction: str) -> str:
+    """Perform one action in natural language when no selector is known."""
+    return (await stagehand.act(instruction)).data.message
+
+
+async def extract(instruction: str) -> str:
+    """Read structured data off the current page."""
+    return (await stagehand.extract(instruction)).data.extraction
+
+
+TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+// One handler per tool. Register these with your agent framework's tool API.
+
+func gotoTool(ctx context.Context, page *stagehand.Page, url string) (string, error) {
+	if _, err := page.Goto(ctx, url, nil); err != nil {
+		return "", err
+	}
+	return page.URL(ctx)
+}
+
+func snapshotTool(ctx context.Context, page *stagehand.Page) (string, error) {
+	snapshot, err := page.Snapshot(ctx, nil)
+	if err != nil {
+		return "", err
+	}
+	return snapshot.FormattedTree, nil
+}
+
+func clickTool(ctx context.Context, page *stagehand.Page, selector string) error {
+	return page.Locator(selector).Click(ctx, nil)
+}
+
+func fillTool(ctx context.Context, page *stagehand.Page, selector, value string) error {
+	return page.Locator(selector).Fill(ctx, value)
+}
+
+func readTextTool(ctx context.Context, page *stagehand.Page, selector string) (string, error) {
+	return page.Locator(selector).TextContent(ctx)
+}
+
+func actTool(ctx context.Context, client *stagehand.Stagehand, instruction string) (string, error) {
+	result, err := client.Act(ctx, stagehand.ActInstruction(instruction), nil)
+	if err != nil {
+		return "", err
+	}
+	return result.Data.Message, nil
+}
+```
+</View>
+
+<Tip>
+Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
+</Tip>
+
+{/* TODO: Link to agent integrations overview page */}
+
+## Let a coding assistant do the rest
+
+The rest of this guide is a mapping table, so hand it to a coding assistant. Point it at this page instead of retyping the rules:
+
+```text
+Migrate this file from Stagehand v3 to v4.
+
+Follow https://docs.stagehand.dev/v4/migrations/v3, and use its quick
+reference table as the mapping. Leave agent() calls alone and list them
+for me instead.
+```
+
+Set up [AI rules](/v4/first-steps/ai-rules) first so the assistant stays on the v4 API instead of the v2 and v3 patterns in its training data.
+
+Then work through the sections below for anything it missed.
+
+## Recommended migration order
+
+1. Get one script constructing and closing cleanly on v4, before changing any instructions.
+2. Replace page and context access, since it moved.
+3. Unwrap results: every primitive now returns `{ data, metadata }`.
+4. Replace `agent()` calls with [code mode](#code-mode) or [tool calling](#tool-calling).
+5. Turn on server-side caching once the flow is stable.
+
+## Coming from Python or Go
+
+v3 shipped Python and Go as clients for the hosted Stagehand API. You created a session and called methods on it:
+
+<View title="Python" icon="python">
+```python
+from stagehand import AsyncStagehand
+
+client = AsyncStagehand()
+session = await client.sessions.create(model_name="openai/gpt-5-nano")
+await session.navigate(url="https://example.com")
+act_response = await session.act(input="click the sign in button")
+```
+</View>
+
+<View title="Go" icon="golang">
+```go
+client := stagehand.NewClient(
+	option.WithBrowserbaseAPIKey(os.Getenv("BROWSERBASE_API_KEY")),
+	option.WithModelAPIKey(os.Getenv("MODEL_API_KEY")),
+)
+started, err := client.Sessions.Start(ctx, stagehand.SessionStartParams{ModelName: "openai/gpt-5-nano"})
+sessionID := started.Data.SessionID
+_, err = client.Sessions.Navigate(ctx, sessionID, stagehand.SessionNavigateParams{
+	URL: "https://example.com",
+})
+```
+</View>
+
+v4 gives all three languages the same SDK: a browser from a factory, a Stagehand instance built on it, and `act()`, `extract()`, and `observe()` on that instance. Sessions and their IDs are gone from the calling surface, and the package names changed, so this is a rewrite against the new shape rather than a rename pass. The [code mode](#code-mode) examples show the target in each language.
+
+| v3 | v4 |
+| --- | --- |
+| `AsyncStagehand()` / `stagehand.NewClient(...)` | A browser factory, then `Stagehand.create()` |
+| `client.sessions.create()` / `client.Sessions.Start()` | The browser factory returns the handle; no session object |
+| `session.navigate(url=...)` | `page.goto(url)` |
+| `session.act(...)` / `session.extract(...)` | `stagehand.act(...)` / `stagehand.extract(...)` |
+| `response.data.result` | `result.data` |
+
+## Breaking changes
+
+These diffs are TypeScript, because v3's TypeScript SDK is the one whose surface maps onto v4 rename by rename. The v4 side of each diff is the shape for every language.
+
+### Initialization
+
+The constructor is private and `init()` is gone. Get a browser from a factory, then hand it to `Stagehand.create()`:
+
+```diff
+- const stagehand = new Stagehand({ env: "BROWSERBASE" });
+- await stagehand.init();
++ const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
++ const stagehand = await Stagehand.create({ browser });
+```
+
+Use `localBrowser.launch()` for a browser on your machine, and `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. Stagehand closes only the browsers it launched, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+
+### Pages and the browser context
+
+The context moved off the Stagehand instance and onto the browser handle, and page lookups are now async:
+
+```diff
+- const page = stagehand.context.pages()[0];
+- const page = stagehand.page;
++ const page = await browser.context.activePage();
++ const [page] = await browser.context.pages();
+```
+
+If you only hold the instance, reach the handle through it: `stagehand.browser.context`.
+
+### act(), extract(), and observe() moved to the instance
+
+In v3 these hung off the page. In v4 they're top-level methods on Stagehand, and you pick the target page with `options.page` when it isn't the active one:
+
+```diff
+- await page.act("Click the sign in button");
++ await stagehand.act("Click the sign in button");
++ await stagehand.act("Click the sign in button", { page: page2 });
+```
+
+### Every primitive returns data and metadata
+
+`act()`, `extract()`, and `observe()` return `{ data, metadata }`. Your value is on `data`; `metadata` carries the action ID, cache status, and token usage.
+
+```diff
+- const actions = await stagehand.observe("find the login button");
+- if (actions.length > 0) { /* ... */ }
++ const { data: actions } = await stagehand.observe("find the login button");
++ if (actions.length > 0) { /* ... */ }
+```
+
+### extract() takes positional arguments
+
+```diff
+- const result = await stagehand.extract({
+-   instruction: "extract the product name",
+-   schema: z.object({ name: z.string() }),
+- });
++ const { data } = await stagehand.extract(
++   "extract the product name",
++   z.object({ name: z.string() }),
++ );
+```
+
+Calling `extract()` with no schema returns `{ extraction: string }`.
+
+### Model configuration
+
+`modelName` and `modelClientOptions` collapse into one `model` object:
+
+```diff
+- const stagehand = new Stagehand({
+-   modelName: "openai/gpt-4.1-mini",
+-   modelClientOptions: { apiKey: process.env.OPENAI_API_KEY },
+- });
++ const stagehand = await Stagehand.create({
++   browser,
++   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
++ });
+```
+
+Model names always carry a provider prefix. Omit `model` entirely on a Browserbase browser and the Model Gateway picks one for you. Pass the same shape to a single call to override it there. See [models](/v4/configuration/models).
+
+### Caching
+
+`enableCaching` is gone. v4 caches `act()`, `observe()`, and `extract()` results on Browserbase's servers instead, keyed on the instruction, page content, and options:
+
+```diff
+- const stagehand = new Stagehand({ enableCaching: true });
++ const stagehand = await Stagehand.create({ browser, cache: true });
+```
+
+Caching needs a Browserbase browser and the API key you passed to `browserbase.launch()`. See [caching](/v4/best-practices/caching).
+
+### Logging
+
+`verbose` and `logger` become one `logging` object with a level, a format, and a callback:
+
+```diff
+- const stagehand = new Stagehand({ verbose: 1, logger: myLogger });
++ const stagehand = await Stagehand.create({
++   browser,
++   logging: { level: "info", format: "json", onLog: myLogger },
++ });
+```
+
+Levels are `debug`, `info`, `warn`, `error`, and `off`. See [logging](/v4/configuration/logging).
+
+### Metrics
+
+Metrics became a method:
+
+```diff
+- const metrics = await stagehand.metrics;
++ const metrics = await stagehand.metrics();
+```
+
+### The Browserbase session ID
+
+`stagehand.browserbaseSessionID` is gone. Create the session yourself when you need its ID, then attach:
+
+```diff
+- const stagehand = new Stagehand({ env: "BROWSERBASE" });
+- await stagehand.init();
+- console.log(stagehand.browserbaseSessionID);
++ import { Browserbase } from "@browserbasehq/sdk";
++
++ const bb = new Browserbase({ apiKey: process.env.BROWSERBASE_API_KEY });
++ const session = await bb.sessions.create({
++   projectId: process.env.BROWSERBASE_PROJECT_ID,
++ });
++ const browser = await browserbase.connect({
++   apiKey: process.env.BROWSERBASE_API_KEY,
++   sessionId: session.id,
++ });
++ console.log(session.id);
+```
+
+[Observability](/v4/configuration/observability) shows the full version, including reading session metrics back.
+
+### deepLocator() folded into locator()
+
+`page.deepLocator()` is gone, but its behavior isn't. `page.locator()` resolves the same selectors in v4, so drop the call and keep the selector:
+
+```diff
+- const button = page.deepLocator("iframe#checkout >> button.submit");
++ const button = page.locator("iframe#checkout >> button.submit");
+```
+
+`>>` hop notation and deep XPath such as `/html/body/iframe[2]//div` work unchanged. See [Locator](/v4/reference/locator).
+
+## Quick reference
+
+| v3 | v4 |
+| --- | --- |
+| `new Stagehand({ env })` then `init()` | `browserbase.launch()` or `localBrowser.launch()`, then `Stagehand.create({ browser })` |
+| `stagehand.page` | `await browser.context.activePage()` |
+| `stagehand.context` | `browser.context` |
+| `stagehand.context.pages()` | `await browser.context.pages()` |
+| `page.act(...)` | `stagehand.act(...)`, with `{ page }` to target a tab |
+| `await stagehand.observe(...)` returns an array | `.data` holds the array |
+| `extract({ instruction, schema })` | `extract(instruction, schema)` |
+| `page.deepLocator()` | `page.locator()`, same selector syntax |
+| `stagehand.agent()`, `agent.execute()` | Code mode, or a tool-calling loop you own |
+| `execute({ maxSteps })` | Your loop bound, or the length of the script |
+| `agent({ systemPrompt })` | `systemPrompt` on `Stagehand.create()` |
+| `agent({ tools })` | Page-declared tools via [WebMCP](/v4/basics/webmcp), or your own tool definitions |
+| `agent({ mode: "cua" })`, `execute({ highlightCursor })` | No equivalent |
+| Agent stopping when the task is done | The script ends, or your loop's own stop condition |
+| Agent step-by-step action selection | The [full tool surface](#tool-calling) |
+| Agent variables | `variables` on `act()` and `observe()`, see [prompting](/v4/best-practices/prompting-best-practices) |
+| Agent structured output | `extract()` with a schema |
+| Agent streaming, callbacks, abort signal, message continuation | No equivalent. Your loop sits between steps, so log, cancel, or persist there |
+| `modelName`, `modelClientOptions` | `model: { modelName, apiKey }` |
+| `enableCaching` | `cache` |
+| `verbose`, `logger` | `logging: { level, format, onLog }` |
+| `await stagehand.metrics` | `await stagehand.metrics()` |
+| `stagehand.browserbaseSessionID` | Hold the ID from `sessions.create()` |
+
+## Troubleshooting
+
+**`Constructor of class 'Stagehand' is private`.** Use `await Stagehand.create({ browser })`.
+
+**`Property 'context' does not exist on type 'Stagehand'`.** The context lives on the browser handle: `browser.context`, or `stagehand.browser.context`.
+
+**`Property 'act' does not exist on type 'Page'`.** `act()`, `extract()`, and `observe()` are methods on the Stagehand instance now. Target a specific tab with `options.page`.
+
+**`Property 'length' does not exist`** on an `observe()` result. Read `.data` first.
+
+**Your generated script uses v3 APIs.** The assistant is drawing on v2 and v3 patterns in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
+
+**`Property 'deepLocator' does not exist on type 'Page'`.** Rename the call to `page.locator()`. The selector stays the same.
+
+**A retried step repeats a side effect.** You're retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="AI rules" icon="robot" href="/v4/first-steps/ai-rules">
+    Set your coding assistant up to write v4 code
+  </Card>
+  <Card title="Act" icon="arrow-pointer" href="/v4/basics/act">
+    Perform one action, or replay an observed one
+  </Card>
+  <Card title="Observe" icon="eye" href="/v4/basics/observe">
+    Plan actions without performing them
+  </Card>
+  <Card title="Caching" icon="database" href="/v4/best-practices/caching">
+    Cut inference out of a stable flow
+  </Card>
+</CardGroup>

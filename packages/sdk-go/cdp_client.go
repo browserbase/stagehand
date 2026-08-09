@@ -394,11 +394,17 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 	if err != nil {
 		return fmt.Errorf("encode Stagehand RPC message: %w", err)
 	}
-	expression := fmt.Sprintf(
-		"void globalThis.%s(%s); true",
-		stagehandReceiveFromHostFunction,
-		serialized,
-	)
+	expression := fmt.Sprintf("void globalThis.%s(%s); true", stagehandReceiveFromHostFunction, serialized)
+	if source, ok, err := callbackSourceFromMessage(message); err != nil {
+		return err
+	} else if ok {
+		expression = fmt.Sprintf(
+			`(() => { const __name = (fn, name) => { try { Object.defineProperty(fn, "name", { value: name, configurable: true }); } catch {} return fn; }; void globalThis.%s(%s, { callback: (%s) }); return true; })()`,
+			stagehandReceiveFromHostFunction,
+			serialized,
+			source,
+		)
+	}
 	var evaluated cdpRuntimeEvaluateResult
 	if err := c.sendCommand(
 		ctx,
@@ -420,6 +426,28 @@ func (c *cdpClient) Send(ctx context.Context, message json.RawMessage) error {
 		))
 	}
 	return nil
+}
+
+func callbackSourceFromMessage(message json.RawMessage) (string, bool, error) {
+	if !bytes.Contains(message, []byte("stagehand.callback_batch")) {
+		return "", false, nil
+	}
+	var request struct {
+		Method string `json:"method"`
+		Params struct {
+			CallbackSource string `json:"callback_source"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(message, &request); err != nil {
+		return "", false, fmt.Errorf("decode Stagehand RPC message: %w", err)
+	}
+	if request.Method != "stagehand.callback_batch" {
+		return "", false, nil
+	}
+	if strings.TrimSpace(request.Params.CallbackSource) == "" {
+		return "", false, errors.New("Stagehand callback batch request is missing callback_source")
+	}
+	return request.Params.CallbackSource, true, nil
 }
 
 func (c *cdpClient) Receive(ctx context.Context) (json.RawMessage, error) {
