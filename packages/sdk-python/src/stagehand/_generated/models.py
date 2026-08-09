@@ -582,20 +582,18 @@ class ExtractOptions(WireModel):
 
     Example: 30000
     """
-    selector: Annotated[Optional[StrictStr], Field(examples=["#main-content"])] = None
-    """
-    CSS selector to scope extraction to a specific element
-
-    Example: '#main-content'
-    """
-    ignore_selectors: Annotated[
-        Optional[list[StrictStr]],
-        Field(examples=[["nav", ".cookie-banner", "#sidebar-ads"]]),
+    locator: Optional[Locator] = None
+    """Locator that scopes extraction to a specific element"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
     ] = None
     """
-    Selectors for elements and subtrees that should be excluded from extraction
+    Locators for elements and subtrees that should be excluded from extraction
 
-    Example: ['nav', '.cookie-banner', '#sidebar-ads']
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
     """
     screenshot: Annotated[Optional[StrictBool], Field(examples=[False])] = None
     """
@@ -603,8 +601,6 @@ class ExtractOptions(WireModel):
 
     Example: False
     """
-    locator: Optional[Locator] = None
-    """Serializable element locator for the extraction target"""
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""
 
@@ -1404,23 +1400,19 @@ class ObserveOptions(WireModel):
 
     Example: 30000
     """
-    selector: Annotated[Optional[StrictStr], Field(examples=["nav"])] = None
-    """
-    CSS selector to scope observation to a specific element
-
-    Example: 'nav'
-    """
-    ignore_selectors: Annotated[
-        Optional[list[StrictStr]],
-        Field(examples=[["nav", ".cookie-banner", "#sidebar-ads"]]),
+    locator: Optional[Locator] = None
+    """Locator that scopes observation to a specific element"""
+    ignore_locators: Annotated[
+        Optional[list[Locator]],
+        Field(
+            examples=[[{"selector": "nav"}, {"selector": ".cookie-banner"}, {"selector": "#sidebar-ads"}]]
+        ),
     ] = None
     """
-    Selectors for elements and subtrees that should be excluded from observation
+    Locators for elements and subtrees that should be excluded from observation
 
-    Example: ['nav', '.cookie-banner', '#sidebar-ads']
+    Example: [{'selector': 'nav'}, {'selector': '.cookie-banner'}, {'selector': '#sidebar-ads'}]
     """
-    locator: Optional[Locator] = None
-    """Serializable element locator for the observation target"""
     cache: Optional[Caching] = None
     """Override the instance-level cache setting for this request"""
 
