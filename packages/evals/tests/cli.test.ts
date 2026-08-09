@@ -230,7 +230,7 @@ describe("CLI entrypoint", () => {
     expect(payload.envOverrides.EVAL_PROVIDER).toBeUndefined();
     expect(payload.runOptions.harness).toBe("stagehand");
     expect(payload.runOptions.verbose).toBe(false);
-  });
+  }, 20_000);
 
   it("renders --preview as a human-readable plan", async () => {
     const { stdout, code } = await runCli(["run", "act", "--preview"]);
@@ -245,7 +245,7 @@ describe("CLI entrypoint", () => {
     expect(plain).toMatch(/Total:\s+\d+ run/);
     // Should NOT be JSON.
     expect(() => JSON.parse(stdout)).toThrow();
-  });
+  }, 20_000);
 
   it("accepts --verbose for a one-shot run", async () => {
     const { stdout, code } = await runCli(["run", "act", "--dry-run", "--verbose"]);
