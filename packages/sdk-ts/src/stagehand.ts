@@ -206,9 +206,10 @@ export class Stagehand {
   async act(instruction: string, options?: StagehandClientActOptions): Promise<ActResult>;
   async act(instruction: Action, options?: StagehandClientActOptions): Promise<ActResult>;
   async act(instruction: string | Action, options?: StagehandClientActOptions): Promise<ActResult> {
-    const { page, ...protocolOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
+    const { page, ...clientOptions } = StagehandClientActOptionsSchema.parse(options ?? {});
     const targetPage = page ?? (await this.browser.context.activePage());
     if (!targetPage) throw new Error("Stagehand has no active page.");
+    const protocolOptions = serializeClientLocatorOptions("act", targetPage.pageId, clientOptions);
     const response = await this.connectedRpcClient.send(StagehandMethods.stagehandAct, {
       pageId: targetPage.pageId,
       instruction,
