@@ -4,7 +4,7 @@ sidebarTitle: "Introduction"
 description: "Developers use Stagehand to reliably automate the web."
 ---
 
-Stagehand is Browserbase's SDK and AI browser driver for building browser agents. It combines deterministic code with AI-powered browser primitives, so you control which steps run as plain selectors and which ones call a model.
+Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
 
 ## The problem with browser automation
 
@@ -16,7 +16,14 @@ Traditional frameworks like Playwright and Puppeteer force you to write brittle 
 
 ## Enter Stagehand
 
-Three primitives let you choose how much AI each step uses:
+Stagehand gives you two layers of control:
+
+- **AI primitives** (`act`, `extract`, `observe`) for self-healing natural-language steps
+- **Playwright-style APIs** on [`page`](/v4/reference/page) (`goto`, `click`, `type`, `locator`, `screenshot`) for deterministic browser control
+
+You can mix both in the same script and decide how much AI each step uses.
+
+### AI primitives
 
 <CardGroup cols={3}>
   <Card title="Act" icon="play" href="/v4/basics/act">
@@ -99,15 +106,62 @@ fmt.Println(len(observed.Data), "candidate actions")
 </Tab>
 </Tabs>
 
+### Playwright-style APIs
+
+When you know the selector or want zero inference, use [`page`](/v4/reference/page) methods you already know.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const page = await stagehand.browser.context.activePage();
+
+await page.goto("https://example.com");
+await page.locator('textarea[name="q"]').fill("Browserbase");
+await page.keyPress("Enter");
+await page.screenshot();
+```
+</Tab>
+
+<Tab title="Python">
+```python
+page = await stagehand.browser.context.active_page()
+
+await page.goto("https://example.com")
+await page.locator('textarea[name="q"]').fill("Browserbase")
+await page.key_press("Enter")
+await page.screenshot()
+```
+</Tab>
+
+<Tab title="Go">
+```go
+// page comes from the quickstart (pages[0])
+
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+if err := page.Locator(`textarea[name="q"]`).Fill(ctx, "Browserbase"); err != nil {
+	return err
+}
+if err := page.KeyPress(ctx, "Enter", nil); err != nil {
+	return err
+}
+if _, err := page.Screenshot(ctx, nil); err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
 ## Why developers choose Stagehand
 
-- **Precise control:** Mix AI-powered actions with deterministic code. You decide exactly how much AI to use.
-- **The engine runs inside the browser:** Act, extract, and observe execute in an in-browser runtime instead of a Node process wrapping Playwright, and clients talk to it over a typed, bidirectional JSON-RPC protocol.
-- **First-class TypeScript, Python, and Go SDKs:** Each client is generated from the same protocol, so every method and option matches across supported languages.
-- **The AI primitives live on Stagehand:** `act`, `extract`, and `observe` are methods on [`stagehand`](/v4/reference/stagehand). They run on the browser's active page by default, or on a page you pass. Deterministic controls like `goto`, `click`, and `type` stay on [`page`](/v4/reference/page).
+- **Precise control:** Mix AI-powered actions with deterministic `page` APIs. You decide exactly how much AI to use.
+- **Runtime lives in the browser:** Stagehand runs next to the page, so remote browsers feel as fast as local ones.
+- **First-class TypeScript, Python, and Go SDKs:** Every method and option matches across supported languages.
 - **Extraction is typed:** [`extract`](/v4/basics/extract) validates results against a schema you define and hands back fully typed data.
 - **Models are flexible:** Use a supported provider by name or supply your own client-side LLM callback.
 - **Metrics are built in:** Read per-method token usage and inference timing with [`metrics()`](/v4/reference/stagehand).
+- **Built for agent harnesses:** Stagehand is the hands. Bring your own agent as the brain (LangChain, CrewAI, Mastra, or a custom loop).
 
 ## Built for modern development
 Stagehand is designed for developers building production browser automations and AI agents that need reliable web access.
