@@ -343,7 +343,7 @@ Cache behavior is also visible in the [Browserbase session replay dashboard](htt
 <Accordion title="Scope by locator">
 When targeting a specific part of a page, pass a locator to scope the accessibility tree snapshot to that container. This reduces token costs and speeds up inference.
 
-Locator-scoped `observe()` and `extract()` calls currently bypass the server-side result cache, because the cache contract is keyed on unscoped requests. Their cache status is `DISABLED` even when instance-level caching is enabled.
+Locator-scoped `act()`, `observe()`, and `extract()` calls currently bypass the server-side result cache, because the cache contract is keyed on unscoped requests. Their cache status is `DISABLED` even when instance-level caching is enabled.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -405,7 +405,7 @@ func example(ctx context.Context, client *stagehand.Stagehand, page *stagehand.P
 </Tabs>
 
 <Note>
-When you set `locator` or `ignoreLocators` on `observe()` or `extract()`, Stagehand skips server-side cache reads and writes for that call.
+When you set `locator` or `ignoreLocators` on `act()`, `observe()`, or `extract()`, Stagehand skips server-side cache reads and writes for that call.
 </Note>
 </Accordion>
 

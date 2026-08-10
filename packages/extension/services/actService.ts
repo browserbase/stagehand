@@ -114,6 +114,7 @@ export async function act({
     page,
     data: cacheService.buildActCacheData(params),
     caching: options?.cache,
+    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,
     logger,
     onHit: (value) => replayCachedActions(value, instruction, variables, context),

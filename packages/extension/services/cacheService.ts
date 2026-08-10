@@ -82,8 +82,6 @@ export function buildActCacheData(params: StagehandActParams): Record<string, un
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
-          locator: params.options.locator,
-          ignoreLocators: params.options.ignoreLocators,
         }
       : undefined,
   };
@@ -115,7 +113,10 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
 }
 
 export function shouldBypassCacheForLocatorScope(
-  options: StagehandObserveParams["options"] | StagehandExtractParams["options"],
+  options:
+    | StagehandActParams["options"]
+    | StagehandObserveParams["options"]
+    | StagehandExtractParams["options"],
 ): boolean {
   return Boolean(options?.locator || options?.ignoreLocators?.length);
 }

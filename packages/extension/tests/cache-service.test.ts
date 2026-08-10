@@ -137,7 +137,7 @@ describe("cache service", () => {
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
 
-  it("includes act locator descriptors and omits observe/extract locator descriptors in cache data", () => {
+  it("omits locator descriptors from act, observe, and extract cache data", () => {
     expect(
       cacheService.buildActCacheData({
         pageId: "page-1",
@@ -152,8 +152,6 @@ describe("cache service", () => {
       options: {
         variables: undefined,
         timeout: undefined,
-        locator: { selector: ".card", nth: 1 },
-        ignoreLocators: [{ selector: ".ad", nth: 2 }],
       },
     });
 

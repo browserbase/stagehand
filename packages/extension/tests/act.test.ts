@@ -567,6 +567,61 @@ describe("act service", () => {
     expect(clientLLMGenerate).not.toHaveBeenCalled();
   });
 
+  it("bypasses cache reads and writes for locator-scoped instruction acts", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/main/button"));
+    const page = {
+      ...actPage(frame, captureSnapshot),
+      url: () => "https://example.com",
+      frames: () => [frame],
+    } as unknown as Page;
+    const get = vi.fn();
+    const set = vi.fn();
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Checkout button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click checkout",
+        options: {
+          cache: true,
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: ".promo", nth: 0 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: true,
+      },
+    });
+
+    expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+    expect(captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: "main", nth: 1 },
+      ignoreLocators: [{ selector: ".promo", nth: 0 }],
+    });
+    expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+  });
+
   it("respects the act timeout across page preparation", async () => {
     const now = vi
       .spyOn(Date, "now")
