@@ -28,7 +28,7 @@ async function main() {
       id: "stagehand-facade-agent",
       name: "Stagehand Facade Agent",
       instructions: FACADE_AGENT_INSTRUCTIONS,
-      model: openai(process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5-mini"),
+      model: openai(process.env.MASTRA_STAGEHAND_MODEL ?? "gpt-5.6-luna"),
       tools,
     });
 
