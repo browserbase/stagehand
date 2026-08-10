@@ -119,7 +119,6 @@ git clone https://github.com/browserbase/stagehand.git
 cd stagehand
 pnpm install
 pnpm run build
-pnpm run example # run the blank script at ./examples/example.ts
 ```
 
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
@@ -128,6 +127,14 @@ Stagehand is best when you have an API key for an LLM provider and Browserbase c
 cp .env.example .env
 nano .env # Edit the .env file to add API keys
 ```
+
+Then run any of the scripts in [`packages/sdk-ts/examples`](./packages/sdk-ts/examples):
+
+```bash
+pnpm exec tsx packages/sdk-ts/examples/act.ts
+```
+
+If you have [`just`](https://github.com/casey/just) installed, `just example act` runs the same script and rebuilds the packages it depends on first. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
 
 ### Installing from a branch
 
