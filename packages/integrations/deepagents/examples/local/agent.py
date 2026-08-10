@@ -37,7 +37,7 @@ class SportsSummary(BaseModel):
 
 
 async def main() -> None:
-    model = "google_genai:gemini-3.6-flash"
+    model = "openai:gpt-5.6-luna"
     instruction = "Go find me a summary of all main sports events today"
     response_format = SportsSummary
 
@@ -50,7 +50,6 @@ async def main() -> None:
             tools=tools,
             system_prompt=BROWSER_INSTRUCTIONS,
             response_format=response_format,
-            debug=True,
         )
         result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
 
