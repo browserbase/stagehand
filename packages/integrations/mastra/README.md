@@ -36,7 +36,7 @@ Configure the environment as needed:
 ```sh
 pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade test
 pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade typecheck
-pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade start -- "your instruction"
+pnpm --filter @browserbasehq/stagehand-integrations-example-mastra-facade start "your instruction"
 ```
 
 ## Security model
@@ -47,5 +47,6 @@ recommended isolation boundary. The Node host process spawns the facade server
 and holds only the MCP connection; model-authored JavaScript does not execute
 inside the host process.
 
-The child process receives only `STAGEHAND_*` and `BROWSERBASE_*` environment
+The child process receives `STAGEHAND_*` and `BROWSERBASE_*` environment variables plus the MCP
+transport's safe defaults (HOME, PATH, SHELL, TERM, USER, LOGNAME) — never the full host
 variables; the host's complete environment is never forwarded.

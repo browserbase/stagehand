@@ -5,9 +5,10 @@ import { Agent } from "@mastra/core/agent";
 import { createFacadeMCPClient } from "./client.ts";
 
 async function main() {
-  const instruction = process.argv.slice(2).join(" ").trim();
+  const args = process.argv.slice(2);
+  const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
   if (!instruction) {
-    throw new Error('Usage: pnpm start -- "your instruction"');
+    throw new Error('Usage: pnpm start "your instruction"');
   }
 
   const client = createFacadeMCPClient();

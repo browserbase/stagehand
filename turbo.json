@@ -84,6 +84,9 @@
         "$TURBO_ROOT$/vitest.config.ts"
       ]
     },
+    "@browserbasehq/stagehand-integrations-example-mastra-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
       "dependsOn": ["^build"],
