@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 func main() {

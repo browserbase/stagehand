@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 type pageEventInfo struct {

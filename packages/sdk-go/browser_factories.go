@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
+	"github.com/browserbase/stagehand/packages/sdk-go/v4/internal/extensionassets"
 )
 
 // LocalBrowserLaunchOptions configures a Chromium process launched by the SDK.

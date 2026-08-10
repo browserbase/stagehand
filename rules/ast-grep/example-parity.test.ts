@@ -80,7 +80,7 @@ describe("All language examples remain in sync", () => {
       "go",
       `package main
 
-import sh "github.com/browserbase/stagehand/packages/sdk-go"
+import sh "github.com/browserbase/stagehand/packages/sdk-go/v4"
 
 func main() {
 	client, err := sh.Create(ctx, options)
@@ -102,7 +102,7 @@ func main() {
             ? root
                 .findAll({ rule: { kind: "import_spec" } })
                 .find((node) =>
-                  node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go"'),
+                  node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go/v4"'),
                 )
             : root.find({
                 rule: {
@@ -267,7 +267,7 @@ function goPublicSdkOperations(root: SgNode, stagehand: string, sdkPackage: stri
 function goSdkPackage(root: SgNode): string | undefined {
   const sdkImport = root
     .findAll({ rule: { kind: "import_spec" } })
-    .find((node) => node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go"'));
+    .find((node) => node.text().endsWith('"github.com/browserbase/stagehand/packages/sdk-go/v4"'));
   if (!sdkImport) return undefined;
 
   return (

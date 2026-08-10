@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
 )
 
 const webMCPTestSite = "https://browserbase.github.io/stagehand-eval-sites/sites/webmcp-test/"

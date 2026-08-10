@@ -103,3 +103,64 @@ jobs:
     if: needs.python-release-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     secrets: inherit
+
+  publish-go:
+    name: Release Go SDK
+    needs: release-typescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - name: Derive Go release from package version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(node -p 'require("./packages/sdk-go/package.json").version')"
+          if [[ ! "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid Go SDK package version: $VERSION" >&2
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MODULE="$(sed -n 's/^module //p' packages/sdk-go/go.mod)"
+          EXPECTED_MODULE="github.com/browserbase/stagehand/packages/sdk-go"
+          if (( MAJOR >= 2 )); then
+            EXPECTED_MODULE="$EXPECTED_MODULE/v$MAJOR"
+          fi
+          if [[ "$MODULE" != "$EXPECTED_MODULE" ]]; then
+            echo "Go module path is $MODULE; expected $EXPECTED_MODULE for $VERSION" >&2
+            exit 1
+          fi
+
+          TAG="packages/sdk-go/v$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          if find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
+            echo "should-tag=false" >> "$GITHUB_OUTPUT"
+            echo "Pending changesets remain; not tagging $TAG"
+          elif git rev-parse --verify --quiet "refs/tags/$TAG"; then
+            TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
+            if [[ "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
+              echo "$TAG already points to $TAG_COMMIT instead of $GITHUB_SHA" >&2
+              exit 1
+            fi
+            echo "should-tag=false" >> "$GITHUB_OUTPUT"
+            echo "$TAG already points to this release commit"
+          else
+            echo "should-tag=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Tag Go release
+        if: steps.release.outputs.should-tag == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
