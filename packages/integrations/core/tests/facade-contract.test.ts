@@ -16,6 +16,29 @@ describe("Stagehand facade contract", () => {
     });
   });
 
+  it("configures headless Chrome and its executable from allowlisted variables", () => {
+    expect(
+      stagehandFacadeConfigFromEnv({
+        STAGEHAND_HEADLESS: "true",
+        STAGEHAND_CHROME_PATH: "/opt/chrome",
+        STAGEHAND_CHROMIUM_SANDBOX: "false",
+      }).browser,
+    ).toStrictEqual({
+      type: "local",
+      launchOptions: {
+        headless: true,
+        executablePath: "/opt/chrome",
+        chromiumSandbox: false,
+      },
+    });
+  });
+
+  it("rejects invalid headless configuration", () => {
+    expect(() => stagehandFacadeConfigFromEnv({ STAGEHAND_HEADLESS: "sometimes" })).toThrow(
+      "STAGEHAND_HEADLESS must be one of",
+    );
+  });
+
   it("pins the three tool names and descriptions", () => {
     expect(FACADE_TOOLS.map((tool) => tool.name)).toStrictEqual(["run", "snapshot", "screenshot"]);
     expect(FACADE_TOOLS[0].description).toContain('"op" (never "kind")');

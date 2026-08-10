@@ -60,6 +60,32 @@ def test_runtime_config_defaults_local_browser_to_headed(
     assert RuntimeConfig.from_env().headless is False
 
 
+async def test_local_browser_uses_configured_headless_chrome(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    browser = AsyncMock()
+    stagehand = AsyncMock()
+    launch = AsyncMock(return_value=browser)
+    create = AsyncMock(return_value=stagehand)
+    monkeypatch.setattr(runtime_module, "local_browser", SimpleNamespace(launch=launch))
+    monkeypatch.setattr(runtime_module.Stagehand, "create", create)
+
+    tools = await BrowserTools.start(
+        RuntimeConfig(
+            headless=True,
+            chrome_path="/opt/chrome",
+            chromium_sandbox=False,
+        )
+    )
+    await tools.close()
+
+    launch.assert_awaited_once_with(
+        headless=True,
+        executable_path="/opt/chrome",
+        chromium_sandbox=False,
+    )
+
+
 def test_runtime_config_rejects_model_key_without_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

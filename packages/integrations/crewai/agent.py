@@ -29,10 +29,12 @@ FACADE_AGENT_INSTRUCTIONS = (
 
 
 class ImageSavingToolAdapter(CrewAIToolAdapter):
-    """CrewAIToolAdapter drops MCP ImageContent blocks (text-only conversion).
+    """Preserve MCP images and normalize CrewAI's optional arguments.
 
-    Wrap the tool callable so image blocks are saved to disk and replaced with
-    a text block naming the saved file before the text-only conversion runs.
+    CrewAI materializes omitted optional fields as ``None``, but MCP JSON schemas
+    represent omission by leaving the property out. Drop those synthetic nulls
+    before the MCP call. Also save image blocks to disk before CrewAI's text-only
+    conversion drops them.
     """
 
     def adapt(
@@ -41,7 +43,10 @@ class ImageSavingToolAdapter(CrewAIToolAdapter):
         mcp_tool: Tool,
     ) -> BaseTool:
         def wrapped(arguments: dict[str, Any] | None) -> CallToolResult:
-            result = func(arguments)
+            normalized_arguments = {
+                key: value for key, value in (arguments or {}).items() if value is not None
+            }
+            result = func(normalized_arguments)
             new_content: list[ContentBlock] = []
             for block in result.content:
                 if not isinstance(block, ImageContent):

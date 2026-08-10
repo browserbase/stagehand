@@ -48,6 +48,30 @@ def test_image_saving_tool_adapter_preserves_screenshot() -> None:
         screenshot_path.unlink(missing_ok=True)
 
 
+def test_adapter_omits_crewai_nulls_before_mcp_call() -> None:
+    received: list[dict[str, Any] | None] = []
+
+    def fake_func(arguments: dict[str, Any] | None) -> CallToolResult:
+        received.append(arguments)
+        return CallToolResult(content=[TextContent(type="text", text="ok")])
+
+    mcp_tool = Tool(
+        name="run",
+        description="d",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "code": {"type": "string"},
+                "actions": {"type": "array", "items": {"type": "object"}},
+            },
+        },
+    )
+    tool = ImageSavingToolAdapter().adapt(fake_func, mcp_tool)
+
+    assert tool.run(code="return 1", actions=None) == "ok"
+    assert received == [{"code": "return 1"}]
+
+
 def test_instructions_match_canonical_constant() -> None:
     """Pin the hand-copied prompt to the TS source of truth when in-repo."""
     contract = Path(__file__).parent / ".." / "core" / "src" / "facade" / "contract.ts"

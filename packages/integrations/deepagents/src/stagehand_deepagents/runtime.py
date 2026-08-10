@@ -44,6 +44,18 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.lower() in {"1", "true", "yes", "on"}
 
 
+def _env_optional_bool(name: str) -> bool | None:
+    value = os.environ.get(name)
+    if value is None:
+        return None
+    normalized = value.lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{name} must be a boolean")
+
+
 def _env_positive_int(name: str, default: int) -> int:
     value = os.environ.get(name)
     if value is None:
@@ -58,6 +70,8 @@ def _env_positive_int(name: str, default: int) -> int:
 class RuntimeConfig:
     provider: BrowserProvider = "local"
     headless: bool = False
+    chrome_path: str | None = None
+    chromium_sandbox: bool | None = None
     start_url: str | None = None
     stagehand_model: str | None = None
     stagehand_model_api_key: str | None = None
@@ -77,6 +91,8 @@ class RuntimeConfig:
         return cls(
             provider=raw_provider,
             headless=_env_bool("STAGEHAND_HEADLESS", False),
+            chrome_path=os.environ.get("STAGEHAND_CHROME_PATH") or None,
+            chromium_sandbox=_env_optional_bool("STAGEHAND_CHROMIUM_SANDBOX"),
             start_url=os.environ.get("STAGEHAND_START_URL") or None,
             stagehand_model=stagehand_model,
             stagehand_model_api_key=stagehand_model_api_key,
@@ -120,7 +136,11 @@ class BrowserTools:
                 browser_settings={"viewport": {"width": 1280.0, "height": 720.0}},
             )
         else:
-            browser = await local_browser.launch(headless=resolved.headless)
+            browser = await local_browser.launch(
+                headless=resolved.headless,
+                executable_path=resolved.chrome_path,
+                chromium_sandbox=resolved.chromium_sandbox,
+            )
 
         try:
             create_options: dict[str, object] = {}

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   CDPClient,
   CDPConnectionClosedError,
+  loadUnpackedExtension,
   openCDPWebSocket,
   stagehandMessageExpression,
   waitForRuntimeReady,
@@ -85,6 +86,26 @@ class FakeWebSocket extends EventTarget {
 }
 
 describe("CDP WebSocket transport", () => {
+  it("explains when a Chrome build cannot load unpacked extensions", async () => {
+    const signal = new AbortController().signal;
+    const cdpError = new Error("Method not available.", {
+      cause: {
+        code: -32000,
+        message: "Method not available.",
+        method: "Extensions.loadUnpacked",
+      },
+    });
+    const cdp = {
+      sendCommand: vi.fn(async () => {
+        throw cdpError;
+      }),
+    };
+
+    await expect(loadUnpackedExtension(cdp, "/tmp/extension", signal)).rejects.toThrow(
+      "This Chrome build does not support Extensions.loadUnpacked",
+    );
+  });
+
   it("opens the built-in WebSocket transport", async () => {
     const signal = new AbortController().signal;
     const socket = new FakeWebSocket();
