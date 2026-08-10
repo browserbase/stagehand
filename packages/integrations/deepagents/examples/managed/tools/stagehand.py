@@ -344,6 +344,14 @@ class _BrowserRegistry:
                         entry = _RegistryEntry(revived, now)
                         self.entries[thread_id] = entry
                     except Exception:
+                        # Reconnect failed — release the old keep-alive session
+                        # best-effort so the replacement doesn't strand it.
+                        if stale.browser.browserbase_api_key:
+                            await _release_session(
+                                stale.browser.browserbase_api_key,
+                                stale.browser.browserbase_api_url,
+                                stale.browser.session_id,
+                            )
                         entry = None
             if entry is None:
                 entry = _RegistryEntry(await _BrowserRuntime.start(), now)

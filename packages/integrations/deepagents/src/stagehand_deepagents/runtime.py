@@ -170,8 +170,10 @@ class BrowserTools:
         type: ImageType = "png",
         quality: int | None = None,
     ) -> tuple[bytes, str]:
-        if quality is not None and not 0 <= quality <= 100:
-            raise ValueError("quality must be between 0 and 100")
+        if quality is not None:
+            if not 0 <= quality <= 100:
+                raise ValueError("quality must be between 0 and 100")
+            quality = round(quality)
         if type == "png" and quality is not None:
             raise ValueError("quality is only valid for jpeg screenshots")
         async with self._lock:

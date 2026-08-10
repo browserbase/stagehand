@@ -1230,6 +1230,7 @@ dependencies = [
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
     { name = "pydantic" },
+    { name = "python-dotenv" },
 ]
 
 [package.metadata]
@@ -1238,6 +1239,7 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.3,<1" },
     { name = "langchain-openai", specifier = ">=1,<2" },
     { name = "pydantic", specifier = ">=2,<3" },
+    { name = "python-dotenv", specifier = ">=1.0" },
 ]
 
 [[package]]

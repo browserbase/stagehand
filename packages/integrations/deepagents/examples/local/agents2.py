@@ -60,6 +60,7 @@ Do not submit the form. Return a summary of the fields you successfully filled."
             tools=tools,
             system_prompt=BROWSER_INSTRUCTIONS,
             response_format=response_format,
+            debug=True,
         )
         result = await agent.ainvoke({"messages": [{"role": "user", "content": instruction}]})
         response: FormFillResult = result["structured_response"]
