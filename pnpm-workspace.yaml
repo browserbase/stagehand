@@ -30,6 +30,8 @@ catalog:
   devtools-protocol: ^0.0.1657692
   chrome-launcher: ^1.2.1
   ai: ^7.0.16
+  "@mastra/core": ^1.55.0
+  "@mastra/mcp": ^1.15.0
   "@ai-sdk/provider": ^4.0.2
   "@ai-sdk/openai": ^4.0.8
   "@ai-sdk/anthropic": ^4.0.8
