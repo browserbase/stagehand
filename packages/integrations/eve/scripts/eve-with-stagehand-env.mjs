@@ -22,6 +22,7 @@ const child = spawn("eve", process.argv.slice(2), {
   },
 });
 child.on("error", (error) => {
+  // oxlint-disable-next-line no-console -- CLI wrapper reports launch failures to stderr.
   console.error(
     `Failed to launch the eve CLI (${error.message}). Run pnpm install first, or invoke this script through a pnpm script so node_modules/.bin is on PATH.`,
   );
