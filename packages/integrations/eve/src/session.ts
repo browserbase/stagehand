@@ -25,6 +25,9 @@ let resourcesPromise: Promise<FacadeResources> | undefined;
 let cleanupPromise: Promise<void> = Promise.resolve();
 let browserbaseSessionId: string | undefined;
 let persistedSessionIdLoaded = false;
+// Session flagged as wedged (connectable but broken). Reconnecting to it would
+// loop forever, so the next createResources releases it and launches fresh.
+let suspectSessionId: string | undefined;
 
 export async function getFacadeTools(): Promise<StagehandFacadeTools> {
   const current = await ensureResources();
@@ -54,9 +57,11 @@ export async function discardFacadeToolsIfUnhealthy(expected: StagehandFacadeToo
     await resources.browser.context.pages();
   } catch {
     // The remote session itself is unhealthy (connectable but broken), so
-    // reattaching by id would loop forever — forget it and start fresh.
-    browserbaseSessionId = undefined;
-    persistSessionId(undefined);
+    // reattaching by id would loop forever. Flag it as suspect so the next
+    // createResources releases it and launches fresh. Do NOT clear the
+    // persisted id here: keeping it lets the recovery path release the
+    // keep-alive session instead of stranding it on billing.
+    suspectSessionId = browserbaseSessionId;
     discardFacadeTools(expected);
   }
 }
@@ -86,11 +91,19 @@ async function createResources(): Promise<FacadeResources> {
   loadPersistedSessionId();
   const { apiKey, baseUrl, ...sessionOptions } = config.browser.launchOptions;
   if (browserbaseSessionId) {
-    const browser = await connectToSession(apiKey, browserbaseSessionId, baseUrl);
-    if (browser) return attach(browser, config.stagehand);
+    // Skip reconnecting to a session flagged as wedged — it is connectable but
+    // broken, so reattaching would loop forever (the "no brick" invariant).
+    if (browserbaseSessionId !== suspectSessionId) {
+      const browser = await connectToSession(apiKey, browserbaseSessionId, baseUrl);
+      if (browser) return attach(browser, config.stagehand);
+    }
 
-    browserbaseSessionId = undefined;
-    persistSessionId(undefined);
+    // Recovery is bounded: release the old keep-alive session best-effort so
+    // it doesn't strand on billing (the "no strand" invariant), then launch
+    // fresh. The persisted id is never cleared on failure paths — the fresh
+    // launch overwrites it via persistSessionId only after it succeeds.
+    await releaseSession(apiKey, browserbaseSessionId, baseUrl);
+    suspectSessionId = undefined;
   }
 
   // Create through browserbase.launch — NOT the raw Browserbase SDK — so the
@@ -115,24 +128,48 @@ async function connectToSession(
   sessionId: string,
   baseUrl: string | undefined,
 ): Promise<StagehandBrowser | undefined> {
-  try {
-    return await browserbase.connect({
+  const connect = () =>
+    browserbase.connect({
       apiKey,
       sessionId,
       ...(baseUrl ? { baseUrl } : {}),
     });
-  } catch (error) {
-    // Only treat the session as gone when Browserbase says so. A transient
-    // network/5xx failure must not discard the persisted id — launching a
-    // replacement would strand a healthy keep-alive session on billing.
-    if (isSessionGoneError(error)) return undefined;
-    throw error;
+
+  try {
+    return await connect();
+  } catch {
+    // One bounded retry covers transient network/5xx blips. If it also fails,
+    // the caller releases the old session and launches fresh — never rethrow,
+    // so a flaky reconnect can neither brick recovery nor strand the session.
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      return await connect();
+    } catch {
+      return undefined;
+    }
   }
 }
 
-function isSessionGoneError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return /not found|terminated|expired|completed|410|404|no longer|stopped/i.test(message);
+async function releaseSession(
+  apiKey: string,
+  sessionId: string,
+  baseUrl: string | undefined,
+): Promise<void> {
+  // Best-effort raw REST release so the keep-alive session doesn't keep
+  // billing after we abandon it. Failures are swallowed: the session may
+  // already be gone, and release must never block the fresh launch.
+  try {
+    await fetch(`${baseUrl ?? "https://api.browserbase.com"}/v1/sessions/${sessionId}`, {
+      method: "POST",
+      headers: {
+        "x-bb-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: "REQUEST_RELEASE" }),
+    });
+  } catch {
+    // Swallow — best-effort only.
+  }
 }
 
 function loadPersistedSessionId(): void {
