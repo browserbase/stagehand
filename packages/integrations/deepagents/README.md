@@ -15,7 +15,6 @@ export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
 The MCP server launches a local headless Chrome browser by default. Then run:
 
 ```bash
-pnpm --filter ./packages/extension build
 cd packages/integrations/deepagents
 uv run --project examples/local python examples/local/agent.py
 ```
@@ -31,16 +30,6 @@ returns a typed Pydantic summary without submitting the form:
 ```bash
 uv run --project examples/local python examples/local/agents2.py
 ```
-
-To verify the integration without an LLM API key, run:
-
-```bash
-uv run --project examples/local --locked python examples/local/check_tools.py
-uv run --project examples/local --locked python examples/local/check_browser.py
-```
-
-The first command confirms that Deep Agents discovers exactly `run`, `snapshot`, and
-`screenshot`. The second launches a local browser and exercises all three tools end to end.
 
 To use Browserbase instead:
 

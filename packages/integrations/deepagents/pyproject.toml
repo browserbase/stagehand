@@ -16,9 +16,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "stagehand_deepagents"
 
-[tool.uv.sources]
-stagehand = { path = "../../sdk-python", editable = true }
-
 [tool.ruff]
 target-version = "py311"
 line-length = 100

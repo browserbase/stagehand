@@ -345,30 +345,16 @@ wheels = [
 [[package]]
 name = "stagehand"
 version = "4.0.0"
-source = { editable = "../../sdk-python" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "browserbase" },
     { name = "opentelemetry-api" },
     { name = "pydantic" },
     { name = "websockets" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "browserbase", specifier = ">=1.15,<2" },
-    { name = "opentelemetry-api", specifier = ">=1.35,<2" },
-    { name = "pydantic", specifier = ">=2.12,<3" },
-    { name = "websockets", specifier = ">=16.1.1" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "datamodel-code-generator", specifier = "==0.68.1" },
-    { name = "openai", specifier = ">=2,<3" },
-    { name = "pytest", specifier = "==9.0.2" },
-    { name = "pytest-asyncio", specifier = "==1.3.0" },
-    { name = "ruff", specifier = "==0.15.7" },
-    { name = "ty", specifier = "==0.0.56" },
+sdist = { url = "https://files.pythonhosted.org/packages/ea/af/7f3cb04497d71b0a4c6944db00dd1c001d2bba2b9d3e4a78e05707984045/stagehand-4.0.0.tar.gz", hash = "sha256:842549cbecf45557c20b17cd2ea4e454a8080f756dbff59a50aa93cb7db62a16", size = 482959, upload-time = "2026-08-10T06:38:36.323Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e1/8e/bb578acfe581ddff13091e87995d586dd14fb185bdc33bf7523060dcc693/stagehand-4.0.0-py3-none-any.whl", hash = "sha256:aae7d4b66b85f6a00d1fb44f53cab95b7fe33e8f2ca1e4f4721b6e26ee45c265", size = 494922, upload-time = "2026-08-10T06:38:34.889Z" },
 ]
 
 [[package]]
@@ -387,7 +373,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "stagehand", editable = "../../sdk-python" }]
+requires-dist = [{ name = "stagehand", specifier = ">=4.0.0" }]
 
 [package.metadata.requires-dev]
 dev = [
