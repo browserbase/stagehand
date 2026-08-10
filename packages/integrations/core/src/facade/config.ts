@@ -29,6 +29,12 @@ export function stagehandFacadeConfigFromEnv(
   }
 
   const browserType = requestedBrowser ?? (browserbaseApiKey ? "browserbase" : "local");
+  const headless = booleanFromEnv("STAGEHAND_HEADLESS", env.STAGEHAND_HEADLESS) ?? false;
+  const chromePath = nonEmpty(env.STAGEHAND_CHROME_PATH);
+  const chromiumSandbox = booleanFromEnv(
+    "STAGEHAND_CHROMIUM_SANDBOX",
+    env.STAGEHAND_CHROMIUM_SANDBOX,
+  );
   if (browserType === "browserbase" && !browserbaseApiKey) {
     throw new StagehandFacadeConfigError(
       'BROWSERBASE_API_KEY is required when STAGEHAND_BROWSER="browserbase".',
@@ -79,7 +85,14 @@ export function stagehandFacadeConfigFromEnv(
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
             },
           }
-        : { type: "local", launchOptions: { headless: false } },
+        : {
+            type: "local",
+            launchOptions: {
+              headless,
+              ...(chromePath ? { executablePath: chromePath } : {}),
+              ...(chromiumSandbox === undefined ? {} : { chromiumSandbox }),
+            },
+          },
     stagehand,
   };
 }
@@ -87,6 +100,16 @@ export function stagehandFacadeConfigFromEnv(
 function nonEmpty(value: string | undefined): string | undefined {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function booleanFromEnv(name: string, value: string | undefined): boolean | undefined {
+  const normalized = nonEmpty(value)?.toLowerCase();
+  if (normalized === undefined) return undefined;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  throw new StagehandFacadeConfigError(
+    `${name} must be one of true, false, 1, 0, yes, no, on, or off.`,
+  );
 }
 
 function providerName(modelName: string): string {

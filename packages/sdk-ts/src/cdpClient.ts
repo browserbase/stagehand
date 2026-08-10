@@ -764,7 +764,8 @@ function isExtensionsLoadUnpackedUnavailable(error: unknown): boolean {
 
   return (
     cause.data.method === "Extensions.loadUnpacked" &&
-    (cause.data.code === -32601 || /method not found|wasn't found/i.test(cause.data.message))
+    (cause.data.code === -32601 ||
+      /method not (?:found|available)|wasn't found/i.test(cause.data.message))
   );
 }
 
