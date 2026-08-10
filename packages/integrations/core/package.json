@@ -23,8 +23,8 @@
   },
   "scripts": {
     "build": "tsdown",
-    "test": "pnpm run build && vitest run --root ../.. packages/integrations/tests",
-    "test:unit": "vitest run --root ../.. packages/integrations/tests",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/core/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/core/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

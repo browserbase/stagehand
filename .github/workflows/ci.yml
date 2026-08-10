@@ -169,7 +169,7 @@ jobs:
             packages/extension/dist/**
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
-            packages/integrations/dist/**
+            packages/integrations/core/dist/**
             packages/evals/dist/**
           retention-days: 1
 

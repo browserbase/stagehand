@@ -9,7 +9,7 @@ export default defineConfig({
       "packages/protocol/json-rpc/tests/**/*.test.ts",
       "packages/docs/tests/**/*.test.ts",
       "packages/evals/tests/**/*.test.ts",
-      "packages/integrations/tests/**/*.test.ts",
+      "packages/integrations/core/tests/**/*.test.ts",
       "packages/extension/tests/**/*.test.ts",
       "packages/sdk-ts/tests/**/*.test.ts",
       "packages/extension/understudy/**/*.test.ts",
