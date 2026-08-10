@@ -6,8 +6,16 @@ import {
   NO_HYDRATED_SNAPSHOT_ERROR,
   STALE_SNAPSHOT_ID_ERROR,
 } from "../src/facade/contract.js";
+import { stagehandFacadeConfigFromEnv } from "../src/facade/config.js";
 
 describe("Stagehand facade contract", () => {
+  it("defaults local browser launches to headed mode", () => {
+    expect(stagehandFacadeConfigFromEnv({}).browser).toStrictEqual({
+      type: "local",
+      launchOptions: { headless: false },
+    });
+  });
+
   it("pins the three tool names and descriptions", () => {
     expect(FACADE_TOOLS.map((tool) => tool.name)).toStrictEqual(["run", "snapshot", "screenshot"]);
     expect(FACADE_TOOLS[0].description).toContain('"op" (never "kind")');
