@@ -69,10 +69,10 @@ Direct access to official Stagehand documentation. This MCP server provides AI a
 </Accordion>
 
 **How MCP servers enhance your development:**
-- **Real-time Documentation Access:** AI assistants can query the latest Stagehand docs, examples, and best practices
-- **Context-Aware Code Generation:** Servers provide relevant code patterns and configurations based on your specific use case
-- **Reduced Integration Overhead:** Standardized protocol eliminates the need for custom integrations with each documentation source
-- **Enhanced Accuracy:** AI agents receive structured, up-to-date information rather than relying on potentially outdated training data
+- **Real-time documentation access:** AI assistants can query the latest Stagehand docs, examples, and best practices
+- **Context-aware code generation:** Servers provide relevant code patterns and configurations based on your specific use case
+- **Reduced integration overhead:** Standardized protocol eliminates the need for custom integrations with each documentation source
+- **Enhanced accuracy:** AI agents receive structured, up-to-date information rather than relying on potentially outdated training data
 
 <Tip>
 **Prompting tip:**
@@ -90,13 +90,13 @@ Drop these in `.cursorrules`, `windsurfrules`, `claude.md`, or any agent rule fr
 <Tab title="TypeScript">
 
 ``````md
-# Stagehand Project
+# Stagehand project
 
 This is a project that uses Stagehand v4, the SDK for browser agents, with AI-powered `act`, `extract`, and `observe` methods.
 
 The main class can be imported as `Stagehand` from `@browserbasehq/stagehand`.
 
-**Key Classes:**
+**Key classes:**
 
 - `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
 - `browser.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
@@ -166,7 +166,7 @@ await stagehand.act("type %password% into the password field", {
 });
 ```
 
-### Observe Then Act Pattern (Recommended)
+### Observe then act pattern (recommended)
 
 `act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
 
@@ -198,7 +198,7 @@ Extract data from pages using natural language instructions. The `extract` metho
 
 Every primitive returns `{ data, metadata }`. Your extracted value is on `data`; `metadata` carries the action ID and server-side cache status.
 
-### Basic Extraction (with schema)
+### Basic extraction (with schema)
 
 ```typescript
 import { z } from "zod/v4";
@@ -218,7 +218,7 @@ const { data } = await stagehand.extract(
 console.log(data.listings);
 ```
 
-### Simple Extraction
+### Simple extraction
 
 A schema is always required, so wrap single values in an object:
 
@@ -231,7 +231,7 @@ const { data } = await stagehand.extract(
 console.log(data.buttonText); // "Sign in"
 ```
 
-### Targeted Extraction
+### Targeted extraction
 
 Scope extraction to a specific element with `locator`, and prune noise with `ignoreLocators`:
 
@@ -246,7 +246,7 @@ const { data } = await stagehand.extract(
 );
 ```
 
-### URL Extraction
+### URL extraction
 
 When extracting links or URLs, use `z.url()`:
 
@@ -259,7 +259,7 @@ const { data } = await stagehand.extract(
 );
 ```
 
-### Extracting from a Specific Page
+### Extracting from a specific page
 
 ```typescript
 const { data } = await stagehand.extract(
@@ -269,7 +269,7 @@ const { data } = await stagehand.extract(
 );
 ```
 
-### Inspecting Metadata
+### Inspecting metadata
 
 ```typescript
 const TitleSchema = z.object({ title: z.string() });
@@ -304,7 +304,7 @@ const { data: actions } = await stagehand.observe("find the next page button", {
 await stagehand.act(actions[0], { page: page2 });
 ```
 
-## Advanced Features
+## Advanced features
 
 ### Locators
 
@@ -316,7 +316,7 @@ await page.locator("#email").fill("user@example.com");
 const count = await page.locator("li.result").count();
 ```
 
-### Multi-Page Workflows
+### Multi-page workflows
 
 ```typescript
 const page1 = await browser.context.newPage("https://example.com");
@@ -360,7 +360,7 @@ try {
 }
 ```
 
-## Project Structure Best Practices
+## Project structure best practices
 
 - Read configuration from environment variables and pass it explicitly to the `Stagehand` constructor
 - Create the browser first, pass it to `Stagehand.create()`, then pass the instance into your automation functions
@@ -369,14 +369,14 @@ try {
 - Wrap every workflow in `try`/`finally` so `close` runs even when a step throws
 - Prefer narrow, atomic instructions over one instruction that describes a whole workflow
 
-## Security Notes
+## Security notes
 
 - Never hard-code API keys. Read them from `process.env` and pass them explicitly; Stagehand reads no environment variables for you
 - Pass secrets through `variables` so they are substituted locally and never sent to the model provider
 - Set `logging: { level: "off" }` when handling sensitive data so nothing sensitive reaches your logs
 - Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
 
-## Resources/References
+## Resources/references
 
 - TypeScript SDK: `@browserbasehq/stagehand` on npm
 - Stagehand documentation: https://docs.stagehand.dev
@@ -390,13 +390,13 @@ try {
 <Tab title="Python">
 
 ``````md
-# Stagehand Python Project
+# Stagehand Python project
 
 This is a project that uses Stagehand v4 for Python, the SDK for browser agents, with AI-powered `act`, `extract`, and `observe` methods.
 
 The main class can be imported as `Stagehand` from `stagehand`.
 
-**Key Classes:**
+**Key classes:**
 
 - `Stagehand`: Main orchestrator class providing `act`, `extract`, and `observe` methods
 - `browser.context`: A `BrowserContext` object that manages pages, cookies, and the clipboard
@@ -469,7 +469,7 @@ await stagehand.act(
 )
 ```
 
-### Observe Then Act Pattern (Recommended)
+### Observe then act pattern (recommended)
 
 `act` accepts either a string instruction or an `Action` returned by `observe`. Use `observe` to inspect the candidate action, then pass it back to `act` for deterministic replay with no inference:
 
@@ -497,7 +497,7 @@ Extract data from pages using natural language instructions. The `extract` metho
 
 Every primitive returns a result with `data` and `metadata`. Your extracted model instance is on `data`; `metadata` carries the action ID and server-side cache status.
 
-### Basic Extraction (with schema)
+### Basic extraction (with schema)
 
 ```python
 from pydantic import BaseModel
@@ -517,7 +517,7 @@ result = await stagehand.extract(
 print(result.data.listings)
 ```
 
-### Simple Extraction
+### Simple extraction
 
 A schema is always required, so wrap single values in a model:
 
@@ -533,7 +533,7 @@ result = await stagehand.extract(
 print(result.data.button_text)  # "Sign in"
 ```
 
-### Targeted Extraction
+### Targeted extraction
 
 Scope extraction to a specific element with `locator`, and prune noise with `ignore_locators`:
 
@@ -549,7 +549,7 @@ result = await stagehand.extract(
 )
 ```
 
-### URL Extraction
+### URL extraction
 
 When extracting links or URLs, type the field as a URL:
 
@@ -565,7 +565,7 @@ result = await stagehand.extract(
 )
 ```
 
-### Extracting from a Specific Page
+### Extracting from a specific page
 
 ```python
 class Placeholder(BaseModel):
@@ -578,7 +578,7 @@ result = await stagehand.extract(
 )
 ```
 
-### Inspecting Metadata
+### Inspecting metadata
 
 ```python
 class Title(BaseModel):
@@ -616,7 +616,7 @@ result = await stagehand.observe(
 await stagehand.act(result.data[0], page=page2)
 ```
 
-## Advanced Features
+## Advanced features
 
 ### Locators
 
@@ -628,7 +628,7 @@ await page.locator("#email").fill("user@example.com")
 count = await page.locator("li.result").count()
 ```
 
-### Multi-Page Workflows
+### Multi-page workflows
 
 ```python
 page1 = await browser.context.new_page("https://example.com")
@@ -671,7 +671,7 @@ finally:
     await browser.close()
 ```
 
-## Project Structure Best Practices
+## Project structure best practices
 
 - Store configurations in environment variables or config files
 - Use async/await patterns consistently
@@ -680,14 +680,14 @@ finally:
 - Use type hints and Pydantic models for data validation
 - Handle exceptions appropriately with try/except blocks
 
-## Security Notes
+## Security notes
 
 - Never hard-code API keys. Read them from `os.environ` and pass them explicitly; Stagehand reads no environment variables for you
 - Pass secrets through `variables` so they are substituted locally and never sent to the model provider
 - Set `logging={"level": "off"}` when handling sensitive data so nothing sensitive reaches your logs
 - Avoid broad instructions that may trigger unintended navigation; call `observe` first, then replay the returned `Action`
 
-## Resources/References
+## Resources/references
 
 - Python SDK: `stagehand` on PyPI
 - Stagehand documentation: https://docs.stagehand.dev
@@ -701,13 +701,13 @@ finally:
 <Tab title="Go">
 
 ``````md
-# Stagehand Go Project
+# Stagehand Go project
 
 This is a project that uses Stagehand v4 for Go, the SDK for browser agents, with AI-powered `Act`, `Extract`, and `Observe` methods.
 
 Import the package as `stagehand "github.com/browserbase/stagehand/packages/sdk-go"`.
 
-**Key Types:**
+**Key types:**
 
 - `*stagehand.Stagehand`: Main client, constructed with `stagehand.Create`, providing `Act`, `Extract`, and `Observe`
 - `*stagehand.BrowserContext`: Returned by `browser.Context()`, manages pages, cookies, and the clipboard
@@ -840,7 +840,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("type %password% into the 
 }
 ```
 
-### Observe Then Act Pattern (Recommended)
+### Observe then act pattern (recommended)
 
 `Act` accepts either a string instruction or an `Action` returned by `Observe`. Use `Observe` to inspect the candidate action, then pass it back to `Act` for deterministic replay with no inference:
 
@@ -862,7 +862,7 @@ if len(observed.Data) > 0 && observed.Data[0].Method != nil && *observed.Data[0]
 
 Extract data from pages using natural language instructions. The generic `stagehand.Extract` function derives JSON Schema from the selected Go type and returns typed data plus metadata.
 
-### Basic Extraction
+### Basic extraction
 
 ```go
 type listing struct {
@@ -887,7 +887,7 @@ if err != nil {
 fmt.Println(data.Data.Listings)
 ```
 
-### Typed Data and Metadata
+### Typed data and metadata
 
 `Extract` decodes `Data` into the selected Go type and preserves the protocol metadata alongside it:
 
@@ -905,7 +905,7 @@ fmt.Println(result.Data.ButtonText)
 fmt.Println(result.Metadata.Cache.Status)
 ```
 
-### Targeted Extraction
+### Targeted extraction
 
 Scope extraction to a specific element with `Locator`, and prune noise with `IgnoreLocators`:
 
@@ -929,7 +929,7 @@ if err != nil {
 fmt.Println(result.Data.Body)
 ```
 
-### URL Extraction
+### URL extraction
 
 When extracting links or URLs, add JSON Schema constraints with `jsonschema` tags:
 
@@ -944,7 +944,7 @@ type links struct {
 }
 ```
 
-### Extracting from a Specific Page
+### Extracting from a specific page
 
 ```go
 type placeholder struct {
@@ -961,7 +961,7 @@ if err != nil {
 fmt.Println(result.Data.Placeholder)
 ```
 
-### Inspecting Metadata
+### Inspecting metadata
 
 `ActionID` is a pointer, so check for nil before dereferencing. `Cache` is always present:
 
@@ -1014,7 +1014,7 @@ if len(observed.Data) > 0 {
 }
 ```
 
-## Advanced Features
+## Advanced features
 
 ### Locators
 
@@ -1034,7 +1034,7 @@ if err != nil {
 fmt.Println("results:", count)
 ```
 
-### Multi-Page Workflows
+### Multi-page workflows
 
 ```go
 page1, err := browserContext.NewPage(ctx, "https://example.com")
@@ -1101,7 +1101,7 @@ func run(ctx context.Context) (err error) {
 }
 ```
 
-## Project Structure Best Practices
+## Project structure best practices
 
 - Read configuration from environment variables and pass it explicitly
 - Thread `context.Context` through every call so cancellation works
@@ -1109,14 +1109,14 @@ func run(ctx context.Context) (err error) {
 - Define extraction shapes once as Go types; `stagehand.Extract` derives JSON Schema from them
 - Use `jsonschema` struct tags for constraints such as formats, descriptions, and bounds
 
-## Security Notes
+## Security notes
 
 - Never hard-code API keys. Read them with `os.Getenv` and pass their addresses explicitly; Stagehand reads no environment variables for you
 - Pass secrets through `ActOptions.Variables` so they are substituted locally and never sent to the model provider
 - The Go client has no log level filter. Leave `Logging.OnLog` unset, or redact inside the handler, when handling sensitive data
 - Avoid broad instructions that may trigger unintended navigation; call `Observe` first, then replay the returned `Action`
 
-## Resources/References
+## Resources/references
 
 - Go SDK: `github.com/browserbase/stagehand/packages/sdk-go`
 - Stagehand documentation: https://docs.stagehand.dev
