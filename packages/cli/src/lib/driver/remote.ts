@@ -97,8 +97,9 @@ export async function launchRemoteBrowser(
   const browser = await browserbase.launch({ apiKey, ...sessionOptions });
   return {
     browser,
-    // V4 browser handles do not expose their Browserbase session ID yet.
-    identity: {},
+    identity: browser.sessionId
+      ? await remoteBrowserbaseIdentity(browser.sessionId, forwardedEnv)
+      : {},
   };
 }
 

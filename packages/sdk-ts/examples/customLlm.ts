@@ -28,27 +28,38 @@ const stagehand = await Stagehand.create({
 const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 
-const pageInfo = await stagehand.extract(
+const extractResult = await stagehand.extract(
   "Extract the page heading and description",
   z.object({
     heading: z.string(),
     description: z.string(),
   }),
 );
-const actions = await stagehand.observe(
+const observeResult = await stagehand.observe(
   "Find the link that provides more information about Example Domain",
 );
-const actionResult = await stagehand.act(
+const actResult = await stagehand.act(
   "Click the link that provides more information about Example Domain",
 );
 
-console.log(JSON.stringify({ pageInfo, actions, actionResult, generationNames }, null, 2));
+console.log(
+  JSON.stringify(
+    {
+      pageInfo: extractResult.data,
+      actions: observeResult.data,
+      actionResult: actResult.data,
+      generationNames,
+    },
+    null,
+    2,
+  ),
+);
 
-if (actions.data.length === 0) {
+if (observeResult.data.length === 0) {
   throw new Error("observe() returned no matching actions");
 }
-if (!actionResult.data.success) {
-  throw new Error(`act() failed: ${actionResult.data.message}`);
+if (!actResult.data.success) {
+  throw new Error(`act() failed: ${actResult.data.message}`);
 }
 
 await stagehand.close();

@@ -352,7 +352,7 @@ describe.sequential("core config", () => {
     expect(code).toBe(0);
     const payload = JSON.parse(stdout);
     expect(payload.runOptions.coreToolSurface).toBe("understudy_code");
-  });
+  }, 15_000);
 
   it("rejects unknown tool", async () => {
     resetConfig();

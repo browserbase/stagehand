@@ -53,7 +53,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	extracted, err := stagehand.Extract[pageInfo](
+	extractResult, err := stagehand.Extract[pageInfo](
 		ctx,
 		client,
 		"Extract the page heading and description",
@@ -63,11 +63,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	instruction := "Find the link that provides more information about Example Domain"
-	actions, err := client.Observe(ctx, &instruction, nil)
+	observeResult, err := client.Observe(ctx, &instruction, nil)
 	if err != nil {
 		return err
 	}
-	actionResult, err := client.Act(
+	actResult, err := client.Act(
 		ctx,
 		stagehand.ActInstruction(
 			"Click the link that provides more information about Example Domain",
@@ -78,17 +78,17 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	output, err := json.MarshalIndent(map[string]any{
-		"page_info": extracted.Data, "actions": actions, "action_result": actionResult,
+		"page_info": extractResult.Data, "actions": observeResult.Data, "action_result": actResult.Data,
 	}, "", "  ")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(output))
-	if len(actions.Data) == 0 {
+	if len(observeResult.Data) == 0 {
 		return errors.New("observe returned no matching actions")
 	}
-	if !actionResult.Data.Success {
-		return fmt.Errorf("act failed: %s", actionResult.Data.Message)
+	if !actResult.Data.Success {
+		return fmt.Errorf("act failed: %s", actResult.Data.Message)
 	}
 	return nil
 }

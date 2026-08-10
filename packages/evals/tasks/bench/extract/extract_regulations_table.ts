@@ -9,9 +9,10 @@ export default defineBenchTask(
         "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
       );
 
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const xpath =
-        "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
+      // The locator engine prefix is required for XPath selectors.
+      const locator = page.locator(
+        "xpath=/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table",
+      );
 
       const { data: allottees } = await stagehand.extract(
         "Extract ALL of the Allottees and their corresponding name, area, and area code.",
@@ -25,7 +26,7 @@ export default defineBenchTask(
             }),
           ),
         }),
-        { selector: xpath },
+        { locator },
       );
 
       // Define the expected weather data

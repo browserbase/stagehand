@@ -3,9 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const stagehandMocks = vi.hoisted(() => ({
   launch: vi.fn(),
 }));
+const browserbaseSdkMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
+}));
 
 vi.mock("@browserbasehq/stagehand", () => ({
   browserbase: { launch: stagehandMocks.launch },
+}));
+vi.mock("@browserbasehq/sdk", () => ({
+  default: class Browserbase {
+    sessions = { debug: browserbaseSdkMocks.debug };
+  },
 }));
 
 import {
@@ -23,6 +31,7 @@ describe("remote.ts (Browserbase capability)", () => {
 
   beforeEach(() => {
     stagehandMocks.launch.mockReset();
+    browserbaseSdkMocks.debug.mockReset();
     process.env.BROWSERBASE_API_KEY = "test-key";
   });
 
@@ -87,14 +96,21 @@ describe("remote.ts (Browserbase capability)", () => {
   });
 
   it("launches through the V4 Browserbase factory so the extension is provisioned", async () => {
-    const browser = { close: vi.fn() };
+    const browser = { close: vi.fn(), sessionId: "session-test" };
     stagehandMocks.launch.mockResolvedValue(browser);
+    browserbaseSdkMocks.debug.mockResolvedValue({
+      debuggerUrl: "https://www.browserbase.com/live/session-test",
+    });
 
     await expect(
       launchRemoteBrowser({ kind: "remote", proxies: true, verified: true }),
     ).resolves.toEqual({
       browser,
-      identity: {},
+      identity: {
+        browserbaseDebugUrl: "https://www.browserbase.com/live/session-test",
+        browserbaseSessionId: "session-test",
+        browserbaseSessionUrl: "https://www.browserbase.com/sessions/session-test",
+      },
     });
     expect(stagehandMocks.launch).toHaveBeenCalledWith({
       apiKey: "test-key",

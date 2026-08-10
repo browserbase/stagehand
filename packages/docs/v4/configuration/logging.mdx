@@ -1,6 +1,6 @@
 ---
 title: "Logging"
-description: "Control terminal output and forward structured Stagehand logs."
+description: "Control terminal output and forward structured Stagehand logs"
 ---
 
 Configure logging through a single `logging` option on `Stagehand.create()`: a level, an output format, and a callback that receives each record. Use the language selector to see the exact shape your SDK accepts.
@@ -314,7 +314,7 @@ Turning logging off suppresses the record callback as well as console output. Do
 
 ### Log destinations
 
-Send logs to your console or to an external observability platform. The record callback drives every destination, so anything your own code can write to is a valid sink:
+Send logs to your console or through your own callback. The record callback drives every destination, so anything your own code can write to is a valid sink. To forward records to an observability platform, see [External logging platforms](#external-logging-platforms).
 
 <Tabs>
 <Tab title="Pretty (default)">
@@ -540,19 +540,21 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 The callback receives every record that passes the level gate, so do any finer filtering inside it. It runs in addition to the console output rather than instead of it: the level gates both and `off` silences both. Keep the level at the lowest severity you want to receive, and redirect standard error if the console itself needs to stay quiet.
 </Note>
 </Tab>
+</Tabs>
 
-<Tab title="External logger (production)">
-The same callback, pointed at an observability platform.
+---
 
-**When to use:** Production with DataDog, Sentry, CloudWatch, or custom observability platforms for centralized monitoring and error alerting. Here are examples using Sentry and DataDog:
+### External logging platforms
+
+The same log callback, pointed at an observability platform.
+
+**When to use:** Production with Sentry, DataDog, CloudWatch, or a custom observability platform for centralized monitoring and error alerting.
+
+#### Sentry
 
 <Steps>
 
 <Step title="Create a production logger">
-
-<Tabs>
-
-<Tab title="Sentry">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -611,8 +613,74 @@ func productionLogger(entry stagehand.StagehandLog) {
 </Tab>
 </Tabs>
 
+</Step>
+
+<Step title="Pass the logger in your Stagehand instance">
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const stagehand = await Stagehand.create({
+  browser: await localBrowser.launch(),
+  logging: {
+    level: "info",
+    format: "json",
+    onLog: productionLogger,
+  },
+  // restOfYourConfiguration...
+});
+```
 </Tab>
-<Tab title="DataDog">
+
+<Tab title="Python">
+```python
+browser = await local_browser.launch()
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    logging={
+        "level": "info",
+        "format": "json",
+        "on_log": production_logger,
+    },
+    # rest_of_your_configuration...
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Logging: &stagehand.StagehandClientLoggingConfig{
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatJSON,
+		OnLog:  productionLogger,
+	},
+	// restOfYourConfiguration...
+})
+if err != nil {
+	return err
+}
+
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+</Step>
+</Steps>
+
+#### DataDog
+
+<Steps>
+
+<Step title="Create a production logger">
 
 <Tabs>
 <Tab title="TypeScript">
@@ -675,8 +743,6 @@ func productionLogger(entry stagehand.StagehandLog) {
 ```
 </Tab>
 </Tabs>
-</Tab>
-</Tabs>
 
 </Step>
 
@@ -723,7 +789,9 @@ if err != nil {
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		OnLog: productionLogger,
+		Level:  stagehand.StagehandClientLogLevelInfo,
+		Format: stagehand.StagehandClientLogFormatJSON,
+		OnLog:  productionLogger,
 	},
 	// restOfYourConfiguration...
 })
@@ -742,9 +810,6 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Note>
 Failures inside your callback are caught and reported on standard error, so a failing logger will not take down your automation. That covers exceptions and rejected promises in TypeScript and Python, and a panic in Go.
 </Note>
-
-</Tab>
-</Tabs>
 
 ---
 
@@ -838,33 +903,8 @@ browser = await local_browser.launch()
 
 stagehand = await Stagehand.create(
     browser=browser,
-    logging={"level": "info", "format": "pretty"},
-)
-```
-
-| Option   | Default  | Values                                  |
-| -------- | -------- | --------------------------------------- |
-| `level`  | `info`   | `debug`, `info`, `warn`, `error`, `off` |
-| `format` | `pretty` | `pretty`, `json`                        |
-
-`format` only changes the built-in terminal output. It does not change structured logs passed
-to a callback.
-
-## Forward structured logs
-
-Use `on_log` to send each displayed log to a file or your application logger. The callback is
-additive: Stagehand continues to write its normal terminal output.
-
-```python
-from stagehand import Stagehand
-
-log_file = open("stagehand.jsonl", "a", encoding="utf-8")
-
-stagehand = await Stagehand.create(
-    browser=browser,
-    # ...
     logging={
-        "level": "info",
+        "level": "debug",
         "format": "pretty",
         "on_log": lambda log: print(log.model_dump_json(), file=log_file),
     },
@@ -881,73 +921,24 @@ finally:
 <Tab title="Go">
 
 ```go
+defer func() { err = errors.Join(err, logFile.Close()) }()
+
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
 	Logging: &stagehand.StagehandClientLoggingConfig{
-		Level:  stagehand.StagehandClientLogLevelInfo,
+		Level:  stagehand.StagehandClientLogLevelDebug,
 		Format: stagehand.StagehandClientLogFormatPretty,
+		OnLog: func(log stagehand.StagehandLog) {
+			_ = json.NewEncoder(logFile).Encode(log)
+		},
 	},
-	// ...
 })
 if err != nil {
 	return err
 }
 defer func() { err = errors.Join(err, client.Close(ctx)) }()
-```
 
-| Option   | Default  | Values                                  |
-| -------- | -------- | --------------------------------------- |
-| `Level`  | `info`   | `debug`, `info`, `warn`, `error`, `off` |
-| `Format` | `pretty` | `pretty`, `json`                        |
-
-`Format` only changes the built-in terminal output. It does not change structured logs passed
-to a callback.
-
-## Forward structured logs
-
-Use `OnLog` to send each displayed log to a file or your application logger. The callback is
-additive: Stagehand continues to write its normal terminal output.
-
-```go
-import (
-	"context"
-	"encoding/json"
-	"errors"
-	"os"
-
-	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
-)
-
-func run(ctx context.Context) (err error) {
-	logFile, err := os.OpenFile(
-		"stagehand.jsonl",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0o600,
-	)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, logFile.Close()) }()
-
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
-		Browser: browser,
-		Logging: &stagehand.StagehandClientLoggingConfig{
-			Level:  stagehand.StagehandClientLogLevelInfo,
-			Format: stagehand.StagehandClientLogFormatPretty,
-			OnLog: func(log stagehand.StagehandLog) {
-				_ = json.NewEncoder(logFile).Encode(log)
-			},
-		},
-		// ...
-	})
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, client.Close(ctx)) }()
-
-	// Use the initialized client here.
-	return nil
-}
+// ... your automation
 ```
 
 </Tab>
