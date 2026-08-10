@@ -56,7 +56,6 @@ export async function observe({
     method: "observe",
     page,
     data: cacheService.buildObserveCacheData(params),
-    locator: options?.locator,
     caching: options?.cache,
     bypass: cacheService.shouldBypassCacheForLocatorScope(options),
     context: cache,

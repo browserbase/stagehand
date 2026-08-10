@@ -368,7 +368,8 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 		t.Fatalf("observe locator = %#v", observeParams.Options.Locator)
 	}
 	if len(observeParams.Options.IgnoreLocators) != 1 ||
-		observeParams.Options.IgnoreLocators[0].Selector != "nav" {
+		observeParams.Options.IgnoreLocators[0].Selector != "nav" ||
+		observeParams.Options.IgnoreLocators[0].Nth != nil {
 		t.Fatalf("observe ignore locators = %#v", observeParams.Options.IgnoreLocators)
 	}
 
@@ -376,7 +377,8 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 	if !ok || extractParams.Options == nil || extractParams.Options.Locator == nil {
 		t.Fatalf("extract params = %#v", rpc.calls[1].params)
 	}
-	if extractParams.Options.Locator.Selector != "main" {
+	if extractParams.Options.Locator.Selector != "main" ||
+		extractParams.Options.Locator.Nth != nil {
 		t.Fatalf("extract locator = %#v", extractParams.Options.Locator)
 	}
 	if len(extractParams.Options.IgnoreLocators) != 1 ||

@@ -1,9 +1,7 @@
-import type { Protocol } from "devtools-protocol";
 import type {
   Action,
   CacheMetadata,
   Caching,
-  Locator,
   StagehandActParams,
   StagehandExtractParams,
   StagehandInitParams,
@@ -19,7 +17,6 @@ import {
 import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
-import { FrameSelectorResolver } from "../understudy/selectorResolver.js";
 
 /**
  * Server-side caching for act/observe/extract via the Stagehand API's
@@ -201,7 +198,6 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   method,
   page,
   data,
-  locator,
   caching,
   bypass,
   context,
@@ -212,9 +208,6 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   method: CacheMethod;
   page: unknown;
   data: Record<string, unknown>;
-  /** Focus locator (observe/extract); resolved to a backendNodeId so the
-   * server scopes the DOM hash exactly like the live v3 routes. */
-  locator?: Locator;
   /** Per-request override from options.cache. */
   caching?: Caching;
   /** Client-side bypass for requests the current server cache contract cannot key safely. */
@@ -230,7 +223,7 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
     return (await execute()).result;
   }
 
-  const cdpTree = await collectCdpTree(cachePage, locator, logger);
+  const cdpTree = await collectCdpTree(cachePage, logger);
   if (!cdpTree) {
     return (await execute()).result;
   }
@@ -345,16 +338,10 @@ function asCachePage(page: unknown): CachePage | null {
 }
 
 /**
- * Collects the verbatim Accessibility.getFullAXTree nodes for every frame,
- * plus the resolved backendNodeId for the focus locator when one is set —
- * the server requires it to scope the DOM hash to the locator's subtree.
+ * Collects the verbatim Accessibility.getFullAXTree nodes for every frame.
  * Returns null (skip caching) when the payload can't be assembled.
  */
-async function collectCdpTree(
-  page: CachePage,
-  locator: Locator | undefined,
-  logger: StagehandLogger,
-): Promise<CdpTree | null> {
+async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise<CdpTree | null> {
   try {
     const mainFrame = page.mainFrame();
     const frames: CdpTree["frames"] = [];
@@ -365,22 +352,9 @@ async function collectCdpTree(
       });
     }
 
-    let focusBackendNodeId: number | undefined;
-    if (locator) {
-      focusBackendNodeId = await resolveBackendNodeId(mainFrame, locator);
-      if (focusBackendNodeId === undefined) {
-        logger.debug("Cache skipped: focus locator did not resolve to a node", {
-          category: "cache",
-          locator,
-        });
-        return null;
-      }
-    }
-
     return {
       rootFrameId: mainFrame.frameId,
       frames,
-      ...(focusBackendNodeId !== undefined && { focusBackendNodeId }),
     };
   } catch (error) {
     logger.warn("Failed to collect CDP tree for cache; executing without cache", {
@@ -389,18 +363,4 @@ async function collectCdpTree(
     });
     return null;
   }
-}
-
-async function resolveBackendNodeId(frame: Frame, locator: Locator): Promise<number | undefined> {
-  const resolver = new FrameSelectorResolver(frame);
-  const resolved = await resolver.resolveAtIndex(
-    FrameSelectorResolver.parseSelector(locator.selector),
-    locator.nth ?? 0,
-  );
-  if (!resolved) return undefined;
-
-  const { node } = await frame.session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
-    objectId: resolved.objectId,
-  });
-  return node.backendNodeId;
 }

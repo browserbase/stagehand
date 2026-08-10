@@ -176,15 +176,16 @@ describe("cache service", () => {
     });
   });
 
-  it("bypasses cache reads and writes for locator-scoped requests", async () => {
+  it("bypasses cache reads and writes when the caller marks a request as bypassed", async () => {
     const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
     const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
     const execute = executesTo({ answer: 42 });
 
     const result = await cacheService.withCache({
       ...baseArgs(),
-      locator: { selector: ".card", nth: 2 },
-      bypass: true,
+      bypass: cacheService.shouldBypassCacheForLocatorScope({
+        locator: { selector: ".card", nth: 2 },
+      }),
       context: cacheContext(get, set),
       onHit: (value): TestResult => ({
         data: value,

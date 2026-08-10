@@ -529,7 +529,7 @@ const actions = await stagehand.observe("Find the sign in button");
   Options that configure this operation.
 
   <ParamField path="options.cache" type="Caching" optional>
-    Override server-side caching for this request.
+    Override server-side caching for this request. Requests with `locator` or `ignoreLocators` bypass server-side caching and return `metadata.cache.status` as `DISABLED`.
 
     <ParamField path="options.cache.threshold" type="number" optional>
       The identical-result threshold required before serving a cache hit.
@@ -1315,7 +1315,7 @@ actions = await stagehand.observe("Find the sign in button")
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
-  Override server-side caching for this request.
+  Override server-side caching for this request. Requests with `locator` or `ignore_locators` bypass server-side caching and return `metadata.cache.status` as `DISABLED`.
 
   <ParamField path="cache.threshold" type="int" optional>
     The identical-result threshold required before serving a cache hit.
