@@ -51,6 +51,8 @@ export function localBrowserChromeFlags(
   const viewport = options.viewport ?? { width: 1280, height: 800 };
   const windowSizeFlag = `--window-size=${viewport.width},${viewport.height}`;
 
+  // The browser factory installs the packaged runtime through CDP after launch.
+  // Branded Chrome ignores --load-extension, so do not claim it is preloaded here.
   return [
     ...(includeDefaults
       ? launcherDefaultFlags.filter(
