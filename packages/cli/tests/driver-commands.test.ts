@@ -170,20 +170,23 @@ describe("driver commands", () => {
     });
   });
 
-  it("routes selector click and fill through V4 locators", async () => {
-    const locator = {
-      click: vi.fn(),
-      fill: vi.fn(),
-    };
-    const page = {
-      keyPress: vi.fn(),
-      locator: vi.fn(() => locator),
-    };
+  it("routes selector click and fill through deterministic V4 actions", async () => {
+    const page = { keyPress: vi.fn() };
+    const act = vi.fn().mockResolvedValue({
+      data: {
+        success: true,
+        message: "Action completed",
+        actionDescription: "action",
+        actions: [],
+      },
+      metadata: {},
+    });
     const manager = {
       activePage: vi.fn(async () => page),
       resolveSelector: vi.fn((selector: string) =>
         selector === "@0-1" ? "/html/body/button" : selector,
       ),
+      stagehandInstance: vi.fn(async () => ({ act })),
     } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["click"]>>[0];
 
     await expect(elementsHandlers.click!(manager, { selector: "@0-1" })).resolves.toEqual({
@@ -197,11 +200,50 @@ describe("driver commands", () => {
       }),
     ).resolves.toEqual({ filled: true, pressedEnter: true });
 
-    expect(page.locator).toHaveBeenNthCalledWith(1, "/html/body/button");
-    expect(page.locator).toHaveBeenNthCalledWith(2, "#email");
-    expect(locator.click).toHaveBeenCalledOnce();
-    expect(locator.fill).toHaveBeenCalledWith("user@example.com");
+    expect(act).toHaveBeenNthCalledWith(
+      1,
+      {
+        arguments: [],
+        description: "click element",
+        method: "click",
+        selector: "/html/body/button",
+      },
+      { page },
+    );
+    expect(act).toHaveBeenNthCalledWith(
+      2,
+      {
+        arguments: ["user@example.com"],
+        description: "fill element",
+        method: "fill",
+        selector: "#email",
+      },
+      { page },
+    );
     expect(page.keyPress).toHaveBeenCalledWith("Enter");
+  });
+
+  it("surfaces a deterministic V4 action failure instead of reporting success", async () => {
+    const page = {};
+    const manager = {
+      activePage: vi.fn(async () => page),
+      resolveSelector: vi.fn((selector: string) => selector),
+      stagehandInstance: vi.fn(async () => ({
+        act: vi.fn().mockResolvedValue({
+          data: {
+            success: false,
+            message: "Failed to perform act: Element detached",
+            actionDescription: "click element",
+            actions: [],
+          },
+          metadata: {},
+        }),
+      })),
+    } as unknown as Parameters<NonNullable<(typeof elementsHandlers)["click"]>>[0];
+
+    await expect(elementsHandlers.click!(manager, { selector: "#submit" })).rejects.toThrow(
+      "Failed to perform act: Element detached",
+    );
   });
 
   it("keeps select and highlight on V4 locators", async () => {

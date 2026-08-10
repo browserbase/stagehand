@@ -1,12 +1,18 @@
+import type { Action } from "@browserbasehq/stagehand";
 import { z } from "zod";
 
+import type { DriverSessionManager } from "../session-manager.js";
 import type { DriverCommandHandlers } from "./types.js";
 
 export const elementsHandlers: DriverCommandHandlers = {
   async click(manager, params) {
     const { selector } = z.object({ selector: z.string().min(1) }).parse(params);
-    const page = await manager.activePage();
-    await page.locator(manager.resolveSelector(selector)).click();
+    await performAction(manager, {
+      arguments: [],
+      description: "click element",
+      method: "click",
+      selector: manager.resolveSelector(selector),
+    });
     return { clicked: true };
   },
 
@@ -18,9 +24,14 @@ export const elementsHandlers: DriverCommandHandlers = {
         value: z.string(),
       })
       .parse(params);
-    const page = await manager.activePage();
-    await page.locator(manager.resolveSelector(selector)).fill(value);
+    await performAction(manager, {
+      arguments: [value],
+      description: "fill element",
+      method: "fill",
+      selector: manager.resolveSelector(selector),
+    });
     if (pressEnter) {
+      const page = await manager.activePage();
       await page.keyPress("Enter");
     }
     return { filled: true, pressedEnter: pressEnter ?? false };
@@ -64,3 +75,12 @@ export const elementsHandlers: DriverCommandHandlers = {
     return { highlighted: true };
   },
 };
+
+async function performAction(manager: DriverSessionManager, action: Action): Promise<void> {
+  const stagehand = await manager.stagehandInstance();
+  const page = await manager.activePage();
+  const result = await stagehand.act(action, { page });
+  if (!result.data.success) {
+    throw new Error(result.data.message);
+  }
+}
