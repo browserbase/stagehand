@@ -79,7 +79,7 @@ export function stagehandFacadeConfigFromEnv(
               ...(browserbaseProjectId ? { projectId: browserbaseProjectId } : {}),
             },
           }
-        : { type: "local", launchOptions: { headless: false } },
+        : { type: "local", launchOptions: { headless: true } },
     stagehand,
   };
 }
