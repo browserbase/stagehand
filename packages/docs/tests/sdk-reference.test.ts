@@ -283,6 +283,299 @@ describe("SDK reference surface", () => {
     }
   });
 
+  it("explicitly classifies every supplemental reference page", async () => {
+    const referenceSlugs = (await listFiles(REFERENCE_ROOT, () => false))
+      .filter((filePath) => extname(filePath) === ".mdx")
+      .map((filePath) => filePath.slice(0, -extname(filePath).length).split(sep).at(-1) as string);
+    const sdkSlugs = new Set(SDK_OBJECTS.map(({ classSlug }) => classSlug));
+    const supplemental = referenceSlugs.filter((slug) => !sdkSlugs.has(slug)).sort();
+
+    expect(
+      supplemental,
+      "Every non-SDK-object reference page must be explicitly classified as supplemental",
+    ).toStrictEqual([...SUPPLEMENTAL_REFERENCE_PAGES].sort());
+  });
+
+  it("uses public TypeScript names for documented field types", async () => {
+    const [referencePages, publicExports] = await Promise.all([
+      readReferencePages(),
+      readTypescriptRootExports(),
+    ]);
+    const allowed = new Set([
+      "Arg",
+      "Array",
+      "ArrayBuffer",
+      "Awaited",
+      "Buffer",
+      "Error",
+      "EvaluateResult",
+      "Input",
+      "Map",
+      "Promise",
+      "R",
+      "Record",
+      "RegExp",
+      "Result",
+      "Schema",
+      "Uint8Array",
+    ]);
+    const missing = referencePages.flatMap((page) =>
+      page.views
+        .filter(({ title }) => title === "TypeScript")
+        .flatMap(({ methods }) => methods)
+        .flatMap(({ paramFields, responseFields }) => [...paramFields, ...responseFields])
+        .flatMap(
+          ({ type }) =>
+            type?.replace(/(['"])[\s\S]*?\1/gu, "").match(/\b[A-Z][A-Za-z0-9_$]*\b/gu) ?? [],
+        )
+        .filter((name) => !allowed.has(name) && !publicExports.has(name))
+        .map((name) => `${page.filePath}: ${name}`),
+    );
+
+    expect(
+      [...new Set(missing)].sort(),
+      "Named TypeScript field types must be exported from @browserbasehq/stagehand",
+    ).toEqual([]);
+  });
+
+  it("documents the accepted values for shared closed-value types", async () => {
+    const cases = [
+      ["page", "TypeScript", '"load"', '"domcontentloaded"', '"networkidle"'],
+      ["page", "Python", '"load"', '"domcontentloaded"', '"networkidle"'],
+      ["page", "Go", "LoadStateLoad", "LoadStateDOMContentLoaded", "LoadStateNetworkIdle"],
+      ["locator", "TypeScript", '"left"', '"middle"', '"right"'],
+      ["locator", "Python", '"left"', '"middle"', '"right"'],
+      ["locator", "Go", "MouseButtonLeft", "MouseButtonMiddle", "MouseButtonRight"],
+      ["page", "TypeScript", '"attached"', '"detached"', '"visible"', '"hidden"'],
+      ["page", "Python", '"attached"', '"detached"', '"visible"', '"hidden"'],
+      [
+        "page",
+        "Go",
+        "PageWaitForSelectorOptionsStateAttached",
+        "PageWaitForSelectorOptionsStateDetached",
+        "PageWaitForSelectorOptionsStateVisible",
+        "PageWaitForSelectorOptionsStateHidden",
+      ],
+      [
+        "page",
+        "TypeScript",
+        '"disabled"',
+        '"allow"',
+        '"hide"',
+        '"initial"',
+        '"css"',
+        '"device"',
+        '"png"',
+        '"jpeg"',
+      ],
+      [
+        "page",
+        "Python",
+        '"disabled"',
+        '"allow"',
+        '"hide"',
+        '"initial"',
+        '"css"',
+        '"device"',
+        '"png"',
+        '"jpeg"',
+      ],
+      [
+        "page",
+        "Go",
+        "PageScreenshotOptionsAnimationsDisabled",
+        "PageScreenshotOptionsAnimationsAllow",
+        "PageScreenshotOptionsCaretHide",
+        "PageScreenshotOptionsCaretInitial",
+        "PageScreenshotOptionsScaleCSS",
+        "PageScreenshotOptionsScaleDevice",
+        "PageScreenshotOptionsTypePNG",
+        "PageScreenshotOptionsTypeJPEG",
+      ],
+      ["context", "TypeScript", '"Strict"', '"Lax"', '"None"'],
+      ["context", "Python", '"Strict"', '"Lax"', '"None"'],
+      [
+        "context",
+        "Go",
+        "CookieParamSameSiteStrict",
+        "CookieParamSameSiteLax",
+        "CookieParamSameSiteNone",
+      ],
+      ["stagehand", "TypeScript", '"HIT"', '"MISS"', '"DISABLED"'],
+      ["stagehand", "Python", '"HIT"', '"MISS"', '"DISABLED"'],
+      ["stagehand", "Go", "CacheStatusHIT", "CacheStatusMISS", "CacheStatusDISABLED"],
+      ["webmcp", "TypeScript", '"Completed"', '"Canceled"', '"Error"'],
+      ["webmcp", "Python", '"Completed"', '"Canceled"', '"Error"'],
+      [
+        "webmcp",
+        "Go",
+        "WebMCPInvocationStatusCompleted",
+        "WebMCPInvocationStatusCanceled",
+        "WebMCPInvocationStatusError",
+      ],
+    ] as const;
+    const problems: string[] = [];
+    for (const [slug, language, ...values] of cases) {
+      const content = await readFile(resolve(REFERENCE_ROOT, `${slug}.mdx`), "utf8");
+      const tab = languageTabSource(content, language);
+      const missing = values.filter((value) => !tab.includes(value));
+      if (missing.length > 0) problems.push(`${slug} ${language}: ${missing.join(", ")}`);
+    }
+
+    expect(problems, "Every supported value must appear in its owning language tab").toEqual([]);
+  });
+
+  it("resolves every internal v4 reference link and anchor", async () => {
+    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
+      (filePath) => extname(filePath) === ".mdx",
+    );
+    const anchors = new Map<string, Set<string>>();
+    for (const filePath of await listFiles(REFERENCE_ROOT, () => false)) {
+      if (extname(filePath) !== ".mdx") continue;
+      const slug = relative(DOCS_ROOT, filePath)
+        .split(sep)
+        .join("/")
+        .replace(/\.mdx$/u, "");
+      const content = await readFile(filePath, "utf8");
+      anchors.set(
+        slug,
+        new Set(
+          [...content.matchAll(/^#{1,6}\s+(.+)$/gmu)].map((match) =>
+            referenceAnchor(match[1] as string),
+          ),
+        ),
+      );
+    }
+    const problems: string[] = [];
+    for (const filePath of contentPages) {
+      const content = await readFile(filePath, "utf8");
+      for (const match of content.matchAll(
+        /(?:href=["']|\]\()\/((?:v4\/reference\/)[A-Za-z0-9_-]+)(#[A-Za-z0-9_-]+)?/gu,
+      )) {
+        const target = match[1] as string;
+        const anchor = match[2]?.slice(1);
+        if (!anchors.has(target)) problems.push(`${relative(DOCS_ROOT, filePath)}: /${target}`);
+        else if (anchor && !anchors.get(target)?.has(anchor)) {
+          problems.push(`${relative(DOCS_ROOT, filePath)}: /${target}#${anchor}`);
+        }
+      }
+    }
+
+    expect(problems, "Internal v4 reference links must resolve to a page and heading").toEqual([]);
+  });
+
+  it("documents callable helper members as methods and metadata as properties", async () => {
+    const webmcpPath = resolve(REFERENCE_ROOT, "webmcp.mdx");
+    const pagePath = resolve(REFERENCE_ROOT, "page.mdx");
+    const [webmcpDocs, pageDocs, typescriptSource, pythonSource, goSource] = await Promise.all([
+      readFile(webmcpPath, "utf8"),
+      readFile(pagePath, "utf8"),
+      readFile(resolve(TYPESCRIPT_ROOT, "webmcp.ts"), "utf8"),
+      readFile(resolve(PYTHON_ROOT, "webmcp.py"), "utf8"),
+      readFile(resolve(GO_ROOT, "webmcp.go"), "utf8"),
+    ]);
+    const surfaces = new Map<Language, ResponseReferenceMember[]>([
+      [
+        "TypeScript",
+        ["WebMCPTool", "WebMCPInvocation"].flatMap((className) =>
+          readTypescriptHelperMembers(typescriptSource, className),
+        ),
+      ],
+      [
+        "Python",
+        ["WebMCPTool", "WebMCPInvocation"].flatMap((className) =>
+          readPythonClassMembers(pythonSource, className, webmcpPath),
+        ),
+      ],
+      [
+        "Go",
+        parseGoFunctions(goSource)
+          .filter(
+            ({ name, receiverType }) =>
+              /^[A-Z]/u.test(name) &&
+              (receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation"),
+          )
+          .map(({ name, parameters, returnType }) => ({
+            isProperty: false,
+            name,
+            parameters: parameters.map(({ name: parameter }) => parameter),
+            returnType,
+          })),
+      ],
+    ]);
+    const problems: string[] = [];
+    for (const [language, members] of surfaces) {
+      const tab = languageTabSource(webmcpDocs, language);
+      for (const member of members) {
+        const propertyRow = `| \`${member.name}\` |`;
+        const methodHeading = `### ${member.name}()`;
+        if (member.isProperty && !tab.includes(propertyRow)) {
+          problems.push(`${language}: missing property ${member.name}`);
+        }
+        if (!member.isProperty && !tab.includes(methodHeading)) {
+          problems.push(`${language}: missing method ${member.name}()`);
+        }
+        if (!member.isProperty && tab.includes(propertyRow)) {
+          problems.push(`${language}: method ${member.name}() is documented as a property`);
+        }
+      }
+      const expectedMethods = responseMemberSignatures(
+        members.filter(({ isProperty }) => !isProperty),
+      );
+      const documentedMethods = responseMemberSignatures(
+        readDocumentedHelperMethods(tab, language).filter(({ isProperty }) => !isProperty),
+      );
+      if (!arraysEqual(documentedMethods, expectedMethods)) {
+        problems.push(
+          `${language}: expected method signatures [${expectedMethods.join(", ")}], received [${documentedMethods.join(", ")}]`,
+        );
+      }
+    }
+
+    const cdpMembers = new Map<Language, ResponseReferenceMember[]>([
+      [
+        "TypeScript",
+        readTypescriptHelperMembers(
+          await readFile(resolve(TYPESCRIPT_ROOT, "page.ts"), "utf8"),
+          "CDPSubscription",
+        ),
+      ],
+      [
+        "Python",
+        readPythonClassMembers(
+          await readFile(resolve(PYTHON_ROOT, "page.py"), "utf8"),
+          "CDPSubscription",
+          pagePath,
+        ),
+      ],
+      [
+        "Go",
+        parseGoFunctions(await readFile(resolve(GO_ROOT, "page.go"), "utf8"))
+          .filter(
+            ({ name, receiverType }) => receiverType === "CDPSubscription" && /^[A-Z]/u.test(name),
+          )
+          .map(({ name, parameters, returnType }) => ({
+            isProperty: false,
+            name,
+            parameters: parameters.map(({ name: parameter }) => parameter),
+            returnType,
+          })),
+      ],
+    ]);
+    for (const [language, members] of cdpMembers) {
+      const tab = languageTabSource(pageDocs, language);
+      for (const member of members) {
+        if (!tab.includes(`${member.name}(`)) {
+          problems.push(`${language}: missing CDPSubscription.${member.name}()`);
+        }
+      }
+    }
+
+    expect(problems, "Helper reference members must match their public SDK member kind").toEqual(
+      [],
+    );
+  });
+
   it("uses the exact language-specific public method names as headings", async () => {
     const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
@@ -1424,12 +1717,47 @@ async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[
   });
 }
 
+function readTypescriptHelperMembers(source: string, className: string): ResponseReferenceMember[] {
+  const classStart = source.indexOf(`export class ${className} {`);
+  if (classStart < 0) throw new Error(`Could not find ${className}`);
+  const bodyStart = source.indexOf("{", classStart);
+  const bodyEnd = matchingBrace(source, bodyStart);
+  const body = source.slice(bodyStart + 1, bodyEnd);
+  const properties = [
+    ...body.matchAll(/^\s+readonly ([A-Za-z_$][A-Za-z0-9_$]*):\s*([^;]+);/gmu),
+  ].map((match) => ({
+    isProperty: true,
+    name: match[1] as string,
+    parameters: [],
+    returnType: (match[2] as string).trim(),
+  }));
+  const methods = [
+    ...body.matchAll(/^\s+(?:async\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\(([^)]*)\):\s*([^\n{]+)\s*\{/gmu),
+  ]
+    .filter((match) => match[1] !== "constructor")
+    .map((match) => ({
+      isProperty: false,
+      name: match[1] as string,
+      parameters: responseSignatureParameters(match[2] as string),
+      returnType: (match[3] as string).trim(),
+    }));
+  return [...properties, ...methods];
+}
+
 async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
   const filePath = resolve(PYTHON_ROOT, "response.py");
-  const root = parse("python", await readFile(filePath, "utf8")).root();
-  const classNode = findClass(root, "class_definition", "Response", filePath);
+  return readPythonClassMembers(await readFile(filePath, "utf8"), "Response", filePath);
+}
+
+function readPythonClassMembers(
+  source: string,
+  className: string,
+  filePath: string,
+): ResponseReferenceMember[] {
+  const root = parse("python", source).root();
+  const classNode = findClass(root, "class_definition", className, filePath);
   const classBody = classNode.field("body");
-  if (!classBody) throw new Error(`Response has no class body in ${filePath}`);
+  if (!classBody) throw new Error(`${className} has no class body in ${filePath}`);
 
   return namedChildren(classBody).flatMap((member): ResponseReferenceMember[] => {
     const decorators =
@@ -1445,7 +1773,7 @@ async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
     );
     if (decoratorNames.includes("overload")) return [];
     const returnType = method.field("return_type")?.text();
-    if (!returnType) throw new Error(`Response.${name} has no return type in ${filePath}`);
+    if (!returnType) throw new Error(`${className}.${name} has no return type in ${filePath}`);
     return [
       {
         isProperty: decoratorNames.includes("property"),
@@ -1596,6 +1924,18 @@ function matchingParenthesis(source: string, openIndex: number): number {
   throw new Error(`Unbalanced Go declaration: ${source.slice(openIndex, openIndex + 80)}`);
 }
 
+function matchingBrace(source: string, openIndex: number): number {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`Unbalanced TypeScript class: ${source.slice(openIndex, openIndex + 80)}`);
+}
+
 // A return type ends at the body brace (SDK source) or at the end of the
 // line (documented signatures carry no body).
 function goDeclarationEnd(source: string, start: number): number {
@@ -1715,6 +2055,93 @@ function responseMemberSignatures(members: ResponseReferenceMember[]): string[] 
         `${isProperty ? "property" : "method"}:${name}(${parameters.join(",")}):${returnType.replaceAll(/\s/g, "")}`,
     )
     .sort();
+}
+
+async function readTypescriptRootExports(): Promise<Set<string>> {
+  const source = await readFile(resolve(TYPESCRIPT_ROOT, "index.ts"), "utf8");
+  const names = [...source.matchAll(/export(?:\s+type)?\s*\{([\s\S]*?)\}\s*from/gu)].flatMap(
+    (match) =>
+      (match[1] as string)
+        .split(",")
+        .map((entry) => entry.replace(/\/\/.*$/gu, "").trim())
+        .filter(Boolean)
+        .map(
+          (entry) =>
+            entry
+              .replace(/^type\s+/u, "")
+              .split(/\s+as\s+/u)
+              .at(-1) as string,
+        ),
+  );
+  return new Set(names);
+}
+
+function languageTabSource(content: string, language: Language): string {
+  const start = content.indexOf(`<Tab title="${language}">`);
+  if (start < 0) throw new Error(`Missing ${language} tab`);
+  const end = content.indexOf("</Tab>", start);
+  if (end < 0) throw new Error(`Unclosed ${language} tab`);
+  return content.slice(start, end);
+}
+
+function referenceAnchor(heading: string): string {
+  return heading
+    .replace(/<[^>]+>/gu, "")
+    .replace(/`/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/gu, "")
+    .trim()
+    .replace(/\s+/gu, "-");
+}
+
+function readDocumentedHelperMethods(tab: string, language: Language): ResponseReferenceMember[] {
+  if (language === "Go") {
+    return parseGoFunctions(tab)
+      .filter(
+        ({ receiverType }) => receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation",
+      )
+      .map(({ name, parameters, returnType }) => ({
+        isProperty: false,
+        name,
+        parameters: parameters.map(({ name: parameter }) => parameter),
+        returnType,
+      }));
+  }
+  if (language === "TypeScript") {
+    return [...tab.matchAll(/^([A-Za-z_$][A-Za-z0-9_$]*)\(([^)]*)\):\s*(.+)$/gmu)].map((match) => ({
+      isProperty: false,
+      name: match[1] as string,
+      parameters: responseSignatureParameters(match[2] as string),
+      returnType: match[3] as string,
+    }));
+  }
+  return [
+    ...tab.matchAll(/async def\s+([A-Za-z_][A-Za-z0-9_]*)\(([\s\S]*?)\)\s*->\s*([^\n]+)/gu),
+  ].map((match) => ({
+    isProperty: false,
+    name: match[1] as string,
+    parameters: signatureParameterNames(match[2] as string).filter(
+      (parameter) => parameter !== "*",
+    ),
+    returnType: (match[3] as string).trim(),
+  }));
+}
+
+function signatureParameterNames(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "[" || character === "(" || character === "{") depth += 1;
+    if (character === "]" || character === ")" || character === "}") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts.map((parameter) => parameter.trim().split(/[:=]/u, 1)[0] as string).filter(Boolean);
 }
 
 function findClass(

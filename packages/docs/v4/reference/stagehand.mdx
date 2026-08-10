@@ -443,7 +443,8 @@ const result = await stagehand.act("Click the sign in button");
     Cache observability for this result; status is DISABLED when no cache lookup ran.
 
     <ResponseField name="result.metadata.cache.status" type="CacheStatus">
-      Whether server-side caching served or computed this result.
+      `"HIT"` when a cached result was served, `"MISS"` when the result was computed, or
+      `"DISABLED"` when no cache lookup ran.
     </ResponseField>
 
     <ResponseField name="result.metadata.cache.count" type="number" optional>
@@ -1192,7 +1193,8 @@ result = await stagehand.act("Click the sign in button")
     Cache observability for this result; status is DISABLED when no cache lookup ran.
 
     <ResponseField name="result.metadata.cache.status" type="CacheStatus">
-      Whether server-side caching served or computed this result.
+      `"HIT"` when a cached result was served, `"MISS"` when the result was computed, or
+      `"DISABLED"` when no cache lookup ran.
     </ResponseField>
 
     <ResponseField name="result.metadata.cache.count" type="int" optional>
@@ -2036,7 +2038,8 @@ func (s *Stagehand) Act(ctx context.Context, instruction ActInstructionValue, op
     Cache observability for this result; status is DISABLED when no cache lookup ran.
 
     <ResponseField name="result.Metadata.Cache.Status" type="CacheStatus">
-      Whether server-side caching served or computed this result.
+      `CacheStatusHIT` when a cached result was served, `CacheStatusMISS` when the result was
+      computed, or `CacheStatusDISABLED` when no cache lookup ran.
     </ResponseField>
 
     <ResponseField name="result.Metadata.Cache.Count" type="*int" optional>
