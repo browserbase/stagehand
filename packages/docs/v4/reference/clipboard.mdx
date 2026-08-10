@@ -268,4 +268,161 @@ await browser.context.clipboard.cut()
 </ResponseField>
 
 </Tab>
+
+<Tab title="Go">
+
+## Quick start
+
+```go
+clipboard := browser.Context().Clipboard()
+if err := clipboard.WriteText(ctx, "Hello", nil); err != nil {
+    return err
+}
+```
+
+Every method takes a `context.Context` first. Methods with options accept a pointer options struct; pass `nil` for defaults.
+
+## ReadText()
+
+Read plain text from the browser clipboard.
+
+```go
+text, err := browser.Context().Clipboard().ReadText(ctx, nil)
+if err != nil {
+    return err
+}
+fmt.Println(text)
+```
+
+<ParamField path="options" type="*ClipboardOptions" optional>
+  Options that select a target page. Pass `nil` to use the active page.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(string, error)">
+  The clipboard text and any operation error.
+</ResponseField>
+
+## WriteText()
+
+Write plain text to the browser clipboard.
+
+```go
+if err := browser.Context().Clipboard().WriteText(ctx, "Hello", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="text" type="string">
+  The plain text to write.
+</ParamField>
+
+<ParamField path="options" type="*ClipboardOptions" optional>
+  Options that select a target page. Pass `nil` to use the active page.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the clipboard operation completes.
+</ResponseField>
+
+## Clear()
+
+Clear the browser clipboard.
+
+```go
+if err := browser.Context().Clipboard().Clear(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ClipboardOptions" optional>
+  Options that select a target page. Pass `nil` to use the active page.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the clipboard operation completes.
+</ResponseField>
+
+## Paste()
+
+Paste the clipboard contents into the active element.
+
+```go
+if err := browser.Context().Clipboard().Paste(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ClipboardPasteOptions" optional>
+  Options that select a target page and configure the operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+
+  <ParamField path="options.Shortcut" type="*ContextClipboardPasteParamsShortcut" optional>
+    The keyboard shortcut to dispatch: `ContextClipboardPasteParamsShortcutControlOrMetaV`, `ContextClipboardPasteParamsShortcutMetaV`, or `ContextClipboardPasteParamsShortcutControlV`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the clipboard operation completes.
+</ResponseField>
+
+## Copy()
+
+Copy the current selection to the browser clipboard.
+
+```go
+if err := browser.Context().Clipboard().Copy(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ClipboardOptions" optional>
+  Options that select a target page. Pass `nil` to use the active page.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the clipboard operation completes.
+</ResponseField>
+
+## Cut()
+
+Cut the current selection to the browser clipboard.
+
+```go
+if err := browser.Context().Clipboard().Cut(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ClipboardOptions" optional>
+  Options that select a target page. Pass `nil` to use the active page.
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The page to target. Defaults to the active page.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the clipboard operation completes.
+</ResponseField>
+
+</Tab>
 </Tabs>

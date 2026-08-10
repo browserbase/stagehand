@@ -204,7 +204,7 @@ func (r *Response) FromServiceWorker() bool
 
 ```go
 func (r *Response) AllHeaders(ctx context.Context) (map[string]string, error)
-func (r *Response) HeaderValue(ctx context.Context, name string) (value string, present bool, err error)
+func (r *Response) HeaderValue(ctx context.Context, name string) (string, bool, error)
 func (r *Response) HeaderValues(ctx context.Context, name string) ([]string, error)
 func (r *Response) HeadersArray(ctx context.Context) ([]NavigationHeader, error)
 func (r *Response) SecurityDetails(ctx context.Context) (*NavigationSecurityDetails, error)
