@@ -14,6 +14,9 @@
     "./codemode/stdio-server": {
       "import": "./dist/codemode/stdio-server.mjs"
     },
+    "./facade": {
+      "import": "./dist/facade/index.mjs"
+    },
     "./facade/stdio-server": {
       "import": "./dist/facade/stdio-server.mjs"
     }
