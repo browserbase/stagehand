@@ -46,30 +46,15 @@ If you plan to run locally, you need to have [Chrome](https://www.google.com/chr
 
 Set your Browserbase API key. When no model is configured, Model Gateway selects one automatically, so no model provider key is required:
 
-<Tabs>
-<Tab title="TypeScript">
 ```bash
 export BROWSERBASE_API_KEY=your_api_key
 ```
-</Tab>
-
-<Tab title="Python">
-```bash
-export BROWSERBASE_API_KEY=your_api_key
-```
-</Tab>
-
-<Tab title="Go">
-```bash
-export BROWSERBASE_API_KEY=your_api_key
-```
-</Tab>
-</Tabs>
 
 <Note>
 Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
 
 This also applies to API routing: pass non-production Browserbase and Stagehand API URLs explicitly rather than setting `BROWSERBASE_BASE_URL` or `STAGEHAND_API_URL`. See [API endpoint overrides](/v4/configuration/browser#api-endpoint-overrides).
+</Note>
 
 Read the values in your own app code and pass them explicitly to the browser factory:
 
@@ -112,7 +97,6 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 ```
 </Tab>
 </Tabs>
-</Note>
 
 ### Use in your codebase
 

@@ -1,14 +1,9 @@
 ---
-title: User data directory
+title: User data
 sidebarTitle: User data
 description: Persist browser data between sessions
 ---
-
-## User data directory
-
-Persist browser data between sessions.
-
-### Local sessions
+## Local sessions
 
 For local sessions, point `localBrowser.launch()` at a user data directory. Stagehand creates the directory if it does not exist and leaves it in place after the browser shuts down, so the next run starts from the same cookies and local storage:
 
@@ -76,7 +71,7 @@ The preserve flag governs only that generated temporary profile, never a directo
 </Tabs>
 
 
-### Browserbase sessions
+## Browserbase sessions
 
 For Browserbase sessions, use [contexts](https://docs.browserbase.com/features/contexts) to persist browser data:
 
