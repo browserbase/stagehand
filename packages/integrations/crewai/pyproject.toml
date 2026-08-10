@@ -1,0 +1,24 @@
+[project]
+name = "stagehand-crewai-example"
+version = "0.1.0"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "crewai>=1.15,<2",
+  "crewai-tools[mcp]>=1.15,<2",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+  "pytest>=9,<10",
+  "ruff>=0.15,<1",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ANN", "E", "F", "I", "UP"]
