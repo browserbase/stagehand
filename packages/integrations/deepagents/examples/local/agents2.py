@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 import dotenv
+from _client import SERVER_NAME, create_stagehand_client
 from deepagents import create_deep_agent
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.tools import load_mcp_tools
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -52,24 +51,9 @@ and then every other field with data of your choice.
 Do not submit the form. Return a summary of the fields you successfully filled."""
     response_format = FormFillResult
 
-    server_project = Path(__file__).resolve().parents[2]
-    client = MultiServerMCPClient(
-        {
-            "stagehand_browser": {
-                "transport": "stdio",
-                "command": "uv",
-                "args": [
-                    "run",
-                    "--project",
-                    str(server_project),
-                    "--locked",
-                    "stagehand-deepagents-mcp",
-                ],
-            }
-        }
-    )
+    client = create_stagehand_client()
 
-    async with client.session("stagehand_browser") as session:
+    async with client.session(SERVER_NAME) as session:
         tools = await load_mcp_tools(session)
         agent = create_deep_agent(
             model=model,

@@ -2,30 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import re
-from pathlib import Path
 
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from _client import SERVER_NAME, create_stagehand_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 
 
 async def main() -> None:
-    server_project = Path(__file__).resolve().parents[2]
-    client = MultiServerMCPClient(
-        {
-            "stagehand_browser": {
-                "transport": "stdio",
-                "command": "uv",
-                "args": [
-                    "run",
-                    "--project",
-                    str(server_project),
-                    "--locked",
-                    "stagehand-deepagents-mcp",
-                ],
-            }
-        }
-    )
-    async with client.session("stagehand_browser") as session:
+    client = create_stagehand_client()
+    async with client.session(SERVER_NAME) as session:
         tools = {tool.name: tool for tool in await load_mcp_tools(session)}
         run_result = await tools["run"].ainvoke(
             {
@@ -51,7 +35,6 @@ return { title: await page.title(), buttons: await page.locator('button').count(
 
         screenshot_result = await tools["screenshot"].ainvoke({})
         print("screenshot content blocks:", len(screenshot_result))
-        await asyncio.sleep(10)
 
 
 if __name__ == "__main__":

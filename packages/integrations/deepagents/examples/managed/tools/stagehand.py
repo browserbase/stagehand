@@ -7,6 +7,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
@@ -45,18 +46,29 @@ def _positive_int_env(name: str, default: int) -> int:
     return value
 
 
+def _sanitize_error(message: str) -> str:
+    """Redact credential-bearing fragments before errors reach the model."""
+    message = re.sub(
+        r"([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s\"']+",
+        r"\1[redacted]",
+        message,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+", r"\1[redacted]", message)
+
+
+@lru_cache(maxsize=1)
+def _facade_source() -> str:
+    return Path(__file__).with_name("_assets").joinpath("playwright_facade.js").read_text()
+
+
 async def _release_session(api_key: str, api_url: str, session_id: str) -> None:
-    """Best-effort release of a keep-alive session; requires BROWSERBASE_PROJECT_ID."""
-    project_id = os.environ.get("BROWSERBASE_PROJECT_ID", "")
-    if not project_id:
-        return
+    """Best-effort release of a keep-alive session so expiry doesn't strand it."""
     from browserbase import AsyncBrowserbase
 
     try:
         async with AsyncBrowserbase(api_key=api_key, base_url=api_url) as client:
-            await client.sessions.update(
-                session_id, project_id=project_id, status="REQUEST_RELEASE"
-            )
+            await client.sessions.update(session_id, status="REQUEST_RELEASE")
     except Exception:
         pass
 
@@ -257,7 +269,7 @@ class _BrowserRuntime:
             return image, "image/jpeg" if image_type == "jpeg" else "image/png"
 
     async def _execute_code(self, page: Page, code: str) -> object:
-        facade = Path(__file__).with_name("_assets").joinpath("playwright_facade.js").read_text()
+        facade = _facade_source()
         source = f"""async (batchStagehand, input) => {{
   "use strict";
   const __stagehandCompatIdentity = (target) => target;
@@ -319,10 +331,11 @@ class _BrowserRegistry:
         async with self.lock:
             await self._close_expired(now)
             entry = self.entries.get(thread_id)
-            if entry is not None and entry.browser.browser.closed:
-                # The worker lost its handle (socket drop, resume elsewhere);
-                # the keep-alive session may still be running — reconnect by id
-                # before falling back to a fresh launch.
+            if entry is not None and not await _runtime_alive(entry.browser):
+                # The handle is dead (socket drop, resume elsewhere) — closed
+                # never flips on its own, so probe liveness. The keep-alive
+                # session may still be running; reconnect by id before falling
+                # back to a fresh launch.
                 stale = self.entries.pop(thread_id)
                 entry = None
                 if stale.browser.session_id is not None:
@@ -344,7 +357,22 @@ class _BrowserRegistry:
             thread_id for thread_id, entry in self.entries.items() if now - entry.last_used >= ttl
         ]
         for thread_id in expired:
-            await self.entries.pop(thread_id).browser.close()
+            # A failing close must not surface in the unrelated tool call that
+            # triggered the sweep, nor abort cleanup of other expired entries.
+            try:
+                await self.entries.pop(thread_id).browser.close()
+            except Exception:
+                pass
+
+
+async def _runtime_alive(runtime: _BrowserRuntime) -> bool:
+    if runtime.browser.closed:
+        return False
+    try:
+        await runtime.browser.context.pages()
+    except Exception:
+        return False
+    return True
 
 
 _REGISTRY = _BrowserRegistry()
@@ -371,7 +399,10 @@ async def run(
     and browser objects. Actions use IDs from the latest snapshot.
     """
     browser = await _REGISTRY.get(_thread_id(runtime))
-    result = await browser.execute(code=code, actions=actions)
+    try:
+        result = await browser.execute(code=code, actions=actions)
+    except Exception as error:
+        raise RuntimeError(_sanitize_error(str(error))) from None
     return json.dumps(result, default=str, separators=(",", ":"))
 
 
@@ -379,7 +410,10 @@ async def run(
 async def snapshot(includeIframes: bool = True, *, runtime: ToolRuntime) -> str:
     """Capture the active page tree and hydrate IDs for subsequent run actions."""
     browser = await _REGISTRY.get(_thread_id(runtime))
-    return await browser.snapshot(includeIframes)
+    try:
+        return await browser.snapshot(includeIframes)
+    except Exception as error:
+        raise RuntimeError(_sanitize_error(str(error))) from None
 
 
 @tool
@@ -396,11 +430,14 @@ async def screenshot(
     if type == "png" and quality is not None:
         raise ValueError("quality is only valid for jpeg screenshots")
     browser = await _REGISTRY.get(_thread_id(runtime))
-    image, mime_type = await browser.screenshot(
-        full_page=fullPage,
-        image_type=type,
-        quality=quality,
-    )
+    try:
+        image, mime_type = await browser.screenshot(
+            full_page=fullPage,
+            image_type=type,
+            quality=quality,
+        )
+    except Exception as error:
+        raise RuntimeError(_sanitize_error(str(error))) from None
     return [
         {"type": "text", "text": "Screenshot of the current page:"},
         {

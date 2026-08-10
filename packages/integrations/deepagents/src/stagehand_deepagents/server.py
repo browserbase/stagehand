@@ -84,7 +84,11 @@ TOOLS: list[dict[str, Any]] = [
         "description": (
             "Execute either a JavaScript workflow against the Stagehand Playwright facade or a "
             "batch of actions using IDs from the latest snapshot. Provide exactly one of code or "
-            "actions. Action objects use op and id."
+            'actions. Each action must use "op" (never "kind") and "id" (never "ref"). Copy the '
+            "bracketed snapshot ID as a string. Examples: "
+            '{"actions":[{"op":"click","id":"1-42"}]}, '
+            '{"actions":[{"op":"fill","id":"2-14","value":"Miami"}]}, '
+            '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}.'
         ),
         "inputSchema": {
             "type": "object",
@@ -109,8 +113,8 @@ TOOLS: list[dict[str, Any]] = [
             # failing every run call client-side. The exclusivity is stated in
             # the description and enforced at runtime (runtime.py raises
             # "run requires exactly one of code or actions"). Mirrors the same
-            # change in the TS facade contract (packages/integrations/src/
-            # facade/contract.ts).
+            # change in the TS facade contract
+            # (packages/integrations/core/src/facade/contract.ts).
             "additionalProperties": False,
         },
     },
@@ -217,8 +221,10 @@ class StdioServer:
                 raise TypeError("fullPage must be a boolean")
             if image_type not in {"png", "jpeg"}:
                 raise ValueError("screenshot type must be png or jpeg")
-            if quality is not None and not isinstance(quality, int):
-                raise TypeError("quality must be an integer")
+            if quality is not None and (
+                isinstance(quality, bool) or not isinstance(quality, (int, float))
+            ):
+                raise TypeError("quality must be a number")
             image, mime_type = await tools.screenshot(
                 full_page=full_page,
                 type=image_type,

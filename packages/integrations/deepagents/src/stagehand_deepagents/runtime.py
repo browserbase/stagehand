@@ -76,7 +76,7 @@ class RuntimeConfig:
             raise ValueError("STAGEHAND_MODEL_API_KEY requires STAGEHAND_MODEL")
         return cls(
             provider=raw_provider,
-            headless=_env_bool("STAGEHAND_HEADLESS", False),
+            headless=_env_bool("STAGEHAND_HEADLESS", True),
             start_url=os.environ.get("STAGEHAND_START_URL") or None,
             stagehand_model=stagehand_model,
             stagehand_model_api_key=stagehand_model_api_key,

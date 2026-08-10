@@ -1,30 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from _client import SERVER_NAME, create_stagehand_client
 from langchain_mcp_adapters.tools import load_mcp_tools
 
 
 async def main() -> None:
-    server_project = Path(__file__).resolve().parents[2]
-    client = MultiServerMCPClient(
-        {
-            "stagehand_browser": {
-                "transport": "stdio",
-                "command": "uv",
-                "args": [
-                    "run",
-                    "--project",
-                    str(server_project),
-                    "--locked",
-                    "stagehand-deepagents-mcp",
-                ],
-            }
-        }
-    )
-    async with client.session("stagehand_browser") as session:
+    client = create_stagehand_client()
+    async with client.session(SERVER_NAME) as session:
         tools = await load_mcp_tools(session)
         print([tool.name for tool in tools])
 
