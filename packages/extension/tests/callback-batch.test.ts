@@ -444,9 +444,22 @@ describe("callback batch runner", () => {
         const pages = await stagehand.context.pages();
         const operationPage = pages[1];
         if (!operationPage) throw new Error("missing second page");
-        await stagehand.act("act", { page: operationPage, timeout: 1_000 });
-        await stagehand.observe("observe", { page: operationPage, timeout: 2_000 });
-        await stagehand.extract("extract", { page: operationPage, timeout: 3_000 });
+        await stagehand.act("act", {
+          page: operationPage,
+          locator: operationPage.locator("main"),
+          ignoreLocators: [operationPage.locator("nav")],
+          timeout: 1_000,
+        });
+        await stagehand.observe("observe", {
+          page: operationPage,
+          locator: operationPage.locator("section"),
+          timeout: 2_000,
+        });
+        await stagehand.extract("extract", {
+          page: operationPage,
+          ignoreLocators: [operationPage.locator(".ad")],
+          timeout: 3_000,
+        });
         return true;
       },
       null,
@@ -456,13 +469,143 @@ describe("callback batch runner", () => {
     expect(result).toEqual({ value: true });
     const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
     expect(operationRequests.map((request) => request.params)).toEqual([
-      { pageId: "page-2", instruction: "act", options: { timeout: 1_000 } },
-      { pageId: "page-2", instruction: "observe", options: { timeout: 2_000 } },
+      {
+        pageId: "page-2",
+        instruction: "act",
+        options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav" }],
+          timeout: 1_000,
+        },
+      },
+      {
+        pageId: "page-2",
+        instruction: "observe",
+        options: { locator: { selector: "section" }, timeout: 2_000 },
+      },
       expect.objectContaining({
         pageId: "page-2",
         instruction: "extract",
-        options: { timeout: 3_000 },
+        options: { ignoreLocators: [{ selector: ".ad" }], timeout: 3_000 },
       }),
     ]);
+  });
+
+  it("serializes observe and extract locators inside callback batches", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2" }];
+        }
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        if (request.method === "stagehand.observe") return { data: [], metadata: zeroMetadata };
+        if (request.method === "stagehand.extract") {
+          return { data: { extraction: "done" }, metadata: zeroMetadata };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+
+    await runCallbackBatch(
+      router,
+      async (stagehand) => {
+        const pages = await stagehand.context.pages();
+        const operationPage = pages[1];
+        if (!operationPage) throw new Error("missing second page");
+
+        await stagehand.observe("observe", {
+          page: operationPage,
+          locator: operationPage.locator("main").nth(2),
+          ignoreLocators: [operationPage.locator("nav").nth(1)],
+        });
+        await stagehand.extract("extract", {
+          page: operationPage,
+          locator: operationPage.locator("section.content").nth(3),
+          ignoreLocators: [operationPage.locator("aside.ads").nth(0)],
+        });
+      },
+      null,
+      { timeout: 10_000 },
+    );
+
+    const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
+    expect(operationRequests.map((request) => request.params)).toEqual([
+      {
+        pageId: "page-2",
+        instruction: "observe",
+        options: {
+          locator: { selector: "main", nth: 2 },
+          ignoreLocators: [{ selector: "nav", nth: 1 }],
+        },
+      },
+      expect.objectContaining({
+        pageId: "page-2",
+        instruction: "extract",
+        options: {
+          locator: { selector: "section.content", nth: 3 },
+          ignoreLocators: [{ selector: "aside.ads", nth: 0 }],
+        },
+      }),
+    ]);
+  });
+
+  it("rejects callback-batch observe and extract locators from another page", async () => {
+    const requests: StagehandRpcRequest[] = [];
+    const router = {
+      handle: vi.fn(async (request: StagehandRpcRequest) => {
+        requests.push(request);
+        if (request.method === "context.pages") {
+          return [{ pageId: "page-1" }, { pageId: "page-2" }];
+        }
+        if (request.method === "context.active_page") return { pageId: "page-1" };
+        if (request.method === "stagehand.observe") return { data: [], metadata: zeroMetadata };
+        if (request.method === "stagehand.extract") {
+          return { data: { extraction: "done" }, metadata: zeroMetadata };
+        }
+        throw new Error(`Unexpected method: ${request.method}`);
+      }),
+    } as unknown as RPCRouter;
+
+    await expect(
+      runCallbackBatch(
+        router,
+        async (stagehand) => {
+          const pages = await stagehand.context.pages();
+          const operationPage = pages[0];
+          const otherPage = pages[1];
+          if (!operationPage || !otherPage) throw new Error("missing pages");
+
+          await stagehand.observe("observe", {
+            page: operationPage,
+            locator: otherPage.locator("main"),
+          });
+        },
+        null,
+        { timeout: 10_000 },
+      ),
+    ).rejects.toThrow("observe(): locator must belong to the target page");
+
+    await expect(
+      runCallbackBatch(
+        router,
+        async (stagehand) => {
+          const pages = await stagehand.context.pages();
+          const operationPage = pages[0];
+          const otherPage = pages[1];
+          if (!operationPage || !otherPage) throw new Error("missing pages");
+
+          await stagehand.extract("extract", {
+            page: operationPage,
+            ignoreLocators: [otherPage.locator("nav")],
+          });
+        },
+        null,
+        { timeout: 10_000 },
+      ),
+    ).rejects.toThrow("extract(): locator must belong to the target page");
+
+    expect(requests.filter((request) => request.method.startsWith("stagehand."))).toHaveLength(0);
   });
 });

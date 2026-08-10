@@ -337,8 +337,13 @@ func (p *Page) WaitForSelector(
 }
 
 // Screenshot captures the page and decodes the protocol's base64 payload.
-func (p *Page) Screenshot(ctx context.Context, options *PageScreenshotOptions) ([]byte, error) {
-	params := PageScreenshotParams{PageID: p.PageID(), Options: options}
+func (p *Page) Screenshot(ctx context.Context, options *ScreenshotOptions) ([]byte, error) {
+	pageID := p.PageID()
+	protocolOptions, err := screenshotProtocolOptions(options, pageID)
+	if err != nil {
+		return nil, err
+	}
+	params := PageScreenshotParams{PageID: pageID, Options: protocolOptions}
 	var result PageScreenshotResult
 	if err := p.rpc.call(ctx, "page.screenshot", params, &result); err != nil {
 		return nil, err
@@ -348,6 +353,48 @@ func (p *Page) Screenshot(ctx context.Context, options *PageScreenshotOptions) (
 		return nil, fmt.Errorf("decode page.screenshot result: %w", err)
 	}
 	return data, nil
+}
+
+func screenshotProtocolOptions(options *ScreenshotOptions, pageID string) (*PageScreenshotOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	protocolOptions := PageScreenshotOptions{
+		Animations:     options.Animations,
+		Caret:          options.Caret,
+		Clip:           options.Clip,
+		FullPage:       options.FullPage,
+		MaskColor:      options.MaskColor,
+		OmitBackground: options.OmitBackground,
+		Quality:        options.Quality,
+		Scale:          options.Scale,
+		Style:          options.Style,
+		Timeout:        options.Timeout,
+		Type:           options.Type,
+	}
+	if options.Mask != nil {
+		mask, err := locatorDescriptorsForScreenshot(options.Mask, pageID)
+		if err != nil {
+			return nil, err
+		}
+		protocolOptions.Mask = mask
+	}
+	return &protocolOptions, nil
+}
+
+func locatorDescriptorsForScreenshot(locators []*PageLocator, pageID string) ([]LocatorDescriptor, error) {
+	descriptors := make([]LocatorDescriptor, 0, len(locators))
+	for index, locator := range locators {
+		if locator == nil {
+			return nil, fmt.Errorf("page.Screenshot: mask locator at index %d is nil", index)
+		}
+		descriptor := locator.Descriptor()
+		if descriptor.PageID != pageID {
+			return nil, errors.New("page.Screenshot: mask locator must belong to the target page")
+		}
+		descriptors = append(descriptors, descriptor)
+	}
+	return descriptors, nil
 }
 
 // Snapshot returns the generated accessibility snapshot result.

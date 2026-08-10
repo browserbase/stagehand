@@ -1206,6 +1206,8 @@ describe("Stagehand TS object wrapper", () => {
     await expect(
       stagehand.act("Click the submit button", {
         page,
+        locator: page.locator("main"),
+        ignoreLocators: [page.locator("nav").nth(1)],
         timeout: 5_000,
         variables: { accountEmail: "user@example.com" },
       }),
@@ -1230,6 +1232,8 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Click the submit button",
         options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav", nth: 1 }],
           timeout: 5_000,
           variables: { accountEmail: "user@example.com" },
         },
@@ -1302,8 +1306,8 @@ describe("Stagehand TS object wrapper", () => {
     await expect(
       stagehand.observe("Find the submit button", {
         page,
-        selector: "main",
-        locator: { selector: "main" },
+        locator: page.locator("main"),
+        ignoreLocators: [page.locator("nav").nth(1)],
         variables: {
           accountEmail: {
             value: "user@example.com",
@@ -1327,8 +1331,8 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Find the submit button",
         options: {
-          selector: "main",
           locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav", nth: 1 }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -1381,7 +1385,11 @@ describe("Stagehand TS object wrapper", () => {
     const schema = z.object({ heading: z.string() });
 
     await expect(
-      stagehand.extract("Extract the page heading", schema, { page, selector: "main" }),
+      stagehand.extract("Extract the page heading", schema, {
+        page,
+        locator: page.locator("main").nth(1),
+        ignoreLocators: [page.locator("nav")],
+      }),
     ).resolves.toStrictEqual({
       data: { heading: "Example Domain" },
       metadata: { cache: { status: "HIT" }, usage: zeroUsage },
@@ -1391,7 +1399,10 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Extract the page heading",
         schema: z.json().parse(z.toJSONSchema(schema)),
-        options: { selector: "main" },
+        options: {
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: "nav" }],
+        },
       }),
     ]);
   });
@@ -1427,7 +1438,7 @@ describe("Stagehand TS object wrapper", () => {
     const page = new Page(client, { pageId: "page-1" });
 
     await expect(
-      stagehand.extract("Extract the page text", { page, selector: "main" }),
+      stagehand.extract("Extract the page text", { page, locator: page.locator("main") }),
     ).resolves.toStrictEqual({
       data: { extraction: "Example Domain" },
       metadata: { cache: { status: "MISS" }, usage: zeroUsage },
@@ -1436,9 +1447,51 @@ describe("Stagehand TS object wrapper", () => {
       requestCall(StagehandMethods.stagehandExtract, {
         pageId: "page-1",
         instruction: "Extract the page text",
-        options: { selector: "main" },
+        options: { locator: { selector: "main" } },
       }),
     ]);
+  });
+
+  it("rejects act, observe, and extract locators from a different page", async () => {
+    const client = new FakeProtocolClient();
+    const stagehand = createStagehandWithClientForTest(client);
+    const page = new Page(client, { pageId: "page-1" });
+    const otherPage = new Page(client, { pageId: "page-2" });
+
+    await expect(
+      stagehand.act("Click the submit button", {
+        page,
+        locator: otherPage.locator("button"),
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
+
+    await expect(
+      stagehand.act("Click the submit button", {
+        page,
+        ignoreLocators: [otherPage.locator("nav")],
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
+
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
+    await expect(
+      stagehand.act("Click the submit button", {
+        locator: otherPage.locator("button"),
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
+
+    await expect(
+      stagehand.observe("Find the submit button", {
+        page,
+        locator: otherPage.locator("button"),
+      }),
+    ).rejects.toThrow("observe(): locator must belong to the target page");
+
+    await expect(
+      stagehand.extract("Extract the page text", {
+        page,
+        ignoreLocators: [otherPage.locator("nav")],
+      }),
+    ).rejects.toThrow("extract(): locator must belong to the target page");
   });
 
   it("requires a runtime schema when selecting a custom extract type", () => {

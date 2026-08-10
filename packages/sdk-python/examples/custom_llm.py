@@ -45,35 +45,36 @@ async def main() -> None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")
 
-            page_info = await stagehand.extract(
+            extract_result = await stagehand.extract(
                 "Extract the page heading and description",
                 PageInfo,
             )
-            actions = await stagehand.observe(
+            observe_result = await stagehand.observe(
                 "Find the link that provides more information about Example Domain",
             )
-            action_result = await stagehand.act(
+            act_result = await stagehand.act(
                 "Click the link that provides more information about Example Domain"
             )
 
             print(
                 json.dumps(
                     {
-                        "page_info": page_info.model_dump(mode="json"),
+                        "page_info": extract_result.data.model_dump(mode="json"),
                         "actions": [
-                            action.model_dump(mode="json", by_alias=True) for action in actions.data
+                            action.model_dump(mode="json", by_alias=True)
+                            for action in observe_result.data
                         ],
-                        "action_result": action_result.model_dump(mode="json", by_alias=True),
+                        "action_result": act_result.data.model_dump(mode="json", by_alias=True),
                         "generation_names": generation_names,
                     },
                     indent=2,
                 )
             )
 
-            if not actions.data:
+            if not observe_result.data:
                 raise RuntimeError("observe() returned no matching actions")
-            if not action_result.data.success:
-                raise RuntimeError(f"act() failed: {action_result.data.message}")
+            if not act_result.data.success:
+                raise RuntimeError(f"act() failed: {act_result.data.message}")
         finally:
             await stagehand.close()
     finally:

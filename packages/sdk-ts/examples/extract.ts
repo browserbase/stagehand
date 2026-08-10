@@ -17,7 +17,7 @@ const stagehand = await Stagehand.create({
 const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 
-const pageInfo = await stagehand.extract(
+const result = await stagehand.extract(
   "Extract the page heading and description",
   z.object({
     heading: z.string(),
@@ -25,7 +25,7 @@ const pageInfo = await stagehand.extract(
   }),
 );
 
-console.log(JSON.stringify(pageInfo, null, 2));
+console.log(JSON.stringify(result.data, null, 2));
 
 await stagehand.close();
 await browser.close();

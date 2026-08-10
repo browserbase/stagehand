@@ -464,6 +464,72 @@ func TestMarshalValidatedJSONHonorsCustomUnionUnmarshalers(t *testing.T) {
 	}`)
 }
 
+func TestMarshalValidatedJSONPreservesEmptyIgnoreLocators(t *testing.T) {
+	t.Parallel()
+
+	stringPtr := func(value string) *string {
+		return &value
+	}
+	tests := []struct {
+		name   string
+		params any
+		want   string
+	}{
+		{
+			name: "act",
+			params: StagehandActParams{
+				Instruction: ActInstruction("click the link"),
+				PageID:      "page-1",
+				Options:     &ActOptions{IgnoreLocators: []Locator{}},
+			},
+			want: `{
+				"instruction": "click the link",
+				"page_id": "page-1",
+				"options": {"ignore_locators": []}
+			}`,
+		},
+		{
+			name: "observe",
+			params: StagehandObserveParams{
+				Instruction: stringPtr("find the link"),
+				PageID:      "page-1",
+				Options:     &ObserveOptions{IgnoreLocators: []Locator{}},
+			},
+			want: `{
+				"instruction": "find the link",
+				"page_id": "page-1",
+				"options": {"ignore_locators": []}
+			}`,
+		},
+		{
+			name: "extract",
+			params: StagehandExtractParams{
+				Instruction: "extract the heading",
+				PageID:      "page-1",
+				Schema:      json.RawMessage(`{"type":"object"}`),
+				Options:     &ExtractOptions{IgnoreLocators: []Locator{}},
+			},
+			want: `{
+				"instruction": "extract the heading",
+				"page_id": "page-1",
+				"schema": {"type":"object"},
+				"options": {"ignore_locators": []}
+			}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			encoded, err := marshalValidatedJSON(test.params)
+			if err != nil {
+				t.Fatalf("marshalValidatedJSON() error = %v", err)
+			}
+			assertRPCJSON(t, encoded, test.want)
+		})
+	}
+}
+
 func TestRPCClientReturnsMethodAndHandlerErrors(t *testing.T) {
 	t.Parallel()
 

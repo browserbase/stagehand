@@ -249,7 +249,11 @@ func (s *Stagehand) Act(
 	}
 	params := StagehandActParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
-		params.Options = &options.ActOptions
+		protocolOptions, err := actProtocolOptions(options, page.PageID())
+		if err != nil {
+			return ActResult{}, err
+		}
+		params.Options = protocolOptions
 	}
 	var result ActResult
 	if err := rpc.call(ctx, "stagehand.act", params, &result); err != nil {
@@ -274,7 +278,11 @@ func (s *Stagehand) Observe(
 	}
 	params := StagehandObserveParams{PageID: page.PageID(), Instruction: instruction}
 	if options != nil {
-		params.Options = &options.ObserveOptions
+		protocolOptions, err := observeProtocolOptions(options, page.PageID())
+		if err != nil {
+			return ObserveResult{}, err
+		}
+		params.Options = protocolOptions
 	}
 	var result ObserveResult
 	if err := rpc.call(ctx, "stagehand.observe", params, &result); err != nil {
@@ -408,6 +416,128 @@ func pageFromExtractOptions(options *StagehandClientExtractOptions) *Page {
 		return nil
 	}
 	return options.Page
+}
+
+func locatorDescriptorForPage(locator *PageLocator, pageID string, method string) (Locator, error) {
+	if locator == nil {
+		return Locator{}, nil
+	}
+	descriptor := locator.Descriptor()
+	if descriptor.PageID != pageID {
+		return Locator{}, fmt.Errorf("%s: locator must belong to the target page", method)
+	}
+	return Locator{Selector: descriptor.Selector, Nth: descriptor.Nth}, nil
+}
+
+func locatorDescriptorsForPage(locators []*PageLocator, pageID string, method string) ([]Locator, error) {
+	if locators == nil {
+		return nil, nil
+	}
+	descriptors := make([]Locator, 0, len(locators))
+	for index, locator := range locators {
+		if locator == nil {
+			return nil, fmt.Errorf("%s: ignore locator at index %d is nil", method, index)
+		}
+		descriptor, err := locatorDescriptorForPage(locator, pageID, method)
+		if err != nil {
+			return nil, err
+		}
+		descriptors = append(descriptors, descriptor)
+	}
+	return descriptors, nil
+}
+
+func protocolLocatorsForPage(
+	locator *PageLocator,
+	ignoreLocators []*PageLocator,
+	pageID string,
+	method string,
+) (*Locator, []Locator, error) {
+	var protocolLocator *Locator
+	if locator != nil {
+		descriptor, err := locatorDescriptorForPage(locator, pageID, method)
+		if err != nil {
+			return nil, nil, err
+		}
+		protocolLocator = &descriptor
+	}
+	protocolIgnoreLocators, err := locatorDescriptorsForPage(ignoreLocators, pageID, method)
+	if err != nil {
+		return nil, nil, err
+	}
+	return protocolLocator, protocolIgnoreLocators, nil
+}
+
+func actProtocolOptions(options *StagehandClientActOptions, pageID string) (*ActOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Act",
+	)
+	if err != nil {
+		return nil, err
+	}
+	protocolOptions := ActOptions{
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Timeout:        options.Timeout,
+		Variables:      options.Variables,
+	}
+	return &protocolOptions, nil
+}
+
+func observeProtocolOptions(options *StagehandClientObserveOptions, pageID string) (*ObserveOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Observe",
+	)
+	if err != nil {
+		return nil, err
+	}
+	protocolOptions := ObserveOptions{
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Timeout:        options.Timeout,
+		Variables:      options.Variables,
+	}
+	return &protocolOptions, nil
+}
+
+func extractProtocolOptions(options *StagehandClientExtractOptions, pageID string) (*ExtractOptions, error) {
+	if options == nil {
+		return nil, nil
+	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Extract",
+	)
+	if err != nil {
+		return nil, err
+	}
+	protocolOptions := ExtractOptions{
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Screenshot:     options.Screenshot,
+		Timeout:        options.Timeout,
+	}
+	return &protocolOptions, nil
 }
 
 func handleStagehandLog(log StagehandLog, logging resolvedStagehandClientLoggingConfig) {
