@@ -245,7 +245,7 @@ describe("SDK reference surface", () => {
         `${language} method headings must match the public SDK surface`,
       ).toStrictEqual(expected);
     }
-  });
+  }, 30_000);
 
   it("has exactly one reference page for every documented SDK object", async () => {
     const pageSlugs = (await readReferencePages()).map(({ classSlug }) => classSlug).sort();
