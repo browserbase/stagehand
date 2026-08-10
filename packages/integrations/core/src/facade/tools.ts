@@ -123,9 +123,7 @@ export class StagehandFacadeTools {
     const type = options.type ?? "png";
     // CDP only accepts quality for jpeg, and only as an integer.
     const quality =
-      type === "jpeg" && options.quality !== undefined
-        ? Math.round(options.quality)
-        : undefined;
+      type === "jpeg" && options.quality !== undefined ? Math.round(options.quality) : undefined;
     const bytes = await page.screenshot({
       type,
       ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
