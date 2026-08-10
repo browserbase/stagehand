@@ -170,7 +170,94 @@ describe("act service", () => {
     });
   });
 
-  it("performs a supplied Action without a model or inference", async () => {
+  it("captures the requested locator scope and ignored locator subtrees", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/button"));
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Submit button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click submit",
+        options: {
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: "main", nth: 1 },
+      ignoreLocators: [{ selector: "nav" }, { selector: ".cookie-banner", nth: 0 }],
+    });
+  });
+
+  it("plans actions from the locator-filtered snapshot context", async () => {
+    const frame = {};
+    const captureSnapshot = vi.fn(async (options) => {
+      expect(options).toStrictEqual({
+        focusLocator: { selector: "main" },
+        ignoreLocators: [{ selector: ".promo" }],
+      });
+      return {
+        combinedTree: "[0-12] button: Checkout",
+        combinedXpathMap: { "0-12": "/html/body/main/button" },
+        combinedUrlMap: {},
+      };
+    });
+    const page = actPage(frame, captureSnapshot);
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Checkout button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click checkout",
+        options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: ".promo" }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+    });
+
+    expect(clientLLMGenerate).toHaveBeenCalled();
+    const [generateParams] = clientLLMGenerate.mock.calls[0] as unknown as [LLMGenerateParams];
+    const prompt = generateParams.messages[0]?.content;
+    expect(prompt).toMatchObject({
+      type: "text",
+      text: expect.stringContaining("[0-12] button: Checkout"),
+    });
+    expect(prompt).toMatchObject({
+      type: "text",
+      text: expect.not.stringContaining("Promo modal"),
+    });
+  });
+
+  it("zeroes usage when a supplied Action succeeds without inference", async () => {
     const frame = {};
     const captureSnapshot = vi.fn();
     const page = actPage(frame, captureSnapshot);
@@ -522,6 +609,61 @@ describe("act service", () => {
     });
     expect(hit.data.actions).toStrictEqual(miss.data.actions);
     expect(clientLLMGenerate).not.toHaveBeenCalled();
+  });
+
+  it("bypasses cache reads and writes for locator-scoped instruction acts", async () => {
+    const frame = {
+      frameId: "frame-1",
+      getAccessibilityTree: vi.fn(async () => []),
+    };
+    const captureSnapshot = vi.fn(async () => snapshot("0-12", "/html/body/main/button"));
+    const page = {
+      ...actPage(frame, captureSnapshot),
+      url: () => "https://example.com",
+      frames: () => [frame],
+    } as unknown as Page;
+    const get = vi.fn();
+    const set = vi.fn();
+    const clientLLMGenerate = vi.fn(
+      async (): Promise<LLMGenerateResult> =>
+        actGeneration({
+          elementId: "0-12",
+          description: "Checkout button",
+          method: "click",
+          arguments: [],
+        }),
+    );
+
+    const result = await actService.act({
+      params: {
+        pageId: "page-1",
+        instruction: "Click checkout",
+        options: {
+          cache: true,
+          locator: { selector: "main", nth: 1 },
+          ignoreLocators: [{ selector: ".promo", nth: 0 }],
+        },
+      },
+      page,
+      model: { source: "client" },
+      clientLLMGenerate,
+      logger: testLogger(),
+      cache: {
+        sessionId: "session-1",
+        client: { get, set } as unknown as CacheClient,
+        defaultCaching: true,
+      },
+    });
+
+    expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+    expect(captureSnapshot).toHaveBeenCalledWith({
+      focusLocator: { selector: "main", nth: 1 },
+      ignoreLocators: [{ selector: ".promo", nth: 0 }],
+    });
+    expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
   });
 
   it("respects the act timeout across page preparation", async () => {

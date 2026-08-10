@@ -276,8 +276,8 @@ func TestStagehandExtractSendsScreenshotToClientLLM(t *testing.T) {
 		client,
 		"Extract the page heading",
 		&StagehandClientExtractOptions{
-			ExtractOptions: ExtractOptions{Screenshot: &screenshot},
-			Page:           page,
+			Page:       page,
+			Screenshot: &screenshot,
 		},
 	)
 	if err != nil {
