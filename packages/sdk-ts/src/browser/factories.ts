@@ -262,7 +262,6 @@ async function connectBrowser(options: {
     return createStagehandBrowserHandle({
       provider: options.provider,
       origin: options.origin,
-      sessionId: options.workerInitMetadata.browser?.sessionId,
       attachment: {
         cdpClient: connectedClient,
         workerInitMetadata: options.workerInitMetadata,

@@ -65,15 +65,6 @@ func (browser *Browser) Origin() BrowserOrigin {
 	return browser.origin
 }
 
-// SessionID returns the Browserbase session id backing this browser, or an
-// empty string for local browsers.
-func (browser *Browser) SessionID() string {
-	if browser == nil || browser.workerBrowser == nil {
-		return ""
-	}
-	return browser.workerBrowser.SessionID
-}
-
 // Closed reports whether browser teardown has been requested.
 func (browser *Browser) Closed() bool {
 	if browser == nil {
