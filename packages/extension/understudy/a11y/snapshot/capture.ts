@@ -178,10 +178,9 @@ export async function tryScopedSnapshot(
   const focusNth = focusLocator.nth;
 
   const logScopeFallback = () => {
-    logger.warn(
-      "Unable to narrow scope with locator; falling back to the full DOM",
-      { locator: focusLocator },
-    );
+    logger.warn("Unable to narrow scope with locator; falling back to the full DOM", {
+      locator: focusLocator,
+    });
   };
 
   try {
