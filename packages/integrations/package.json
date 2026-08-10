@@ -8,6 +8,10 @@
   ],
   "type": "module",
   "exports": {
+    "./codemode": {
+      "types": "./dist/codemode/index.d.mts",
+      "import": "./dist/codemode/index.mjs"
+    },
     "./codemode/stdio-server": {
       "import": "./dist/codemode/stdio-server.mjs"
     }
@@ -19,7 +23,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:"
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
