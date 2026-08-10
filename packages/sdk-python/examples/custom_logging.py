@@ -28,7 +28,7 @@ async def main() -> None:
                     raise RuntimeError
 
                 await page.goto("https://example.com")
-                print(await stagehand.observe("Find the Learn more link"))
+                print((await stagehand.observe("Find the Learn more link")).data)
             finally:
                 await stagehand.close()
         finally:
