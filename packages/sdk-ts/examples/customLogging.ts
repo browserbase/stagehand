@@ -27,7 +27,7 @@ const stagehand = await Stagehand.create({
 const [page] = await browser.context.pages();
 
 await page.goto("https://example.com");
-console.log(await stagehand.observe("Find the Learn more link"));
+console.log((await stagehand.observe("Find the Learn more link")).data);
 
 await stagehand.close();
 await browser.close();

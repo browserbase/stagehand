@@ -664,10 +664,9 @@ class ModelConfig(TypedDict):
 class ExtractOptions(TypedDict):
     model: NotRequired[ModelConfig]
     timeout: NotRequired[float]
-    selector: NotRequired[str]
-    ignore_selectors: NotRequired[list[str]]
-    screenshot: NotRequired[bool]
     locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
+    screenshot: NotRequired[bool]
     cache: NotRequired[Caching]
 
 
@@ -1130,6 +1129,7 @@ class ActOptions(TypedDict):
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
     locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
     cache: NotRequired[Caching]
 
 
@@ -1137,9 +1137,8 @@ class ObserveOptions(TypedDict):
     model: NotRequired[ModelConfig]
     variables: NotRequired[Variables]
     timeout: NotRequired[float]
-    selector: NotRequired[str]
-    ignore_selectors: NotRequired[list[str]]
     locator: NotRequired[Locator]
+    ignore_locators: NotRequired[list[Locator]]
     cache: NotRequired[Caching]
 
 

@@ -18,7 +18,6 @@ from stagehand import (
     LLMImageContent,
     ModelConfig,
     Page,
-    ProtocolLocator,
     Stagehand,
     TelemetryConfig,
 )
@@ -802,7 +801,10 @@ async def test_stagehand_routes_metrics_and_ai_methods(
     stagehand = await Stagehand.create(browser=browser)
     page = Page(cast(RPCClient, recording), PageRef(page_id="explicit-page"))
     model: ModelConfig = {"model_name": "openai/gpt-4.1-mini"}
-    locator = ProtocolLocator(selector="main")
+    act_locator = page.locator("main").nth(2)
+    act_ignored_locator = page.locator(".promo")
+    locator = page.locator("main").nth(1)
+    ignored_locator = page.locator("nav")
 
     assert await stagehand.metrics() == metrics
     act_result = await stagehand.act(
@@ -810,10 +812,17 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         page=page,
         model=model,
         timeout=30_000,
-        locator=locator,
+        locator=act_locator,
+        ignore_locators=[act_ignored_locator],
         cache={"threshold": 1},
     )
-    observed = await stagehand.observe("Find the link", model=model, locator=locator)
+    observed = await stagehand.observe(
+        "Find the link",
+        page=page,
+        model=model,
+        locator=locator,
+        ignore_locators=[ignored_locator],
+    )
     extracted = await stagehand.extract(
         "Extract the heading",
         PageInfo,
@@ -821,6 +830,7 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         model=model,
         screenshot=True,
         locator=locator,
+        ignore_locators=[ignored_locator],
     )
 
     assert act_result.data == act_data
@@ -838,19 +848,130 @@ async def test_stagehand_routes_metrics_and_ai_methods(
         if method == "stagehand.act"
     )
     assert act_params.options is not None
+    assert act_params.options.locator is not None
+    assert act_params.options.locator.selector == "main"
+    assert act_params.options.locator.nth == 2
+    assert act_params.options.ignore_locators is not None
+    assert [locator.selector for locator in act_params.options.ignore_locators] == [".promo"]
     assert act_params.options.cache is not None
     observe_params = next(
         cast(StagehandObserveParams, params)
         for method, params, _ in recording.calls
         if method == "stagehand.observe"
     )
-    assert observe_params.page_id == "active-page"
+    assert observe_params.page_id == "explicit-page"
+    assert observe_params.options is not None
+    assert observe_params.options.locator is not None
+    assert observe_params.options.locator.selector == "main"
+    assert observe_params.options.locator.nth == 1
+    assert observe_params.options.ignore_locators is not None
+    assert [locator.selector for locator in observe_params.options.ignore_locators] == ["nav"]
     extract_params = next(
         cast(StagehandExtractParams, params)
         for method, params, _ in recording.calls
         if method == "stagehand.extract"
     )
     assert extract_params.page_id == "explicit-page"
+    assert extract_params.options is not None
+    assert extract_params.options.locator is not None
+    assert extract_params.options.locator.selector == "main"
+    assert extract_params.options.locator.nth == 1
+    assert extract_params.options.ignore_locators is not None
+    assert [locator.selector for locator in extract_params.options.ignore_locators] == ["nav"]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_observe_and_extract_serialize_active_page_locators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    action = Action(selector="button.submit", description="Submit")
+    usage = StagehandResultUsage(input_tokens=1, output_tokens=2, reasoning_tokens=0)
+    recording = _recording({
+        "context.active_page": PageRef(page_id="active-page"),
+        "stagehand.observe": ObserveResult.model_validate({
+            "data": [action],
+            "metadata": {"cache": {"status": "DISABLED"}, "usage": usage},
+        }),
+        "stagehand.extract": {
+            "data": {"heading": "Example Domain", "count": 1},
+            "metadata": StagehandResultMetadata(
+                cache=CacheMetadata(status=CacheStatus.disabled), usage=usage
+            ),
+        },
+    })
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    active_page = Page(cast(RPCClient, recording), PageRef(page_id="active-page"))
+
+    await stagehand.observe(
+        "Find the submit button",
+        locator=active_page.locator("main").nth(2),
+        ignore_locators=[active_page.locator("nav").nth(1)],
+    )
+    await stagehand.extract(
+        "Extract the heading",
+        PageInfo,
+        locator=active_page.locator("section.content").nth(3),
+        ignore_locators=[active_page.locator("aside.ads").nth(0)],
+    )
+
+    assert [method for method, _, _ in recording.calls].count("context.active_page") == 2
+
+    observe_params = next(
+        cast(StagehandObserveParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.observe"
+    )
+    assert observe_params.page_id == "active-page"
+    assert observe_params.options is not None
+    assert observe_params.options.locator is not None
+    assert observe_params.options.locator.selector == "main"
+    assert observe_params.options.locator.nth == 2
+    assert observe_params.options.ignore_locators is not None
+    assert [
+        (locator.selector, locator.nth) for locator in observe_params.options.ignore_locators
+    ] == [("nav", 1)]
+
+    extract_params = next(
+        cast(StagehandExtractParams, params)
+        for method, params, _ in recording.calls
+        if method == "stagehand.extract"
+    )
+    assert extract_params.page_id == "active-page"
+    assert extract_params.options is not None
+    assert extract_params.options.locator is not None
+    assert extract_params.options.locator.selector == "section.content"
+    assert extract_params.options.locator.nth == 3
+    assert extract_params.options.ignore_locators is not None
+    assert [
+        (locator.selector, locator.nth) for locator in extract_params.options.ignore_locators
+    ] == [("aside.ads", 0)]
+
+
+@pytest.mark.asyncio
+async def test_stagehand_act_observe_and_extract_reject_cross_page_locators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    browser, _ = _browser_handle()
+    stagehand = await Stagehand.create(browser=browser)
+    page = Page(cast(RPCClient, recording), PageRef(page_id="page-1"))
+    other_page = Page(cast(RPCClient, recording), PageRef(page_id="page-2"))
+
+    with pytest.raises(TypeError, match=r"act\(\) locator must belong to the target page"):
+        await stagehand.act("Click the link", page=page, locator=other_page.locator("a"))
+
+    with pytest.raises(TypeError, match=r"observe\(\) locator must belong to the target page"):
+        await stagehand.observe("Find the link", page=page, locator=other_page.locator("a"))
+
+    with pytest.raises(TypeError, match=r"extract\(\) locator must belong to the target page"):
+        await stagehand.extract(
+            "Extract the page text",
+            page=page,
+            ignore_locators=[other_page.locator("nav")],
+        )
 
 
 @pytest.mark.asyncio

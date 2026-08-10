@@ -70,10 +70,10 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	instruction := "Find the Learn more link"
-	actions, err := client.Observe(ctx, &instruction, nil)
+	result, err := client.Observe(ctx, &instruction, nil)
 	if err != nil {
 		return err
 	}
-	fmt.Println(actions)
+	fmt.Println(result.Data)
 	return nil
 }

@@ -27,7 +27,7 @@ async def main() -> None:
                 "Click the link that provides more information about Example Domain"
             )
 
-            print(json.dumps(result.model_dump(mode="json", by_alias=True), indent=2))
+            print(json.dumps(result.data.model_dump(mode="json", by_alias=True), indent=2))
 
             if not result.data.success:
                 raise RuntimeError(f"act() failed: {result.data.message}")

@@ -12,8 +12,8 @@ export default defineBenchTask(
         },
       );
 
-      // NOTE: v3 passes a bare XPath here; ported verbatim on purpose.
-      const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
+      // The locator engine prefix is required for XPath selectors.
+      const locator = page.locator("xpath=/html/body/main/article/div[3]/div[3]/div[4]");
       const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
         z.object({
@@ -24,7 +24,7 @@ export default defineBenchTask(
             .number()
             .describe("the number of teaspoons of lemon juice needed for the mushroom pan sauce"),
         }),
-        { selector: selector },
+        { locator },
       );
 
       const { tablespoons_olive_oil, teaspoons_lemon_juice } = recipeDetails;

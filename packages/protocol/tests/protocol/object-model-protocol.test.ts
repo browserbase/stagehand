@@ -122,6 +122,8 @@ describe("Stagehand object-model protocol", () => {
         pageId: "target-1",
         instruction: "Click the submit button",
         options: {
+          locator: { selector: "main", nth: 0 },
+          ignoreLocators: [{ selector: "nav" }],
           model: {
             modelName: "anthropic/claude-sonnet-4-6",
             apiKey: "test-key",
@@ -130,6 +132,8 @@ describe("Stagehand object-model protocol", () => {
       }),
     ).toMatchObject({
       options: {
+        locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -190,7 +194,8 @@ describe("Stagehand object-model protocol", () => {
         additionalProperties: false,
       },
       options: {
-        selector: "main",
+        locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -206,7 +211,8 @@ describe("Stagehand object-model protocol", () => {
         properties: { heading: { type: "string" } },
       },
       options: {
-        selector: "main",
+        locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         model: {
           modelName: "anthropic/claude-sonnet-4-6",
           apiKey: "test-key",
@@ -236,8 +242,8 @@ describe("Stagehand object-model protocol", () => {
         pageId: "target-1",
         instruction: "Find the submit button",
         options: {
-          selector: "main",
           locator: { selector: "main", nth: 0 },
+          ignoreLocators: [{ selector: "nav" }],
           variables: {
             accountEmail: {
               value: "user@example.com",
@@ -250,8 +256,8 @@ describe("Stagehand object-model protocol", () => {
       pageId: "target-1",
       instruction: "Find the submit button",
       options: {
-        selector: "main",
         locator: { selector: "main", nth: 0 },
+        ignoreLocators: [{ selector: "nav" }],
         variables: {
           accountEmail: {
             value: "user@example.com",

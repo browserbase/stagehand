@@ -35,7 +35,9 @@ it("repairs page text before local SDK model calls", async () => {
 
     const observed = await stagehand.observe("Find the promo banner text");
     expect(observed.data).toEqual([]);
-    const scoped = await stagehand.observe("Find the promo banner text", { selector: "#target" });
+    const scoped = await stagehand.observe("Find the promo banner text", {
+      locator: page.locator("#target"),
+    });
     expect(scoped.data).toEqual([]);
     expect(observedPromptText).not.toBe("");
   } finally {

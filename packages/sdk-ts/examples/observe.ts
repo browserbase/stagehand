@@ -16,13 +16,13 @@ const stagehand = await Stagehand.create({
 const [page] = await browser.context.pages();
 await page.goto("https://example.com");
 
-const actions = await stagehand.observe(
+const result = await stagehand.observe(
   "Find the link that provides more information about Example Domain",
 );
 
-console.log(JSON.stringify(actions, null, 2));
+console.log(JSON.stringify(result.data, null, 2));
 
-if (actions.data.length === 0) {
+if (result.data.length === 0) {
   throw new Error("observe() returned no matching actions");
 }
 
