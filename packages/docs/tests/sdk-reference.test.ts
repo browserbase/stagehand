@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 registerDynamicLanguage({ python });
 
-type Language = "Python" | "TypeScript";
+type Language = "Go" | "Python" | "TypeScript";
 
 type MdxAttribute = {
   name?: string;
@@ -122,8 +122,21 @@ type ProtocolDocument = JsonSchema & {
 type SdkObject = {
   className: string;
   classSlug: string;
+  goClassName: string;
   pythonFile: string;
   typescriptFile: string;
+};
+
+type GoParameter = {
+  name: string;
+  type: string;
+};
+
+type GoFunctionDeclaration = {
+  name: string;
+  parameters: GoParameter[];
+  receiverType?: string;
+  returnType: string;
 };
 
 const DOCS_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -131,47 +144,68 @@ const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
+const GO_ROOT = fileURLToPath(new URL("../../sdk-go", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
-const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
 // Language tabs are the selector; every other <Tab> on a page is a different axis
-// (model provider, output shape, ...). Go ships snippets but has no native reference pages.
-const LANGUAGE_TAB_TITLES = new Set(["TypeScript", "Python", "Go"]);
+// (model provider, output shape, ...).
+const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
-const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
+const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
+
+// Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
+// schema. Keep these exceptions explicit so the reference is checked against the public API.
+const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
+  ["context.add_cookies:TypeScript:cookies.sameSite", "CookieParam['sameSite']"],
+  ["context.add_cookies:Python:cookies.same_site", "Literal['Strict', 'Lax', 'None']"],
+  ["context.cookies:TypeScript:result.sameSite", "Cookie['sameSite']"],
+  ["context.cookies:Python:result.same_site", "Literal['Strict', 'Lax', 'None']"],
+  ["page.wait_for_selector:TypeScript:options.state", "PageWaitForSelectorOptions['state']"],
+  ["page.screenshot:TypeScript:options.animations", "ScreenshotOptions['animations']"],
+  ["page.screenshot:TypeScript:options.caret", "ScreenshotOptions['caret']"],
+  ["page.screenshot:TypeScript:options.mask", "Locator[]"],
+  ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
+  ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
+]);
 
 const SDK_OBJECTS = [
   {
     className: "Stagehand",
     classSlug: "stagehand",
+    goClassName: "Stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
   },
   {
     className: "BrowserContext",
     classSlug: "context",
+    goClassName: "BrowserContext",
     typescriptFile: "browserContext.ts",
     pythonFile: "browser_context.py",
   },
   {
     className: "BrowserClipboard",
     classSlug: "clipboard",
+    goClassName: "BrowserClipboard",
     typescriptFile: "browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
   },
   {
     className: "Page",
     classSlug: "page",
+    goClassName: "Page",
     typescriptFile: "page.ts",
     pythonFile: "page.py",
   },
   {
     className: "Locator",
     classSlug: "locator",
+    goClassName: "PageLocator",
     typescriptFile: "locator.ts",
     pythonFile: "locator.py",
   },
@@ -182,10 +216,11 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
 );
 
 describe("SDK reference surface", () => {
-  it("keeps every public callable in sync across TypeScript, Python, and reference pages", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+  it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
 
@@ -198,6 +233,10 @@ describe("SDK reference surface", () => {
       operationBindings(pythonMethods),
       "Equivalent TypeScript and Python callables must bind the same protocol operation",
     ).toStrictEqual(operationBindings(typescriptMethods));
+    expect(
+      methodKeys(sharedSurfaceMethods(goMethods, expected)),
+      "Go public callables must cover the shared SDK surface",
+    ).toStrictEqual(expected);
     for (const language of LANGUAGES) {
       expect(
         documentedMethods(referencePages, language)
@@ -224,14 +263,16 @@ describe("SDK reference surface", () => {
     const views = new Map(
       findLanguageTabs(tree).map((view) => [stringAttribute(view, "title"), view]),
     );
-    const [typescriptMembers, pythonMembers] = await Promise.all([
+    const [typescriptMembers, pythonMembers, goMembers] = await Promise.all([
       readTypescriptResponseMembers(),
       readPythonResponseMembers(),
+      readGoResponseMembers(),
     ]);
 
     for (const [language, expected] of [
       ["TypeScript", typescriptMembers],
       ["Python", pythonMembers],
+      ["Go", goMembers],
     ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
       const view = views.get(language);
       expect(view, `response.mdx must contain one ${language} tab`).toBeDefined();
@@ -242,10 +283,304 @@ describe("SDK reference surface", () => {
     }
   });
 
+  it("explicitly classifies every supplemental reference page", async () => {
+    const referenceSlugs = (await listFiles(REFERENCE_ROOT, () => false))
+      .filter((filePath) => extname(filePath) === ".mdx")
+      .map((filePath) => filePath.slice(0, -extname(filePath).length).split(sep).at(-1) as string);
+    const sdkSlugs = new Set(SDK_OBJECTS.map(({ classSlug }) => classSlug));
+    const supplemental = referenceSlugs.filter((slug) => !sdkSlugs.has(slug)).sort();
+
+    expect(
+      supplemental,
+      "Every non-SDK-object reference page must be explicitly classified as supplemental",
+    ).toStrictEqual([...SUPPLEMENTAL_REFERENCE_PAGES].sort());
+  });
+
+  it("uses public TypeScript names for documented field types", async () => {
+    const [referencePages, publicExports] = await Promise.all([
+      readReferencePages(),
+      readTypescriptRootExports(),
+    ]);
+    const allowed = new Set([
+      "Arg",
+      "Array",
+      "ArrayBuffer",
+      "Awaited",
+      "Buffer",
+      "Error",
+      "EvaluateResult",
+      "Input",
+      "Map",
+      "Promise",
+      "R",
+      "Record",
+      "RegExp",
+      "Result",
+      "Schema",
+      "Uint8Array",
+    ]);
+    const missing = referencePages.flatMap((page) =>
+      page.views
+        .filter(({ title }) => title === "TypeScript")
+        .flatMap(({ methods }) => methods)
+        .flatMap(({ paramFields, responseFields }) => [...paramFields, ...responseFields])
+        .flatMap(
+          ({ type }) =>
+            type?.replace(/(['"])[\s\S]*?\1/gu, "").match(/\b[A-Z][A-Za-z0-9_$]*\b/gu) ?? [],
+        )
+        .filter((name) => !allowed.has(name) && !publicExports.has(name))
+        .map((name) => `${page.filePath}: ${name}`),
+    );
+
+    expect(
+      [...new Set(missing)].sort(),
+      "Named TypeScript field types must be exported from @browserbasehq/stagehand",
+    ).toEqual([]);
+  });
+
+  it("documents the accepted values for shared closed-value types", async () => {
+    const cases = [
+      ["page", "TypeScript", '"load"', '"domcontentloaded"', '"networkidle"'],
+      ["page", "Python", '"load"', '"domcontentloaded"', '"networkidle"'],
+      ["page", "Go", "LoadStateLoad", "LoadStateDOMContentLoaded", "LoadStateNetworkIdle"],
+      ["locator", "TypeScript", '"left"', '"middle"', '"right"'],
+      ["locator", "Python", '"left"', '"middle"', '"right"'],
+      ["locator", "Go", "MouseButtonLeft", "MouseButtonMiddle", "MouseButtonRight"],
+      ["page", "TypeScript", '"attached"', '"detached"', '"visible"', '"hidden"'],
+      ["page", "Python", '"attached"', '"detached"', '"visible"', '"hidden"'],
+      [
+        "page",
+        "Go",
+        "PageWaitForSelectorOptionsStateAttached",
+        "PageWaitForSelectorOptionsStateDetached",
+        "PageWaitForSelectorOptionsStateVisible",
+        "PageWaitForSelectorOptionsStateHidden",
+      ],
+      [
+        "page",
+        "TypeScript",
+        '"disabled"',
+        '"allow"',
+        '"hide"',
+        '"initial"',
+        '"css"',
+        '"device"',
+        '"png"',
+        '"jpeg"',
+      ],
+      [
+        "page",
+        "Python",
+        '"disabled"',
+        '"allow"',
+        '"hide"',
+        '"initial"',
+        '"css"',
+        '"device"',
+        '"png"',
+        '"jpeg"',
+      ],
+      [
+        "page",
+        "Go",
+        "PageScreenshotOptionsAnimationsDisabled",
+        "PageScreenshotOptionsAnimationsAllow",
+        "PageScreenshotOptionsCaretHide",
+        "PageScreenshotOptionsCaretInitial",
+        "PageScreenshotOptionsScaleCSS",
+        "PageScreenshotOptionsScaleDevice",
+        "PageScreenshotOptionsTypePNG",
+        "PageScreenshotOptionsTypeJPEG",
+      ],
+      ["context", "TypeScript", '"Strict"', '"Lax"', '"None"'],
+      ["context", "Python", '"Strict"', '"Lax"', '"None"'],
+      [
+        "context",
+        "Go",
+        "CookieParamSameSiteStrict",
+        "CookieParamSameSiteLax",
+        "CookieParamSameSiteNone",
+      ],
+      ["stagehand", "TypeScript", '"HIT"', '"MISS"', '"DISABLED"'],
+      ["stagehand", "Python", '"HIT"', '"MISS"', '"DISABLED"'],
+      ["stagehand", "Go", "CacheStatusHIT", "CacheStatusMISS", "CacheStatusDISABLED"],
+      ["webmcp", "TypeScript", '"Completed"', '"Canceled"', '"Error"'],
+      ["webmcp", "Python", '"Completed"', '"Canceled"', '"Error"'],
+      [
+        "webmcp",
+        "Go",
+        "WebMCPInvocationStatusCompleted",
+        "WebMCPInvocationStatusCanceled",
+        "WebMCPInvocationStatusError",
+      ],
+    ] as const;
+    const problems: string[] = [];
+    for (const [slug, language, ...values] of cases) {
+      const content = await readFile(resolve(REFERENCE_ROOT, `${slug}.mdx`), "utf8");
+      const tab = languageTabSource(content, language);
+      const missing = values.filter((value) => !tab.includes(value));
+      if (missing.length > 0) problems.push(`${slug} ${language}: ${missing.join(", ")}`);
+    }
+
+    expect(problems, "Every supported value must appear in its owning language tab").toEqual([]);
+  });
+
+  it("resolves every internal v4 reference link and anchor", async () => {
+    const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
+      (filePath) => extname(filePath) === ".mdx",
+    );
+    const anchors = new Map<string, Set<string>>();
+    for (const filePath of await listFiles(REFERENCE_ROOT, () => false)) {
+      if (extname(filePath) !== ".mdx") continue;
+      const slug = relative(DOCS_ROOT, filePath)
+        .split(sep)
+        .join("/")
+        .replace(/\.mdx$/u, "");
+      const content = await readFile(filePath, "utf8");
+      anchors.set(
+        slug,
+        new Set(
+          [...content.matchAll(/^#{1,6}\s+(.+)$/gmu)].map((match) =>
+            referenceAnchor(match[1] as string),
+          ),
+        ),
+      );
+    }
+    const problems: string[] = [];
+    for (const filePath of contentPages) {
+      const content = await readFile(filePath, "utf8");
+      for (const match of content.matchAll(
+        /(?:href=["']|\]\()\/((?:v4\/reference\/)[A-Za-z0-9_-]+)(#[A-Za-z0-9_-]+)?/gu,
+      )) {
+        const target = match[1] as string;
+        const anchor = match[2]?.slice(1);
+        if (!anchors.has(target)) problems.push(`${relative(DOCS_ROOT, filePath)}: /${target}`);
+        else if (anchor && !anchors.get(target)?.has(anchor)) {
+          problems.push(`${relative(DOCS_ROOT, filePath)}: /${target}#${anchor}`);
+        }
+      }
+    }
+
+    expect(problems, "Internal v4 reference links must resolve to a page and heading").toEqual([]);
+  });
+
+  it("documents callable helper members as methods and metadata as properties", async () => {
+    const webmcpPath = resolve(REFERENCE_ROOT, "webmcp.mdx");
+    const pagePath = resolve(REFERENCE_ROOT, "page.mdx");
+    const [webmcpDocs, pageDocs, typescriptSource, pythonSource, goSource] = await Promise.all([
+      readFile(webmcpPath, "utf8"),
+      readFile(pagePath, "utf8"),
+      readFile(resolve(TYPESCRIPT_ROOT, "webmcp.ts"), "utf8"),
+      readFile(resolve(PYTHON_ROOT, "webmcp.py"), "utf8"),
+      readFile(resolve(GO_ROOT, "webmcp.go"), "utf8"),
+    ]);
+    const surfaces = new Map<Language, ResponseReferenceMember[]>([
+      [
+        "TypeScript",
+        ["WebMCPTool", "WebMCPInvocation"].flatMap((className) =>
+          readTypescriptHelperMembers(typescriptSource, className),
+        ),
+      ],
+      [
+        "Python",
+        ["WebMCPTool", "WebMCPInvocation"].flatMap((className) =>
+          readPythonClassMembers(pythonSource, className, webmcpPath),
+        ),
+      ],
+      [
+        "Go",
+        parseGoFunctions(goSource)
+          .filter(
+            ({ name, receiverType }) =>
+              /^[A-Z]/u.test(name) &&
+              (receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation"),
+          )
+          .map(({ name, parameters, returnType }) => ({
+            isProperty: false,
+            name,
+            parameters: parameters.map(({ name: parameter }) => parameter),
+            returnType,
+          })),
+      ],
+    ]);
+    const problems: string[] = [];
+    for (const [language, members] of surfaces) {
+      const tab = languageTabSource(webmcpDocs, language);
+      for (const member of members) {
+        const propertyRow = `| \`${member.name}\` |`;
+        const methodHeading = `### ${member.name}()`;
+        if (member.isProperty && !tab.includes(propertyRow)) {
+          problems.push(`${language}: missing property ${member.name}`);
+        }
+        if (!member.isProperty && !tab.includes(methodHeading)) {
+          problems.push(`${language}: missing method ${member.name}()`);
+        }
+        if (!member.isProperty && tab.includes(propertyRow)) {
+          problems.push(`${language}: method ${member.name}() is documented as a property`);
+        }
+      }
+      const expectedMethods = responseMemberSignatures(
+        members.filter(({ isProperty }) => !isProperty),
+      );
+      const documentedMethods = responseMemberSignatures(
+        readDocumentedHelperMethods(tab, language).filter(({ isProperty }) => !isProperty),
+      );
+      if (!arraysEqual(documentedMethods, expectedMethods)) {
+        problems.push(
+          `${language}: expected method signatures [${expectedMethods.join(", ")}], received [${documentedMethods.join(", ")}]`,
+        );
+      }
+    }
+
+    const cdpMembers = new Map<Language, ResponseReferenceMember[]>([
+      [
+        "TypeScript",
+        readTypescriptHelperMembers(
+          await readFile(resolve(TYPESCRIPT_ROOT, "page.ts"), "utf8"),
+          "CDPSubscription",
+        ),
+      ],
+      [
+        "Python",
+        readPythonClassMembers(
+          await readFile(resolve(PYTHON_ROOT, "page.py"), "utf8"),
+          "CDPSubscription",
+          pagePath,
+        ),
+      ],
+      [
+        "Go",
+        parseGoFunctions(await readFile(resolve(GO_ROOT, "page.go"), "utf8"))
+          .filter(
+            ({ name, receiverType }) => receiverType === "CDPSubscription" && /^[A-Z]/u.test(name),
+          )
+          .map(({ name, parameters, returnType }) => ({
+            isProperty: false,
+            name,
+            parameters: parameters.map(({ name: parameter }) => parameter),
+            returnType,
+          })),
+      ],
+    ]);
+    for (const [language, members] of cdpMembers) {
+      const tab = languageTabSource(pageDocs, language);
+      for (const member of members) {
+        if (!tab.includes(`${member.name}(`)) {
+          problems.push(`${language}: missing CDPSubscription.${member.name}()`);
+        }
+      }
+    }
+
+    expect(problems, "Helper reference members must match their public SDK member kind").toEqual(
+      [],
+    );
+  });
+
   it("uses the exact language-specific public method names as headings", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -253,6 +588,7 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
+      ["Go", sharedSurfaceMethods(goMethods, methodKeys(typescriptMethods))],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
@@ -271,7 +607,7 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
-  it("uses exactly one TypeScript tab and one Python tab on every reference page", async () => {
+  it("uses exactly one tab per SDK language on every reference page", async () => {
     const invalidPages = (await readReferencePages()).flatMap((page) => {
       const titles = page.views.map(({ title }) => title ?? "<missing title>").sort();
       return arraysEqual(titles, [...LANGUAGES].sort())
@@ -281,14 +617,15 @@ describe("SDK reference surface", () => {
 
     expect(
       invalidPages,
-      "Each reference page must contain exactly the two native SDK language tabs",
+      "Each reference page must contain exactly one TypeScript, Python, and Go tab",
     ).toEqual([]);
   });
 
   it("documents the exact direct signature parameters inside each language tab", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -296,6 +633,7 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
+      ["Go", goMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documentedByMethod = documentedMethodMap(referencePages, language);
       for (const method of methods) {
@@ -384,6 +722,96 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
+  it("uses the exact Go SDK type for every direct documented parameter", async () => {
+    // TypeScript and Python parameter types are checked against the protocol
+    // schema projection. Go's option structs are generated from that same
+    // protocol, so the declared signature type is itself canonical and the
+    // documented type must reproduce it verbatim.
+    const [goMethods, referencePages] = await Promise.all([readGoMethods(), readReferencePages()]);
+    const differences: string[] = [];
+
+    const documentedByMethod = documentedMethodMap(referencePages, "Go");
+    for (const method of goMethods) {
+      const reference = documentedByMethod.get(methodKey(method));
+      if (!reference) continue;
+      const documented = new Map(
+        reference.method.paramFields
+          .filter(({ key }) => key !== undefined && !key.includes("."))
+          .map((field) => [field.key as string, field]),
+      );
+      for (const parameter of method.parameters) {
+        const field = documented.get(parameter);
+        const expected = method.parameterTypes[parameter];
+        if (!field || !expected) continue;
+        const actual = field.type?.replace(/\s+/gu, " ").trim() ?? "";
+        if (actual !== expected) {
+          differences.push(
+            `${methodKey(method)} Go ${parameter}: expected ${expected}, received ${actual || "<missing>"}`,
+          );
+        }
+      }
+    }
+
+    expect(differences, "Go ParamField types must match the declared Go signature types").toEqual(
+      [],
+    );
+  });
+
+  it("documents every exported field of each Go parameter struct", async () => {
+    // Nested TypeScript and Python fields are checked against the protocol
+    // projection. Go parameter structs declare the same surface directly, so
+    // the documented nested paths and types must match the struct fields
+    // verbatim. Handle and union types export no fields, so recursion stops
+    // at them, and parameters of such types are skipped entirely.
+    const [goMethods, referencePages, goStructs] = await Promise.all([
+      readGoMethods(),
+      readReferencePages(),
+      readGoStructs(),
+    ]);
+    const differences: string[] = [];
+
+    const documentedByMethod = documentedMethodMap(referencePages, "Go");
+    for (const method of goMethods) {
+      const reference = documentedByMethod.get(methodKey(method));
+      if (!reference) continue;
+      for (const parameter of method.parameters) {
+        const expected = new Map(
+          exportedGoFieldPaths(parameter, method.parameterTypes[parameter] ?? "", goStructs).map(
+            ({ key, type }) => [key, type],
+          ),
+        );
+        if (expected.size === 0) continue;
+        const documented = new Map(
+          reference.method.paramFields
+            .filter(({ key }) => key !== undefined && key.startsWith(`${parameter}.`))
+            .map((field) => [field.key as string, field.type ?? "<missing>"]),
+        );
+        for (const [key, type] of expected) {
+          const actual = documented.get(key);
+          if (actual === undefined) {
+            differences.push(`${methodKey(method)} Go ${key}: missing ParamField of type ${type}`);
+          } else if (actual !== type) {
+            differences.push(
+              `${methodKey(method)} Go ${key}: expected type ${type}, received ${actual}`,
+            );
+          }
+        }
+        for (const key of documented.keys()) {
+          if (!expected.has(key)) {
+            differences.push(
+              `${methodKey(method)} Go ${key}: documents a field the Go SDK does not declare`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Nested Go ParamFields must exactly match the exported Go struct fields",
+    ).toEqual([]);
+  });
+
   it("documents every nested public protocol input field", async () => {
     const [typescriptMethods, pythonMethods, referencePages, protocol] = await Promise.all([
       readTypescriptMethods(),
@@ -459,11 +887,12 @@ describe("SDK reference surface", () => {
           const actual = documented.get(field.key);
           if (!actual) continue;
           const expectedType =
-            language === "TypeScript" &&
+            publicReferenceFieldType(method, language, field.key) ??
+            (language === "TypeScript" &&
             method.operationName === "stagehand.callback_batch" &&
             field.key === "options.page"
               ? "Page"
-              : canonicalSchemaType(field.schema, language, protocol);
+              : canonicalSchemaType(field.schema, language, protocol));
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -783,11 +1212,12 @@ describe("SDK reference surface", () => {
           const actual = documented.get(field.key);
           if (!actual) continue;
           const expectedType =
-            method.operationName === "stagehand.extract" && field.key === "result.data"
+            publicReferenceFieldType(method, language, field.key) ??
+            (method.operationName === "stagehand.extract" && field.key === "result.data"
               ? language === "TypeScript"
                 ? "z.output<Schema>"
                 : "ResultModel"
-              : canonicalSchemaType(field.schema, language, protocol);
+              : canonicalSchemaType(field.schema, language, protocol));
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -906,6 +1336,10 @@ describe("Mintlify customization boundary", () => {
           const counts = new Map<string, number>();
           for (const { title } of titled) {
             counts.set(title, (counts.get(title) ?? 0) + 1);
+          }
+          const missing = LANGUAGES.filter((language) => !counts.has(language));
+          if (missing.length > 0) {
+            found.push(`${pagePath}: missing ${missing.join(", ")} snippets`);
           }
           const tallies = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
           const expected = Math.max(...counts.values());
@@ -1283,12 +1717,47 @@ async function readTypescriptResponseMembers(): Promise<ResponseReferenceMember[
   });
 }
 
+function readTypescriptHelperMembers(source: string, className: string): ResponseReferenceMember[] {
+  const classStart = source.indexOf(`export class ${className} {`);
+  if (classStart < 0) throw new Error(`Could not find ${className}`);
+  const bodyStart = source.indexOf("{", classStart);
+  const bodyEnd = matchingBrace(source, bodyStart);
+  const body = source.slice(bodyStart + 1, bodyEnd);
+  const properties = [
+    ...body.matchAll(/^\s+readonly ([A-Za-z_$][A-Za-z0-9_$]*):\s*([^;]+);/gmu),
+  ].map((match) => ({
+    isProperty: true,
+    name: match[1] as string,
+    parameters: [],
+    returnType: (match[2] as string).trim(),
+  }));
+  const methods = [
+    ...body.matchAll(/^\s+(?:async\s+)?([A-Za-z_$][A-Za-z0-9_$]*)\(([^)]*)\):\s*([^\n{]+)\s*\{/gmu),
+  ]
+    .filter((match) => match[1] !== "constructor")
+    .map((match) => ({
+      isProperty: false,
+      name: match[1] as string,
+      parameters: responseSignatureParameters(match[2] as string),
+      returnType: (match[3] as string).trim(),
+    }));
+  return [...properties, ...methods];
+}
+
 async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
   const filePath = resolve(PYTHON_ROOT, "response.py");
-  const root = parse("python", await readFile(filePath, "utf8")).root();
-  const classNode = findClass(root, "class_definition", "Response", filePath);
+  return readPythonClassMembers(await readFile(filePath, "utf8"), "Response", filePath);
+}
+
+function readPythonClassMembers(
+  source: string,
+  className: string,
+  filePath: string,
+): ResponseReferenceMember[] {
+  const root = parse("python", source).root();
+  const classNode = findClass(root, "class_definition", className, filePath);
   const classBody = classNode.field("body");
-  if (!classBody) throw new Error(`Response has no class body in ${filePath}`);
+  if (!classBody) throw new Error(`${className} has no class body in ${filePath}`);
 
   return namedChildren(classBody).flatMap((member): ResponseReferenceMember[] => {
     const decorators =
@@ -1304,7 +1773,7 @@ async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
     );
     if (decoratorNames.includes("overload")) return [];
     const returnType = method.field("return_type")?.text();
-    if (!returnType) throw new Error(`Response.${name} has no return type in ${filePath}`);
+    if (!returnType) throw new Error(`${className}.${name} has no return type in ${filePath}`);
     return [
       {
         isProperty: decoratorNames.includes("property"),
@@ -1318,10 +1787,220 @@ async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
   });
 }
 
+async function readGoMethods(): Promise<SdkMethod[]> {
+  const methods: SdkMethod[] = [];
+  for (const filePath of await listFiles(GO_ROOT, () => false)) {
+    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
+    for (const declaration of parseGoFunctions(await readFile(filePath, "utf8"))) {
+      if (!/^[A-Z]/u.test(declaration.name)) continue;
+      const sdkObject = goDeclarationObject(declaration);
+      if (!sdkObject) continue;
+      // Every Go call threads context.Context, so it is not a documentable
+      // parameter. Object handles taken by package-level callables such as
+      // Extract are documented like any other parameter.
+      const parameters = declaration.parameters.filter(({ type }) => type !== "context.Context");
+      methods.push(
+        sdkMethod(
+          sdkObject.classSlug,
+          declaration.name,
+          parameters.map(({ name }) => name),
+          undefined,
+          declaration.returnType,
+          Object.fromEntries(parameters.map(({ name, type }) => [name, type])),
+        ),
+      );
+    }
+  }
+  return deduplicateMethods(methods, "Go");
+}
+
+// A package-level function belongs to the object it constructs or extends,
+// such as Create returning *Stagehand or the generic Extract taking one.
+function goDeclarationObject(declaration: GoFunctionDeclaration): SdkObject | undefined {
+  if (declaration.receiverType !== undefined) {
+    return SDK_OBJECTS.find(({ goClassName }) => goClassName === declaration.receiverType);
+  }
+  return SDK_OBJECTS.find(({ goClassName }) => {
+    const pointer = new RegExp(`\\*${goClassName}\\b`, "u");
+    return (
+      declaration.parameters.some(({ type }) => pointer.test(type)) ||
+      pointer.test(declaration.returnType)
+    );
+  });
+}
+
+// The Go SDK also exports Go-specific surface: handle accessors such as
+// Stagehand.Browser(), union constructors, and generic helpers such as
+// EvaluateAs. Reference parity is judged on the surface shared with TypeScript.
+function sharedSurfaceMethods(methods: SdkMethod[], expected: readonly string[]): SdkMethod[] {
+  const surface = new Set(expected);
+  return methods.filter((method) => surface.has(methodKey(method)));
+}
+
+async function readGoResponseMembers(): Promise<ResponseReferenceMember[]> {
+  const filePath = resolve(GO_ROOT, "response.go");
+  return parseGoFunctions(await readFile(filePath, "utf8"))
+    .filter(
+      (declaration) => declaration.receiverType === "Response" && /^[A-Z]/u.test(declaration.name),
+    )
+    .map((declaration) => ({
+      isProperty: false,
+      name: declaration.name,
+      parameters: declaration.parameters.map(({ name }) => name),
+      returnType: declaration.returnType,
+    }));
+}
+
+// Parses gofmt-formatted Go struct declarations into their exported fields.
+// Comment lines, unexported fields, and struct tags are dropped.
+async function readGoStructs(): Promise<Map<string, GoParameter[]>> {
+  const structs = new Map<string, GoParameter[]>();
+  for (const filePath of await listFiles(GO_ROOT, () => false)) {
+    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
+    const source = await readFile(filePath, "utf8");
+    for (const match of source.matchAll(/^type (\w+)(?:\[[^\]]*\])? struct \{\n([\s\S]*?)^\}/gmu)) {
+      const fields = (match[2] as string).split("\n").flatMap((line): GoParameter[] => {
+        const field = line.match(/^\t([A-Z]\w*)\s+(.+?)(?:\s+`[^`]*`)?$/u);
+        return field ? [{ name: field[1] as string, type: field[2] as string }] : [];
+      });
+      structs.set(match[1] as string, fields);
+    }
+  }
+  return structs;
+}
+
+// Expands a Go parameter into the `parameter.Field` paths a reference page
+// must document: the exported fields of its struct type, recursing while the
+// field type is itself a locally declared struct with exported fields.
+function exportedGoFieldPaths(
+  prefix: string,
+  type: string,
+  structs: ReadonlyMap<string, GoParameter[]>,
+  seen: ReadonlySet<string> = new Set(),
+): Array<{ key: string; type: string }> {
+  const base = type.replace(/^(?:\.\.\.|\*|\[\])+/u, "");
+  const fields = structs.get(base);
+  if (!fields || seen.has(base)) return [];
+  const nextSeen = new Set([...seen, base]);
+  return fields.flatMap((field) => [
+    { key: `${prefix}.${field.name}`, type: field.type },
+    ...exportedGoFieldPaths(`${prefix}.${field.name}`, field.type, structs, nextSeen),
+  ]);
+}
+
+// Parses gofmt-formatted Go function and method declarations. The SDK's
+// signatures never nest braces or comments inside a declaration, so balanced
+// scanning is enough; documented signatures in MDX code fences parse the same
+// way because they end at a newline instead of a body brace.
+function parseGoFunctions(source: string): GoFunctionDeclaration[] {
+  const declarations: GoFunctionDeclaration[] = [];
+  const starts =
+    /^func (?:\((?:\w+ )?\*?(\w+)(?:\[[^\]]*\])?\) )?([A-Za-z_]\w*)(?:\[[^\]]*\])?\(/gmu;
+  for (const match of source.matchAll(starts)) {
+    const parameterStart = match.index + match[0].length;
+    const parameterEnd = matchingParenthesis(source, parameterStart - 1);
+    declarations.push({
+      name: match[2] as string,
+      parameters: parseGoParameters(source.slice(parameterStart, parameterEnd)),
+      receiverType: match[1],
+      returnType: source
+        .slice(parameterEnd + 1, goDeclarationEnd(source, parameterEnd + 1))
+        .replace(/\s+/gu, " ")
+        .trim(),
+    });
+  }
+  return declarations;
+}
+
+function matchingParenthesis(source: string, openIndex: number): number {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "(") depth += 1;
+    if (source[index] === ")") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`Unbalanced Go declaration: ${source.slice(openIndex, openIndex + 80)}`);
+}
+
+function matchingBrace(source: string, openIndex: number): number {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "{") depth += 1;
+    if (source[index] === "}") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`Unbalanced TypeScript class: ${source.slice(openIndex, openIndex + 80)}`);
+}
+
+// A return type ends at the body brace (SDK source) or at the end of the
+// line (documented signatures carry no body).
+function goDeclarationEnd(source: string, start: number): number {
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "(" || character === "[") depth += 1;
+    if (character === ")" || character === "]") depth -= 1;
+    if ((character === "{" || character === "\n") && depth === 0) return index;
+  }
+  return source.length;
+}
+
+function parseGoParameters(text: string): GoParameter[] {
+  const parameters = splitTopLevelGo(text)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part): GoParameter => {
+      const space = part.indexOf(" ");
+      return space < 0
+        ? { name: part, type: "" }
+        : { name: part.slice(0, space), type: part.slice(space + 1).replace(/\s+/gu, " ") };
+    });
+  // Grouped parameters (`a, b string`) take the next declared type.
+  for (let index = parameters.length - 2; index >= 0; index -= 1) {
+    const parameter = parameters[index] as GoParameter;
+    if (!parameter.type) parameter.type = (parameters[index + 1] as GoParameter).type;
+  }
+  return parameters;
+}
+
+function splitTopLevelGo(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "(" || character === "[" || character === "{") depth += 1;
+    if (character === ")" || character === "]" || character === "}") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(text.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
 function readDocumentedResponseMembers(
   view: MdxNode,
   language: Language,
 ): ResponseReferenceMember[] {
+  if (language === "Go") {
+    return findNodeValues(view, "code").flatMap((value) =>
+      parseGoFunctions(value)
+        .filter((declaration) => declaration.receiverType === "Response")
+        .map((declaration) => ({
+          isProperty: false,
+          name: declaration.name,
+          parameters: declaration.parameters.map(({ name }) => name),
+          returnType: declaration.returnType,
+        })),
+    );
+  }
+
   const members: ResponseReferenceMember[] = [];
   for (const line of findNodeValues(view, "code").flatMap((value) => value.split("\n"))) {
     const trimmed = line.trim();
@@ -1376,6 +2055,93 @@ function responseMemberSignatures(members: ResponseReferenceMember[]): string[] 
         `${isProperty ? "property" : "method"}:${name}(${parameters.join(",")}):${returnType.replaceAll(/\s/g, "")}`,
     )
     .sort();
+}
+
+async function readTypescriptRootExports(): Promise<Set<string>> {
+  const source = await readFile(resolve(TYPESCRIPT_ROOT, "index.ts"), "utf8");
+  const names = [...source.matchAll(/export(?:\s+type)?\s*\{([\s\S]*?)\}\s*from/gu)].flatMap(
+    (match) =>
+      (match[1] as string)
+        .split(",")
+        .map((entry) => entry.replace(/\/\/.*$/gu, "").trim())
+        .filter(Boolean)
+        .map(
+          (entry) =>
+            entry
+              .replace(/^type\s+/u, "")
+              .split(/\s+as\s+/u)
+              .at(-1) as string,
+        ),
+  );
+  return new Set(names);
+}
+
+function languageTabSource(content: string, language: Language): string {
+  const start = content.indexOf(`<Tab title="${language}">`);
+  if (start < 0) throw new Error(`Missing ${language} tab`);
+  const end = content.indexOf("</Tab>", start);
+  if (end < 0) throw new Error(`Unclosed ${language} tab`);
+  return content.slice(start, end);
+}
+
+function referenceAnchor(heading: string): string {
+  return heading
+    .replace(/<[^>]+>/gu, "")
+    .replace(/`/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/gu, "")
+    .trim()
+    .replace(/\s+/gu, "-");
+}
+
+function readDocumentedHelperMethods(tab: string, language: Language): ResponseReferenceMember[] {
+  if (language === "Go") {
+    return parseGoFunctions(tab)
+      .filter(
+        ({ receiverType }) => receiverType === "WebMCPTool" || receiverType === "WebMCPInvocation",
+      )
+      .map(({ name, parameters, returnType }) => ({
+        isProperty: false,
+        name,
+        parameters: parameters.map(({ name: parameter }) => parameter),
+        returnType,
+      }));
+  }
+  if (language === "TypeScript") {
+    return [...tab.matchAll(/^([A-Za-z_$][A-Za-z0-9_$]*)\(([^)]*)\):\s*(.+)$/gmu)].map((match) => ({
+      isProperty: false,
+      name: match[1] as string,
+      parameters: responseSignatureParameters(match[2] as string),
+      returnType: match[3] as string,
+    }));
+  }
+  return [
+    ...tab.matchAll(/async def\s+([A-Za-z_][A-Za-z0-9_]*)\(([\s\S]*?)\)\s*->\s*([^\n]+)/gu),
+  ].map((match) => ({
+    isProperty: false,
+    name: match[1] as string,
+    parameters: signatureParameterNames(match[2] as string).filter(
+      (parameter) => parameter !== "*",
+    ),
+    returnType: (match[3] as string).trim(),
+  }));
+}
+
+function signatureParameterNames(value: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+    if (character === "[" || character === "(" || character === "{") depth += 1;
+    if (character === "]" || character === ")" || character === "}") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(value.slice(start));
+  return parts.map((parameter) => parameter.trim().split(/[:=]/u, 1)[0] as string).filter(Boolean);
 }
 
 function findClass(
@@ -2100,6 +2866,13 @@ function projectedInputFields(
 }
 
 function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean {
+  if (
+    method.classSlug === "page" &&
+    method.methodName === "screenshot" &&
+    (path.startsWith("options.mask.") || path.startsWith("mask."))
+  ) {
+    return true;
+  }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return new Set([
@@ -2112,6 +2885,14 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
     "ignore_locators.selector",
     "ignore_locators.nth",
   ]).has(path);
+}
+
+function publicReferenceFieldType(
+  method: SdkMethod,
+  language: Language,
+  field: string,
+): string | undefined {
+  return PUBLIC_REFERENCE_FIELD_TYPES.get(`${method.operationName}:${language}:${field}`);
 }
 
 function projectedResultPaths(

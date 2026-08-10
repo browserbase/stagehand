@@ -36,7 +36,7 @@ await locator.click();
   Options that configure this operation.
 
 <ParamField path="options.button" type="MouseButton" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
   <ParamField path="options.clickCount" type="number" optional>
@@ -410,7 +410,7 @@ await locator.click()
 ```
 
 <ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
 <ParamField path="click_count" type="int | None" optional>
@@ -746,6 +746,455 @@ third = locator.nth(2)
 </ParamField>
 
 <ResponseField name="result" type="Self">
+  The operation result.
+</ResponseField>
+
+</Tab>
+
+<Tab title="Go">
+
+## Quick start
+
+```go
+locator := page.Locator("button[type=submit]")
+if err := locator.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+In Go the locator type is `*stagehand.PageLocator` (the wrapper named `Locator` in the TypeScript and Python SDKs). Every method takes a `context.Context` first, and methods with options accept a pointer options struct; pass `nil` for defaults.
+
+## Click()
+
+Click the element matched by this locator.
+
+```go
+if err := locator.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*LocatorClickOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Button" type="*MouseButton" optional>
+    The mouse button to use: `MouseButtonLeft`, `MouseButtonMiddle`, or `MouseButtonRight`.
+  </ParamField>
+
+  <ParamField path="options.ClickCount" type="*int" optional>
+    The number of clicks to dispatch.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Hover()
+
+Move the pointer over the matched element.
+
+```go
+if err := locator.Hover(ctx); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Fill()
+
+Replace the matched input's value.
+
+```go
+if err := locator.Fill(ctx, "Browserbase"); err != nil {
+    return err
+}
+```
+
+<ParamField path="value" type="string">
+  The value to set.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Count()
+
+Count the elements matched by this locator.
+
+```go
+count, err := locator.Count(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(count)
+```
+
+<ResponseField name="result" type="(int, error)">
+  The operation result.
+</ResponseField>
+
+## IsChecked()
+
+Check whether the matched control is checked.
+
+```go
+checked, err := locator.IsChecked(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(checked)
+```
+
+<ResponseField name="result" type="(bool, error)">
+  The operation result.
+</ResponseField>
+
+## InputValue()
+
+Return the current value of the matched input.
+
+```go
+value, err := locator.InputValue(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(value)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## IsVisible()
+
+Check whether the matched element is visible.
+
+```go
+visible, err := locator.IsVisible(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(visible)
+```
+
+<ResponseField name="result" type="(bool, error)">
+  The operation result.
+</ResponseField>
+
+## InnerText()
+
+Return the rendered text inside the matched element.
+
+```go
+text, err := locator.InnerText(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(text)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## InnerHTML()
+
+Return the HTML inside the matched element.
+
+```go
+html, err := locator.InnerHTML(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(html)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## TextContent()
+
+Return the text content of the matched element.
+
+```go
+text, err := locator.TextContent(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(text)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## ScrollTo()
+
+Scroll the matched element to a percentage of its range.
+
+```go
+if err := locator.ScrollTo(ctx, stagehand.NumericScrollPercent(50)); err != nil {
+    return err
+}
+```
+
+<ParamField path="percent" type="ScrollPercent">
+  A percentage from 0 to 100. Construct it with `stagehand.NumericScrollPercent(50)`, or with `stagehand.NamedScrollPercent("50%")` for a percentage string.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Centroid()
+
+Return the center point of the matched element.
+
+```go
+point, err := locator.Centroid(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(point.X, point.Y)
+```
+
+<ResponseField name="result" type="(LocatorCentroidResult, error)">
+  The operation result.
+
+<ResponseField name="result.X" type="float64">
+  The horizontal center coordinate.
+</ResponseField>
+
+  <ResponseField name="result.Y" type="float64">
+    The vertical center coordinate.
+  </ResponseField>
+</ResponseField>
+
+## Highlight()
+
+Temporarily highlight the matched element.
+
+```go
+durationMs := 1000
+err := locator.Highlight(ctx, &stagehand.LocatorHighlightOptions{DurationMs: &durationMs})
+if err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*LocatorHighlightOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.BorderColor" type="*RgbaColor" optional>
+    The highlight border color.
+
+    <ParamField path="options.BorderColor.A" type="*float64" optional>
+      The alpha channel.
+    </ParamField>
+
+    <ParamField path="options.BorderColor.B" type="float64">
+      The blue channel.
+    </ParamField>
+
+    <ParamField path="options.BorderColor.G" type="float64">
+      The green channel.
+    </ParamField>
+
+    <ParamField path="options.BorderColor.R" type="float64">
+      The red channel.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.ContentColor" type="*RgbaColor" optional>
+    The highlight fill color.
+
+    <ParamField path="options.ContentColor.A" type="*float64" optional>
+      The alpha channel.
+    </ParamField>
+
+    <ParamField path="options.ContentColor.B" type="float64">
+      The blue channel.
+    </ParamField>
+
+    <ParamField path="options.ContentColor.G" type="float64">
+      The green channel.
+    </ParamField>
+
+    <ParamField path="options.ContentColor.R" type="float64">
+      The red channel.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.DurationMs" type="*int" optional>
+    How long to display the highlight.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## SendClickEvent()
+
+Dispatch a DOM click event on the matched element.
+
+```go
+if err := locator.SendClickEvent(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*LocatorSendClickEventOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Bubbles" type="*bool" optional>
+  Whether the event bubbles.
+</ParamField>
+
+<ParamField path="options.Cancelable" type="*bool" optional>
+  Whether the event can be canceled.
+</ParamField>
+
+<ParamField path="options.Composed" type="*bool" optional>
+  Whether the event crosses shadow DOM boundaries.
+</ParamField>
+
+  <ParamField path="options.Detail" type="*float64" optional>
+    The event-specific click detail.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Type()
+
+Type text into the matched element.
+
+```go
+if err := locator.Type(ctx, "Browserbase", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="text" type="string">
+  The text to type.
+</ParamField>
+
+<ParamField path="options" type="*LocatorTypeOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Delay" type="*float64" optional>
+    The input delay in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## SelectOption()
+
+Select one or more values in the matched select element.
+
+```go
+values, err := locator.SelectOption(ctx, stagehand.StringList{"us"})
+if err != nil {
+    return err
+}
+fmt.Println(values)
+```
+
+<ParamField path="values" type="StringList">
+  The value or values to select. `StringList` is a `[]string`.
+</ParamField>
+
+<ResponseField name="result" type="([]string, error)">
+  The operation result.
+</ResponseField>
+
+## SetInputFiles()
+
+Set one or more local files or in-memory payloads on the matched `<input type="file">`. The SDK resolves relative paths on the caller's machine. Call it without files to clear the selection.
+
+```go
+err := page.Locator(`input[type="file"]`).SetInputFiles(ctx, stagehand.FilePath("./resume.pdf"))
+if err != nil {
+    return err
+}
+```
+
+<ParamField path="files" type="...FileInput">
+  Local file path(s) or in-memory payload(s) to upload. Construct each with `stagehand.FilePath(path)` or `stagehand.FileData(name, mimeType, buffer)`. The SDK serializes each file in memory and limits it to 50 MiB.
+
+  <ParamField path="files.Path" type="string">
+    A path on the SDK caller's filesystem. Cannot be combined with the payload fields.
+  </ParamField>
+
+  <ParamField path="files.Name" type="string">
+    The filename exposed to the page.
+  </ParamField>
+
+  <ParamField path="files.MIMEType" type="string" optional>
+    The file's MIME type.
+  </ParamField>
+
+  <ParamField path="files.Buffer" type="[]byte">
+    The in-memory file content to upload. The SDK base64-encodes it for transport.
+  </ParamField>
+
+  <ParamField path="files.LastModified" type="*int64" optional>
+    The file's last-modified time in Unix milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the files are attached.
+</ResponseField>
+
+## First()
+
+Create a locator for the first matching element.
+
+```go
+first := locator.First()
+if err := first.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="*PageLocator">
+  The operation result.
+</ResponseField>
+
+## Nth()
+
+Create a locator for a matching element at a zero-based index. Returns an error when the index is negative.
+
+```go
+third, err := locator.Nth(2)
+if err != nil {
+    return err
+}
+if err := third.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="index" type="int">
+  The zero-based match index.
+</ParamField>
+
+<ResponseField name="result" type="(*PageLocator, error)">
   The operation result.
 </ResponseField>
 

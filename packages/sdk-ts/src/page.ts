@@ -35,6 +35,14 @@ export type ScreenshotOptions = Omit<PageScreenshotOptions, "mask"> & {
   path?: string;
 };
 
+export type PageClickOptions = NonNullable<PageClickParams["options"]>;
+export type PageDragAndDropOptions = NonNullable<PageDragAndDropParams["options"]>;
+export type PageKeyPressOptions = NonNullable<PageKeyPressParams["options"]>;
+export type PageReloadOptions = NonNullable<PageReloadParams["options"]>;
+export type PageSetViewportSizeOptions = NonNullable<PageSetViewportSizeParams["options"]>;
+export type PageTypeOptions = NonNullable<PageTypeParams["options"]>;
+export type PageWaitForSelectorOptions = NonNullable<PageWaitForSelectorParams["options"]>;
+
 export interface PageEventListener {
   (event: PageCDPEvent): unknown;
 }
@@ -95,7 +103,7 @@ export class Page {
     return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
-  async reload(options?: PageReloadParams["options"]): Promise<Response | null> {
+  async reload(options?: PageReloadOptions): Promise<Response | null> {
     const result = await this.rpcClient.send(StagehandMethods.pageReload, {
       pageId: this.pageId,
       ...(options ? { options } : {}),
@@ -122,7 +130,7 @@ export class Page {
     return result.response === null ? null : new Response(this.rpcClient, result.response);
   }
 
-  async click(x: number, y: number, options?: PageClickParams["options"]): Promise<void> {
+  async click(x: number, y: number, options?: PageClickOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageClick, {
       pageId: this.pageId,
       x,
@@ -154,7 +162,7 @@ export class Page {
     fromY: number,
     toX: number,
     toY: number,
-    options?: PageDragAndDropParams["options"],
+    options?: PageDragAndDropOptions,
   ): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageDragAndDrop, {
       pageId: this.pageId,
@@ -166,7 +174,7 @@ export class Page {
     });
   }
 
-  async type(text: string, options?: PageTypeParams["options"]): Promise<void> {
+  async type(text: string, options?: PageTypeOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageType, {
       pageId: this.pageId,
       text,
@@ -174,7 +182,7 @@ export class Page {
     });
   }
 
-  async keyPress(key: string, options?: PageKeyPressParams["options"]): Promise<void> {
+  async keyPress(key: string, options?: PageKeyPressOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageKeyPress, {
       pageId: this.pageId,
       key,
@@ -253,7 +261,7 @@ export class Page {
   async setViewportSize(
     width: number,
     height: number,
-    options?: PageSetViewportSizeParams["options"],
+    options?: PageSetViewportSizeOptions,
   ): Promise<void> {
     await this.rpcClient.send(StagehandMethods.pageSetViewportSize, {
       pageId: this.pageId,
@@ -278,10 +286,7 @@ export class Page {
     });
   }
 
-  async waitForSelector(
-    selector: string,
-    options?: PageWaitForSelectorParams["options"],
-  ): Promise<boolean> {
+  async waitForSelector(selector: string, options?: PageWaitForSelectorOptions): Promise<boolean> {
     const result = await this.rpcClient.send(StagehandMethods.pageWaitForSelector, {
       pageId: this.pageId,
       selector,

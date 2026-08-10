@@ -13,13 +13,18 @@ import type {
 import type { StagehandCommandClient } from "./commandClient.js";
 import { normalizeFileInput, type FileInput } from "./fileUpload.js";
 
+export type LocatorClickOptions = NonNullable<LocatorClickParams["options"]>;
+export type LocatorHighlightOptions = NonNullable<LocatorHighlightParams["options"]>;
+export type LocatorSendClickEventOptions = NonNullable<LocatorSendClickEventParams["options"]>;
+export type LocatorTypeOptions = NonNullable<LocatorTypeParams["options"]>;
+
 export class Locator {
   constructor(
     readonly rpcClient: StagehandCommandClient,
     readonly descriptor: LocatorDescriptor,
   ) {}
 
-  async click(options?: LocatorClickParams["options"]): Promise<void> {
+  async click(options?: LocatorClickOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorClick, {
       ...this.descriptor,
       ...(options ? { options } : {}),
@@ -76,21 +81,21 @@ export class Locator {
     return this.rpcClient.send(StagehandMethods.locatorCentroid, this.descriptor);
   }
 
-  async highlight(options?: LocatorHighlightParams["options"]): Promise<void> {
+  async highlight(options?: LocatorHighlightOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorHighlight, {
       ...this.descriptor,
       ...(options ? { options } : {}),
     });
   }
 
-  async sendClickEvent(options?: LocatorSendClickEventParams["options"]): Promise<void> {
+  async sendClickEvent(options?: LocatorSendClickEventOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorSendClickEvent, {
       ...this.descriptor,
       ...(options ? { options } : {}),
     });
   }
 
-  async type(text: string, options?: LocatorTypeParams["options"]): Promise<void> {
+  async type(text: string, options?: LocatorTypeOptions): Promise<void> {
     await this.rpcClient.send(StagehandMethods.locatorType, {
       ...this.descriptor,
       text,

@@ -36,7 +36,8 @@ const response = await page.goto("https://example.com");
 </ParamField>
 
   <ParamField path="options.waitUntil" type="LoadState" optional>
-    The target load state.
+    The target load state: `"load"`, `"domcontentloaded"`, or `"networkidle"`. Defaults to
+    `"domcontentloaded"`.
   </ParamField>
 </ParamField>
 
@@ -64,7 +65,8 @@ await page.reload();
 </ParamField>
 
   <ParamField path="options.waitUntil" type="LoadState" optional>
-    The target load state.
+    The target load state: `"load"`, `"domcontentloaded"`, or `"networkidle"`. Defaults to
+    `"domcontentloaded"`.
   </ParamField>
 </ParamField>
 
@@ -88,7 +90,8 @@ await page.goBack();
 </ParamField>
 
   <ParamField path="options.waitUntil" type="LoadState" optional>
-    The target load state.
+    The target load state: `"load"`, `"domcontentloaded"`, or `"networkidle"`. Defaults to
+    `"domcontentloaded"`.
   </ParamField>
 </ParamField>
 
@@ -112,7 +115,8 @@ await page.goForward();
 </ParamField>
 
   <ParamField path="options.waitUntil" type="LoadState" optional>
-    The target load state.
+    The target load state: `"load"`, `"domcontentloaded"`, or `"networkidle"`. Defaults to
+    `"domcontentloaded"`.
   </ParamField>
 </ParamField>
 
@@ -140,7 +144,7 @@ await page.click(240, 320);
   Options that configure this operation.
 
 <ParamField path="options.button" type="MouseButton" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
 <ParamField path="options.clickCount" type="number" optional>
@@ -229,7 +233,7 @@ await page.dragAndDrop(100, 100, 400, 400);
   Options that configure this operation.
 
 <ParamField path="options.button" type="MouseButton" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
 <ParamField path="options.delay" type="number" optional>
@@ -357,6 +361,12 @@ await subscription.unsubscribe();
   A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
+### CDPSubscription
+
+`unsubscribe(): Promise<void>` removes the listener locally and from the Stagehand runtime.
+Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
+`unsubscribe()` again.
+
 ## addInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -368,11 +378,11 @@ await page.addInitScript(() => {
 ```
 
 <ParamField path="script" type="InitScriptSource<Arg>">
-  A function or JavaScript source string.
+  A function, JavaScript source string, or object with exactly one of `path` and `content`.
 </ParamField>
 
 <ParamField path="arg" type="Arg" optional>
-  An optional argument passed to the function.
+  An optional JSON-serializable argument. Valid only when `script` is a function.
 </ParamField>
 
 <ResponseField name="result" type="Promise<void>">
@@ -432,7 +442,7 @@ await page.waitForLoadState("networkidle", 10_000);
 ```
 
 <ParamField path="state" type="LoadState">
-  The state to wait for.
+  The state to wait for: `"load"`, `"domcontentloaded"`, or `"networkidle"`.
 </ParamField>
 
 <ParamField path="timeout" type="number" optional>
@@ -478,8 +488,8 @@ const matched = await page.waitForSelector("main");
   Whether to traverse shadow roots. Closed roots require a navigated page; see the [locator reference](/v4/reference/locator).
 </ParamField>
 
-<ParamField path="options.state" type="string" optional>
-  The state to wait for.
+<ParamField path="options.state" type="PageWaitForSelectorOptions['state']" optional>
+  The state to wait for: `"attached"`, `"detached"`, `"visible"`, or `"hidden"`.
 </ParamField>
 
   <ParamField path="options.timeout" type="number" optional>
@@ -502,23 +512,23 @@ const image = await page.screenshot({ fullPage: true });
 <ParamField path="options" type="ScreenshotOptions" optional>
   Options that configure this operation.
 
-<ParamField path="options.animations" type="string" optional>
-  How to handle active animations.
+<ParamField path="options.animations" type="ScreenshotOptions['animations']" optional>
+  How to handle active animations: `"disabled"` or `"allow"`.
 </ParamField>
 
-<ParamField path="options.caret" type="string" optional>
-  How to render the text caret.
+<ParamField path="options.caret" type="ScreenshotOptions['caret']" optional>
+  How to render the text caret: `"hide"` or `"initial"`.
 </ParamField>
 
   <ParamField path="options.clip" type="PageScreenshotClip" optional>
     The screenshot crop rectangle.
 
     <ParamField path="options.clip.height" type="number">
-      The height in CSS pixels.
+      The positive height in CSS pixels.
     </ParamField>
 
     <ParamField path="options.clip.width" type="number">
-      The width in CSS pixels.
+      The positive width in CSS pixels.
     </ParamField>
 
     <ParamField path="options.clip.x" type="number">
@@ -532,24 +542,11 @@ const image = await page.screenshot({ fullPage: true });
   </ParamField>
 
 <ParamField path="options.fullPage" type="boolean" optional>
-  Whether to capture the full scrollable page.
+  Whether to capture the full scrollable page. Cannot be combined with `clip`.
 </ParamField>
 
-  <ParamField path="options.mask" type="LocatorDescriptor[]" optional>
-    Elements to obscure in the screenshot.
-
-    <ParamField path="options.mask.nth" type="number" optional>
-      The zero-based match index.
-    </ParamField>
-
-    <ParamField path="options.mask.pageId" type="string">
-      The owning page identifier.
-    </ParamField>
-
-    <ParamField path="options.mask.selector" type="string">
-      The element selector.
-    </ParamField>
-
+  <ParamField path="options.mask" type="Locator[]" optional>
+    Page-created locators for elements to obscure. Every locator must belong to this page.
   </ParamField>
 
 <ParamField path="options.maskColor" type="string" optional>
@@ -565,11 +562,11 @@ const image = await page.screenshot({ fullPage: true });
 </ParamField>
 
 <ParamField path="options.quality" type="number" optional>
-  JPEG quality from 0 to 100.
+  JPEG quality as an integer from 0 to 100. Valid only when `type` is `"jpeg"`.
 </ParamField>
 
-<ParamField path="options.scale" type="string" optional>
-  Whether to use CSS or device pixels.
+<ParamField path="options.scale" type="ScreenshotOptions['scale']" optional>
+  Whether to use `"css"` or `"device"` pixel scale.
 </ParamField>
 
 <ParamField path="options.style" type="string" optional>
@@ -577,11 +574,11 @@ const image = await page.screenshot({ fullPage: true });
 </ParamField>
 
 <ParamField path="options.timeout" type="number" optional>
-  The operation timeout in milliseconds.
+  The non-negative operation timeout in milliseconds.
 </ParamField>
 
-  <ParamField path="options.type" type="string" optional>
-    The image format.
+  <ParamField path="options.type" type="ScreenshotOptions['type']" optional>
+    The image format: `"png"` or `"jpeg"`.
   </ParamField>
 </ParamField>
 
@@ -649,7 +646,8 @@ console.log(result.status, result.output);
 </ParamField>
 
 <ResponseField name="result" type="Promise<WebMCPTool[]>">
-  The callable WebMCP tools registered on the page.
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
 </ResponseField>
 
 ## url()
@@ -732,7 +730,7 @@ response = await page.goto("https://example.com")
   type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
   optional
 >
-  The load state to wait for.
+  The load state to wait for. Defaults to `"domcontentloaded"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -756,7 +754,7 @@ await page.reload()
   type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
   optional
 >
-  The load state to wait for.
+  The load state to wait for. Defaults to `"domcontentloaded"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -784,7 +782,7 @@ await page.go_back()
   type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
   optional
 >
-  The load state to wait for.
+  The load state to wait for. Defaults to `"domcontentloaded"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -808,7 +806,7 @@ await page.go_forward()
   type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']"
   optional
 >
-  The load state to wait for.
+  The load state to wait for. Defaults to `"domcontentloaded"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -1044,6 +1042,12 @@ await subscription.unsubscribe()
   A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
+### CDPSubscription
+
+`await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
+Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
+cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
 ## add_init_script()
 
 Run a script before other scripts whenever the page navigates.
@@ -1053,7 +1057,7 @@ await page.add_init_script("window.localStorage.clear()")
 ```
 
 <ParamField path="source" type="str | Path">
-  JavaScript source or a path to a JavaScript file.
+  JavaScript source or a path to a JavaScript file on the SDK caller's machine.
 </ParamField>
 
 <ResponseField name="result" type="None">
@@ -1109,7 +1113,7 @@ await page.wait_for_load_state("networkidle", timeout=10_000)
 ```
 
 <ParamField path="state" type="LoadState | Literal['load', 'domcontentloaded', 'networkidle']">
-  The state to wait for.
+  The state to wait for: `"load"`, `"domcontentloaded"`, or `"networkidle"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -1153,7 +1157,7 @@ matched = await page.wait_for_selector("main", state="visible")
   type="State | Literal['attached', 'detached', 'visible', 'hidden']"
   optional
 >
-  The state to wait for.
+  The state to wait for: `"attached"`, `"detached"`, `"visible"`, or `"hidden"`.
 </ParamField>
 
 <ParamField path="timeout" type="int | None" optional>
@@ -1177,22 +1181,22 @@ image = await page.screenshot(full_page=True)
 ```
 
 <ParamField path="animations" type="Animations | Literal['disabled', 'allow']" optional>
-  How to handle CSS animations.
+  How to handle CSS animations: `"disabled"` or `"allow"`.
 </ParamField>
 
 <ParamField path="caret" type="Caret | Literal['hide', 'initial']" optional>
-  How to render the text caret.
+  How to render the text caret: `"hide"` or `"initial"`.
 </ParamField>
 
 <ParamField path="clip" type="PageScreenshotClip | None" optional>
   The region to capture.
 
 <ParamField path="clip.height" type="float">
-  The height in CSS pixels.
+  The positive height in CSS pixels.
 </ParamField>
 
 <ParamField path="clip.width" type="float">
-  The width in CSS pixels.
+  The positive width in CSS pixels.
 </ParamField>
 
 <ParamField path="clip.x" type="float">
@@ -1205,7 +1209,7 @@ image = await page.screenshot(full_page=True)
 </ParamField>
 
 <ParamField path="full_page" type="bool | None" optional>
-  Whether to capture the full scrollable page.
+  Whether to capture the full scrollable page. Cannot be combined with `clip`.
 </ParamField>
 
 <ParamField path="path" type="str | Path | None" optional>
@@ -1213,19 +1217,7 @@ image = await page.screenshot(full_page=True)
 </ParamField>
 
 <ParamField path="mask" type="Sequence[Locator] | None" optional>
-  Locators to obscure in the screenshot.
-
-<ParamField path="mask.nth" type="int" optional>
-  The zero-based match index.
-</ParamField>
-
-<ParamField path="mask.page_id" type="str">
-  The owning page identifier.
-</ParamField>
-
-  <ParamField path="mask.selector" type="str">
-    The element selector.
-  </ParamField>
+  Page-created locators for elements to obscure. Every locator must belong to this page.
 </ParamField>
 
 <ParamField path="mask_color" type="str | None" optional>
@@ -1237,11 +1229,11 @@ image = await page.screenshot(full_page=True)
 </ParamField>
 
 <ParamField path="quality" type="int | None" optional>
-  JPEG quality from 0 to 100.
+  JPEG quality as an integer from 0 to 100. Valid only when `type` is `"jpeg"`.
 </ParamField>
 
 <ParamField path="scale" type="Scale | Literal['css', 'device']" optional>
-  Whether to use CSS or device pixel scale.
+  Whether to use `"css"` or `"device"` pixel scale.
 </ParamField>
 
 <ParamField path="style" type="str | None" optional>
@@ -1249,11 +1241,11 @@ image = await page.screenshot(full_page=True)
 </ParamField>
 
 <ParamField path="timeout" type="float | None" optional>
-  Maximum wait time in milliseconds.
+  Maximum non-negative wait time in milliseconds.
 </ParamField>
 
 <ParamField path="type" type="ScreenshotType | Literal['png', 'jpeg']" optional>
-  The image format.
+  The image format: `"png"` or `"jpeg"`.
 </ParamField>
 
 <ResponseField name="result" type="bytes">
@@ -1311,7 +1303,8 @@ print(result.status, result.output)
 </ParamField>
 
 <ResponseField name="result" type="list[WebMCPTool]">
-  The callable WebMCP tools registered on the page.
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
 </ResponseField>
 
 ## url()
@@ -1363,6 +1356,794 @@ locator = page.locator("button[type=submit]")
 </ParamField>
 
 <ResponseField name="result" type="Locator">
+  The operation result.
+</ResponseField>
+
+</Tab>
+
+<Tab title="Go">
+
+## Quick start
+
+```go
+browserContext, err := browser.Context()
+if err != nil {
+    return err
+}
+page, err := browserContext.NewPage(ctx)
+if err != nil {
+    return err
+}
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+    return err
+}
+```
+
+Every method that talks to the browser takes a `context.Context` first and returns an `error` last; the local `Locator()` accessor takes neither. Options are passed as pointer structs; pass `nil` for defaults.
+
+## Goto()
+
+Navigate the page to a URL.
+
+```go
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="url" type="string">
+  The destination URL.
+</ParamField>
+
+<ParamField path="options" type="*PageNavigationOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Timeout" type="*int" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WaitUntil" type="*LoadState" optional>
+    The target load state: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or
+    `LoadStateNetworkIdle`. Defaults to `LoadStateDOMContentLoaded`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*Response, error)">
+  The final main-document response, or `nil` when no network response was produced.
+</ResponseField>
+
+## Reload()
+
+Reload the current page.
+
+```go
+if _, err := page.Reload(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PageReloadOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.IgnoreCache" type="*bool" optional>
+  Whether to bypass the browser cache.
+</ParamField>
+
+<ParamField path="options.Timeout" type="*int" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WaitUntil" type="*LoadState" optional>
+    The target load state: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or
+    `LoadStateNetworkIdle`. Defaults to `LoadStateDOMContentLoaded`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*Response, error)">
+  The final main-document response, or `nil` when no network response was produced.
+</ResponseField>
+
+## GoBack()
+
+Navigate backward in the page history.
+
+```go
+if _, err := page.GoBack(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PageNavigationOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Timeout" type="*int" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WaitUntil" type="*LoadState" optional>
+    The target load state: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or
+    `LoadStateNetworkIdle`. Defaults to `LoadStateDOMContentLoaded`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*Response, error)">
+  The final main-document response, or `nil` when no history navigation occurred or no network response was produced.
+</ResponseField>
+
+## GoForward()
+
+Navigate forward in the page history.
+
+```go
+if _, err := page.GoForward(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*PageNavigationOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Timeout" type="*int" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WaitUntil" type="*LoadState" optional>
+    The target load state: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or
+    `LoadStateNetworkIdle`. Defaults to `LoadStateDOMContentLoaded`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(*Response, error)">
+  The final main-document response, or `nil` when no history navigation occurred or no network response was produced.
+</ResponseField>
+
+## Click()
+
+Click at page coordinates.
+
+```go
+if err := page.Click(ctx, 240, 320, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="x" type="float64">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float64">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="options" type="*PageClickOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Button" type="*MouseButton" optional>
+  The mouse button to use: `MouseButtonLeft`, `MouseButtonMiddle`, or `MouseButtonRight`.
+</ParamField>
+
+<ParamField path="options.ClickCount" type="*int" optional>
+  The number of clicks to dispatch.
+</ParamField>
+
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Hover()
+
+Move the pointer to page coordinates.
+
+```go
+if err := page.Hover(ctx, 240, 320); err != nil {
+    return err
+}
+```
+
+<ParamField path="x" type="float64">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float64">
+  The vertical page coordinate.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Scroll()
+
+Scroll from page coordinates by the supplied deltas.
+
+```go
+if err := page.Scroll(ctx, 240, 320, 0, 600); err != nil {
+    return err
+}
+```
+
+<ParamField path="x" type="float64">
+  The horizontal page coordinate.
+</ParamField>
+
+<ParamField path="y" type="float64">
+  The vertical page coordinate.
+</ParamField>
+
+<ParamField path="deltaX" type="float64">
+  Horizontal scroll distance.
+</ParamField>
+
+<ParamField path="deltaY" type="float64">
+  Vertical scroll distance.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## DragAndDrop()
+
+Drag from one page coordinate to another.
+
+```go
+if err := page.DragAndDrop(ctx, 100, 100, 400, 400, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="fromX" type="float64">
+  The drag origin's horizontal coordinate.
+</ParamField>
+
+<ParamField path="fromY" type="float64">
+  The drag origin's vertical coordinate.
+</ParamField>
+
+<ParamField path="toX" type="float64">
+  The drop target's horizontal coordinate.
+</ParamField>
+
+<ParamField path="toY" type="float64">
+  The drop target's vertical coordinate.
+</ParamField>
+
+<ParamField path="options" type="*PageDragAndDropOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Button" type="*MouseButton" optional>
+  The mouse button to use: `MouseButtonLeft`, `MouseButtonMiddle`, or `MouseButtonRight`.
+</ParamField>
+
+<ParamField path="options.Delay" type="*float64" optional>
+  The input delay in milliseconds.
+</ParamField>
+
+  <ParamField path="options.Steps" type="*int" optional>
+    The number of intermediate pointer moves.
+  </ParamField>
+
+  <ParamField path="options.Route" type="[]PageDragAndDropRoutePoint" optional>
+    An ordered mouse route to follow instead of generating linear intermediate moves. The explicit
+    `toX` and `toY` coordinates remain the final point.
+
+    <ParamField path="options.Route.X" type="float64">
+      A route point's horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="options.Route.Y" type="float64">
+      A route point's vertical coordinate.
+    </ParamField>
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Type()
+
+Type text at the current input target.
+
+```go
+if err := page.Type(ctx, "Browserbase", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="value" type="string">
+  The text to type.
+</ParamField>
+
+<ParamField path="options" type="*PageTypeOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Delay" type="*float64" optional>
+  The input delay in milliseconds.
+</ParamField>
+
+  <ParamField path="options.WithMistakes" type="*bool" optional>
+    Whether to simulate occasional typing mistakes.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## KeyPress()
+
+Send a keyboard key press to the page.
+
+```go
+if err := page.KeyPress(ctx, "Enter", nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="key" type="string">
+  The keyboard key to send.
+</ParamField>
+
+<ParamField path="options" type="*PageKeyPressOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Delay" type="*float64" optional>
+    The input delay in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Evaluate()
+
+Evaluate JavaScript in the page and return its result. `Evaluate` returns the raw JSON
+value; use the package-level generic `EvaluateAs` to decode the result into a Go type.
+
+```go
+title, err := stagehand.EvaluateAs[string](ctx, page, "document.title")
+if err != nil {
+    return err
+}
+fmt.Println(title)
+```
+
+<ParamField path="expression" type="string">
+  JavaScript source to evaluate.
+</ParamField>
+
+<ResponseField name="result" type="(json.RawMessage, error)">
+  The operation result as raw JSON. `EvaluateAs[T]` decodes it into `T` instead.
+</ResponseField>
+
+## On()
+
+Subscribe to console messages from this page and its page-owned sessions. Stagehand
+delivers each message using the underlying `"Runtime.consoleAPICalled"` event envelope.
+
+```go
+subscription, err := page.On(ctx, stagehand.PageEventNameConsole, func(event stagehand.PageCDPEvent) {
+    fmt.Println(event.Method, event.Params)
+})
+if err != nil {
+    return err
+}
+
+if _, err := page.Evaluate(ctx, `console.log("ready")`); err != nil {
+    return err
+}
+if err := subscription.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ParamField path="event" type="PageEventName">
+  The console event name. Currently, the only supported value is `PageEventNameConsole`.
+</ParamField>
+
+<ParamField path="listener" type="func(PageCDPEvent)">
+  A callback that receives the event method, raw parameters, session ID, target ID,
+  and page ID. Listeners are not awaited by later page calls.
+</ParamField>
+
+<ResponseField name="result" type="(*CDPSubscription, error)">
+  A subscription handle whose `Close()` method stops delivery.
+</ResponseField>
+
+### CDPSubscription
+
+`Close(ctx context.Context) error` removes the listener locally and from the Stagehand runtime.
+Repeated calls after successful cleanup return `nil`. Concurrent calls share the active cleanup;
+a failed attempt can be retried.
+
+## AddInitScript()
+
+Run a script before other scripts whenever the page navigates.
+
+```go
+if err := page.AddInitScript(ctx, "window.localStorage.clear()"); err != nil {
+    return err
+}
+```
+
+<ParamField path="source" type="string">
+  JavaScript source. Go functions and file paths are not interpreted.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## SetExtraHTTPHeaders()
+
+Set additional HTTP headers for this page.
+
+```go
+headers := stagehand.PageSetExtraHTTPHeadersParamsHeaders{"x-test": "true"}
+if err := page.SetExtraHTTPHeaders(ctx, headers); err != nil {
+    return err
+}
+```
+
+<ParamField path="headers" type="PageSetExtraHTTPHeadersParamsHeaders">
+  HTTP header names and values, as a `map[string]string`.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## SetViewportSize()
+
+Set the page viewport dimensions.
+
+```go
+if err := page.SetViewportSize(ctx, 1440, 900, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="width" type="int">
+  Viewport width in CSS pixels.
+</ParamField>
+
+<ParamField path="height" type="int">
+  Viewport height in CSS pixels.
+</ParamField>
+
+<ParamField path="options" type="*PageSetViewportSizeOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.DeviceScaleFactor" type="*float64" optional>
+    The device scale factor.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForLoadState()
+
+Wait until the page reaches a load state.
+
+```go
+timeout := 10_000
+if err := page.WaitForLoadState(ctx, stagehand.LoadStateNetworkIdle, &timeout); err != nil {
+    return err
+}
+```
+
+<ParamField path="state" type="LoadState">
+  The state to wait for: `LoadStateLoad`, `LoadStateDOMContentLoaded`, or `LoadStateNetworkIdle`.
+</ParamField>
+
+<ParamField path="timeoutMs" type="*int" optional>
+  Maximum wait time in milliseconds. Pass `nil` for the default.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForTimeout()
+
+Wait for a fixed number of milliseconds.
+
+```go
+if err := page.WaitForTimeout(ctx, 500); err != nil {
+    return err
+}
+```
+
+<ParamField path="ms" type="int">
+  The number of milliseconds to wait.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## WaitForSelector()
+
+Wait for a selector to reach the requested state.
+
+```go
+matched, err := page.WaitForSelector(ctx, "main", nil)
+if err != nil {
+    return err
+}
+fmt.Println(matched)
+```
+
+<ParamField path="selector" type="string">
+  The selector to target.
+</ParamField>
+
+<ParamField path="options" type="*PageWaitForSelectorOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.PierceShadow" type="*bool" optional>
+  Whether to traverse shadow roots. Closed roots require a navigated page; see the [locator reference](/v4/reference/locator).
+</ParamField>
+
+<ParamField path="options.State" type="*PageWaitForSelectorOptionsState" optional>
+  The state to wait for: `PageWaitForSelectorOptionsStateAttached`,
+  `PageWaitForSelectorOptionsStateDetached`, `PageWaitForSelectorOptionsStateVisible`, or
+  `PageWaitForSelectorOptionsStateHidden`.
+</ParamField>
+
+  <ParamField path="options.Timeout" type="*int" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(bool, error)">
+  The operation result.
+</ResponseField>
+
+## Screenshot()
+
+Capture a screenshot of the page. There is no `path` option in Go; write the returned
+bytes yourself, for example with `os.WriteFile`.
+
+```go
+fullPage := true
+image, err := page.Screenshot(ctx, &stagehand.ScreenshotOptions{FullPage: &fullPage})
+if err != nil {
+    return err
+}
+if err := os.WriteFile("screenshot.png", image, 0o644); err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*ScreenshotOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+<ParamField path="options.Animations" type="*PageScreenshotOptionsAnimations" optional>
+  How to handle active animations: `PageScreenshotOptionsAnimationsDisabled` or
+  `PageScreenshotOptionsAnimationsAllow`.
+</ParamField>
+
+<ParamField path="options.Caret" type="*PageScreenshotOptionsCaret" optional>
+  How to render the text caret: `PageScreenshotOptionsCaretHide` or
+  `PageScreenshotOptionsCaretInitial`.
+</ParamField>
+
+  <ParamField path="options.Clip" type="*PageScreenshotClip" optional>
+    The screenshot crop rectangle.
+
+    <ParamField path="options.Clip.Height" type="float64">
+      The positive height in CSS pixels.
+    </ParamField>
+
+    <ParamField path="options.Clip.Width" type="float64">
+      The positive width in CSS pixels.
+    </ParamField>
+
+    <ParamField path="options.Clip.X" type="float64">
+      The horizontal coordinate.
+    </ParamField>
+
+    <ParamField path="options.Clip.Y" type="float64">
+      The vertical coordinate.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.FullPage" type="*bool" optional>
+  Whether to capture the full scrollable page. Cannot be combined with `options.Clip`.
+</ParamField>
+
+  <ParamField path="options.Mask" type="[]*PageLocator" optional>
+    Page-created locators for elements to obscure in the screenshot. Create each with
+    `page.Locator("...")`; every mask locator must belong to the page being captured.
+  </ParamField>
+
+<ParamField path="options.MaskColor" type="*string" optional>
+  The CSS mask color.
+</ParamField>
+
+<ParamField path="options.OmitBackground" type="*bool" optional>
+  Whether to use a transparent background.
+</ParamField>
+
+<ParamField path="options.Quality" type="*int" optional>
+  JPEG quality as an integer from 0 to 100. Valid only when `options.Type` is
+  `PageScreenshotOptionsTypeJPEG`.
+</ParamField>
+
+<ParamField path="options.Scale" type="*PageScreenshotOptionsScale" optional>
+  Whether to use `PageScreenshotOptionsScaleCSS` or `PageScreenshotOptionsScaleDevice`.
+</ParamField>
+
+<ParamField path="options.Style" type="*string" optional>
+  CSS applied while taking the screenshot.
+</ParamField>
+
+<ParamField path="options.Timeout" type="*float64" optional>
+  The non-negative operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.Type" type="*PageScreenshotOptionsType" optional>
+    The image format: `PageScreenshotOptionsTypePNG` or `PageScreenshotOptionsTypeJPEG`.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="([]byte, error)">
+  The screenshot image bytes.
+</ResponseField>
+
+## Snapshot()
+
+Capture the page's accessibility-oriented DOM snapshot.
+
+```go
+snapshot, err := page.Snapshot(ctx, nil)
+if err != nil {
+    return err
+}
+fmt.Println(snapshot.FormattedTree)
+```
+
+<ParamField path="options" type="*PageSnapshotOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.IncludeIframes" type="*bool" optional>
+    Whether to include iframe content.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(SnapshotResult, error)">
+  The operation result.
+
+<ResponseField name="result.FormattedTree" type="string">
+  The formatted page tree.
+</ResponseField>
+
+<ResponseField name="result.URLMap" type="SnapshotResultURLMap">
+  The snapshot URL lookup.
+</ResponseField>
+
+  <ResponseField name="result.XPathMap" type="SnapshotResultXPathMap">
+    The snapshot XPath lookup.
+  </ResponseField>
+</ResponseField>
+
+## Tools()
+
+Return the WebMCP tools registered on the page.
+
+```go
+tools, err := page.Tools(ctx, nil)
+if err != nil {
+    return err
+}
+
+var searchTool *stagehand.WebMCPTool
+for _, tool := range tools {
+    if tool.Descriptor().Name == "search" {
+        searchTool = tool
+        break
+    }
+}
+if searchTool == nil {
+    return errors.New("search tool is unavailable")
+}
+
+fmt.Println(searchTool.Descriptor().InputSchema)
+
+invocation, err := searchTool.Invoke(ctx, stagehand.WebMCPInput{"query": "Stagehand"})
+if err != nil {
+    return err
+}
+result, err := invocation.Result(ctx, nil)
+if err != nil {
+    return err
+}
+fmt.Println(result.Status, result.Output)
+```
+
+<ParamField path="options" type="*WebMCPToolsOptions" optional>
+  Options that configure tool discovery. Pass `nil` for defaults.
+
+  <ParamField path="options.Timeout" type="float64" optional>
+    Maximum time in milliseconds to wait for registered tools.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="([]*WebMCPTool, error)">
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
+</ResponseField>
+
+## URL()
+
+Return the page's current URL.
+
+```go
+url, err := page.URL(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(url)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## Title()
+
+Return the page's current document title.
+
+```go
+title, err := page.Title(ctx)
+if err != nil {
+    return err
+}
+fmt.Println(title)
+```
+
+<ResponseField name="result" type="(string, error)">
+  The operation result.
+</ResponseField>
+
+## Close()
+
+Close the page.
+
+```go
+if err := page.Close(ctx); err != nil {
+    return err
+}
+```
+
+<ResponseField name="result" type="error">
+  Returns `nil` after the operation completes.
+</ResponseField>
+
+## Locator()
+
+Create a locator for a CSS selector on this page.
+
+```go
+locator := page.Locator("button[type=submit]")
+if err := locator.Click(ctx, nil); err != nil {
+    return err
+}
+```
+
+<ParamField path="selector" type="string">
+  The selector to target.
+</ParamField>
+
+<ResponseField name="result" type="*PageLocator">
   The operation result.
 </ResponseField>
 
