@@ -1,4 +1,4 @@
-# Eve with the Stagehand facade
+# Eve + Stagehand facade (native tools)
 
 This example gives an Eve agent the native tools `run`, `snapshot`, and `screenshot`. The tools
 share a durable Stagehand session directly; no MCP connection or bridge process is required.
@@ -16,7 +16,7 @@ Configure the environment as needed:
 
 | Variable                                                             | Purpose                                                                                                                                                 |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`                                                  | Browser backend, `local` or `browserbase`; defaults to Browserbase when `BROWSERBASE_API_KEY` is set.                                                   |
+| `STAGEHAND_BROWSER`                                                  | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                   |
 | `BROWSERBASE_API_KEY`                                                | Browserbase API key; required when using the Browserbase backend.                                                                                       |
 | `BROWSERBASE_PROJECT_ID`                                             | Optional Browserbase project ID.                                                                                                                        |
 | `STAGEHAND_MODEL_NAME`                                               | Optional Stagehand model name, such as `openai/gpt-5.6-luna`.                                                                                           |
