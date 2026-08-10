@@ -1,0 +1,26 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-mastra-facade",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/agent.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "catalog:",
+    "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@mastra/core": "catalog:",
+    "@mastra/mcp": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

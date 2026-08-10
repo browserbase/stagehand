@@ -59,8 +59,6 @@ const runtime = await createRuntime(batchStagehand);
 const page = runtime.page;
 const context = runtime.context;
 const browser = runtime.browser;
-// TEMP: expose the Stagehand batch context so run code can call extract/act/observe.
-const stagehand = batchStagehand;
 const console = globalThis.console;
 let value;
 let executionError;
