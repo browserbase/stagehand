@@ -107,7 +107,7 @@ def main() -> None:
         print(f'Usage: {Path(sys.argv[0]).name} "your instruction"', file=sys.stderr)
         raise SystemExit(2)
 
-    model = os.environ.get("CREWAI_MODEL", "openai/gpt-5-mini")
+    model = os.environ.get("CREWAI_MODEL", "openai/gpt-5.6-luna")
     with facade_session() as tools:
         agent = Agent(
             role="Stagehand browser agent",
