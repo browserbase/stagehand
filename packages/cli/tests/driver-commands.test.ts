@@ -448,6 +448,36 @@ describe("driver commands", () => {
     expect(page.waitForTimeout).toHaveBeenCalledWith(100);
   });
 
+  it("omits undefined screenshot options from V4 wire requests", async () => {
+    const page = { screenshot: vi.fn().mockResolvedValue(Buffer.from("image")) };
+    const manager = {
+      activePage: async () => page,
+    } as unknown as Parameters<NonNullable<(typeof runtimeHandlers)["screenshot"]>>[0];
+
+    await expect(runtimeHandlers.screenshot!(manager, {})).resolves.toEqual({
+      base64: Buffer.from("image").toString("base64"),
+    });
+    expect(page.screenshot).toHaveBeenCalledWith({ timeout: 10_000 });
+
+    await runtimeHandlers.screenshot!(manager, {
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      type: "jpeg",
+    });
+    expect(page.screenshot).toHaveBeenLastCalledWith({
+      animations: "disabled",
+      caret: "hide",
+      clip: { height: 200, width: 300, x: 10, y: 20 },
+      fullPage: true,
+      quality: 80,
+      timeout: 10_000,
+      type: "jpeg",
+    });
+  });
+
   it("accepts fractional viewport scale values", async () => {
     const daemonDir = await fs.mkdtemp(join(tmpdir(), "browse-viewport-scale-"));
     const previousDaemonDir = process.env.BROWSE_DAEMON_DIR;
