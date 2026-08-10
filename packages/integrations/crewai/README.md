@@ -14,9 +14,10 @@ pnpm install
 pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
 ```
 
-Then, from `packages/integrations/crewai/`:
+Then install the Python dependencies:
 
 ```sh
+cd packages/integrations/crewai
 uv sync
 ```
 
@@ -26,10 +27,12 @@ uv sync
 | `BROWSERBASE_API_KEY`                              | Browserbase API key.                                                                                                                                                  |
 | `BROWSERBASE_PROJECT_ID`                           | Browserbase project ID.                                                                                                                                               |
 | `STAGEHAND_MODEL_NAME` / `STAGEHAND_MODEL_API_KEY` | Model used by the facade server and its key.                                                                                                                          |
-| `CREWAI_MODEL`                                     | CrewAI agent model; defaults to `openai/gpt-5.6-luna`.                                                                                                                  |
+| `CREWAI_MODEL`                                     | CrewAI agent model; defaults to `openai/gpt-5.6-luna`.                                                                                                                |
 | `OPENAI_API_KEY`                                   | Used by the CrewAI agent model in the host process; NOT forwarded to the facade child process (the child env is an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist). |
 
 ## Run
+
+From `packages/integrations/crewai/`:
 
 ```sh
 uv run pytest
