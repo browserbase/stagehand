@@ -384,10 +384,9 @@ func screenshotProtocolOptions(options *ScreenshotOptions, pageID string) (*Page
 
 func locatorDescriptorsForScreenshot(locators []*PageLocator, pageID string) ([]LocatorDescriptor, error) {
 	descriptors := make([]LocatorDescriptor, 0, len(locators))
-	for _, locator := range locators {
+	for index, locator := range locators {
 		if locator == nil {
-			descriptors = append(descriptors, LocatorDescriptor{})
-			continue
+			return nil, fmt.Errorf("page.Screenshot: mask locator at index %d is nil", index)
 		}
 		descriptor := locator.Descriptor()
 		if descriptor.PageID != pageID {

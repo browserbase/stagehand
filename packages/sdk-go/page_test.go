@@ -394,6 +394,25 @@ func TestPageScreenshotRejectsCrossPageMaskLocators(t *testing.T) {
 	}
 }
 
+func TestPageScreenshotRejectsNilMaskLocators(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"page.screenshot": PageScreenshotResult{Data: "cG5nLWJ5dGVz", Type: PageScreenshotResultTypePNG},
+	}}
+	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
+
+	_, err := page.Screenshot(context.Background(), &ScreenshotOptions{
+		Mask: []*PageLocator{nil},
+	})
+	if err == nil || !strings.Contains(err.Error(), "page.Screenshot: mask locator at index 0 is nil") {
+		t.Fatalf("Screenshot() error = %v", err)
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("Screenshot() RPC calls = %#v", rpc.calls)
+	}
+}
+
 func TestPageNavigationMethodsReturnNilWithoutNetworkResponse(t *testing.T) {
 	t.Parallel()
 
