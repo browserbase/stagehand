@@ -361,6 +361,12 @@ await subscription.unsubscribe();
   A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
+### CDPSubscription
+
+`unsubscribe(): Promise<void>` removes the listener locally and from the Stagehand runtime.
+Repeated calls share the completed cleanup. A failed runtime request can be retried by calling
+`unsubscribe()` again.
+
 ## addInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -640,7 +646,8 @@ console.log(result.status, result.output);
 </ParamField>
 
 <ResponseField name="result" type="Promise<WebMCPTool[]>">
-  The callable WebMCP tools registered on the page.
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
 </ResponseField>
 
 ## url()
@@ -1035,6 +1042,12 @@ await subscription.unsubscribe()
   A subscription handle whose `unsubscribe()` method stops delivery.
 </ResponseField>
 
+### CDPSubscription
+
+`await subscription.unsubscribe()` removes the listener locally and from the Stagehand runtime.
+Repeated calls await the same successful cleanup. Failed cleanup can be retried. If the caller is
+cancelled while awaiting cleanup, the shared cleanup task continues in the background.
+
 ## add_init_script()
 
 Run a script before other scripts whenever the page navigates.
@@ -1290,7 +1303,8 @@ print(result.status, result.output)
 </ParamField>
 
 <ResponseField name="result" type="list[WebMCPTool]">
-  The callable WebMCP tools registered on the page.
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
 </ResponseField>
 
 ## url()
@@ -1740,6 +1754,12 @@ if err := subscription.Close(ctx); err != nil {
   A subscription handle whose `Close()` method stops delivery.
 </ResponseField>
 
+### CDPSubscription
+
+`Close(ctx context.Context) error` removes the listener locally and from the Stagehand runtime.
+Repeated calls after successful cleanup return `nil`. Concurrent calls share the active cleanup;
+a failed attempt can be retried.
+
 ## AddInitScript()
 
 Run a script before other scripts whenever the page navigates.
@@ -2058,7 +2078,8 @@ fmt.Println(result.Status, result.Output)
 </ParamField>
 
 <ResponseField name="result" type="([]*WebMCPTool, error)">
-  The callable WebMCP tools registered on the page.
+  The callable WebMCP tools registered on the page. See the
+  [WebMCP reference](/v4/reference/webmcp).
 </ResponseField>
 
 ## URL()

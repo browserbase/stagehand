@@ -1,0 +1,212 @@
+---
+title: "WebMCP"
+description: "Inspect and invoke page-provided WebMCP tools"
+icon: "plug"
+---
+
+`page.tools()` returns page-bound `WebMCPTool` objects. Invoking a tool returns a
+`WebMCPInvocation`, which can wait for Chrome's terminal response or request cancellation. See the
+[Page reference](/v4/reference/page) for tool discovery options.
+
+<Tabs>
+<Tab title="TypeScript">
+
+## WebMCPTool
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `name` | `string` | Tool name used for invocation. |
+| `description` | `string` | Human-readable tool description. |
+| `inputSchema` | `Record<string, unknown> \| undefined` | Optional JSON input schema. |
+| `annotations` | `WebMCPAnnotation \| undefined` | Optional `readOnly`, `untrustedContent`, and `autosubmit` flags. |
+| `frameId` | `string` | Frame that published the tool. |
+| `backendNodeId` | `number \| undefined` | Optional non-negative backend node identifier. |
+
+### invoke()
+
+```typescript
+invoke(options?: WebMCPInvokeOptions): Promise<WebMCPInvocation>
+```
+
+`options.input` is a JSON-compatible object and defaults to `{}`. The helper supplies its own page,
+frame, and tool name.
+
+## WebMCPInvocation
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `invocationId` | `string` | Stable invocation identifier. |
+| `toolName` | `string` | Name of the invoked tool. |
+| `frameId` | `string` | Frame handling the invocation. |
+| `input` | `Record<string, unknown>` | JSON input sent to the tool. |
+
+### result()
+
+```typescript
+result(options?: WebMCPResultOptions): Promise<WebMCPToolResponse>
+```
+
+`options.timeout` is an optional non-negative timeout in milliseconds. A successful terminal
+response is cached on the invocation; timeout and transport failures are not cached and can be
+retried.
+
+| Response field | Type | Description |
+| --- | --- | --- |
+| `invocationId` | `string` | Invocation that produced the response. |
+| `status` | `"Completed" \| "Canceled" \| "Error"` | Terminal status. |
+| `output` | `unknown` | Optional JSON output. |
+| `errorText` | `string \| undefined` | Optional error message. |
+| `exception` | `WebMCPRemoteObject \| undefined` | Optional structured exception data. |
+
+### cancel()
+
+```typescript
+cancel(): Promise<void>
+```
+
+Requests cancellation from Chrome. It does not synthesize or overwrite a terminal response; call
+`result()` for the authoritative final status.
+
+</Tab>
+
+<Tab title="Python">
+
+## WebMCPTool
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `name` | `str` | Tool name used for invocation. |
+| `description` | `str` | Human-readable tool description. |
+| `input_schema` | `dict[str, JsonValue] \| None` | Optional JSON input schema. |
+| `annotations` | `WebMCPAnnotation \| None` | Optional `read_only`, `untrusted_content`, and `autosubmit` flags. |
+| `frame_id` | `str` | Frame that published the tool. |
+| `backend_node_id` | `int \| None` | Optional non-negative backend node identifier. |
+
+### invoke()
+
+```python
+async def invoke(
+    *,
+    input: Mapping[str, JsonValue] | None = None,
+) -> WebMCPInvocation
+```
+
+`input` defaults to an empty dictionary. The helper supplies its own page, frame, and tool name.
+
+## WebMCPInvocation
+
+### Properties
+
+| Property | Type | Description |
+| --- | --- | --- |
+| `invocation_id` | `str` | Stable invocation identifier. |
+| `tool_name` | `str` | Name of the invoked tool. |
+| `frame_id` | `str` | Frame handling the invocation. |
+| `input` | `dict[str, JsonValue]` | JSON input sent to the tool. |
+
+### result()
+
+```python
+async def result(*, timeout: float | None = None) -> WebMCPToolResponse
+```
+
+`timeout` is an optional non-negative timeout in milliseconds. A successful terminal response is
+cached; timeout and transport failures are not cached and can be retried.
+
+| Response field | Type | Description |
+| --- | --- | --- |
+| `invocation_id` | `str` | Invocation that produced the response. |
+| `status` | `Literal["Completed", "Canceled", "Error"]` | Terminal status. |
+| `output` | `JsonValue \| None` | Optional JSON output. |
+| `error_text` | `str \| None` | Optional error message. |
+| `exception` | `dict[str, JsonValue] \| None` | Optional structured exception data. |
+
+### cancel()
+
+```python
+async def cancel() -> None
+```
+
+Requests cancellation from Chrome. It does not synthesize or overwrite a terminal response; call
+`result()` for the authoritative final status.
+
+</Tab>
+
+<Tab title="Go">
+
+## WebMCPTool
+
+Go exposes descriptor data through a method rather than properties.
+
+### Descriptor()
+
+```go
+func (t *WebMCPTool) Descriptor() WebMCPToolDescriptor
+```
+
+The returned descriptor contains `Name`, `Description`, `InputSchema`, `Annotations`, `FrameID`,
+and optional `BackendNodeID`. `Annotations` may contain `ReadOnly`, `UntrustedContent`, and
+`Autosubmit` pointers.
+
+### Invoke()
+
+```go
+func (t *WebMCPTool) Invoke(
+    ctx context.Context,
+    input WebMCPInput,
+) (*WebMCPInvocation, error)
+```
+
+`WebMCPInput` is a `map[string]any`; `nil` is sent as an empty JSON object. Values must be JSON
+encodable. The helper supplies its own page, frame, and tool name.
+
+## WebMCPInvocation
+
+### Descriptor()
+
+```go
+func (i *WebMCPInvocation) Descriptor() WebMCPInvocationDescriptor
+```
+
+The descriptor contains `InvocationID`, `ToolName`, `FrameID`, and the JSON `Input` map.
+
+### Result()
+
+```go
+func (i *WebMCPInvocation) Result(
+    ctx context.Context,
+    options *WebMCPResultOptions,
+) (WebMCPToolResponse, error)
+```
+
+Pass `nil` for default waiting behavior. `options.Timeout` is an optional non-negative timeout in
+milliseconds. A successful terminal response is cached; context and RPC failures are not cached
+and can be retried.
+
+| Response field | Type | Description |
+| --- | --- | --- |
+| `InvocationID` | `string` | Invocation that produced the response. |
+| `Status` | `WebMCPInvocationStatus` | `WebMCPInvocationStatusCompleted`, `WebMCPInvocationStatusCanceled`, or `WebMCPInvocationStatusError`. |
+| `Output` | `json.RawMessage` | Optional JSON output. |
+| `ErrorText` | `*string` | Optional error message. |
+| `Exception` | `WebMCPRemoteObject` | Optional structured exception data. |
+
+Use `WebMCPOutputAs[T](response)` to decode a non-empty JSON output into a caller-selected type.
+
+### Cancel()
+
+```go
+func (i *WebMCPInvocation) Cancel(ctx context.Context) error
+```
+
+Requests cancellation from Chrome. It does not synthesize or overwrite a terminal response; call
+`Result()` for the authoritative final status.
+
+</Tab>
+</Tabs>

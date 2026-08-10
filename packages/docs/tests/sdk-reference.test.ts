@@ -156,7 +156,7 @@ const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Lan
 const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
-const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
+const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response", "webmcp"]);
 
 // Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
 // schema. Keep these exceptions explicit so the reference is checked against the public API.
