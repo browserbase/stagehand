@@ -33,12 +33,12 @@ async def main() -> None:
                 raise RuntimeError("Stagehand initialized without an active page")
             await page.goto("https://example.com")
 
-            page_info = await stagehand.extract(
+            result = await stagehand.extract(
                 "Extract the page heading and the domain this page says it is for",
                 PageInfo,
             )
 
-            print(json.dumps(page_info.model_dump(mode="json"), indent=2))
+            print(json.dumps(result.data.model_dump(mode="json"), indent=2))
         finally:
             await stagehand.close()
     finally:

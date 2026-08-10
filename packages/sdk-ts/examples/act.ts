@@ -20,7 +20,7 @@ const result = await stagehand.act(
   "Click the link that provides more information about Example Domain",
 );
 
-console.log(JSON.stringify(result, null, 2));
+console.log(JSON.stringify(result.data, null, 2));
 
 if (!result.data.success) {
   throw new Error(`act() failed: ${result.data.message}`);

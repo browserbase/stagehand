@@ -136,6 +136,86 @@ describe("cache service", () => {
 
     expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
   });
+
+  it("omits locator descriptors from act, observe, and extract cache data", () => {
+    expect(
+      cacheService.buildActCacheData({
+        pageId: "page-1",
+        instruction: "Click the answer",
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+        },
+      }),
+    ).toStrictEqual({
+      input: "Click the answer",
+      options: {
+        variables: undefined,
+        timeout: undefined,
+      },
+    });
+
+    expect(
+      cacheService.buildObserveCacheData({
+        pageId: "page-1",
+        instruction: "Find the answer",
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+        },
+      }),
+    ).toStrictEqual({
+      instruction: "Find the answer",
+      options: {
+        variables: undefined,
+        timeout: undefined,
+      },
+    });
+
+    expect(
+      cacheService.buildExtractCacheData({
+        pageId: "page-1",
+        instruction: "Extract the answer",
+        schema: { type: "object" },
+        options: {
+          locator: { selector: ".card", nth: 1 },
+          ignoreLocators: [{ selector: ".ad", nth: 2 }],
+          screenshot: false,
+        },
+      }),
+    ).toStrictEqual({
+      instruction: "Extract the answer",
+      schema: { type: "object" },
+      options: {
+        timeout: undefined,
+        screenshot: false,
+      },
+    });
+  });
+
+  it("bypasses cache reads and writes when the caller marks a request as bypassed", async () => {
+    const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
+    const execute = executesTo({ answer: 42 });
+
+    const result = await cacheService.withCache({
+      ...baseArgs(),
+      bypass: cacheService.shouldBypassCacheForLocatorScope({
+        locator: { selector: ".card", nth: 2 },
+      }),
+      context: cacheContext(get, set),
+      onHit: (value): TestResult => ({
+        data: value,
+        metadata: { cache: { status: "DISABLED" } },
+      }),
+      execute,
+    });
+
+    expect(result.metadata).toStrictEqual({ cache: { status: "DISABLED" } });
+    expect(execute).toHaveBeenCalled();
+    expect(get).not.toHaveBeenCalled();
+    expect(set).not.toHaveBeenCalled();
+  });
 });
 
 interface TestResult {
@@ -185,16 +265,19 @@ function cacheContext(get: ReturnType<typeof vi.fn>, set: ReturnType<typeof vi.f
   };
 }
 
-function cachePage() {
-  const frame = {
-    frameId: "frame-1",
-    getAccessibilityTree: async () => [],
-  } as unknown as Frame;
+function cachePage(frame: Frame = defaultFrame()) {
   return {
     url: () => "https://example.com",
     frames: () => [frame],
     mainFrame: () => frame,
   };
+}
+
+function defaultFrame() {
+  return {
+    frameId: "frame-1",
+    getAccessibilityTree: async () => [],
+  } as unknown as Frame;
 }
 
 function testLogger(): StagehandLogger {

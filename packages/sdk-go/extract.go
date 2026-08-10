@@ -47,7 +47,11 @@ func Extract[T any](
 		Schema:      schema,
 	}
 	if options != nil {
-		params.Options = &options.ExtractOptions
+		protocolOptions, err := extractProtocolOptions(options, page.PageID())
+		if err != nil {
+			return typedResult, err
+		}
+		params.Options = protocolOptions
 	}
 	var result ExtractResult
 	if err := rpc.call(ctx, "stagehand.extract", params, &result); err != nil {

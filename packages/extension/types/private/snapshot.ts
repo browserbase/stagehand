@@ -1,17 +1,19 @@
+import type { Locator } from "../../../protocol/types.js";
+
 /**
  * Options that control how hybrid snapshots and targeted scopes are captured.
  */
 export type SnapshotOptions = {
   /**
-   * Filter the snapshot to a specific element/subtree using a selector that can cross iframes.
+   * Filter the snapshot to a specific element/subtree using a locator that can cross iframes.
    * Supports XPath (prefixed with `xpath=` or starting with `/`) and CSS with iframe hops via `>>`.
    */
-  focusSelector?: string;
+  focusLocator?: Locator;
   /**
    * Exclude matching elements and their descendants from the captured snapshot.
-   * Each selector may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
+   * Each locator may be XPath (prefixed with `xpath=` or starting with `/`) or CSS.
    */
-  ignoreSelectors?: string[];
+  ignoreLocators?: Locator[];
   /**
    * Pierce shadow DOM when calling DOM.getDocument. Defaults to true to retain the
    * existing behaviour.
@@ -108,7 +110,7 @@ export type A11yNode = {
 };
 
 export type A11yOptions = {
-  focusSelector?: string;
+  focusLocator?: Locator;
   isIgnoredBackendNode?: (backendNodeId: number) => boolean;
   tagNameMap: Record<string, string>;
   scrollableMap: Record<string, boolean>;
