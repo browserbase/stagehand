@@ -60,7 +60,7 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	output, err := json.MarshalIndent(result, "", "  ")
+	output, err := json.MarshalIndent(result.Data, "", "  ")
 	if err != nil {
 		return err
 	}

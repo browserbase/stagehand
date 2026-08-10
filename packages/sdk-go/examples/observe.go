@@ -51,16 +51,16 @@ func run(ctx context.Context) (err error) {
 	}
 
 	instruction := "Find the link that provides more information about Example Domain"
-	actions, err := client.Observe(ctx, &instruction, nil)
+	result, err := client.Observe(ctx, &instruction, nil)
 	if err != nil {
 		return err
 	}
-	output, err := json.MarshalIndent(actions, "", "  ")
+	output, err := json.MarshalIndent(result.Data, "", "  ")
 	if err != nil {
 		return err
 	}
 	fmt.Println(string(output))
-	if len(actions.Data) == 0 {
+	if len(result.Data) == 0 {
 		return errors.New("observe returned no matching actions")
 	}
 	return nil

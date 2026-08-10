@@ -1,6 +1,6 @@
 ---
 title: "Observe"
-description: "Discover and plan executable actions on any web page."
+description: "Discover and plan executable actions on any web page"
 ---
 
 ## What is `observe()`?
@@ -254,11 +254,13 @@ if _, err := client.Observe(ctx, &title, nil); err != nil {
 
 ## Advanced configuration
 
-You can pass additional options to configure the model, timeout, selector scope, ignored page regions, and placeholder variables:
+You can pass additional options to configure the model, timeout, locator scope, ignored page regions, and placeholder variables:
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 // Custom model configuration
 const { data: actions } = await stagehand.observe("find navigation links", {
   model: {
@@ -266,7 +268,7 @@ const { data: actions } = await stagehand.observe("find navigation links", {
     apiKey: process.env.OPENAI_API_KEY,
   },
   timeout: 30000,
-  selector: "//header", // Focus on specific area
+  locator: page.locator("xpath=//header"), // Focus on specific area
 });
 ```
 </Tab>
@@ -277,6 +279,8 @@ import os
 
 from stagehand import ModelConfig
 
+page = await stagehand.browser.context.active_page()
+
 # Custom model configuration
 result = await stagehand.observe(
     "find navigation links",
@@ -285,7 +289,7 @@ result = await stagehand.observe(
         api_key=os.environ["OPENAI_API_KEY"],
     ),
     timeout=30000,
-    selector="//header",  # Focus on specific area
+    locator=page.locator("xpath=//header"),  # Focus on specific area
 )
 ```
 </Tab>
@@ -299,15 +303,13 @@ model := stagehand.ModelConfig{
 	APIKey:    &modelAPIKey,
 }
 timeout := 30000.0
-selector := "//header" // Focus on specific area
 
 instruction := "find navigation links"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
-	ObserveOptions: stagehand.ObserveOptions{
-		Model:    &model,
-		Timeout:  &timeout,
-		Selector: &selector,
-	},
+	Page:    page,
+	Model:   &model,
+	Timeout: &timeout,
+	Locator: page.Locator("xpath=//header"), // Focus on specific area
 })
 if err != nil {
 	return err
@@ -317,16 +319,18 @@ fmt.Println("found", len(result.Data), "navigation links")
 </Tab>
 </Tabs>
 
-You can also exclude specific nodes, including their descendant nodes, with the ignore-selectors option.
+You can also exclude specific nodes, including their descendant nodes, with ignored locators.
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+const page = await stagehand.browser.context.activePage();
+
 const { data: actions } = await stagehand.observe("find the main call-to-action buttons", {
-  ignoreSelectors: [
-    "//aside[contains(@class, 'promo-rail')]",
-    "//div[@id='floating-chat-launcher']",
-    "//section[@aria-label='recommended articles']",
+  ignoreLocators: [
+    page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+    page.locator("xpath=//div[@id='floating-chat-launcher']"),
+    page.locator("xpath=//section[@aria-label='recommended articles']"),
   ],
 });
 ```
@@ -334,12 +338,14 @@ const { data: actions } = await stagehand.observe("find the main call-to-action 
 
 <Tab title="Python">
 ```python
+page = await stagehand.browser.context.active_page()
+
 result = await stagehand.observe(
     "find the main call-to-action buttons",
-    ignore_selectors=[
-        "//aside[contains(@class, 'promo-rail')]",
-        "//div[@id='floating-chat-launcher']",
-        "//section[@aria-label='recommended articles']",
+    ignore_locators=[
+        page.locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+        page.locator("xpath=//div[@id='floating-chat-launcher']"),
+        page.locator("xpath=//section[@aria-label='recommended articles']"),
     ],
 )
 ```
@@ -349,12 +355,11 @@ result = await stagehand.observe(
 ```go
 instruction := "find the main call-to-action buttons"
 result, err := client.Observe(ctx, &instruction, &stagehand.StagehandClientObserveOptions{
-	ObserveOptions: stagehand.ObserveOptions{
-		IgnoreSelectors: []string{
-			"//aside[contains(@class, 'promo-rail')]",
-			"//div[@id='floating-chat-launcher']",
-			"//section[@aria-label='recommended articles']",
-		},
+	Page: page,
+	IgnoreLocators: []*stagehand.PageLocator{
+		page.Locator("xpath=//aside[contains(@class, 'promo-rail')]"),
+		page.Locator("xpath=//div[@id='floating-chat-launcher']"),
+		page.Locator("xpath=//section[@aria-label='recommended articles']"),
 	},
 })
 if err != nil {
@@ -366,7 +371,8 @@ fmt.Println("found", len(result.Data), "call-to-action buttons")
 </Tabs>
 
 <Note>
-  The ignore-selectors option removes all matches for each selector, along with each matched node's descendants. The selector option still scopes observation to a single resolved subtree.
+  `ignoreLocators` remove each resolved locator target and its descendants from the snapshot. A locator without `nth` removes all matching targets; a locator with `nth` removes only that indexed match. The `locator` option scopes observation to one resolved subtree, using `nth` when present.
+  Scoped `observe` currently supports CSS and XPath locators. `text=` locators are supported by locator methods, but not yet by observe snapshot scoping.
 </Note>
 
 ### Validate then act with variables
@@ -494,6 +500,8 @@ if emailField != nil && passwordField != nil {
 </Note>
 
 When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
+
+Locator-scoped observations, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -705,7 +713,7 @@ for _, field := range observed.Data {
 
 ### Scope extractions
 
-Use `observe()` to find a container, then pass its selector to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
+Use `observe()` to find a container, then create a page locator from the observed selector and pass that locator to `extract()`. Extraction then sees only that subtree instead of the whole page, so token usage falls in proportion to how much of the page you exclude.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -721,11 +729,12 @@ const PricingSchema = z.object({
 
 const { data: tables } = await stagehand.observe("find the pricing table");
 const [table] = tables;
+const page = await stagehand.browser.context.activePage();
 
 const { data: pricing } = await stagehand.extract(
   "extract all pricing tiers",
   PricingSchema,
-  { selector: table.selector },
+  { locator: page.locator(table.selector) },
 );
 
 for (const tier of pricing.tiers) {
@@ -746,11 +755,12 @@ class Pricing(BaseModel):
 
 
 observed = await stagehand.observe("find the pricing table")
+page = await stagehand.browser.context.active_page()
 
 pricing = (await stagehand.extract(
     "extract all pricing tiers",
     Pricing,
-    selector=observed.data[0].selector,
+    locator=page.locator(observed.data[0].selector),
 )).data
 
 for tier in pricing.tiers:
@@ -779,13 +789,13 @@ if len(observed.Data) == 0 {
 	return errors.New("pricing table not found")
 }
 
-selector := observed.Data[0].Selector
 pricing, err := stagehand.Extract[pricingTiers](
 	ctx,
 	client,
 	"extract all pricing tiers",
 	&stagehand.StagehandClientExtractOptions{
-		ExtractOptions: stagehand.ExtractOptions{Selector: &selector},
+		Page:    page,
+		Locator: page.Locator(observed.Data[0].Selector),
 	},
 )
 if err != nil {
