@@ -36,7 +36,7 @@ await locator.click();
   Options that configure this operation.
 
 <ParamField path="options.button" type="MouseButton" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
   <ParamField path="options.clickCount" type="number" optional>
@@ -410,7 +410,7 @@ await locator.click()
 ```
 
 <ParamField path="button" type="MouseButton | Literal['left', 'right', 'middle']" optional>
-  The mouse button to use.
+  The mouse button to use: `"left"`, `"middle"`, or `"right"`.
 </ParamField>
 
 <ParamField path="click_count" type="int | None" optional>

@@ -354,10 +354,10 @@ const result = await stagehand.act("Click the sign in button");
   Options that configure this operation.
 
   <ParamField path="options.cache" type="Caching" optional>
-    Override server-side caching for this request.
+    Override server-side caching with a boolean or threshold options object.
 
     <ParamField path="options.cache.threshold" type="number" optional>
-      The identical-result threshold required before serving a cache hit.
+      The positive identical-result threshold required before serving a cache hit.
     </ParamField>
 
   </ParamField>
@@ -382,7 +382,7 @@ const result = await stagehand.act("Click the sign in button");
     </ParamField>
 
     <ParamField path="options.model.modelName" type="ModelName">
-      The model identifier.
+      A supported provider-prefixed [model identifier](/v4/configuration/models).
     </ParamField>
 
   </ParamField>
@@ -1117,7 +1117,7 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
   <ParamField path="model.model_name" type="ModelName">
-    The model identifier.
+    A supported provider-prefixed [model identifier](/v4/configuration/models).
   </ParamField>
 </ParamField>
 
@@ -1138,10 +1138,10 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>
-  Override server-side caching for this request.
+  Override server-side caching with a boolean or `CacheOptions`.
 
   <ParamField path="cache.threshold" type="int" optional>
-    The identical-result threshold required before serving a cache hit.
+    The positive identical-result threshold required before serving a cache hit.
   </ParamField>
 </ParamField>
 
@@ -1945,8 +1945,8 @@ func (s *Stagehand) Act(ctx context.Context, instruction ActInstructionValue, op
 
   <ParamField path="options.Cache" type="*Caching" optional>
     Override server-side caching for this request. Construct with `stagehand.CacheEnabled(enabled)`
-    or `stagehand.CacheWithThreshold(threshold)`, where the threshold is the identical-result count
-    required before serving a cache hit.
+    or `stagehand.CacheWithThreshold(threshold)`, where the threshold is the positive
+    identical-result count required before serving a cache hit.
   </ParamField>
 
   <ParamField path="options.IgnoreLocators" type="[]*PageLocator" optional>
@@ -1971,7 +1971,7 @@ func (s *Stagehand) Act(ctx context.Context, instruction ActInstructionValue, op
     </ParamField>
 
     <ParamField path="options.Model.ModelName" type="ModelName">
-      The model identifier.
+      A supported provider-prefixed [model identifier](/v4/configuration/models).
     </ParamField>
 
   </ParamField>

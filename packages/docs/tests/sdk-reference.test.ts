@@ -158,6 +158,21 @@ const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-t
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
 
+// Handwritten SDK wrappers intentionally expose narrower or friendlier types than the wire
+// schema. Keep these exceptions explicit so the reference is checked against the public API.
+const PUBLIC_REFERENCE_FIELD_TYPES = new Map<string, string>([
+  ["context.add_cookies:TypeScript:cookies.sameSite", "CookieParam['sameSite']"],
+  ["context.add_cookies:Python:cookies.same_site", "Literal['Strict', 'Lax', 'None']"],
+  ["context.cookies:TypeScript:result.sameSite", "Cookie['sameSite']"],
+  ["context.cookies:Python:result.same_site", "Literal['Strict', 'Lax', 'None']"],
+  ["page.wait_for_selector:TypeScript:options.state", "PageWaitForSelectorOptions['state']"],
+  ["page.screenshot:TypeScript:options.animations", "ScreenshotOptions['animations']"],
+  ["page.screenshot:TypeScript:options.caret", "ScreenshotOptions['caret']"],
+  ["page.screenshot:TypeScript:options.mask", "Locator[]"],
+  ["page.screenshot:TypeScript:options.scale", "ScreenshotOptions['scale']"],
+  ["page.screenshot:TypeScript:options.type", "ScreenshotOptions['type']"],
+]);
+
 const SDK_OBJECTS = [
   {
     className: "Stagehand",
@@ -579,11 +594,12 @@ describe("SDK reference surface", () => {
           const actual = documented.get(field.key);
           if (!actual) continue;
           const expectedType =
-            language === "TypeScript" &&
+            publicReferenceFieldType(method, language, field.key) ??
+            (language === "TypeScript" &&
             method.operationName === "stagehand.callback_batch" &&
             field.key === "options.page"
               ? "Page"
-              : canonicalSchemaType(field.schema, language, protocol);
+              : canonicalSchemaType(field.schema, language, protocol));
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -903,11 +919,12 @@ describe("SDK reference surface", () => {
           const actual = documented.get(field.key);
           if (!actual) continue;
           const expectedType =
-            method.operationName === "stagehand.extract" && field.key === "result.data"
+            publicReferenceFieldType(method, language, field.key) ??
+            (method.operationName === "stagehand.extract" && field.key === "result.data"
               ? language === "TypeScript"
                 ? "z.output<Schema>"
                 : "ResultModel"
-              : canonicalSchemaType(field.schema, language, protocol);
+              : canonicalSchemaType(field.schema, language, protocol));
           if (actual.type !== expectedType || actual.optional !== field.optional) {
             differences.push(
               `${methodKey(method)} ${language} ${field.key}: expected type=${expectedType} optional=${field.optional}, received type=${actual.type ?? "<missing>"} optional=${actual.optional}`,
@@ -2422,6 +2439,13 @@ function projectedInputFields(
 }
 
 function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean {
+  if (
+    method.classSlug === "page" &&
+    method.methodName === "screenshot" &&
+    (path.startsWith("options.mask.") || path.startsWith("mask."))
+  ) {
+    return true;
+  }
   if (method.classSlug !== "stagehand") return false;
   if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return new Set([
@@ -2434,6 +2458,14 @@ function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean 
     "ignore_locators.selector",
     "ignore_locators.nth",
   ]).has(path);
+}
+
+function publicReferenceFieldType(
+  method: SdkMethod,
+  language: Language,
+  field: string,
+): string | undefined {
+  return PUBLIC_REFERENCE_FIELD_TYPES.get(`${method.operationName}:${language}:${field}`);
 }
 
 function projectedResultPaths(
