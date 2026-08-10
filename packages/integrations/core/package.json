@@ -3,6 +3,9 @@
   "version": "4.0.0",
   "private": true,
   "description": "Shared integration surfaces for Stagehand V4",
+  "bin": {
+    "stagehand-facade": "./dist/facade/stdio-server.mjs"
+  },
   "files": [
     "dist"
   ],
@@ -10,16 +13,24 @@
   "exports": {
     "./codemode/stdio-server": {
       "import": "./dist/codemode/stdio-server.mjs"
+    },
+    "./facade": {
+      "import": "./dist/facade/index.mjs"
+    },
+    "./facade/stdio-server": {
+      "import": "./dist/facade/stdio-server.mjs"
     }
   },
   "scripts": {
     "build": "tsdown",
-    "test": "pnpm run build && vitest run --root ../.. packages/integrations/tests",
-    "test:unit": "vitest run --root ../.. packages/integrations/tests",
+    "test": "pnpm run build && vitest run --root ../../.. packages/integrations/core/tests",
+    "test:unit": "vitest run --root ../../.. packages/integrations/core/tests",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "catalog:"
+    "@browserbasehq/stagehand": "workspace:*",
+    "@modelcontextprotocol/sdk": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
