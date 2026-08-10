@@ -2032,7 +2032,7 @@ function projectedInputPaths(
   const publicProjection = projected.filter(
     (path) =>
       !completeLocalInputRoots.has(path.split(".", 1)[0] as string) &&
-      !isNestedObserveExtractLocatorInputField(method, path),
+      !isNestedSdkLocatorInputField(method, path),
   );
   return [...new Set([...publicProjection, ...wrappedParams, ...localInputPaths])]
     .filter((path) => path.includes("."))
@@ -2094,14 +2094,14 @@ function projectedInputFields(
     [...projected, ...wrapped].filter(
       ({ key }) =>
         !completeLocalInputRoots.has(key.split(".", 1)[0] as string) &&
-        !isNestedObserveExtractLocatorInputField(method, key),
+        !isNestedSdkLocatorInputField(method, key),
     ),
   );
 }
 
-function isNestedObserveExtractLocatorInputField(method: SdkMethod, path: string): boolean {
+function isNestedSdkLocatorInputField(method: SdkMethod, path: string): boolean {
   if (method.classSlug !== "stagehand") return false;
-  if (method.methodName !== "observe" && method.methodName !== "extract") return false;
+  if (!["act", "observe", "extract"].includes(method.methodName)) return false;
   return new Set([
     "options.locator.selector",
     "options.locator.nth",

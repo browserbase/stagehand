@@ -363,29 +363,11 @@ const result = await stagehand.act("Click the sign in button");
   </ParamField>
 
   <ParamField path="options.ignoreLocators" type="Locator[]" optional>
-    Page locators to exclude from instruction-planning context.
-
-    <ParamField path="options.ignoreLocators.selector" type="string">
-      The locator selector.
-    </ParamField>
-
-    <ParamField path="options.ignoreLocators.nth" type="number" optional>
-      The zero-based index used when the selector matches multiple elements.
-    </ParamField>
-
+    Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
   </ParamField>
 
   <ParamField path="options.locator" type="Locator" optional>
-    The page locator that scopes instruction planning.
-
-    <ParamField path="options.locator.selector" type="string">
-      The locator selector.
-    </ParamField>
-
-    <ParamField path="options.locator.nth" type="number" optional>
-      The zero-based index used when the selector matches multiple elements.
-    </ParamField>
-
+    The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
   </ParamField>
 
   <ParamField path="options.model" type="ModelConfig" optional>
@@ -1148,27 +1130,11 @@ result = await stagehand.act("Click the sign in button")
 </ParamField>
 
 <ParamField path="locator" type="Locator | None" optional>
-  The page locator that scopes instruction planning.
-
-<ParamField path="locator.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="locator.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
 </ParamField>
 
 <ParamField path="ignore_locators" type="list[Locator] | None" optional>
-  Page locators to exclude from instruction-planning context.
-
-<ParamField path="ignore_locators.selector" type="str">
-  The locator selector.
-</ParamField>
-
-  <ParamField path="ignore_locators.nth" type="int" optional>
-    The zero-based index used when the selector matches multiple elements.
-  </ParamField>
+  Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
 </ParamField>
 
 <ParamField path="cache" type="bool | CacheOptions | None" optional>

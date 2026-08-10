@@ -279,7 +279,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("open the filters panel, c
 
 ## Advanced configuration
 
-You can pass additional options to configure the model, timeout, variables, target page, and locator scope:
+You can pass additional options to configure the model, timeout, variables, target page, and target locator:
 
 <Tabs>
 <Tab title="TypeScript">
@@ -342,7 +342,7 @@ if _, err := client.Act(ctx, stagehand.ActInstruction("choose 'Peach' from the f
 </Tab>
 </Tabs>
 
-Locator scoping only affects instruction-based `act()` calls. When you pass an `Action` returned by `observe()`, Stagehand replays that action's selector directly.
+Target locators only affect instruction-based `act()` calls. When you pass an `Action` returned by `observe()`, Stagehand replays that action's selector directly.
 
 ### Server-side caching
 
@@ -352,7 +352,7 @@ Locator scoping only affects instruction-based `act()` calls. When you pass an `
 
 When running on Browserbase, Stagehand can cache `act()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
-Locator-scoped `act()` calls, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
+Instruction-based `act()` calls with a target locator or ignored locators bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -931,7 +931,7 @@ for attempt := 0; attempt <= maxRetries; attempt++ {
 
 **Solutions**:
 - Ensure page has fully loaded
-- Check if content is in iframes: Stagehand traverses them automatically, but a scoped locator can help
+- Check if content is in iframes: Stagehand traverses them automatically, but a target locator can help
 - Increase action timeout
 - Use `observe()` first to verify element exists
 - Raise `domSettleTimeoutMs` on the constructor if the page keeps mutating after load

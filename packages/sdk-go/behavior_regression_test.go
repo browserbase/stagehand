@@ -452,7 +452,7 @@ func TestStagehandActObserveAndExtractRejectCrossPageLocators(t *testing.T) {
 	}
 }
 
-func TestStagehandObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
+func TestStagehandActObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
 	t.Parallel()
 
 	type pageInfo struct {
@@ -465,6 +465,18 @@ func TestStagehandObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
 		run     func(context.Context, *Stagehand, *Page) error
 		wantErr string
 	}{
+		{
+			name:   "act",
+			method: "stagehand.Act",
+			run: func(ctx context.Context, client *Stagehand, page *Page) error {
+				_, err := client.Act(ctx, ActInstruction("click main"), &StagehandClientActOptions{
+					Page:           page,
+					IgnoreLocators: []*PageLocator{nil},
+				})
+				return err
+			},
+			wantErr: "stagehand.Act: ignore locator at index 0 is nil",
+		},
 		{
 			name:   "observe",
 			method: "stagehand.Observe",
