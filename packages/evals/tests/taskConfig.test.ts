@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentProvider, AVAILABLE_CUA_MODELS, providerEnvVarMap } from "stagehand-v3";
+import {
+  AgentProvider,
+  AVAILABLE_CUA_MODELS,
+  providerEnvVarMap,
+} from "@browserbasehq/stagehand";
 
 type TaskConfigModule = typeof import("../taskConfig.js");
 
@@ -59,6 +63,13 @@ describe("getModelList", () => {
     const models = getModelList("external_agent_benchmarks");
     expect(models).toEqual(getModelList("agent"));
   });
+
+  it("filters by provider when EVAL_PROVIDER is set", async () => {
+    process.env.EVAL_PROVIDER = "openai";
+    const { getModelList } = await loadTaskConfig();
+    const models = getModelList();
+    expect(models.every((m) => m.toLowerCase().startsWith("gpt"))).toBe(true);
+  });
 });
 
 describe("getAgentModelEntries", () => {
@@ -89,7 +100,9 @@ describe("getAgentModelEntries", () => {
       expect(provider in providerEnvVarMap).toBe(true);
     }
 
-    expect(cuaEntries.map((entry) => entry.modelName)).not.toContain("microsoft/fara-7b");
+    expect(cuaEntries.map((entry) => entry.modelName)).not.toContain(
+      "microsoft/fara-7b",
+    );
   });
 
   it("runs configured standard agent models in dom and hybrid modes", async () => {
@@ -123,7 +136,8 @@ describe("getAgentModelEntries", () => {
   });
 
   it("runs CUA-capable EVAL_AGENT_MODELS entries in dom and hybrid modes", async () => {
-    process.env.EVAL_AGENT_MODELS = "openai/gpt-5.4,google/gemini-3-flash-preview";
+    process.env.EVAL_AGENT_MODELS =
+      "openai/gpt-5.4,google/gemini-3-flash-preview";
     process.env.EVAL_AGENT_MODELS_CUA = " ";
 
     const { getAgentModelEntries } = await loadTaskConfig();
@@ -137,13 +151,17 @@ describe("getAgentModelEntries", () => {
     );
 
     expect(standardModes).toEqual(["dom", "hybrid"]);
-    expect(cuaEntries.map((entry) => entry.mode).sort()).toEqual(["dom", "hybrid"]);
+    expect(cuaEntries.map((entry) => entry.mode).sort()).toEqual([
+      "dom",
+      "hybrid",
+    ]);
     expect(cuaEntries.every((entry) => entry.cua === false)).toBe(true);
   });
 
   it("does not run non-CUA models from EVAL_AGENT_MODELS_CUA as CUA", async () => {
     process.env.EVAL_AGENT_MODELS = " ";
-    process.env.EVAL_AGENT_MODELS_CUA = "openai/gpt-4.1-mini,google/gemini-3-flash-preview";
+    process.env.EVAL_AGENT_MODELS_CUA =
+      "openai/gpt-4.1-mini,google/gemini-3-flash-preview";
 
     const { getAgentModelEntries } = await loadTaskConfig();
     const entries = getAgentModelEntries();
@@ -175,10 +193,17 @@ describe("cross-cutting categories", () => {
     expect(task.categories).toContain("targeted_extract");
   });
 
-  it("has no agent-tier tasks (the v3 agent path was removed)", async () => {
+  it("external benchmarks have only external_agent_benchmarks, not agent", async () => {
     const { tasksByName } = await loadTaskConfig();
-    const agentTasks = Object.keys(tasksByName).filter((name) => name.startsWith("agent/"));
-    expect(agentTasks).toEqual([]);
+    const task = tasksByName["agent/gaia"];
+    expect(task).toBeDefined();
+    expect(task.categories).toContain("external_agent_benchmarks");
+    expect(task.categories).not.toContain("agent");
+    // Same for webvoyager
+    const wv = tasksByName["agent/webvoyager"];
+    expect(wv).toBeDefined();
+    expect(wv.categories).toContain("external_agent_benchmarks");
+    expect(wv.categories).not.toContain("agent");
   });
 
   it("does not expose core tier tasks", async () => {
@@ -217,7 +242,9 @@ describe("validateEvalName", () => {
     }) as any);
     const mockError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    expect(() => validateEvalName("this_task_does_not_exist_xyz")).toThrow("process.exit called");
+    expect(() => validateEvalName("this_task_does_not_exist_xyz")).toThrow(
+      "process.exit called",
+    );
 
     mockExit.mockRestore();
     mockError.mockRestore();

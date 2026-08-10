@@ -21,14 +21,16 @@ import { getRuntimeTasksRoot } from "../runtimePaths.js";
 import { printExtendedWelcome, printTipLine } from "./welcome.js";
 import { snapshotEnv, renderInlineWarning } from "./welcomeStatus.js";
 import { isFirstRun, markFirstRunComplete } from "./welcomeState.js";
-import { abortActiveRun } from "../framework/activeRunCleanup.js";
 
 export type ReplOptions = {
   /** Suppress banner, welcome, and any inline warnings. Output is just the prompt. */
   quiet?: boolean;
 };
 
-export async function startRepl(entryDir: string, options: ReplOptions = {}): Promise<void> {
+export async function startRepl(
+  entryDir: string,
+  options: ReplOptions = {},
+): Promise<void> {
   const quiet = options.quiet === true;
   const noWelcome = quiet || Boolean(process.env.EVALS_NO_WELCOME);
 
@@ -109,13 +111,10 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   let lastEscAt = 0;
   const DOUBLE_ESC_WINDOW_MS = 1500;
 
-  const abortImmediately = (): void => {
-    if (!abortRef.current) return;
-    console.log(red("\n  ✗ Aborting immediately…"));
-    void abortActiveRun(abortRef.current, "aggressive");
-  };
-
-  const onKeypress = (_str: string, key: { name?: string } | undefined): void => {
+  const onKeypress = (
+    _str: string,
+    key: { name?: string; ctrl?: boolean } | undefined,
+  ): void => {
     if (!key || key.name !== "escape") return;
     if (!abortRef.current) {
       // Idle Esc: pop one level if we're inside a context.
@@ -131,22 +130,18 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
     const isDouble = now - lastEscAt < DOUBLE_ESC_WINDOW_MS;
     lastEscAt = now;
     if (isDouble) {
-      abortImmediately();
+      console.log(red("\n  ✗ Aborting immediately…"));
+      abortRef.current.abort("aggressive");
     } else {
       console.log(
-        yellow("\n  ⚠ Aborting after current task… (press Esc again to abort immediately)"),
+        yellow(
+          "\n  ⚠ Aborting after current task… (press Esc again to abort immediately)",
+        ),
       );
-      void abortActiveRun(abortRef.current, "cooperative");
+      abortRef.current.abort("cooperative");
     }
   };
   process.stdin.on("keypress", onKeypress);
-
-  // readline consumes Ctrl+C in raw terminal mode and emits SIGINT on the
-  // interface instead of necessarily delivering it to process.on("SIGINT").
-  rl.on("SIGINT", () => {
-    if (abortRef.current) abortImmediately();
-    else rl.close();
-  });
 
   rl.prompt();
 
@@ -171,7 +166,6 @@ export async function startRepl(entryDir: string, options: ReplOptions = {}): Pr
   });
 
   rl.on("close", () => {
-    process.stdin.off("keypress", onKeypress);
     console.log(dim("\n  Goodbye.\n"));
     process.exit(0);
   });

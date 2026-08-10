@@ -1,13 +1,13 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_vantechjournal" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto("https://vantechjournal.com/archive");
 
-      const { data: observations } = await stagehand.observe("Find the 'load more' link");
+      const observations = await v3.observe("Find the 'load more' link");
 
       if (observations.length === 0) {
         return {
@@ -24,14 +24,17 @@ export default defineBenchTask(
         "xpath=/html/body/div[2]/div/div/section/div/div/div[3]/a/span",
       ];
 
-      // v3 compares backendNodeIds (first observation vs. each expected
-      // locator); the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and each
-      // expected selector and compare element references. Expected locators
-      // that fail to resolve are skipped, as in v3.
-      const foundMatch =
-        (await matchingSelector(page, observations[0].selector, expectedLocators)) !== null;
+      const expectedIds: number[] = [];
+      for (const locator of expectedLocators) {
+        const node = page.locator(locator);
+        const id = await node.backendNodeId();
+        if (id !== undefined && id !== null) expectedIds.push(id);
+      }
+
+      const observedNode = page.locator(observations[0].selector);
+      const observedId = await observedNode.backendNodeId();
+
+      const foundMatch = expectedIds.includes(observedId);
 
       return {
         _success: foundMatch,
@@ -49,6 +52,8 @@ export default defineBenchTask(
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

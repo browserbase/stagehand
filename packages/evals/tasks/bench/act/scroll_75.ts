@@ -2,10 +2,13 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "scroll_75" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      await stagehand.act("Scroll 75% down the page");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+      );
+      await v3.act("Scroll 75% down the page");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -18,7 +21,8 @@ export default defineBenchTask(
       });
 
       const threeQuartersScroll = scrollInfo.scrollHeight * 0.75;
-      const threeQuartersReached = Math.abs(scrollInfo.scrollTop - threeQuartersScroll) <= 200;
+      const threeQuartersReached =
+        Math.abs(scrollInfo.scrollTop - threeQuartersScroll) <= 200;
       const evaluationResult = threeQuartersReached
         ? {
             _success: true,
@@ -38,11 +42,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

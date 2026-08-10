@@ -1,0 +1,86 @@
+import globals from "globals";
+import pluginJs from "@eslint/js";
+import tseslint from "typescript-eslint";
+import security from "eslint-plugin-security";
+
+/** @type {import('eslint').Linter.Config[]} */
+export default [
+  { files: ["**/*.{js,mjs,cjs,ts}"] },
+  { languageOptions: { globals: globals.browser } },
+  {
+    files: ["packages/core/scripts/**/*.{js,cjs,mjs}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: [
+      "packages/server-v3/scripts/**/*.{js,cjs,mjs,ts}",
+      "packages/server-v4/scripts/**/*.{js,cjs,mjs,ts}",
+    ],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
+    languageOptions: { globals: globals.node },
+  },
+  {
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "packages/core/lib/dom/build/**",
+      "packages/core/lib/v3/dom/build/**",
+      "packages/core/lib/v4/dom/build/**",
+      "packages/core/scripts/prepare.js",
+      "**/*.config.js",
+      "**/*.config.mjs",
+      ".browserbase/**",
+      "**/.browserbase/**",
+      "**/*.json",
+      "stainless.yml",
+      "packages/server-v3/openapi.v3.yaml",
+      "packages/server-v4/openapi.v4.yaml",
+    ],
+  },
+  pluginJs.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    plugins: {
+      security,
+    },
+    rules: {
+      "no-eval": "error",
+      "no-implied-eval": "error",
+      "no-new-func": "error",
+      "security/detect-eval-with-expression": "error",
+      "preserve-caught-error": "error",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='Function']",
+          message: "Dynamic function construction is prohibited.",
+        },
+        {
+          selector: "NewExpression[callee.name='Function']",
+          message: "Dynamic function construction is prohibited.",
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='window'][callee.property.name='Function']",
+          message:
+            "Dynamic function construction via window.Function is prohibited.",
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='globalThis'][callee.property.name='Function']",
+          message:
+            "Dynamic function construction via globalThis.Function is prohibited.",
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/cli/**/*.{js,cjs,mjs,ts}"],
+    rules: {
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
+];

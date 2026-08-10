@@ -64,5 +64,8 @@ if (fs.existsSync(distConfigPath)) {
 }
 
 fs.writeFileSync(distConfigPath, JSON.stringify(sourceConfig, null, 2) + "\n");
-fs.writeFileSync(`${repoRoot}/packages/evals/dist/cli/package.json`, '{\n  "type": "module"\n}\n');
+fs.writeFileSync(
+  `${repoRoot}/packages/evals/dist/cli/package.json`,
+  '{\n  "type": "module"\n}\n',
+);
 fs.chmodSync(`${repoRoot}/packages/evals/dist/cli/cli.js`, 0o755);

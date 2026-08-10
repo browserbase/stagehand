@@ -1,0 +1,551 @@
+import { z } from "zod";
+import { LogLine } from "./v3/types/public/logs.js";
+import { ChatMessage, LLMClient } from "./v3/llm/LLMClient.js";
+import { getEnvTimeoutMs, withTimeout } from "./v3/timeoutConfig.js";
+import {
+  buildActSystemPrompt,
+  buildExtractSystemPrompt,
+  buildExtractUserPrompt,
+  buildMetadataPrompt,
+  buildMetadataSystemPrompt,
+  buildObserveSystemPrompt,
+  buildObserveUserMessage,
+} from "./prompt.js";
+import { appendSummary, writeTimestampedTxtFile } from "./inferenceLogUtils.js";
+import type {
+  InferStagehandSchema,
+  StagehandZodObject,
+} from "./v3/zodCompat.js";
+import { SupportedUnderstudyAction } from "./v3/types/private/handlers.js";
+import type { Variables } from "./v3/types/public/agent.js";
+import { StagehandInvalidArgumentError } from "./v3/types/public/sdkErrors.js";
+
+// Re-export for backward compatibility
+export type { LLMParsedResponse, LLMUsage } from "./v3/llm/LLMClient.js";
+
+function withLlmTimeout<T>(promise: Promise<T>, operation: string): Promise<T> {
+  return withTimeout(
+    promise,
+    getEnvTimeoutMs("LLM_MAX_MS"),
+    `LLM ${operation}`,
+  );
+}
+
+export async function extract<T extends StagehandZodObject>({
+  instruction,
+  domElements,
+  schema,
+  llmClient,
+  logger,
+  userProvidedInstructions,
+  logInferenceToFile = false,
+  screenshot,
+}: {
+  instruction: string;
+  domElements: string;
+  schema: T;
+  llmClient: LLMClient;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+  screenshot?: Buffer;
+}) {
+  const metadataSchema = z.object({
+    progress: z
+      .string()
+      .describe(
+        "progress of what has been extracted so far, as concise as possible",
+      ),
+    completed: z
+      .boolean()
+      .describe(
+        "true if the goal is now accomplished. Use this conservatively, only when sure that the goal has been completed.",
+      ),
+  });
+
+  type ExtractionResponse = InferStagehandSchema<T>;
+  type MetadataResponse = z.infer<typeof metadataSchema>;
+
+  const isUsingAnthropic = llmClient.type === "anthropic";
+  if (screenshot && llmClient.type !== "aisdk") {
+    throw new StagehandInvalidArgumentError(
+      "extract({ screenshot: true }) is only supported with AI SDK clients.",
+    );
+  }
+  const screenshotDataUrl = screenshot
+    ? `data:image/png;base64,${screenshot.toString("base64")}`
+    : undefined;
+
+  const extractCallMessages: ChatMessage[] = [
+    buildExtractSystemPrompt(
+      isUsingAnthropic,
+      userProvidedInstructions,
+      Boolean(screenshotDataUrl),
+    ),
+    buildExtractUserPrompt(
+      instruction,
+      domElements,
+      isUsingAnthropic,
+      screenshotDataUrl,
+    ),
+  ];
+
+  let extractCallFile = "";
+  let extractCallTimestamp = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      "extract_summary",
+      "extract_call",
+      {
+        modelCall: "extract",
+        messages: extractCallMessages,
+      },
+    );
+    extractCallFile = fileName;
+    extractCallTimestamp = timestamp;
+  }
+
+  const extractStartTime = Date.now();
+  const extractionResponse = await withLlmTimeout(
+    llmClient.createChatCompletion<ExtractionResponse>({
+      options: {
+        messages: extractCallMessages,
+        response_model: {
+          schema,
+          name: "Extraction",
+        },
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      },
+      logger,
+    }),
+    "extract",
+  );
+  const extractEndTime = Date.now();
+
+  const { data: extractedData, usage: extractUsage } = extractionResponse;
+
+  let extractResponseFile: string;
+  if (logInferenceToFile) {
+    const { fileName } = writeTimestampedTxtFile(
+      "extract_summary",
+      "extract_response",
+      {
+        modelResponse: "extract",
+        rawResponse: extractedData,
+      },
+    );
+    extractResponseFile = fileName;
+
+    appendSummary("extract", {
+      extract_inference_type: "extract",
+      timestamp: extractCallTimestamp,
+      LLM_input_file: extractCallFile,
+      LLM_output_file: extractResponseFile,
+      prompt_tokens: extractUsage?.prompt_tokens ?? 0,
+      completion_tokens: extractUsage?.completion_tokens ?? 0,
+      reasoning_tokens: extractUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: extractUsage?.cached_input_tokens ?? 0,
+      inference_time_ms: extractEndTime - extractStartTime,
+    });
+  }
+
+  const metadataCallMessages: ChatMessage[] = [
+    buildMetadataSystemPrompt(),
+    buildMetadataPrompt(instruction, extractedData),
+  ];
+
+  let metadataCallFile = "";
+  let metadataCallTimestamp = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      "extract_summary",
+      "metadata_call",
+      {
+        modelCall: "metadata",
+        messages: metadataCallMessages,
+      },
+    );
+    metadataCallFile = fileName;
+    metadataCallTimestamp = timestamp;
+  }
+
+  const metadataStartTime = Date.now();
+  const metadataResponse = await withLlmTimeout(
+    llmClient.createChatCompletion<MetadataResponse>({
+      options: {
+        messages: metadataCallMessages,
+        response_model: {
+          name: "Metadata",
+          schema: metadataSchema,
+        },
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0,
+      },
+      logger,
+    }),
+    "extract metadata",
+  );
+  const metadataEndTime = Date.now();
+
+  const {
+    data: {
+      completed: metadataResponseCompleted,
+      progress: metadataResponseProgress,
+    },
+    usage: metadataResponseUsage,
+  } = metadataResponse;
+
+  let metadataResponseFile: string;
+  if (logInferenceToFile) {
+    const { fileName } = writeTimestampedTxtFile(
+      "extract_summary",
+      "metadata_response",
+      {
+        modelResponse: "metadata",
+        completed: metadataResponseCompleted,
+        progress: metadataResponseProgress,
+      },
+    );
+    metadataResponseFile = fileName;
+
+    appendSummary("extract", {
+      extract_inference_type: "metadata",
+      timestamp: metadataCallTimestamp,
+      LLM_input_file: metadataCallFile,
+      LLM_output_file: metadataResponseFile,
+      prompt_tokens: metadataResponseUsage?.prompt_tokens ?? 0,
+      completion_tokens: metadataResponseUsage?.completion_tokens ?? 0,
+      reasoning_tokens: metadataResponseUsage?.reasoning_tokens ?? 0,
+      cached_input_tokens: metadataResponseUsage?.cached_input_tokens ?? 0,
+      inference_time_ms: metadataEndTime - metadataStartTime,
+    });
+  }
+
+  const totalPromptTokens =
+    (extractUsage?.prompt_tokens ?? 0) +
+    (metadataResponseUsage?.prompt_tokens ?? 0);
+
+  const totalCompletionTokens =
+    (extractUsage?.completion_tokens ?? 0) +
+    (metadataResponseUsage?.completion_tokens ?? 0);
+
+  const totalInferenceTimeMs =
+    extractEndTime - extractStartTime + (metadataEndTime - metadataStartTime);
+  const totalReasoningTokens =
+    (extractUsage?.reasoning_tokens ?? 0) +
+    (metadataResponseUsage?.reasoning_tokens ?? 0);
+  const totalCachedInputTokens =
+    (extractUsage?.cached_input_tokens ?? 0) +
+    (metadataResponseUsage?.cached_input_tokens ?? 0);
+
+  return {
+    ...extractedData,
+    metadata: {
+      completed: metadataResponseCompleted,
+      progress: metadataResponseProgress,
+    },
+    prompt_tokens: totalPromptTokens,
+    completion_tokens: totalCompletionTokens,
+    reasoning_tokens: totalReasoningTokens,
+    cached_input_tokens: totalCachedInputTokens,
+    inference_time_ms: totalInferenceTimeMs,
+  };
+}
+
+export async function observe({
+  instruction,
+  domElements,
+  llmClient,
+  userProvidedInstructions,
+  logger,
+  logInferenceToFile = false,
+  supportedActions,
+  variables,
+}: {
+  instruction: string;
+  domElements: string;
+  llmClient: LLMClient;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+  supportedActions?: string[];
+  variables?: Variables;
+}) {
+  const observeSchema = z.object({
+    elements: z
+      .array(
+        z.object({
+          elementId: z
+            .string()
+            .regex(/^\d+-\d+$/)
+            .describe(
+              "the exact ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. For example, if the accessibility tree shows [0-18372], return '0-18372', not '18372'.",
+            ),
+          description: z
+            .string()
+            .describe(
+              "a description of the accessible element and its purpose",
+            ),
+          method: z
+            .enum(
+              // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+              Object.values(SupportedUnderstudyAction) as unknown as readonly [
+                string,
+                ...string[],
+              ],
+            )
+            .describe(
+              `the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.`,
+            ),
+          arguments: z.array(
+            z
+              .string()
+              .describe(
+                "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+              ),
+          ),
+        }),
+      )
+      .describe("an array of accessible elements that match the instruction"),
+  });
+
+  type ObserveResponse = z.infer<typeof observeSchema>;
+
+  const messages: ChatMessage[] = [
+    buildObserveSystemPrompt(
+      userProvidedInstructions,
+      supportedActions,
+      variables,
+    ),
+    buildObserveUserMessage(instruction, domElements),
+  ];
+
+  let callTimestamp = "";
+  let callFile = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      `observe_summary`,
+      `observe_call`,
+      {
+        modelCall: "observe",
+        messages,
+      },
+    );
+    callFile = fileName;
+    callTimestamp = timestamp;
+  }
+
+  const start = Date.now();
+  const rawResponse = await llmClient.createChatCompletion<ObserveResponse>({
+    options: {
+      messages,
+      response_model: {
+        schema: observeSchema,
+        name: "Observation",
+      },
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    },
+    logger,
+  });
+  const end = Date.now();
+  const usageTimeMs = end - start;
+
+  const { data: observeData, usage: observeUsage } = rawResponse;
+  const promptTokens = observeUsage?.prompt_tokens ?? 0;
+  const completionTokens = observeUsage?.completion_tokens ?? 0;
+  const reasoningTokens = observeUsage?.reasoning_tokens ?? 0;
+  const cachedInputTokens = observeUsage?.cached_input_tokens ?? 0;
+
+  let responseFile: string;
+  if (logInferenceToFile) {
+    const { fileName: responseFileName } = writeTimestampedTxtFile(
+      `observe_summary`,
+      `observe_response`,
+      {
+        modelResponse: "observe",
+        rawResponse: observeData,
+      },
+    );
+    responseFile = responseFileName;
+
+    appendSummary("observe", {
+      [`observe_inference_type`]: "observe",
+      timestamp: callTimestamp,
+      LLM_input_file: callFile,
+      LLM_output_file: responseFile,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      reasoning_tokens: reasoningTokens,
+      cached_input_tokens: cachedInputTokens,
+      inference_time_ms: usageTimeMs,
+    });
+  }
+
+  const parsedElements =
+    observeData.elements?.map((el) => {
+      const base = {
+        elementId: el.elementId,
+        description: String(el.description),
+        method: String(el.method),
+        arguments: el.arguments,
+      };
+      return base;
+    }) ?? [];
+
+  return {
+    elements: parsedElements,
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    reasoning_tokens: reasoningTokens,
+    cached_input_tokens: cachedInputTokens,
+    inference_time_ms: usageTimeMs,
+  };
+}
+
+export async function act({
+  instruction,
+  domElements,
+  llmClient,
+  userProvidedInstructions,
+  logger,
+  logInferenceToFile = false,
+}: {
+  instruction: string;
+  domElements: string;
+  llmClient: LLMClient;
+  userProvidedInstructions?: string;
+  logger: (message: LogLine) => void;
+  logInferenceToFile?: boolean;
+}) {
+  const actSchema = z.object({
+    action: z
+      .object({
+        elementId: z
+          .string()
+          .regex(/^\d+-\d+$/)
+          .describe(
+            "the ID string associated with the element. Never include surrounding square brackets. This field must follow the format of 'number-number'. for example, '0-76' or '16-21'",
+          ),
+        description: z
+          .string()
+          .describe("a description of the accessible element and its purpose"),
+        method: z
+          .enum(
+            // Use Object.values() for Zod v3 compatibility - z.enum() in v3 doesn't accept TypeScript enums directly
+            Object.values(SupportedUnderstudyAction) as unknown as readonly [
+              string,
+              ...string[],
+            ],
+          )
+          .describe(
+            "the candidate method/action to interact with the element. Select one of the available Understudy interaction methods.",
+          ),
+        arguments: z.array(
+          z
+            .string()
+            .describe(
+              "the arguments to pass to the method. For example, for a click, the arguments are empty, but for a fill, the arguments are the value to fill in.",
+            ),
+        ),
+      })
+      .nullable()
+      .describe(
+        "The element to act on. Return null if no element on the page matches the instruction — do NOT fabricate or guess an element, and never emit empty strings or placeholder values.",
+      ),
+    twoStep: z.boolean(),
+  });
+
+  type ActResponse = z.infer<typeof actSchema>;
+
+  const messages: ChatMessage[] = [
+    buildActSystemPrompt(userProvidedInstructions),
+    buildObserveUserMessage(instruction, domElements),
+  ];
+
+  let callTimestamp = "";
+  let callFile = "";
+  if (logInferenceToFile) {
+    const { fileName, timestamp } = writeTimestampedTxtFile(
+      `act_summary`,
+      `act_call`,
+      {
+        modelCall: "act",
+        messages,
+      },
+    );
+    callFile = fileName;
+    callTimestamp = timestamp;
+  }
+
+  const start = Date.now();
+  const rawResponse = await llmClient.createChatCompletion<ActResponse>({
+    options: {
+      messages,
+      response_model: {
+        schema: actSchema,
+        name: "act",
+      },
+      top_p: 1,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    },
+    logger,
+  });
+  const end = Date.now();
+  const usageTimeMs = end - start;
+
+  const { data: actData, usage: actUsage } = rawResponse;
+  const promptTokens = actUsage?.prompt_tokens ?? 0;
+  const completionTokens = actUsage?.completion_tokens ?? 0;
+  const reasoningTokens = actUsage?.reasoning_tokens ?? 0;
+  const cachedInputTokens = actUsage?.cached_input_tokens ?? 0;
+
+  let responseFile: string;
+  if (logInferenceToFile) {
+    const { fileName: responseFileName } = writeTimestampedTxtFile(
+      `act_summary`,
+      `act_response`,
+      {
+        modelResponse: "act",
+        rawResponse: actData,
+      },
+    );
+    responseFile = responseFileName;
+
+    appendSummary("act", {
+      [`act_inference_type`]: "act",
+      timestamp: callTimestamp,
+      LLM_input_file: callFile,
+      LLM_output_file: responseFile,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      reasoning_tokens: reasoningTokens,
+      cached_input_tokens: cachedInputTokens,
+      inference_time_ms: usageTimeMs,
+    });
+  }
+
+  const parsedElement = actData.action
+    ? {
+        elementId: actData.action.elementId,
+        description: String(actData.action.description),
+        method: String(actData.action.method),
+        arguments: actData.action.arguments,
+      }
+    : undefined;
+
+  return {
+    element: parsedElement,
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    reasoning_tokens: reasoningTokens,
+    cached_input_tokens: cachedInputTokens,
+    inference_time_ms: usageTimeMs,
+    twoStep: actData.twoStep,
+  };
+}

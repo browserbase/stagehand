@@ -1,3 +1,0 @@
-{
-  "ignorePatterns": ["packages/docs/**/*.md", "packages/docs/**/*.mdx"]
-}

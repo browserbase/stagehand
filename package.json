@@ -1,70 +1,98 @@
 {
   "name": "stagehand-workspace",
-  "version": "4.0.0",
+  "version": "0.0.0",
   "private": true,
   "description": "Stagehand monorepo workspace",
-  "homepage": "https://stagehand.dev",
-  "bugs": {
-    "url": "https://github.com/browserbase/stagehand/issues"
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "build:full": "turbo run build",
+    "build:cjs": "turbo run build:cjs",
+    "build:cli": "turbo run build:cli",
+    "build:esm": "turbo run build:esm",
+    "build:sea": "turbo run build:sea:esm",
+    "build:sea:esm": "turbo run build:sea:esm",
+    "build:sea:cjs": "turbo run build:sea:cjs",
+    "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "prettier": "prettier --write .",
+    "eslint": "eslint .",
+    "test": "turbo run test:core test:e2e test:server test:evals test:cli",
+    "test:core": "turbo run test:core --",
+    "test:core:local": "STAGEHAND_BROWSER_TARGET=local pnpm run test:core --",
+    "test:core:bb": "STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:core --",
+    "test:e2e": "turbo run test:e2e --",
+    "test:e2e:local": "STAGEHAND_BROWSER_TARGET=local pnpm run test:e2e --",
+    "test:e2e:bb": "STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:e2e --",
+    "test:server": "turbo run test:server --",
+    "test:server:sea": "STAGEHAND_SERVER_TARGET=sea pnpm run test:server --",
+    "test:server:local": "STAGEHAND_SERVER_TARGET=local pnpm run test:server --",
+    "test:server:remote": "STAGEHAND_SERVER_TARGET=remote pnpm run test:server --",
+    "test:evals": "turbo run test:evals --",
+    "test:evals:local": "STAGEHAND_BROWSER_TARGET=local pnpm run test:evals --",
+    "test:evals:bb": "STAGEHAND_BROWSER_TARGET=browserbase pnpm run test:evals --",
+    "coverage:merge": "pnpm -w exec tsx packages/core/scripts/coverage.ts merge",
+    "docs": "turbo run docs",
+    "dev": "turbo run dev",
+    "example": "pnpm --filter @browserbasehq/stagehand run example --",
+    "cache:clear": "turbo run build --force",
+    "prepare": "node packages/core/scripts/prepare.js && husky",
+    "release": "turbo run build && changeset publish",
+    "release-canary": "turbo run build && changeset version --snapshot && changeset publish --tag alpha"
   },
-  "license": "MIT",
+  "devDependencies": {
+    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/cli": "^2.31.0",
+    "@eslint/js": "^10.0.1",
+    "c8": "^11.0.0",
+    "dotenv": "^17.3.1",
+    "esbuild": "0.28.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^15.13.0",
+    "husky": "^9.1.7",
+    "junit-to-ctrf": "^0.0.14",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.2.5",
+    "source-map": "^0.7.4",
+    "tsx": "^4.19.4",
+    "turbo": "^2.9.15",
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.56.1"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/browserbase/stagehand.git"
   },
-  "type": "module",
-  "scripts": {
-    "check": "turbo run fmt:check lint typecheck",
-    "docs": "pnpm --filter ./packages/docs dev",
-    "fmt": "oxfmt --write .",
-    "fmt:check": "oxfmt --check .",
-    "lint": "oxlint .",
-    "test": "turbo run test:unit test:browser",
-    "test:unit": "vitest run rules/ast-grep scripts",
-    "test:integration": "tsx scripts/test-integration.ts",
-    "build": "turbo run build",
-    "build:cli": "turbo run build:cli",
-    "generate:python": "uv --directory packages/sdk-python run --locked python scripts/generate.py",
-    "generate:go": "go -C packages/sdk-go generate ./...",
-    "build:wheel": "uv --directory packages/sdk-python run --locked python scripts/build.py"
+  "bugs": {
+    "url": "https://github.com/browserbase/stagehand/issues"
   },
-  "devDependencies": {
-    "@ast-grep/lang-go": "catalog:",
-    "@ast-grep/lang-python": "catalog:",
-    "@ast-grep/napi": "catalog:",
-    "@changesets/changelog-github": "catalog:",
-    "@changesets/cli": "catalog:",
-    "@changesets/parse": "0.4.3",
-    "@opentelemetry/api": "catalog:",
-    "@opentelemetry/sdk-trace-web": "catalog:",
-    "@oxlint/plugins": "1.68.0",
-    "@types/chrome": "catalog:",
-    "@types/node": "catalog:",
-    "dotenv": "catalog:",
-    "openai": "catalog:",
-    "oxfmt": "catalog:",
-    "oxlint": "catalog:",
-    "oxlint-tsgolint": "catalog:",
-    "smol-toml": "catalog:",
-    "tsx": "catalog:",
-    "turbo": "^2.8.10",
-    "typescript": "catalog:",
-    "vite": "catalog:",
-    "vitest": "catalog:"
+  "homepage": "https://stagehand.dev",
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
   },
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.10.0",
-      "onFail": "download"
-    },
-    "runtime": {
-      "name": "node",
-      "version": "^24.18.0",
-      "onFail": "download"
+  "pnpm": {
+    "overrides": {
+      "axios": "^1.15.2",
+      "follow-redirects": "^1.16.0",
+      "jws": "^4.0.1",
+      "lodash": "^4.18.0",
+      "minimatch": "^3.1.4",
+      "@oclif/core>minimatch": "^10.2.5",
+      "hono": "^4.12.25",
+      "uuid": "^11.1.1",
+      "ws": "^8.20.1",
+      "qs": "^6.15.2",
+      "esbuild": "0.28.1",
+      "form-data": "^4.0.6",
+      "tar": "^7.5.16",
+      "js-yaml@4.1.1": "4.2.0",
+      "read-yaml-file": "2.1.0",
+      "undici": "^7.28.0"
     }
   },
-  "engines": {
-    "node": ">=22.18.0"
-  }
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown"
+  },
+  "packageManager": "pnpm@9.15.0+sha512.76e2379760a4328ec4415815bcd6628dee727af3779aaa4c914e3944156c4299921a89f976381ee107d41f12cfa4b66681ca9c718f0668fa0831ed4c6d8ba56c"
 }

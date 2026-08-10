@@ -3,17 +3,19 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_aigrant_targeted_2" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      // The locator engine prefix is required for XPath selectors.
-      const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
-      const { data: company } = await stagehand.extract(
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+      );
+      const selector = "/html/body/div/ul[5]/li[28]";
+      const company = await v3.extract(
         "Extract the name of the company that comes after 'Coframe'.",
         z.object({
           company_name: z.string(),
         }),
-        { locator },
+        { selector: selector },
       );
       const companyName = company.company_name;
 
@@ -30,7 +32,8 @@ export default defineBenchTask(
 
       if (nameMatches) {
         logger.error({
-          message: "extracted company name matches the company name that we SHOULD NOT get",
+          message:
+            "extracted company name matches the company name that we SHOULD NOT get",
           level: 0,
           auxiliary: {
             expected: {
@@ -45,7 +48,8 @@ export default defineBenchTask(
         });
         return {
           _success: false,
-          error: "extracted company name matches the company name that we SHOULD NOT get",
+          error:
+            "extracted company name matches the company name that we SHOULD NOT get",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -61,11 +65,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

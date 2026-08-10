@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { createAssertHelpers, AssertionError } from "../../framework/assertions.js";
+import {
+  createAssertHelpers,
+  AssertionError,
+} from "../../framework/assertions.js";
 
 describe("AssertionError", () => {
   it("has correct name and properties", () => {

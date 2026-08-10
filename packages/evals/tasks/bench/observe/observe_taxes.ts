@@ -2,11 +2,12 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "observe_taxes" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto("https://file.1040.com/estimate/");
 
-      const { data: observations } = await stagehand.observe(
+      const observations = await v3.observe(
         "Find all the form input elements under the 'Income' section",
       );
 
@@ -30,12 +31,18 @@ export default defineBenchTask(
 
       const expectedLocator = `#tpWages`;
 
-      const expectedResult = await page.locator(expectedLocator).first().innerText();
+      const expectedResult = await page
+        .locator(expectedLocator)
+        .first()
+        .innerText();
 
       let foundMatch = false;
       for (const observation of observations) {
         try {
-          const observationResult = await page.locator(observation.selector).first().innerText();
+          const observationResult = await page
+            .locator(observation.selector)
+            .first()
+            .innerText();
 
           if (observationResult === expectedResult) {
             foundMatch = true;
@@ -44,7 +51,7 @@ export default defineBenchTask(
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error instanceof Error ? error.message : String(error),
+            error.message,
           );
           continue;
         }
@@ -61,11 +68,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

@@ -1,9 +1,12 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true,
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true,
-    "esModuleInterop": true
-  }
+    "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "*": ["node_modules/*", "packages/core/lib/types/*"],
+      "@/*": ["./*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".eslintrc.cjs"]
 }

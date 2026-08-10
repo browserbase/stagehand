@@ -1,16 +1,16 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "iframe_hn" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-hn/",
+      );
 
-      // NOTE: the target content lives inside an iframe, but the task relies
-      // entirely on extract() to see into it (no frame API usage in v3 or
-      // v4), so this ported 1:1 — iframe handling is the SDK's responsibility.
-      const { data: result } = await stagehand.extract(
+      const result = await v3.extract(
         "extract the title of the first hackernews story",
         z.object({
           story_title: z.string(),
@@ -43,11 +43,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

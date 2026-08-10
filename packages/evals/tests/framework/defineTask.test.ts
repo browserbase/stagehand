@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from "vitest";
 import {
-  defineAgentBenchTask,
   defineCoreTask,
   defineBenchTask,
   defineTask,
@@ -35,28 +34,13 @@ describe("defineBenchTask", () => {
 
     expect(result.__taskDefinition).toBe(true);
     expect(result.meta.name).toBe("bench_test");
-    expect(result.fn).toBe(fn);
   });
 
   it("preserves models override in meta", () => {
-    const result = defineBenchTask({ name: "x", models: ["openai/gpt-4o"] }, vi.fn() as any);
-
-    expect((result.meta as any).models).toEqual(["openai/gpt-4o"]);
-  });
-});
-
-describe("defineAgentBenchTask", () => {
-  it("returns a TaskDefinition with marker", () => {
-    const fn = vi.fn();
-    const result = defineAgentBenchTask({ name: "agent_test" }, fn as any);
-
-    expect(result.__taskDefinition).toBe(true);
-    expect(result.meta.name).toBe("agent_test");
-    expect(result.fn).toBe(fn);
-  });
-
-  it("preserves models override in meta", () => {
-    const result = defineAgentBenchTask({ name: "x", models: ["openai/gpt-4o"] }, vi.fn() as any);
+    const result = defineBenchTask(
+      { name: "x", models: ["openai/gpt-4o"] },
+      vi.fn() as any,
+    );
 
     expect((result.meta as any).models).toEqual(["openai/gpt-4o"]);
   });

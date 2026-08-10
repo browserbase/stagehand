@@ -1,15 +1,15 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_yc_startup" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto("https://www.ycombinator.com/companies", {
         waitUntil: "networkidle",
       });
 
-      const { data: observations } = await stagehand.observe(
+      const observations = await v3.observe(
         "Click the container element that holds links to each of the startup companies. The companies each have a name, a description, and a link to their website.",
       );
 
@@ -28,25 +28,37 @@ export default defineBenchTask(
         `div._section_18olp_165._results_18olp_345`,
       ];
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and each
-      // candidate selector and compare element references.
+      // Precompute candidate backendNodeIds
+      const candidateIds = new Map<string, number>();
+      for (const sel of possibleLocators) {
+        try {
+          const id = await page.locator(sel).backendNodeId();
+          candidateIds.set(sel, id);
+        } catch {
+          // ignore candidates that fail to resolve
+        }
+      }
+
       let foundMatch = false;
       let matchedLocator: string | null = null;
 
       for (const observation of observations) {
         try {
-          const matched = await matchingSelector(page, observation.selector, possibleLocators);
-          if (matched) {
-            foundMatch = true;
-            matchedLocator = matched;
-            break;
+          const obsId = await page
+            .locator(observation.selector)
+            .backendNodeId();
+          for (const [candSel, candId] of candidateIds) {
+            if (candId === obsId) {
+              foundMatch = true;
+              matchedLocator = candSel;
+              break;
+            }
           }
+          if (foundMatch) break;
         } catch (error) {
           console.warn(
             `Failed to check observation with selector ${observation.selector}:`,
-            error instanceof Error ? error.message : String(error),
+            error?.message ?? String(error),
           );
           continue;
         }
@@ -63,11 +75,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

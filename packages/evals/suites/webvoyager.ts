@@ -1,6 +1,6 @@
 import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import type { AvailableModel } from "stagehand-v3";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {
@@ -10,7 +10,9 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-export const buildWebVoyagerTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
+export const buildWebVoyagerTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const voyagerFilePath = path.join(
     getPackageRootDir(),
     "datasets",
@@ -42,7 +44,9 @@ export const buildWebVoyagerTestcases = (models: string[] | AgentModelEntry[]): 
     if (parsed === null || typeof parsed !== "object") return false;
     const obj = parsed as Record<string, unknown>;
     return (
-      typeof obj.id === "string" && typeof obj.web === "string" && typeof obj.ques === "string"
+      typeof obj.id === "string" &&
+      typeof obj.web === "string" &&
+      typeof obj.ques === "string"
     );
   }
 
@@ -64,7 +68,8 @@ export const buildWebVoyagerTestcases = (models: string[] | AgentModelEntry[]): 
           web_name: row.web_name,
         },
       };
-      const taskCategories = tasksConfig.find((t) => t.name === input.name)?.categories || [];
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,

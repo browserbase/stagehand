@@ -11,7 +11,7 @@
  * "did the agent complete this task successfully? <instruction>" pattern,
  * pass the instruction.
  */
-import type { Rubric } from "stagehand-v3";
+import type { Rubric } from "@browserbasehq/stagehand";
 
 export function adHocRubric(...criteria: string[]): Rubric {
   if (criteria.length === 0) {

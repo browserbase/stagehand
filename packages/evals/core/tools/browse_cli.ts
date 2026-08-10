@@ -1,9 +1,15 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import { promisify } from "node:util";
+import path from "node:path";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  FocusedTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 import type {
   CoreCapability,
   CoreLocatorHandle,
@@ -14,7 +20,6 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import { BROWSE_CLI_BUILD_ARTIFACTS, BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
 import { getRepoRootDir } from "../../runtimePaths.js";
 
 const execFileAsync = promisify(execFile);
@@ -35,11 +40,25 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "representation",
 ];
 
+const BROWSE_CLI_ENTRYPOINT = path.join(
+  getRepoRootDir(),
+  "packages",
+  "cli",
+  "bin",
+  "run.js",
+);
+const BROWSE_CLI_BUILD_ARTIFACTS = [
+  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
+  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
+];
+
 function resolveBrowseCliEntrypoint(): string {
-  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find((artifact) => !fs.existsSync(artifact));
+  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
+    (artifact) => !fs.existsSync(artifact),
+  );
   if (missingArtifact) {
     throw new Error(
-      `browse_cli dependency is incomplete; missing ${missingArtifact}. Reinstall workspace dependencies.`,
+      `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
     );
   }
 
@@ -93,7 +112,13 @@ class BrowseCliRuntime {
   async runJson<T>(args: string[]): Promise<T> {
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
-      [resolveBrowseCliEntrypoint(), "--json", "--session", this.session, ...args],
+      [
+        resolveBrowseCliEntrypoint(),
+        "--json",
+        "--session",
+        this.session,
+        ...args,
+      ],
       {
         cwd: getRepoRootDir(),
         env: process.env,
@@ -104,7 +129,9 @@ class BrowseCliRuntime {
     const trimmed = stdout.trim();
     if (!trimmed) {
       const detail = stderr.trim();
-      throw new Error(detail || `browse ${args.join(" ")} returned no JSON output`);
+      throw new Error(
+        detail || `browse ${args.join(" ")} returned no JSON output`,
+      );
     }
 
     return JSON.parse(trimmed) as T;
@@ -118,7 +145,10 @@ class BrowseCliLocatorHandle implements CoreLocatorHandle {
   ) {}
 
   async count(): Promise<number> {
-    return this.pageHandle.evaluateSelector<number>(this.selector, "return elements.length;");
+    return this.pageHandle.evaluateSelector<number>(
+      this.selector,
+      "return elements.length;",
+    );
   }
 
   async click(): Promise<void> {
@@ -183,7 +213,10 @@ class BrowseCliPageHandle implements CorePageHandle {
   }
 
   private async refreshUrl(): Promise<void> {
-    const result = await this.runCommandAfterSelecting<{ url: string }>(["get", "url"]);
+    const result = await this.runCommandAfterSelecting<{ url: string }>([
+      "get",
+      "url",
+    ]);
     this.cachedUrl = result.url;
   }
 
@@ -219,7 +252,9 @@ class BrowseCliPageHandle implements CorePageHandle {
     timeoutMs?: number;
   }): Promise<void> {
     void opts;
-    const result = await this.runCommandAfterSelecting<{ url: string }>(["reload"]);
+    const result = await this.runCommandAfterSelecting<{ url: string }>([
+      "reload",
+    ]);
     this.cachedUrl = result.url;
   }
 
@@ -228,7 +263,9 @@ class BrowseCliPageHandle implements CorePageHandle {
     timeoutMs?: number;
   }): Promise<boolean> {
     void opts;
-    const result = await this.runCommandAfterSelecting<{ url: string }>(["back"]);
+    const result = await this.runCommandAfterSelecting<{ url: string }>([
+      "back",
+    ]);
     this.cachedUrl = result.url;
     return true;
   }
@@ -238,7 +275,9 @@ class BrowseCliPageHandle implements CorePageHandle {
     timeoutMs?: number;
   }): Promise<boolean> {
     void opts;
-    const result = await this.runCommandAfterSelecting<{ url: string }>(["forward"]);
+    const result = await this.runCommandAfterSelecting<{ url: string }>([
+      "forward",
+    ]);
     this.cachedUrl = result.url;
     return true;
   }
@@ -258,7 +297,10 @@ class BrowseCliPageHandle implements CorePageHandle {
   }
 
   async title(): Promise<string> {
-    const result = await this.runCommandAfterSelecting<{ title: string }>(["get", "title"]);
+    const result = await this.runCommandAfterSelecting<{ title: string }>([
+      "get",
+      "title",
+    ]);
     return result.title;
   }
 
@@ -271,7 +313,10 @@ class BrowseCliPageHandle implements CorePageHandle {
         ? pageFunctionOrExpression
         : `(${pageFunctionOrExpression.toString()})(${serializeArg(arg)})`;
 
-    const result = await this.runCommandAfterSelecting<{ result: R }>(["eval", expression]);
+    const result = await this.runCommandAfterSelecting<{ result: R }>([
+      "eval",
+      expression,
+    ]);
     return result.result;
   }
 
@@ -291,12 +336,18 @@ class BrowseCliPageHandle implements CorePageHandle {
       args.push("-q", String(opts.quality));
     }
 
-    const result = await this.runCommandAfterSelecting<{ base64: string }>(args);
+    const result = await this.runCommandAfterSelecting<{ base64: string }>(
+      args,
+    );
     return Buffer.from(result.base64, "base64");
   }
 
   async setViewport(size: { width: number; height: number }): Promise<void> {
-    await this.runCommandAfterSelecting(["viewport", String(size.width), String(size.height)]);
+    await this.runCommandAfterSelecting([
+      "viewport",
+      String(size.width),
+      String(size.height),
+    ]);
   }
 
   async setViewportSize(width: number, height: number): Promise<void> {
@@ -317,7 +368,11 @@ class BrowseCliPageHandle implements CorePageHandle {
         ]);
         return;
       case "timeout":
-        await this.runCommandAfterSelecting(["wait", "timeout", String(spec.timeoutMs)]);
+        await this.runCommandAfterSelecting([
+          "wait",
+          "timeout",
+          String(spec.timeoutMs),
+        ]);
         return;
       case "load_state":
         await this.runCommandAfterSelecting([
@@ -363,64 +418,112 @@ class BrowseCliPageHandle implements CorePageHandle {
     return ref.startsWith("@") ? ref : `@${ref}`;
   }
 
-  private async resolveHoverPoint(selector: string): Promise<{ x: number; y: number }> {
-    return this.runCommandAfterSelecting<{ x: number; y: number }>(["get", "box", selector]);
+  private async resolveHoverPoint(
+    selector: string,
+  ): Promise<{ x: number; y: number }> {
+    return this.runCommandAfterSelecting<{ x: number; y: number }>([
+      "get",
+      "box",
+      selector,
+    ]);
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
       }
-      await this.runCommandAfterSelecting(["click_xy", String(targetOrX), String(y)]);
+      await this.runCommandAfterSelecting([
+        "click_xy",
+        String(targetOrX),
+        String(y),
+      ]);
       return;
     }
 
     const target =
-      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
+      typeof targetOrX === "string"
+        ? ({ kind: "selector", value: targetOrX } as const)
+        : targetOrX;
 
     switch (target.kind) {
       case "selector":
         await this.runCommandAfterSelecting(["click", target.value]);
         return;
       case "snapshot_ref":
-        await this.runCommandAfterSelecting(["click", this.refSelector(target.value)]);
+        await this.runCommandAfterSelecting([
+          "click",
+          this.refSelector(target.value),
+        ]);
         return;
       case "coords":
-        await this.runCommandAfterSelecting(["click_xy", String(target.x), String(target.y)]);
+        await this.runCommandAfterSelecting([
+          "click_xy",
+          String(target.x),
+          String(target.y),
+        ]);
         return;
       default:
-        throw new Error(`browse_cli does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
       }
-      await this.runCommandAfterSelecting(["hover", String(targetOrX), String(y)]);
+      await this.runCommandAfterSelecting([
+        "hover",
+        String(targetOrX),
+        String(y),
+      ]);
       return;
     }
 
     const target =
-      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
+      typeof targetOrX === "string"
+        ? ({ kind: "selector", value: targetOrX } as const)
+        : targetOrX;
 
     switch (target.kind) {
       case "selector": {
         const point = await this.resolveHoverPoint(target.value);
-        await this.runCommandAfterSelecting(["hover", String(point.x), String(point.y)]);
+        await this.runCommandAfterSelecting([
+          "hover",
+          String(point.x),
+          String(point.y),
+        ]);
         return;
       }
       case "coords":
-        await this.runCommandAfterSelecting(["hover", String(target.x), String(target.y)]);
+        await this.runCommandAfterSelecting([
+          "hover",
+          String(target.x),
+          String(target.y),
+        ]);
         return;
       default:
-        throw new Error(`browse_cli does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+  ): Promise<void> {
     await this.runCommandAfterSelecting([
       "scroll",
       String(x),
@@ -430,7 +533,10 @@ class BrowseCliPageHandle implements CorePageHandle {
     ]);
   }
 
-  async type(targetOrText: string | ActionTarget | FocusedTarget, text?: string): Promise<void> {
+  async type(
+    targetOrText: string | ActionTarget | FocusedTarget,
+    text?: string,
+  ): Promise<void> {
     if (typeof targetOrText === "string" && typeof text === "undefined") {
       await this.runCommandAfterSelecting(["type", targetOrText]);
       return;
@@ -450,14 +556,24 @@ class BrowseCliPageHandle implements CorePageHandle {
         await this.runCommandAfterSelecting(["type", text]);
         return;
       case "selector":
-        await this.runCommandAfterSelecting(["fill", target.value, text, "--no-press-enter"]);
+        await this.runCommandAfterSelecting([
+          "fill",
+          target.value,
+          text,
+          "--no-press-enter",
+        ]);
         return;
       default:
-        throw new Error(`browse_cli does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async press(targetOrKey: string | ActionTarget | FocusedTarget, key?: string): Promise<void> {
+  async press(
+    targetOrKey: string | ActionTarget | FocusedTarget,
+    key?: string,
+  ): Promise<void> {
     if (typeof targetOrKey === "string" && typeof key === "undefined") {
       await this.runCommandAfterSelecting(["press", targetOrKey]);
       return;
@@ -481,15 +597,24 @@ class BrowseCliPageHandle implements CorePageHandle {
         await this.runCommandAfterSelecting(["press", key]);
         return;
       case "snapshot_ref":
-        await this.runCommandAfterSelecting(["click", this.refSelector(target.value)]);
+        await this.runCommandAfterSelecting([
+          "click",
+          this.refSelector(target.value),
+        ]);
         await this.runCommandAfterSelecting(["press", key]);
         return;
       case "coords":
-        await this.runCommandAfterSelecting(["click_xy", String(target.x), String(target.y)]);
+        await this.runCommandAfterSelecting([
+          "click_xy",
+          String(target.x),
+          String(target.y),
+        ]);
         await this.runCommandAfterSelecting(["press", key]);
         return;
       default:
-        throw new Error(`browse_cli does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `browse_cli does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -549,7 +674,10 @@ class BrowseCliSession implements CoreSession {
       this.wrap(page);
     }
 
-    if (this.activePageId && !pages.some((page) => page.targetId === this.activePageId)) {
+    if (
+      this.activePageId &&
+      !pages.some((page) => page.targetId === this.activePageId)
+    ) {
       this.activePageId = null;
     }
     if (!this.activePageId && pages.length > 0) {
@@ -643,7 +771,9 @@ class BrowseCliSession implements CoreSession {
   }
 }
 
-function connectionModeFromProfile(startupProfile: StartupProfile): ConnectionMode {
+function connectionModeFromProfile(
+  startupProfile: StartupProfile,
+): ConnectionMode {
   if (startupProfile === "tool_launch_local") {
     return "launch";
   }
@@ -667,20 +797,31 @@ export class BrowseCliTool implements CoreTool {
     "tool_launch_local",
     "tool_create_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
-  readonly supportedTargetKinds: TargetKind[] = ["selector", "coords", "focused", "snapshot_ref"];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
+  readonly supportedTargetKinds: TargetKind[] = [
+    "selector",
+    "coords",
+    "focused",
+    "snapshot_ref",
+  ];
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     if (
       input.startupProfile !== "tool_launch_local" &&
       input.startupProfile !== "tool_create_browserbase"
     ) {
-      throw new Error(`browse_cli does not support startup profile "${input.startupProfile}" yet`);
+      throw new Error(
+        `browse_cli does not support startup profile "${input.startupProfile}" yet`,
+      );
     }
 
     if (
-      (input.environment === "LOCAL" && input.startupProfile !== "tool_launch_local") ||
-      (input.environment === "BROWSERBASE" && input.startupProfile !== "tool_create_browserbase")
+      (input.environment === "LOCAL" &&
+        input.startupProfile !== "tool_launch_local") ||
+      (input.environment === "BROWSERBASE" &&
+        input.startupProfile !== "tool_create_browserbase")
     ) {
       throw new Error(
         `browse_cli startup profile "${input.startupProfile}" is not valid for environment "${input.environment}"`,
@@ -699,7 +840,8 @@ export class BrowseCliTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
         browserOwnership: "tool",
         connectionMode: connectionModeFromProfile(input.startupProfile),
         startupProfile: input.startupProfile,

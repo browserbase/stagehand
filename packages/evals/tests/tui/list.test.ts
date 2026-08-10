@@ -11,6 +11,8 @@ const emptyRegistry: TaskRegistry = {
 
 describe("printList", () => {
   it("rejects unknown tier filters", () => {
-    expect(() => printList(emptyRegistry, "benhc")).toThrow('Unknown list filter "benhc"');
+    expect(() => printList(emptyRegistry, "benhc")).toThrow(
+      'Unknown list filter "benhc"',
+    );
   });
 });

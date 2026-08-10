@@ -7,8 +7,13 @@
  *
  * A third tier ("interpret") is planned but not yet implemented.
  */
-import type { AgentToolMode, AgentInstance, AvailableModel, LogLine, V3 } from "stagehand-v3";
-import type { Page, Stagehand } from "@browserbasehq/stagehand";
+import type {
+  AgentToolMode,
+  AgentInstance,
+  AvailableModel,
+  LogLine,
+  V3,
+} from "@browserbasehq/stagehand";
 import type {
   CorePageHandle,
   CoreSession,
@@ -19,11 +24,8 @@ import type {
 } from "../core/contracts/tool.js";
 import type { EvalLogger } from "../logger.js";
 
-/**
- * Page type inferred from V3.context.pages()[0]. Named V3Page because the v4
- * `Page` import above must keep its exported name (stagehand/no-renamed-imports).
- */
-type V3Page = ReturnType<V3["context"]["pages"]>[number];
+/** Page type inferred from V3.context.pages()[0] */
+type Page = ReturnType<V3["context"]["pages"]>[number];
 
 export type Tier = "core" | "bench";
 
@@ -64,40 +66,14 @@ export interface CoreTaskContext {
   logger: EvalLogger;
 }
 
-/** Context provided to bench a/e/o tasks using the Stagehand v4 SDK. */
+/** Context provided to bench (tier 3) tasks — matches existing EvalFunction input. */
 export interface BenchTaskContext {
-  /** Stagehand v4 client instance. */
-  stagehand: Stagehand;
-  /** v4 page object (RPC-backed — url()/title() are async). */
-  page: Page;
-  /** Eval logger. */
-  logger: EvalLogger;
-  /** Full eval input (name, modelName, params). */
-  input: {
-    name: string;
-    modelName: AvailableModel;
-    params?: Record<string, unknown>;
-  };
-  /** Model used for this run. */
-  modelName: AvailableModel;
-  /** Debug URL (unavailable from the v4 SDK — always empty for now). */
-  debugUrl: string;
-  /** Session URL (Browserbase). */
-  sessionUrl: string;
-}
-
-/**
- * Context provided to bench agent tasks.
- *
- * The agent tier stays on the stagehand-v3 package on this branch.
- */
-export interface AgentBenchTaskContext {
   /** Stagehand V3 instance. */
   v3: V3;
   /** Agent instance (created when the task lives under agent/). */
   agent?: AgentInstance;
   /** Playwright page (convenience — same as v3.context.pages()[0]). */
-  page: V3Page;
+  page: Page;
   /** Eval logger. */
   logger: EvalLogger;
   /** Full eval input (name, modelName, agent mode, params). */
@@ -158,9 +134,7 @@ export interface TaskDefinition {
   /** User-provided metadata. */
   meta: TaskMeta | BenchTaskMeta;
   /** The task function. */
-  fn: (
-    ctx: CoreTaskContext | BenchTaskContext | AgentBenchTaskContext,
-  ) => Promise<void | TaskResult>;
+  fn: (ctx: CoreTaskContext | BenchTaskContext) => Promise<void | TaskResult>;
   /** Which tier this task was defined for (set during discovery from directory). */
   tier?: Tier;
 }

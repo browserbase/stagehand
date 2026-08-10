@@ -1,48 +1,48 @@
 import {
   V3Evaluator,
-  loadApiKeyFromEnv,
   normalizeRubric,
-  type AvailableModel,
+  type AgentInstance,
+  type AgentExecuteOptions,
+  type AgentResult,
   type EvaluationResult,
   type Rubric,
   type TaskSpec,
   type Trajectory,
   type V3,
-} from "stagehand-v3";
+} from "@browserbasehq/stagehand";
 
 import type { EvalLogger } from "../logger.js";
 import { tracedSpan } from "./braintrust.js";
 import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
 import { RubricCache } from "./rubricCache.js";
+import { TrajectoryRecorder } from "./trajectoryRecorder.js";
 import type { TaskResult } from "./types.js";
 
-const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
-const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
+export interface RunWithVerifierOptions {
+  v3: V3;
+  agent: AgentInstance;
+  taskSpec: TaskSpec;
+  /**
+   * Dataset name for rubric cache partitioning. Each task lives under
+   * `.rubric-cache/<dataset>/<task-id>.json`.
+   */
+  dataset: string;
+  /** Agent execute options. `instruction` is filled from taskSpec.instruction. */
+  agentOptions?: Omit<AgentExecuteOptions, "instruction">;
+  /** Override the run id (defaults to ISO timestamp). */
+  runId?: string;
+  /** Override trajectory persistence root. */
+  trajectoryRoot?: string;
+}
 
-/**
- * Build the shared rubric verifier. By default V3Evaluator keeps its existing
- * model selection; EVAL_VERIFIER_MODEL makes the verifier independently
- * selectable for external harnesses and normal Stagehand runs alike.
- */
-export function createVerifierEvaluator(v3: V3): V3Evaluator {
-  const modelName = process.env[VERIFIER_MODEL_ENV]?.trim();
-  if (!modelName) {
-    return new V3Evaluator(v3, { backend: "verifier" });
-  }
-
-  const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
-  const apiKey = loadApiKeyFromEnv(provider, () => {});
-  if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
-    throw new Error(
-      `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
-    );
-  }
-
-  return new V3Evaluator(v3, {
-    backend: "verifier",
-    modelName: modelName as AvailableModel,
-    ...(apiKey ? { modelClientOptions: { apiKey } } : {}),
-  });
+export interface RunWithVerifierResult {
+  trajectory: Trajectory;
+  evaluationResult: EvaluationResult;
+  agentResult: AgentResult;
+  /** Resolved rubric (precomputed, cached, or freshly generated). */
+  rubric: Rubric;
+  /** Where the trajectory was persisted (or would have been, if disabled). */
+  trajectoryDir: string;
 }
 
 /** Where a task's resolved rubric came from. */
@@ -79,7 +79,9 @@ export async function resolveRubricTraced(
         rubric = await evaluator.generateRubric(taskSpec);
         source = "generated";
       } else {
-        const cache = new RubricCache(cacheRoot ? { dataset, cacheRoot } : { dataset });
+        const cache = new RubricCache(
+          cacheRoot ? { dataset, cacheRoot } : { dataset },
+        );
         const cached = await cache.read(taskSpec);
         if (cached) {
           rubric = cached;
@@ -219,7 +221,7 @@ export async function gradeExternalTrajectory({
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
   try {
     const trajectory = buildTrajectory();
-    const evaluator = createVerifierEvaluator(verifier.v3);
+    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
 
     // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
     const { rubric } = await resolveRubricTraced(evaluator, {
@@ -237,7 +239,10 @@ export async function gradeExternalTrajectory({
       dataset: verifier.dataset,
     });
     const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(evaluationResult, successMode);
+    const verifiedSuccess = evaluationResultToSuccess(
+      evaluationResult,
+      successMode,
+    );
 
     const { directory: trajectoryDir } = await persistAdapterTrajectory({
       trajectory: hydratedTrajectory,
@@ -301,8 +306,107 @@ function stringifyVerifierError(value: unknown): string {
   return "unknown verifier error";
 }
 
+export async function runWithVerifier(
+  opts: RunWithVerifierOptions,
+): Promise<RunWithVerifierResult> {
+  const { v3, agent, taskSpec, dataset, agentOptions, runId, trajectoryRoot } =
+    opts;
+  const evaluator = new V3Evaluator(v3, { backend: "verifier" });
+
+  // ── Resolve rubric ──────────────────────────────────────────────────────
+  const { rubric: resolvedRubric } = await resolveRubricTraced(evaluator, {
+    taskSpec,
+    dataset,
+  });
+
+  // Hand a fully-hydrated TaskSpec to the verifier so it doesn't regenerate.
+  const hydratedTaskSpec: TaskSpec = {
+    ...taskSpec,
+    precomputedRubric: resolvedRubric,
+  };
+
+  // ── Record trajectory around agent.execute() ───────────────────────────
+  const recorder = new TrajectoryRecorder({
+    taskSpec: hydratedTaskSpec,
+    runId,
+    outputRoot: trajectoryRoot,
+  });
+  const { callbacks: userCallbacks, ...restAgentOptions } = agentOptions ?? {};
+
+  let agentResult: AgentResult;
+  let recorderStatus: "complete" | "aborted" | "error" = "complete";
+  try {
+    agentResult = await tracedSpan(
+      async (span) => {
+        const result = await agent.execute({
+          ...restAgentOptions,
+          instruction: taskSpec.instruction,
+          callbacks: {
+            ...userCallbacks,
+            onEvidence: async (event) => {
+              recorder.record(event);
+              await userCallbacks?.onEvidence?.(event);
+            },
+          },
+        });
+        span.log({
+          output: { message: result.message?.slice(0, 500) },
+          metrics: usageMetrics(result.usage),
+        });
+        return result;
+      },
+      { name: "agent.execute", type: "task" },
+    );
+  } catch (e) {
+    recorderStatus = "error";
+    // Re-throw after persisting so the bench task can decide how to report.
+    const wrapped = e instanceof Error ? e : new Error(String(e));
+    try {
+      const trajectory = await recorder.finish({ status: recorderStatus });
+      Object.assign(wrapped, { trajectoryDir: recorder.directory, trajectory });
+    } catch {
+      // Persistence failure must not mask the original agent error.
+    }
+    throw wrapped;
+  }
+
+  const trajectory = await recorder.finish({
+    status: recorderStatus,
+    finalAnswer: agentResult.message,
+    usage: agentResult.usage,
+  });
+
+  // ── Verify ──────────────────────────────────────────────────────────────
+  const evaluationResult = await verifyTraced(evaluator, trajectory, {
+    taskId: taskSpec.id,
+    dataset,
+  });
+  await recorder.persistResult(evaluationResult);
+
+  return {
+    trajectory,
+    evaluationResult,
+    agentResult,
+    rubric: resolvedRubric,
+    trajectoryDir: recorder.directory,
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function usageMetrics(
+  usage: AgentResult["usage"] | undefined,
+): Record<string, number> {
+  if (!usage) return {};
+  return Object.fromEntries(
+    Object.entries(usage).filter(
+      (e): e is [string, number] => typeof e[1] === "number",
+    ),
+  );
 }
 
 /**
@@ -318,7 +422,11 @@ export type EvalSuccessMode = "outcome" | "process" | "both";
 export function resolveEvalSuccessMode(mode: unknown): EvalSuccessMode {
   if (typeof mode !== "string") return "outcome";
   const normalized = mode.trim().toLowerCase();
-  if (normalized === "outcome" || normalized === "process" || normalized === "both") {
+  if (
+    normalized === "outcome" ||
+    normalized === "process" ||
+    normalized === "both"
+  ) {
     return normalized;
   }
   return "outcome";
@@ -332,7 +440,8 @@ export function evaluationResultToSuccess(
   const resolvedMode = resolveEvalSuccessMode(mode);
   const outcomeOk = result.outcomeSuccess;
   const processOk =
-    typeof result.processScore === "number" && result.processScore >= processThreshold;
+    typeof result.processScore === "number" &&
+    result.processScore >= processThreshold;
   switch (resolvedMode) {
     case "outcome":
       return outcomeOk;

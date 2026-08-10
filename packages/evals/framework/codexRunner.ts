@@ -1,12 +1,14 @@
-import type { AvailableModel } from "stagehand-v3";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
-import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
+import {
+  gradeExternalTrajectory,
+  type ExternalHarnessVerifierConfig,
+} from "./verifierAdapter.js";
 
 type MetricValue = { count: number; value: number };
 type CodexEvent = Record<string, unknown>;
@@ -67,22 +69,15 @@ const EVAL_RESULT_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-/** Tool-step budget: EVAL_CODEX_MAX_STEPS, falling back to the pre-migration
- * AGENT_EVAL_MAX_STEPS knob so carried-forward run configs keep working. */
-function readCodexMaxToolSteps(): number {
-  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
 export function normalizeCodexModel(model: AvailableModel): string {
   if (model === ("codex/default" as AvailableModel)) return "gpt-5.4-mini";
   return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
 }
 
-export function buildCodexPrompt(plan: ExternalHarnessTaskPlan, toolInstructions?: string): string {
+export function buildCodexPrompt(
+  plan: ExternalHarnessTaskPlan,
+  toolInstructions?: string,
+): string {
   return [
     "You are running a browser benchmark task.",
     "",
@@ -93,8 +88,8 @@ export function buildCodexPrompt(plan: ExternalHarnessTaskPlan, toolInstructions
     "Instruction:",
     plan.instruction,
     "",
-    datasetPromptGuidance(plan.dataset),
-    toolInstructions ?? "Use the available browser/web tools to complete the task.",
+    toolInstructions ??
+      "Use the available browser/web tools to complete the task.",
     "Do not edit repository files.",
     "At the end, return compact JSON matching this schema:",
     '{"success": boolean, "summary": string, "finalAnswer": string}',
@@ -136,31 +131,13 @@ export async function runCodexAgent({
   sdk: injectedSdk,
   verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
-  const sdk =
-    injectedSdk ??
-    (await loadCodexSdk(
-      toolAdapter?.env,
-      toolAdapter && "codexConfig" in toolAdapter ? toolAdapter.codexConfig : undefined,
-    ));
+  const sdk = injectedSdk ?? (await loadCodexSdk(toolAdapter?.env));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
   const events: CodexEvent[] = [];
   let finalResponse = "";
   let usage: CodexUsage | undefined;
   let iterationError: unknown;
   let stopReason: string | undefined;
-
-  // Codex has no native turn/step limit, so a run could grind indefinitely.
-  // Cap tool steps (command executions + MCP tool calls) and abort the
-  // stream at the budget — the analogue of Claude Code's maxTurns, and it
-  // gives every published run a citable, reproducible action budget.
-  const maxToolSteps = readCodexMaxToolSteps();
-  const budgetController = new AbortController();
-  const forwardAbort = () => budgetController.abort(signal?.reason);
-  if (signal) {
-    if (signal.aborted) budgetController.abort(signal.reason);
-    else signal.addEventListener("abort", forwardAbort, { once: true });
-  }
-  let toolStepCount = 0;
 
   try {
     const thread = sdk.startThread({
@@ -176,7 +153,7 @@ export async function runCodexAgent({
     });
     const streamed = await thread.runStreamed(prompt, {
       outputSchema: EVAL_RESULT_SCHEMA,
-      signal: budgetController.signal,
+      ...(signal && { signal }),
     });
 
     for await (const event of streamed.events) {
@@ -188,7 +165,8 @@ export async function runCodexAgent({
       } else if (event.type === "turn.failed") {
         stopReason = readCodexErrorMessage(event.error);
       } else if (event.type === "error") {
-        stopReason = typeof event.message === "string" ? event.message : "error";
+        stopReason =
+          typeof event.message === "string" ? event.message : "error";
       }
 
       const item = isRecord(event.item) ? event.item : undefined;
@@ -198,27 +176,6 @@ export async function runCodexAgent({
         typeof item.text === "string"
       ) {
         finalResponse = item.text;
-      }
-      if (
-        event.type === "item.completed" &&
-        (item?.type === "command_execution" || item?.type === "mcp_tool_call")
-      ) {
-        toolStepCount += 1;
-        if (toolStepCount >= maxToolSteps && !budgetController.signal.aborted) {
-          stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-          budgetController.abort(new Error(stopReason));
-        }
-      }
-      // MCP-mounted surfaces: each completed MCP tool call consumes one
-      // observation index, in stream order (mirrors the bridge's
-      // onRunExecuted for code surfaces).
-      if (
-        event.type === "item.completed" &&
-        item?.type === "mcp_tool_call" &&
-        toolAdapter &&
-        "recordObservation" in toolAdapter
-      ) {
-        toolAdapter.recordObservation?.();
       }
     }
   } catch (error) {
@@ -236,10 +193,6 @@ export async function runCodexAgent({
     });
   }
 
-  // Long batches share one abort signal; detach the forwarder so completed
-  // runs don't accumulate listeners on it.
-  signal?.removeEventListener("abort", forwardAbort);
-
   const transcriptText = buildCodexTranscript(events);
   const iterationErrorMessage = stringifyError(iterationError);
   const rawResult = [finalResponse, transcriptText, iterationErrorMessage]
@@ -250,7 +203,10 @@ export async function runCodexAgent({
   const errorMessage =
     parsed.summary ??
     stopReason ??
-    (iterationErrorMessage || finalResponse || transcriptText || "Codex did not report success");
+    (iterationErrorMessage ||
+      finalResponse ||
+      transcriptText ||
+      "Codex did not report success");
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
@@ -267,18 +223,6 @@ export async function runCodexAgent({
     return baseResult;
   }
 
-  // Artifact-grounded grading: capture the terminal page state through the
-  // tool surface (harness-observed, independent of the agent's self-report)
-  // before cleanup, mirroring the claude_code runner.
-  const finalObservation =
-    toolAdapter && "captureEvidence" in toolAdapter
-      ? await toolAdapter.captureEvidence?.().catch((): undefined => undefined)
-      : undefined;
-  const stepObservations =
-    toolAdapter && "drainStepObservations" in toolAdapter
-      ? await toolAdapter.drainStepObservations?.()
-      : undefined;
-
   // Build a Trajectory from the codex event stream and grade it with the
   // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
@@ -286,13 +230,6 @@ export async function runCodexAgent({
       codexAdapter.fromHarnessResult(
         {
           events,
-          ...(finalObservation && { finalObservation }),
-          ...(stepObservations?.length && { stepObservations }),
-          ...(toolAdapter &&
-            "observedToolMatcher" in toolAdapter &&
-            toolAdapter.observedToolMatcher && {
-              observedToolName: toolAdapter.observedToolMatcher,
-            }),
           finalAnswer: parsed.finalAnswer ?? finalResponse,
           status: status === "completed" ? "complete" : "error",
           usage: {
@@ -316,7 +253,9 @@ export async function runCodexAgent({
   });
 }
 
-function tryParseCodexJson(candidate: string): Omit<ParsedCodexResult, "raw"> | undefined {
+function tryParseCodexJson(
+  candidate: string,
+): Omit<ParsedCodexResult, "raw"> | undefined {
   try {
     const parsed = JSON.parse(candidate) as {
       success?: unknown;
@@ -326,7 +265,8 @@ function tryParseCodexJson(candidate: string): Omit<ParsedCodexResult, "raw"> | 
     return {
       success: parsed.success === true,
       summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-      finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
+      finalAnswer:
+        typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
     };
   } catch {
     return undefined;
@@ -340,7 +280,9 @@ function resolveCodexStatus(
   return iterationError || stopReason ? "sdk_error" : "completed";
 }
 
-function buildCodexMetrics(usage: CodexUsage | undefined): Record<string, MetricValue> {
+function buildCodexMetrics(
+  usage: CodexUsage | undefined,
+): Record<string, MetricValue> {
   const inputTokens = toFiniteNumber(usage?.input_tokens);
   const cachedInputTokens = toFiniteNumber(usage?.cached_input_tokens);
   const outputTokens = toFiniteNumber(usage?.output_tokens);
@@ -417,7 +359,8 @@ function summarizeCodexEvent(event: CodexEvent): {
   }
   if (item?.type === "command_execution") {
     return {
-      message: `command: ${String(item.command ?? "")} ${String(item.status ?? "")}`.trim(),
+      message:
+        `command: ${String(item.command ?? "")} ${String(item.status ?? "")}`.trim(),
       detail: safeJson(item),
     };
   }
@@ -459,10 +402,7 @@ function summarizeCodexEvent(event: CodexEvent): {
   };
 }
 
-async function loadCodexSdk(
-  env?: Record<string, string>,
-  extraConfig?: Record<string, unknown>,
-): Promise<CodexSdk> {
+async function loadCodexSdk(env?: Record<string, string>): Promise<CodexSdk> {
   try {
     const specifier = CODEX_SDK_PACKAGE;
     const mod = (await import(specifier)) as {
@@ -483,9 +423,8 @@ async function loadCodexSdk(
         apiKey: process.env.OPENAI_API_KEY,
       }),
       config: {
-        show_raw_agent_reasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
-        // Adapter-provided overrides (e.g. mcp_servers for MCP mounts).
-        ...extraConfig,
+        show_raw_agent_reasoning:
+          process.env.EVAL_CODEX_RAW_REASONING === "true",
       },
     });
   } catch (error) {
@@ -497,17 +436,33 @@ async function loadCodexSdk(
   }
 }
 
-function readCodexSandboxMode(): "read-only" | "workspace-write" | "danger-full-access" {
+function readCodexSandboxMode():
+  | "read-only"
+  | "workspace-write"
+  | "danger-full-access" {
   const raw = process.env.EVAL_CODEX_SANDBOX_MODE;
-  if (raw === "read-only" || raw === "workspace-write" || raw === "danger-full-access") {
+  if (
+    raw === "read-only" ||
+    raw === "workspace-write" ||
+    raw === "danger-full-access"
+  ) {
     return raw;
   }
   return "workspace-write";
 }
 
-function readCodexApprovalPolicy(): "never" | "on-request" | "on-failure" | "untrusted" {
+function readCodexApprovalPolicy():
+  | "never"
+  | "on-request"
+  | "on-failure"
+  | "untrusted" {
   const raw = process.env.EVAL_CODEX_APPROVAL_POLICY;
-  if (raw === "never" || raw === "on-request" || raw === "on-failure" || raw === "untrusted") {
+  if (
+    raw === "never" ||
+    raw === "on-request" ||
+    raw === "on-failure" ||
+    raw === "untrusted"
+  ) {
     return raw;
   }
   return "never";
@@ -548,5 +503,7 @@ function stringifyError(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, maxLength - 1)}…`;
 }

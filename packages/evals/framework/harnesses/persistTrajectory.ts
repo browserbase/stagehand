@@ -1,13 +1,20 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { shouldPersistTrajectory, writeTrajectoryDir } from "stagehand-v3";
+import {
+  shouldPersistTrajectory,
+  writeTrajectoryDir,
+} from "@browserbasehq/stagehand";
 import {
   reserveTrajectoryDir,
   resolveTrajectoryDir,
   resolveTrajectoryRoot,
   writeTrajectoryMetadata,
 } from "../trajectoryGroup.js";
-import type { EvaluationResult, TaskSpec, Trajectory } from "stagehand-v3";
+import type {
+  EvaluationResult,
+  TaskSpec,
+  Trajectory,
+} from "@browserbasehq/stagehand";
 
 export interface PersistAdapterTrajectoryOptions {
   trajectory: Trajectory;
@@ -64,7 +71,11 @@ export async function persistAdapterTrajectory(
 
   // Reserve atomically so a re-run or a concurrent same-timestamp run lands
   // beside the previous trajectory rather than overwriting it.
-  const { directory, attempt } = await reserveTrajectoryDir(root, opts.taskSpec.id, runId);
+  const { directory, attempt } = await reserveTrajectoryDir(
+    root,
+    opts.taskSpec.id,
+    runId,
+  );
 
   await writeTrajectoryDir(directory, opts.trajectory);
   await writeTrajectoryMetadata(directory, {

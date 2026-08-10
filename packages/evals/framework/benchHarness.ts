@@ -1,7 +1,20 @@
-import { V3, normalizeRubric, type TaskSpec } from "stagehand-v3";
+import {
+  AgentProvider,
+  V3,
+  getAISDKLanguageModel,
+  loadApiKeyFromEnv,
+  normalizeRubric,
+  type AgentInstance,
+  type AvailableModel,
+  type LLMClient,
+  type LogLine,
+  type TaskSpec,
+} from "@browserbasehq/stagehand";
+import { AISdkClientWrapped } from "../lib/AISdkClientWrapped.js";
+import { endBrowserbaseSession } from "../browserbaseCleanup.js";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import type { StagehandInitResult } from "../initStagehand.js";
+import type { V3InitResult } from "../initV3.js";
 import type { EvalInput } from "../types/evals.js";
 import { runClaudeCodeAgent } from "./claudeCodeRunner.js";
 import {
@@ -9,10 +22,15 @@ import {
   type PreparedClaudeCodeToolAdapter,
 } from "./claudeCodeToolAdapter.js";
 import { runCodexAgent } from "./codexRunner.js";
-import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexToolAdapter.js";
+import {
+  prepareCodexToolAdapter,
+  type PreparedCodexToolAdapter,
+} from "./codexToolAdapter.js";
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
+
+type Page = ReturnType<V3["context"]["pages"]>[number];
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
@@ -26,18 +44,16 @@ export interface BenchHarnessExecuteInput extends BenchHarnessStartInput {
   signal?: AbortSignal;
 }
 
-interface BenchHarnessContextBase {
+export interface BenchHarnessContext {
   harness: Harness;
   row: BenchMatrixRow;
   logger: EvalLogger;
+  v3?: V3;
+  agent?: AgentInstance;
+  page?: Page;
   debugUrl: string;
   sessionUrl: string;
 }
-
-export type BenchHarnessContext = BenchHarnessContextBase & {
-  stagehand: StagehandInitResult["stagehand"];
-  page: StagehandInitResult["page"];
-};
 
 export interface StartedBenchHarness {
   ctx: BenchHarnessContext;
@@ -50,6 +66,14 @@ export interface BenchHarness {
   supportsApi: boolean;
   execute?(input: BenchHarnessExecuteInput): Promise<TaskResult>;
   start(input: BenchHarnessStartInput): Promise<StartedBenchHarness>;
+}
+
+function isAgentTask(task: DiscoveredTask): boolean {
+  return (
+    task.primaryCategory === "agent" ||
+    task.categories.includes("agent") ||
+    task.categories.includes("external_agent_benchmarks")
+  );
 }
 
 /**
@@ -89,49 +113,115 @@ function buildExternalHarnessTaskSpec(
   };
 }
 
+function resolveProvider(modelName: AvailableModel): string | undefined {
+  if (modelName.includes("/")) {
+    return modelName.split("/")[0];
+  }
+
+  try {
+    return AgentProvider.getAgentProvider(modelName);
+  } catch {
+    return undefined;
+  }
+}
+
 export const stagehandHarness: BenchHarness = {
   harness: "stagehand",
-  supportedTaskKinds: ["act", "extract", "observe"],
-  supportsApi: false,
-  async start({ task, input, row, logger }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
+  supportedTaskKinds: [
+    "act",
+    "extract",
+    "observe",
+    "agent",
+    "combination",
+    "suite",
+  ],
+  supportsApi: true,
+  async start({
+    task,
+    input,
+    row,
+    logger,
+    verbose,
+  }: BenchHarnessStartInput): Promise<StartedBenchHarness> {
+    let v3Result: V3InitResult | undefined;
+    const createAgent = isAgentTask(task);
     if (row.config.harness !== "stagehand") {
       throw new EvalsError(
         `Harness "${row.config.harness}" is not implemented yet. Use --harness stagehand for the current unified runner.`,
       );
     }
     const config = row.config;
-    if (!["act", "extract", "observe"].includes(task.primaryCategory)) {
-      throw new EvalsError(
-        `The stagehand harness runs act/extract/observe tasks only. Run agent suites with --harness claude_code or --harness codex; received "${task.name}".`,
-      );
-    }
-    if (input.agentMode) {
-      throw new EvalsError("Agent modes were removed with the v3 agent path.");
-    }
-    if (input.isCUA) {
-      throw new EvalsError("CUA runs were removed with the v3 agent path.");
-    }
+    const agentMode = config.agentMode ?? input.agentMode;
+    const isCUA = config.isCUA ?? input.isCUA;
+
     if (config.useApi) {
-      throw new EvalsError("--api is not supported with the Stagehand SDK harness.");
+      const provider = resolveProvider(input.modelName);
+      const logFn = (line: LogLine) => logger.log(line);
+      const apiKey = loadApiKeyFromEnv(provider, logFn);
+      if (!apiKey) {
+        throw new EvalsError(
+          `USE_API=true but no API key found for provider "${provider}".`,
+        );
+      }
+      const { initV3 } = await import("../initV3.js");
+      v3Result = await initV3({
+        logger,
+        modelName: input.modelName,
+        modelClientOptions: { apiKey },
+        createAgent,
+        agentMode,
+        isCUA,
+        verbose,
+        configOverrides: { env: config.environment },
+      });
+    } else {
+      let llmClient: LLMClient | undefined;
+      if (input.modelName.includes("/")) {
+        const firstSlashIndex = input.modelName.indexOf("/");
+        llmClient = new AISdkClientWrapped({
+          model: getAISDKLanguageModel(
+            input.modelName.substring(0, firstSlashIndex),
+            input.modelName.substring(firstSlashIndex + 1),
+          ),
+        });
+      }
+      const { initV3 } = await import("../initV3.js");
+      v3Result = await initV3({
+        logger,
+        llmClient,
+        modelName: input.modelName,
+        createAgent,
+        agentMode,
+        isCUA,
+        verbose,
+        configOverrides: { env: config.environment },
+      });
     }
 
-    const { initStagehand } = await import("../initStagehand.js");
-    const v4Result = await initStagehand({
-      logger,
-      modelName: input.modelName,
-      environment: config.environment,
-    });
     return {
       ctx: {
         harness: "stagehand",
         row,
         logger,
-        stagehand: v4Result.stagehand,
-        page: v4Result.page,
-        debugUrl: v4Result.debugUrl,
-        sessionUrl: v4Result.sessionUrl,
+        v3: v3Result.v3,
+        agent: v3Result.agent,
+        page: v3Result.v3.context.pages()[0],
+        debugUrl: v3Result.debugUrl ?? "",
+        sessionUrl: v3Result.sessionUrl ?? "",
       },
-      cleanup: v4Result.cleanup,
+      cleanup: async () => {
+        if (v3Result?.v3) {
+          try {
+            await v3Result.v3.close();
+          } catch (closeError) {
+            console.error(
+              `Warning: Error closing V3 instance for ${input.name}:`,
+              closeError,
+            );
+          }
+        }
+        await endBrowserbaseSession(v3Result?.v3);
+      },
     };
   },
 };
@@ -140,7 +230,12 @@ export const claudeCodeHarness: BenchHarness = {
   harness: "claude_code",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
-  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
+  async execute({
+    input,
+    row,
+    logger,
+    signal,
+  }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "claude_code") {
       throw new EvalsError(
@@ -191,10 +286,17 @@ export const codexHarness: BenchHarness = {
   harness: "codex",
   supportedTaskKinds: ["agent", "suite"],
   supportsApi: false,
-  async execute({ input, row, logger, signal }: BenchHarnessExecuteInput): Promise<TaskResult> {
+  async execute({
+    input,
+    row,
+    logger,
+    signal,
+  }: BenchHarnessExecuteInput): Promise<TaskResult> {
     const plan = buildExternalHarnessTaskPlan(input);
     if (row.config.harness !== "codex") {
-      throw new EvalsError(`Expected codex harness config, received "${row.config.harness}".`);
+      throw new EvalsError(
+        `Expected codex harness config, received "${row.config.harness}".`,
+      );
     }
     // Everything past carrier construction runs inside one try/finally so a
     // failure at any point — adapter preparation included — cleans up both

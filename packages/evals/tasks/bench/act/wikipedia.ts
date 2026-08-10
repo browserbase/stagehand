@@ -2,15 +2,16 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "wikipedia" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto(`https://en.wikipedia.org/wiki/Baseball`);
-      await stagehand.act('click the "hit and run" link in this article', {
+      await v3.act('click the "hit and run" link in this article', {
         timeout: 360_000,
       });
 
       const url = "https://en.wikipedia.org/wiki/Hit_and_run_(baseball)";
-      const currentUrl = await page.url();
+      const currentUrl = page.url();
 
       return {
         _success: currentUrl === url,
@@ -23,11 +24,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

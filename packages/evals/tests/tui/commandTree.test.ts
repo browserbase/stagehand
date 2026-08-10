@@ -14,7 +14,8 @@ import { tokenize } from "../../tui/tokenize.js";
 import type { TaskRegistry } from "../../framework/types.js";
 
 type HandlerMock = ReturnType<typeof vi.fn> & CommandHandler;
-type PrintHelpMock = ReturnType<typeof vi.fn> & NonNullable<CommandNode["printHelp"]>;
+type PrintHelpMock = ReturnType<typeof vi.fn> &
+  NonNullable<CommandNode["printHelp"]>;
 
 // ---------------------------------------------------------------------------
 // Fake tree — keeps tests independent of the real handlers.
@@ -109,22 +110,38 @@ function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
 
 describe("tokenize", () => {
   it("splits on whitespace", () => {
-    expect(tokenize("run act --trials 3")).toEqual(["run", "act", "--trials", "3"]);
+    expect(tokenize("run act --trials 3")).toEqual([
+      "run",
+      "act",
+      "--trials",
+      "3",
+    ]);
   });
 
   it("treats `>` as a separator outside quotes", () => {
     expect(tokenize("experiments > list")).toEqual(["experiments", "list"]);
     expect(tokenize("experiments>list")).toEqual(["experiments", "list"]);
-    expect(tokenize("config > core > path")).toEqual(["config", "core", "path"]);
+    expect(tokenize("config > core > path")).toEqual([
+      "config",
+      "core",
+      "path",
+    ]);
   });
 
   it("collapses runs of `>` and whitespace", () => {
     expect(tokenize("experiments > > list")).toEqual(["experiments", "list"]);
-    expect(tokenize("  experiments   >   list  ")).toEqual(["experiments", "list"]);
+    expect(tokenize("  experiments   >   list  ")).toEqual([
+      "experiments",
+      "list",
+    ]);
   });
 
   it("preserves `>` inside quoted strings", () => {
-    expect(tokenize(`run "foo > bar" --extra`)).toEqual(["run", "foo > bar", "--extra"]);
+    expect(tokenize(`run "foo > bar" --extra`)).toEqual([
+      "run",
+      "foo > bar",
+      "--extra",
+    ]);
     expect(tokenize(`run 'a>b'`)).toEqual(["run", "a>b"]);
   });
 
@@ -141,16 +158,28 @@ describe("tokenize", () => {
 
 describe("tokenizeArgv", () => {
   it("passes through args without `>`", () => {
-    expect(tokenizeArgv(["run", "act", "--trials", "3"])).toEqual(["run", "act", "--trials", "3"]);
+    expect(tokenizeArgv(["run", "act", "--trials", "3"])).toEqual([
+      "run",
+      "act",
+      "--trials",
+      "3",
+    ]);
   });
 
   it("drops standalone `>` tokens", () => {
-    expect(tokenizeArgv(["experiments", ">", "list"])).toEqual(["experiments", "list"]);
+    expect(tokenizeArgv(["experiments", ">", "list"])).toEqual([
+      "experiments",
+      "list",
+    ]);
   });
 
   it("splits args containing `>`", () => {
     expect(tokenizeArgv(["experiments>list"])).toEqual(["experiments", "list"]);
-    expect(tokenizeArgv(["config>core>path"])).toEqual(["config", "core", "path"]);
+    expect(tokenizeArgv(["config>core>path"])).toEqual([
+      "config",
+      "core",
+      "path",
+    ]);
   });
 });
 
@@ -182,7 +211,9 @@ describe("findChild + walkPath", () => {
 describe("buildCommandTree", () => {
   it("exposes verify as a root command", () => {
     const tree = buildCommandTree();
-    expect(findChild(tree, "verify")?.summary).toBe("Re-score a saved trajectory");
+    expect(findChild(tree, "verify")?.summary).toBe(
+      "Re-score a saved trajectory",
+    );
   });
 });
 
@@ -230,7 +261,11 @@ describe("resolveCommand", () => {
   });
 
   it("strips the `evals` sigil and resolves from root", () => {
-    const r = resolveCommand(tree, ["experiments"], ["evals", "config", "path"]);
+    const r = resolveCommand(
+      tree,
+      ["experiments"],
+      ["evals", "config", "path"],
+    );
     expect(r).toMatchObject({
       kind: "run",
       absolutePath: ["config", "path"],
@@ -261,7 +296,11 @@ describe("resolveCommand", () => {
   });
 
   it("yields remaining args for partial path matches", () => {
-    const r = resolveCommand(tree, [], ["experiments", "compare", "exp1", "exp2"]);
+    const r = resolveCommand(
+      tree,
+      [],
+      ["experiments", "compare", "exp1", "exp2"],
+    );
     expect(r).toMatchObject({
       kind: "run",
       args: ["exp1", "exp2"],
@@ -366,7 +405,9 @@ describe("dispatch", () => {
     const tree = makeTree(h);
     const ctx = makeCtx();
     ctx.setContextPath?.(["experiments"]);
-    await expect(dispatch(tree, ["nope"], ctx)).rejects.toThrow(/Unknown command "nope"/);
+    await expect(dispatch(tree, ["nope"], ctx)).rejects.toThrow(
+      /Unknown command "nope"/,
+    );
     expect(h.run).not.toHaveBeenCalled();
   });
 
@@ -390,7 +431,9 @@ describe("dispatch", () => {
     const h = makeHandlers();
     const tree = makeTree(h);
     const ctx = makeCtx({ contextPath: null });
-    await expect(dispatch(tree, [".."], ctx)).rejects.toThrow(/not available outside the REPL/);
+    await expect(dispatch(tree, [".."], ctx)).rejects.toThrow(
+      /not available outside the REPL/,
+    );
   });
 
   it("routes `--help` after a leaf to that leaf's printHelp", async () => {
@@ -399,7 +442,8 @@ describe("dispatch", () => {
     // Add a printHelp to compare for this test.
     const compare = tree.children![2].children![1];
     const printCompareHelp = vi.fn() as PrintHelpMock;
-    (compare as { printHelp?: (s: readonly string[]) => void }).printHelp = printCompareHelp;
+    (compare as { printHelp?: (s: readonly string[]) => void }).printHelp =
+      printCompareHelp;
     await dispatch(tree, ["experiments", "compare", "--help"], makeCtx());
     expect(printCompareHelp).toHaveBeenCalled();
     expect(h.compare).not.toHaveBeenCalled();

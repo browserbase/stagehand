@@ -2,7 +2,7 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "heal_custom_dropdown" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     /**
      * This eval is meant to test whether we do not incorrectly attempt
      * the selectOptionFromDropdown method (defined in actHandlerUtils.ts) on a
@@ -13,38 +13,27 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/",
+      );
 
-      // Self-healing act(Action) replay (restored by
-      // stagehand#2427): same intentionally invalid selector as the v3
-      // twin — healing must re-locate "The 'Select a country' dropdown"
-      // and click it to expand.
-      const { data: healed } = await stagehand.act({
+      await v3.act({
         description: "The 'Select a country' dropdown",
         selector: "/html/not-a-dropdown",
         arguments: [],
         method: "click",
       });
 
-      // Report a failed heal directly rather than letting it surface as an
-      // absent dropdown option. Healing requires selfHeal: true at init; the
-      // server defaults it off and it cannot be set per-call.
-      if (!healed.success) {
-        return {
-          _success: false,
-          message: `self-heal did not expand the dropdown: ${healed.message}`,
-          debugUrl,
-          sessionUrl,
-          logs: logger.getLogs(),
-        };
-      }
+      // we are expecting stagehand to click the dropdown to expand it,
+      // and therefore the available options should now be contained in the full
+      // a11y tree.
 
-      // If the dropdown expanded, its options are now rendered in the DOM.
-      // (v3 checked the schemaless-extract page text; v4 extract requires a
-      // schema, so read the rendered text directly — same signal, no LLM.)
-      const pageText = await page.evaluate(() => document.body.innerText);
+      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
+      const extraction = await v3.extract();
+      const fullTree = extraction.pageText;
 
-      if (pageText.includes("Canada")) {
+      if (fullTree.includes("Canada")) {
         return {
           _success: true,
           debugUrl,
@@ -62,11 +51,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to select an option from the dropdown: ${(error as Error).message}`,
+        message: `error attempting to select an option from the dropdown: ${error.message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

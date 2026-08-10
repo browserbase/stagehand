@@ -1,16 +1,17 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { normalizeString } from "../../../framework/stringScoring.js";
+import { normalizeString } from "../../../utils.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_professional_info" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/professional-info/",
       );
 
-      const { data: result } = await stagehand.extract(
+      const result = await v3.extract(
         "Extract the list of Practices, phone number, and fax number of the professional.",
         z.object({
           practices: z.array(z.string()),
@@ -18,6 +19,8 @@ export default defineBenchTask(
           fax: z.string(),
         }),
       );
+
+      await v3.close();
 
       const { practices, phone, fax } = result;
 
@@ -116,11 +119,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

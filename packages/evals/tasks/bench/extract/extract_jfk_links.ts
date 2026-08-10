@@ -1,13 +1,16 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_jfk_links" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jfk/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/jfk/",
+      );
 
-      const { data: extraction } = await stagehand.extract(
+      const extraction = await v3.extract(
         "extract all the record file name and their corresponding links",
         z.object({
           records: z.array(
@@ -105,11 +108,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: JSON.parse(JSON.stringify(error, null, 2)),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

@@ -7,99 +7,219 @@ on:
 
 permissions:
   contents: write
-  id-token: write
   pull-requests: write
+  id-token: write
+  packages: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
-  release-typescript:
-    name: Release TypeScript SDK
+  release:
+    name: Release
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: ./.github/actions/setup-node-pnpm-turbo
         with:
-          version: "11.10.0"
-          run_install: false
+          use-prebuilt-artifacts: "false"
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - name: Configure npm registry for Trusted Publishing
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
-          node-version: "24"
-          cache: pnpm
+          node-version: 20.x
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install npm
-        run: npm install --global npm@11.16.0
+      - name: Update npm for Trusted Publishing
+        # Trusted Publishing (OIDC) needs npm >= 11.5.1; npm 12+ requires
+        # node >= 22 and this job runs node 20, so pin the last known-good
+        # 11.x exactly. Unpin (back to npm@latest) when the job moves to
+        # node >= 22.
+        run: npm install -g npm@11.18.0
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version-file: packages/sdk-python/.python-version
+      - name: Run Lint & Build
+        run: pnpm exec turbo run lint && pnpm exec turbo run build
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-        with:
-          version: "0.11.29"
-          working-directory: packages/sdk-python
-          enable-cache: true
-          cache-dependency-glob: packages/sdk-python/uv.lock
+      - name: Check for actionable changesets
+        id: check_changesets
+        run: |
+          # Read the ignore list from .changeset/config.json
+          IGNORED=$(node -e "
+            const config = require('./.changeset/config.json');
+            (config.ignore || []).forEach(p => console.log(p));
+          ")
 
-      - uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3.1.0
+          HAS_ACTIONABLE=false
+          HAS_ANY=false
+          for f in .changeset/*.md; do
+            [ "$f" = ".changeset/README.md" ] && continue
+            [ ! -f "$f" ] && continue
+            HAS_ANY=true
 
-      - run: just install
-      - run: just check
-      - run: just build
+            # Extract package names from the changeset frontmatter
+            PACKAGES=$(sed -n '/^---$/,/^---$/{ /^---$/d; s/^"\(.*\)":.*/\1/p }' "$f")
 
-      - name: Create release pull request or publish TypeScript
+            for pkg in $PACKAGES; do
+              if ! echo "$IGNORED" | grep -qxF "$pkg"; then
+                HAS_ACTIONABLE=true
+                break 2
+              fi
+            done
+          done
+
+          # Skip only when ALL pending changesets target ignored packages.
+          # When there are no changesets at all, the action must still run
+          # so it can publish freshly-versioned packages.
+          if [ "$HAS_ANY" = "true" ] && [ "$HAS_ACTIONABLE" = "false" ]; then
+            echo "All pending changesets target ignored packages — skipping changesets action."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release Pull Request or Publish to npm
         id: changesets
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        uses: changesets/action@63a615b9cd06ba9a3e6d13796c7fbcb080a60a0b # v1.8.0
+        if: steps.check_changesets.outputs.should_run == 'true'
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          version: just _version
-          publish: just _publish-typescript
-          title: Release Stagehand packages
-          commit: release Stagehand packages
+          publish: pnpm run release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  python-release-status:
-    name: Check Python release status
-    needs: release-typescript
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    outputs:
-      should-publish: ${{ steps.status.outputs.should-publish }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Publish already-versioned packages
+        if: steps.check_changesets.outputs.should_run != 'true'
+        run: pnpm run release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - name: Check if browse publish is needed
+        if: github.ref == 'refs/heads/main'
+        id: browse_cli
+        run: |
+          # Restore working tree — changesets/action may have switched branches
+          git checkout ${{ github.sha }}
+
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/package.json; then
+            echo "browse version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          OLD_VERSION=$(git show ${{ github.sha }}^:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          NEW_VERSION=$(git show ${{ github.sha }}:packages/cli/package.json | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+
+          if [ "$OLD_VERSION" = "$NEW_VERSION" ]; then
+            echo "browse version did not change on this push."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+
+          if npm view "browse@${NEW_VERSION}" version >/dev/null 2>&1; then
+            echo "browse ${NEW_VERSION} is already published."
+            echo "already_published=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "already_published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish browse to npm
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        run: |
+          cd packages/cli
+          PACK_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public --tag latest
+
+      - name: Tag browse release
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        run: |
+          TAG="browse@${{ steps.browse_cli.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Set up QEMU
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Docker Buildx
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GitHub Container Registry
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          version: "11.10.0"
-          run_install: false
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+      - name: Build and push browse image to GHCR
+        if: steps.browse_cli.outputs.should_publish == 'true' && steps.browse_cli.outputs.already_published != 'true'
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
-          node-version: "24"
-          cache: pnpm
+          context: packages/cli
+          file: packages/cli/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            BROWSE_VERSION=${{ steps.browse_cli.outputs.version }}
+          tags: |
+            ghcr.io/browserbase/browse:${{ steps.browse_cli.outputs.version }}
+            ghcr.io/browserbase/browse:latest
 
-      - run: pnpm install --frozen-lockfile
+      - name: Publish browse canary
+        if: github.ref == 'refs/heads/main' && steps.browse_cli.outputs.should_publish != 'true'
+        run: |
+          # Skip if no browse files changed in this push
+          if git diff --quiet ${{ github.sha }}^ ${{ github.sha }} -- packages/cli/; then
+            echo "No browse changes in this push, skipping canary."
+            exit 0
+          fi
 
-      - name: Check PyPI
-        id: status
-        run: echo "should-publish=$(pnpm exec tsx scripts/release/python-publish-status.ts)" >> "$GITHUB_OUTPUT"
+          cd packages/cli
+          BASE_VERSION=$(node -p "require('./package.json').version")
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          CANARY_VERSION="${BASE_VERSION}-alpha-${SHORT_SHA}"
 
-  publish-python:
-    name: Release Python SDK
-    needs: python-release-status
-    if: needs.python-release-status.outputs.should-publish == 'true'
-    uses: ./.github/workflows/publish-python.yml
-    secrets: inherit
+          if npm view "browse@${CANARY_VERSION}" version >/dev/null 2>&1; then
+            echo "browse canary ${CANARY_VERSION} is already published."
+            exit 0
+          fi
+
+          # Temporarily set canary version for pnpm pack
+          node -e "
+            const pkg = require('./package.json');
+            pkg.version = '${CANARY_VERSION}';
+            require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+
+          PACK_DIR=$(mktemp -d)
+          trap 'git checkout -- package.json; rm -rf "$PACK_DIR"' EXIT
+
+          TARBALL=$(pnpm pack --json --pack-destination "$PACK_DIR" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).filename")
+          npm publish "$TARBALL" --provenance --access public --tag alpha
+
+          echo "Published browse@${CANARY_VERSION}"
+
+      - name: Publish Canary
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git checkout main
+          pnpm run release-canary
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

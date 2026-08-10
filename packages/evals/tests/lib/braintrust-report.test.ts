@@ -128,7 +128,10 @@ describe("braintrust-report", () => {
       "stagehand-core-dev",
       "stagehand-dev",
     ]);
-    expect(resolved.map((entry) => entry.experimentId)).toEqual(["core-id", "bench-id"]);
+    expect(resolved.map((entry) => entry.experimentId)).toEqual([
+      "core-id",
+      "bench-id",
+    ]);
   });
 
   it("uses per-input projects and reuses cached payloads across fetches", async () => {
@@ -157,10 +160,18 @@ describe("braintrust-report", () => {
     const first = await fetchManyExperimentData("stagehand-core-dev", inputs);
     const second = await fetchManyExperimentData("stagehand-core-dev", inputs);
 
-    expect(first.map((row) => row.projectName)).toEqual(["stagehand-core-dev", "stagehand-dev"]);
-    expect(second.map((row) => row.experimentId)).toEqual(["core-id", "bench-id"]);
+    expect(first.map((row) => row.projectName)).toEqual([
+      "stagehand-core-dev",
+      "stagehand-dev",
+    ]);
+    expect(second.map((row) => row.experimentId)).toEqual([
+      "core-id",
+      "bench-id",
+    ]);
     expect(
-      braintrustMock.apiCalls.filter((call) => call.endpoint === "/experiment-comparison2"),
+      braintrustMock.apiCalls.filter(
+        (call) => call.endpoint === "/experiment-comparison2",
+      ),
     ).toHaveLength(2);
     expect(braintrustMock.fetchedCalls).toHaveLength(2);
   });
@@ -171,19 +182,27 @@ describe("braintrust-report", () => {
       name: "exp",
     });
 
-    await fetchManyExperimentData("stagehand-dev", [{ label: "A", experiment: "exp" }], {
-      apiKey: "key-a",
-    });
-    await fetchManyExperimentData("stagehand-dev", [{ label: "A", experiment: "exp" }], {
-      apiKey: "key-b",
-    });
+    await fetchManyExperimentData(
+      "stagehand-dev",
+      [{ label: "A", experiment: "exp" }],
+      { apiKey: "key-a" },
+    );
+    await fetchManyExperimentData(
+      "stagehand-dev",
+      [{ label: "A", experiment: "exp" }],
+      { apiKey: "key-b" },
+    );
 
     expect(braintrustMock.loginCalls).toBe(2);
     expect(
-      braintrustMock.apiCalls.filter((call) => call.endpoint === "/v1/experiment"),
+      braintrustMock.apiCalls.filter(
+        (call) => call.endpoint === "/v1/experiment",
+      ),
     ).toHaveLength(2);
     expect(
-      braintrustMock.apiCalls.filter((call) => call.endpoint === "/experiment-comparison2"),
+      braintrustMock.apiCalls.filter(
+        (call) => call.endpoint === "/experiment-comparison2",
+      ),
     ).toHaveLength(2);
     expect(braintrustMock.fetchedCalls).toHaveLength(2);
   });
@@ -261,7 +280,10 @@ describe("braintrust-report", () => {
     const cases = extractBenchCases(events);
 
     expect(cases).toHaveLength(2);
-    expect(cases.map((benchCase) => benchCase.taskId)).toEqual(["wv-1", "wv-2"]);
+    expect(cases.map((benchCase) => benchCase.taskId)).toEqual([
+      "wv-1",
+      "wv-2",
+    ]);
     expect(new Set(cases.map((benchCase) => benchCase.key)).size).toBe(2);
   });
 
@@ -313,7 +335,9 @@ describe("braintrust-report", () => {
       ],
     });
 
-    expect(sharedBenchCaseKeys([a, b])).toEqual(["webvoyager::wv-1::model-a::cua::1"]);
+    expect(sharedBenchCaseKeys([a, b])).toEqual([
+      "webvoyager::wv-1::model-a::cua::1",
+    ]);
   });
 
   it("summarizes bench agent configs with model lists and metrics", () => {
@@ -373,8 +397,12 @@ describe("braintrust-report", () => {
 
     const metrics = collectExperimentMetrics([row]);
 
-    expect(metrics.map((metric) => metric.key)).toContain("derived:mean_case_duration");
-    expect(metrics.map((metric) => metric.key)).toContain("braintrust:cost_usd");
+    expect(metrics.map((metric) => metric.key)).toContain(
+      "derived:mean_case_duration",
+    );
+    expect(metrics.map((metric) => metric.key)).toContain(
+      "braintrust:cost_usd",
+    );
   });
 });
 
@@ -394,7 +422,9 @@ function makeBenchCase(key: string): ExperimentData["benchCases"][number] {
   };
 }
 
-function makeExperimentData(overrides: Partial<ExperimentData>): ExperimentData {
+function makeExperimentData(
+  overrides: Partial<ExperimentData>,
+): ExperimentData {
   return {
     label: "Experiment",
     experimentName: "exp",

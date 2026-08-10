@@ -1,25 +1,20 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "oopif_in_osr" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     // this eval is designed to test whether stagehand can successfully
     // fill a form inside a OOPIF (out of process iframe) that is inside an
     // OSR (open mode shadow) root
 
     try {
+      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/oopif-in-open-shadow-dom/",
       );
-      await stagehand.act("fill 'nunya' into the first name field");
+      await v3.act("fill 'nunya' into the first name field");
 
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const { data: extraction } = await stagehand.extract(
-        "extract the entire page text",
-        z.object({ extraction: z.string() }),
-      );
+      const extraction = await v3.extract("extract the entire page text");
 
       const pageText = extraction.extraction;
 
@@ -42,11 +37,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        message: `error: ${error.message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

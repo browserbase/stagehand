@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../../",
+    "rootDir": ".",
+    "outDir": "./dist/esm",
+    "allowJs": true,
+    "paths": {
+      "@browserbasehq/stagehand": ["packages/core/lib/v3/index.ts"],
+      "@browserbasehq/stagehand/*": ["packages/core/lib/*"],
+      "*": ["node_modules/*", "packages/core/lib/types/*"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["lib/**/*.ts", "tests/**/*.ts", "lib/v3/cli.js"],
+  "exclude": ["node_modules", "dist"]
+}

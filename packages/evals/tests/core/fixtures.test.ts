@@ -12,7 +12,9 @@ describe("core fixtures", () => {
     process.env.EVAL_ENV = "browserbase";
     vi.resetModules();
 
-    const { dropdownFixture, resistorFixture } = await import("../../core/fixtures/index.js");
+    const { dropdownFixture, resistorFixture } = await import(
+      "../../core/fixtures/index.js"
+    );
 
     expect(dropdownFixture.url).toMatch(/^data:text\/html/);
     expect(resistorFixture.url).toMatch(/^data:text\/html/);

@@ -2,29 +2,23 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "iframes_nested" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/nested-iframes/",
+      );
 
-      await stagehand.act("type 'stagehand' into the 'username' field");
+      await v3.act("type 'stagehand' into the 'username' field");
 
-      // v3 chained frameLocator lvl1 -> lvl2 -> lvl3 (form lives in level 3);
-      // v4 has no frameLocator, so the same check is re-expressed in-page by
-      // walking the same-origin iframes' contentDocuments.
-      const usernameText = await page.evaluate(() => {
-        const lvl1 = (document.querySelector("iframe.lvl1") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 1
-        const lvl2 = (lvl1?.querySelector("iframe.lvl2") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 2
-        const lvl3 = (lvl2?.querySelector("iframe.lvl3") as HTMLIFrameElement | null)
-          ?.contentDocument; // level 3 – form lives here
+      const inner = page
+        .frameLocator("iframe.lvl1") // level 1
+        .frameLocator("iframe.lvl2") // level 2
+        .frameLocator("iframe.lvl3"); // level 3 – form lives here
 
-        const input = lvl3?.querySelector('input[name="username"]') as HTMLInputElement | null;
-        if (!input) {
-          throw new Error("could not resolve the username input in the nested iframes");
-        }
-        return input.value;
-      });
+      const usernameText = await inner
+        .locator('input[name="username"]')
+        .inputValue();
 
       const passed: boolean = usernameText.toLowerCase().trim() === "stagehand";
 
@@ -37,11 +31,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

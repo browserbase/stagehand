@@ -3,28 +3,15 @@ import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
+import type { Browser, BrowserContext, Page } from "playwright";
 import { z } from "zod/v4";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import {
-  BROWSE_CLI_BUILD_ARTIFACTS,
-  BROWSE_CLI_ENTRYPOINT,
-  BROWSE_CLI_PACKAGE_JSON,
-  BROWSE_SKILL_SOURCE,
-} from "../browseCliPaths.js";
-import {
-  AGENT_RUN_TOOL_NAME,
-  AGENT_RUN_TOOL_SERVER,
-  type AgentRunToolSpec,
-  type StartupProfile,
-  type ToolSurface,
-} from "../core/contracts/tool.js";
-import type { ProbeEvidence } from "stagehand-v3";
-import { startAgentToolRuntime } from "./agentToolRuntime.js";
+import { getRepoRootDir } from "../runtimePaths.js";
+import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
+import { prepareCoreBrowserTarget } from "../core/targets/index.js";
+import { CdpConnection, type CdpEventMessage } from "../core/tools/cdp_code.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import { ObservationRecorder, type StepObservation } from "./observationRecorder.js";
-
-export { waitForCdpEvent } from "../core/tools/cdp_code.js";
 
 export interface ClaudeCodeToolAdapterInput {
   toolSurface?: ToolSurface;
@@ -47,17 +34,6 @@ export interface PreparedClaudeCodeToolAdapter {
     toolName: string,
     input: Record<string, unknown>,
   ) => Promise<Record<string, unknown>>;
-  /** Best-effort evidence from the currently running tool surface. */
-  captureEvidence?: () => Promise<ProbeEvidence>;
-  drainStepObservations?: () => Promise<StepObservation[]>;
-  /**
-   * Runner calls this on every completed tool_result with the originating
-   * tool name; MCP-mounted surfaces use it to record per-step observations
-   * (their tool calls never pass through harness code).
-   */
-  onToolResult?: (toolName: string) => void;
-  /** Which tool names consume observation indexes in the trajectory adapter. */
-  observedToolMatcher?: (toolName: string) => boolean;
   cleanup: () => Promise<void>;
 }
 
@@ -79,6 +55,31 @@ export interface BrowseCliHarnessAdapterInput {
   logCategory: string;
 }
 
+const BROWSE_CLI_ENTRYPOINT = path.join(
+  getRepoRootDir(),
+  "packages",
+  "cli",
+  "bin",
+  "run.js",
+);
+const BROWSE_CLI_BUILD_ARTIFACTS = [
+  path.join(getRepoRootDir(), "packages", "cli", "oclif.manifest.json"),
+  path.join(getRepoRootDir(), "packages", "cli", "dist", "commands", "open.js"),
+];
+const BROWSE_CLI_PACKAGE_JSON = path.join(
+  getRepoRootDir(),
+  "packages",
+  "cli",
+  "package.json",
+);
+const BROWSE_SKILL_SOURCE = path.join(
+  getRepoRootDir(),
+  "packages",
+  "cli",
+  "skills",
+  "browse",
+  "SKILL.md",
+);
 // The CLI skill below is written for interactive use and covers surface
 // (install, Browse.sh discovery, Browserbase cloud/Functions/templates) that
 // does not apply inside the eval harness. This addendum is inserted right
@@ -112,8 +113,8 @@ the guidance below:
   requested by the harness prompt.
 `;
 const ALLOW_UNSANDBOXED_LOCAL_ENV = "EVAL_CLAUDE_CODE_ALLOW_UNSANDBOXED_LOCAL";
-const RUN_TOOL_SERVER = AGENT_RUN_TOOL_SERVER;
-const RUN_TOOL_NAME = AGENT_RUN_TOOL_NAME;
+const RUN_TOOL_SERVER = "stagehand_browser";
+const RUN_TOOL_NAME = `mcp__${RUN_TOOL_SERVER}__run`;
 
 type ClaudeToolResult = {
   content: Array<{ type: "text"; text: string }>;
@@ -134,6 +135,42 @@ type SdkMcpServerFactory = (options: {
   tools?: unknown[];
   alwaysLoad?: boolean;
 }) => unknown;
+
+type ActiveCdpPage = {
+  targetId: string;
+  sessionId: string;
+  url: string;
+};
+
+type CdpRuntime = {
+  readonly targetId: string;
+  readonly sessionId: string;
+  send<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+  browser<T = unknown>(
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T>;
+  on(
+    method: string,
+    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  ): () => void;
+  off(
+    method: string,
+    listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  ): void;
+  once(
+    method: string,
+    listenerOrTimeout?:
+      | ((event: CdpEventMessage) => unknown | Promise<unknown>)
+      | number,
+    timeoutMs?: number,
+  ): Promise<CdpEventMessage> | (() => void);
+  waitForEvent(method: string, timeoutMs?: number): Promise<CdpEventMessage>;
+  wait(ms: number): Promise<void>;
+};
 
 export interface BrowseCliToolMetadata {
   toolCommand: "browse";
@@ -175,37 +212,37 @@ export async function prepareClaudeCodeToolAdapter(
         startupProfile,
       });
     case "playwright_code":
-    case "cdp_code":
-    case "stagehand_code":
-    case "playwright_mcp":
-    case "chrome_devtools_mcp": {
-      return prepareMountedCoreToolAdapter({
+      return preparePlaywrightCodeAdapter({
         ...input,
         toolSurface,
         startupProfile,
       });
-    }
+    case "cdp_code":
+      return prepareCdpCodeAdapter({
+        ...input,
+        toolSurface,
+        startupProfile,
+      });
     default:
       throw new EvalsError(
-        `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${toolSurface}".`,
+        `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${toolSurface}".`,
       );
   }
 }
 
-export function resolveClaudeCodeToolSurface(requested?: ToolSurface): ToolSurface {
+export function resolveClaudeCodeToolSurface(
+  requested?: ToolSurface,
+): ToolSurface {
   if (!requested) return "browse_cli";
   if (
     requested === "browse_cli" ||
     requested === "playwright_code" ||
-    requested === "cdp_code" ||
-    requested === "stagehand_code" ||
-    requested === "playwright_mcp" ||
-    requested === "chrome_devtools_mcp"
+    requested === "cdp_code"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Claude Code harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
+    `Claude Code harness supports --tool browse_cli, playwright_code, or cdp_code for execution right now; received "${requested}".`,
   );
 }
 
@@ -216,20 +253,12 @@ export function resolveClaudeCodeStartupProfile(
 ): StartupProfile {
   if (requested) return requested;
 
-  // browse_cli and stagehand_code own their browser (the Stagehand SDK launches or
-  // creates it via the extension stack), so no runner-provided CDP endpoint.
-  if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
-    return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
+  if (toolSurface === "browse_cli") {
+    return environment === "BROWSERBASE"
+      ? "tool_create_browserbase"
+      : "tool_launch_local";
   }
-  // The MCP surfaces need a runner-provided endpoint so the harness-side
-  // session (evidence capture) and the agent's own server instance attach to
-  // the same browser.
-  if (
-    toolSurface === "playwright_code" ||
-    toolSurface === "cdp_code" ||
-    toolSurface === "playwright_mcp" ||
-    toolSurface === "chrome_devtools_mcp"
-  ) {
+  if (toolSurface === "playwright_code" || toolSurface === "cdp_code") {
     return environment === "BROWSERBASE"
       ? "runner_provided_browserbase_cdp"
       : "runner_provided_local_cdp";
@@ -293,7 +322,9 @@ async function prepareBrowseCliAdapter(
 export async function prepareBrowseCliHarnessAdapter(
   input: BrowseCliHarnessAdapterInput,
 ): Promise<PreparedBrowseCliHarnessAdapter> {
-  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find((artifact) => !fs.existsSync(artifact));
+  const missingArtifact = BROWSE_CLI_BUILD_ARTIFACTS.find(
+    (artifact) => !fs.existsSync(artifact),
+  );
   if (missingArtifact) {
     throw new EvalsError(
       `browse_cli requires built CLI artifacts; missing ${missingArtifact}. Run pnpm --dir packages/cli build first.`,
@@ -301,8 +332,10 @@ export async function prepareBrowseCliHarnessAdapter(
   }
 
   if (
-    (input.environment === "LOCAL" && input.startupProfile !== "tool_launch_local") ||
-    (input.environment === "BROWSERBASE" && input.startupProfile !== "tool_create_browserbase")
+    (input.environment === "LOCAL" &&
+      input.startupProfile !== "tool_launch_local") ||
+    (input.environment === "BROWSERBASE" &&
+      input.startupProfile !== "tool_create_browserbase")
   ) {
     throw new EvalsError(
       `browse_cli startup profile "${input.startupProfile}" is not valid for environment "${input.environment}".`,
@@ -310,7 +343,9 @@ export async function prepareBrowseCliHarnessAdapter(
   }
 
   const session = createBrowseSessionName();
-  const cwd = await fsp.mkdtemp(path.join(os.tmpdir(), "stagehand-evals-claude-browse-"));
+  const cwd = await fsp.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-evals-claude-browse-"),
+  );
   const wrapperPath = path.join(cwd, "browse");
   await installBrowseSkill(cwd);
   input.logger.log({
@@ -354,174 +389,251 @@ export async function prepareBrowseCliHarnessAdapter(
     promptInstructions: buildBrowseCliPromptInstructions(input.plan),
     metadata: getBrowseCliToolMetadata(),
     cleanup: async () => {
-      await runBrowseCommand(wrapperPath, ["stop", "--force"], input.logger, env, cwd).catch(
-        (): undefined => undefined,
-      );
+      await runBrowseCommand(
+        wrapperPath,
+        ["stop", "--force"],
+        input.logger,
+        env,
+        cwd,
+      ).catch((): undefined => undefined);
       await fsp.rm(cwd, { recursive: true, force: true });
     },
   };
 }
 
-/**
- * Starts a CoreTool once and mounts the returned agent binding. The harness
- * switches only on the binding modality, never on the tool surface identity.
- */
-async function prepareMountedCoreToolAdapter(
+async function preparePlaywrightCodeAdapter(
   input: ClaudeCodeToolAdapterInput & {
-    toolSurface: ToolSurface;
+    toolSurface: "playwright_code";
     startupProfile: StartupProfile;
   },
 ): Promise<PreparedClaudeCodeToolAdapter> {
-  const runtime = await startAgentToolRuntime(input);
-  try {
-    return await prepareAgentMountAdapter(runtime.running, runtime.cleanup, input);
-  } catch (error) {
-    // Same bound as normal teardown — a hung cleanup must not wedge the row
-    // on the setup-failure path either.
-    await withTimeout(
-      runtime.cleanup(),
-      readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
-    ).catch((): undefined => undefined);
-    throw error;
+  if (
+    input.startupProfile !== "runner_provided_local_cdp" &&
+    input.startupProfile !== "runner_provided_browserbase_cdp"
+  ) {
+    throw new EvalsError(
+      `playwright_code startup profile "${input.startupProfile}" is not valid for Claude Code. Use runner_provided_local_cdp or runner_provided_browserbase_cdp.`,
+    );
   }
-}
 
-/**
- * The generic mount point for handle bindings: wraps the binding's handles in
- * the harness's MCP "run" tool, whose executor runs
- * snippet code in an AsyncFunction scope over the handle names plus
- * startUrl, task, and console. Surface specifics (handles, prompt
- * instructions, run-tool copy, snippet task/console bindings, cleanup) all
- * come from the mount — this function owns only harness mechanics.
- */
-async function prepareAgentMountAdapter(
-  running: Awaited<ReturnType<typeof startAgentToolRuntime>>["running"],
-  cleanupRuntime: () => Promise<void>,
-  input: ClaudeCodeToolAdapterInput & {
-    toolSurface: ToolSurface;
-    startupProfile: StartupProfile;
-  },
-): Promise<PreparedClaudeCodeToolAdapter> {
-  let cwd: string | undefined;
+  const cwd = await fsp.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-evals-claude-playwright-"),
+  );
+  const env = { ...process.env } as Record<string, string>;
+  let browser: Browser | undefined;
+  let targetCleanup: () => Promise<void> = async () => {};
+
   try {
-    const mount = running.agentMount;
-    if (!mount) {
-      throw new EvalsError(`Tool surface "${input.toolSurface}" does not provide an agent mount.`);
-    }
-    if (mount.via !== "handles" && mount.via !== "mcp") {
+    const target = await prepareCoreBrowserTarget({
+      environment: input.environment,
+      toolSurface: "playwright_code",
+      startupProfile: input.startupProfile,
+    });
+    targetCleanup = target.cleanup;
+    if (!target.providedEndpoint?.url) {
       throw new EvalsError(
-        `Claude Code does not support agent mounts delivered via "${mount.via}" yet.`,
+        `playwright_code requires a runner-provided CDP endpoint for startup profile "${input.startupProfile}".`,
       );
     }
-    const handlesMount = mount.via === "handles" ? mount : undefined;
-    const mcpMount = mount.via === "mcp" ? mount : undefined;
 
-    cwd = await fsp.mkdtemp(path.join(os.tmpdir(), `stagehand-evals-claude-${input.toolSurface}-`));
-    const cleanupCwd = cwd;
-    const env = { ...process.env } as Record<string, string>;
-    const recorder = running.captureEvidence
-      ? new ObservationRecorder(running.captureEvidence)
-      : undefined;
-    // handles mounts wrap the surface in the harness's run tool (which owns
-    // per-step observation); mcp mounts pass the agent's own server spec
-    // through, and observation is triggered from the runner's tool_result
-    // stream instead.
-    const mcpServers = handlesMount
-      ? await buildCodeExposureRunMcpServers({
-          handles: handlesMount.handles,
-          runToolSpec: handlesMount.runTool,
-          plan: input.plan,
-          logger: input.logger,
-          recordObservation: recorder ? () => recorder.record() : undefined,
-        })
-      : mcpMount!.mcpServers;
-    // "mcp__<server>" allows every tool the named server exposes.
-    const mcpToolPrefixes = mcpMount
-      ? Object.keys(mcpMount.mcpServers).map((name) => `mcp__${name}`)
-      : [];
-    const isMountToolName = (toolName: string): boolean =>
-      handlesMount
-        ? toolName === RUN_TOOL_NAME
-        : mcpToolPrefixes.some(
-            (prefix) => toolName === prefix || toolName.startsWith(`${prefix}__`),
-          );
-    let cleanupPromise: Promise<void> | undefined;
+    const { chromium } = await import("playwright");
+    browser = await chromium.connectOverCDP(target.providedEndpoint.url, {
+      headers: target.providedEndpoint.headers,
+    });
+    const context = browser.contexts()[0] ?? (await browser.newContext());
+    const page = context.pages()[0] ?? (await context.newPage());
+    const mcpServers = await buildPlaywrightRunMcpServers({
+      browser,
+      context,
+      page,
+      plan: input.plan,
+      logger: input.logger,
+    });
+
+    input.logger.log({
+      category: "claude_code",
+      message: `Initialized playwright_code browser runtime for Claude Code run tool.`,
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: input.startupProfile,
+          type: "string",
+        },
+        environment: {
+          value: input.environment,
+          type: "string",
+        },
+        ...(target.metadata && {
+          targetMetadata: {
+            value: JSON.stringify(target.metadata),
+            type: "object",
+          },
+        }),
+      },
+    });
 
     return {
-      toolSurface: input.toolSurface,
+      toolSurface: "playwright_code",
       startupProfile: input.startupProfile,
       cwd,
       env,
-      allowedTools: ["Bash", ...(handlesMount ? [RUN_TOOL_NAME] : mcpToolPrefixes)],
+      allowedTools: ["Bash", RUN_TOOL_NAME],
       settingSources: [],
       mcpServers,
       canUseTool: async (toolName, commandInput) => {
-        if (toolName === "Bash" || isMountToolName(toolName)) {
+        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
           return { behavior: "allow", updatedInput: commandInput };
         }
         return {
           behavior: "deny",
-          message:
-            handlesMount?.runTool.denyMessage ??
-            `Only Bash and the ${mcpToolPrefixes.join(", ")} tools are allowed.`,
+          message: `Use Bash for inspection and ${RUN_TOOL_NAME} for browser automation.`,
         };
       },
-      ...(mcpMount &&
-        recorder && {
-          onToolResult: (toolName: string) => {
-            if (isMountToolName(toolName)) void recorder.record();
-          },
-          observedToolMatcher: isMountToolName,
-        }),
-      promptInstructions: mount.promptInstructions,
-      ...(running.captureEvidence && {
-        captureEvidence: async (): Promise<ProbeEvidence> => {
-          try {
-            return await withTimeout(
-              running.captureEvidence!(),
-              readPositiveIntEnv("EVAL_CAPTURE_EVIDENCE_TIMEOUT_MS", 15_000),
-            );
-          } catch {
-            return {};
-          }
-        },
-      }),
-      ...(recorder && {
-        drainStepObservations: async () => {
-          await recorder.settle();
-          return recorder.drain();
-        },
-      }),
+      promptInstructions: buildPlaywrightCodePromptInstructions(input.plan),
       cleanup: async () => {
-        cleanupPromise ??= (async () => {
-          try {
-            await withTimeout(
-              cleanupRuntime(),
-              readPositiveIntEnv("EVAL_AGENT_MOUNT_CLEANUP_TIMEOUT_MS", 30_000),
-            );
-          } catch {
-            // Cleanup is best-effort, but temp-dir cleanup must run.
-          } finally {
-            await fsp.rm(cleanupCwd, { recursive: true, force: true });
-          }
-        })();
-        await cleanupPromise;
+        try {
+          await browser?.close();
+        } catch {
+          // best-effort only
+        } finally {
+          await targetCleanup();
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
       },
     };
   } catch (error) {
-    if (cwd) {
-      await fsp.rm(cwd, { recursive: true, force: true });
+    try {
+      await browser?.close();
+    } catch {
+      // best-effort only
     }
+    await targetCleanup();
+    await fsp.rm(cwd, { recursive: true, force: true });
     throw error;
   }
 }
 
-async function buildCodeExposureRunMcpServers(input: {
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
+async function prepareCdpCodeAdapter(
+  input: ClaudeCodeToolAdapterInput & {
+    toolSurface: "cdp_code";
+    startupProfile: StartupProfile;
+  },
+): Promise<PreparedClaudeCodeToolAdapter> {
+  if (
+    input.startupProfile !== "runner_provided_local_cdp" &&
+    input.startupProfile !== "runner_provided_browserbase_cdp"
+  ) {
+    throw new EvalsError(
+      `cdp_code startup profile "${input.startupProfile}" is not valid for Claude Code. Use runner_provided_local_cdp or runner_provided_browserbase_cdp.`,
+    );
+  }
+
+  const cwd = await fsp.mkdtemp(
+    path.join(os.tmpdir(), "stagehand-evals-claude-cdp-"),
+  );
+  const env = { ...process.env } as Record<string, string>;
+  let connection: CdpConnection | undefined;
+  let targetCleanup: () => Promise<void> = async () => {};
+
+  try {
+    const target = await prepareCoreBrowserTarget({
+      environment: input.environment,
+      toolSurface: "cdp_code",
+      startupProfile: input.startupProfile,
+    });
+    targetCleanup = target.cleanup;
+    if (!target.providedEndpoint?.url) {
+      throw new EvalsError(
+        `cdp_code requires a runner-provided CDP endpoint for startup profile "${input.startupProfile}".`,
+      );
+    }
+
+    connection = await CdpConnection.connect(target.providedEndpoint);
+    const activePage = await attachActiveCdpPage(connection);
+    const mcpServers = await buildCdpRunMcpServers({
+      connection,
+      activePage,
+      plan: input.plan,
+      logger: input.logger,
+    });
+
+    input.logger.log({
+      category: "claude_code",
+      message: `Initialized cdp_code browser runtime for Claude Code run tool.`,
+      level: 1,
+      auxiliary: {
+        startupProfile: {
+          value: input.startupProfile,
+          type: "string",
+        },
+        environment: {
+          value: input.environment,
+          type: "string",
+        },
+        targetId: {
+          value: activePage.targetId,
+          type: "string",
+        },
+        sessionId: {
+          value: activePage.sessionId,
+          type: "string",
+        },
+        ...(target.metadata && {
+          targetMetadata: {
+            value: JSON.stringify(target.metadata),
+            type: "object",
+          },
+        }),
+      },
+    });
+
+    return {
+      toolSurface: "cdp_code",
+      startupProfile: input.startupProfile,
+      cwd,
+      env,
+      allowedTools: ["Bash", RUN_TOOL_NAME],
+      settingSources: [],
+      mcpServers,
+      canUseTool: async (toolName, commandInput) => {
+        if (toolName === RUN_TOOL_NAME || toolName === "Bash") {
+          return { behavior: "allow", updatedInput: commandInput };
+        }
+        return {
+          behavior: "deny",
+          message: `Use Bash for inspection and ${RUN_TOOL_NAME} for CDP browser automation.`,
+        };
+      },
+      promptInstructions: buildCdpCodePromptInstructions(input.plan),
+      cleanup: async () => {
+        try {
+          await connection?.close();
+        } catch {
+          // best-effort only
+        } finally {
+          await targetCleanup();
+          await fsp.rm(cwd, { recursive: true, force: true });
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await connection?.close();
+    } catch {
+      // best-effort only
+    }
+    await targetCleanup();
+    await fsp.rm(cwd, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function buildPlaywrightRunMcpServers(input: {
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
-  recordObservation?: () => Promise<void>;
 }): Promise<Record<string, unknown>> {
   const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
     createSdkMcpServer: SdkMcpServerFactory;
@@ -530,20 +642,27 @@ async function buildCodeExposureRunMcpServers(input: {
 
   const runTool = sdk.tool(
     "run",
-    input.runToolSpec.description,
+    [
+      "Execute JavaScript against the initialized Playwright browser.",
+      "The snippet runs inside an async function with page, context, browser, startUrl, task, and console in scope.",
+      "Use await directly. Return a JSON-serializable value when useful.",
+    ].join(" "),
     {
-      code: z.string().describe(input.runToolSpec.codeParamDescription),
+      code: z
+        .string()
+        .describe(
+          "JavaScript function body to execute. page/context/browser/startUrl/task are already in scope.",
+        ),
     },
     async ({ code }) => {
-      const result = await executeCodeExposureRunTool({
+      return executePlaywrightRunTool({
         code,
-        handles: input.handles,
-        runToolSpec: input.runToolSpec,
+        browser: input.browser,
+        context: input.context,
+        page: input.page,
         plan: input.plan,
         logger: input.logger,
       });
-      await input.recordObservation?.();
-      return result;
     },
     { alwaysLoad: true },
   );
@@ -558,16 +677,17 @@ async function buildCodeExposureRunMcpServers(input: {
   };
 }
 
-async function executeCodeExposureRunTool(input: {
+async function executePlaywrightRunTool(input: {
   code: string;
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<ClaudeToolResult> {
   try {
     const result = await withTimeout(
-      executeCodeExposureSnippet(input),
+      executePlaywrightSnippet(input),
       readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
     );
     const text = stringifyToolResult(result);
@@ -593,28 +713,31 @@ async function executeCodeExposureRunTool(input: {
   }
 }
 
-async function executeCodeExposureSnippet(input: {
+async function executePlaywrightSnippet(input: {
   code: string;
-  handles: Record<string, unknown>;
-  runToolSpec: AgentRunToolSpec;
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
   plan: ExternalHarnessTaskPlan;
   logger: EvalLogger;
 }): Promise<unknown> {
-  const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor as new (
+  const AsyncFunction = Object.getPrototypeOf(async function () {})
+    .constructor as new (
     ...args: string[]
   ) => (...values: unknown[]) => Promise<unknown>;
-  // Snippet scope = the exposure's handle names plus startUrl/task/console.
-  // Object.keys/Object.values over the same object are guaranteed to align,
-  // so names — not positions — bind the values.
   const fn = new AsyncFunction(
-    ...Object.keys(input.handles),
+    "page",
+    "context",
+    "browser",
     "startUrl",
     "task",
     "console",
     input.code,
   );
   return fn(
-    ...Object.values(input.handles),
+    input.page,
+    input.context,
+    input.browser,
     input.plan.startUrl,
     {
       dataset: input.plan.dataset,
@@ -626,7 +749,327 @@ async function executeCodeExposureSnippet(input: {
   );
 }
 
-function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" | "error"> {
+async function buildCdpRunMcpServers(input: {
+  connection: CdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<Record<string, unknown>> {
+  const sdk = (await import("@anthropic-ai/claude-agent-sdk")) as unknown as {
+    createSdkMcpServer: SdkMcpServerFactory;
+    tool: SdkToolFactory;
+  };
+
+  const runTool = sdk.tool(
+    "run",
+    [
+      "Execute JavaScript against the initialized Chrome DevTools Protocol browser.",
+      "The snippet runs inside an async function with cdp, startUrl, task, and console in scope.",
+      "Use await directly. Return a JSON-serializable value when useful.",
+    ].join(" "),
+    {
+      code: z
+        .string()
+        .describe(
+          "JavaScript function body to execute. cdp/startUrl/task are already in scope.",
+        ),
+    },
+    async ({ code }) => {
+      return executeCdpRunTool({
+        code,
+        connection: input.connection,
+        activePage: input.activePage,
+        plan: input.plan,
+        logger: input.logger,
+      });
+    },
+    { alwaysLoad: true },
+  );
+
+  return {
+    [RUN_TOOL_SERVER]: sdk.createSdkMcpServer({
+      name: RUN_TOOL_SERVER,
+      version: "1.0.0",
+      tools: [runTool],
+      alwaysLoad: true,
+    }),
+  };
+}
+
+async function executeCdpRunTool(input: {
+  code: string;
+  connection: CdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<ClaudeToolResult> {
+  try {
+    const result = await withTimeout(
+      executeCdpSnippet(input),
+      readPositiveIntEnv("EVAL_CLAUDE_CODE_RUN_TOOL_TIMEOUT_MS", 60_000),
+    );
+    const text = stringifyToolResult(result);
+    input.logger.log({
+      category: "claude_code",
+      message: `run tool completed: ${clip(text, 500)}`,
+      level: 1,
+    });
+    return {
+      content: [{ type: "text", text }],
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    input.logger.warn({
+      category: "claude_code",
+      message: `run tool failed: ${message}`,
+      level: 1,
+    });
+    return {
+      isError: true,
+      content: [{ type: "text", text: message }],
+    };
+  }
+}
+
+async function executeCdpSnippet(input: {
+  code: string;
+  connection: CdpConnection;
+  activePage: ActiveCdpPage;
+  plan: ExternalHarnessTaskPlan;
+  logger: EvalLogger;
+}): Promise<unknown> {
+  const AsyncFunction = Object.getPrototypeOf(async function () {})
+    .constructor as new (
+    ...args: string[]
+  ) => (...values: unknown[]) => Promise<unknown>;
+  const fn = new AsyncFunction(
+    "cdp",
+    "startUrl",
+    "task",
+    "console",
+    input.code,
+  );
+  return fn(
+    buildCdpRuntime(input.connection, input.activePage, input.logger),
+    input.plan.startUrl,
+    {
+      dataset: input.plan.dataset,
+      id: input.plan.taskId,
+      startUrl: input.plan.startUrl,
+      instruction: input.plan.instruction,
+    },
+    buildRunToolConsole(input.logger),
+  );
+}
+
+function buildCdpRuntime(
+  connection: CdpConnection,
+  activePage: ActiveCdpPage,
+  logger: EvalLogger,
+): CdpRuntime {
+  const listenerUnsubscribes = new Map<
+    (event: CdpEventMessage) => unknown | Promise<unknown>,
+    () => void
+  >();
+  return {
+    targetId: activePage.targetId,
+    sessionId: activePage.sessionId,
+    send: <T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<T> => connection.send<T>(method, params, activePage.sessionId),
+    browser: <T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+    ): Promise<T> => connection.send<T>(method, params),
+    on: (
+      method: string,
+      listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+    ): (() => void) => {
+      const unsubscribe = onCdpEvent(
+        connection,
+        activePage.sessionId,
+        method,
+        listener,
+        logger,
+      );
+      listenerUnsubscribes.set(listener, unsubscribe);
+      return () => {
+        listenerUnsubscribes.delete(listener);
+        unsubscribe();
+      };
+    },
+    off: (
+      _method: string,
+      listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+    ): void => {
+      const unsubscribe = listenerUnsubscribes.get(listener);
+      listenerUnsubscribes.delete(listener);
+      unsubscribe?.();
+    },
+    once: (
+      method: string,
+      listenerOrTimeout?:
+        | ((event: CdpEventMessage) => unknown | Promise<unknown>)
+        | number,
+      timeoutMs = 15_000,
+    ): Promise<CdpEventMessage> | (() => void) => {
+      if (typeof listenerOrTimeout === "function") {
+        const listener = listenerOrTimeout;
+        const unsubscribe = onCdpEvent(
+          connection,
+          activePage.sessionId,
+          method,
+          (event) => {
+            unsubscribe?.();
+            listenerUnsubscribes.delete(listener);
+            return listener(event);
+          },
+          logger,
+        );
+        listenerUnsubscribes.set(listener, unsubscribe);
+        return () => {
+          listenerUnsubscribes.delete(listener);
+          unsubscribe?.();
+        };
+      }
+      return waitForCdpEvent(
+        connection,
+        activePage.sessionId,
+        method,
+        listenerOrTimeout ?? timeoutMs,
+      );
+    },
+    waitForEvent: (
+      method: string,
+      timeoutMs = 15_000,
+    ): Promise<CdpEventMessage> =>
+      waitForCdpEvent(connection, activePage.sessionId, method, timeoutMs),
+    wait: sleep,
+  };
+}
+
+function onCdpEvent(
+  connection: CdpConnection,
+  sessionId: string,
+  method: string,
+  listener: (event: CdpEventMessage) => unknown | Promise<unknown>,
+  logger: EvalLogger,
+): () => void {
+  return connection.onEvent((event) => {
+    if (
+      event.method !== method ||
+      (event.sessionId && event.sessionId !== sessionId)
+    ) {
+      return;
+    }
+    try {
+      const result = listener(event);
+      if (isPromiseLike(result)) {
+        result.catch((error: unknown) => {
+          logger.warn({
+            category: "claude_code",
+            message: `cdp event listener failed: ${error instanceof Error ? error.message : String(error)}`,
+            level: 1,
+          });
+        });
+      }
+    } catch (error) {
+      logger.warn({
+        category: "claude_code",
+        message: `cdp event listener failed: ${error instanceof Error ? error.message : String(error)}`,
+        level: 1,
+      });
+    }
+  });
+}
+
+async function attachActiveCdpPage(
+  connection: CdpConnection,
+): Promise<ActiveCdpPage> {
+  const targets = await connection.send<{
+    targetInfos: Array<{
+      targetId: string;
+      type: string;
+      url?: string;
+    }>;
+  }>("Target.getTargets");
+
+  const existingPage = targets.targetInfos.find(
+    (target) =>
+      target.type === "page" && !target.url?.startsWith("devtools://"),
+  );
+  const targetId =
+    existingPage?.targetId ??
+    (
+      await connection.send<{ targetId: string }>("Target.createTarget", {
+        url: "about:blank",
+      })
+    ).targetId;
+  const attached = await connection.send<{ sessionId: string }>(
+    "Target.attachToTarget",
+    {
+      targetId,
+      flatten: true,
+    },
+  );
+
+  await connection.send("Page.enable", {}, attached.sessionId);
+  await connection.send("Runtime.enable", {}, attached.sessionId);
+  await connection.send("DOM.enable", {}, attached.sessionId);
+  await connection.send(
+    "Page.setLifecycleEventsEnabled",
+    { enabled: true },
+    attached.sessionId,
+  );
+
+  return {
+    targetId,
+    sessionId: attached.sessionId,
+    url: existingPage?.url ?? "about:blank",
+  };
+}
+
+export function waitForCdpEvent(
+  connection: CdpConnection,
+  sessionId: string,
+  method: string,
+  timeoutMs: number,
+): Promise<CdpEventMessage> {
+  let timeout: NodeJS.Timeout | undefined;
+  let unsubscribe: (() => void) | undefined;
+  const promise = new Promise<CdpEventMessage>((resolve, reject) => {
+    const cleanup = () => {
+      if (timeout) clearTimeout(timeout);
+      unsubscribe?.();
+    };
+    unsubscribe = connection.onEvent((event) => {
+      if (
+        event.method !== method ||
+        (event.sessionId && event.sessionId !== sessionId)
+      ) {
+        return;
+      }
+      cleanup();
+      resolve(event);
+    });
+    timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for CDP event "${method}"`));
+    }, timeoutMs);
+  });
+
+  // Claude-generated snippets often assign an event wait promise before a CDP
+  // action and may abandon it after another branch finishes. Keep the promise
+  // rejectable for awaited callers, but prevent abandoned waits from crashing
+  // the eval process as unhandled rejections.
+  promise.catch((): undefined => undefined);
+  return promise;
+}
+
+function buildRunToolConsole(
+  logger: EvalLogger,
+): Pick<Console, "log" | "warn" | "error"> {
   const write = (level: "log" | "warn" | "error", values: unknown[]) => {
     logger.log({
       category: "claude_code",
@@ -641,7 +1084,37 @@ function buildRunToolConsole(logger: EvalLogger): Pick<Console, "log" | "warn" |
   };
 }
 
-function buildBrowseCliPromptInstructions(plan: ExternalHarnessTaskPlan): string {
+function buildPlaywrightCodePromptInstructions(
+  plan: ExternalHarnessTaskPlan,
+): string {
+  void plan;
+  return [
+    "Browser tool surface: playwright_code.",
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Playwright page, context, browser, startUrl, and task object.`,
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildCdpCodePromptInstructions(plan: ExternalHarnessTaskPlan): string {
+  void plan;
+  return [
+    "Browser tool surface: cdp_code.",
+    `Use the ${RUN_TOOL_NAME} tool for browser automation. It exposes an initialized cdp object, startUrl, and task object.`,
+    "Use cdp.send(method, params) for page-scoped CDP commands and cdp.browser(method, params) for browser-level commands.",
+    "Helpers available: cdp.on(method, listener), cdp.once(method), cdp.waitForEvent(method, timeoutMs), cdp.wait(ms), cdp.targetId, cdp.sessionId.",
+    'The first browser action should usually be: const loaded = cdp.waitForEvent("Page.loadEventFired"); await cdp.send("Page.navigate", { url: startUrl }); await loaded.',
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
+}
+
+function buildBrowseCliPromptInstructions(
+  plan: ExternalHarnessTaskPlan,
+): string {
   void plan;
   return [
     "Browser tool surface: browse_cli.",
@@ -680,7 +1153,10 @@ export async function installBrowseSkill(cwd: string): Promise<void> {
 // only use gray-matter to find the frontmatter/body boundary, then
 // reassemble from the ORIGINAL raw string so the frontmatter block that
 // ships is byte-identical to the frontmatter block in the source file.
-export function insertAfterFrontmatter(markdown: string, addition: string): string {
+export function insertAfterFrontmatter(
+  markdown: string,
+  addition: string,
+): string {
   let parsed: matter.GrayMatterFile<string>;
   try {
     parsed = matter(markdown);
@@ -727,7 +1203,14 @@ function readPositiveIntEnv(key: string, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
   let timeout: NodeJS.Timeout | undefined;
   try {
     return await Promise.race([
@@ -755,7 +1238,22 @@ function stringifyToolResult(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength
+    ? value
+    : `${value.slice(0, maxLength - 1)}…`;
+}
+
+function isPromiseLike(value: unknown): value is PromiseLike<unknown> & {
+  catch: (handler: (error: unknown) => void) => unknown;
+} {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "then" in value &&
+    typeof (value as { then?: unknown }).then === "function" &&
+    "catch" in value &&
+    typeof (value as { catch?: unknown }).catch === "function"
+  );
 }
 
 function createBrowseSessionName(): string {
@@ -792,17 +1290,23 @@ async function runBrowseCommand(
         resolve();
         return;
       }
-      reject(new EvalsError(`browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`));
+      reject(
+        new EvalsError(
+          `browse_cli command failed (${args.join(" ")}): ${stderr.trim()}`,
+        ),
+      );
     });
   });
 }
 
 function readBrowseCliVersion(): { browseCliVersion?: string } {
   try {
-    const parsed = JSON.parse(fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8")) as {
-      version?: unknown;
-    };
-    return typeof parsed.version === "string" ? { browseCliVersion: parsed.version } : {};
+    const parsed = JSON.parse(
+      fs.readFileSync(BROWSE_CLI_PACKAGE_JSON, "utf8"),
+    ) as { version?: unknown };
+    return typeof parsed.version === "string"
+      ? { browseCliVersion: parsed.version }
+      : {};
   } catch {
     return {};
   }

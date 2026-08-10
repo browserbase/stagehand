@@ -1,31 +1,32 @@
-# Stagehand docs
+# Mintlify Starter Kit
 
-This site contains the Stagehand v2, v3, and v4 documentation. V4 is the default version.
+Click on `Use this template` to copy the Mintlify starter kit. The starter kit contains examples including
 
-## Local development
+- Guide pages
+- Navigation
+- Customizations
+- API Reference pages
+- Use of popular components
 
-From the repository root:
+### Development
 
-```sh
-just install
-just docs
+Install dependencies with pnpm
+
+```
+pnpm install
 ```
 
-`just docs` starts the repository-pinned Mint development server. No globally installed Mint or
-Mintlify CLI is required.
+Run the following command at the root of your documentation (where mint.json is)
 
-## Validation
-
-From the repository root:
-
-```sh
-just check
+```
+pnpm mintlify dev
 ```
 
-This validates the Mint configuration and OpenAPI definitions, checks links and redirects, and runs
-the documentation accessibility checks.
+### Publishing Changes
 
-## Publishing
+Install our Github App to auto propagate changes from your repo to your deployment. Changes will be deployed to production automatically after pushing to the default branch. Find the link to install on your dashboard.
 
-Documentation is deployed through the Mintlify GitHub integration after changes reach the
-repository's default branch.
+#### Troubleshooting
+
+- Mintlify dev isn't running - Run `mintlify install` it'll re-install dependencies.
+- Page loads as a 404 - Make sure you are running in a folder with `mint.json`

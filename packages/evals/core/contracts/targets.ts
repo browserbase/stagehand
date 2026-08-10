@@ -1,4 +1,10 @@
-export type TargetKind = "selector" | "coords" | "snapshot_ref" | "role_name" | "text" | "focused";
+export type TargetKind =
+  | "selector"
+  | "coords"
+  | "snapshot_ref"
+  | "role_name"
+  | "text"
+  | "focused";
 
 export type FocusedTarget = { kind: "focused" };
 

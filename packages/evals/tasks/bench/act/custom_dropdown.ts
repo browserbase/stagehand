@@ -2,7 +2,7 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "custom_dropdown" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     /**
      * This eval is meant to test whether we do not incorrectly attempt
      * the selectOptionFromDropdown method (defined in actHandlerUtils.ts) on a
@@ -13,12 +13,16 @@ export default defineBenchTask(
      */
 
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/expand-dropdown/",
+      );
 
-      await stagehand.act("choose Canada from the 'Select a Country' dropdown");
+      await v3.act("choose Canada from the 'Select a Country' dropdown");
 
-      // read the rendered page text directly — no second model call
-      const fullTree = await page.locator("#chosenValue").innerText();
+      // to test, we'll grab the full a11y tree, and make sure it contains 'Canada'
+      const extraction = await v3.extract();
+      const fullTree = extraction.pageText;
 
       if (fullTree.includes("Canada")) {
         return {
@@ -38,11 +42,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        message: `error attempting to select an option from the dropdown: ${(error as Error).message}`,
+        message: `error attempting to select an option from the dropdown: ${error.message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

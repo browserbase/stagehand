@@ -38,7 +38,9 @@ async function getFreePort(): Promise<number> {
     server.listen(0, "127.0.0.1", () => {
       const address = server.address();
       if (!address || typeof address === "string") {
-        server.close(() => reject(new Error("Failed to allocate a local debugging port")));
+        server.close(() =>
+          reject(new Error("Failed to allocate a local debugging port")),
+        );
         return;
       }
       const { port } = address;
@@ -53,7 +55,10 @@ async function getFreePort(): Promise<number> {
   });
 }
 
-async function waitForDebuggerUrl(port: number, timeoutMs: number): Promise<string> {
+async function waitForDebuggerUrl(
+  port: number,
+  timeoutMs: number,
+): Promise<string> {
   const deadline = Date.now() + timeoutMs;
   let lastError = "";
 
@@ -100,7 +105,9 @@ export async function launchRunnerProvidedLocalChrome(): Promise<{
 }> {
   const executablePath = resolveLocalChromeExecutablePath();
   if (!executablePath) {
-    throw new Error("Could not resolve a local Chrome executable. Set CHROME_PATH explicitly.");
+    throw new Error(
+      "Could not resolve a local Chrome executable. Set CHROME_PATH explicitly.",
+    );
   }
 
   const port = await getFreePort();

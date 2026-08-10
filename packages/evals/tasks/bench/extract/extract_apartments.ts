@@ -3,12 +3,16 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_apartments" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://www.apartments.com/san-francisco-ca/2-bedrooms/", {
-        waitUntil: "load",
-      });
-      const { data: apartment_listings } = await stagehand.extract(
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://www.apartments.com/san-francisco-ca/2-bedrooms/",
+        {
+          waitUntil: "load",
+        },
+      );
+      const apartment_listings = await v3.extract(
         "Extract all the apartment listings with their prices and their addresses.",
         z.object({
           listings: z.array(
@@ -56,11 +60,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

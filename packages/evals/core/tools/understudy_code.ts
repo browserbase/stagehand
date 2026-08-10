@@ -1,4 +1,4 @@
-import type { V3 } from "stagehand-v3";
+import type { V3 } from "@browserbasehq/stagehand";
 import { endBrowserbaseSession } from "../../browserbaseCleanup.js";
 import { initV3, type V3InitResult } from "../../initV3.js";
 import type {
@@ -11,7 +11,11 @@ import type {
   ToolStartInput,
   ToolStartResult,
 } from "../contracts/tool.js";
-import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
+import type {
+  ActionTarget,
+  TargetKind,
+  WaitSpec,
+} from "../contracts/targets.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
 
@@ -192,7 +196,10 @@ class UnderstudyPageHandle implements CorePageHandle {
     return new UnderstudyLocatorHandle(this.page.locator(selector));
   }
 
-  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async click(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -202,7 +209,9 @@ class UnderstudyPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
+      typeof targetOrX === "string"
+        ? ({ kind: "selector", value: targetOrX } as const)
+        : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -212,11 +221,16 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.click(target.x, target.y);
         return;
       default:
-        throw new Error(`understudy_code does not support click target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support click target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
+  async hover(
+    targetOrX: string | ActionTarget | number,
+    y?: number,
+  ): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -226,7 +240,9 @@ class UnderstudyPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
+      typeof targetOrX === "string"
+        ? ({ kind: "selector", value: targetOrX } as const)
+        : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -236,11 +252,18 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.hover(target.x, target.y);
         return;
       default:
-        throw new Error(`understudy_code does not support hover target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support hover target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
+  async scroll(
+    x: number,
+    y: number,
+    deltaX: number,
+    deltaY: number,
+  ): Promise<void> {
     await this.page.scroll(x, y, deltaX, deltaY);
   }
 
@@ -274,7 +297,9 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.type(text);
         return;
       default:
-        throw new Error(`understudy_code does not support type target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support type target kind "${target.kind}" yet`,
+        );
     }
   }
 
@@ -309,11 +334,15 @@ class UnderstudyPageHandle implements CorePageHandle {
         await this.page.keyPress(key);
         return;
       default:
-        throw new Error(`understudy_code does not support press target kind "${target.kind}" yet`);
+        throw new Error(
+          `understudy_code does not support press target kind "${target.kind}" yet`,
+        );
     }
   }
 
-  async represent(opts?: { includeIframes?: boolean }): Promise<PageRepresentation> {
+  async represent(opts?: {
+    includeIframes?: boolean;
+  }): Promise<PageRepresentation> {
     const snapshot = await this.page.snapshot({
       includeIframes: opts?.includeIframes,
     });
@@ -444,8 +473,14 @@ export class UnderstudyCodeTool implements CoreTool {
     "tool_create_browserbase",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
-  readonly supportedTargetKinds: TargetKind[] = ["selector", "coords", "focused"];
+  readonly supportedCapabilities: CoreCapability[] = [
+    ...SUPPORTED_CAPABILITIES,
+  ];
+  readonly supportedTargetKinds: TargetKind[] = [
+    "selector",
+    "coords",
+    "focused",
+  ];
 
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     if (input.startupProfile === "tool_attach_local_cdp") {
@@ -465,7 +500,9 @@ export class UnderstudyCodeTool implements CoreTool {
             : input.environment,
         localBrowserLaunchOptions: {
           headless: true,
-          ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}),
+          ...(process.env.CHROME_PATH
+            ? { executablePath: process.env.CHROME_PATH }
+            : {}),
           ...(input.providedEndpoint
             ? {
                 cdpUrl: input.providedEndpoint.url,
@@ -473,12 +510,15 @@ export class UnderstudyCodeTool implements CoreTool {
               }
             : {}),
         },
-        ...(input.startupProfile === "tool_attach_browserbase" && input.browserbase?.sessionId
+        ...(input.startupProfile === "tool_attach_browserbase" &&
+        input.browserbase?.sessionId
           ? { browserbaseSessionID: input.browserbase.sessionId }
           : {}),
-        ...(input.startupProfile === "tool_create_browserbase" && input.browserbase?.sessionParams
+        ...(input.startupProfile === "tool_create_browserbase" &&
+        input.browserbase?.sessionParams
           ? {
-              browserbaseSessionCreateParams: input.browserbase.sessionParams as never,
+              browserbaseSessionCreateParams: input.browserbase
+                .sessionParams as never,
             }
           : {}),
       },
@@ -492,8 +532,11 @@ export class UnderstudyCodeTool implements CoreTool {
         await session.close();
       },
       metadata: {
-        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
-        browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
+        environment:
+          input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        browserOwnership: input.startupProfile.startsWith("runner_provided")
+          ? "runner"
+          : "tool",
         connectionMode: connectionModeFromProfile(
           input.startupProfile,
           input.providedEndpoint?.kind,

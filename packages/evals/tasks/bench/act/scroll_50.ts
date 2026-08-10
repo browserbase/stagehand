@@ -2,10 +2,13 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "scroll_50" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
-      await stagehand.act("Scroll 50% down the page");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+      );
+      await v3.act("Scroll 50% down the page");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -18,7 +21,8 @@ export default defineBenchTask(
       });
 
       const halfwayScroll = scrollInfo.scrollHeight / 2;
-      const halfwayReached = Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
+      const halfwayReached =
+        Math.abs(scrollInfo.scrollTop - halfwayScroll) <= 200;
       const evaluationResult = halfwayReached
         ? {
             _success: true,
@@ -38,11 +42,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

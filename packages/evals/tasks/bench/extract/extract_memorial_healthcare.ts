@@ -1,14 +1,23 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { compareStrings } from "../../../framework/stringScoring.js";
+import { z } from "zod";
+import { compareStrings } from "../../../utils.js";
 
 export default defineBenchTask(
   { name: "extract_memorial_healthcare" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
-    try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/");
+  async ({
+    logger,
 
-      const { data: result } = await stagehand.extract(
+    debugUrl,
+    sessionUrl,
+    v3,
+  }) => {
+    try {
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/mycmh/",
+      );
+
+      const result = await v3.extract(
         "extract a list of the first three healthcare centers on this page, with their name, full address, and phone number",
         z.object({
           health_centers: z.array(
@@ -89,7 +98,9 @@ export default defineBenchTask(
         return null;
       };
 
-      const validHealthCenters = health_centers.map(validateHealthCenter).filter(Boolean) as Array<{
+      const validHealthCenters = health_centers
+        .map(validateHealthCenter)
+        .filter(Boolean) as Array<{
         name: string;
         phone_number: string;
         address: string;
@@ -105,7 +116,11 @@ export default defineBenchTask(
         };
       }
 
-      const compareField = (actual: string, expected: string, fieldName: string): boolean => {
+      const compareField = (
+        actual: string,
+        expected: string,
+        fieldName: string,
+      ): boolean => {
         const { similarity, meetsThreshold } = compareStrings(
           actual,
           expected,
@@ -152,7 +167,11 @@ export default defineBenchTask(
         );
       };
 
-      const firstItemMatches = compareItem(validHealthCenters[0], expectedFirstItem, "First");
+      const firstItemMatches = compareItem(
+        validHealthCenters[0],
+        expectedFirstItem,
+        "First",
+      );
       const lastItemMatches = compareItem(
         validHealthCenters[validHealthCenters.length - 1],
         expectedLastItem,
@@ -178,11 +197,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

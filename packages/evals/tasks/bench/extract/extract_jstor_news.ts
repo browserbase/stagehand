@@ -1,22 +1,36 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_jstor_news" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
-    try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/jstor/", {
-        waitUntil: "load",
-      });
-      await stagehand.act("close the cookie");
+  async ({
+    logger,
 
-      const { data: result } = await stagehand.extract(
+    debugUrl,
+    sessionUrl,
+    v3,
+  }) => {
+    try {
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/jstor/",
+        {
+          waitUntil: "load",
+        },
+      );
+      await v3.act("close the cookie");
+
+      const result = await v3.extract(
         "Extract ALL the news report titles and their dates.",
         z.object({
           reports: z.array(
             z.object({
-              report_name: z.string().describe("The name or title of the news report."),
-              publish_date: z.string().describe("The date the news report was published."),
+              report_name: z
+                .string()
+                .describe("The name or title of the news report."),
+              publish_date: z
+                .string()
+                .describe("The date the news report was published."),
             }),
           ),
         }),
@@ -87,8 +101,10 @@ export default defineBenchTask(
       }
 
       const lastItemMatches =
-        reports[reports.length - 1].report_name === expectedLastItem.report_name &&
-        reports[reports.length - 1].publish_date === expectedLastItem.publish_date;
+        reports[reports.length - 1].report_name ===
+          expectedLastItem.report_name &&
+        reports[reports.length - 1].publish_date ===
+          expectedLastItem.publish_date;
 
       if (!lastItemMatches) {
         logger.error({
@@ -123,11 +139,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

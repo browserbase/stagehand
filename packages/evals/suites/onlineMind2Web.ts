@@ -1,6 +1,6 @@
 import path from "path";
 import type { Testcase, EvalInput, AgentModelEntry } from "../types/evals.js";
-import type { AvailableModel } from "stagehand-v3";
+import type { AvailableModel } from "@browserbasehq/stagehand";
 import { tasksConfig } from "../taskConfig.js";
 import { getPackageRootDir } from "../runtimePaths.js";
 import {
@@ -10,7 +10,9 @@ import {
   normalizeAgentModelEntries,
 } from "../utils.js";
 
-export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[]): Testcase[] => {
+export const buildOnlineMind2WebTestcases = (
+  models: string[] | AgentModelEntry[],
+): Testcase[] => {
   const mind2webFilePath = path.join(
     getPackageRootDir(),
     "datasets",
@@ -61,7 +63,9 @@ export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[
   let rows: Mind2WebRow[];
   if (explicitIds && explicitIds.length > 0) {
     const byId = new Map(candidates.map((r) => [r.task_id, r]));
-    rows = explicitIds.map((id) => byId.get(id)).filter((r): r is Mind2WebRow => Boolean(r));
+    rows = explicitIds
+      .map((id) => byId.get(id))
+      .filter((r): r is Mind2WebRow => Boolean(r));
   } else {
     rows = applySampling(candidates, sampleCount, maxCases);
   }
@@ -82,7 +86,8 @@ export const buildOnlineMind2WebTestcases = (models: string[] | AgentModelEntry[
           level: row.level,
         },
       };
-      const taskCategories = tasksConfig.find((t) => t.name === input.name)?.categories || [];
+      const taskCategories =
+        tasksConfig.find((t) => t.name === input.name)?.categories || [];
       allTestcases.push({
         input,
         name: input.name,

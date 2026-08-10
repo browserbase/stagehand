@@ -1,27 +1,21 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "csr_in_oopif" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     // this eval is designed to test whether stagehand can successfully
     // click inside an CSR (closed mode shadow) root that is inside an
     // OOPIF (out of process iframe)
 
     try {
+      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/closed-shadow-root-in-oopif/",
       );
-      await stagehand.act("click the button");
+      await v3.act("click the button");
 
       await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // v3 used schemaless extract; v4 requires a schema.
-      // Single-word key to stay clear of the snake_case wire-casing bug (#14).
-      const { data: extraction } = await stagehand.extract(
-        "extract the entire page text",
-        z.object({ extraction: z.string() }),
-      );
+      const extraction = await v3.extract("extract the entire page text");
 
       const pageText = extraction.extraction;
 
@@ -44,11 +38,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        message: `error: ${error.message}`,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

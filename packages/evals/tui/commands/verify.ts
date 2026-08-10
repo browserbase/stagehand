@@ -16,7 +16,7 @@ import {
   loadTrajectoryFromDisk,
   nextResultFilename,
   type AvailableModel,
-} from "stagehand-v3";
+} from "@browserbasehq/stagehand";
 
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
@@ -85,14 +85,18 @@ function parseArgs(args: string[]): ParsedArgs {
     } else if (a === "--model" || a === "--label") {
       const value = args[++i];
       if (value === undefined || value.startsWith("-")) {
-        throw new Error(`Missing value for ${a}. Run 'evals verify --help' for usage.`);
+        throw new Error(
+          `Missing value for ${a}. Run 'evals verify --help' for usage.`,
+        );
       }
       if (a === "--model") parsed.model = value;
       else parsed.label = value;
     } else if (!a.startsWith("-") && !parsed.trajectoryDir) {
       parsed.trajectoryDir = a;
     } else {
-      throw new Error(`Unknown argument: ${a}. Run 'evals verify --help' for usage.`);
+      throw new Error(
+        `Unknown argument: ${a}. Run 'evals verify --help' for usage.`,
+      );
     }
   }
   return parsed;
@@ -154,7 +158,8 @@ export async function handleVerify(args: string[]): Promise<void> {
   // ── Human summary ──────────────────────────────────────────────────────
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
-  const processScore = result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
+  const processScore =
+    result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
   console.log(
     `${bold("Result")}  outcomeSuccess=${result.outcomeSuccess}  processScore=${processScore}`,
   );
@@ -169,7 +174,9 @@ export async function handleVerify(args: string[]): Promise<void> {
     console.log(bold("Per-criterion"));
     for (const c of perCriterion) {
       const earned = c.earnedPoints === null ? "—" : c.earnedPoints.toFixed(1);
-      const flag = c.evidenceInsufficient ? ` ${yellow("[evidence_insufficient]")}` : "";
+      const flag = c.evidenceInsufficient
+        ? ` ${yellow("[evidence_insufficient]")}`
+        : "";
       console.log(`  ${cyan(earned)}/${c.maxPoints}  ${c.criterion}${flag}`);
       if (c.explanation) {
         console.log(`    ${dim(c.explanation.slice(0, 220))}`);
@@ -187,7 +194,9 @@ export async function handleVerify(args: string[]): Promise<void> {
           : f.severity === "warning"
             ? yellow(`[${f.severity}]`)
             : dim(`[${f.severity}]`);
-      const steps = f.relatedSteps?.length ? gray(` steps=[${f.relatedSteps.join(",")}]`) : "";
+      const steps = f.relatedSteps?.length
+        ? gray(` steps=[${f.relatedSteps.join(",")}]`)
+        : "";
       console.log(`  ${sev} ${f.category}${steps}`);
       console.log(`    ${f.description}`);
       if (f.suggestedAction) {
@@ -207,7 +216,9 @@ export async function handleVerify(args: string[]): Promise<void> {
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, JSON.stringify(result, null, 2));
   console.log();
-  console.log(`${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`);
+  console.log(
+    `${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`,
+  );
 }
 
 async function assertTrajectoryDir(dir: string): Promise<void> {
@@ -225,6 +236,8 @@ async function assertTrajectoryDir(dir: string): Promise<void> {
   try {
     await fs.access(path.join(dir, "trajectory.json"));
   } catch {
-    throw new Error(`Missing trajectory.json in ${dir}. Is this a valid trajectory directory?`);
+    throw new Error(
+      `Missing trajectory.json in ${dir}. Is this a valid trajectory directory?`,
+    );
   }
 }

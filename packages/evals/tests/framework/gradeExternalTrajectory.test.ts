@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Rubric, TaskSpec, Trajectory, TrajectoryStep } from "stagehand-v3";
+import type {
+  Rubric,
+  TaskSpec,
+  Trajectory,
+  TrajectoryStep,
+} from "@browserbasehq/stagehand";
 
 import { gradeExternalTrajectory } from "../../framework/verifierAdapter.js";
 import { EvalLogger } from "../../logger.js";
@@ -11,8 +16,8 @@ const mockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
 }));
 
-vi.mock("stagehand-v3", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("stagehand-v3")>();
+vi.mock("@browserbasehq/stagehand", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@browserbasehq/stagehand")>();
   class FakeV3Evaluator {
     async verify() {
       return mockState.evaluationResult;
@@ -75,7 +80,8 @@ describe("gradeExternalTrajectory", () => {
   afterEach(() => {
     if (savedSuccessMode === undefined) delete process.env.EVAL_SUCCESS_MODE;
     else process.env.EVAL_SUCCESS_MODE = savedSuccessMode;
-    if (savedPersist === undefined) delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
+    if (savedPersist === undefined)
+      delete process.env.VERIFIER_PERSIST_TRAJECTORIES;
     else process.env.VERIFIER_PERSIST_TRAJECTORIES = savedPersist;
     mockState.evaluationResult = { outcomeSuccess: true, processScore: 0.92 };
   });

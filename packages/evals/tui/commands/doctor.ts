@@ -22,7 +22,16 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { bold, cyan, dim, gray, green, red, yellow, padRight } from "../format.js";
+import {
+  bold,
+  cyan,
+  dim,
+  gray,
+  green,
+  red,
+  yellow,
+  padRight,
+} from "../format.js";
 import { readConfig, resolveConfigPath } from "./config.js";
 import { resolveKey, snapshotEnv, type EnvSnapshot } from "../welcomeStatus.js";
 import { getPackageRootDir, getRuntimeTasksRoot } from "../../runtimePaths.js";
@@ -69,7 +78,8 @@ type DoctorReport = {
 
 export function printDoctorHelp(): void {
   const HELP_COL = 28;
-  const row = (left: string, right: string): string => `    ${padRight(left, HELP_COL)} ${right}`;
+  const row = (left: string, right: string): string =>
+    `    ${padRight(left, HELP_COL)} ${right}`;
   console.log(
     [
       "",
@@ -112,7 +122,9 @@ function detectMode(entryDir: string): "source" | "dist" {
   // Anchor on the actual built location (`packages/evals/dist/cli`) so a
   // user whose checkout happens to live under a path containing `/dist/`
   // (e.g. `~/work/dist/stagehand/...`) isn't misclassified.
-  return entryDir.endsWith("/dist/cli") || entryDir.endsWith("\\dist\\cli") ? "dist" : "source";
+  return entryDir.endsWith("/dist/cli") || entryDir.endsWith("\\dist\\cli")
+    ? "dist"
+    : "source";
 }
 
 function summarizeConfig(entryDir: string): ConfigSummary {
@@ -183,12 +195,15 @@ function computeVerdict(
     keys.anthropic.state === "missing" &&
     keys.google.state === "missing";
   if (zeroProviders) {
-    reasons.push("No provider API key found (OpenAI / Anthropic / Google all missing).");
+    reasons.push(
+      "No provider API key found (OpenAI / Anthropic / Google all missing).",
+    );
   }
 
   const envIsBrowserbase = config.env === "browserbase";
   const bothBBMissing =
-    keys.browserbase.apiKey === "missing" && keys.browserbase.projectId === "missing";
+    keys.browserbase.apiKey === "missing" &&
+    keys.browserbase.projectId === "missing";
   if (envIsBrowserbase && bothBBMissing) {
     reasons.push(
       "env=browserbase but both BROWSERBASE_API_KEY and BROWSERBASE_PROJECT_ID are missing.",
@@ -200,13 +215,19 @@ function computeVerdict(
   }
 
   const partialBB =
-    (keys.browserbase.apiKey === "set" && keys.browserbase.projectId === "missing") ||
-    (keys.browserbase.apiKey === "missing" && keys.browserbase.projectId === "set");
+    (keys.browserbase.apiKey === "set" &&
+      keys.browserbase.projectId === "missing") ||
+    (keys.browserbase.apiKey === "missing" &&
+      keys.browserbase.projectId === "set");
   if (partialBB) {
-    reasons.push("Browserbase is partially configured (one of API key / project ID is missing).");
+    reasons.push(
+      "Browserbase is partially configured (one of API key / project ID is missing).",
+    );
   }
   if (keys.braintrust.state === "missing") {
-    reasons.push("BRAINTRUST_API_KEY missing — `experiments` commands will fail.");
+    reasons.push(
+      "BRAINTRUST_API_KEY missing — `experiments` commands will fail.",
+    );
   }
 
   if (partialBB || keys.braintrust.state === "missing") {
@@ -263,15 +284,23 @@ function renderHuman(report: DoctorReport): void {
   console.log(`  ${bold("Config")}`);
   console.log(`    ${padRight("evals.config.json", 22)} ${dim(r.config.path)}`);
   console.log(`    ${padRight("env", 22)} ${cyan(r.config.env ?? "local")}`);
-  console.log(`    ${padRight("trials", 22)} ${cyan(String(r.config.trials ?? 3))}`);
-  console.log(`    ${padRight("concurrency", 22)} ${cyan(String(r.config.concurrency ?? 3))}`);
+  console.log(
+    `    ${padRight("trials", 22)} ${cyan(String(r.config.trials ?? 3))}`,
+  );
+  console.log(
+    `    ${padRight("concurrency", 22)} ${cyan(String(r.config.concurrency ?? 3))}`,
+  );
   console.log(
     `    ${padRight("core.tool", 22)} ${
-      r.config.core.tool ? cyan(r.config.core.tool) : gray("(runner default: understudy_code)")
+      r.config.core.tool
+        ? cyan(r.config.core.tool)
+        : gray("(runner default: understudy_code)")
     }`,
   );
   if (r.config.core.startup) {
-    console.log(`    ${padRight("core.startup", 22)} ${cyan(r.config.core.startup)}`);
+    console.log(
+      `    ${padRight("core.startup", 22)} ${cyan(r.config.core.startup)}`,
+    );
   }
   console.log("");
 
@@ -307,7 +336,13 @@ function renderHuman(report: DoctorReport): void {
       r.keys.browserbase.projectId === "set" ? green("✓ set") : red("✗ missing")
     }`,
   );
-  console.log(keyRow("BRAINTRUST_API_KEY", r.keys.braintrust, "(needed for `experiments`)"));
+  console.log(
+    keyRow(
+      "BRAINTRUST_API_KEY",
+      r.keys.braintrust,
+      "(needed for `experiments`)",
+    ),
+  );
   console.log("");
 
   console.log(`  ${bold("Status")}`);
@@ -355,8 +390,11 @@ function renderJson(report: DoctorReport): void {
 // Probe (hidden)
 // ---------------------------------------------------------------------------
 
-async function runOpenAIProbe(keys: EnvSnapshot): Promise<{ ok: boolean; error?: string }> {
-  if (keys.openai.state !== "set") return { ok: false, error: "OPENAI_API_KEY missing" };
+async function runOpenAIProbe(
+  keys: EnvSnapshot,
+): Promise<{ ok: boolean; error?: string }> {
+  if (keys.openai.state !== "set")
+    return { ok: false, error: "OPENAI_API_KEY missing" };
   // Use the SAME resolution as the snapshot — i.e. check process.env AND
   // packages/evals/.env. If we only read process.env here, a key stored
   // only in the package-local .env would show "✓ set" in the snapshot but
@@ -386,7 +424,10 @@ async function runOpenAIProbe(keys: EnvSnapshot): Promise<{ ok: boolean; error?:
 // Entry point
 // ---------------------------------------------------------------------------
 
-export async function handleDoctor(args: string[], entryDir: string): Promise<number> {
+export async function handleDoctor(
+  args: string[],
+  entryDir: string,
+): Promise<number> {
   if (args.includes("--help") || args.includes("-h") || args[0] === "help") {
     printDoctorHelp();
     return 0;

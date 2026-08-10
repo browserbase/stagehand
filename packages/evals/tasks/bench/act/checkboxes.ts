@@ -2,13 +2,16 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "checkboxes" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/checkboxes/",
+      );
 
-      await stagehand.act("click the 'baseball' option");
+      await v3.act("click the 'baseball' option");
 
-      await stagehand.act("click the 'netball' option");
+      await v3.act("click the 'netball' option");
 
       const baseballChecked = await page
         .locator('input[type="checkbox"][name="sports"][value="baseball"]')
@@ -32,6 +35,8 @@ export default defineBenchTask(
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

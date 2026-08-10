@@ -1,13 +1,16 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_rockauto" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/rockauto/",
+      );
       await new Promise((resolve) => setTimeout(resolve, 5000));
-      const { data: result } = await stagehand.extract(
+      const result = await v3.extract(
         "Extract the part number of all the coolant and antifreeze products in the 'economy' category. " +
           "Do not include the manufacturer name. Do not include products from the premium category.",
         z.object({
@@ -20,7 +23,13 @@ export default defineBenchTask(
       );
 
       const coolantProducts = result.coolant_products;
-      const expectedPartNumbers = ["GREEN5050GAL", "719009", "AF3300", "AF3100", "MV5050GAL"];
+      const expectedPartNumbers = [
+        "GREEN5050GAL",
+        "719009",
+        "AF3300",
+        "AF3100",
+        "MV5050GAL",
+      ];
       const expectedLength = expectedPartNumbers.length;
 
       if (coolantProducts.length !== expectedLength) {
@@ -48,7 +57,8 @@ export default defineBenchTask(
       }
 
       const missingParts = expectedPartNumbers.filter(
-        (expectedPart) => !coolantProducts.some((p) => p.part_number === expectedPart),
+        (expectedPart) =>
+          !coolantProducts.some((p) => p.part_number === expectedPart),
       );
 
       if (missingParts.length > 0) {
@@ -84,11 +94,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

@@ -2,9 +2,12 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "prev_chunk" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
+      );
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const { initialScrollTop, chunkHeight } = await page.evaluate(() => {
         const halfPage = document.body.scrollHeight / 2;
@@ -23,7 +26,7 @@ export default defineBenchTask(
         };
       });
       await new Promise((resolve) => setTimeout(resolve, 2000));
-      await stagehand.act("scroll up one chunk");
+      await v3.act("scroll up one chunk");
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
 
@@ -53,11 +56,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

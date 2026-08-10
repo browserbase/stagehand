@@ -41,7 +41,10 @@ export function printResultsTable(results: SummaryResult[]): void {
 
   for (const [name, taskResults] of byTask) {
     for (const r of taskResults) {
-      const resultLabel = padRight(r.output._success ? "✓ pass" : "✗ fail", resultWidth);
+      const resultLabel = padRight(
+        r.output._success ? "✓ pass" : "✗ fail",
+        resultWidth,
+      );
       const result = r.output._success ? green(resultLabel) : red(resultLabel);
       console.log(
         `  ${padRight(name, taskWidth)} ${dim(padRight(r.input.modelName, modelWidth))} ${result}`,
@@ -54,7 +57,10 @@ export function printResultsTable(results: SummaryResult[]): void {
   printModelSummary(results, true);
 }
 
-export function printModelSummary(results: SummaryResult[], leadingBlankLine = false): void {
+export function printModelSummary(
+  results: SummaryResult[],
+  leadingBlankLine = false,
+): void {
   const { summaryWidth } = getResultsLayout();
   const modelStats = getModelStats(results);
 
@@ -102,7 +108,9 @@ function getResultsLayout(): {
   };
 }
 
-function getModelStats(results: SummaryResult[]): Map<string, { passed: number; total: number }> {
+function getModelStats(
+  results: SummaryResult[],
+): Map<string, { passed: number; total: number }> {
   const modelStats = new Map<string, { passed: number; total: number }>();
 
   for (const r of results) {

@@ -1,14 +1,17 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { normalizeString } from "../../../framework/stringScoring.js";
+import { normalizeString } from "../../../utils.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_resistor_info" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/resistor/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/resistor/",
+      );
 
-      const { data: result } = await stagehand.extract(
+      const result = await v3.extract(
         "Extract the manufacturer standard lead time, tolerance percentage, resistance, and operating temperature range of the resistor.",
         z.object({
           manufacturer_standard_lead_time: z.string(),
@@ -37,7 +40,8 @@ export default defineBenchTask(
         normalizeString(expected.manufacturer_standard_lead_time)
       ) {
         logger.error({
-          message: "manufacturer standard lead time extracted does not match expected",
+          message:
+            "manufacturer standard lead time extracted does not match expected",
           level: 0,
           auxiliary: {
             expected: {
@@ -52,7 +56,8 @@ export default defineBenchTask(
         });
         return {
           _success: false,
-          error: "manufacturer standard lead time extracted does not match expected",
+          error:
+            "manufacturer standard lead time extracted does not match expected",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -60,7 +65,8 @@ export default defineBenchTask(
       }
 
       if (
-        normalizeString(tolerance_percentage) !== normalizeString(expected.tolerance_percentage)
+        normalizeString(tolerance_percentage) !==
+        normalizeString(expected.tolerance_percentage)
       ) {
         logger.error({
           message: "Tolerance percentage extracted does not match expected",
@@ -85,7 +91,9 @@ export default defineBenchTask(
         };
       }
 
-      if (normalizeString(resistance) !== normalizeString(expected.resistance)) {
+      if (
+        normalizeString(resistance) !== normalizeString(expected.resistance)
+      ) {
         logger.error({
           message: "resistance extracted does not match expected",
           level: 0,
@@ -114,7 +122,8 @@ export default defineBenchTask(
         normalizeString(expected.operating_temperature_range)
       ) {
         logger.error({
-          message: "Operating temperature range extracted does not match expected",
+          message:
+            "Operating temperature range extracted does not match expected",
           level: 0,
           auxiliary: {
             expected: {
@@ -129,7 +138,8 @@ export default defineBenchTask(
         });
         return {
           _success: false,
-          error: "Operating temperature range extracted does not match expected",
+          error:
+            "Operating temperature range extracted does not match expected",
           logs: logger.getLogs(),
           debugUrl,
           sessionUrl,
@@ -145,11 +155,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

@@ -2,31 +2,34 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "observe_amazon_add_to_cart" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/amazon/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/",
+      );
 
-      const { data: observations1 } = await stagehand.observe(
+      const observations1 = await v3.observe(
         "Find and click the 'Add to Cart' button",
       );
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations1.length > 0) {
         const action1 = observations1[0];
-        await stagehand.act(action1);
+        await v3.act(action1);
       }
 
-      const { data: observations2 } = await stagehand.observe(
+      const observations2 = await v3.observe(
         "Find and click the 'Proceed to checkout' button",
       );
 
       // Example of using performPlaywrightMethod if you have the xpath
       if (observations2.length > 0) {
         const action2 = observations2[0];
-        await stagehand.act(action2);
+        await v3.act(action2);
       }
 
-      const currentUrl = await page.url();
+      const currentUrl = page.url();
       const expectedUrlPrefix =
         "https://browserbase.github.io/stagehand-eval-sites/sites/amazon/sign-in.html";
 
@@ -40,11 +43,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

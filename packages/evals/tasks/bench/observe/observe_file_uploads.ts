@@ -1,13 +1,15 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { matchingSelector } from "../../../framework/observeSelectors.js";
 
 export default defineBenchTask(
   { name: "observe_file_uploads" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/");
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/file-uploads-3/",
+      );
 
-      const { data: observations } = await stagehand.observe("find the file upload element");
+      const observations = await v3.observe("find the file upload element");
 
       if (observations.length === 0) {
         return {
@@ -22,12 +24,14 @@ export default defineBenchTask(
 
       const expectedLocator = `xpath=/html/body/input`;
 
-      // v3 compares backendNodeIds; the v4 Locator exposes no node identity
-      // so the same element-identity check is
-      // re-expressed in-page: resolve the observed selector and the expected
-      // selector and compare element references.
-      const foundMatch =
-        (await matchingSelector(page, observations[0].selector, [expectedLocator])) !== null;
+      const expectedBackendNodeId = await page
+        .locator(expectedLocator)
+        .backendNodeId();
+
+      const actualBackendNodeId = await page
+        .locator(observations[0].selector)
+        .backendNodeId();
+      const foundMatch = expectedBackendNodeId === actualBackendNodeId;
 
       return {
         _success: foundMatch,
@@ -39,12 +43,14 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         message: "returned selector does not resolve to same node as expected",
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );

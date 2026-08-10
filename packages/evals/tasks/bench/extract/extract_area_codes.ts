@@ -1,15 +1,17 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_area_codes" },
-  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
+  async ({ logger, debugUrl, sessionUrl, v3 }) => {
     try {
-      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/", {
-        waitUntil: "domcontentloaded",
-      });
+      const page = v3.context.pages()[0];
+      await page.goto(
+        "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-area-codes/",
+        { waitUntil: "domcontentloaded" },
+      );
 
-      const { data: result } = await stagehand.extract(
+      const result = await v3.extract(
         "Extract ALL the Primary Center names and their corresponding Area Code, and the name of their corresponding Zone.",
         z.object({
           primary_center_list: z.array(
@@ -74,7 +76,8 @@ export default defineBenchTask(
       }
       const firstItemMatches =
         primaryCenterList[0].zone_name === expectedFirstItem.zone_name &&
-        primaryCenterList[0].primary_center_name === expectedFirstItem.primary_center_name &&
+        primaryCenterList[0].primary_center_name ===
+          expectedFirstItem.primary_center_name &&
         primaryCenterList[0].area_code === expectedFirstItem.area_code;
 
       if (!firstItemMatches) {
@@ -102,10 +105,12 @@ export default defineBenchTask(
       }
 
       const lastItemMatches =
-        primaryCenterList[primaryCenterList.length - 1].zone_name === expectedLastItem.zone_name &&
+        primaryCenterList[primaryCenterList.length - 1].zone_name ===
+          expectedLastItem.zone_name &&
         primaryCenterList[primaryCenterList.length - 1].primary_center_name ===
           expectedLastItem.primary_center_name &&
-        primaryCenterList[primaryCenterList.length - 1].area_code === expectedLastItem.area_code;
+        primaryCenterList[primaryCenterList.length - 1].area_code ===
+          expectedLastItem.area_code;
 
       if (!lastItemMatches) {
         logger.error({
@@ -117,7 +122,9 @@ export default defineBenchTask(
               type: "object",
             },
             actual: {
-              value: JSON.stringify(primaryCenterList[primaryCenterList.length - 1]),
+              value: JSON.stringify(
+                primaryCenterList[primaryCenterList.length - 1],
+              ),
               type: "object",
             },
           },
@@ -140,11 +147,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: error,
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
+    } finally {
+      await v3.close();
     }
   },
 );

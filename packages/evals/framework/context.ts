@@ -2,9 +2,13 @@
  * Context builders for each tier.
  *
  * - buildCoreContext(): starts a core tool surface, provides page + tool + assert + metrics
- * - buildAgentBenchContext(): full V3 init with model/agent support (wraps existing initV3)
+ * - buildBenchContext(): full V3 init with model/agent support (wraps existing initV3)
  */
-import type { AvailableModel, ClientOptions, LLMClient } from "stagehand-v3";
+import type {
+  AvailableModel,
+  ClientOptions,
+  LLMClient,
+} from "@browserbasehq/stagehand";
 import { type V3InitResult, initV3 } from "../initV3.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import { coreFixtureRoutes } from "../core/fixtures/index.js";
@@ -14,7 +18,7 @@ import { ensureCoreFixtureServer } from "../core/fixtures/server.js";
 import { EvalLogger } from "../logger.js";
 import { createAssertHelpers } from "./assertions.js";
 import { createMetricsCollector } from "./metrics.js";
-import type { AgentBenchTaskContext, CoreTaskContext } from "./types.js";
+import type { BenchTaskContext, CoreTaskContext } from "./types.js";
 
 export interface CoreContextOptions {
   logger?: EvalLogger;
@@ -34,7 +38,9 @@ export function resolveDefaultCoreStartupProfile(
 ): StartupProfile {
   switch (toolSurface) {
     case "browse_cli":
-      return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
+      return environment === "BROWSERBASE"
+        ? "tool_create_browserbase"
+        : "tool_launch_local";
     case "understudy_code":
     case "playwright_code":
     case "cdp_code":
@@ -66,7 +72,8 @@ export async function buildCoreContext(
   const toolSurface = options.toolSurface ?? "understudy_code";
   const tool = getCoreTool(toolSurface);
   const startupProfile =
-    options.startupProfile ?? resolveDefaultCoreStartupProfile(toolSurface, environment);
+    options.startupProfile ??
+    resolveDefaultCoreStartupProfile(toolSurface, environment);
 
   if (!tool.supportedStartupProfiles.includes(startupProfile)) {
     throw new Error(
@@ -102,7 +109,7 @@ export async function buildCoreContext(
       surface: tool.surface,
       metadata: {
         ...toolResult.metadata,
-        ...targetResult.metadata,
+        ...(targetResult.metadata ?? {}),
       },
     },
     assert: createAssertHelpers(),
@@ -122,7 +129,7 @@ export async function buildCoreContext(
   };
 }
 
-export interface AgentBenchContextOptions {
+export interface BenchContextOptions {
   modelName: AvailableModel;
   logger?: EvalLogger;
   llmClient?: LLMClient;
@@ -137,21 +144,21 @@ export interface AgentBenchContextOptions {
   };
 }
 
-export interface AgentBenchContextResult {
-  ctx: AgentBenchTaskContext;
+export interface BenchContextResult {
+  ctx: BenchTaskContext;
   /** The V3 instance — caller is responsible for closing it. */
   v3Result: V3InitResult;
 }
 
 /**
- * Build an AgentBenchTaskContext for agent benchmark (tier 3) tasks.
+ * Build a BenchTaskContext for agent benchmark (tier 3) tasks.
  *
  * Wraps the existing initV3 logic, providing the same shape that
  * legacy EvalFunction tasks expect.
  */
-export async function buildAgentBenchContext(
-  options: AgentBenchContextOptions,
-): Promise<AgentBenchContextResult> {
+export async function buildBenchContext(
+  options: BenchContextOptions,
+): Promise<BenchContextResult> {
   const logger = options.logger ?? new EvalLogger();
   const v3Result = await initV3({
     logger,
@@ -163,7 +170,7 @@ export async function buildAgentBenchContext(
   });
 
   const page = v3Result.v3.context.pages()[0];
-  const ctx: AgentBenchTaskContext = {
+  const ctx: BenchTaskContext = {
     v3: v3Result.v3,
     agent: v3Result.agent,
     page,

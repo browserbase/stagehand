@@ -1,20 +1,19 @@
-import { z } from "zod";
 import { defineBenchTask } from "../../../framework/defineTask.js";
+import { z } from "zod";
 
 export default defineBenchTask(
   { name: "extract_regulations_table" },
-  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
+  async ({ debugUrl, sessionUrl, v3, logger }) => {
     try {
+      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/ncc-numbering-plan/",
       );
 
-      // The locator engine prefix is required for XPath selectors.
-      const locator = page.locator(
-        "xpath=/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table",
-      );
+      const xpath =
+        "/html/body/div[3]/main/div[2]/div[2]/div/div/div[2]/article/div[2]/div[1]/div/table";
 
-      const { data: allottees } = await stagehand.extract(
+      const allottees = await v3.extract(
         "Extract ALL of the Allottees and their corresponding name, area, and area code.",
         z.object({
           allottee_list: z.array(
@@ -26,7 +25,7 @@ export default defineBenchTask(
             }),
           ),
         }),
-        { locator },
+        { selector: xpath },
       );
 
       // Define the expected weather data
@@ -50,13 +49,15 @@ export default defineBenchTask(
 
       // Check that the first entry, last entry, and total number match expectations
       const isFirstCorrect =
-        JSON.stringify(allotteeList[0]) === JSON.stringify(allottees_expected_first);
+        JSON.stringify(allotteeList[0]) ===
+        JSON.stringify(allottees_expected_first);
       const isLastCorrect =
         JSON.stringify(allotteeList[allotteeList.length - 1]) ===
         JSON.stringify(allottees_expected_last);
       const isLengthCorrect = allotteeList.length === expected_length;
 
-      const isRegulationsCorrect = isFirstCorrect && isLastCorrect && isLengthCorrect;
+      const isRegulationsCorrect =
+        isFirstCorrect && isLastCorrect && isLengthCorrect;
 
       return {
         _success: isRegulationsCorrect,
@@ -68,11 +69,13 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error instanceof Error ? error.message : String(error),
+        error: JSON.parse(JSON.stringify(error, null, 2)),
         debugUrl,
         sessionUrl,
         logs: logger.getLogs(),
       };
+    } finally {
+      await v3.close();
     }
   },
 );
