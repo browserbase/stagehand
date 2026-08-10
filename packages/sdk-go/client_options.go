@@ -69,23 +69,38 @@ type CreateOptions struct {
 	Telemetry          TelemetryConfig
 }
 
-// StagehandClientActOptions adds an optional SDK Page to the generated
-// protocol options. Page never crosses the JSON-RPC boundary.
+// StagehandClientActOptions configures act calls. Page and PageLocator
+// wrappers never cross the JSON-RPC boundary.
 type StagehandClientActOptions struct {
-	ActOptions
-	Page *Page
+	Page           *Page
+	Cache          *Caching
+	Model          *ModelConfig
+	Timeout        *float64
+	Variables      Variables
+	Locator        *PageLocator
+	IgnoreLocators []*PageLocator
 }
 
-// StagehandClientObserveOptions adds an optional SDK Page to the generated
-// protocol options. Page never crosses the JSON-RPC boundary.
+// StagehandClientObserveOptions configures observe calls. Page and PageLocator
+// wrappers never cross the JSON-RPC boundary.
 type StagehandClientObserveOptions struct {
-	ObserveOptions
-	Page *Page
+	Page           *Page
+	Cache          *Caching
+	Model          *ModelConfig
+	Timeout        *float64
+	Variables      Variables
+	Locator        *PageLocator
+	IgnoreLocators []*PageLocator
 }
 
-// StagehandClientExtractOptions adds an optional SDK Page to the generated
-// protocol options. Page never crosses the JSON-RPC boundary.
+// StagehandClientExtractOptions configures extract calls. Page and PageLocator
+// wrappers never cross the JSON-RPC boundary.
 type StagehandClientExtractOptions struct {
-	ExtractOptions
-	Page *Page
+	Page           *Page
+	Cache          *Caching
+	Model          *ModelConfig
+	Screenshot     *bool
+	Timeout        *float64
+	Locator        *PageLocator
+	IgnoreLocators []*PageLocator
 }

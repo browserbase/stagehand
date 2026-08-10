@@ -436,6 +436,82 @@ describe("extract service", () => {
     expect(clientLLMGenerate).not.toHaveBeenCalled();
     expect(set).not.toHaveBeenCalled();
   });
+
+  it.each([
+    {
+      name: "focus locator",
+      options: { cache: true, locator: { selector: "main", nth: 1 } },
+      expectedSnapshotOptions: {
+        focusLocator: { selector: "main", nth: 1 },
+        ignoreLocators: undefined,
+      },
+    },
+    {
+      name: "ignore locator",
+      options: { cache: true, ignoreLocators: [{ selector: "nav", nth: 2 }] },
+      expectedSnapshotOptions: {
+        focusLocator: undefined,
+        ignoreLocators: [{ selector: "nav", nth: 2 }],
+      },
+    },
+  ])(
+    "bypasses cache reads and writes for locator-scoped extraction with $name",
+    async ({ options, expectedSnapshotOptions }) => {
+      const frame = {
+        frameId: "frame-1",
+        getAccessibilityTree: vi.fn(async () => []),
+      };
+      const page = {
+        captureSnapshot: vi.fn(async () => ({
+          combinedTree: "[0-1] text: 1",
+          combinedXpathMap: {},
+          combinedUrlMap: {},
+        })),
+        screenshot: vi.fn(),
+        url: () => "https://example.com",
+        frames: () => [frame],
+        mainFrame: () => frame,
+      };
+      const get = vi.fn();
+      const set = vi.fn();
+      const clientLLMGenerate = vi.fn(
+        async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
+          const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
+          return structuredResult(
+            name === "Extraction"
+              ? { count: 1 }
+              : { progress: "Extracted the count", completed: true },
+          );
+        },
+      );
+
+      const result = await extractService.extract({
+        params: {
+          pageId: "page-1",
+          instruction: "Extract the count",
+          schema: z.json().parse(z.toJSONSchema(z.object({ count: z.number() }))),
+          options,
+        },
+        page,
+        model: { source: "client" },
+        clientLLMGenerate,
+        logger: testLogger(),
+        cache: {
+          sessionId: "session-1",
+          client: { get, set } as unknown as CacheClient,
+          defaultCaching: true,
+        },
+      });
+
+      expect(result.data).toStrictEqual({ count: 1 });
+      expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+      expect(page.captureSnapshot).toHaveBeenCalledWith(expectedSnapshotOptions);
+      expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
+      expect(get).not.toHaveBeenCalled();
+      expect(set).not.toHaveBeenCalled();
+      expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+    },
+  );
 });
 
 function structuredResult(
