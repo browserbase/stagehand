@@ -70,6 +70,7 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 | `-c, --concurrency <n>`                                           | Max parallel sessions                                       |
 | `-m, --model <id>`                                                | Override the model matrix                                   |
 | `--api`                                                           | Run via the Stagehand API instead of the SDK                |
+| `--verbose`                                                       | Stream detailed logs while the eval runs                    |
 | `--harness <stagehand\|claude_code\|codex>`                       | Which agent harness drives the bench task                   |
 | `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
 | `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |

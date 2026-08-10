@@ -247,6 +247,12 @@ describe("CLI entrypoint", () => {
     expect(() => JSON.parse(stdout)).toThrow();
   }, 20_000);
 
+  it("accepts --verbose for a one-shot run", async () => {
+    const { stdout, code } = await runCli(["run", "act", "--dry-run", "--verbose"]);
+    expect(code).toBe(0);
+    expect(JSON.parse(stdout).runOptions.verbose).toBe(true);
+  });
+
   it("rejects --preview combined with --dry-run", async () => {
     const { stdout, stderr, code } = await runCli(["run", "act", "--dry-run", "--preview"]);
     expect(code).toBe(1);

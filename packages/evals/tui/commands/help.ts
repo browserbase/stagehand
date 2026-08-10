@@ -63,6 +63,7 @@ export function printRunHelp(): void {
     row(`${cyan("-e, --env")} ${dim("<env>")}`, `Environment: ${gray("local | browserbase")}`),
     row(`${cyan("-m, --model")} ${dim("<model>")}`, "Model override"),
     row(cyan("--api"), "Use Stagehand API mode"),
+    row(cyan("--verbose"), "Stream detailed logs instead of the animated progress view"),
     "",
     `  ${bold("Core options:")}`,
     "",

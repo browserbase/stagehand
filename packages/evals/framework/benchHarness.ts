@@ -13,6 +13,7 @@ import { prepareCodexToolAdapter, type PreparedCodexToolAdapter } from "./codexT
 import { buildExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import type { DiscoveredTask, TaskResult } from "./types.js";
 import type { BenchMatrixRow, BenchTaskKind, Harness } from "./benchTypes.js";
+import { onceAsync, registerActiveRunCleanup } from "./activeRunCleanup.js";
 
 export interface BenchHarnessStartInput {
   task: DiscoveredTask;
@@ -152,6 +153,11 @@ export const claudeCodeHarness: BenchHarness = {
     // the adapter and the carrier.
     const carrierV3 = buildVerifierCarrierV3(logger);
     let toolAdapter: PreparedClaudeCodeToolAdapter | undefined;
+    const cleanup = onceAsync(async () => {
+      await toolAdapter?.cleanup();
+      await carrierV3.close().catch(() => {});
+    });
+    const unregisterCleanup = registerActiveRunCleanup(cleanup);
     try {
       toolAdapter = await prepareClaudeCodeToolAdapter({
         toolSurface: row.config.toolSurface,
@@ -173,11 +179,11 @@ export const claudeCodeHarness: BenchHarness = {
         },
       });
     } finally {
-      await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
+      try {
+        await cleanup();
+      } finally {
+        unregisterCleanup();
+      }
     }
   },
   async start(): Promise<StartedBenchHarness> {
@@ -201,6 +207,11 @@ export const codexHarness: BenchHarness = {
     // the adapter and the carrier.
     const carrierV3 = buildVerifierCarrierV3(logger);
     let toolAdapter: PreparedCodexToolAdapter | undefined;
+    const cleanup = onceAsync(async () => {
+      await toolAdapter?.cleanup();
+      await carrierV3.close().catch(() => {});
+    });
+    const unregisterCleanup = registerActiveRunCleanup(cleanup);
     try {
       toolAdapter = await prepareCodexToolAdapter({
         toolSurface: row.config.toolSurface,
@@ -222,11 +233,11 @@ export const codexHarness: BenchHarness = {
         },
       });
     } finally {
-      await toolAdapter?.cleanup();
-      // Deregister the never-init()-ed carrier (instance registry, event
-      // store, logger binding) so long matrix runs don't accumulate one
-      // V3 object graph per task.
-      await carrierV3.close().catch(() => {});
+      try {
+        await cleanup();
+      } finally {
+        unregisterCleanup();
+      }
     }
   },
   async start(): Promise<StartedBenchHarness> {

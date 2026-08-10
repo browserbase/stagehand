@@ -5,6 +5,7 @@ import {
   deriveCategoryFilter,
   runCommand,
 } from "../../tui/commands/run.js";
+import { BROWSE_CLI_ENTRYPOINT } from "../../browseCliPaths.js";
 
 const runEvalsMock = vi.hoisted(() =>
   vi.fn(async () => ({
@@ -218,7 +219,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
       harnessConfig: {
         harness: "claude_code",
         model: "anthropic/claude-sonnet-4-20250514",
@@ -276,7 +277,7 @@ describe("deriveCategoryFilter", () => {
       startupProfile: "tool_create_browserbase",
       toolCommand: "browse",
       browseCliVersion: expect.any(String),
-      browseCliEntrypoint: expect.stringMatching(/browse[/\\]bin[/\\]run\.js$/u),
+      browseCliEntrypoint: BROWSE_CLI_ENTRYPOINT,
       harnessConfig: {
         harness: "codex",
         model: "openai/gpt-5.4-mini",
