@@ -108,5 +108,13 @@ Managed Deep Agents forwards non-reserved `.env` entries as deployment secrets. 
 and the optional Stagehand model key are independent: users can bring their own key for either,
 while Browserbase Model Gateway remains the zero-additional-key Stagehand path.
 
-The example bundles the Stagehand extension and uploads it to Browserbase automatically. Set
-`STAGEHAND_EXTENSION_ID` to reuse an existing uploaded extension instead.
+The published `stagehand` wheel bundles the browser extension and `browserbase.launch` provisions
+it automatically. Set `STAGEHAND_EXTENSION_ID` to reuse a pre-uploaded extension instead.
+
+## Security model
+
+The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service
+worker — browser-side, never in the host process. Browserbase is the recommended isolation
+boundary: the privileged execution environment is a disposable cloud browser with no access to the
+host machine. Only `STAGEHAND_*` and `BROWSERBASE_*` environment variables are forwarded to the
+browser session; host secrets such as the deep-agent model key never reach it.
