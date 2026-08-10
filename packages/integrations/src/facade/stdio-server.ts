@@ -130,13 +130,20 @@ function stringifyResult(value: unknown): string {
 export function sanitizeErrorMessage(message: string): string {
   return message
     .replace(/([?&](?:signingKey|apiKey|api_key|token|key)=)[^&\s"']+/gi, "$1[redacted]")
-    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1[redacted]");
+    .replace(/\b(sk-[A-Za-z0-9_-]{6})[A-Za-z0-9_-]+/g, "$1[redacted]")
+    .replace(/\b(bb_(?:live|test)_[A-Za-z0-9]{4})[A-Za-z0-9_-]+/g, "$1[redacted]")
+    .replace(/\bAIza[0-9A-Za-z_-]{30,}/g, "AIza[redacted]")
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}/gi, "$1[redacted]");
 }
 
 async function shutdown(code: number): Promise<void> {
   if (closing) return;
   closing = true;
-  const resources = await resourcesPromise?.catch(() => undefined);
+  // A launch still in flight must not stall shutdown past the grace window.
+  const resources = await Promise.race([
+    resourcesPromise?.catch(() => undefined),
+    new Promise<undefined>((resolve) => setTimeout(resolve, 5_000)),
+  ]);
   const clean = await closeCodeModeStdio([
     ...(resources
       ? [

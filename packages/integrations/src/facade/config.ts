@@ -48,7 +48,7 @@ export function stagehandFacadeConfigFromEnv(
     explicitModelName ?? (inferredGoogleKey ? "google/gemini-2.5-flash-lite" : undefined);
   const modelProvider = modelName ? providerName(modelName) : undefined;
   const modelApiKey = explicitModelApiKey ?? providerApiKey(modelProvider, env);
-  const stagehand = StagehandClientCreateConfigSchema.parse({
+  const parsed = StagehandClientCreateConfigSchema.safeParse({
     logging: { level: "off" },
     ...(modelName
       ? {
@@ -62,6 +62,12 @@ export function stagehandFacadeConfigFromEnv(
         }
       : {}),
   });
+  if (!parsed.success) {
+    throw new StagehandFacadeConfigError(
+      `Unsupported STAGEHAND_MODEL_NAME "${modelName}": ${parsed.error.issues[0]?.message ?? "invalid model configuration"}`,
+    );
+  }
+  const stagehand = parsed.data;
 
   return {
     browser:

@@ -121,10 +121,15 @@ export class StagehandFacadeTools {
   }): Promise<StagehandFacadeScreenshot> {
     const page = await this.activePage();
     const type = options.type ?? "png";
+    // CDP only accepts quality for jpeg, and only as an integer.
+    const quality =
+      type === "jpeg" && options.quality !== undefined
+        ? Math.round(options.quality)
+        : undefined;
     const bytes = await page.screenshot({
       type,
       ...(options.fullPage === undefined ? {} : { fullPage: options.fullPage }),
-      ...(options.quality === undefined ? {} : { quality: options.quality }),
+      ...(quality === undefined ? {} : { quality }),
     });
     return {
       data: Buffer.from(bytes).toString("base64"),

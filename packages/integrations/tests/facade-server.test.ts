@@ -82,6 +82,8 @@ function waitForOutput(stream: Stream, expected: string): Promise<string> {
       clearTimeout(timeout);
       stream.off("data", onData);
       stream.off("error", onError);
+      stream.off("end", onEnd);
+      stream.off("close", onEnd);
     };
     const onData = (chunk: Buffer) => {
       output += chunk.toString();
@@ -93,7 +95,13 @@ function waitForOutput(stream: Stream, expected: string): Promise<string> {
       cleanup();
       reject(error);
     };
+    const onEnd = () => {
+      cleanup();
+      reject(new Error(`stdio output stream ended before ${JSON.stringify(expected)}: ${output}`));
+    };
     stream.on("data", onData);
     stream.on("error", onError);
+    stream.once("end", onEnd);
+    stream.once("close", onEnd);
   });
 }
