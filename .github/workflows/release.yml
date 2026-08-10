@@ -116,32 +116,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+
+      - name: Check Go release status
+        id: status
+        run: node scripts/release/go-publish-status.ts >> "$GITHUB_OUTPUT"
+
       - name: Tag Go release
+        if: steps.status.outputs.should-tag == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.status.outputs.tag }}
         run: |
-          set -euo pipefail
-
-          VERSION="$(node -p 'require("./packages/sdk-go/package.json").version')"
-          MAJOR="${VERSION%%.*}"
-          MODULE="$(sed -n 's/^module //p' packages/sdk-go/go.mod)"
-          EXPECTED_MODULE="github.com/browserbase/stagehand/packages/sdk-go/v$MAJOR"
-          if [[ "$MODULE" != "$EXPECTED_MODULE" ]]; then
-            echo "Go module path is $MODULE; expected $EXPECTED_MODULE for $VERSION" >&2
-            exit 1
-          fi
-
-          TAG="packages/sdk-go/v$VERSION"
-          if find .changeset -maxdepth 1 -type f -name '*.md' ! -name README.md -print -quit | grep -q .; then
-            echo "Pending changesets remain; not tagging $TAG"
-            exit 0
-          fi
-
-          if git rev-parse --verify --quiet "refs/tags/$TAG"; then
-            echo "$TAG already exists"
-            exit 0
-          fi
-
           gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
             -f ref="refs/tags/$TAG" \
             -f sha="$GITHUB_SHA"
