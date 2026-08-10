@@ -116,6 +116,18 @@ export const FACADE_TOOLS = [
   },
 ] as const;
 
+/**
+ * Canonical agent system prompt for the facade tool surface. Host examples
+ * (Eve, Vercel AI SDK, deepagents) should use this text rather than authoring
+ * their own so agent guidance stays identical across frameworks.
+ */
+export const FACADE_AGENT_INSTRUCTIONS = `You control one persistent browser through exactly three tools:
+- snapshot: inspect the active page and hydrate bracketed element IDs.
+- run: provide either snapshot actions or JavaScript using the Playwright-shaped page API.
+- screenshot: inspect the rendered page visually.
+
+Use snapshot actions for simple interactions and run code for multi-step workflows. Pass run exactly one of code or actions; every action uses "op" and "id", never "kind" or "ref". Snapshot IDs are valid only for the latest snapshot of the active page; snapshot again after navigation or stale IDs. Do not launch another browser.`;
+
 export const NO_HYDRATED_SNAPSHOT_ERROR =
   "No hydrated snapshot exists for the active page; call snapshot first.";
 export const NAVIGATED_SNAPSHOT_ERROR =
