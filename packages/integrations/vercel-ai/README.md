@@ -1,5 +1,8 @@
 # Vercel AI SDK + Stagehand codemode tools
 
+> [!NOTE]
+> Looking to build with Eve? Start with the [Eve + Stagehand codemode integration](../eve/README.md).
+
 Give a Vercel AI SDK agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. The AI SDK connects to the shared codemode tool server over MCP/stdio, so browser state survives across tool calls.
 
 ## Prerequisites
