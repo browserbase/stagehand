@@ -48,5 +48,8 @@ describe("Eve Stagehand facade tools", () => {
 
 it("keeps instructions.md identical to the canonical facade prompt", () => {
   const file = readFileSync(new URL("../agent/instructions.md", import.meta.url), "utf8");
-  expect(file.trim()).toBe(FACADE_AGENT_INSTRUCTIONS.trim());
+  // The repo formatter normalizes markdown whitespace (blank line before
+  // lists), so compare content with collapsed blank lines rather than bytes.
+  const normalize = (text: string) => text.trim().replace(/\n{2,}/g, "\n");
+  expect(normalize(file)).toBe(normalize(FACADE_AGENT_INSTRUCTIONS));
 });
