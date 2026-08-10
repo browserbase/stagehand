@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 registerDynamicLanguage({ python });
 
-type Language = "Python" | "TypeScript";
+type Language = "Go" | "Python" | "TypeScript";
 
 type MdxAttribute = {
   name?: string;
@@ -122,8 +122,21 @@ type ProtocolDocument = JsonSchema & {
 type SdkObject = {
   className: string;
   classSlug: string;
+  goClassName: string;
   pythonFile: string;
   typescriptFile: string;
+};
+
+type GoParameter = {
+  name: string;
+  type: string;
+};
+
+type GoFunctionDeclaration = {
+  name: string;
+  parameters: GoParameter[];
+  receiverType?: string;
+  returnType: string;
 };
 
 const DOCS_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -131,15 +144,16 @@ const V4_DOCS_ROOT = resolve(DOCS_ROOT, "v4");
 const REFERENCE_ROOT = resolve(V4_DOCS_ROOT, "reference");
 const TYPESCRIPT_ROOT = fileURLToPath(new URL("../../sdk-ts/src", import.meta.url));
 const PYTHON_ROOT = fileURLToPath(new URL("../../sdk-python/src/stagehand", import.meta.url));
+const GO_ROOT = fileURLToPath(new URL("../../sdk-go", import.meta.url));
 const PROTOCOL_SCHEMA = fileURLToPath(new URL("../../protocol/stagehand.v4.json", import.meta.url));
 const PROTOCOL_SCHEMA_SOURCE = fileURLToPath(new URL("../../protocol/schemas.ts", import.meta.url));
 const PROTOCOL_REGISTRY = fileURLToPath(
   new URL("../../protocol/schema-registry.ts", import.meta.url),
 );
-const LANGUAGES = ["TypeScript", "Python"] as const satisfies readonly Language[];
+const LANGUAGES = ["TypeScript", "Python", "Go"] as const satisfies readonly Language[];
 // Language tabs are the selector; every other <Tab> on a page is a different axis
-// (model provider, output shape, ...). Go ships snippets but has no native reference pages.
-const LANGUAGE_TAB_TITLES = new Set(["TypeScript", "Python", "Go"]);
+// (model provider, output shape, ...).
+const LANGUAGE_TAB_TITLES = new Set<string>(LANGUAGES);
 const STAGEHAND_LIFECYCLE_METHODS = new Set(["create", "create-with-client-for-test", "init"]);
 // Cross-language concept references are validated as MDX content, not as one-to-one SDK objects.
 const SUPPLEMENTAL_REFERENCE_PAGES = new Set(["response"]);
@@ -148,30 +162,35 @@ const SDK_OBJECTS = [
   {
     className: "Stagehand",
     classSlug: "stagehand",
+    goClassName: "Stagehand",
     typescriptFile: "stagehand.ts",
     pythonFile: "stagehand.py",
   },
   {
     className: "BrowserContext",
     classSlug: "context",
+    goClassName: "BrowserContext",
     typescriptFile: "browserContext.ts",
     pythonFile: "browser_context.py",
   },
   {
     className: "BrowserClipboard",
     classSlug: "clipboard",
+    goClassName: "BrowserClipboard",
     typescriptFile: "browserClipboard.ts",
     pythonFile: "browser_clipboard.py",
   },
   {
     className: "Page",
     classSlug: "page",
+    goClassName: "Page",
     typescriptFile: "page.ts",
     pythonFile: "page.py",
   },
   {
     className: "Locator",
     classSlug: "locator",
+    goClassName: "PageLocator",
     typescriptFile: "locator.ts",
     pythonFile: "locator.py",
   },
@@ -182,10 +201,11 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
 );
 
 describe("SDK reference surface", () => {
-  it("keeps every public callable in sync across TypeScript, Python, and reference pages", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+  it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
 
@@ -198,6 +218,10 @@ describe("SDK reference surface", () => {
       operationBindings(pythonMethods),
       "Equivalent TypeScript and Python callables must bind the same protocol operation",
     ).toStrictEqual(operationBindings(typescriptMethods));
+    expect(
+      methodKeys(sharedSurfaceMethods(goMethods, expected)),
+      "Go public callables must cover the shared SDK surface",
+    ).toStrictEqual(expected);
     for (const language of LANGUAGES) {
       expect(
         documentedMethods(referencePages, language)
@@ -224,14 +248,16 @@ describe("SDK reference surface", () => {
     const views = new Map(
       findLanguageTabs(tree).map((view) => [stringAttribute(view, "title"), view]),
     );
-    const [typescriptMembers, pythonMembers] = await Promise.all([
+    const [typescriptMembers, pythonMembers, goMembers] = await Promise.all([
       readTypescriptResponseMembers(),
       readPythonResponseMembers(),
+      readGoResponseMembers(),
     ]);
 
     for (const [language, expected] of [
       ["TypeScript", typescriptMembers],
       ["Python", pythonMembers],
+      ["Go", goMembers],
     ] as const satisfies ReadonlyArray<readonly [Language, ResponseReferenceMember[]]>) {
       const view = views.get(language);
       expect(view, `response.mdx must contain one ${language} tab`).toBeDefined();
@@ -243,9 +269,10 @@ describe("SDK reference surface", () => {
   });
 
   it("uses the exact language-specific public method names as headings", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -253,6 +280,7 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
+      ["Go", sharedSurfaceMethods(goMethods, methodKeys(typescriptMethods))],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documented = documentedMethods(referencePages, language)
         .map(({ classSlug, method }) => `${classSlug}/${method.methodSlug}:${method.methodName}`)
@@ -271,7 +299,7 @@ describe("SDK reference surface", () => {
     ).toEqual([]);
   });
 
-  it("uses exactly one TypeScript tab and one Python tab on every reference page", async () => {
+  it("uses exactly one tab per SDK language on every reference page", async () => {
     const invalidPages = (await readReferencePages()).flatMap((page) => {
       const titles = page.views.map(({ title }) => title ?? "<missing title>").sort();
       return arraysEqual(titles, [...LANGUAGES].sort())
@@ -281,14 +309,15 @@ describe("SDK reference surface", () => {
 
     expect(
       invalidPages,
-      "Each reference page must contain exactly the two native SDK language tabs",
+      "Each reference page must contain exactly one TypeScript, Python, and Go tab",
     ).toEqual([]);
   });
 
   it("documents the exact direct signature parameters inside each language tab", async () => {
-    const [typescriptMethods, pythonMethods, referencePages] = await Promise.all([
+    const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
       readPythonMethods(),
+      readGoMethods(),
       readReferencePages(),
     ]);
     const differences: string[] = [];
@@ -296,6 +325,7 @@ describe("SDK reference surface", () => {
     for (const [language, methods] of [
       ["TypeScript", typescriptMethods],
       ["Python", pythonMethods],
+      ["Go", goMethods],
     ] as const satisfies ReadonlyArray<readonly [Language, SdkMethod[]]>) {
       const documentedByMethod = documentedMethodMap(referencePages, language);
       for (const method of methods) {
@@ -381,6 +411,96 @@ describe("SDK reference surface", () => {
     expect(
       differences,
       "Top-level ParamField types must match their public SDK parameter annotations",
+    ).toEqual([]);
+  });
+
+  it("uses the exact Go SDK type for every direct documented parameter", async () => {
+    // TypeScript and Python parameter types are checked against the protocol
+    // schema projection. Go's option structs are generated from that same
+    // protocol, so the declared signature type is itself canonical and the
+    // documented type must reproduce it verbatim.
+    const [goMethods, referencePages] = await Promise.all([readGoMethods(), readReferencePages()]);
+    const differences: string[] = [];
+
+    const documentedByMethod = documentedMethodMap(referencePages, "Go");
+    for (const method of goMethods) {
+      const reference = documentedByMethod.get(methodKey(method));
+      if (!reference) continue;
+      const documented = new Map(
+        reference.method.paramFields
+          .filter(({ key }) => key !== undefined && !key.includes("."))
+          .map((field) => [field.key as string, field]),
+      );
+      for (const parameter of method.parameters) {
+        const field = documented.get(parameter);
+        const expected = method.parameterTypes[parameter];
+        if (!field || !expected) continue;
+        const actual = field.type?.replace(/\s+/gu, " ").trim() ?? "";
+        if (actual !== expected) {
+          differences.push(
+            `${methodKey(method)} Go ${parameter}: expected ${expected}, received ${actual || "<missing>"}`,
+          );
+        }
+      }
+    }
+
+    expect(differences, "Go ParamField types must match the declared Go signature types").toEqual(
+      [],
+    );
+  });
+
+  it("documents every exported field of each Go parameter struct", async () => {
+    // Nested TypeScript and Python fields are checked against the protocol
+    // projection. Go parameter structs declare the same surface directly, so
+    // the documented nested paths and types must match the struct fields
+    // verbatim. Handle and union types export no fields, so recursion stops
+    // at them, and parameters of such types are skipped entirely.
+    const [goMethods, referencePages, goStructs] = await Promise.all([
+      readGoMethods(),
+      readReferencePages(),
+      readGoStructs(),
+    ]);
+    const differences: string[] = [];
+
+    const documentedByMethod = documentedMethodMap(referencePages, "Go");
+    for (const method of goMethods) {
+      const reference = documentedByMethod.get(methodKey(method));
+      if (!reference) continue;
+      for (const parameter of method.parameters) {
+        const expected = new Map(
+          exportedGoFieldPaths(parameter, method.parameterTypes[parameter] ?? "", goStructs).map(
+            ({ key, type }) => [key, type],
+          ),
+        );
+        if (expected.size === 0) continue;
+        const documented = new Map(
+          reference.method.paramFields
+            .filter(({ key }) => key !== undefined && key.startsWith(`${parameter}.`))
+            .map((field) => [field.key as string, field.type ?? "<missing>"]),
+        );
+        for (const [key, type] of expected) {
+          const actual = documented.get(key);
+          if (actual === undefined) {
+            differences.push(`${methodKey(method)} Go ${key}: missing ParamField of type ${type}`);
+          } else if (actual !== type) {
+            differences.push(
+              `${methodKey(method)} Go ${key}: expected type ${type}, received ${actual}`,
+            );
+          }
+        }
+        for (const key of documented.keys()) {
+          if (!expected.has(key)) {
+            differences.push(
+              `${methodKey(method)} Go ${key}: documents a field the Go SDK does not declare`,
+            );
+          }
+        }
+      }
+    }
+
+    expect(
+      differences,
+      "Nested Go ParamFields must exactly match the exported Go struct fields",
     ).toEqual([]);
   });
 
@@ -907,6 +1027,10 @@ describe("Mintlify customization boundary", () => {
           for (const { title } of titled) {
             counts.set(title, (counts.get(title) ?? 0) + 1);
           }
+          const missing = LANGUAGES.filter((language) => !counts.has(language));
+          if (missing.length > 0) {
+            found.push(`${pagePath}: missing ${missing.join(", ")} snippets`);
+          }
           const tallies = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
           const expected = Math.max(...counts.values());
           const short = tallies.filter(([, count]) => count !== expected);
@@ -1318,10 +1442,208 @@ async function readPythonResponseMembers(): Promise<ResponseReferenceMember[]> {
   });
 }
 
+async function readGoMethods(): Promise<SdkMethod[]> {
+  const methods: SdkMethod[] = [];
+  for (const filePath of await listFiles(GO_ROOT, () => false)) {
+    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
+    for (const declaration of parseGoFunctions(await readFile(filePath, "utf8"))) {
+      if (!/^[A-Z]/u.test(declaration.name)) continue;
+      const sdkObject = goDeclarationObject(declaration);
+      if (!sdkObject) continue;
+      // Every Go call threads context.Context, so it is not a documentable
+      // parameter. Object handles taken by package-level callables such as
+      // Extract are documented like any other parameter.
+      const parameters = declaration.parameters.filter(({ type }) => type !== "context.Context");
+      methods.push(
+        sdkMethod(
+          sdkObject.classSlug,
+          declaration.name,
+          parameters.map(({ name }) => name),
+          undefined,
+          declaration.returnType,
+          Object.fromEntries(parameters.map(({ name, type }) => [name, type])),
+        ),
+      );
+    }
+  }
+  return deduplicateMethods(methods, "Go");
+}
+
+// A package-level function belongs to the object it constructs or extends,
+// such as Create returning *Stagehand or the generic Extract taking one.
+function goDeclarationObject(declaration: GoFunctionDeclaration): SdkObject | undefined {
+  if (declaration.receiverType !== undefined) {
+    return SDK_OBJECTS.find(({ goClassName }) => goClassName === declaration.receiverType);
+  }
+  return SDK_OBJECTS.find(({ goClassName }) => {
+    const pointer = new RegExp(`\\*${goClassName}\\b`, "u");
+    return (
+      declaration.parameters.some(({ type }) => pointer.test(type)) ||
+      pointer.test(declaration.returnType)
+    );
+  });
+}
+
+// The Go SDK also exports Go-specific surface: handle accessors such as
+// Stagehand.Browser(), union constructors, and generic helpers such as
+// EvaluateAs. Reference parity is judged on the surface shared with TypeScript.
+function sharedSurfaceMethods(methods: SdkMethod[], expected: readonly string[]): SdkMethod[] {
+  const surface = new Set(expected);
+  return methods.filter((method) => surface.has(methodKey(method)));
+}
+
+async function readGoResponseMembers(): Promise<ResponseReferenceMember[]> {
+  const filePath = resolve(GO_ROOT, "response.go");
+  return parseGoFunctions(await readFile(filePath, "utf8"))
+    .filter(
+      (declaration) => declaration.receiverType === "Response" && /^[A-Z]/u.test(declaration.name),
+    )
+    .map((declaration) => ({
+      isProperty: false,
+      name: declaration.name,
+      parameters: declaration.parameters.map(({ name }) => name),
+      returnType: declaration.returnType,
+    }));
+}
+
+// Parses gofmt-formatted Go struct declarations into their exported fields.
+// Comment lines, unexported fields, and struct tags are dropped.
+async function readGoStructs(): Promise<Map<string, GoParameter[]>> {
+  const structs = new Map<string, GoParameter[]>();
+  for (const filePath of await listFiles(GO_ROOT, () => false)) {
+    if (extname(filePath) !== ".go" || filePath.endsWith("_test.go")) continue;
+    const source = await readFile(filePath, "utf8");
+    for (const match of source.matchAll(/^type (\w+)(?:\[[^\]]*\])? struct \{\n([\s\S]*?)^\}/gmu)) {
+      const fields = (match[2] as string).split("\n").flatMap((line): GoParameter[] => {
+        const field = line.match(/^\t([A-Z]\w*)\s+(.+?)(?:\s+`[^`]*`)?$/u);
+        return field ? [{ name: field[1] as string, type: field[2] as string }] : [];
+      });
+      structs.set(match[1] as string, fields);
+    }
+  }
+  return structs;
+}
+
+// Expands a Go parameter into the `parameter.Field` paths a reference page
+// must document: the exported fields of its struct type, recursing while the
+// field type is itself a locally declared struct with exported fields.
+function exportedGoFieldPaths(
+  prefix: string,
+  type: string,
+  structs: ReadonlyMap<string, GoParameter[]>,
+  seen: ReadonlySet<string> = new Set(),
+): Array<{ key: string; type: string }> {
+  const base = type.replace(/^(?:\.\.\.|\*|\[\])+/u, "");
+  const fields = structs.get(base);
+  if (!fields || seen.has(base)) return [];
+  const nextSeen = new Set([...seen, base]);
+  return fields.flatMap((field) => [
+    { key: `${prefix}.${field.name}`, type: field.type },
+    ...exportedGoFieldPaths(`${prefix}.${field.name}`, field.type, structs, nextSeen),
+  ]);
+}
+
+// Parses gofmt-formatted Go function and method declarations. The SDK's
+// signatures never nest braces or comments inside a declaration, so balanced
+// scanning is enough; documented signatures in MDX code fences parse the same
+// way because they end at a newline instead of a body brace.
+function parseGoFunctions(source: string): GoFunctionDeclaration[] {
+  const declarations: GoFunctionDeclaration[] = [];
+  const starts =
+    /^func (?:\((?:\w+ )?\*?(\w+)(?:\[[^\]]*\])?\) )?([A-Za-z_]\w*)(?:\[[^\]]*\])?\(/gmu;
+  for (const match of source.matchAll(starts)) {
+    const parameterStart = match.index + match[0].length;
+    const parameterEnd = matchingParenthesis(source, parameterStart - 1);
+    declarations.push({
+      name: match[2] as string,
+      parameters: parseGoParameters(source.slice(parameterStart, parameterEnd)),
+      receiverType: match[1],
+      returnType: source
+        .slice(parameterEnd + 1, goDeclarationEnd(source, parameterEnd + 1))
+        .replace(/\s+/gu, " ")
+        .trim(),
+    });
+  }
+  return declarations;
+}
+
+function matchingParenthesis(source: string, openIndex: number): number {
+  let depth = 0;
+  for (let index = openIndex; index < source.length; index += 1) {
+    if (source[index] === "(") depth += 1;
+    if (source[index] === ")") {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error(`Unbalanced Go declaration: ${source.slice(openIndex, openIndex + 80)}`);
+}
+
+// A return type ends at the body brace (SDK source) or at the end of the
+// line (documented signatures carry no body).
+function goDeclarationEnd(source: string, start: number): number {
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "(" || character === "[") depth += 1;
+    if (character === ")" || character === "]") depth -= 1;
+    if ((character === "{" || character === "\n") && depth === 0) return index;
+  }
+  return source.length;
+}
+
+function parseGoParameters(text: string): GoParameter[] {
+  const parameters = splitTopLevelGo(text)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part): GoParameter => {
+      const space = part.indexOf(" ");
+      return space < 0
+        ? { name: part, type: "" }
+        : { name: part.slice(0, space), type: part.slice(space + 1).replace(/\s+/gu, " ") };
+    });
+  // Grouped parameters (`a, b string`) take the next declared type.
+  for (let index = parameters.length - 2; index >= 0; index -= 1) {
+    const parameter = parameters[index] as GoParameter;
+    if (!parameter.type) parameter.type = (parameters[index + 1] as GoParameter).type;
+  }
+  return parameters;
+}
+
+function splitTopLevelGo(text: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (character === "(" || character === "[" || character === "{") depth += 1;
+    if (character === ")" || character === "]" || character === "}") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(text.slice(start, index));
+      start = index + 1;
+    }
+  }
+  parts.push(text.slice(start));
+  return parts;
+}
+
 function readDocumentedResponseMembers(
   view: MdxNode,
   language: Language,
 ): ResponseReferenceMember[] {
+  if (language === "Go") {
+    return findNodeValues(view, "code").flatMap((value) =>
+      parseGoFunctions(value)
+        .filter((declaration) => declaration.receiverType === "Response")
+        .map((declaration) => ({
+          isProperty: false,
+          name: declaration.name,
+          parameters: declaration.parameters.map(({ name }) => name),
+          returnType: declaration.returnType,
+        })),
+    );
+  }
+
   const members: ResponseReferenceMember[] = [];
   for (const line of findNodeValues(view, "code").flatMap((value) => value.split("\n"))) {
     const trimmed = line.trim();
