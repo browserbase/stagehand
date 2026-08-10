@@ -7,13 +7,17 @@ describe the TypeScript SDK.
 
 ### Major Changes
 
-- Rebuilt Stagehand around its v4 browser protocol and TypeScript SDK.
+- Rebuilt Stagehand around its v4 browser protocol and TypeScript SDK. Stagehand is now a protocol-first monorepo with TypeScript, Python, and Go SDKs over a shared core.
+
+  Check the [migration guide](https://docs.stagehand.dev/v4/migrations/v3) for upgrading from v3.
 
 ## Python SDK 4.0.0
 
 ### Major Changes
 
 - Rebuilt the Stagehand Python SDK around the v4 browser protocol.
+
+  Check the [migration guide](https://docs.stagehand.dev/v4/migrations/v3) for upgrading from v3.
 
 ## 3.0.0
 
