@@ -447,33 +447,47 @@ func locatorDescriptorsForPage(locators []*PageLocator, pageID string, method st
 	return descriptors, nil
 }
 
+func protocolLocatorsForPage(
+	locator *PageLocator,
+	ignoreLocators []*PageLocator,
+	pageID string,
+	method string,
+) (*Locator, []Locator, error) {
+	var protocolLocator *Locator
+	if locator != nil {
+		descriptor, err := locatorDescriptorForPage(locator, pageID, method)
+		if err != nil {
+			return nil, nil, err
+		}
+		protocolLocator = &descriptor
+	}
+	protocolIgnoreLocators, err := locatorDescriptorsForPage(ignoreLocators, pageID, method)
+	if err != nil {
+		return nil, nil, err
+	}
+	return protocolLocator, protocolIgnoreLocators, nil
+}
+
 func actProtocolOptions(options *StagehandClientActOptions, pageID string) (*ActOptions, error) {
 	if options == nil {
 		return nil, nil
 	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Act",
+	)
+	if err != nil {
+		return nil, err
+	}
 	protocolOptions := ActOptions{
-		Cache:     options.Cache,
-		Model:     options.Model,
-		Timeout:   options.Timeout,
-		Variables: options.Variables,
-	}
-	if options.Locator != nil {
-		locator, err := locatorDescriptorForPage(options.Locator, pageID, "stagehand.Act")
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.Locator = &locator
-	}
-	if options.IgnoreLocators != nil {
-		ignoreLocators, err := locatorDescriptorsForPage(
-			options.IgnoreLocators,
-			pageID,
-			"stagehand.Act",
-		)
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.IgnoreLocators = ignoreLocators
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Timeout:        options.Timeout,
+		Variables:      options.Variables,
 	}
 	return &protocolOptions, nil
 }
@@ -482,29 +496,22 @@ func observeProtocolOptions(options *StagehandClientObserveOptions, pageID strin
 	if options == nil {
 		return nil, nil
 	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Observe",
+	)
+	if err != nil {
+		return nil, err
+	}
 	protocolOptions := ObserveOptions{
-		Cache:     options.Cache,
-		Model:     options.Model,
-		Timeout:   options.Timeout,
-		Variables: options.Variables,
-	}
-	if options.Locator != nil {
-		locator, err := locatorDescriptorForPage(options.Locator, pageID, "stagehand.Observe")
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.Locator = &locator
-	}
-	if options.IgnoreLocators != nil {
-		ignoreLocators, err := locatorDescriptorsForPage(
-			options.IgnoreLocators,
-			pageID,
-			"stagehand.Observe",
-		)
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.IgnoreLocators = ignoreLocators
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Timeout:        options.Timeout,
+		Variables:      options.Variables,
 	}
 	return &protocolOptions, nil
 }
@@ -513,29 +520,22 @@ func extractProtocolOptions(options *StagehandClientExtractOptions, pageID strin
 	if options == nil {
 		return nil, nil
 	}
+	locator, ignoreLocators, err := protocolLocatorsForPage(
+		options.Locator,
+		options.IgnoreLocators,
+		pageID,
+		"stagehand.Extract",
+	)
+	if err != nil {
+		return nil, err
+	}
 	protocolOptions := ExtractOptions{
-		Cache:      options.Cache,
-		Model:      options.Model,
-		Screenshot: options.Screenshot,
-		Timeout:    options.Timeout,
-	}
-	if options.Locator != nil {
-		locator, err := locatorDescriptorForPage(options.Locator, pageID, "stagehand.Extract")
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.Locator = &locator
-	}
-	if options.IgnoreLocators != nil {
-		ignoreLocators, err := locatorDescriptorsForPage(
-			options.IgnoreLocators,
-			pageID,
-			"stagehand.Extract",
-		)
-		if err != nil {
-			return nil, err
-		}
-		protocolOptions.IgnoreLocators = ignoreLocators
+		Cache:          options.Cache,
+		IgnoreLocators: ignoreLocators,
+		Locator:        locator,
+		Model:          options.Model,
+		Screenshot:     options.Screenshot,
+		Timeout:        options.Timeout,
 	}
 	return &protocolOptions, nil
 }
