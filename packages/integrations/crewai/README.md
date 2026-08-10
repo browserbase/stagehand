@@ -8,6 +8,7 @@ Give a CrewAI agent one persistent Stagehand browser through the `run`, `snapsho
 - pnpm 11.10.0
 - Python 3.11–3.13
 - [uv](https://docs.astral.sh/uv/)
+- A current Google Chrome installation for local browser mode
 
 ## Quickstart
 
@@ -49,15 +50,18 @@ export BROWSERBASE_API_KEY="your-key"
 
 ## Configuration
 
-| Variable                  | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `CREWAI_MODEL`            | CrewAI agent model. Defaults to `openai/gpt-5.6-luna`.                    |
-| `OPENAI_API_KEY`          | Credential for the default CrewAI model. It stays in the CrewAI process.  |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset. |
-| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                 |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                          |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`.                                  |
+| Variable                     | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `CREWAI_MODEL`               | CrewAI agent model. Defaults to `openai/gpt-5.6-luna`.                           |
+| `OPENAI_API_KEY`             | Credential for the default CrewAI model. It stays in the CrewAI process.         |
+| `STAGEHAND_BROWSER`          | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.        |
+| `STAGEHAND_HEADLESS`         | Set to `true` to run local Chrome without a visible window. Defaults to `false`. |
+| `STAGEHAND_CHROME_PATH`      | Optional path to a compatible Chrome executable for local mode.                  |
+| `STAGEHAND_CHROMIUM_SANDBOX` | Set to `false` only in an already isolated container. Defaults to `true`.        |
+| `BROWSERBASE_API_KEY`        | Required for Browserbase.                                                        |
+| `BROWSERBASE_PROJECT_ID`     | Optional Browserbase project ID.                                                 |
+| `STAGEHAND_MODEL_NAME`       | Optional model for Stagehand AI methods used inside `run`.                       |
+| `STAGEHAND_MODEL_API_KEY`    | Optional key for `STAGEHAND_MODEL_NAME`.                                         |
 
 ## Verify the integration
 
@@ -78,3 +82,5 @@ CrewAI's current tool loop is text-only, and its standard MCP adapter drops imag
 `run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not in the CrewAI process. The MCP child receives only `STAGEHAND_*` and `BROWSERBASE_*` variables; provider credentials such as `OPENAI_API_KEY` are not forwarded.
 
 Use Browserbase as the isolation boundary for untrusted tasks. The browser can still reach any page or data available inside its own session.
+
+Disabling Chromium's sandbox weakens local isolation. Use `STAGEHAND_CHROMIUM_SANDBOX=false` only when the surrounding container is already the security boundary.

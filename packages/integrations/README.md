@@ -33,6 +33,8 @@ The shared TypeScript implementation lives in `core/`. It provides both the in-p
 
 You need Node.js 24 or newer and pnpm 11.10.0. CrewAI and Deep Agents also require Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
 
+Local browser mode also needs a current Google Chrome installation. Browserbase mode does not launch a browser on the host.
+
 From the repository root:
 
 ```bash
@@ -47,13 +49,16 @@ Then open the README for your framework and run its quickstart.
 
 The TypeScript integrations use these shared variables. Deep Agents uses `STAGEHAND_MODEL` instead of `STAGEHAND_MODEL_NAME`; see its README for the Python-specific configuration.
 
-| Variable                  | Purpose                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set; otherwise defaults to local Chrome. |
-| `BROWSERBASE_API_KEY`     | Required for the Browserbase backend.                                                                                    |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                                         |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods called inside `run`.                                                             |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`. The matching provider key is inferred when supported.                           |
+| Variable                     | Purpose                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `STAGEHAND_BROWSER`          | `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set; otherwise defaults to local Chrome. |
+| `STAGEHAND_HEADLESS`         | Set to `true` to run local Chrome without a visible window. Defaults to `false`.                                         |
+| `STAGEHAND_CHROME_PATH`      | Optional path to a compatible Chrome executable for local mode.                                                          |
+| `STAGEHAND_CHROMIUM_SANDBOX` | Set to `false` only when local Chrome runs inside an already isolated container. Defaults to `true`.                     |
+| `BROWSERBASE_API_KEY`        | Required for the Browserbase backend.                                                                                    |
+| `BROWSERBASE_PROJECT_ID`     | Optional Browserbase project ID.                                                                                         |
+| `STAGEHAND_MODEL_NAME`       | Optional model for Stagehand AI methods called inside `run`.                                                             |
+| `STAGEHAND_MODEL_API_KEY`    | Optional key for `STAGEHAND_MODEL_NAME`. The matching provider key is inferred when supported.                           |
 
 Each framework has a separate variable for the agent's model. The agent model decides which tool to call; the optional Stagehand model powers AI methods such as `act`, `extract`, or `observe` when code passed to `run` uses them.
 
@@ -82,6 +87,8 @@ For a simple interaction, take a snapshot and pass its bracketed ID back to `run
 `run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not inside the agent host process. That code can control the browser and access data available to the browser, so treat it as privileged browser automation.
 
 Browserbase is the recommended isolation boundary for untrusted tasks because the browser is disposable and separate from the host machine. The MCP examples forward only `STAGEHAND_*` and `BROWSERBASE_*` configuration to the child process; agent-model credentials stay in the framework process.
+
+Disabling Chromium's sandbox weakens local isolation. Use `STAGEHAND_CHROMIUM_SANDBOX=false` only when the surrounding container is already the security boundary.
 
 ## Develop and verify
 

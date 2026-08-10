@@ -14,6 +14,7 @@ This directory includes two deployment patterns:
 - Python 3.11–3.13
 - [uv](https://docs.astral.sh/uv/)
 - A model-provider credential for the Deep Agent
+- A current Google Chrome installation for local browser mode
 - A Browserbase API key for the managed example or optional local Browserbase use
 
 ## Run the local example
@@ -47,16 +48,18 @@ uv run --project examples/local --locked \
 
 ## Local server configuration
 
-| Variable                   | Default | Purpose                                                    |
-| -------------------------- | ------- | ---------------------------------------------------------- |
-| `STAGEHAND_BROWSER`        | `local` | `local` or `browserbase`.                                  |
-| `STAGEHAND_HEADLESS`       | `false` | Run local Chrome headlessly.                               |
-| `STAGEHAND_START_URL`      | Unset   | Open a URL when the MCP server starts.                     |
-| `STAGEHAND_MODEL`          | Unset   | Optional model for Stagehand AI methods used inside `run`. |
-| `STAGEHAND_MODEL_API_KEY`  | Unset   | Optional key for `STAGEHAND_MODEL`.                        |
-| `STAGEHAND_API_URL`        | Unset   | Optional Stagehand Model Gateway URL.                      |
-| `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and action batches.                 |
-| `BROWSERBASE_API_KEY`      | Unset   | Required for Browserbase.                                  |
+| Variable                     | Default | Purpose                                                         |
+| ---------------------------- | ------- | --------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`          | `local` | `local` or `browserbase`.                                       |
+| `STAGEHAND_HEADLESS`         | `false` | Run local Chrome headlessly.                                    |
+| `STAGEHAND_CHROME_PATH`      | Unset   | Optional path to a compatible Chrome executable for local mode. |
+| `STAGEHAND_CHROMIUM_SANDBOX` | `true`  | Set to `false` only in an already isolated container.           |
+| `STAGEHAND_START_URL`        | Unset   | Open a URL when the MCP server starts.                          |
+| `STAGEHAND_MODEL`            | Unset   | Optional model for Stagehand AI methods used inside `run`.      |
+| `STAGEHAND_MODEL_API_KEY`    | Unset   | Optional key for `STAGEHAND_MODEL`.                             |
+| `STAGEHAND_API_URL`          | Unset   | Optional Stagehand Model Gateway URL.                           |
+| `STAGEHAND_RUN_TIMEOUT_MS`   | `60000` | Timeout for JavaScript and action batches.                      |
+| `BROWSERBASE_API_KEY`        | Unset   | Required for Browserbase.                                       |
 
 The server and client intentionally use separate Python environments. Stagehand requires `websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`; stdio keeps those dependency sets isolated.
 
@@ -99,3 +102,5 @@ Running either example against a real browser is the end-to-end smoke test.
 `run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not in the Deep Agents process. The local MCP client forwards only `STAGEHAND_*` and `BROWSERBASE_*` variables, so the Deep Agent's provider key does not cross into the browser server.
 
 Use Browserbase as the isolation boundary for untrusted tasks. The browser can still reach any page or data available inside its own session.
+
+Disabling Chromium's sandbox weakens local isolation. Use `STAGEHAND_CHROMIUM_SANDBOX=false` only when the surrounding container is already the security boundary.

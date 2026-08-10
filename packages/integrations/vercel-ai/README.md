@@ -7,6 +7,7 @@ Give a Vercel AI SDK agent one persistent Stagehand browser through the `run`, `
 - Node.js 24 or newer
 - pnpm 11.10.0
 - An OpenAI API key for the example agent
+- A current Google Chrome installation for local browser mode
 
 ## Quickstart
 
@@ -35,15 +36,18 @@ export BROWSERBASE_API_KEY="your-key"
 
 ## Configuration
 
-| Variable                  | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model. Defaults to `gpt-5.6-luna`.                           |
-| `OPENAI_API_KEY`          | Credential for the AI SDK agent. It stays in the host process.            |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset. |
-| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                 |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                          |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`.                                  |
+| Variable                     | Purpose                                                                          |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `AI_SDK_STAGEHAND_MODEL`     | AI SDK agent model. Defaults to `gpt-5.6-luna`.                                  |
+| `OPENAI_API_KEY`             | Credential for the AI SDK agent. It stays in the host process.                   |
+| `STAGEHAND_BROWSER`          | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.        |
+| `STAGEHAND_HEADLESS`         | Set to `true` to run local Chrome without a visible window. Defaults to `false`. |
+| `STAGEHAND_CHROME_PATH`      | Optional path to a compatible Chrome executable for local mode.                  |
+| `STAGEHAND_CHROMIUM_SANDBOX` | Set to `false` only in an already isolated container. Defaults to `true`.        |
+| `BROWSERBASE_API_KEY`        | Required for Browserbase.                                                        |
+| `BROWSERBASE_PROJECT_ID`     | Optional Browserbase project ID.                                                 |
+| `STAGEHAND_MODEL_NAME`       | Optional model for Stagehand AI methods used inside `run`.                       |
+| `STAGEHAND_MODEL_API_KEY`    | Optional key for `STAGEHAND_MODEL_NAME`.                                         |
 
 ## Verify the integration
 
@@ -61,3 +65,5 @@ The quickstart command above is the live browser smoke test.
 `run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not in the AI SDK process. The MCP child receives only `STAGEHAND_*` and `BROWSERBASE_*` variables plus a small set of process basics required to launch Node; the full host environment and `OPENAI_API_KEY` are not forwarded.
 
 Use Browserbase as the isolation boundary for untrusted tasks. The browser can still reach any page or data available inside its own session.
+
+Disabling Chromium's sandbox weakens local isolation. Use `STAGEHAND_CHROMIUM_SANDBOX=false` only when the surrounding container is already the security boundary.
