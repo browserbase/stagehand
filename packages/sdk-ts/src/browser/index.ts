@@ -28,6 +28,8 @@ export interface StagehandBrowser {
   readonly [stagehandBrowserBrand]: true;
   readonly provider: StagehandBrowserProvider;
   readonly origin: StagehandBrowserOrigin;
+  /** Browserbase session id backing this browser; undefined for local browsers. */
+  readonly sessionId?: string;
   readonly context: BrowserContext;
   readonly closed: boolean;
   close(): Promise<void>;
@@ -60,6 +62,7 @@ class StagehandBrowserHandle implements StagehandBrowser {
     readonly provider: StagehandBrowserProvider,
     readonly origin: StagehandBrowserOrigin,
     internals: BrowserHandleInternals,
+    readonly sessionId?: string,
   ) {
     browserHandleInternals.set(this, internals);
   }
@@ -91,12 +94,18 @@ export function createStagehandBrowserHandle<Attachment>(options: {
   origin: StagehandBrowserOrigin;
   attachment: Attachment;
   close: () => Promise<void> | void;
+  sessionId?: string;
 }): StagehandBrowser {
-  return new StagehandBrowserHandle(options.provider, options.origin, {
-    claimed: false,
-    attachment: options.attachment,
-    close: options.close,
-  });
+  return new StagehandBrowserHandle(
+    options.provider,
+    options.origin,
+    {
+      claimed: false,
+      attachment: options.attachment,
+      close: options.close,
+    },
+    options.sessionId,
+  );
 }
 
 /** @internal */
