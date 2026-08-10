@@ -1,5 +1,7 @@
 ---
 "@browserbasehq/stagehand": patch
+"@browserbasehq/stagehand-extension": patch
+"@browserbasehq/stagehand-go": patch
 "browse": patch
 ---
 
