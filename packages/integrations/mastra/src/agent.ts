@@ -36,7 +36,14 @@ async function main() {
     // oxlint-disable-next-line no-console -- CLI example prints the agent result.
     console.log(result.text);
   } finally {
-    await client.disconnect();
+    try {
+      await client.disconnect();
+    } catch (disconnectError: unknown) {
+      // oxlint-disable-next-line no-console -- CLI example warns about cleanup failures without masking the original error.
+      console.error(
+        `Warning: failed to disconnect MCP client: ${disconnectError instanceof Error ? disconnectError.message : String(disconnectError)}`,
+      );
+    }
   }
 }
 

@@ -28,7 +28,7 @@ Configure the environment as needed:
 | `BROWSERBASE_PROJECT_ID`  | Browserbase project ID.                                                                          |
 | `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                 |
 | `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                             |
-| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna`.                                                    |
+| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model; defaults to `gpt-5.6-luna`.                                                  |
 | `OPENAI_API_KEY`          | Used by the Mastra agent model in the host process. It is not forwarded to the facade server.    |
 
 ## Run
