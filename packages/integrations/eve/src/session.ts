@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -52,6 +53,10 @@ export async function discardFacadeToolsIfUnhealthy(expected: StagehandFacadeToo
     }
     await resources.browser.context.pages();
   } catch {
+    // The remote session itself is unhealthy (connectable but broken), so
+    // reattaching by id would loop forever — forget it and start fresh.
+    browserbaseSessionId = undefined;
+    persistSessionId(undefined);
     discardFacadeTools(expected);
   }
 }
@@ -116,9 +121,18 @@ async function connectToSession(
       sessionId,
       ...(baseUrl ? { baseUrl } : {}),
     });
-  } catch {
-    return undefined;
+  } catch (error) {
+    // Only treat the session as gone when Browserbase says so. A transient
+    // network/5xx failure must not discard the persisted id — launching a
+    // replacement would strand a healthy keep-alive session on billing.
+    if (isSessionGoneError(error)) return undefined;
+    throw error;
   }
+}
+
+function isSessionGoneError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /not found|terminated|expired|completed|410|404|no longer|stopped/i.test(message);
 }
 
 function loadPersistedSessionId(): void {
@@ -154,10 +168,12 @@ function persistSessionId(sessionId: string | undefined): void {
 }
 
 function sessionFilePath(): string {
-  return (
-    process.env.STAGEHAND_EVE_SESSION_FILE ??
-    path.join(os.tmpdir(), "stagehand-eve-facade-session.json")
-  );
+  if (process.env.STAGEHAND_EVE_SESSION_FILE) return process.env.STAGEHAND_EVE_SESSION_FILE;
+  // Scope the default file by API key so concurrent processes (or different
+  // keys) on one machine don't attach to or clobber each other's session.
+  const key = process.env.BROWSERBASE_API_KEY ?? "";
+  const scope = createHash("sha256").update(key).digest("hex").slice(0, 8);
+  return path.join(os.tmpdir(), `stagehand-eve-facade-session-${scope}.json`);
 }
 
 async function attach(

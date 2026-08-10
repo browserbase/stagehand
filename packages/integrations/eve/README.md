@@ -16,7 +16,7 @@ Configure the environment as needed:
 
 | Variable                                                             | Purpose                                                                                                                                                 |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`                                                  | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                   |
+| `STAGEHAND_BROWSER`                                                  | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                        |
 | `BROWSERBASE_API_KEY`                                                | Browserbase API key; required when using the Browserbase backend.                                                                                       |
 | `BROWSERBASE_PROJECT_ID`                                             | Optional Browserbase project ID.                                                                                                                        |
 | `STAGEHAND_MODEL_NAME`                                               | Optional Stagehand model name, such as `openai/gpt-5.6-luna`.                                                                                           |

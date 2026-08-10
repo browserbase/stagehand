@@ -14,6 +14,7 @@
     "@ai-sdk/openai": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
+    "dotenv": "catalog:",
     "eve": "catalog:"
   },
   "devDependencies": {

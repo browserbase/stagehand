@@ -1,7 +1,9 @@
 import type { ToolContext } from "eve/tools";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  FACADE_AGENT_INSTRUCTIONS,
   CodeModeRunInputSchema,
   RUN_INPUT_SCHEMA,
   RUN_TOOL_DESCRIPTION,
@@ -42,4 +44,9 @@ describe("Eve Stagehand facade tools", () => {
     ).rejects.toThrow();
     expect(CodeModeRunInputSchema.safeParse({ code: "return 1;" }).success).toBe(true);
   });
+});
+
+it("keeps instructions.md identical to the canonical facade prompt", () => {
+  const file = readFileSync(new URL("../agent/instructions.md", import.meta.url), "utf8");
+  expect(file.trim()).toBe(FACADE_AGENT_INSTRUCTIONS.trim());
 });

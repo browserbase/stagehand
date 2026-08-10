@@ -12,10 +12,19 @@ const sdkDist = path.dirname(sdkEntry);
 
 const child = spawn("eve", process.argv.slice(2), {
   stdio: "inherit",
+  // The eve bin is a .cmd shim on Windows, which Node refuses to spawn
+  // without a shell.
+  shell: process.platform === "win32",
   env: {
     ...process.env,
     STAGEHAND_EXTENSION_ARCHIVE_PATH: path.join(sdkDist, "assets/stagehand-extension.zip"),
     STAGEHAND_EXTENSION_DIRECTORY_PATH: path.join(sdkDist, "extension/"),
   },
+});
+child.on("error", (error) => {
+  console.error(
+    `Failed to launch the eve CLI (${error.message}). Run pnpm install first, or invoke this script through a pnpm script so node_modules/.bin is on PATH.`,
+  );
+  process.exit(1);
 });
 child.on("exit", (code) => process.exit(code ?? 1));
