@@ -170,15 +170,9 @@ export class ProgressRenderer {
     const hasModel = Boolean(model);
     const statusWidth = Math.max(7, visibleLength(status));
     const durationWidth = duration ? visibleLength(duration) + 1 : 0;
-    let modelWidth = hasModel
-      ? Math.min(30, Math.max(12, Math.floor(contentWidth * 0.28)))
-      : 0;
+    let modelWidth = hasModel ? Math.min(30, Math.max(12, Math.floor(contentWidth * 0.28))) : 0;
     let taskWidth =
-      contentWidth -
-      statusWidth -
-      durationWidth -
-      (hasModel ? modelWidth + 1 : 0) -
-      1;
+      contentWidth - statusWidth - durationWidth - (hasModel ? modelWidth + 1 : 0) - 1;
 
     if (hasModel && taskWidth < 18) {
       const deficit = 18 - taskWidth;
@@ -192,8 +186,7 @@ export class ProgressRenderer {
     }
 
     const taskCell = padRight(taskName, Math.max(18, taskWidth));
-    const modelCell =
-      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
+    const modelCell = modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
     const durationCell = duration ? ` ${duration}` : "";
     writeLine(`  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`);
   }
@@ -243,24 +236,15 @@ export class ProgressRenderer {
       return [];
     }
 
-    const maxRows = Math.max(
-      8,
-      this.getTerminalRows() - RESERVED_TERMINAL_ROWS,
-    );
+    const maxRows = Math.max(8, this.getTerminalRows() - RESERVED_TERMINAL_ROWS);
     const includeOverflowRow = tasks.length + 1 > maxRows;
-    const visibleTaskRows = Math.max(
-      1,
-      maxRows - 1 - (includeOverflowRow ? 1 : 0),
-    );
+    const visibleTaskRows = Math.max(1, maxRows - 1 - (includeOverflowRow ? 1 : 0));
     const hiddenCount = Math.max(0, tasks.length - visibleTaskRows);
-    const visibleTasks =
-      hiddenCount > 0 ? tasks.slice(-visibleTaskRows) : tasks;
+    const visibleTasks = hiddenCount > 0 ? tasks.slice(-visibleTaskRows) : tasks;
 
     return [
       this.buildHeaderRow(),
-      ...(hiddenCount > 0
-        ? [this.buildOverflowRow(hiddenCount, tasks.length)]
-        : []),
+      ...(hiddenCount > 0 ? [this.buildOverflowRow(hiddenCount, tasks.length)] : []),
       ...visibleTasks.map((task) => this.formatAnimatedRow(task)),
     ];
   }
@@ -280,9 +264,7 @@ export class ProgressRenderer {
           task.name,
           task.model,
           green("passed"),
-          task.durationMs !== undefined
-            ? dim(formatMs(task.durationMs))
-            : undefined,
+          task.durationMs !== undefined ? dim(formatMs(task.durationMs)) : undefined,
         );
       case "failed":
       case "error":
@@ -306,24 +288,16 @@ export class ProgressRenderer {
     status: string,
     duration?: string,
   ): string {
-    const { taskWidth, modelWidth } = this.getRowLayout(
-      Boolean(model),
-      status,
-      duration,
-    );
+    const { taskWidth, modelWidth } = this.getRowLayout(Boolean(model), status, duration);
 
     const taskCell = padRight(taskName, Math.max(18, taskWidth));
-    const modelCell =
-      modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
+    const modelCell = modelWidth > 0 && model ? ` ${dim(padRight(model, modelWidth))}` : "";
     const durationCell = duration ? ` ${duration}` : "";
     return `  ${icon} ${taskCell}${modelCell} ${status}${durationCell}`;
   }
 
   private buildHeaderRow(): string {
-    const { taskWidth, modelWidth, statusWidth } = this.getRowLayout(
-      true,
-      "Result",
-    );
+    const { taskWidth, modelWidth, statusWidth } = this.getRowLayout(true, "Result");
     const taskCell = bold(padRight("Task", Math.max(18, taskWidth)));
     const modelCell = ` ${bold(padRight("Model", modelWidth))}`;
     const statusCell = bold(padRight("Result", statusWidth));
@@ -341,10 +315,7 @@ export class ProgressRenderer {
     const completed = this.passed + this.failed;
     const width = getTerminalWidth();
     const barWidth = Math.max(12, Math.min(34, Math.floor(width * 0.24)));
-    const filled = Math.min(
-      barWidth,
-      Math.round((completed / total) * barWidth),
-    );
+    const filled = Math.min(barWidth, Math.round((completed / total) * barWidth));
     const empty = Math.max(0, barWidth - filled);
     const pct = Math.round((completed / total) * 100);
     const bar = `${green("█".repeat(filled))}${dim("░".repeat(empty))}`;
@@ -369,11 +340,7 @@ export class ProgressRenderer {
         : 0;
     let modelWidth = preferredModelWidth;
     let taskWidth =
-      contentWidth -
-      statusWidth -
-      durationWidth -
-      (hasModel ? modelWidth + 1 : 0) -
-      1;
+      contentWidth - statusWidth - durationWidth - (hasModel ? modelWidth + 1 : 0) - 1;
 
     if (hasModel && taskWidth < 28) {
       const compactModelWidth = Math.min(modelWidth, 24);

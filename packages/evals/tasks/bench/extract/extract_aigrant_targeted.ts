@@ -3,19 +3,17 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_aigrant_targeted" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/",
-      );
-      const selector = "/html/body/div/ul[5]/li[28]";
-      const company = await v3.extract(
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/aigrant/");
+      // The locator engine prefix is required for XPath selectors.
+      const locator = page.locator("xpath=/html/body/div/ul[5]/li[28]");
+      const { data: company } = await stagehand.extract(
         "Extract the company name.",
         z.object({
           company_name: z.string(),
         }),
-        { selector: selector },
+        { locator },
       );
 
       const companyName = company.company_name;
@@ -59,13 +57,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

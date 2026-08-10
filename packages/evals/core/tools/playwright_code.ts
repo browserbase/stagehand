@@ -1,28 +1,20 @@
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type Locator,
-  type Page,
-} from "playwright";
+import { chromium, type Browser, type BrowserContext, type Locator, type Page } from "playwright";
+import type { ProbeEvidence } from "stagehand-v3";
 import { resolveLocalChromeExecutablePath } from "../targets/localChrome.js";
-import type {
-  CoreCapability,
-  CoreLocatorHandle,
-  CorePageHandle,
-  CoreSession,
-  CoreTool,
-  StartupProfile,
-  ToolStartInput,
-  ToolStartResult,
+import {
+  AGENT_RUN_TOOL_NAME,
+  type CoreCapability,
+  type CoreLocatorHandle,
+  type CorePageHandle,
+  type CoreSession,
+  type CoreTool,
+  type StartupProfile,
+  type ToolStartInput,
+  type ToolStartResult,
 } from "../contracts/tool.js";
 import type { PageRepresentation } from "../contracts/representation.js";
 import type { Artifact, ConnectionMode } from "../contracts/results.js";
-import type {
-  ActionTarget,
-  TargetKind,
-  WaitSpec,
-} from "../contracts/targets.js";
+import type { ActionTarget, TargetKind, WaitSpec } from "../contracts/targets.js";
 
 const SUPPORTED_CAPABILITIES: CoreCapability[] = [
   "session",
@@ -42,11 +34,8 @@ const SUPPORTED_CAPABILITIES: CoreCapability[] = [
 
 function countAccessibilityNodes(node: unknown): number {
   if (!node || typeof node !== "object") return 0;
-  const children =
-    "children" in node && Array.isArray(node.children) ? node.children : [];
-  return (
-    1 + children.reduce((sum, child) => sum + countAccessibilityNodes(child), 0)
-  );
+  const children = "children" in node && Array.isArray(node.children) ? node.children : [];
+  return 1 + children.reduce((sum, child) => sum + countAccessibilityNodes(child), 0);
 }
 
 class PlaywrightLocatorHandle implements CoreLocatorHandle {
@@ -225,9 +214,7 @@ class PlaywrightPageHandle implements CorePageHandle {
     return new PlaywrightLocatorHandle(this.page.locator(selector));
   }
 
-  private roleTarget(
-    target: Extract<ActionTarget, { kind: "role_name" }>,
-  ): Locator {
+  private roleTarget(target: Extract<ActionTarget, { kind: "role_name" }>): Locator {
     return this.page.getByRole(target.role as never, {
       name: target.name,
     });
@@ -237,10 +224,7 @@ class PlaywrightPageHandle implements CorePageHandle {
     return this.page.getByText(target.text);
   }
 
-  async click(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async click(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("click(x, y) requires both numeric coordinates");
@@ -250,9 +234,7 @@ class PlaywrightPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -268,16 +250,11 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.textTarget(target).click();
         return;
       default:
-        throw new Error(
-          `playwright_code does not support click target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_code does not support click target kind "${target.kind}" yet`);
     }
   }
 
-  async hover(
-    targetOrX: string | ActionTarget | number,
-    y?: number,
-  ): Promise<void> {
+  async hover(targetOrX: string | ActionTarget | number, y?: number): Promise<void> {
     if (typeof targetOrX === "number") {
       if (typeof y !== "number") {
         throw new Error("hover(x, y) requires both numeric coordinates");
@@ -287,9 +264,7 @@ class PlaywrightPageHandle implements CorePageHandle {
     }
 
     const target =
-      typeof targetOrX === "string"
-        ? ({ kind: "selector", value: targetOrX } as const)
-        : targetOrX;
+      typeof targetOrX === "string" ? ({ kind: "selector", value: targetOrX } as const) : targetOrX;
 
     switch (target.kind) {
       case "selector":
@@ -305,18 +280,11 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.textTarget(target).hover();
         return;
       default:
-        throw new Error(
-          `playwright_code does not support hover target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_code does not support hover target kind "${target.kind}" yet`);
     }
   }
 
-  async scroll(
-    x: number,
-    y: number,
-    deltaX: number,
-    deltaY: number,
-  ): Promise<void> {
+  async scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void> {
     await this.page.mouse.move(x, y);
     await this.page.mouse.wheel(deltaX, deltaY);
   }
@@ -358,9 +326,7 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.page.keyboard.type(text);
         return;
       default:
-        throw new Error(
-          `playwright_code does not support type target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_code does not support type target kind "${target.kind}" yet`);
     }
   }
 
@@ -403,9 +369,7 @@ class PlaywrightPageHandle implements CorePageHandle {
         await this.page.keyboard.press(key);
         return;
       default:
-        throw new Error(
-          `playwright_code does not support press target kind "${target.kind}" yet`,
-        );
+        throw new Error(`playwright_code does not support press target kind "${target.kind}" yet`);
     }
   }
 
@@ -444,6 +408,9 @@ class PlaywrightSession implements CoreSession {
       const handle = this.wrap(initialPage);
       this.activePageId = handle.id;
     }
+    this.context.on("page", (page) => {
+      this.activePageId = this.wrap(page).id;
+    });
   }
 
   private nextPageId(): string {
@@ -471,9 +438,7 @@ class PlaywrightSession implements CoreSession {
     if (this.activePageId) {
       const active = this.context
         .pages()
-        .find(
-          (candidate: Page) => this.wrap(candidate).id === this.activePageId,
-        );
+        .find((candidate: Page) => this.wrap(candidate).id === this.activePageId);
       if (active) return this.wrap(active);
     }
 
@@ -497,9 +462,7 @@ class PlaywrightSession implements CoreSession {
   }
 
   async selectPage(pageId: string): Promise<void> {
-    const page = this.context
-      .pages()
-      .find((candidate: Page) => this.wrap(candidate).id === pageId);
+    const page = this.context.pages().find((candidate: Page) => this.wrap(candidate).id === pageId);
     if (!page) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
@@ -508,17 +471,13 @@ class PlaywrightSession implements CoreSession {
   }
 
   async closePage(pageId: string): Promise<void> {
-    const page = this.context
-      .pages()
-      .find((candidate: Page) => this.wrap(candidate).id === pageId);
+    const page = this.context.pages().find((candidate: Page) => this.wrap(candidate).id === pageId);
     if (!page) {
       throw new Error(`Unknown page id "${pageId}"`);
     }
     await page.close();
     if (this.activePageId === pageId) {
-      this.activePageId = this.context.pages()[0]
-        ? this.wrap(this.context.pages()[0]).id
-        : null;
+      this.activePageId = this.context.pages()[0] ? this.wrap(this.context.pages()[0]).id : null;
     }
   }
 
@@ -559,6 +518,29 @@ function connectionModeFromProfile(
   return "launch";
 }
 
+async function capturePlaywrightEvidence(session: CoreSession): Promise<ProbeEvidence> {
+  const page = await session.activePage().catch((): undefined => undefined);
+  if (!page) return {};
+
+  const evidence: ProbeEvidence = {};
+  try {
+    evidence.screenshot = await page.screenshot();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.url = page.url();
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  try {
+    evidence.ariaTree = (await page.represent?.({ includeIframes: true }))?.content;
+  } catch {
+    // Best effort: preserve other evidence modalities.
+  }
+  return evidence;
+}
+
 export class PlaywrightCodeTool implements CoreTool {
   readonly id = "playwright_code";
   readonly surface = "code";
@@ -570,9 +552,7 @@ export class PlaywrightCodeTool implements CoreTool {
     "tool_attach_local_cdp",
     "tool_attach_browserbase",
   ];
-  readonly supportedCapabilities: CoreCapability[] = [
-    ...SUPPORTED_CAPABILITIES,
-  ];
+  readonly supportedCapabilities: CoreCapability[] = [...SUPPORTED_CAPABILITIES];
   readonly supportedTargetKinds: TargetKind[] = [
     "selector",
     "coords",
@@ -584,17 +564,14 @@ export class PlaywrightCodeTool implements CoreTool {
   async start(input: ToolStartInput): Promise<ToolStartResult> {
     let browser: Browser;
     let context: BrowserContext;
-    let initialPage: Page | undefined;
+    let initialPage: Page;
 
     if (input.startupProfile === "tool_launch_local") {
       const executablePath = resolveLocalChromeExecutablePath();
       browser = await chromium.launch({
         headless: true,
         executablePath,
-        args: [
-          ...(process.env.CI ? ["--no-sandbox"] : []),
-          "--ignore-certificate-errors",
-        ],
+        args: [...(process.env.CI ? ["--no-sandbox"] : []), "--ignore-certificate-errors"],
       });
       context = await browser.newContext({
         ignoreHTTPSErrors: true,
@@ -626,15 +603,26 @@ export class PlaywrightCodeTool implements CoreTool {
 
     return {
       session,
-      cleanup: async () => {
-        await session.close();
+      agentMount: {
+        via: "handles",
+        handles: { page: initialPage, context, browser },
+        promptInstructions: buildPlaywrightCodePromptInstructions(),
+        runTool: {
+          description: [
+            "Execute JavaScript against the initialized Playwright browser.",
+            "The snippet runs inside an async function with page, context, browser, startUrl, task, and console in scope.",
+            "Use await directly. Return a JSON-serializable value when useful.",
+          ].join(" "),
+          codeParamDescription:
+            "JavaScript function body to execute. page/context/browser/startUrl/task are already in scope.",
+          denyMessage: `Use Bash for inspection and ${AGENT_RUN_TOOL_NAME} for browser automation.`,
+        },
       },
+      captureEvidence: () => capturePlaywrightEvidence(session),
+      cleanup: () => session.close(),
       metadata: {
-        environment:
-          input.environment === "BROWSERBASE" ? "browserbase" : "local",
-        browserOwnership: input.startupProfile.startsWith("runner_provided")
-          ? "runner"
-          : "tool",
+        environment: input.environment === "BROWSERBASE" ? "browserbase" : "local",
+        browserOwnership: input.startupProfile.startsWith("runner_provided") ? "runner" : "tool",
         connectionMode: connectionModeFromProfile(
           input.startupProfile,
           input.providedEndpoint?.kind,
@@ -643,4 +631,15 @@ export class PlaywrightCodeTool implements CoreTool {
       },
     };
   }
+}
+
+function buildPlaywrightCodePromptInstructions(): string {
+  return [
+    "Browser tool surface: playwright_code.",
+    `Use the ${AGENT_RUN_TOOL_NAME} tool for browser automation. It exposes an initialized Playwright page, context, browser, startUrl, and task object.`,
+    "Use Bash for inspection and lightweight scripting. Do not create a separate browser process.",
+    "The first browser action should usually be: await page.goto(startUrl, { waitUntil: 'domcontentloaded' }).",
+    "Do not edit repository files.",
+    "Return useful JSON-serializable values from run snippets so you can inspect progress.",
+  ].join("\n");
 }

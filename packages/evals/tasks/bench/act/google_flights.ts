@@ -1,5 +1,5 @@
 import { defineBenchTask } from "../../../framework/defineTask.js";
-import { Action } from "@browserbasehq/stagehand";
+import type { Action } from "@browserbasehq/stagehand";
 
 /**
  * This eval attempts to click on an element that should not pass the playwright actionability check
@@ -13,12 +13,9 @@ import { Action } from "@browserbasehq/stagehand";
 
 export default defineBenchTask(
   { name: "google_flights" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/");
 
       const observeResult: Action = {
         selector:
@@ -27,13 +24,11 @@ export default defineBenchTask(
         method: "click",
         arguments: [],
       };
-      await v3.act(observeResult);
+      await stagehand.act(observeResult);
 
       const expectedUrl =
         "https://browserbase.github.io/stagehand-eval-sites/sites/google-flights/return-flight.html";
-      const currentUrl = page.url();
-
-      await v3.close();
+      const currentUrl = await page.url();
 
       if (currentUrl === expectedUrl) {
         return {
@@ -54,13 +49,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

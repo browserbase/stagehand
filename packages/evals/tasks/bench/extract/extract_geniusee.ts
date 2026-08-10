@@ -3,19 +3,17 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_geniusee" },
-  async ({ logger, debugUrl, sessionUrl, v3 }) => {
+  async ({ logger, debugUrl, sessionUrl, stagehand, page }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/",
-      );
-      const selector = "/html/body/main/div[2]/div[2]/div[2]/table";
-      const scalability = await v3.extract(
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/geniusee/");
+      // The locator engine prefix is required for XPath selectors.
+      const locator = page.locator("xpath=/html/body/main/div[2]/div[2]/div[2]/table");
+      const { data: scalability } = await stagehand.extract(
         "Extract the scalability comment in the table for Gemini (Google)",
         z.object({
           scalability: z.string(),
         }),
-        { selector: selector },
+        { locator },
       );
 
       const scalabilityComment = scalability.scalability;
@@ -24,8 +22,7 @@ export default defineBenchTask(
         scalability: "Scalable architecture with API access",
       };
 
-      const commentMatches =
-        scalabilityComment == expectedScalabilityComment.scalability;
+      const commentMatches = scalabilityComment == expectedScalabilityComment.scalability;
 
       if (!commentMatches) {
         logger.error({
@@ -60,13 +57,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

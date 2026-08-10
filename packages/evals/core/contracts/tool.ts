@@ -1,23 +1,12 @@
+import type { ProbeEvidence } from "stagehand-v3";
 import type { EvalLogger } from "../../logger.js";
-import type {
-  ActionTarget,
-  FocusedTarget,
-  TargetKind,
-  WaitSpec,
-} from "./targets.js";
-import type {
-  PageRepresentation,
-  RepresentationOpts,
-} from "./representation.js";
-import type {
-  Artifact,
-  BrowserOwnership,
-  ConnectionMode,
-  EnvironmentName,
-} from "./results.js";
+import type { ActionTarget, FocusedTarget, TargetKind, WaitSpec } from "./targets.js";
+import type { PageRepresentation, RepresentationOpts } from "./representation.js";
+import type { Artifact, BrowserOwnership, ConnectionMode, EnvironmentName } from "./results.js";
 
 export type ToolSurface =
   | "understudy_code"
+  | "stagehand_code"
   | "playwright_code"
   | "cdp_code"
   | "playwright_mcp"
@@ -111,16 +100,10 @@ export interface CorePageHandle {
   scroll(x: number, y: number, deltaX: number, deltaY: number): Promise<void>;
 
   type(text: string): Promise<void>;
-  type(
-    target: string | ActionTarget | FocusedTarget,
-    text: string,
-  ): Promise<void>;
+  type(target: string | ActionTarget | FocusedTarget, text: string): Promise<void>;
 
   press(key: string): Promise<void>;
-  press(
-    target: string | ActionTarget | FocusedTarget,
-    key: string,
-  ): Promise<void>;
+  press(target: string | ActionTarget | FocusedTarget, key: string): Promise<void>;
 
   represent?(opts?: RepresentationOpts): Promise<PageRepresentation>;
 }
@@ -153,6 +136,19 @@ export interface ToolStartInput {
 
 export interface ToolStartResult {
   session: CoreSession;
+  /**
+   * Optional agent-facing binding for this running surface. `via` describes
+   * delivery to the agent and is independent of `CoreTool.surface`; for
+   * example, a code surface may be delivered through MCP or a CLI wrapper.
+   */
+  agentMount?: AgentMount;
+  /**
+   * Best-effort evidence captured from the current surface state. Harnesses may
+   * call this after individual actions and once more at the end of a run.
+   * Implementations must swallow per-field failures and must not throw.
+   */
+  captureEvidence?: () => Promise<ProbeEvidence>;
+  /** Releases the runtime; `captureEvidence` is invalid after this resolves. */
   cleanup: () => Promise<void>;
   metadata: {
     environment: EnvironmentName;
@@ -165,14 +161,59 @@ export interface ToolStartResult {
 export interface CoreTool {
   id: ToolSurface;
   surface: "code" | "mcp" | "cli";
-  family:
-    | "understudy"
-    | "playwright"
-    | "cdp"
-    | "stagehand_cli"
-    | "chrome_devtools";
+  family: "understudy" | "stagehand" | "playwright" | "cdp" | "stagehand_cli" | "chrome_devtools";
   supportedStartupProfiles: StartupProfile[];
   supportedCapabilities: CoreCapability[];
   supportedTargetKinds: TargetKind[];
   start(input: ToolStartInput): Promise<ToolStartResult>;
 }
+
+/**
+ * The MCP server / tool name used when an agent harness wraps handles in a
+ * code-execution tool.
+ */
+export const AGENT_RUN_TOOL_SERVER = "stagehand_browser";
+export const AGENT_RUN_TOOL_NAME = `mcp__${AGENT_RUN_TOOL_SERVER}__run`;
+export const AGENT_RUN_TOOL_RESERVED_HANDLES = ["startUrl", "task", "console"] as const;
+
+/**
+ * Surface-specific copy for the harness's code-execution tool. The harness
+ * owns mechanics and task bindings; the surface owns what the agent sees.
+ */
+export interface AgentRunToolSpec {
+  /** MCP tool description shown to the model. */
+  description: string;
+  /** Description of the tool's `code` parameter. */
+  codeParamDescription: string;
+  /** Message from the harness-owned tool allowlist when access is denied. */
+  denyMessage: string;
+}
+
+/**
+ * How an agent harness reaches an already-running surface. This is independent
+ * of `CoreTool.surface`; harnesses switch on `via` and need no surface-specific
+ * mounting logic.
+ */
+export type AgentMount = { promptInstructions: string } & (
+  | {
+      via: "handles";
+      /**
+       * Named values placed in snippet scope. Names, not order, bind values.
+       * `AGENT_RUN_TOOL_RESERVED_HANDLES` are injected by the harness and may
+       * not appear here.
+       */
+      handles: Record<string, unknown>;
+      runTool: AgentRunToolSpec;
+    }
+  | { via: "mcp"; mcpServers: Record<string, unknown> }
+  | {
+      via: "cli";
+      command: {
+        bin: string;
+        args?: string[];
+        cwd?: string;
+        /** Extra variables merged over the harness environment. */
+        env?: Record<string, string>;
+      };
+    }
+);

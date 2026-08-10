@@ -11,11 +11,7 @@
  * config inherits the source marker on first build.
  */
 
-import {
-  readConfig,
-  writeConfig,
-  type WelcomeMeta,
-} from "./commands/config.js";
+import { readConfig, writeConfig, type WelcomeMeta } from "./commands/config.js";
 
 export const CURRENT_SCHEMA_VERSION = 1;
 
@@ -44,7 +40,7 @@ export function markFirstRunComplete(entryDir: string): void {
     const config = readConfig(entryDir);
     if (config._meta?.firstRunCompletedAt) return;
     config._meta = {
-      ...(config._meta ?? {}),
+      ...config._meta,
       firstRunCompletedAt: new Date().toISOString(),
       version: CURRENT_SCHEMA_VERSION,
     };

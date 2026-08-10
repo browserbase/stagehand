@@ -1,11 +1,10 @@
-import { defineBenchTask } from "../../../framework/defineTask.js";
 import { z } from "zod";
+import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "extract_recipe" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
       await page.goto(
         "https://browserbase.github.io/stagehand-eval-sites/sites/allrecipes-extract/",
         {
@@ -13,22 +12,19 @@ export default defineBenchTask(
         },
       );
 
-      const selector = "/html/body/main/article/div[3]/div[3]/div[4]";
-      const recipeDetails = await v3.extract(
+      // The locator engine prefix is required for XPath selectors.
+      const locator = page.locator("xpath=/html/body/main/article/div[3]/div[3]/div[4]");
+      const { data: recipeDetails } = await stagehand.extract(
         "Extract the title of the number of tablespoons of olive oil needed for the steak, and the number of teaspoons of lemon juice needed for the mushroom pan sauce.",
         z.object({
           tablespoons_olive_oil: z
             .number()
-            .describe(
-              "the number of tablespoons of olive oil needed for the steak",
-            ),
+            .describe("the number of tablespoons of olive oil needed for the steak"),
           teaspoons_lemon_juice: z
             .number()
-            .describe(
-              "the number of teaspoons of lemon juice needed for the mushroom pan sauce",
-            ),
+            .describe("the number of teaspoons of lemon juice needed for the mushroom pan sauce"),
         }),
-        { selector: selector },
+        { locator },
       );
 
       const { tablespoons_olive_oil, teaspoons_lemon_juice } = recipeDetails;
@@ -90,13 +86,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

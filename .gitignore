@@ -1,40 +1,48 @@
-node_modules/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-screenshot.png
-.DS_STORE
-.cache/
-.env
-downloads/
-dist/
-.browserbase/
-packages/evals/**/public
-packages/core/lib/dom/build/
-packages/core/lib/v3/dom/build/
-packages/evals/public
-*.tgz
-evals/playground.ts
-tmp/
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 eval-summary.json
-package-lock.json
-evals/deterministic/tests/BrowserContext/tmp-test.har
-packages/core/lib/version.ts
-packages/core/test-results/
-/examples/inference_summary
-/inference_summary
-.turbo
-.idea
-coverage/
-ctrf/
-.stagehand-sea/
-.playwright*/
-**/.playwright*/
-packages/evals/playwright-mcp-screenshot-*.png
-packages/evals/chrome-devtools-mcp-screenshot-*.png
-.trajectories/
 
-# The browse CLI has a command source dir named "downloads" that must be tracked
-# despite the broad downloads/ rule above.
-!packages/cli/src/commands/cloud/sessions/downloads/
+node_modules
+dist
+dist-ssr
+packages/extension/artifacts
+.pnpm-store
+*.local
+*.tgz
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Editor directories and files
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# AI agent worktrees
+.claude/worktrees/
+vendor-repos/
+
+# Local planning notes
+requirements.md
+to dos.md
+.turbo

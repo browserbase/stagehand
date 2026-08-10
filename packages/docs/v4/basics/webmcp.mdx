@@ -1,0 +1,438 @@
+---
+title: "WebMCP"
+sidebarTitle: "WebMCP"
+description: "List and invoke tools registered by the current web page"
+---
+
+## What is WebMCP?
+
+Some pages expose their own capabilities as callable tools rather than making you drive their UI. WebMCP is the browser API for discovering those tools and invoking them directly, so a checkout flow that would otherwise take six clicks becomes one call with typed input.
+
+`page.tools()` returns the tools the current page has registered. Each tool carries a name, a description, and a JSON Schema for its input, and each one can be invoked and awaited.
+
+{/* TODO(go): confirm the Go samples once a Go toolchain is available; they are symbol-checked but not compiled. */}
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const tools = await page.tools();
+const [checkout] = tools;
+
+const invocation = await checkout.invoke({ input: { quantity: 2 } });
+const response = await invocation.result();
+
+console.log(response.status, response.output);
+```
+</Tab>
+
+<Tab title="Python">
+```python
+tools = await page.tools()
+checkout = tools[0]
+
+invocation = await checkout.invoke(input={"quantity": 2})
+response = await invocation.result()
+
+print(response.status, response.output)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+tools, err := page.Tools(ctx, nil)
+if err != nil {
+	return err
+}
+checkout := tools[0]
+
+invocation, err := checkout.Invoke(ctx, stagehand.WebMCPInput{"quantity": 2})
+if err != nil {
+	return err
+}
+
+response, err := invocation.Result(ctx, nil)
+if err != nil {
+	return err
+}
+
+fmt.Println(response.Status, response.Output)
+```
+</Tab>
+</Tabs>
+
+<Note>
+WebMCP tools are registered *by the page*. That makes them distinct from tools you wire into a model yourself: you do not define them, you discover whatever the site chose to publish.
+</Note>
+
+## Browser support
+
+WebMCP requires a Chromium build with the WebMCP features enabled. Stagehand ships this flag as one of the default launch flags for every local browser it starts:
+
+```
+--enable-features=WebMCPTesting,DevToolsWebMCPSupport
+```
+
+<Warning>
+Stagehand can only set launch flags on browsers it launches. If you attach to a browser you started yourself, or you strip Stagehand's default flags on a local launch, start Chrome with `--enable-features=WebMCPTesting,DevToolsWebMCPSupport` or `page.tools()` will return an empty list.
+</Warning>
+
+## Listing tools
+
+`page.tools()` takes a snapshot of what the page currently exposes. Call it again after navigating or after the page mounts new UI; the result is not live.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+// Wait up to 3 seconds for the page to register its tools
+const tools = await page.tools({ timeout: 3000 });
+
+for (const tool of tools) {
+  console.log(tool.name, tool.description);
+  console.log(tool.inputSchema);   // JSON Schema for invoke() input
+  console.log(tool.annotations);   // { readOnly?, untrustedContent?, autosubmit? }
+  console.log(tool.frameId);       // the frame that registered the tool
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+# Wait up to 3 seconds for the page to register its tools
+tools = await page.tools(timeout=3000)
+
+for tool in tools:
+    print(tool.name, tool.description)
+    print(tool.input_schema)  # JSON Schema for invoke() input
+    print(tool.annotations)   # read_only / untrusted_content / autosubmit
+    print(tool.frame_id)      # the frame that registered the tool
+```
+</Tab>
+
+<Tab title="Go">
+```go
+// Wait up to 3 seconds for the page to register its tools
+timeout := 3000.0
+tools, err := page.Tools(ctx, &stagehand.WebMCPToolsOptions{Timeout: timeout})
+if err != nil {
+	return err
+}
+
+for _, tool := range tools {
+	descriptor := tool.Descriptor()
+	fmt.Println(descriptor.Name, descriptor.Description)
+	fmt.Println(descriptor.InputSchema)  // JSON Schema for Invoke input
+	fmt.Println(descriptor.Annotations)  // ReadOnly / UntrustedContent / Autosubmit
+	fmt.Println(descriptor.FrameID)      // the frame that registered the tool
+}
+```
+</Tab>
+</Tabs>
+
+The listing timeout defaults to 1000 ms. Tools declared in iframes are included, each tagged with the `frameId` that registered it.
+
+<Accordion title="Tool annotations">
+
+| Annotation | Meaning |
+|---|---|
+| `readOnly` | The tool does not mutate state, so it is safe to call speculatively |
+| `untrustedContent` | The output contains page-controlled text; do not feed it to a model as if it were trusted |
+| `autosubmit` | Invoking the tool submits something on the user's behalf |
+
+Annotations are hints from the page, not guarantees enforced by the browser. Treat `untrustedContent` output as data, never as instructions.
+</Accordion>
+
+## Invoking tools
+
+Invoking is two steps: `invoke()` hands the call to the browser and returns immediately with a handle, then `result()` waits for the terminal response. Splitting them means a long-running tool does not block you, and you can cancel while it is in flight.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const [search] = await page.tools();
+
+// Returns as soon as Chrome accepts the invocation
+const invocation = await search.invoke({ input: { query: "wireless mouse" } });
+
+console.log(invocation.invocationId, invocation.toolName, invocation.input);
+
+// Blocks until the tool reaches a terminal state
+const response = await invocation.result({ timeout: 30000 });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+tools = await page.tools()
+search = tools[0]
+
+# Returns as soon as Chrome accepts the invocation
+invocation = await search.invoke(input={"query": "wireless mouse"})
+
+print(invocation.invocation_id, invocation.tool_name, invocation.input)
+
+# Blocks until the tool reaches a terminal state
+response = await invocation.result(timeout=30000)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+tools, err := page.Tools(ctx, nil)
+if err != nil {
+	return err
+}
+search := tools[0]
+
+// Returns as soon as Chrome accepts the invocation
+invocation, err := search.Invoke(ctx, stagehand.WebMCPInput{"query": "wireless mouse"})
+if err != nil {
+	return err
+}
+
+descriptor := invocation.Descriptor()
+fmt.Println(descriptor.InvocationID, descriptor.ToolName, descriptor.Input)
+
+// Blocks until the tool reaches a terminal state
+resultTimeout := 30000.0
+response, err := invocation.Result(ctx, &stagehand.WebMCPResultOptions{Timeout: &resultTimeout})
+if err != nil {
+	return err
+}
+
+fmt.Println(response.Status, response.Output)
+```
+</Tab>
+</Tabs>
+
+<Note>
+Omitting the input sends an empty object. Validate your input against the tool's `inputSchema` before invoking if you want a clear failure locally rather than an `Error` response from the page.
+</Note>
+
+## Handling results
+
+A terminal response reports one of three statuses:
+
+| `status` | Meaning | Where to look |
+|---|---|---|
+| `Completed` | The tool finished | `output` |
+| `Canceled` | Cancellation was honored | neither |
+| `Error` | The tool failed | `errorText`, and `exception` when the page threw |
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const response = await invocation.result();
+
+switch (response.status) {
+  case "Completed":
+    console.log("output:", response.output);
+    break;
+  case "Canceled":
+    console.log("canceled before it finished");
+    break;
+  case "Error":
+    console.error(response.errorText, response.exception);
+    break;
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+response = await invocation.result()
+
+if response.status == "Completed":
+    print("output:", response.output)
+elif response.status == "Canceled":
+    print("canceled before it finished")
+else:
+    print(response.error_text, response.exception)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+response, err := invocation.Result(ctx, nil)
+if err != nil {
+	return err
+}
+
+switch response.Status {
+case stagehand.WebMCPInvocationStatusCompleted:
+	// Decode the JSON output into a type you choose
+	type searchOutput struct {
+		Results []string `json:"results"`
+	}
+	output, err := stagehand.WebMCPOutputAs[searchOutput](response)
+	if err != nil {
+		return err
+	}
+	fmt.Println("output:", output.Results)
+case stagehand.WebMCPInvocationStatusCanceled:
+	fmt.Println("canceled before it finished")
+case stagehand.WebMCPInvocationStatusError:
+	fmt.Println(response.ErrorText, response.Exception)
+}
+```
+</Tab>
+</Tabs>
+
+`result()` caches the terminal response, so calling it twice is cheap and returns the same value. A timeout or transport failure is not cached and can be retried.
+
+### Canceling an invocation
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const invocation = await slowTool.invoke({ input: {} });
+
+// Ask the page to stop. The terminal status is still whatever Chrome reports.
+await invocation.cancel();
+
+const response = await invocation.result();
+console.log(response.status); // often "Canceled", but the tool may have finished first
+```
+</Tab>
+
+<Tab title="Python">
+```python
+invocation = await slow_tool.invoke(input={})
+
+# Ask the page to stop. The terminal status is still whatever Chrome reports.
+await invocation.cancel()
+
+response = await invocation.result()
+print(response.status)  # often "Canceled", but the tool may have finished first
+```
+</Tab>
+
+<Tab title="Go">
+```go
+invocation, err := slowTool.Invoke(ctx, nil)
+if err != nil {
+	return err
+}
+
+// Ask the page to stop. The terminal status is still whatever Chrome reports.
+if err := invocation.Cancel(ctx); err != nil {
+	return err
+}
+
+response, err := invocation.Result(ctx, nil)
+if err != nil {
+	return err
+}
+fmt.Println(response.Status) // often "Canceled", but the tool may have finished first
+```
+</Tab>
+</Tabs>
+
+<Warning>
+Cancellation is a request, not a guarantee. Chrome decides the terminal status, so always read it from `result()` rather than assuming the invocation stopped.
+</Warning>
+
+## Timeouts
+
+| Call | Default | Purpose |
+|---|---|---|
+| listing tools | 1000 ms | How long to wait for the page to register its tools |
+| awaiting a result | none | How long to wait for a terminal response; waits indefinitely when unset |
+
+Raise the listing timeout on pages that register tools after an async bootstrap. Set a result timeout whenever a tool could hang, so your automation fails loudly instead of stalling.
+
+## Combining with the primitives
+
+WebMCP and the primitives solve different problems, and mixing them is normal: use a tool where the page gives you one, and fall back to [`observe()`](/v4/basics/observe) and [`act()`](/v4/basics/act) where it does not.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+const tools = await page.tools();
+const addToCart = tools.find((tool) => tool.name === "addToCart");
+
+if (addToCart) {
+  // Deterministic, typed, no model call
+  const invocation = await addToCart.invoke({ input: { sku: "ABC-123", quantity: 1 } });
+  await invocation.result();
+} else {
+  // The page publishes no tool for this, so drive the UI
+  await stagehand.act("add the item to the cart");
+}
+```
+</Tab>
+
+<Tab title="Python">
+```python
+tools = await page.tools()
+add_to_cart = next((tool for tool in tools if tool.name == "addToCart"), None)
+
+if add_to_cart is not None:
+    # Deterministic, typed, no model call
+    invocation = await add_to_cart.invoke(input={"sku": "ABC-123", "quantity": 1})
+    await invocation.result()
+else:
+    # The page publishes no tool for this, so drive the UI
+    await stagehand.act("add the item to the cart")
+```
+</Tab>
+
+<Tab title="Go">
+```go
+tools, err := page.Tools(ctx, nil)
+if err != nil {
+	return err
+}
+
+var addToCart *stagehand.WebMCPTool
+for _, tool := range tools {
+	if tool.Descriptor().Name == "addToCart" {
+		addToCart = tool
+		break
+	}
+}
+
+if addToCart != nil {
+	// Deterministic, typed, no model call
+	invocation, err := addToCart.Invoke(ctx, stagehand.WebMCPInput{"sku": "ABC-123", "quantity": 1})
+	if err != nil {
+		return err
+	}
+	if _, err := invocation.Result(ctx, nil); err != nil {
+		return err
+	}
+} else {
+	// The page publishes no tool for this, so drive the UI
+	if _, err := client.Act(ctx, stagehand.ActInstruction("add the item to the cart"), nil); err != nil {
+		return err
+	}
+}
+```
+</Tab>
+</Tabs>
+
+<Tip>
+A tool invocation costs no LLM tokens and cannot pick the wrong element, so prefer one over an `act()` call whenever the page offers it.
+</Tip>
+
+## API reference
+
+<Card title="Complete API reference" icon="book" href="/v4/reference/page">
+  Full `Page`, `WebMCPTool`, and `WebMCPInvocation` reference with every option and field.
+</Card>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Observe" icon="magnifying-glass" href="/v4/basics/observe">
+    Discover what a page can do when it publishes no tools
+  </Card>
+  <Card title="Act" icon="play" href="/v4/basics/act">
+    Execute a single action with natural language
+  </Card>
+  <Card title="Extract" icon="table" href="/v4/basics/extract">
+    Pull typed, structured data off any page
+  </Card>
+  <Card title="Browser configuration" icon="browser" href="/v4/configuration/browser">
+    Launch flags, browser factories, and attaching over CDP
+  </Card>
+</CardGroup>

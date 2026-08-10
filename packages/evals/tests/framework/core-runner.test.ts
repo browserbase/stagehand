@@ -12,9 +12,7 @@ const evalMock = vi.fn();
 const flushMock = vi.fn(async () => {});
 const generateSummaryMock = vi.fn(async () => {});
 const buildCoreContextMock = vi.fn();
-const resolveDefaultCoreStartupProfileMock = vi.fn(
-  () => "runner_provided_local_cdp",
-);
+const resolveDefaultCoreStartupProfileMock = vi.fn(() => "runner_provided_local_cdp");
 let originalCi: string | undefined;
 let originalPersist: string | undefined;
 
@@ -132,68 +130,63 @@ describe("core runner", () => {
       isLegacy: false,
     };
 
-    buildCoreContextMock.mockImplementation(
-      async (options: { logger: unknown }) => ({
-        ctx: {
-          page: {},
-          tool: {
-            getRawMetrics: async () => ({ pageCount: 1 }),
-          },
-          startupProfile: "runner_provided_local_cdp",
-          adapter: {
-            name: "understudy_code",
-            family: "understudy",
-            surface: "code",
-            metadata: {
-              environment: "local",
-              browserOwnership: "runner",
-              connectionMode: "attach_ws",
-              startupProfile: "runner_provided_local_cdp",
-            },
-          },
-          assert: {},
-          metrics: createMetricsCollector(),
-          logger: options.logger,
+    buildCoreContextMock.mockImplementation(async (options: { logger: unknown }) => ({
+      ctx: {
+        page: {},
+        tool: {
+          getRawMetrics: async () => ({ pageCount: 1 }),
         },
-        cleanup: async () => {},
-      }),
-    );
+        startupProfile: "runner_provided_local_cdp",
+        adapter: {
+          name: "understudy_code",
+          family: "understudy",
+          surface: "code",
+          metadata: {
+            environment: "local",
+            browserOwnership: "runner",
+            connectionMode: "attach_ws",
+            startupProfile: "runner_provided_local_cdp",
+          },
+        },
+        assert: {},
+        metrics: createMetricsCollector(),
+        logger: options.logger,
+      },
+      cleanup: async () => {},
+    }));
 
     let capturedProject = "";
-    let capturedScores: Array<(args: any) => { name: string; score: number }> =
-      [];
+    let capturedScores: Array<(args: any) => { name: string; score: number }> = [];
     let capturedEvalOptions: any;
-    evalMock.mockImplementation(
-      async (projectName: string, config: any, evalOptions: any) => {
-        capturedProject = projectName;
-        capturedScores = config.scores;
-        capturedEvalOptions = evalOptions;
-        const data = await config.data();
-        const results = [];
-        for (const testcase of data) {
-          results.push({
-            input: testcase.input,
-            output: await config.task(testcase.input),
-          });
-        }
-        return {
-          summary: {
-            experimentName: "navigation/open-3fb31541",
-            experimentUrl:
-              "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/navigation/open-3fb31541",
-            scores: {
-              Pass: {
-                name: "Pass",
-                score: 1,
-                improvements: 0,
-                regressions: 0,
-              },
+    evalMock.mockImplementation(async (projectName: string, config: any, evalOptions: any) => {
+      capturedProject = projectName;
+      capturedScores = config.scores;
+      capturedEvalOptions = evalOptions;
+      const data = await config.data();
+      const results = [];
+      for (const testcase of data) {
+        results.push({
+          input: testcase.input,
+          output: await config.task(testcase.input),
+        });
+      }
+      return {
+        summary: {
+          experimentName: "navigation/open-3fb31541",
+          experimentUrl:
+            "https://www.braintrust.dev/app/Browserbase/p/stagehand/experiments/navigation/open-3fb31541",
+          scores: {
+            Pass: {
+              name: "Pass",
+              score: 1,
+              improvements: 0,
+              regressions: 0,
             },
           },
-          results,
-        };
-      },
-    );
+        },
+        results,
+      };
+    });
 
     const { runEvals } = await import("../../framework/runner.js");
     const result = await runEvals({
@@ -232,18 +225,13 @@ describe("core runner", () => {
       },
     );
     expect(result.experimentName).toBe("navigation/open-3fb31541");
-    expect(capturedEvalOptions.reporter.name).toBe(
-      "stagehand-evals-silent-reporter",
-    );
+    expect(capturedEvalOptions.reporter.name).toBe("stagehand-evals-silent-reporter");
     expect(typeof capturedEvalOptions.progress.start).toBe("function");
     expect(typeof capturedEvalOptions.progress.increment).toBe("function");
     expect(typeof capturedEvalOptions.progress.stop).toBe("function");
     expect(tracedNames).toEqual(["session.startup", "task", "cleanup"]);
 
-    const metrics = result.results[0].output.metrics as Record<
-      string,
-      { value: number }
-    >;
+    const metrics = result.results[0].output.metrics as Record<string, { value: number }>;
     expect(metrics.custom_ms.value).toBe(7);
     expect(metrics.startup_ms.value).toBeTypeOf("number");
     expect(metrics.task_ms.value).toBeTypeOf("number");

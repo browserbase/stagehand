@@ -14,9 +14,7 @@ export function getCoreFixtureBaseUrl(): string | undefined {
   return process.env[BASE_URL_ENV];
 }
 
-export async function ensureCoreFixtureServer(
-  routes: FixtureRoute[],
-): Promise<string> {
+export async function ensureCoreFixtureServer(routes: FixtureRoute[]): Promise<string> {
   if (process.env[BASE_URL_ENV]) {
     return process.env[BASE_URL_ENV]!;
   }
@@ -25,8 +23,7 @@ export async function ensureCoreFixtureServer(
     serverPromise = new Promise<string>((resolve, reject) => {
       const routeMap = new Map(routes.map((route) => [route.path, route.html]));
       const server = http.createServer((req, res) => {
-        const pathname = new URL(req.url ?? "/", `http://${FIXTURE_HOST}`)
-          .pathname;
+        const pathname = new URL(req.url ?? "/", `http://${FIXTURE_HOST}`).pathname;
         const html = routeMap.get(pathname);
 
         if (!html) {
