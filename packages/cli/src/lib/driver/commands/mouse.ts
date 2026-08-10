@@ -15,13 +15,13 @@ export const mouseHandlers: DriverCommandHandlers = {
         y: z.number(),
       })
       .parse(params);
+    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
-    const xpath = await page.click(x, y, {
-      button,
-      clickCount,
-      returnXpath: returnXPath,
+    await page.click(x, y, {
+      ...(button === undefined ? {} : { button }),
+      ...(clickCount === undefined ? {} : { clickCount }),
     });
-    return returnXPath ? { clicked: true, xpath } : { clicked: true };
+    return { clicked: true };
   },
 
   async "mouse.hover"(manager, params) {
@@ -32,9 +32,10 @@ export const mouseHandlers: DriverCommandHandlers = {
         y: z.number(),
       })
       .parse(params);
+    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
-    const xpath = await page.hover(x, y, { returnXpath: returnXPath });
-    return returnXPath ? { hovered: true, xpath } : { hovered: true };
+    await page.hover(x, y);
+    return { hovered: true };
   },
 
   async "mouse.scroll"(manager, params) {
@@ -47,11 +48,10 @@ export const mouseHandlers: DriverCommandHandlers = {
         y: z.number(),
       })
       .parse(params);
+    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
-    const xpath = await page.scroll(x, y, deltaX, deltaY, {
-      returnXpath: returnXPath,
-    });
-    return returnXPath ? { scrolled: true, xpath } : { scrolled: true };
+    await page.scroll(x, y, deltaX, deltaY);
+    return { scrolled: true };
   },
 
   async "mouse.drag"(manager, params) {
@@ -67,15 +67,19 @@ export const mouseHandlers: DriverCommandHandlers = {
         toY: z.number(),
       })
       .parse(params);
+    assertXPathUnavailable(returnXPath);
     const page = await manager.activePage();
-    const [fromXpath, toXpath] = await page.dragAndDrop(fromX, fromY, toX, toY, {
-      button,
-      delay,
-      returnXpath: returnXPath,
-      steps,
+    await page.dragAndDrop(fromX, fromY, toX, toY, {
+      ...(button === undefined ? {} : { button }),
+      ...(delay === undefined ? {} : { delay }),
+      ...(steps === undefined ? {} : { steps }),
     });
-    return returnXPath
-      ? { dragged: true, fromXpath, toXpath, xpath: fromXpath }
-      : { dragged: true };
+    return { dragged: true };
   },
 };
+
+function assertXPathUnavailable(returnXPath: boolean | undefined): void {
+  if (returnXPath) {
+    throw new Error("Coordinate XPath lookup is not exposed by Stagehand V4");
+  }
+}

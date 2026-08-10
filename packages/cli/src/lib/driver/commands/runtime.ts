@@ -38,7 +38,7 @@ export const runtimeHandlers: DriverCommandHandlers = {
       await fs.writeFile(options.path, buffer);
       return { saved: options.path };
     }
-    return { base64: buffer.toString("base64") };
+    return { base64: Buffer.from(buffer).toString("base64") };
   },
 
   async viewport(manager, params) {
@@ -85,10 +85,8 @@ export const runtimeHandlers: DriverCommandHandlers = {
     return { waited: true };
   },
 
-  async cursor(manager) {
-    const page = await manager.activePage();
-    await page.enableCursorOverlay();
-    return { cursor: "enabled" };
+  async cursor() {
+    throw new Error("The visible cursor overlay is not yet exposed by the Stagehand V4 client.");
   },
 };
 
