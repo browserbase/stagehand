@@ -102,6 +102,7 @@ class StagehandBrowser:
         "_context",
         "_origin",
         "_provider",
+        "_session_id",
     )
 
     def __init__(
@@ -111,6 +112,7 @@ class StagehandBrowser:
         attachment: _ClaimedBrowser,
         close: Callable[[], Awaitable[None]],
         *,
+        session_id: str | None = None,
         _token: object | None = None,
     ) -> None:
         if _token is not _BROWSER_TOKEN:
@@ -122,6 +124,7 @@ class StagehandBrowser:
         self._claimed = False
         self._close_task: asyncio.Task[None] | None = None
         self._context: BrowserContext | None = None
+        self._session_id = session_id
 
     @property
     def provider(self) -> Literal["local", "browserbase"]:
@@ -130,6 +133,11 @@ class StagehandBrowser:
     @property
     def origin(self) -> Literal["launched", "connected"]:
         return self._origin
+
+    @property
+    def session_id(self) -> str | None:
+        """Browserbase session id backing this browser; None for local browsers."""
+        return self._session_id
 
     @property
     def closed(self) -> bool:
@@ -296,6 +304,9 @@ async def _connect_browser(
             worker_init_metadata=worker_init_metadata,
         ),
         close,
+        session_id=(
+            worker_init_metadata.browser.session_id if worker_init_metadata.browser else None
+        ),
         _token=_BROWSER_TOKEN,
     )
 
