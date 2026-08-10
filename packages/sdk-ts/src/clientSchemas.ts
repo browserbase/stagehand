@@ -164,6 +164,8 @@ export const StagehandClientLoggingConfigSchema = z
   .meta({ id: "StagehandClientLoggingConfig" });
 
 export const StagehandClientActOptionsSchema = ActOptionsSchema.extend({
+  locator: z.instanceof(Locator).optional(),
+  ignoreLocators: z.array(z.instanceof(Locator)).optional(),
   page: z.instanceof(Page).optional(),
 }).meta({ id: "StagehandClientActOptions" });
 

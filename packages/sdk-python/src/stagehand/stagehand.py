@@ -290,23 +290,33 @@ class Stagehand:
         model: ModelConfig | None = None,
         variables: Variables | None = None,
         timeout: float | None = None,
-        locator: ProtocolLocator | None = None,
+        locator: Locator | None = None,
+        ignore_locators: list[Locator] | None = None,
         cache: Cache | None = None,
     ) -> ActResult:
+        target_page = page or await self.browser.context.active_page()
+        if target_page is None:
+            raise RuntimeError("Stagehand has no active page")
         options = ActOptions.model_validate({
             name: value
             for name, value in (
                 ("model", model),
                 ("variables", variables),
                 ("timeout", timeout),
-                ("locator", locator),
+                (
+                    "locator",
+                    _serialize_locator(locator, target_page.page_id, "act")
+                    if locator is not None
+                    else None,
+                ),
+                (
+                    "ignore_locators",
+                    _serialize_locators(ignore_locators, target_page.page_id, "act"),
+                ),
                 ("cache", _cache_config(cache) if cache is not None else None),
             )
             if value is not None
         })
-        target_page = page or await self.browser.context.active_page()
-        if target_page is None:
-            raise RuntimeError("Stagehand has no active page")
         params = StagehandActParams.model_validate({
             "page_id": target_page.page_id,
             "instruction": instruction,

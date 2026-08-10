@@ -125,11 +125,17 @@ export function createCallbackBatchController(router: RPCRouter) {
         page,
         context: createCallbackContextFacade(context),
         act: async (instruction, operationOptions) => {
-          const { page: operationPage, ...protocolOptions } = StagehandClientActOptionsSchema.parse(
+          const { page: operationPage, ...clientOptions } = StagehandClientActOptionsSchema.parse(
             operationOptions ?? {},
           );
+          const targetPage = await resolveOperationPage(operationPage);
+          const protocolOptions = serializeClientLocatorOptions(
+            "act",
+            targetPage.pageId,
+            clientOptions,
+          );
           return await client.send(StagehandMethods.stagehandAct, {
-            pageId: (await resolveOperationPage(operationPage)).pageId,
+            pageId: targetPage.pageId,
             instruction,
             ...(operationOptions === undefined ? {} : { options: protocolOptions }),
           });
@@ -161,11 +167,12 @@ export function createCallbackBatchController(router: RPCRouter) {
             : explicitOptions === undefined
               ? undefined
               : StagehandClientExtractOptionsSchema.parse(explicitOptions);
-          const { page: operationPage, ...rawOptions } = clientOptions ?? {};
+          const { page: operationPage, ...optionsWithoutPage } = clientOptions ?? {};
           const targetPage = await resolveOperationPage(operationPage);
-          const protocolOptions = clientOptions
-            ? serializeClientLocatorOptions("extract", targetPage.pageId, rawOptions)
-            : undefined;
+          const protocolOptions =
+            clientOptions === undefined
+              ? undefined
+              : serializeClientLocatorOptions("extract", targetPage.pageId, optionsWithoutPage);
           return await client.send(StagehandMethods.stagehandExtract, {
             pageId: targetPage.pageId,
             instruction,

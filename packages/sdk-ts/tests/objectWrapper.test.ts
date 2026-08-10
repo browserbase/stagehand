@@ -1206,6 +1206,8 @@ describe("Stagehand TS object wrapper", () => {
     await expect(
       stagehand.act("Click the submit button", {
         page,
+        locator: page.locator("main"),
+        ignoreLocators: [page.locator("nav").nth(1)],
         timeout: 5_000,
         variables: { accountEmail: "user@example.com" },
       }),
@@ -1230,6 +1232,8 @@ describe("Stagehand TS object wrapper", () => {
         pageId: "page-1",
         instruction: "Click the submit button",
         options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav", nth: 1 }],
           timeout: 5_000,
           variables: { accountEmail: "user@example.com" },
         },
@@ -1448,11 +1452,32 @@ describe("Stagehand TS object wrapper", () => {
     ]);
   });
 
-  it("rejects observe and extract locators from a different page", async () => {
+  it("rejects act, observe, and extract locators from a different page", async () => {
     const client = new FakeProtocolClient();
     const stagehand = createStagehandWithClientForTest(client);
     const page = new Page(client, { pageId: "page-1" });
     const otherPage = new Page(client, { pageId: "page-2" });
+
+    await expect(
+      stagehand.act("Click the submit button", {
+        page,
+        locator: otherPage.locator("button"),
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
+
+    await expect(
+      stagehand.act("Click the submit button", {
+        page,
+        ignoreLocators: [otherPage.locator("nav")],
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
+
+    client.queueResponse(StagehandMethods.contextActivePage, { pageId: "page-1" });
+    await expect(
+      stagehand.act("Click the submit button", {
+        locator: otherPage.locator("button"),
+      }),
+    ).rejects.toThrow("act(): locator must belong to the target page");
 
     await expect(
       stagehand.observe("Find the submit button", {

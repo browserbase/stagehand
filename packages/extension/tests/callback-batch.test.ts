@@ -444,9 +444,22 @@ describe("callback batch runner", () => {
         const pages = await stagehand.context.pages();
         const operationPage = pages[1];
         if (!operationPage) throw new Error("missing second page");
-        await stagehand.act("act", { page: operationPage, timeout: 1_000 });
-        await stagehand.observe("observe", { page: operationPage, timeout: 2_000 });
-        await stagehand.extract("extract", { page: operationPage, timeout: 3_000 });
+        await stagehand.act("act", {
+          page: operationPage,
+          locator: operationPage.locator("main"),
+          ignoreLocators: [operationPage.locator("nav")],
+          timeout: 1_000,
+        });
+        await stagehand.observe("observe", {
+          page: operationPage,
+          locator: operationPage.locator("section"),
+          timeout: 2_000,
+        });
+        await stagehand.extract("extract", {
+          page: operationPage,
+          ignoreLocators: [operationPage.locator(".ad")],
+          timeout: 3_000,
+        });
         return true;
       },
       null,
@@ -456,12 +469,24 @@ describe("callback batch runner", () => {
     expect(result).toEqual({ value: true });
     const operationRequests = requests.filter((request) => request.method.startsWith("stagehand."));
     expect(operationRequests.map((request) => request.params)).toEqual([
-      { pageId: "page-2", instruction: "act", options: { timeout: 1_000 } },
-      { pageId: "page-2", instruction: "observe", options: { timeout: 2_000 } },
+      {
+        pageId: "page-2",
+        instruction: "act",
+        options: {
+          locator: { selector: "main" },
+          ignoreLocators: [{ selector: "nav" }],
+          timeout: 1_000,
+        },
+      },
+      {
+        pageId: "page-2",
+        instruction: "observe",
+        options: { locator: { selector: "section" }, timeout: 2_000 },
+      },
       expect.objectContaining({
         pageId: "page-2",
         instruction: "extract",
-        options: { timeout: 3_000 },
+        options: { ignoreLocators: [{ selector: ".ad" }], timeout: 3_000 },
       }),
     ]);
   });

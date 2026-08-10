@@ -113,7 +113,10 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
 }
 
 export function shouldBypassCacheForLocatorScope(
-  options: StagehandObserveParams["options"] | StagehandExtractParams["options"],
+  options:
+    | StagehandActParams["options"]
+    | StagehandObserveParams["options"]
+    | StagehandExtractParams["options"],
 ): boolean {
   return Boolean(options?.locator || options?.ignoreLocators?.length);
 }

@@ -175,7 +175,11 @@ func TestStagehandOperationsPreserveResultEnvelopes(t *testing.T) {
 				return client.Act(
 					context.Background(),
 					ActInstruction("click submit"),
-					&StagehandClientActOptions{Page: page},
+					&StagehandClientActOptions{
+						Page:           page,
+						Locator:        page.Locator("main"),
+						IgnoreLocators: []*PageLocator{mustNth(t, page.Locator("nav"), 1)},
+					},
 				)
 			},
 		},
@@ -321,7 +325,7 @@ func TestExtractDerivesSchemaAndPreservesTypedDataAndMetadata(t *testing.T) {
 	}
 }
 
-func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
+func TestStagehandActObserveAndExtractSerializePageLocators(t *testing.T) {
 	t.Parallel()
 
 	type pageInfo struct {
@@ -329,6 +333,9 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 	}
 
 	rpc := &recordingProtocolClient{responses: map[string]any{
+		"stagehand.act": ActResult{Metadata: StagehandResultMetadata{
+			Cache: CacheMetadata{Status: CacheStatusDISABLED},
+		}},
 		"stagehand.observe": ObserveResult{Metadata: StagehandResultMetadata{
 			Cache: CacheMetadata{Status: CacheStatusDISABLED},
 		}},
@@ -341,6 +348,14 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 	}}
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	client := &Stagehand{initialized: true, rpc: rpc}
+
+	if _, err := client.Act(context.Background(), ActInstruction("click main"), &StagehandClientActOptions{
+		Page:           page,
+		Locator:        page.Locator("main"),
+		IgnoreLocators: []*PageLocator{mustNth(t, page.Locator(".promo"), 3)},
+	}); err != nil {
+		t.Fatalf("Act() error = %v", err)
+	}
 
 	instruction := "find main"
 	if _, err := client.Observe(context.Background(), &instruction, &StagehandClientObserveOptions{
@@ -358,9 +373,23 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 		t.Fatalf("Extract() error = %v", err)
 	}
 
-	observeParams, ok := rpc.calls[0].params.(StagehandObserveParams)
+	actParams, ok := rpc.calls[0].params.(StagehandActParams)
+	if !ok || actParams.Options == nil || actParams.Options.Locator == nil {
+		t.Fatalf("act params = %#v", rpc.calls[0].params)
+	}
+	if actParams.Options.Locator.Selector != "main" {
+		t.Fatalf("act locator = %#v", actParams.Options.Locator)
+	}
+	if len(actParams.Options.IgnoreLocators) != 1 ||
+		actParams.Options.IgnoreLocators[0].Selector != ".promo" ||
+		actParams.Options.IgnoreLocators[0].Nth == nil ||
+		*actParams.Options.IgnoreLocators[0].Nth != 3 {
+		t.Fatalf("act ignore locators = %#v", actParams.Options.IgnoreLocators)
+	}
+
+	observeParams, ok := rpc.calls[1].params.(StagehandObserveParams)
 	if !ok || observeParams.Options == nil || observeParams.Options.Locator == nil {
-		t.Fatalf("observe params = %#v", rpc.calls[0].params)
+		t.Fatalf("observe params = %#v", rpc.calls[1].params)
 	}
 	if observeParams.Options.Locator.Selector != "main" ||
 		observeParams.Options.Locator.Nth == nil ||
@@ -373,9 +402,9 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 		t.Fatalf("observe ignore locators = %#v", observeParams.Options.IgnoreLocators)
 	}
 
-	extractParams, ok := rpc.calls[1].params.(StagehandExtractParams)
+	extractParams, ok := rpc.calls[2].params.(StagehandExtractParams)
 	if !ok || extractParams.Options == nil || extractParams.Options.Locator == nil {
-		t.Fatalf("extract params = %#v", rpc.calls[1].params)
+		t.Fatalf("extract params = %#v", rpc.calls[2].params)
 	}
 	if extractParams.Options.Locator.Selector != "main" ||
 		extractParams.Options.Locator.Nth != nil {
@@ -389,7 +418,7 @@ func TestStagehandObserveAndExtractSerializePageLocators(t *testing.T) {
 	}
 }
 
-func TestStagehandObserveAndExtractRejectCrossPageLocators(t *testing.T) {
+func TestStagehandActObserveAndExtractRejectCrossPageLocators(t *testing.T) {
 	t.Parallel()
 
 	type pageInfo struct {
@@ -400,6 +429,13 @@ func TestStagehandObserveAndExtractRejectCrossPageLocators(t *testing.T) {
 	page := &Page{rpc: rpc, ref: PageRef{PageID: "page-1"}}
 	otherPage := &Page{rpc: rpc, ref: PageRef{PageID: "page-2"}}
 	client := &Stagehand{initialized: true, rpc: rpc}
+
+	if _, err := client.Act(context.Background(), ActInstruction("click main"), &StagehandClientActOptions{
+		Page:    page,
+		Locator: otherPage.Locator("main"),
+	}); err == nil || !strings.Contains(err.Error(), "stagehand.Act: locator must belong") {
+		t.Fatalf("Act() error = %v", err)
+	}
 
 	instruction := "find main"
 	if _, err := client.Observe(context.Background(), &instruction, &StagehandClientObserveOptions{
@@ -416,7 +452,7 @@ func TestStagehandObserveAndExtractRejectCrossPageLocators(t *testing.T) {
 	}
 }
 
-func TestStagehandObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
+func TestStagehandActObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
 	t.Parallel()
 
 	type pageInfo struct {
@@ -429,6 +465,18 @@ func TestStagehandObserveAndExtractRejectNilIgnoreLocators(t *testing.T) {
 		run     func(context.Context, *Stagehand, *Page) error
 		wantErr string
 	}{
+		{
+			name:   "act",
+			method: "stagehand.Act",
+			run: func(ctx context.Context, client *Stagehand, page *Page) error {
+				_, err := client.Act(ctx, ActInstruction("click main"), &StagehandClientActOptions{
+					Page:           page,
+					IgnoreLocators: []*PageLocator{nil},
+				})
+				return err
+			},
+			wantErr: "stagehand.Act: ignore locator at index 0 is nil",
+		},
 		{
 			name:   "observe",
 			method: "stagehand.Observe",
