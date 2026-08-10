@@ -1073,12 +1073,9 @@ The following models work without the `provider/` prefix in the model parameter 
 **Solutions:**
 
 - Use `env: "BROWSERBASE"`. `"auto"` does not work with `env: "LOCAL"`
-- Remove `disableAPI: true`
-- Remove `experimental: true`
 - Remove any custom `llmClient`. It replaces API-side inference
 - Or specify a concrete model instead, e.g. `model: "openai/gpt-5"`
 
-A related error at init, `model: "auto" requires the Stagehand API, but it is unavailable for this session`, means the API declined the session. Unlike a concrete model, `"auto"` has no local fallback, so pin a model to proceed.
 </Accordion>
 
 <Accordion title="Model doesn't support structured outputs">
