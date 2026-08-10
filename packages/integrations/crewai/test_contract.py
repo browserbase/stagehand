@@ -3,9 +3,10 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
 from mcp.types import CallToolResult, ImageContent, TextContent, Tool
 
-from agent import ImageSavingToolAdapter, facade_session
+from agent import FACADE_AGENT_INSTRUCTIONS, ImageSavingToolAdapter, facade_session
 
 
 def test_facade_tool_contract() -> None:
@@ -45,3 +46,15 @@ def test_image_saving_tool_adapter_preserves_screenshot() -> None:
         assert encoded_payload not in result
     finally:
         screenshot_path.unlink(missing_ok=True)
+
+
+def test_instructions_match_canonical_constant() -> None:
+    """Pin the hand-copied prompt to the TS source of truth when in-repo."""
+    contract = Path(__file__).parent / ".." / "core" / "src" / "facade" / "contract.ts"
+    if not contract.is_file():
+        pytest.skip("core contract.ts not present (example lifted out of the repo)")
+    source = contract.read_text()
+    match = re.search(r"FACADE_AGENT_INSTRUCTIONS = `([^`]+)`", source)
+    assert match, "FACADE_AGENT_INSTRUCTIONS not found in contract.ts"
+    normalize = lambda text: re.sub(r"\n{2,}", "\n", text.strip())  # noqa: E731
+    assert normalize(FACADE_AGENT_INSTRUCTIONS) == normalize(match.group(1))
