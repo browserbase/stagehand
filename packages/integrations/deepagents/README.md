@@ -12,7 +12,7 @@ export OPENAI_API_KEY=...
 export DEEPAGENTS_MODEL=openai:gpt-5.6-luna
 ```
 
-The MCP server launches a local headless Chrome browser by default. Then run:
+The MCP server launches a visible local Chrome browser by default. Then run:
 
 ```bash
 cd packages/integrations/deepagents
@@ -54,7 +54,7 @@ call and therefore lose the browser and snapshot IDs.
 | Variable                   | Default | Meaning                                                  |
 | -------------------------- | ------- | -------------------------------------------------------- |
 | `STAGEHAND_BROWSER`        | `local` | `local` or `browserbase`                                 |
-| `STAGEHAND_HEADLESS`       | `true`  | Headless local Chrome                                    |
+| `STAGEHAND_HEADLESS`       | `false` | Headless local Chrome                                    |
 | `STAGEHAND_START_URL`      | unset   | Optional URL opened when the server starts               |
 | `STAGEHAND_MODEL`          | unset   | Optional model used by Stagehand AI methods inside `run` |
 | `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Callback-batch timeout                                   |

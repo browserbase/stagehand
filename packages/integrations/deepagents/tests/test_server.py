@@ -52,6 +52,14 @@ def test_runtime_config_accepts_stagehand_byok(monkeypatch: pytest.MonkeyPatch) 
     assert config.stagehand_model_api_key == "provider-key"
 
 
+def test_runtime_config_defaults_local_browser_to_headed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STAGEHAND_HEADLESS", raising=False)
+    assert RuntimeConfig().headless is False
+    assert RuntimeConfig.from_env().headless is False
+
+
 def test_runtime_config_rejects_model_key_without_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

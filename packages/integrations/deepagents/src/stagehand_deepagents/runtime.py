@@ -57,7 +57,7 @@ def _env_positive_int(name: str, default: int) -> int:
 @dataclass(frozen=True)
 class RuntimeConfig:
     provider: BrowserProvider = "local"
-    headless: bool = True
+    headless: bool = False
     start_url: str | None = None
     stagehand_model: str | None = None
     stagehand_model_api_key: str | None = None
@@ -76,7 +76,7 @@ class RuntimeConfig:
             raise ValueError("STAGEHAND_MODEL_API_KEY requires STAGEHAND_MODEL")
         return cls(
             provider=raw_provider,
-            headless=_env_bool("STAGEHAND_HEADLESS", True),
+            headless=_env_bool("STAGEHAND_HEADLESS", False),
             start_url=os.environ.get("STAGEHAND_START_URL") or None,
             stagehand_model=stagehand_model,
             stagehand_model_api_key=stagehand_model_api_key,
