@@ -31,6 +31,9 @@ describe("published TypeScript SDK", () => {
             dependencies: {
               "@browserbasehq/stagehand": "file:../stagehand-sdk.tgz",
             },
+            devDependencies: {
+              typescript: "5.9.3",
+            },
           },
           null,
           2,
@@ -85,10 +88,116 @@ describe("published TypeScript SDK", () => {
             if (manifest.manifest_version !== 3) throw new Error("Invalid packaged manifest");
           `,
       );
+      await writeFile(
+        path.join(consumerDirectory, "verify.ts"),
+        `
+          import type {
+            Caching,
+            LoadState,
+            LocatorCentroidResult,
+            LocatorClickOptions,
+            LocatorHighlightOptions,
+            LocatorSendClickEventOptions,
+            LocatorTypeOptions,
+            ModelConfig,
+            ModelName,
+            MouseButton,
+            PageClickOptions,
+            PageDragAndDropOptions,
+            PageDragAndDropRoutePoint,
+            PageKeyPressOptions,
+            PageNavigationOptions,
+            PageReloadOptions,
+            PageScreenshotClip,
+            PageSetViewportSizeOptions,
+            PageSnapshotOptions,
+            PageTypeOptions,
+            PageWaitForSelectorOptions,
+            RgbaColor,
+            SnapshotResult,
+            StagehandClientActOptions,
+            StagehandClientExtractOptions,
+            StagehandClientObserveOptions,
+            StagehandResultUsage,
+            Variables,
+          } from "@browserbasehq/stagehand";
+
+          const loadState: LoadState = "domcontentloaded";
+          const mouseButton: MouseButton = "left";
+          const modelName: ModelName = "openai/gpt-5";
+          const model: ModelConfig = { modelName };
+          const caching: Caching = { threshold: 2 };
+          const variables: Variables = {
+            username: { value: "sean", description: "The login username" },
+          };
+          const routePoint: PageDragAndDropRoutePoint = { x: 10, y: 20 };
+          const clip: PageScreenshotClip = { x: 0, y: 0, width: 100, height: 100 };
+          const color: RgbaColor = { r: 255, g: 0, b: 0, a: 0.5 };
+          const navigation: PageNavigationOptions = { waitUntil: loadState, timeout: 1_000 };
+          const pageClick: PageClickOptions = { button: mouseButton, clickCount: 1 };
+          const pageDrag: PageDragAndDropOptions = { route: [routePoint] };
+          const pageKeyPress: PageKeyPressOptions = { delay: 0 };
+          const pageReload: PageReloadOptions = navigation;
+          const pageViewport: PageSetViewportSizeOptions = { deviceScaleFactor: 2 };
+          const pageSnapshot: PageSnapshotOptions = { includeIframes: true };
+          const pageType: PageTypeOptions = { delay: 0, withMistakes: false };
+          const pageWait: PageWaitForSelectorOptions = { state: "visible", timeout: 1_000 };
+          const locatorClick: LocatorClickOptions = pageClick;
+          const locatorHighlight: LocatorHighlightOptions = { borderColor: color };
+          const locatorSendClick: LocatorSendClickEventOptions = { bubbles: true };
+          const locatorType: LocatorTypeOptions = { delay: 0 };
+          const actOptions: StagehandClientActOptions = { cache: caching, model, variables };
+          const observeOptions: StagehandClientObserveOptions = { model, variables };
+          const extractOptions: StagehandClientExtractOptions = { model };
+
+          declare const centroid: LocatorCentroidResult;
+          declare const snapshot: SnapshotResult;
+          declare const usage: StagehandResultUsage;
+
+          void [
+            clip,
+            navigation,
+            pageClick,
+            pageDrag,
+            pageKeyPress,
+            pageReload,
+            pageViewport,
+            pageSnapshot,
+            pageType,
+            pageWait,
+            locatorClick,
+            locatorHighlight,
+            locatorSendClick,
+            locatorType,
+            actOptions,
+            observeOptions,
+            extractOptions,
+            centroid,
+            snapshot,
+            usage,
+          ];
+        `,
+      );
 
       await execFileAsync(process.execPath, [path.join(consumerDirectory, "verify.mjs")], {
         cwd: consumerDirectory,
       });
+      await execFileAsync(
+        "pnpm",
+        [
+          "exec",
+          "tsc",
+          "--noEmit",
+          "--module",
+          "nodenext",
+          "--moduleResolution",
+          "nodenext",
+          "--target",
+          "es2022",
+          "verify.ts",
+        ],
+        { cwd: consumerDirectory },
+      );
       expect(
         JSON.parse(await readFile(path.join(consumerDirectory, "package.json"), "utf8")),
       ).toMatchObject({ private: true });
