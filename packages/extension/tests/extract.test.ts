@@ -8,6 +8,25 @@ import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
 
+// The cache path resolves locator scope to backendNodeIds through
+// FrameSelectorResolver, which needs a live locator-world execution context;
+// tests fake the resolver and answer DOM.describeNode from the frame's fake
+// session instead.
+const resolver = vi.hoisted(() => ({
+  resolveAtIndex: vi.fn(),
+  resolveAll: vi.fn(),
+}));
+
+vi.mock("../understudy/selectorResolver.js", () => ({
+  FrameSelectorResolver: class {
+    static parseSelector(raw: string) {
+      return { kind: "css", value: raw };
+    }
+    resolveAtIndex = resolver.resolveAtIndex;
+    resolveAll = resolver.resolveAll;
+  },
+}));
+
 describe("extract inference", () => {
   it("runs extraction and completion metadata through structured LLM calls", async () => {
     const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
@@ -445,6 +464,8 @@ describe("extract service", () => {
         focusLocator: { selector: "main", nth: 1 },
         ignoreLocators: undefined,
       },
+      expectedDataOptions: { locator: { selector: "main", nth: 1 } },
+      expectedCdpTree: { focusBackendNodeId: 42 },
     },
     {
       name: "ignore locator",
@@ -453,13 +474,25 @@ describe("extract service", () => {
         focusLocator: undefined,
         ignoreLocators: [{ selector: "nav", nth: 2 }],
       },
+      expectedDataOptions: { ignoreLocators: [{ selector: "nav", nth: 2 }] },
+      expectedCdpTree: { ignoredBackendNodeIds: [7] },
     },
   ])(
-    "bypasses cache reads and writes for locator-scoped extraction with $name",
-    async ({ options, expectedSnapshotOptions }) => {
+    "caches locator-scoped extraction with $name",
+    async ({ options, expectedSnapshotOptions, expectedDataOptions, expectedCdpTree }) => {
+      resolver.resolveAtIndex.mockImplementation(async (query: { value: string }) =>
+        query.value === "main"
+          ? { objectId: "obj-main", nodeId: null }
+          : { objectId: "obj-nav", nodeId: null },
+      );
       const frame = {
         frameId: "frame-1",
         getAccessibilityTree: vi.fn(async () => []),
+        session: {
+          send: vi.fn(async (_method: string, params: { objectId: string }) => ({
+            node: { backendNodeId: params.objectId === "obj-main" ? 42 : 7 },
+          })),
+        },
       };
       const page = {
         captureSnapshot: vi.fn(async () => ({
@@ -472,8 +505,10 @@ describe("extract service", () => {
         frames: () => [frame],
         mainFrame: () => frame,
       };
-      const get = vi.fn();
-      const set = vi.fn();
+      const get = vi
+        .fn()
+        .mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
+      const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
       const clientLLMGenerate = vi.fn(
         async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
           const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
@@ -504,12 +539,18 @@ describe("extract service", () => {
       });
 
       expect(result.data).toStrictEqual({ count: 1 });
-      expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+      expect(result.metadata.cache).toStrictEqual({ status: "MISS", missReason: "not_found" });
       expect(page.captureSnapshot).toHaveBeenCalledWith(expectedSnapshotOptions);
       expect(clientLLMGenerate).toHaveBeenCalledTimes(2);
-      expect(get).not.toHaveBeenCalled();
-      expect(set).not.toHaveBeenCalled();
-      expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+      expect(get).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            options: expect.objectContaining(expectedDataOptions),
+          }),
+          cdpTree: expect.objectContaining(expectedCdpTree),
+        }),
+      );
+      expect(set).toHaveBeenCalledWith(expect.objectContaining({ value: { count: 1 } }));
     },
   );
 });
