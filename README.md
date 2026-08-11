@@ -119,6 +119,8 @@ const {
 );
 ```
 
+See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
+
 ## Documentation
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
