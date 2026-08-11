@@ -52,6 +52,98 @@ Agents use fewer tokens, recover when websites change, and complete tasks more r
 
 For the full overview, examples, and contributing guide, see the [main README](https://github.com/browserbase/stagehand/blob/main/README.md).
 
+## Example
+
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go"
+)
+
+type pullRequest struct {
+	Author string `json:"author"`
+	Title  string `json:"title"`
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	browser, err := stagehand.LaunchLocalBrowser(ctx, &stagehand.LocalBrowserLaunchOptions{Headless: true})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	modelAPIKey := os.Getenv("OPENAI_API_KEY")
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+		Model: &stagehand.ModelConfig{
+			ModelName: "openai/gpt-5.4-mini",
+			APIKey:    &modelAPIKey,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	pages, err := browserContext.Pages(ctx)
+	if err != nil {
+		return err
+	}
+	page := pages[0]
+	if _, err := page.Goto(ctx, "https://github.com/browserbase", nil); err != nil {
+		return err
+	}
+
+	// Act executes individual actions
+	if _, err := client.Act(ctx, stagehand.ActInstruction("click on the stagehand repo"), nil); err != nil {
+		return err
+	}
+
+	// Observe reports what is actionable on the page
+	instruction := "find the latest PR"
+	observed, err := client.Observe(ctx, &instruction, nil)
+	if err != nil {
+		return err
+	}
+
+	// Locators give deterministic, Playwright-style actions
+	if err := page.Locator(observed.Data[0].Selector).Click(ctx, nil); err != nil {
+		return err
+	}
+
+	// Extract returns structured data decoded into a Go type
+	extracted, err := stagehand.Extract[pullRequest](
+		ctx,
+		client,
+		"extract the author and title of the PR",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Println(extracted.Data.Author, extracted.Data.Title)
+
+	return nil
+}
+```
+
 ## Navigation
 
 Navigation methods return the main-document response when the browser performs a network request:
@@ -97,7 +189,7 @@ fmt.Println(result.Data.Stories)
 
 Fields omitted with `json:",omitempty"` are optional in the generated schema. Add constraints such as `jsonschema:"format=uri"` or `jsonschema:"description=the displayed price"` when the Go type alone is not specific enough.
 
-## Examples
+## More Examples
 
 Run the flat examples directly from the repository:
 

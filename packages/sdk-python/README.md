@@ -58,23 +58,45 @@ The async Python SDK for Stagehand browser automation:
 
 ```python
 import asyncio
+import os
+
+from pydantic import BaseModel
 
 from stagehand import Stagehand, local_browser
+
+
+class PullRequest(BaseModel):
+    author: str
+    title: str
 
 
 async def main() -> None:
     browser = await local_browser.launch(headless=True)
     try:
-        stagehand = await Stagehand.create(browser=browser)
+        stagehand = await Stagehand.create(
+            browser=browser,
+            model="openai/gpt-5.4-mini",
+            model_api_key=os.environ["OPENAI_API_KEY"],
+        )
         try:
             page = (await browser.context.pages())[0]
-            if page is None:
-                raise RuntimeError("Stagehand initialized without an active page")
-            response = await page.goto("https://example.com")
-            if response is not None:
-                print(response.status, await response.text())
-            await stagehand.observe("Find the more information link")
-            print(await page.title())
+            await page.goto("https://github.com/browserbase")
+
+            # act() executes individual actions
+            await stagehand.act("click on the stagehand repo")
+
+            # observe() reports what is actionable on the page
+            observed = await stagehand.observe("find the latest PR")
+
+            # Locators give deterministic, Playwright-style actions
+            await page.locator(observed.data[0].selector).click()
+
+            # extract() returns structured data validated by a pydantic model
+            result = await stagehand.extract(
+                "extract the author and title of the PR",
+                PullRequest,
+            )
+            print(result.data.author, result.data.title)
         finally:
             await stagehand.close()
     finally:

@@ -80,11 +80,22 @@ Here's how to build a sample browser automation with Stagehand:
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-const browser = await browserbase.launch();
-const stagehand = await Stagehand.create({ browser });
+const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
+
+const browser = await browserbase.launch({
+  apiKey: BROWSERBASE_API_KEY,
+});
+
+const stagehand = await Stagehand.create({
+  browser,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: OPENAI_API_KEY,
+  },
+});
 
 // Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
-const page = await browser.context.pages()[0];
+const [page] = await browser.context.pages();
 await page.goto("https://github.com/browserbase");
 
 // Use act() to execute individual actions
@@ -108,40 +119,38 @@ const {
 );
 ```
 
+See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
+
 ## Documentation
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
 ### Build and Run from Source
 
+Stagehand is a TypeScript, Python, and Go monorepo. We use [`just`](https://github.com/casey/just) to drive `pnpm`, `uv`, and `go` together.
+
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-pnpm install
-pnpm run build
-pnpm run example # run the blank script at ./examples/example.ts
+just install
+just generate
+just build
 ```
 
-Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
+Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. Export them so they're available on `process.env`:
 
 ```bash
-cp .env.example .env
-nano .env # Edit the .env file to add API keys
+export OPENAI_API_KEY="your-openai-api-key"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
 ```
 
-### Installing from a branch
-
-To install Stagehand directly from a GitHub branch, install the core package subdirectory:
+Then run any of the scripts in [`packages/sdk-ts/examples`](./packages/sdk-ts/examples):
 
 ```bash
-pnpm add "github:browserbase/stagehand#<branchName>&path:/packages/core"
+just example act # runs packages/sdk-ts/examples/act.ts
 ```
 
-Or set it in your project's `package.json`:
-
-```json
-"@browserbasehq/stagehand": "github:browserbase/stagehand#<branchName>&path:/packages/core"
-```
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
 
 ## Contributing
 
