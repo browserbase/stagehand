@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/browserbase/stagehand/packages/sdk-go/internal/extensionassets"
+	"github.com/browserbase/stagehand/packages/sdk-go/v4/internal/extensionassets"
 )
 
 type browserbaseSessionClientOptions struct {

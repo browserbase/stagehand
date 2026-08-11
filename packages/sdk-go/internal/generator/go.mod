@@ -1,4 +1,4 @@
-module github.com/browserbase/stagehand/packages/sdk-go/internal/generator
+module github.com/browserbase/stagehand/packages/sdk-go/v4/internal/generator
 
 go 1.26.0
 

@@ -103,3 +103,33 @@ jobs:
     if: needs.python-release-status.outputs.should-publish == 'true'
     uses: ./.github/workflows/publish-python.yml
     secrets: inherit
+
+  publish-go:
+    name: Release Go SDK
+    needs: release-typescript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+
+      - name: Check Go release status
+        id: status
+        run: node scripts/release/go-publish-status.ts >> "$GITHUB_OUTPUT"
+
+      - name: Tag Go release
+        if: steps.status.outputs.should-tag == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.status.outputs.tag }}
+        run: |
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$TAG" \
+            -f sha="$GITHUB_SHA"

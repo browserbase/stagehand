@@ -1,4 +1,4 @@
-module github.com/browserbase/stagehand/packages/sdk-go
+module github.com/browserbase/stagehand/packages/sdk-go/v4
 
 go 1.26.0
 
