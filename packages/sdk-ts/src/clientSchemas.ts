@@ -8,7 +8,7 @@
 import { z } from "zod/v4";
 import type Browserbase from "@browserbasehq/sdk";
 import * as ProtocolSchemas from "../../protocol/schemas.js";
-import type { ModelConfig, StagehandLog } from "../../protocol/types.js";
+import type { StagehandLog } from "../../protocol/types.js";
 import {
   ActOptionsSchema,
   BrowserbaseRegionSchema,
@@ -66,13 +66,11 @@ export const DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com";
 type BrowserbaseLaunchOptionsInput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl?: string;
-  model?: ModelConfig;
 };
 
 type BrowserbaseLaunchOptionsOutput = Browserbase.SessionCreateParams & {
   apiKey: string;
   baseUrl: string;
-  model?: ModelConfig;
 };
 
 /**
@@ -83,7 +81,6 @@ export const BrowserbaseLaunchOptionsSchema = z
   .looseObject({
     apiKey: z.string().min(1),
     baseUrl: z.url().default(DEFAULT_BROWSERBASE_URL),
-    model: ModelConfigSchema.optional(),
     apiUrl: z.never().optional(),
     type: z.never().optional(),
   })

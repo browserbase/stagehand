@@ -618,14 +618,8 @@ func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 	city := "Zurich"
 	username := "proxy-user"
 	password := "proxy-password"
-	modelAPIKey := "model-secret"
 	domainPattern := "*.example.com"
 	return BrowserbaseLaunchOptions{
-		Model: &ModelConfig{
-			ModelName: ModelName("openai/gpt-5"),
-			APIKey:    &modelAPIKey,
-			Headers:   ModelConfigHeaders{"Authorization": "Bearer model-secret"},
-		},
 		BrowserSettings: &BrowserbaseBrowserSettings{
 			AdvancedStealth: &advancedStealth,
 			BlockAds:        &blockAds,
@@ -673,7 +667,6 @@ func browserbaseTestSessionParams() BrowserbaseLaunchOptions {
 			"stagehand":              json.RawMessage(`"false"`),
 			"stagehand_sdk_language": json.RawMessage(`"python"`),
 			"stagehand_sdk_version":  json.RawMessage(`"0.0.0-spoofed"`),
-			"stagehand_model_name":   json.RawMessage(`"spoofed/model"`),
 		},
 	}
 }
@@ -731,7 +724,6 @@ func browserbaseExpectedSessionRequest() map[string]any {
 			"stagehand":              "true",
 			"stagehand_sdk_language": "go",
 			"stagehand_sdk_version":  stagehandSDKVersion,
-			"stagehand_model_name":   "openai/gpt-5",
 		},
 	}
 }

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
-from ._sdk_identity import stagehand_session_metadata
+from ._sdk_identity import STAGEHAND_SESSION_METADATA
 from .extension_assets import build_extension_archive
 
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
@@ -187,8 +187,6 @@ class _BrowserbaseSessionClient:
     async def create_session(
         self,
         options: BrowserbaseSessionCreateParams,
-        *,
-        model_name: str | None = None,
     ) -> _OwnedBrowserbaseSession:
         caller_extension_id = options.extension_id
         if caller_extension_id is None and options.browser_settings is not None:
@@ -208,11 +206,9 @@ class _BrowserbaseSessionClient:
                 raise RuntimeError("Browserbase extension upload returned an empty extension ID")
 
         extension_id = owned_extension_id or options.extension_id
-        caller_metadata = dict(options.user_metadata or {})
-        caller_metadata.pop("stagehand_model_name", None)
         user_metadata = {
-            **caller_metadata,
-            **stagehand_session_metadata(model_name),
+            **(options.user_metadata or {}),
+            **STAGEHAND_SESSION_METADATA,
         }
         try:
             raw_session_id, raw_cdp_url = await self._api.create_session(

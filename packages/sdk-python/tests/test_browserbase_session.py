@@ -215,13 +215,9 @@ async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowse
             "stagehand": "caller",
             "stagehand_sdk_language": "caller",
             "stagehand_sdk_version": "0.0.0-spoofed",
-            "stagehand_model_name": "spoofed/model",
         }
     )
-    session = await _BrowserbaseSessionClient(fake_api).create_session(
-        options,
-        model_name="openai/gpt-5",
-    )
+    session = await _BrowserbaseSessionClient(fake_api).create_session(options)
 
     assert fake_api.upload_calls == [b"archive"]
     _, metadata, extension_id = fake_api.create_calls[-1]
@@ -231,7 +227,6 @@ async def test_create_uploads_extension_and_merges_metadata(fake_api: FakeBrowse
         "stagehand": "true",
         "stagehand_sdk_language": "python",
         "stagehand_sdk_version": version("stagehand"),
-        "stagehand_model_name": "openai/gpt-5",
     }
     await session.close()
 
@@ -243,21 +238,16 @@ async def test_caller_extension_is_never_uploaded_or_deleted(
 ) -> None:
     options = (
         BrowserbaseSessionCreateParams(
-            browser_settings=BrowserbaseBrowserSettings(extension_id="caller-extension"),
-            user_metadata={"stagehand_model_name": "spoofed/model"},
+            browser_settings=BrowserbaseBrowserSettings(extension_id="caller-extension")
         )
         if nested
-        else BrowserbaseSessionCreateParams(
-            extension_id="caller-extension",
-            user_metadata={"stagehand_model_name": "spoofed/model"},
-        )
+        else BrowserbaseSessionCreateParams(extension_id="caller-extension")
     )
     session = await _BrowserbaseSessionClient(fake_api).create_session(options)
     await session.close()
 
     assert fake_api.upload_calls == []
     assert fake_api.create_calls[-1][2] == (None if nested else "caller-extension")
-    assert "stagehand_model_name" not in fake_api.create_calls[-1][1]
     assert fake_api.delete_calls == []
     assert fake_api.release_calls == ["session-id"]
 

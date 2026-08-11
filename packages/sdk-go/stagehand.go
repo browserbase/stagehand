@@ -59,12 +59,6 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if err != nil {
 		return nil, err
 	}
-	if claimed.workerModel != nil && (options.Model != nil || options.Generate != nil) {
-		releaseBrowserClaim(options.Browser)
-		return nil, errors.New(
-			"stagehand: model must be configured on LaunchBrowserbase or Create, not both",
-		)
-	}
 	rpc, err := adapters.connectClaimedBrowser(claimed)
 	if err != nil {
 		releaseBrowserClaim(options.Browser)
@@ -88,13 +82,9 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 	if claimed.workerAPIKey != nil {
 		apiKey = claimed.workerAPIKey
 	}
-	model := options.Model
-	if model == nil {
-		model = claimed.workerModel
-	}
 	initParams := workerInitParams(workerInitOptions{
 		apiKey: apiKey, apiURL: options.APIURL, browser: claimed.workerBrowser, cache: options.Cache,
-		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: model,
+		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
 		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),

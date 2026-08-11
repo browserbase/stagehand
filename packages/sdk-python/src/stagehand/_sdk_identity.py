@@ -14,10 +14,3 @@ STAGEHAND_SESSION_METADATA = {
     "stagehand_sdk_language": "python",
     "stagehand_sdk_version": STAGEHAND_SDK_VERSION,
 }
-
-
-def stagehand_session_metadata(model_name: str | None = None) -> dict[str, str]:
-    metadata = dict(STAGEHAND_SESSION_METADATA)
-    if model_name is not None:
-        metadata["stagehand_model_name"] = model_name
-    return metadata

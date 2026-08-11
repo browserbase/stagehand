@@ -4,4 +4,4 @@
 "@browserbasehq/stagehand-go": patch
 ---
 
-Track the Stagehand SDK version and launch-level model name in Browserbase session metadata.
+Track the Stagehand SDK version in Browserbase session metadata.

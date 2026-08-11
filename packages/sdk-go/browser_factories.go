@@ -45,7 +45,6 @@ type LocalBrowserConnectOptions struct {
 type BrowserbaseLaunchOptions struct {
 	APIKey          string
 	BaseURL         string
-	Model           *ModelConfig
 	BrowserSettings *BrowserbaseBrowserSettings
 	ExtensionID     *string
 	KeepAlive       *bool
@@ -105,7 +104,6 @@ type connectBrowserOptions struct {
 	afterConnect       func(context.Context, browserCommandSender) error
 	workerAPIKey       *string
 	workerBrowser      *BrowserSessionMetadata
-	workerModel        *ModelConfig
 }
 
 // LaunchLocalBrowser launches a local browser and connects its Stagehand extension.
@@ -201,8 +199,6 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 	}
 	defer cancelLifecycle()
 
-	model := cloneModelConfig(options.Model)
-	options.Model = model
 	client, err := browserbaseClientForFactory(options.APIKey, options.BaseURL, dependencies)
 	if err != nil {
 		return nil, err
@@ -222,26 +218,7 @@ func launchBrowserbaseWithDependencies(ctx context.Context, options BrowserbaseL
 		source:             browserConnectionSource{cdpURL: source.cdpURL, keepAlive: keepAlive, close: source.close},
 		preloadedExtension: true, workerAPIKey: &options.APIKey,
 		workerBrowser: &BrowserSessionMetadata{SessionID: source.browserbaseSessionID, Region: workerRegion},
-		workerModel:   model,
 	}, dependencies)
-}
-
-func cloneModelConfig(model *ModelConfig) *ModelConfig {
-	if model == nil {
-		return nil
-	}
-	cloned := *model
-	if model.APIKey != nil {
-		apiKey := *model.APIKey
-		cloned.APIKey = &apiKey
-	}
-	if model.Headers != nil {
-		cloned.Headers = make(ModelConfigHeaders, len(model.Headers))
-		for name, value := range model.Headers {
-			cloned.Headers[name] = value
-		}
-	}
-	return &cloned
 }
 
 // ConnectBrowserbase connects an existing Browserbase session.
@@ -360,8 +337,7 @@ func connectBrowser(ctx context.Context, options connectBrowserOptions, dependen
 	return &Browser{
 		provider: options.provider, origin: options.origin, cdp: cdp,
 		workerAPIKey:  options.workerAPIKey,
-		workerBrowser: options.workerBrowser, workerModel: options.workerModel,
-		extensionDir: options.extensionDir, ownsSource: ownsSource,
+		workerBrowser: options.workerBrowser, extensionDir: options.extensionDir, ownsSource: ownsSource,
 		closeSource: options.source.close, cleanup: options.source.cleanup,
 	}, nil
 }

@@ -528,12 +528,6 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			extensionID := "caller-ext"
 			keepAlive := true
 			userMetadata := map[string]json.RawMessage{"team": json.RawMessage(`"qa"`)}
-			modelAPIKey := "model-secret"
-			model := &ModelConfig{
-				ModelName: ModelName("openai/gpt-5"),
-				APIKey:    &modelAPIKey,
-				Headers:   ModelConfigHeaders{"Authorization": "Bearer model-secret"},
-			}
 			client := &fakeBrowserbaseFactoryClient{
 				created:   resolvedBrowserSource{cdpURL: "ws://browser.test", browserbaseSessionID: "created"},
 				connected: browserbaseSessionConnection{cdpURL: "ws://browser.test", sessionID: "retrieved", region: &region},
@@ -557,7 +551,7 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			} else {
 				browser, err = launchBrowserbaseWithDependencies(context.Background(), BrowserbaseLaunchOptions{
 					APIKey: "key", BaseURL: "https://api.dev.browserbase.com", ExtensionID: &extensionID, KeepAlive: &keepAlive,
-					Region: &region, UserMetadata: userMetadata, Model: model,
+					Region: &region, UserMetadata: userMetadata,
 				}, dependencies)
 			}
 			if err != nil {
@@ -576,9 +570,6 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 					t.Fatalf("session create options = %#v", created)
 				}
 				region = BrowserbaseRegion("eu-central-1")
-				modelAPIKey = "mutated-secret"
-				model.Headers["Authorization"] = "mutated-header"
-				model.ModelName = ModelName("mutated/model")
 			}
 			claimed, err := claimBrowser(browser)
 			if err != nil {
@@ -589,16 +580,6 @@ func TestBrowserbaseFactoryMetadataAndExtensionRouting(t *testing.T) {
 			}
 			if !test.connect && *claimed.workerBrowser.Region != BrowserbaseRegion("us-west-2") {
 				t.Fatalf("worker region = %q, want copied us-west-2", *claimed.workerBrowser.Region)
-			}
-			if !test.connect {
-				if claimed.workerModel == nil || claimed.workerModel.ModelName != ModelName("openai/gpt-5") ||
-					claimed.workerModel.APIKey == nil || *claimed.workerModel.APIKey != "model-secret" ||
-					claimed.workerModel.Headers["Authorization"] != "Bearer model-secret" {
-					t.Fatalf("worker model = %#v", claimed.workerModel)
-				}
-				if client.createOptions.Model == nil || client.createOptions.Model.ModelName != ModelName("openai/gpt-5") {
-					t.Fatalf("session model = %#v", client.createOptions.Model)
-				}
 			}
 			if connected.preloadedExtension != test.wantPreloaded || connected.extensionID != test.wantExtensionID {
 				t.Fatalf("extension options = %#v", connected)

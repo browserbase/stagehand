@@ -138,20 +138,16 @@ describe("Browserbase session creation", () => {
       provisionExtension,
     });
 
-    const session = await client.createSession(
-      {
-        keepAlive: false,
-        region: "eu-central-1",
-        userMetadata: {
-          stagehand: "false",
-          stagehand_sdk_language: "python",
-          stagehand_sdk_version: "0.0.0-spoofed",
-          stagehand_model_name: "spoofed/model",
-          suite: "unit",
-        },
+    const session = await client.createSession({
+      keepAlive: false,
+      region: "eu-central-1",
+      userMetadata: {
+        stagehand: "false",
+        stagehand_sdk_language: "python",
+        stagehand_sdk_version: "0.0.0-spoofed",
+        suite: "unit",
       },
-      "openai/gpt-5",
-    );
+    });
 
     expect(provisionExtension).toHaveBeenCalledWith(browserbase);
     expect(createSession).toHaveBeenCalledWith({
@@ -162,7 +158,6 @@ describe("Browserbase session creation", () => {
         stagehand: "true",
         stagehand_sdk_language: "typescript",
         stagehand_sdk_version: STAGEHAND_SDK_VERSION,
-        stagehand_model_name: "openai/gpt-5",
         suite: "unit",
       },
     });
@@ -176,42 +171,36 @@ describe("Browserbase session creation", () => {
     expect(cleanupExtension).toHaveBeenCalledOnce();
   });
 
-  it.each([
-    {
-      extensionId: "ext_caller",
-      userMetadata: { stagehand_model_name: "spoofed/model" },
+  it.each([{ extensionId: "ext_caller" }, { browserSettings: { extensionId: "ext_caller" } }])(
+    "reuses a caller-owned extension without provisioning or deleting it",
+    async (params) => {
+      const createSession = vi.fn(async () => ({
+        id: "session_123",
+        connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
+      }));
+      const releaseSession = vi.fn(async () => {});
+      const provisionExtension = vi.fn();
+      const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
+        browserbase: fakeBrowserbaseApiClient({ createSession, releaseSession }),
+        provisionExtension,
+      });
+
+      const session = await client.createSession(params);
+
+      expect(provisionExtension).not.toHaveBeenCalled();
+      expect(createSession).toHaveBeenCalledWith({
+        ...params,
+        userMetadata: {
+          stagehand: "true",
+          stagehand_sdk_language: "typescript",
+          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
+        },
+      });
+
+      await session.close?.();
+      expect(releaseSession).toHaveBeenCalledWith("session_123");
     },
-    {
-      browserSettings: { extensionId: "ext_caller" },
-      userMetadata: { stagehand_model_name: "spoofed/model" },
-    },
-  ])("reuses a caller-owned extension without provisioning or deleting it", async (params) => {
-    const createSession = vi.fn(async () => ({
-      id: "session_123",
-      connectUrl: "wss://connect.browserbase.com/devtools/browser/session_123",
-    }));
-    const releaseSession = vi.fn(async () => {});
-    const provisionExtension = vi.fn();
-    const client = createBrowserbaseSessionClient("bb_key", "https://api.browserbase.com", {
-      browserbase: fakeBrowserbaseApiClient({ createSession, releaseSession }),
-      provisionExtension,
-    });
-
-    const session = await client.createSession(params);
-
-    expect(provisionExtension).not.toHaveBeenCalled();
-    expect(createSession).toHaveBeenCalledWith({
-      ...params,
-      userMetadata: {
-        stagehand: "true",
-        stagehand_sdk_language: "typescript",
-        stagehand_sdk_version: STAGEHAND_SDK_VERSION,
-      },
-    });
-
-    await session.close?.();
-    expect(releaseSession).toHaveBeenCalledWith("session_123");
-  });
+  );
 
   it("deletes the uploaded extension when session creation fails", async () => {
     const createError = new Error("concurrency limit reached");

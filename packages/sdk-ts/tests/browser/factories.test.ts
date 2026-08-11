@@ -106,32 +106,19 @@ describe("Stagehand browser factories", () => {
       baseUrl: "https://api.dev.browserbase.com",
       projectId: "project_123",
       region: "us-west-2",
-      model: {
-        modelName: "openai/gpt-5",
-        apiKey: "model-secret",
-        headers: { Authorization: "Bearer model-secret" },
-      },
     });
     const claimed = claimStagehandBrowser(browser);
 
-    expect(createSession).toHaveBeenCalledWith(
-      {
-        projectId: "project_123",
-        region: "us-west-2",
-      },
-      "openai/gpt-5",
-    );
+    expect(createSession).toHaveBeenCalledWith({
+      projectId: "project_123",
+      region: "us-west-2",
+    });
     expect(createBrowserbaseSessionClient).toHaveBeenCalledWith(
       "bb_key",
       "https://api.dev.browserbase.com",
     );
     expect(claimed.workerInitMetadata).toStrictEqual({
       apiKey: "bb_key",
-      model: {
-        modelName: "openai/gpt-5",
-        apiKey: "model-secret",
-        headers: { Authorization: "Bearer model-secret" },
-      },
       browser: {
         sessionId: "session_123",
         region: "us-west-2",

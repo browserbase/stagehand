@@ -6,7 +6,7 @@ import {
   type BrowserbaseExtensionSdk,
   type ProvisionedBrowserbaseExtension,
 } from "../browserbaseExtension.js";
-import { stagehandSessionMetadata } from "../sdkIdentity.js";
+import { STAGEHAND_SESSION_METADATA } from "../sdkIdentity.js";
 import {
   BrowserbaseSessionConnectionSchema,
   BrowserbaseSessionCreateResultSchema,
@@ -21,10 +21,7 @@ type OwnedBrowserbaseSession = BrowserbaseSessionConnection & {
 };
 
 export type BrowserbaseSessionClient = {
-  createSession(
-    params: Browserbase.SessionCreateParams,
-    modelName?: string,
-  ): Promise<OwnedBrowserbaseSession>;
+  createSession(params: Browserbase.SessionCreateParams): Promise<OwnedBrowserbaseSession>;
   connectSession?(sessionId: string): Promise<BrowserbaseSessionConnection>;
 };
 
@@ -72,12 +69,10 @@ export function createBrowserbaseSessionClient(
   const provisionExtension = dependencies.provisionExtension ?? provisionBrowserbaseExtension;
 
   return {
-    async createSession(params, modelName) {
+    async createSession(params) {
       const callerExtensionId = params.extensionId ?? params.browserSettings?.extensionId;
       const extension =
         callerExtensionId === undefined ? await provisionExtension(browserbase) : undefined;
-      const callerMetadata = { ...params.userMetadata };
-      delete callerMetadata.stagehand_model_name;
       let session: BrowserbaseSessionCreateResult;
 
       try {
@@ -85,8 +80,8 @@ export function createBrowserbaseSessionClient(
           ...params,
           ...(extension === undefined ? {} : { extensionId: extension.extensionId }),
           userMetadata: {
-            ...callerMetadata,
-            ...stagehandSessionMetadata(modelName),
+            ...params.userMetadata,
+            ...STAGEHAND_SESSION_METADATA,
           },
         });
       } catch {

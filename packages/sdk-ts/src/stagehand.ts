@@ -76,12 +76,6 @@ export class Stagehand {
   static async create(input: StagehandCreateOptions): Promise<Stagehand> {
     const { browser, ...createConfig } = StagehandCreateOptionsSchema.parse(input);
     const claimedBrowser = claimStagehandBrowser(browser);
-    if (createConfig.model !== undefined && claimedBrowser.workerInitMetadata.model !== undefined) {
-      releaseStagehandBrowser(browser);
-      throw new TypeError(
-        "model must be configured on browserbase.launch() or Stagehand.create(), not both",
-      );
-    }
     const stagehand = new Stagehand(browser, createConfig);
     let lifecycleSignal: AbortSignal | undefined;
     try {

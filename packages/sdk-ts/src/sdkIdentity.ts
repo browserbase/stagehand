@@ -16,10 +16,3 @@ export const STAGEHAND_SESSION_METADATA = {
   stagehand_sdk_language: STAGEHAND_SDK_IDENTITY.language,
   stagehand_sdk_version: STAGEHAND_SDK_IDENTITY.version,
 } as const;
-
-export function stagehandSessionMetadata(modelName?: string) {
-  return {
-    ...STAGEHAND_SESSION_METADATA,
-    ...(modelName === undefined ? {} : { stagehand_model_name: modelName }),
-  };
-}

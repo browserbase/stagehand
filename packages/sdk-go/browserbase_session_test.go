@@ -670,16 +670,9 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 		"stagehand":              json.RawMessage(`"false"`),
 		"stagehand_sdk_language": json.RawMessage(`"python"`),
 		"stagehand_sdk_version":  json.RawMessage(`"0.0.0-spoofed"`),
-		"stagehand_model_name":   json.RawMessage(`"spoofed/model"`),
 	}
-	modelAPIKey := "model-secret"
 	_, err := client.createSession(context.Background(), BrowserbaseLaunchOptions{
 		UserMetadata: callerUserMetadata,
-		Model: &ModelConfig{
-			ModelName: ModelName("openai/gpt-5"),
-			APIKey:    &modelAPIKey,
-			Headers:   ModelConfigHeaders{"Authorization": "Bearer model-secret"},
-		},
 	})
 	if err != nil {
 		t.Fatalf("createSession() error = %v", err)
@@ -690,23 +683,9 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 		"stagehand":              json.RawMessage(`"true"`),
 		"stagehand_sdk_language": json.RawMessage(`"go"`),
 		"stagehand_sdk_version":  json.RawMessage(`"` + stagehandSDKVersion + `"`),
-		"stagehand_model_name":   json.RawMessage(`"openai/gpt-5"`),
 	}
 	if !reflect.DeepEqual(gotUserMetadata, want) {
 		t.Fatalf("userMetadata = %#v, want %#v", gotUserMetadata, want)
-	}
-
-	_, err = client.createSession(context.Background(), BrowserbaseLaunchOptions{
-		ExtensionID: testPointer("caller-extension"),
-		UserMetadata: map[string]json.RawMessage{
-			"stagehand_model_name": json.RawMessage(`"spoofed/model"`),
-		},
-	})
-	if err != nil {
-		t.Fatalf("createSession() without model error = %v", err)
-	}
-	if _, exists := gotUserMetadata["stagehand_model_name"]; exists {
-		t.Fatalf("userMetadata contains an unconfigured model = %#v", gotUserMetadata)
 	}
 
 	wantCallerUserMetadata := map[string]json.RawMessage{
@@ -714,7 +693,6 @@ func TestBrowserbaseSessionClientStampsUnspoofableAttribution(t *testing.T) {
 		"stagehand":              json.RawMessage(`"false"`),
 		"stagehand_sdk_language": json.RawMessage(`"python"`),
 		"stagehand_sdk_version":  json.RawMessage(`"0.0.0-spoofed"`),
-		"stagehand_model_name":   json.RawMessage(`"spoofed/model"`),
 	}
 	if !reflect.DeepEqual(callerUserMetadata, wantCallerUserMetadata) {
 		t.Fatalf(

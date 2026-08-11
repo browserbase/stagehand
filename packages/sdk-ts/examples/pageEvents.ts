@@ -23,12 +23,12 @@ const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
 if (!BROWSERBASE_API_KEY) throw new Error("BROWSERBASE_API_KEY is required");
 if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is required");
 
-const browser = await browserbase.launch({
-  apiKey: BROWSERBASE_API_KEY,
-  model: { modelName: "openai/gpt-5.4-mini", apiKey: OPENAI_API_KEY },
-});
+const browser = await browserbase.launch({ apiKey: BROWSERBASE_API_KEY });
 try {
-  const stagehand = await Stagehand.create({ browser });
+  const stagehand = await Stagehand.create({
+    browser,
+    model: { modelName: "openai/gpt-5.4-mini", apiKey: OPENAI_API_KEY },
+  });
   let subscription: CDPSubscription | undefined;
   try {
     const page = await stagehand.browser.context.activePage();
