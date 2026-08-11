@@ -29,7 +29,7 @@ import { withStagehandInitDeadline } from "../timeouts.js";
 export { isStagehandBrowser };
 export type { BrowserbaseBrowser, LocalBrowser, StagehandBrowser } from "./index.js";
 
-export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "browser">;
+export type StagehandWorkerInitMetadata = Pick<StagehandInitParams, "apiKey" | "browser" | "model">;
 
 export type ClaimedStagehandBrowser = {
   cdpClient: CDPClient;
@@ -134,9 +134,13 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
 
     browserbase: {
       async launch(input) {
-        const { apiKey, baseUrl, ...sessionOptions } = BrowserbaseLaunchOptionsSchema.parse(input);
+        const { apiKey, baseUrl, model, ...sessionOptions } =
+          BrowserbaseLaunchOptionsSchema.parse(input);
         return await withStagehandInitDeadline(async (signal) => {
-          const sessionPromise = createBrowserbase(apiKey, baseUrl).createSession(sessionOptions);
+          const sessionPromise = createBrowserbase(apiKey, baseUrl).createSession(
+            sessionOptions,
+            model?.modelName,
+          );
           let session: Awaited<typeof sessionPromise>;
           try {
             session = await abortable(sessionPromise, signal);
@@ -163,6 +167,7 @@ function createBrowserFactories(dependencies: BrowserFactoryDependencies = {}): 
             signal,
             workerInitMetadata: {
               apiKey,
+              ...(model === undefined ? {} : { model }),
               browser: {
                 sessionId: session.sessionId,
                 ...(sessionOptions.region === undefined ? {} : { region: sessionOptions.region }),

@@ -20,6 +20,7 @@ from ._generated.models import (
     BrowserbaseRegion,
     BrowserbaseSessionCreateParams,
     BrowserSessionMetadata,
+    ModelConfig,
 )
 from .browserbase_session import DEFAULT_BROWSERBASE_URL, _create_browserbase_session_client
 from .cdp_client import CDPClient
@@ -29,6 +30,7 @@ from .client_models import (
     LocalBrowserLaunchOptions,
     LocalProxyConfig,
     LocalViewport,
+    _model_config,
 )
 from .extension_assets import extension_directory
 from .timeouts import stagehand_init_deadline
@@ -70,6 +72,7 @@ _BROWSER_TOKEN = object()
 class _WorkerInitMetadata:
     api_key: str | None
     browser: BrowserSessionMetadata | None
+    model: ModelConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -493,6 +496,9 @@ class BrowserbaseBrowser:
         region: BrowserbaseRegion | None = None,
         timeout: float | None = None,
         user_metadata: Mapping[str, Any] | None = None,
+        model: str | None = None,
+        model_api_key: str | None = None,
+        model_headers: Mapping[str, str] | None = None,
     ) -> StagehandBrowser:
         if not api_key:
             raise ValueError("api_key must not be empty")
@@ -500,6 +506,17 @@ class BrowserbaseBrowser:
             raise ValueError("base_url must not be empty")
         if extension_id is not None and not extension_id.strip():
             raise ValueError("extension_id must not be empty")
+        if model is None and (model_api_key is not None or model_headers is not None):
+            raise TypeError("model connection options require a model name")
+        resolved_model = (
+            _model_config(
+                model,
+                api_key=model_api_key,
+                headers=dict(model_headers) if model_headers is not None else None,
+            )
+            if model is not None
+            else None
+        )
         options = BrowserbaseSessionCreateParams.model_validate({
             name: value
             for name, value in (
@@ -520,7 +537,10 @@ class BrowserbaseBrowser:
         ):
             raise ValueError("browser_settings.extension_id must not be empty")
         session = await _create_browserbase_session_client(api_key, base_url).create_session(
-            options
+            options,
+            model_name=(
+                resolved_model.model_name.model_dump() if resolved_model is not None else None
+            ),
         )
         source = ResolvedBrowserSource(
             cdp_url=session.cdp_url,
@@ -535,6 +555,7 @@ class BrowserbaseBrowser:
             worker_init_metadata=_WorkerInitMetadata(
                 api_key=api_key,
                 browser=_browser_session_metadata(session.session_id, options.region),
+                model=resolved_model,
             ),
         )
 

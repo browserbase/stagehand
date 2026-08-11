@@ -110,13 +110,13 @@ async function run(): Promise<string> {
     browserSettings: {
       blockAds: true,
     },
+    model: {
+      modelName: "google/gemini-2.5-flash",
+    },
   });
 
   const stagehand = await Stagehand.create({
     browser,
-    model: {
-      modelName: "google/gemini-2.5-flash",
-    },
     logging: { level: "warn", format: "json" },
   });
 
@@ -171,12 +171,16 @@ class FastestModel(BaseModel):
     fastest_model: str
 
 async def run() -> str:
-    browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"], region="us-west-2", browser_settings=BrowserbaseBrowserSettings.model_validate({"block_ads": True}))
+    browser = await browserbase.launch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+        region="us-west-2",
+        browser_settings=BrowserbaseBrowserSettings.model_validate({"block_ads": True}),
+        model="google/gemini-2.5-flash",
+        model_api_key=os.environ["GOOGLE_API_KEY"],
+    )
 
     stagehand = await Stagehand.create(
         browser=browser,
-        model="google/gemini-2.5-flash",
-        model_api_key=os.environ["GOOGLE_API_KEY"],
         logging=StagehandClientLoggingConfig(level="warn", format="json"),
     )
 
@@ -281,6 +285,7 @@ func run(ctx context.Context) (result string, err error) {
 		BrowserSettings: &stagehand.BrowserbaseBrowserSettings{
 			BlockAds: &blockAds,
 		},
+		Model: &model,
 	})
 	if err != nil {
 		return "", err
@@ -288,7 +293,6 @@ func run(ctx context.Context) (result string, err error) {
 
 	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 		Browser: browser,
-		Model:   &model,
 		Logging: &stagehand.StagehandClientLoggingConfig{
 			Level:  stagehand.StagehandClientLogLevelWarn,
 			Format: stagehand.StagehandClientLogFormatJSON,

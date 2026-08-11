@@ -51,6 +51,7 @@ from stagehand._generated.models import (
     StagehandResultMetadata,
     StagehandResultUsage,
 )
+from stagehand._generated.models import ModelConfig as WireModelConfig
 from stagehand._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
 from stagehand.browser import (
     _BROWSER_TOKEN,
@@ -87,6 +88,7 @@ def _browser_handle(
     *,
     api_key: str | None = None,
     browser_metadata: BrowserSessionMetadata | None = None,
+    worker_model: WireModelConfig | None = None,
     web_socket_debugger_url: str | None = "ws://browser",
 ) -> tuple[StagehandBrowser, _Transport]:
     transport = _Transport(web_socket_debugger_url)
@@ -99,6 +101,7 @@ def _browser_handle(
                 worker_init_metadata=_WorkerInitMetadata(
                     api_key=api_key,
                     browser=browser_metadata,
+                    model=worker_model,
                 ),
             ),
             transport.close,
@@ -408,6 +411,30 @@ async def test_local_browser_omits_metadata_and_forwards_caller_options(
     assert params.dom_settle_timeout_ms == 2_500
     assert params.cache is not None
     assert params.cache.model_dump() == {"threshold": 3}
+
+
+@pytest.mark.asyncio
+async def test_create_inherits_launch_model_and_rejects_duplicate_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recording = _recording()
+    _install_rpc_client(monkeypatch, recording)
+    launch_model = WireModelConfig(
+        model_name="openai/gpt-5",
+        api_key="model-secret",
+        headers={"Authorization": "Bearer model-secret"},
+    )
+    browser, _ = _browser_handle(worker_model=launch_model)
+
+    with pytest.raises(TypeError, match="browserbase.launch.*Stagehand.create"):
+        await Stagehand.create(browser=browser, model="anthropic/claude-sonnet-4-5")
+
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        params = cast(StagehandInitParams, recording.calls[0][1])
+        assert params.model == launch_model
+    finally:
+        await stagehand.close()
 
 
 @pytest.mark.asyncio

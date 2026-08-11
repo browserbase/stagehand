@@ -402,12 +402,18 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	region := BrowserbaseRegion("us-west-2")
 	handleAPIKey := "handle-key"
 	optionAPIKey := "option-key"
+	modelAPIKey := "model-key"
+	workerModel := &ModelConfig{
+		ModelName: ModelName("openai/gpt-5"),
+		APIKey:    &modelAPIKey,
+	}
 	browser := &Browser{
 		workerAPIKey: &handleAPIKey,
 		workerBrowser: &BrowserSessionMetadata{
 			SessionID: "session-1",
 			Region:    &region,
 		},
+		workerModel: workerModel,
 	}
 	rpc := &recordingProtocolClient{responses: map[string]any{
 		"stagehand.init": StagehandInitResult{Initialized: true},
@@ -437,9 +443,35 @@ func TestCreateUsesClaimedBrowserWorkerMetadata(t *testing.T) {
 	if params.BrowserCDPURL == nil || *params.BrowserCDPURL != rpc.browserWebSocketDebuggerURL() {
 		t.Fatalf("BrowserCDPURL = %#v", params.BrowserCDPURL)
 	}
+	model, ok := params.Model.AsServerModel()
+	if !ok || !reflect.DeepEqual(model, *workerModel) {
+		t.Fatalf("Model = %#v, want %#v", params.Model, workerModel)
+	}
 	if params.ProtocolVersion != stagehandProtocolVersion || params.ClientInfo.Name != stagehandSDKClientName || params.ClientInfo.Version != stagehandSDKVersion {
 		t.Fatalf("protocol identity = %#v %#v", params.ProtocolVersion, params.ClientInfo)
 	}
+}
+
+func TestCreateRejectsDuplicateLaunchAndCreateModelsAndReleasesClaim(t *testing.T) {
+	launchModel := &ModelConfig{ModelName: ModelName("openai/gpt-5")}
+	browser := &Browser{workerModel: launchModel}
+	_, err := createWithAdapters(context.Background(), CreateOptions{
+		Browser: browser,
+		Model:   &ModelConfig{ModelName: ModelName("anthropic/claude-sonnet-4-5")},
+	}, clientAdapters{
+		connectClaimedBrowser: func(claimedBrowser) (protocolClient, error) {
+			t.Fatal("duplicate models must fail before transport connection")
+			return nil, nil
+		},
+	})
+	if err == nil || err.Error() != "stagehand: model must be configured on LaunchBrowserbase or Create, not both" {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := claimBrowser(browser); err != nil {
+		t.Fatalf("claimBrowser() after duplicate model error = %v", err)
+	}
+	// Restore the fixture for any later assertions that inspect it.
+	releaseBrowserClaim(browser)
 }
 
 func TestCreateRejectsBrowserNotCreatedByFactoryAndReleasesClaim(t *testing.T) {

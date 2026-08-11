@@ -132,11 +132,9 @@ For Browserbase cloud browsers, pass the Browserbase API key to `browserbase.lau
 ```typescript
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
-});
-const stagehand = await Stagehand.create({
-  browser,
   model: { modelName: "openai/gpt-5.4-mini", apiKey: process.env.OPENAI_API_KEY },
 });
+const stagehand = await Stagehand.create({ browser });
 ```
 
 Stagehand never reads environment variables for you. Always pass keys explicitly.
@@ -775,13 +773,13 @@ For Browserbase cloud browsers, pass the Browserbase API key to `stagehand.Launc
 browserbaseAPIKey := os.Getenv("BROWSERBASE_API_KEY")
 browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
 	APIKey: browserbaseAPIKey,
+	Model:  &model,
 })
 if err != nil {
 	return err
 }
 client, err := stagehand.Create(ctx, stagehand.CreateOptions{
 	Browser: browser,
-	Model:   &model,
 })
 if err != nil {
 	return err

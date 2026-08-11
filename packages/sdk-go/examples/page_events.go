@@ -32,14 +32,17 @@ func runPageEvents(ctx context.Context) (err error) {
 	if modelAPIKey == "" {
 		return errors.New("OPENAI_API_KEY is required")
 	}
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	model := stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &modelAPIKey}
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: apiKey,
+		Model:  &model,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	model := stagehand.ModelConfig{ModelName: "openai/gpt-5.4-mini", APIKey: &modelAPIKey}
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 	if err != nil {
 		return err
 	}

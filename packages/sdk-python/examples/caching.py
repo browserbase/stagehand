@@ -26,13 +26,13 @@ class Companies(BaseModel):
 
 async def main() -> None:
     # Server-side caching requires a Browserbase browser session.
-    browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
+    browser = await browserbase.launch(
+        api_key=BROWSERBASE_API_KEY,
+        model="openai/gpt-5.4-mini",
+        model_api_key=OPENAI_API_KEY,
+    )
     try:
-        stagehand = await Stagehand.create(
-            browser=browser,
-            model="openai/gpt-5.4-mini",
-            model_api_key=OPENAI_API_KEY,
-        )
+        stagehand = await Stagehand.create(browser=browser)
         try:
             page = (await browser.context.pages())[0]
             if page is None:

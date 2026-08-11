@@ -20,13 +20,13 @@ class PageInfo(BaseModel):
 
 
 async def main() -> None:
-    browser = await browserbase.launch(api_key=BROWSERBASE_API_KEY)
+    browser = await browserbase.launch(
+        api_key=BROWSERBASE_API_KEY,
+        model="openai/gpt-5.4-mini",
+        model_api_key=OPENAI_API_KEY,
+    )
     try:
-        stagehand = await Stagehand.create(
-            browser=browser,
-            model="openai/gpt-5.4-mini",
-            model_api_key=OPENAI_API_KEY,
-        )
+        stagehand = await Stagehand.create(browser=browser)
         subscription: CDPSubscription | None = None
         try:
             page = await stagehand.browser.context.active_page()

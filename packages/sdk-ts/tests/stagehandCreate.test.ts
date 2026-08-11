@@ -111,6 +111,50 @@ describe("Stagehand.create", () => {
     expect(cdp.close).toHaveBeenCalledOnce();
   });
 
+  it("inherits a Browserbase launch model and rejects duplicate model configuration", async () => {
+    const cdp = new FakeCDPClient();
+    const closeSession = vi.fn(async () => {});
+    const { browserbase } = createBrowserFactoriesForTest({
+      createBrowserbaseSessionClient: () => ({
+        createSession: async () => ({
+          sessionId: "session_123",
+          cdpUrl: cdp.webSocketDebuggerUrl,
+          close: closeSession,
+        }),
+      }),
+      connectCdp: async () => cdp as unknown as CDPClient,
+    });
+    const browser = await browserbase.launch({
+      apiKey: "bb_key",
+      model: {
+        modelName: "openai/gpt-5",
+        apiKey: "model-secret",
+        headers: { Authorization: "Bearer model-secret" },
+      },
+    });
+
+    await expect(
+      Stagehand.create({ browser, model: { modelName: "anthropic/claude-sonnet-4-5" } }),
+    ).rejects.toThrow(
+      "model must be configured on browserbase.launch() or Stagehand.create(), not both",
+    );
+
+    const stagehand = await Stagehand.create({ browser });
+    expect(cdp.requestsFor("stagehand.init")[0]).toMatchObject({
+      params: {
+        model: {
+          model_name: "openai/gpt-5",
+          api_key: "model-secret",
+          headers: { Authorization: "Bearer model-secret" },
+        },
+      },
+    });
+
+    await stagehand.close();
+    await browser.close();
+    expect(closeSession).toHaveBeenCalledOnce();
+  });
+
   it("releases the browser claim after a fully settled initialization error", async () => {
     const cdp = new FakeCDPClient();
     cdp.initError = new Error("worker initialization failed");

@@ -6,7 +6,6 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping
-from importlib.metadata import version
 from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
@@ -27,7 +26,6 @@ from ._generated.models import (
     EmptyParams,
     ExtractOptions,
     FieldSchema0,
-    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ObserveOptions,
@@ -42,6 +40,7 @@ from ._generated.models import (
     StagehandObserveParams,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from ._sdk_identity import STAGEHAND_SDK_CLIENT_INFO
 from .browser import (
     StagehandBrowser,
     _attach_browser_context,
@@ -169,6 +168,11 @@ class Stagehand:
             values["telemetry"] = telemetry
         create_config = _client_models.StagehandClientCreateConfig.model_validate(values)
         claimed = _claim_browser(browser)
+        if create_config.model is not None and claimed.worker_init_metadata.model is not None:
+            _release_browser(browser)
+            raise TypeError(
+                "model must be configured on browserbase.launch() or Stagehand.create(), not both"
+            )
         stagehand = cls(
             _token=_CONSTRUCTION_TOKEN,
             browser=browser,
@@ -485,18 +489,17 @@ class Stagehand:
             exclude={"logging", "model"},
             exclude_unset=True,
         )
+        metadata = claimed.worker_init_metadata
         if isinstance(self._create_config.model, _client_models.ClientLLM):
             values["model"] = ClientModelReference(source="client")
         elif self._create_config.model is not None:
             values["model"] = self._create_config.model
+        elif metadata.model is not None:
+            values["model"] = metadata.model
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
-        values["client_info"] = ImplementationInfo(
-            name="stagehand-sdk-python",
-            version=version("stagehand"),
-        )
+        values["client_info"] = STAGEHAND_SDK_CLIENT_INFO
         values["browser_cdp_url"] = browser_cdp_url
         values["log_level"] = self._create_config.logging.level
-        metadata = claimed.worker_init_metadata
         if metadata.api_key is not None:
             values["api_key"] = metadata.api_key
         if metadata.browser is not None:

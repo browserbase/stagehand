@@ -518,13 +518,17 @@ class FakeBrowserbaseClient:
         self.created = FakeBrowserbaseSession()
         self.connected = FakeBrowserbaseSession(region=BrowserbaseRegion.eu_central_1)
         self.create_calls: list[BrowserbaseSessionCreateParams] = []
+        self.create_model_names: list[str | None] = []
         self.connect_calls: list[str] = []
 
     async def create_session(
         self,
         options: BrowserbaseSessionCreateParams,
+        *,
+        model_name: str | None = None,
     ) -> FakeBrowserbaseSession:
         self.create_calls.append(options)
+        self.create_model_names.append(model_name)
         return self.created
 
     async def connect_session(self, session_id: str) -> FakeBrowserbaseSession:
@@ -555,6 +559,9 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
         api_key="api-key",
         base_url="https://api.dev.browserbase.com",
         region=BrowserbaseRegion.us_east_1,
+        model="openai/gpt-5",
+        model_api_key="model-secret",
+        model_headers={"Authorization": "Bearer model-secret"},
     )
 
     arguments = fake_cdp.connect_arguments[-1]
@@ -568,10 +575,17 @@ async def test_browserbase_launch_uses_preloaded_extension_and_owns_session(
         "session_id": "session-id",
         "region": BrowserbaseRegion.us_east_1,
     }
+    assert claimed.worker_init_metadata.model is not None
+    assert claimed.worker_init_metadata.model.model_dump(exclude_none=True) == {
+        "model_name": "openai/gpt-5",
+        "api_key": "model-secret",
+        "headers": {"Authorization": "Bearer model-secret"},
+    }
     _release_browser(handle)
     await handle.close()
 
     assert configurations == [("api-key", "https://api.dev.browserbase.com")]
+    assert client.create_model_names == ["openai/gpt-5"]
     assert client.created.close_calls == 1
     assert fake_cdp.instances[-1].close_calls == 1
 
@@ -644,6 +658,8 @@ async def test_browserbase_validation_precedes_api_calls(
         await browserbase.launch(api_key="api-key", base_url="  ")
     with pytest.raises(ValueError, match="^extension_id must not be empty$"):
         await browserbase.launch(api_key="api-key", extension_id="  ")
+    with pytest.raises(TypeError, match="require a model name"):
+        await browserbase.launch(api_key="api-key", model_api_key="model-key")
     with pytest.raises(
         ValueError,
         match="^browser_settings.extension_id must not be empty$",

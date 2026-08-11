@@ -36,13 +36,16 @@ func run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+		APIKey: apiKey,
+		Model:  &model,
+	})
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
 
-	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser, Model: &model})
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 	if err != nil {
 		return err
 	}

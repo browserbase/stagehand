@@ -9,6 +9,10 @@ if (!BROWSERBASE_API_KEY || !OPENAI_API_KEY) throw new Error();
 // Server-side caching requires a Browserbase browser session.
 const browser = await browserbase.launch({
   apiKey: BROWSERBASE_API_KEY,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: OPENAI_API_KEY,
+  },
 });
 
 const companiesSchema = z.object({
@@ -20,13 +24,7 @@ const companiesSchema = z.object({
   ),
 });
 
-const stagehand = await Stagehand.create({
-  browser,
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
-});
+const stagehand = await Stagehand.create({ browser });
 
 const [page] = await browser.context.pages();
 await page.goto("https://aigrant.com");

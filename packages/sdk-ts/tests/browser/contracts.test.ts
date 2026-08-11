@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import type Browserbase from "@browserbasehq/sdk";
+import type { ModelConfig } from "../../../protocol/types.js";
 import {
   BrowserbaseConnectOptionsSchema,
   BrowserbaseLaunchOptionsSchema,
@@ -57,8 +58,9 @@ describe("browser API contracts", () => {
       Promise<StagehandBrowser>
     >();
     expectTypeOf<
-      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl">
+      Omit<BrowserbaseLaunchOptions, "apiKey" | "baseUrl" | "model">
     >().toEqualTypeOf<Browserbase.SessionCreateParams>();
+    expectTypeOf<BrowserbaseLaunchOptions["model"]>().toEqualTypeOf<ModelConfig | undefined>();
     expectTypeOf<Parameters<BrowserbaseBrowser["connect"]>>().toEqualTypeOf<
       [options: BrowserbaseConnectOptions]
     >();
@@ -87,6 +89,11 @@ describe("browser API contracts", () => {
         projectId: "project_123",
         proxySettings: { caCertificates: ["certificate_123"] },
         extensionId: "user-extension",
+        model: {
+          modelName: "openai/gpt-5",
+          apiKey: "model-secret",
+          headers: { Authorization: "Bearer model-secret" },
+        },
       }),
     ).toStrictEqual({
       apiKey: "bb_key",
@@ -94,6 +101,11 @@ describe("browser API contracts", () => {
       projectId: "project_123",
       proxySettings: { caCertificates: ["certificate_123"] },
       extensionId: "user-extension",
+      model: {
+        modelName: "openai/gpt-5",
+        apiKey: "model-secret",
+        headers: { Authorization: "Bearer model-secret" },
+      },
     });
     expect(
       BrowserbaseLaunchOptionsSchema.parse({

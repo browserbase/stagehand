@@ -38,6 +38,7 @@ type Browser struct {
 	cdp            *cdpClient
 	workerAPIKey   *string
 	workerBrowser  *BrowserSessionMetadata
+	workerModel    *ModelConfig
 	extensionDir   string
 	ownsSource     bool
 	closeSource    func(context.Context) error
@@ -154,6 +155,7 @@ type claimedBrowser struct {
 	cdp           *cdpClient
 	workerAPIKey  *string
 	workerBrowser *BrowserSessionMetadata
+	workerModel   *ModelConfig
 }
 
 func claimBrowser(browser *Browser) (claimedBrowser, error) {
@@ -173,6 +175,7 @@ func claimBrowser(browser *Browser) (claimedBrowser, error) {
 		cdp:           browser.cdp,
 		workerAPIKey:  browser.workerAPIKey,
 		workerBrowser: browser.workerBrowser,
+		workerModel:   browser.workerModel,
 	}, nil
 }
 
