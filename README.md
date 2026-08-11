@@ -125,6 +125,8 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 
 ### Build and Run from Source
 
+Stagehand is a TypeScript, Python, and Go monorepo. We use [`just`](https://github.com/casey/just) to drive `pnpm`, `uv`, and `go` together.
+
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
@@ -133,20 +135,20 @@ just generate
 just build
 ```
 
-Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
+Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. Export them so they're available on `process.env`:
 
 ```bash
-cp .env.example .env
-nano .env # Edit the .env file to add API keys
+export OPENAI_API_KEY="your-openai-api-key"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
 ```
 
 Then run any of the scripts in [`packages/sdk-ts/examples`](./packages/sdk-ts/examples):
 
 ```bash
-pnpm exec tsx packages/sdk-ts/examples/act.ts
+just example act # runs packages/sdk-ts/examples/act.ts
 ```
 
-If you have [`just`](https://github.com/casey/just) installed, `just example act` runs the same script and rebuilds the packages it depends on first. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
 
 ## Contributing
 
