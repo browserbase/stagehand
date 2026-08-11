@@ -80,11 +80,22 @@ Here's how to build a sample browser automation with Stagehand:
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod/v4";
 
-const browser = await browserbase.launch();
-const stagehand = await Stagehand.create({ browser });
+const { BROWSERBASE_API_KEY, OPENAI_API_KEY } = process.env;
+
+const browser = await browserbase.launch({
+  apiKey: BROWSERBASE_API_KEY,
+});
+
+const stagehand = await Stagehand.create({
+  browser,
+  model: {
+    modelName: "openai/gpt-5.4-mini",
+    apiKey: OPENAI_API_KEY,
+  },
+});
 
 // Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
-const page = await browser.context.pages()[0];
+const [page] = await browser.context.pages();
 await page.goto("https://github.com/browserbase");
 
 // Use act() to execute individual actions
@@ -117,8 +128,9 @@ Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full document
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-pnpm install
-pnpm run build
+just install
+just generate
+just build
 ```
 
 Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. To add these to your project, run:
@@ -135,20 +147,6 @@ pnpm exec tsx packages/sdk-ts/examples/act.ts
 ```
 
 If you have [`just`](https://github.com/casey/just) installed, `just example act` runs the same script and rebuilds the packages it depends on first. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go setup.
-
-### Installing from a branch
-
-To install Stagehand directly from a GitHub branch, install the core package subdirectory:
-
-```bash
-pnpm add "github:browserbase/stagehand#<branchName>&path:/packages/core"
-```
-
-Or set it in your project's `package.json`:
-
-```json
-"@browserbasehq/stagehand": "github:browserbase/stagehand#<branchName>&path:/packages/core"
-```
 
 ## Contributing
 
