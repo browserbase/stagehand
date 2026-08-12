@@ -47,16 +47,16 @@ uv run --project examples/local --locked \
 
 ## Local server configuration
 
-| Variable                   | Default | Purpose                                                    |
-| -------------------------- | ------- | ---------------------------------------------------------- |
-| `STAGEHAND_BROWSER`        | `local` | `local` or `browserbase`.                                  |
-| `STAGEHAND_HEADLESS`       | `false` | Run local Chrome headlessly.                               |
-| `STAGEHAND_START_URL`      | Unset   | Open a URL when the MCP server starts.                     |
-| `STAGEHAND_MODEL`          | Unset   | Optional model for Stagehand AI methods used inside `run`. |
-| `STAGEHAND_MODEL_API_KEY`  | Unset   | Optional key for `STAGEHAND_MODEL`.                        |
-| `STAGEHAND_API_URL`        | Unset   | Optional Stagehand Model Gateway URL.                      |
-| `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and action batches.                 |
-| `BROWSERBASE_API_KEY`      | Unset   | Required for Browserbase.                                  |
+| Variable                   | Default | Purpose                                                                                     |
+| -------------------------- | ------- | ------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`        | `local` | `local` or `browserbase`.                                                                   |
+| `STAGEHAND_HEADLESS`       | `false` | Run local Chrome headlessly.                                                                |
+| `STAGEHAND_START_URL`      | Unset   | Open a URL when the MCP server starts.                                                      |
+| `STAGEHAND_MODEL`          | Unset   | Optional model for Stagehand AI methods used inside `run`.                                  |
+| `STAGEHAND_MODEL_API_KEY`  | Unset   | Required with `STAGEHAND_MODEL`; the MCP child does not receive agent-provider credentials. |
+| `STAGEHAND_API_URL`        | Unset   | Optional Stagehand Model Gateway URL.                                                       |
+| `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and action batches.                                                  |
+| `BROWSERBASE_API_KEY`      | Unset   | Required for Browserbase.                                                                   |
 
 The server and client intentionally use separate Python environments. Stagehand requires `websockets>=16.1.1`, while the current LangGraph SDK used by Deep Agents requires `websockets<16`; stdio keeps those dependency sets isolated.
 

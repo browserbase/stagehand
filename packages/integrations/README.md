@@ -47,13 +47,13 @@ Then open the README for your framework and run its quickstart.
 
 The TypeScript integrations use these shared variables. Deep Agents uses `STAGEHAND_MODEL` instead of `STAGEHAND_MODEL_NAME`; see its README for the Python-specific configuration.
 
-| Variable                  | Purpose                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set; otherwise defaults to local Chrome. |
-| `BROWSERBASE_API_KEY`     | Required for the Browserbase backend.                                                                                    |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                                         |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods called inside `run`.                                                             |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`. The matching provider key is inferred when supported.                           |
+| Variable                  | Purpose                                                                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set; otherwise defaults to local Chrome.                                                      |
+| `BROWSERBASE_API_KEY`     | Required for the Browserbase backend.                                                                                                                                         |
+| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                                                                                              |
+| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods called inside `run`.                                                                                                                  |
+| `STAGEHAND_MODEL_API_KEY` | Key for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; MCP examples require this variable because their child processes do not receive provider credentials. |
 
 Each framework has a separate variable for the agent's model. The agent model decides which tool to call; the optional Stagehand model powers AI methods such as `act`, `extract`, or `observe` when code passed to `run` uses them.
 

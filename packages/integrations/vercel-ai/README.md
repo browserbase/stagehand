@@ -38,15 +38,15 @@ export BROWSERBASE_API_KEY="your-key"
 
 ## Configuration
 
-| Variable                  | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model. Defaults to `gpt-5.6-luna`.                           |
-| `OPENAI_API_KEY`          | Credential for the AI SDK agent. It stays in the host process.            |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset. |
-| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                 |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                          |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`.                                  |
+| Variable                  | Purpose                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model. Defaults to `gpt-5.6-luna`.                                                  |
+| `OPENAI_API_KEY`          | Credential for the AI SDK agent. It stays in the host process.                                   |
+| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.                        |
+| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                                        |
+| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                 |
+| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                                       |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
 
 ## Verify the integration
 

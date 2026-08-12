@@ -1,6 +1,6 @@
 # CrewAI + Stagehand codemode tools
 
-Give a CrewAI agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. CrewAI connects to the shared codemode tool server over MCP/stdio, so browser state survives across tool calls.
+Give a CrewAI agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. CrewAI connects to the Stagehand facade server over MCP/stdio, so browser state survives across tool calls.
 
 ## Prerequisites
 
@@ -49,15 +49,15 @@ export BROWSERBASE_API_KEY="your-key"
 
 ## Configuration
 
-| Variable                  | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `CREWAI_MODEL`            | CrewAI agent model. Defaults to `openai/gpt-5.6-luna`.                    |
-| `OPENAI_API_KEY`          | Credential for the default CrewAI model. It stays in the CrewAI process.  |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset. |
-| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                 |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                          |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`.                                  |
+| Variable                  | Purpose                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `CREWAI_MODEL`            | CrewAI agent model. Defaults to `openai/gpt-5.6-luna`.                                           |
+| `OPENAI_API_KEY`          | Credential for the default CrewAI model. It stays in the CrewAI process.                         |
+| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.                        |
+| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                                        |
+| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                 |
+| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                                       |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
 
 ## Verify the integration
 

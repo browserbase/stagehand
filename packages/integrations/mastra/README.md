@@ -1,6 +1,6 @@
 # Mastra + Stagehand codemode tools
 
-Give a Mastra agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. Mastra connects to the shared codemode tool server over MCP/stdio, so the same contract can be reused in other MCP-capable frameworks.
+Give a Mastra agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. Mastra connects to the shared codemode tool server over MCP/stdio, so other MCP-capable frameworks can reuse the same contract.
 
 ## Prerequisites
 
@@ -35,15 +35,15 @@ export BROWSERBASE_API_KEY="your-key"
 
 ## Configuration
 
-| Variable                  | Purpose                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model. Defaults to `gpt-5.6-luna`.                           |
-| `OPENAI_API_KEY`          | Credential for the Mastra agent. It stays in the Mastra process.          |
-| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset. |
-| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                 |
-| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                          |
-| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                |
-| `STAGEHAND_MODEL_API_KEY` | Optional key for `STAGEHAND_MODEL_NAME`.                                  |
+| Variable                  | Purpose                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `MASTRA_STAGEHAND_MODEL`  | Mastra agent model. Defaults to `gpt-5.6-luna`.                                                  |
+| `OPENAI_API_KEY`          | Credential for the Mastra agent. It stays in the Mastra process.                                 |
+| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.                        |
+| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                                        |
+| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                 |
+| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                                       |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
 
 ## Verify the integration
 

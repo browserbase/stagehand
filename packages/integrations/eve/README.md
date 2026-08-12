@@ -46,7 +46,7 @@ corepack pnpm@11.10.0 --dir packages/integrations/eve dev
 | `STAGEHAND_MODEL_API_KEY`    | Optional key for `STAGEHAND_MODEL_NAME`.                                                            |
 | `STAGEHAND_EVE_SESSION_FILE` | Optional file used to persist a Browserbase session ID. Defaults to the system temporary directory. |
 
-If a Google provider key is set and `STAGEHAND_MODEL_NAME` is unset, the Stagehand model defaults to `google/gemini-3.6-flash`.
+If you set a Google provider key and leave `STAGEHAND_MODEL_NAME` unset, Stagehand defaults the model to `google/gemini-3.6-flash`.
 
 ## Verify the integration
 
