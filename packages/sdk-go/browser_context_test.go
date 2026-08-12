@@ -2,6 +2,9 @@ package stagehand
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -112,4 +115,67 @@ func TestBrowserContextClipboardInitializesOnceConcurrently(t *testing.T) {
 			t.Fatalf("Clipboard() returned distinct helpers: %p and %p", first, clipboard)
 		}
 	}
+}
+
+func TestBrowserContextStorageStateRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	cookie := Cookie{
+		Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+		Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSiteLax,
+	}
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.cookies":        ContextCookiesResult{cookie},
+		"context.clear_cookies":  ContextVoidResult{Ok: true},
+		"context.add_cookies":    ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+
+	state, err := browserContext.StorageState(context.Background(), &StorageStateOptions{Path: path})
+	if err != nil {
+		t.Fatalf("StorageState() error = %v", err)
+	}
+	if len(state.Cookies) != 1 || state.Cookies[0].Name != "session" || len(state.Origins) != 0 {
+		t.Fatalf("StorageState() = %#v", state)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if !containsAll(string(raw), `"httpOnly": true`, `"origins": []`) {
+		t.Fatalf("written storage state = %s", raw)
+	}
+
+	if err := browserContext.SetStorageStatePath(context.Background(), path); err != nil {
+		t.Fatalf("SetStorageStatePath() error = %v", err)
+	}
+	if got := methods(rpc); len(got) < 3 ||
+		got[0] != "context.cookies" ||
+		got[1] != "context.clear_cookies" ||
+		got[2] != "context.add_cookies" {
+		t.Fatalf("rpc methods = %#v", got)
+	}
+	params, ok := rpc.calls[2].params.(ContextAddCookiesParams)
+	if !ok || len(params.Cookies) != 1 || params.Cookies[0].HTTPOnly == nil || !*params.Cookies[0].HTTPOnly {
+		t.Fatalf("AddCookies() params = %#v", rpc.calls[2].params)
+	}
+}
+
+func methods(rpc *recordingProtocolClient) []string {
+	out := make([]string, len(rpc.calls))
+	for index, call := range rpc.calls {
+		out[index] = call.method
+	}
+	return out
+}
+
+func containsAll(value string, parts ...string) bool {
+	for _, part := range parts {
+		if !strings.Contains(value, part) {
+			return false
+		}
+	}
+	return true
 }

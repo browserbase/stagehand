@@ -295,6 +295,51 @@ await browser.context.clearCookies({ domain: "example.com" });
   Resolves after the operation completes.
 </ResponseField>
 
+## storageState()
+
+Export cookies for this context in a Playwright-compatible storage state shape. Cookies come from CDP, so HttpOnly session cookies are included. `origins` is reserved for future localStorage support and is always `[]` today.
+
+```typescript
+const state = await browser.context.storageState({ path: "auth.json" });
+```
+
+<ParamField path="options" type="StorageStateOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.path" type="string" optional>
+    When set, also write the storage state JSON to this path (Node.js only).
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<StorageState>">
+  The storage state object.
+
+  <ResponseField name="result.cookies" type="Cookie[]">
+    Cookies currently stored in the browser context.
+  </ResponseField>
+
+  <ResponseField name="result.origins" type="StorageStateOrigin[]">
+    Always empty today. Reserved for future origin-scoped localStorage export.
+  </ResponseField>
+</ResponseField>
+
+## setStorageState()
+
+Replace cookies in this context from a storage state object or JSON file. Clears existing cookies first. Entries under `origins` are ignored until localStorage support lands.
+
+```typescript
+await browser.context.setStorageState("auth.json");
+// or: await browser.context.setStorageState(state);
+```
+
+<ParamField path="state" type="StorageState | string">
+  A storage state object, or a path to a Playwright-compatible JSON file (Node.js only).
+</ParamField>
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the cookies are replaced.
+</ResponseField>
+
 </Tab>
 
 <Tab title="Python">
@@ -573,6 +618,47 @@ await browser.context.clear_cookies(domain="example.com")
 
 <ResponseField name="result" type="None">
   Resolves after the operation completes.
+</ResponseField>
+
+## storage_state()
+
+Export cookies for this context in a Playwright-compatible storage state shape. Cookies come from CDP, so HttpOnly session cookies are included. `origins` is reserved for future localStorage support and is always `[]` today.
+
+```python
+state = await browser.context.storage_state(path="auth.json")
+```
+
+<ParamField path="path" type="str | Path | None" optional>
+  When set, also write the storage state JSON to this path.
+</ParamField>
+
+<ResponseField name="result" type="StorageState">
+  The storage state object.
+
+  <ResponseField name="result.cookies" type="list[Cookie]">
+    Cookies currently stored in the browser context.
+  </ResponseField>
+
+  <ResponseField name="result.origins" type="list[StorageStateOrigin]">
+    Always empty today. Reserved for future origin-scoped localStorage export.
+  </ResponseField>
+</ResponseField>
+
+## set_storage_state()
+
+Replace cookies in this context from a storage state object or JSON file. Clears existing cookies first. Entries under `origins` are ignored until localStorage support lands.
+
+```python
+await browser.context.set_storage_state("auth.json")
+# or: await browser.context.set_storage_state(state)
+```
+
+<ParamField path="state" type="StorageState | str | Path | Mapping[str, object]">
+  A storage state object, or a path to a Playwright-compatible JSON file.
+</ParamField>
+
+<ResponseField name="result" type="None">
+  Resolves after the cookies are replaced.
 </ResponseField>
 
 </Tab>
@@ -952,6 +1038,68 @@ if err := browserContext.ClearCookies(ctx, &stagehand.ClearCookieOptions{Domain:
 
 <ResponseField name="result" type="error">
   `nil` after the operation completes.
+</ResponseField>
+
+## StorageState()
+
+Export cookies for this context in a Playwright-compatible storage state shape. Cookies come from CDP, so HttpOnly session cookies are included. `Origins` is reserved for future localStorage support and is always empty today.
+
+```go
+func (c *BrowserContext) StorageState(ctx context.Context, options *StorageStateOptions) (StorageState, error)
+```
+
+```go
+state, err := browserContext.StorageState(ctx, &stagehand.StorageStateOptions{Path: "auth.json"})
+if err != nil {
+    return err
+}
+```
+
+<ParamField path="options" type="*StorageStateOptions" optional>
+  Options that configure this operation. Pass `nil` to return the state without writing a file.
+
+  <ParamField path="options.Path" type="string" optional>
+    When non-empty, also write the storage state JSON to this path.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="StorageState">
+  The storage state object.
+
+  <ResponseField name="result.Cookies" type="[]Cookie">
+    Cookies currently stored in the browser context.
+  </ResponseField>
+
+  <ResponseField name="result.Origins" type="[]StorageStateOrigin">
+    Always empty today. Reserved for future origin-scoped localStorage export.
+  </ResponseField>
+</ResponseField>
+
+## SetStorageState() / SetStorageStatePath()
+
+Replace cookies in this context from a storage state object or JSON file. Clears existing cookies first. Entries under `Origins` are ignored until localStorage support lands.
+
+```go
+func (c *BrowserContext) SetStorageState(ctx context.Context, state StorageState) error
+func (c *BrowserContext) SetStorageStatePath(ctx context.Context, path string) error
+```
+
+```go
+if err := browserContext.SetStorageStatePath(ctx, "auth.json"); err != nil {
+    return err
+}
+```
+
+<ParamField path="state" type="StorageState">
+  A storage state object for `SetStorageState`.
+</ParamField>
+
+<ParamField path="path" type="string">
+  A path to a Playwright-compatible JSON file for `SetStorageStatePath`.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the cookies are replaced.
 </ResponseField>
 
 </Tab>
