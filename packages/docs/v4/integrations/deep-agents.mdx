@@ -11,7 +11,7 @@ The Deep Agents integration provides two deployment patterns with the same `run`
 | Managed | Native Python tools | One Browserbase runtime per managed thread |
 
 <Note>
-This experimental integration runs from the Stagehand repository and is not published as a standalone adapter.
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
 </Note>
 
 ## Run locally
@@ -51,6 +51,11 @@ uv run --project examples/local --locked \
 ```
 
 Run `agents2.py` for a structured-output form-filling example that uses mock data and does not submit the form.
+
+```bash
+uv run --project examples/local --locked \
+  python examples/local/agents2.py
+```
   </Step>
 </Steps>
 
@@ -62,7 +67,7 @@ Run `agents2.py` for a structured-output form-filling example that uses mock dat
 | `STAGEHAND_HEADLESS` | `false` | Run local Chrome headlessly. |
 | `STAGEHAND_START_URL` | Unset | Open a URL when the MCP server starts. |
 | `STAGEHAND_MODEL` | Unset | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Unset | Optional credential for `STAGEHAND_MODEL`. |
+| `STAGEHAND_MODEL_API_KEY` | Unset | Required with `STAGEHAND_MODEL`; the MCP child does not receive agent-provider credentials. |
 | `STAGEHAND_API_URL` | Unset | Optional Stagehand Model Gateway URL. |
 | `STAGEHAND_RUN_TIMEOUT_MS` | `60000` | Timeout for JavaScript and snapshot-action batches. |
 | `BROWSERBASE_API_KEY` | Unset | Required for Browserbase. |
@@ -97,7 +102,7 @@ uv run mda deploy .
   </Step>
 </Steps>
 
-Browser state remains available while the managed worker is warm. Durable reconnection after worker replacement is not implemented yet.
+Browser state remains available while the managed worker is warm. Stagehand does not yet support durable reconnection after a worker replacement.
 
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).

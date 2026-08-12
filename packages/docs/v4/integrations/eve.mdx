@@ -6,7 +6,7 @@ description: "Give an Eve agent native Stagehand Code Mode tools backed by one d
 The Eve integration binds `run`, `snapshot`, and `screenshot` as native in-process tools. It does not start an MCP server or bridge process.
 
 <Note>
-This experimental integration runs from the Stagehand repository and is not published as a standalone adapter.
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
 </Note>
 
 ## Prerequisites
@@ -23,7 +23,7 @@ This experimental integration runs from the Stagehand repository and is not publ
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install
+corepack pnpm@11.10.0 install --frozen-lockfile
 corepack pnpm@11.10.0 exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
@@ -38,7 +38,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 Set `EVE_STAGEHAND_MODEL` to select another Eve model.
   </Step>
   <Step title="Choose the browser">
-Local Chrome is used by default. To use Browserbase instead:
+The example uses local Chrome by default. To use Browserbase instead:
 
 ```bash
 export STAGEHAND_BROWSER="browserbase"
@@ -49,6 +49,15 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
 ```bash
 corepack pnpm@11.10.0 --dir packages/integrations/eve dev
 ```
+  </Step>
+  <Step title="Run a browser task">
+At Eve's `>` terminal prompt, enter:
+
+```text
+Open https://example.com and report the page title.
+```
+
+Eve uses the `run` tool and should report `Example Domain` before returning to the prompt.
   </Step>
 </Steps>
 
@@ -62,17 +71,17 @@ corepack pnpm@11.10.0 --dir packages/integrations/eve dev
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
-| `STAGEHAND_EVE_SESSION_FILE` | Optional file used to persist a Browserbase session ID. Defaults to the system temporary directory. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`; Eve can infer a supported provider key. |
+| `STAGEHAND_EVE_SESSION_FILE` | Optional file where Eve persists a Browserbase session ID. Defaults to the system temporary directory. |
 
 ## Session lifecycle
 
-One Eve world process owns one shared browser. Concurrent Eve sessions in that process share pages, authentication, and other browser state, so this example is intended for single-session use.
+One Eve world process owns one shared browser. Use this example for a single Eve session because concurrent sessions in the process share pages, authentication, and other browser state.
 
 On Browserbase, the example creates a `keepAlive` session and writes its ID to a temporary file. A process restart reattaches to the stored session instead of silently creating another one. Tool errors do not reset a healthy browser.
 
 <Warning>
-A Browserbase keep-alive session continues running and can continue billing until it is reattached, released through Browserbase, or reaches the project timeout.
+A Browserbase keep-alive session continues running and can continue billing until Eve reattaches it, you release it through Browserbase, or the project timeout ends it.
 </Warning>
 
 `run` executes model-authored JavaScript in the browser. For untrusted tasks, review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).

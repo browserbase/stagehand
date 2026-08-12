@@ -6,7 +6,7 @@ description: "Give a CrewAI agent persistent Stagehand Code Mode tools over MCP/
 The CrewAI integration connects a Python agent to the shared Stagehand Code Mode server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
-This experimental integration runs from the Stagehand repository and is not published as a standalone adapter.
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
 </Note>
 
 ## Prerequisites
@@ -25,7 +25,7 @@ This experimental integration runs from the Stagehand repository and is not publ
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install
+corepack pnpm@11.10.0 install --frozen-lockfile
 corepack pnpm@11.10.0 exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
@@ -46,7 +46,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 Set `CREWAI_MODEL` to use another model supported by CrewAI.
   </Step>
   <Step title="Choose the browser">
-Local Chrome is used by default. To use Browserbase instead:
+The integration uses local Chrome by default. To use Browserbase instead:
 
 ```bash
 export STAGEHAND_BROWSER="browserbase"
@@ -66,12 +66,12 @@ uv run python agent.py \
 | Variable | Purpose |
 | --- | --- |
 | `CREWAI_MODEL` | CrewAI agent model. |
-| `OPENAI_API_KEY` | Credential for the example's default agent model. It is not forwarded to the MCP child. |
+| `OPENAI_API_KEY` | Credential for the example's default agent model. CrewAI does not forward it to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
 
 ## Screenshot behavior
 

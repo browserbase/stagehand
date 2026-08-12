@@ -10,7 +10,7 @@ Building with Eve? Use the [native Eve integration](/v4/integrations/eve) to run
 </Tip>
 
 <Note>
-This experimental integration runs from the Stagehand repository and is not published as a standalone adapter.
+Stagehand ships this experimental integration from its repository and does not publish it as a standalone adapter.
 </Note>
 
 ## Prerequisites
@@ -27,7 +27,7 @@ This experimental integration runs from the Stagehand repository and is not publ
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install
+corepack pnpm@11.10.0 install --frozen-lockfile
 corepack pnpm@11.10.0 exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
@@ -40,7 +40,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 Set `AI_SDK_STAGEHAND_MODEL` to select another model supported by the example.
   </Step>
   <Step title="Choose the browser">
-Local Chrome is used by default. To use Browserbase instead:
+The example uses local Chrome by default. To use Browserbase instead:
 
 ```bash
 export STAGEHAND_BROWSER="browserbase"
@@ -60,12 +60,12 @@ corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai start -- \
 | Variable | Purpose |
 | --- | --- |
 | `AI_SDK_STAGEHAND_MODEL` | AI SDK agent model. |
-| `OPENAI_API_KEY` | Credential for the example agent. It is not forwarded to the MCP child. |
+| `OPENAI_API_KEY` | Credential for the example agent. The AI SDK process does not forward it to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
 
 ## Keep the browser session alive
 

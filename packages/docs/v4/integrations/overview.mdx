@@ -7,7 +7,7 @@ description: "Connect CrewAI, Deep Agents, Eve, Mastra, or the Vercel AI SDK to 
 Stagehand's Code Mode integrations give an agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Use an integration when you want an agent framework to decide how to navigate and interact while Stagehand owns the browser session.
 
 <Info>
-These integrations are experimental and currently run from the Stagehand monorepo. The adapters and shared Code Mode package are not published as standalone packages.
+Stagehand ships these experimental integrations from the monorepo and does not publish the adapters or shared Code Mode package as standalone packages.
 </Info>
 
 ## Choose an integration
@@ -36,7 +36,7 @@ Every integration exposes the same browser capabilities.
 
 <AccordionGroup>
   <Accordion title="snapshot">
-    Read a compact accessibility tree for the active page. Interactive elements include bracketed IDs that can be passed to `run` actions.
+    Read a compact accessibility tree for the active page. Pass the bracketed IDs on interactive elements to `run` actions.
 
     IDs are valid only for the latest snapshot of the active page. Take another snapshot after navigation or when an ID becomes stale.
   </Accordion>
@@ -68,7 +68,7 @@ The tools share a browser for the lifetime of the integration's client session. 
 
 The CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve and Managed Deep Agents bind equivalent tools in-process.
 
-The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server used by the TypeScript integrations and CrewAI.
+The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
 
 <Warning>
 Do not create a new MCP process for every tool call. Doing so starts a new browser and invalidates any snapshot IDs from the previous call.
@@ -83,7 +83,7 @@ CrewAI, Eve, Mastra, and the Vercel AI SDK use the shared TypeScript Code Mode s
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install
+corepack pnpm@11.10.0 install --frozen-lockfile
 ```
   </Step>
   <Step title="Build the shared Code Mode package">
@@ -99,7 +99,7 @@ Follow the page for your framework to install its remaining dependencies, config
 
 ## Choose a browser
 
-The examples use local Chrome when `BROWSERBASE_API_KEY` is not set. A current Google Chrome installation is required for local mode.
+The examples use local Chrome when you leave `BROWSERBASE_API_KEY` unset. Local mode requires a current Google Chrome installation.
 
 Set these variables to use a disposable Browserbase browser instead:
 
@@ -114,9 +114,9 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript Code Mode tools. |
-| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
+| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; the MCP examples require this variable. |
 
-The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. A Stagehand model is needed only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
+The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. Configure a Stagehand model only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
 
 ## Security boundary
 
