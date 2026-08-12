@@ -1,8 +1,6 @@
 /**
  * Keep this file in sync with:
  * - /packages/core/lib/v3/runtimePaths.ts
- * - /packages/server-v3/scripts/runtimePaths.ts
- * - /packages/server-v4/scripts/runtimePaths.ts
  * - /packages/evals/runtimePaths.ts
  * - /packages/docs/scripts/runtimePaths.js
  */
@@ -35,9 +33,7 @@ const readCallsites = (): NodeJS.CallSite[] => {
   const previousPrepare = Error.prepareStackTrace;
   try {
     Error.prepareStackTrace = (_, stack) => stack;
-    return (
-      (new Error().stack as unknown as NodeJS.CallSite[] | undefined) ?? []
-    );
+    return (new Error().stack as unknown as NodeJS.CallSite[] | undefined) ?? [];
   } finally {
     Error.prepareStackTrace = previousPrepare;
   }
@@ -49,8 +45,7 @@ type CallSiteWithScriptName = NodeJS.CallSite & {
 
 const readCallsitePath = (callsite: NodeJS.CallSite): string | null => {
   const callsiteWithScript = callsite as CallSiteWithScriptName;
-  const rawPath =
-    callsite.getFileName() ?? callsiteWithScript.getScriptNameOrSourceURL?.();
+  const rawPath = callsite.getFileName() ?? callsiteWithScript.getScriptNameOrSourceURL?.();
   if (!rawPath) return null;
   if (rawPath.startsWith("node:")) return null;
   if (EVAL_FRAMES.has(rawPath)) return null;
@@ -98,8 +93,7 @@ const resolveCallerFilePath = (): string => {
 
 export const getCurrentFilePath = (): string => resolveCallerFilePath();
 
-export const getCurrentDirPath = (): string =>
-  path.dirname(getCurrentFilePath());
+export const getCurrentDirPath = (): string => path.dirname(getCurrentFilePath());
 
 export const getRepoRootDir = (): string => {
   const currentFilePath = getCurrentFilePath();
@@ -112,13 +106,9 @@ export const getRepoRootDir = (): string => {
   return currentFilePath.slice(0, index);
 };
 
-export const getPackageRootDir = (): string =>
-  `${getRepoRootDir()}${PACKAGE_SEGMENT.slice(0, -1)}`;
+export const getPackageRootDir = (): string => `${getRepoRootDir()}${PACKAGE_SEGMENT.slice(0, -1)}`;
 
-export const resolveRuntimeTasksRoot = (
-  callerFilePath: string,
-  packageRootDir: string,
-): string => {
+export const resolveRuntimeTasksRoot = (callerFilePath: string, packageRootDir: string): string => {
   const normalizedCaller = normalizePath(callerFilePath);
   if (normalizedCaller.includes("/dist/")) {
     const compiledTasksRoot = `${packageRootDir}/dist/esm/tasks`;
@@ -131,8 +121,7 @@ export const resolveRuntimeTasksRoot = (
 export const getRuntimeTasksRoot = (): string =>
   resolveRuntimeTasksRoot(getCurrentFilePath(), getPackageRootDir());
 
-export const createRequireFromCaller = () =>
-  createRequire(getCurrentFilePath());
+export const createRequireFromCaller = () => createRequire(getCurrentFilePath());
 
 export const isMainModule = (): boolean => {
   const entryScript = process.argv.at(1);

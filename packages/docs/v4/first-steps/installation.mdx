@@ -1,0 +1,302 @@
+---
+title: "Installation"
+description: "Add Stagehand to an existing project."
+---
+
+Install Stagehand in your current app.
+
+<Tip>
+Node.js is the recommended runtime environment for Stagehand scripts. Stagehand requires Node.js 22.18 or later, Python 3.11 or later, or Go 1.26 or later.
+
+**Bun is supported.** Stagehand drives the browser over the Chrome DevTools Protocol and has no Playwright dependency, so there is no runtime caveat.
+</Tip>
+
+### Install dependencies
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+pnpm install @browserbasehq/stagehand zod
+# npm add @browserbasehq/stagehand zod
+# yarn add @browserbasehq/stagehand zod
+# bun add @browserbasehq/stagehand zod
+```
+</Tab>
+
+<Tab title="Python">
+```bash
+pip install stagehand
+# uv add stagehand
+# poetry add stagehand
+```
+</Tab>
+
+<Tab title="Go">
+```bash
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
+```
+</Tab>
+</Tabs>
+
+<Tip>
+If you plan to run locally, you need to have [Chrome](https://www.google.com/chrome/) installed on your machine. For cloud browser sessions, skip this.
+</Tip>
+
+### Configure environment
+
+Set your Browserbase API key. When no model is configured, Model Gateway selects one automatically, so no model provider key is required:
+
+```bash
+export BROWSERBASE_API_KEY=your_api_key
+```
+
+<Note>
+Stagehand does not read environment variables on your behalf, and it does not auto-load env files.
+
+This also applies to API routing: pass non-production Browserbase and Stagehand API URLs explicitly rather than setting `BROWSERBASE_BASE_URL` or `STAGEHAND_API_URL`. See [API endpoint overrides](/v4/configuration/browser#api-endpoint-overrides).
+</Note>
+
+Read the values in your own app code and pass them explicitly to the browser factory:
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+// Optional: install dotenv first (pnpm add dotenv), then load an env file yourself
+import "dotenv/config";
+
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+});
+const stagehand = await Stagehand.create({ browser });
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+)
+stagehand = await Stagehand.create(browser=browser)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+// Every optional field is a pointer, so read your key into a variable first
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+if err != nil {
+	return err
+}
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+```
+</Tab>
+</Tabs>
+
+### Use in your codebase
+
+Add Stagehand where you need browser automation.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+async function main() {
+  const browser = await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+  });
+  try {
+    const stagehand = await Stagehand.create({ browser });
+    try {
+      const [page] = await browser.context.pages();
+
+      await page.goto("https://example.com");
+
+      // Act on the page
+      await stagehand.act("Click the learn more button");
+
+      // Extract structured data
+      const { data } = await stagehand.extract(
+        "extract the description",
+        z.object({ description: z.string() }),
+      );
+
+      console.log(data.description);
+    } finally {
+      await stagehand.close();
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand, browserbase
+
+class Description(BaseModel):
+    description: str
+
+async def main() -> None:
+    browser = await browserbase.launch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+    )
+    try:
+        stagehand = await Stagehand.create(browser=browser)
+        try:
+            page = (await browser.context.pages())[0]
+
+            await page.goto("https://example.com")
+
+            # Act on the page
+            await stagehand.act("Click the learn more button")
+
+            # Extract structured data
+            result = await stagehand.extract(
+                "extract the description",
+                Description,
+            )
+
+            print(result.data.description)
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+asyncio.run(main())
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+type description struct {
+	Description string `json:"description"`
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+		Browser: browser,
+	})
+	if err != nil {
+		return err
+	}
+
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	pages, err := browserContext.Pages(ctx)
+	if err != nil {
+		return err
+	}
+	if len(pages) == 0 {
+		return errors.New("Stagehand initialized without an active page")
+	}
+	page := pages[0]
+
+	if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+		return err
+	}
+
+	// Act on the page
+	if _, err := client.Act(ctx, stagehand.ActInstruction("Click the learn more button"), nil); err != nil {
+		return err
+	}
+
+	// Extract structured data
+	extracted, err := stagehand.Extract[description](
+		ctx,
+		client,
+		"extract the description",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(extracted.Data.Description)
+	return nil
+}
+```
+</Tab>
+</Tabs>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/v4/configuration/browser"
+  >
+    Browser sources, Browserbase vs local, logging, timeouts, LLM customization
+  </Card>
+  <Card
+    title="Act"
+    icon="arrow-pointer"
+    href="/v4/basics/act"
+  >
+    Perform precise actions with natural language
+  </Card>
+  <Card
+    title="Extract"
+    icon="download"
+    href="/v4/basics/extract"
+  >
+    Typed data extraction with schemas
+  </Card>
+  <Card
+    title="Observe"
+    icon="eye"
+    href="/v4/basics/observe"
+  >
+    Discover elements and suggested actions
+  </Card>
+</CardGroup>

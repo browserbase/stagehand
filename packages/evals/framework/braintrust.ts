@@ -36,10 +36,7 @@ const NOOP_SPAN: SpanLike = {
   log: () => {},
 };
 
-export async function tracedSpan<T>(
-  fn: TracedFn<T>,
-  options: TracedSpanOptions,
-): Promise<T> {
+export async function tracedSpan<T>(fn: TracedFn<T>, options: TracedSpanOptions): Promise<T> {
   if (!hasBraintrustApiKey()) {
     return fn(NOOP_SPAN);
   }

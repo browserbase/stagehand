@@ -1,9 +1,6 @@
 import sharp from "sharp";
 
-export async function imageResize(
-  img: Buffer,
-  scaleFactor: number,
-): Promise<Buffer> {
+export async function imageResize(img: Buffer, scaleFactor: number): Promise<Buffer> {
   const metadata = await sharp(img).metadata();
 
   if (metadata.width && metadata.height) {

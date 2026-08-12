@@ -13,19 +13,19 @@ import { printModelSummary, printResultsTable } from "../results.js";
 import { renderPreview } from "../preview.js";
 import { discoverTasks, resolveTarget } from "../../framework/discovery.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
-import {
-  buildBenchMatrixRow,
-  generateBenchTestcases,
-} from "../../framework/benchPlanner.js";
+import { buildBenchMatrixRow, generateBenchTestcases } from "../../framework/benchPlanner.js";
 import type { StartupProfile, ToolSurface } from "../../core/contracts/tool.js";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import type { ResolvedRunOptions } from "./parse.js";
 import { withEnvOverrides } from "./parse.js";
 import { getRuntimeTasksRoot } from "../../runtimePaths.js";
+import { isExecutableBenchHarness, type Harness } from "../../framework/benchTypes.js";
 import {
-  isExecutableBenchHarness,
-  type Harness,
-} from "../../framework/benchTypes.js";
+  armsOverLimit,
+  armsWithUngradedRuns,
+  resolveUnverifiableCriteriaLimit,
+  summarizeArmVerifiability,
+} from "../../framework/verifierGate.js";
 
 type RunProgressEvent = {
   type: "planned" | "started" | "passed" | "failed" | "error";
@@ -36,7 +36,6 @@ type RunProgressEvent = {
   total?: number;
 };
 
-const LEGACY_ONLY_BENCHMARK_TARGETS = new Set(["agent/gaia"]);
 const NUMBER_FORMATTER = new Intl.NumberFormat("en-US");
 
 function formatNumber(value: number): string {
@@ -79,58 +78,28 @@ function buildPlanLine(
   const modelCount = uniqueStringValues(matrix, "model", {
     exclude: ["none"],
   }).length;
-  const modeCount = uniqueStringValues(matrix, "agentMode", {
-    requireTruthy: true,
-  }).length;
-  const modelModeConfigCount = new Set(
-    matrix
-      .filter((row) => row.model !== undefined && row.model !== "none")
-      .map((row) => `${String(row.model)}\u0000${String(row.agentMode ?? "")}`),
-  ).size;
   const harnessCount = uniqueStringValues(matrix, "harness").length;
   const toolSurfaceCount = uniqueStringValues(matrix, "toolSurface", {
     requireTruthy: true,
   }).length;
-  const useSeparateModelAndModeFactors =
-    modelCount > 0 &&
-    modeCount > 0 &&
-    modelModeConfigCount === modelCount * modeCount;
-  const modelModeFactor =
-    modelCount === 0
-      ? 1
-      : useSeparateModelAndModeFactors
-        ? modelCount * modeCount
-        : modelModeConfigCount;
-
   const nonBaseFactors = [
-    modelModeFactor,
+    modelCount === 0 ? 1 : modelCount,
     harnessCount > 1 ? harnessCount : 1,
     toolSurfaceCount > 1 ? toolSurfaceCount : 1,
   ];
-  const nonBaseProduct = nonBaseFactors.reduce(
-    (product, value) => product * value,
-    1,
-  );
-  const canFactorCleanly =
-    nonBaseProduct > 0 && matrixRows % nonBaseProduct === 0;
+  const nonBaseProduct = nonBaseFactors.reduce((product, value) => product * value, 1);
+  const canFactorCleanly = nonBaseProduct > 0 && matrixRows % nonBaseProduct === 0;
   const baseCount = canFactorCleanly ? matrixRows / nonBaseProduct : matrixRows;
   const hasDatasetCases =
     uniqueStringValues(matrix, "dataset", {
       requireTruthy: true,
     }).length > 0;
   const baseLabel =
-    hasDatasetCases || !canFactorCleanly || baseCount !== taskCount
-      ? "case"
-      : "task";
+    hasDatasetCases || !canFactorCleanly || baseCount !== taskCount ? "case" : "task";
 
   const factors = [formatCount(baseCount, baseLabel)];
   if (canFactorCleanly) {
-    if (useSeparateModelAndModeFactors) {
-      factors.push(formatCount(modelCount, "model"));
-      factors.push(formatCount(modeCount, "mode"));
-    } else if (modeCount > 0 && modelModeConfigCount > 0) {
-      factors.push(formatCount(modelModeConfigCount, "model/mode config"));
-    } else if (modelCount > 0) {
+    if (modelCount > 0) {
       factors.push(formatCount(modelCount, "model"));
     }
     if (harnessCount > 1) factors.push(formatCount(harnessCount, "harness"));
@@ -165,28 +134,6 @@ function buildRunContextLine(
   return parts.join("  ");
 }
 
-function isExplicitLegacyOnlyTarget(target?: string): boolean {
-  return Boolean(target && LEGACY_ONLY_BENCHMARK_TARGETS.has(target));
-}
-
-function splitLegacyOnlyTasks(tasks: DiscoveredTask[]): {
-  runnableTasks: DiscoveredTask[];
-  skippedTasks: DiscoveredTask[];
-} {
-  const runnableTasks: DiscoveredTask[] = [];
-  const skippedTasks: DiscoveredTask[] = [];
-
-  for (const task of tasks) {
-    if (LEGACY_ONLY_BENCHMARK_TARGETS.has(task.name)) {
-      skippedTasks.push(task);
-    } else {
-      runnableTasks.push(task);
-    }
-  }
-
-  return { runnableTasks, skippedTasks };
-}
-
 export async function runCommand(
   options: ResolvedRunOptions,
   registry?: TaskRegistry,
@@ -212,8 +159,10 @@ export async function runCommand(
     throw err;
   }
 
-  if (isExplicitLegacyOnlyTarget(options.normalizedTarget)) {
-    const message = `Benchmark "${options.normalizedTarget}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`;
+  if (tasks.length === 0) {
+    const message = options.normalizedTarget
+      ? `No runnable tasks found matching "${options.normalizedTarget}".`
+      : "No runnable tasks found.";
     if (planMode) {
       await emitDryRun(options, tasks, registry, message);
       process.exitCode = 1;
@@ -222,40 +171,18 @@ export async function runCommand(
     throw new Error(message);
   }
 
-  const { runnableTasks, skippedTasks } = splitLegacyOnlyTasks(tasks);
-  tasks = runnableTasks;
-
-  if (tasks.length === 0) {
-    const message = options.normalizedTarget
-      ? `No runnable tasks found matching "${options.normalizedTarget}".`
-      : "No runnable tasks found.";
-    if (planMode) {
-      await emitDryRun(options, tasks, registry, message, skippedTasks);
-      process.exitCode = 1;
-      return;
-    }
-    throw new Error(message);
-  }
-
-  if (
-    options.useApi &&
-    options.harness !== "stagehand" &&
-    tasks.some((t) => t.tier === "bench")
-  ) {
+  if (options.useApi && options.harness !== "stagehand" && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
       `Harness "${options.harness}" does not support --api. Use --harness stagehand for API-backed bench runs.`,
     );
   }
 
   if (planMode) {
-    await emitDryRun(options, tasks, registry, undefined, skippedTasks);
+    await emitDryRun(options, tasks, registry);
     return;
   }
 
-  if (
-    !canExecuteBenchHarness(options.harness) &&
-    tasks.some((t) => t.tier === "bench")
-  ) {
+  if (!canExecuteBenchHarness(options.harness) && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
       `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
     );
@@ -264,11 +191,6 @@ export async function runCommand(
 
   console.log(`\n  ${bold("Running:")} ${cyan(buildRunTargetLabel(options))}`);
   console.log(`  ${bold("Plan:")} ${buildPlanLine(options, matrix)}`);
-  if (skippedTasks.length > 0) {
-    console.log(
-      `  ${bold("Skipped:")} ${skippedTasks.length} legacy-only task(s) ${dim(skippedTasks.map((task) => task.name).join(", "))}`,
-    );
-  }
   console.log(`  ${buildRunContextLine(options, tasks, matrix)}`);
   console.log(separator());
   console.log("");
@@ -277,10 +199,7 @@ export async function runCommand(
     animated: !options.verbose,
     progressBar: options.verbose,
   });
-  const categoryFilter = deriveCategoryFilter(
-    registry,
-    options.normalizedTarget,
-  );
+  const categoryFilter = deriveCategoryFilter(registry, options.normalizedTarget);
 
   await withEnvOverrides(options.envOverrides, async () => {
     try {
@@ -294,16 +213,11 @@ export async function runCommand(
           environment: options.environment,
           useApi: options.useApi,
           modelOverride: options.model,
-          provider: options.provider,
-          agentMode: options.agentMode,
-          agentModes: options.agentModes,
           harness: options.harness,
           categoryFilter,
           datasetFilter: options.datasetFilter,
           coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
-          coreStartupProfile: options.coreStartupProfile as
-            | StartupProfile
-            | undefined,
+          coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
           verbose: options.verbose,
           signal,
           onProgress: (event: RunProgressEvent) => {
@@ -312,20 +226,14 @@ export async function runCommand(
             } else if (event.type === "started" && event.taskName) {
               progress.onStart(event.taskName, event.modelName);
             } else if (event.type === "passed" && event.taskName) {
-              progress.onPass(
-                event.taskName,
-                event.modelName,
-                event.durationMs,
-              );
+              progress.onPass(event.taskName, event.modelName, event.durationMs);
             } else if (event.type === "failed" && event.taskName) {
               progress.onFail(event.taskName, event.modelName, event.error);
             }
           },
         });
 
-      const result = options.verbose
-        ? await run()
-        : await withSuppressedConsole(run);
+      const result = options.verbose ? await run() : await withSuppressedConsole(run);
 
       progress.printSummary();
 
@@ -333,6 +241,39 @@ export async function runCommand(
         printResultsTable(result.results);
       } else if (result.results.length > 0) {
         printModelSummary(result.results);
+      }
+
+      const arms = summarizeArmVerifiability(result.results, options.harness);
+      const unverifiableLimit = resolveUnverifiableCriteriaLimit();
+      if (arms.length > 0) {
+        for (const arm of arms) {
+          const ungradedSuffix =
+            arm.ungradedRuns > 0 ? `, ${arm.ungradedRuns} ungraded (self-reported)` : "";
+          console.log(
+            dim(
+              `  Verifiability: ${arm.arm} — ${arm.unverifiableCriteria}/${arm.totalCriteria} criteria unverifiable across ${arm.gradedRuns} graded runs${ungradedSuffix}`,
+            ),
+          );
+        }
+        if (unverifiableLimit !== undefined) {
+          const over = armsOverLimit(arms, unverifiableLimit);
+          for (const arm of over) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.unverifiableCriteria} unverifiable criteria (limit ${unverifiableLimit})`,
+            );
+          }
+          // A gated batch must never publish self-reported rows as passes:
+          // any verifier failure fails the batch, whatever the criteria count.
+          const ungraded = armsWithUngradedRuns(arms);
+          for (const arm of ungraded) {
+            console.error(
+              `  ✗ verifiability gate: ${arm.arm} has ${arm.ungradedRuns} ungraded (self-reported) runs`,
+            );
+          }
+          if (over.length > 0 || ungraded.length > 0) {
+            process.exitCode = 1;
+          }
+        }
       }
 
       console.log(dim(`  Experiment: ${result.experimentName}`));
@@ -358,9 +299,7 @@ export function deriveCategoryFilter(
   if (normalizedTarget.includes("/")) {
     return undefined;
   }
-  return registry.byCategory.has(normalizedTarget)
-    ? normalizedTarget
-    : undefined;
+  return registry.byCategory.has(normalizedTarget) ? normalizedTarget : undefined;
 }
 
 export function canExecuteBenchHarness(harness: Harness): boolean {
@@ -384,10 +323,8 @@ async function emitDryRun(
   tasks: DiscoveredTask[],
   registry: TaskRegistry,
   error?: string,
-  skippedTasks: DiscoveredTask[] = [],
 ): Promise<void> {
   const sortedTasks = tasks.map((t) => t.name).sort();
-  const sortedSkippedTasks = skippedTasks.map((t) => t.name).sort();
 
   const envOverrides: Record<string, string> = {};
   for (const key of Object.keys(options.envOverrides).sort()) {
@@ -401,25 +338,32 @@ async function emitDryRun(
     datasetFilter: options.datasetFilter ?? null,
     environment: options.environment,
     harness: options.harness,
-    agentMode: options.agentMode ?? null,
-    agentModes: options.agentModes ?? null,
     model: options.model ?? null,
-    provider: options.provider ?? null,
     trials: options.trials,
     useApi: options.useApi,
     verbose: options.verbose,
   });
 
+  let matrix: Array<Record<string, unknown>> = [];
+  let planError = error;
+  if (!planError) {
+    try {
+      matrix = await buildDryRunMatrix(options, tasks, registry);
+    } catch (matrixError) {
+      planError = matrixError instanceof Error ? matrixError.message : String(matrixError);
+      process.exitCode = 1;
+    }
+  }
+
   const payload: Record<string, unknown> = {
     target: options.target ?? null,
     normalizedTarget: options.normalizedTarget ?? null,
     tasks: sortedTasks,
-    skippedTasks: sortedSkippedTasks,
     envOverrides,
     runOptions,
-    matrix: error ? [] : await buildDryRunMatrix(options, tasks, registry),
+    matrix,
   };
-  if (error) payload.error = error;
+  if (planError) payload.error = planError;
 
   if (options.preview) {
     renderPreview(payload);
@@ -450,24 +394,16 @@ async function buildDryRunMatrix(
 
     const benchTasks = tasks.filter((t) => t.tier === "bench");
     if (benchTasks.length > 0) {
-      const categoryFilter = deriveCategoryFilter(
-        registry,
-        options.normalizedTarget,
-      );
+      const categoryFilter = deriveCategoryFilter(registry, options.normalizedTarget);
       const testcases = generateBenchTestcases(benchTasks, {
         environment: options.environment,
         useApi: options.useApi,
         modelOverride: options.model,
-        provider: options.provider,
         harness: options.harness,
         categoryFilter,
         datasetFilter: options.datasetFilter,
-        agentMode: options.agentMode,
-        agentModes: options.agentModes,
         coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
-        coreStartupProfile: options.coreStartupProfile as
-          | StartupProfile
-          | undefined,
+        coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
       });
 
       for (const testcase of testcases) {
@@ -482,33 +418,23 @@ async function buildDryRunMatrix(
               testcase.input.modelName,
               {
                 ...options,
-                coreToolSurface: options.coreToolSurface as
-                  | ToolSurface
-                  | undefined,
-                coreStartupProfile: options.coreStartupProfile as
-                  | StartupProfile
-                  | undefined,
+                coreToolSurface: options.coreToolSurface as ToolSurface | undefined,
+                coreStartupProfile: options.coreStartupProfile as StartupProfile | undefined,
               },
               testcase.input.params,
-              testcase.input.isCUA,
-              testcase.input.agentMode,
             )
           : undefined;
         rows.push(
           sortKeys({
             tier: testcase.metadata.tier ?? "bench",
             task: testcase.metadata.task ?? testcase.input.name,
-            category:
-              testcase.metadata.task_category ??
-              testcase.metadata.category ??
-              null,
+            category: testcase.metadata.task_category ?? testcase.metadata.category ?? null,
             dataset: testcase.metadata.dataset ?? null,
             model: testcase.input.modelName as AvailableModel,
             harness: testcase.metadata.harness ?? options.harness,
-            agentMode: testcase.input.agentMode ?? null,
             environment: testcase.metadata.environment ?? options.environment,
             useApi: testcase.metadata.api ?? options.useApi,
-            provider: testcase.metadata.provider ?? options.provider ?? null,
+            provider: testcase.metadata.provider ?? null,
             toolSurface: testcase.metadata.toolSurface ?? null,
             startupProfile: testcase.metadata.startupProfile ?? null,
             toolCommand: testcase.metadata.toolCommand ?? null,

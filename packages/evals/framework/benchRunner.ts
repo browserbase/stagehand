@@ -30,14 +30,7 @@ export async function executeBenchTask(
   const logger = new EvalLogger(Boolean(options.verbose));
   const harnessName = options.harness ?? DEFAULT_BENCH_HARNESS;
   const harness = getBenchHarness(harnessName);
-  const row = buildBenchMatrixRow(
-    task,
-    input.modelName,
-    options,
-    input.params,
-    input.isCUA,
-    input.agentMode,
-  );
+  const row = buildBenchMatrixRow(task, input.modelName, options, input.params);
   let cleanup: () => Promise<void> = async () => {};
   let unregisterCleanup: (() => void) | undefined;
   let harnessCtx: BenchHarnessContext | undefined;
@@ -68,8 +61,7 @@ export async function executeBenchTask(
     const taskModule = await loadTaskModuleFromPath(task.filePath, task.name);
     if (taskModule.definition) {
       const ctx = {
-        v3: harnessCtx.v3,
-        agent: harnessCtx.agent,
+        stagehand: harnessCtx.stagehand,
         page: harnessCtx.page,
         logger,
         input,
@@ -77,24 +69,7 @@ export async function executeBenchTask(
         debugUrl: harnessCtx.debugUrl,
         sessionUrl: harnessCtx.sessionUrl,
       };
-      return withBenchSessionUrls(
-        (await taskModule.definition.fn(ctx)) as TaskResult,
-        harnessCtx,
-      );
-    }
-    if (taskModule.legacyFn) {
-      return withBenchSessionUrls(
-        await taskModule.legacyFn({
-          v3: harnessCtx.v3,
-          logger,
-          debugUrl: harnessCtx.debugUrl,
-          sessionUrl: harnessCtx.sessionUrl,
-          modelName: input.modelName,
-          agent: harnessCtx.agent,
-          input,
-        }),
-        harnessCtx,
-      );
+      return withBenchSessionUrls((await taskModule.definition.fn(ctx)) as TaskResult, harnessCtx);
     }
 
     throw new EvalsError(`No valid task export found in ${task.filePath}`);
@@ -117,10 +92,7 @@ export async function executeBenchTask(
     return withBenchSessionUrls(
       {
         _success: false,
-        error:
-          error instanceof Error
-            ? JSON.parse(JSON.stringify(error, null, 2))
-            : String(error),
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
       },
       harnessCtx,

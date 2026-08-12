@@ -1,9 +1,8 @@
 # Stagehand Evals
 
-Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, `combination`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, GAIA).
+Agent benchmarks for Stagehand — `act`, `extract`, `observe`, `agent`, plus dataset-backed suites (WebVoyager, OnlineMind2Web, WebTailBench, Odysseys).
 
 Driven by an interactive TUI (`evals`) or single-shot CLI (`evals run …`). Tasks are auto-discovered from `tasks/bench/<category>/` — no registration step.
-
 
 ## Quickstart
 
@@ -35,14 +34,14 @@ A `.env` in `packages/evals/` is loaded automatically. Provide whichever provide
 
 Inside the REPL (or as `evals <command>` from your shell):
 
-| Command | What it does |
-| --- | --- |
-| `run [target] [options]` | Run evals. Target can be a tier, category, task, or benchmark shorthand. |
-| `list [tier] [--detailed]` | List discovered tasks and categories. |
-| `new <tier> <category> <name>` | Scaffold a new task file. |
-| `config [set\|reset\|path]` | Read or write defaults (env, trials, concurrency, model, …). |
-| `experiments` | Inspect and compare Braintrust experiment runs. |
-| `help` | Show command help. Append `--help` to any command for details. |
+| Command                        | What it does                                                             |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `run [target] [options]`       | Run evals. Target can be a tier, category, task, or benchmark shorthand. |
+| `list [tier] [--detailed]`     | List discovered tasks and categories.                                    |
+| `new <tier> <category> <name>` | Scaffold a new task file.                                                |
+| `config [set\|reset\|path]`    | Read or write defaults (env, trials, concurrency, model, …).             |
+| `experiments`                  | Inspect and compare Braintrust experiment runs.                          |
+| `help`                         | Show command help. Append `--help` to any command for details.           |
 
 Use `Esc` to abort an in-flight run without exiting the REPL.
 
@@ -50,12 +49,12 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 
 `evals run` accepts any of these shapes:
 
-| Target | Meaning |
-| --- | --- |
-| _(none)_ / `all` | All bench tasks |
-| `bench` | Entire bench tier |
-| `act` / `extract` / `observe` / `agent` / `combination` | A category |
-| `extract/extract_text` | A specific task |
+| Target                                                 | Meaning                        |
+| ------------------------------------------------------ | ------------------------------ |
+| _(none)_ / `all`                                       | All bench tasks                |
+| `bench`                                                | Entire bench tier              |
+| `act` / `extract` / `observe` / `agent`                | A category                     |
+| `extract/extract_text`                                 | A specific task                |
 | `b:webvoyager` / `b:onlineMind2Web` / `b:webtailbench` | Dataset-backed benchmark suite |
 
 `evals list` shows everything that's been discovered:
@@ -64,17 +63,16 @@ Use `Esc` to abort an in-flight run without exiting the REPL.
 
 ## Common options
 
-| Flag | Purpose |
-| --- | --- |
-| `-e, --env <local\|browserbase>` | Where the browser runs |
-| `-t, --trials <n>` | Trials per task |
-| `-c, --concurrency <n>` | Max parallel sessions |
-| `-m, --model <id>` / `-p, --provider <name>` | Override the model/provider matrix |
-| `--api` | Run via the Stagehand API instead of the SDK |
-| `--harness <stagehand\|claude_code\|codex>` | Which agent harness drives the bench task |
-| `--agent-mode <dom\|hybrid\|cua>` / `--agent-modes <csv>` | Stagehand agent mode (or matrix) |
-| `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets |
-| `--preview` | Print the resolved plan and exit — no browser, no LLM calls |
+| Flag                                                              | Purpose                                                     |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `-e, --env <local\|browserbase>`                                  | Where the browser runs                                      |
+| `-t, --trials <n>`                                                | Trials per task                                             |
+| `-c, --concurrency <n>`                                           | Max parallel sessions                                       |
+| `-m, --model <id>`                                                | Override the model matrix                                   |
+| `--api`                                                           | Run via the Stagehand API instead of the SDK                |
+| `--harness <stagehand\|claude_code\|codex>`                       | Which agent harness drives the bench task                   |
+| `-l, --limit <n>` / `-s, --sample <n>` / `-f, --filter key=value` | Suite shaping for benchmark targets                         |
+| `--preview`                                                       | Print the resolved plan and exit — no browser, no LLM calls |
 
 Defaults live in `evals.config.json` and can be edited via `evals config set …`.
 

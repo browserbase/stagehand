@@ -2,28 +2,37 @@ import { defineBenchTask } from "../../../framework/defineTask.js";
 
 export default defineBenchTask(
   { name: "iframe_same_proc" },
-  async ({ debugUrl, sessionUrl, v3, logger }) => {
+  async ({ debugUrl, sessionUrl, stagehand, page, logger }) => {
     try {
-      const page = v3.context.pages()[0];
-      await page.goto(
-        "https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/",
-      );
+      await page.goto("https://browserbase.github.io/stagehand-eval-sites/sites/iframe-same-proc/");
 
-      await v3.act("type 'stagehand' into the 'your name' field");
+      await stagehand.act("type 'stagehand' into the 'your name' field");
 
       // overly specific prompting is okay here. we are just trying to evaluate whether
       // we are properly traversing iframes
-      await v3.act(
+      await stagehand.act(
         "select 'Green' from the favorite colour dropdown. Ensure the word 'Green' is capitalized. Choose the selectOption method.",
       );
 
-      const iframe = page.frameLocator("iframe");
+      // v3 used page.frameLocator("iframe") for these assertions; v4 has no
+      // frameLocator, so the same checks are re-expressed in-page via the
+      // same-origin iframe's contentDocument.
+      const { nameValue, colorValue } = await page.evaluate(() => {
+        const doc = document.querySelector("iframe")?.contentDocument;
+        if (!doc) throw new Error("could not access iframe contentDocument");
 
-      const nameValue: string = await iframe
-        .locator('input[placeholder="Alice"]')
-        .inputValue();
+        const name = doc.querySelector('input[placeholder="Alice"]') as HTMLInputElement | null;
+        const color = doc.querySelector("select") as HTMLSelectElement | null;
 
-      const colorValue: string = await iframe.locator("select").inputValue();
+        if (!name || !color) {
+          throw new Error("could not resolve form fields inside the iframe");
+        }
+
+        return {
+          nameValue: name.value,
+          colorValue: color.value,
+        };
+      });
 
       const passed: boolean =
         nameValue.toLowerCase().trim() === "stagehand" &&
@@ -38,13 +47,11 @@ export default defineBenchTask(
     } catch (error) {
       return {
         _success: false,
-        error: error,
+        error: error instanceof Error ? error.message : String(error),
         logs: logger.getLogs(),
         debugUrl,
         sessionUrl,
       };
-    } finally {
-      await v3.close();
     }
   },
 );

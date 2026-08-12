@@ -1,10 +1,9 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: ''
-labels: ''
-assignees: ''
-
+title: ""
+labels: ""
+assignees: ""
 ---
 
 **Is your feature request related to a problem? Please describe.**
@@ -18,6 +17,6 @@ A clear and concise description of any alternative solutions or features you've 
 
 **Are you willing to contribute to implementing this feature or fix?**
 
-- [ ]  Yes, I can submit a PR
-- [ ]  Yes, but I need guidance
-- [ ]  No, I cannot contribute at this time
+- [ ] Yes, I can submit a PR
+- [ ] Yes, but I need guidance
+- [ ] No, I cannot contribute at this time

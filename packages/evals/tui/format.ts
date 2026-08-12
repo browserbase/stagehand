@@ -164,11 +164,7 @@ export function truncateText(s: string, width: number): string {
 
 export function getTerminalWidth(fallback = 100): number {
   const columns = process.stdout.columns;
-  if (
-    typeof columns !== "number" ||
-    !Number.isFinite(columns) ||
-    columns <= 0
-  ) {
+  if (typeof columns !== "number" || !Number.isFinite(columns) || columns <= 0) {
     return fallback;
   }
   return Math.max(60, columns);

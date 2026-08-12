@@ -1,0 +1,294 @@
+---
+title: "Quickstart"
+description: "Build your first Stagehand automation with act, extract, and observe."
+---
+
+The quickest way to start with Stagehand is to install the SDK, point it at a browser, and write a script. This page gets you from an empty directory to a working automation in three steps.
+
+<Steps>
+
+<Step title="Create a sample project">
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+mkdir my-stagehand-app && cd my-stagehand-app
+pnpm init -y
+pnpm install @browserbasehq/stagehand zod
+```
+</Tab>
+
+<Tab title="Python">
+```bash
+mkdir my-stagehand-app && cd my-stagehand-app
+python -m venv .venv && source .venv/bin/activate
+pip install stagehand
+```
+</Tab>
+
+<Tab title="Go">
+```bash
+mkdir my-stagehand-app && cd my-stagehand-app
+go mod init example.com/my-stagehand-app
+go get github.com/browserbase/stagehand/packages/sdk-go/v4@v4.0.0
+```
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step title="Write the script">
+
+Create the example script (`index.ts`, `main.py`, or `main.go`). It exercises all three primitives: act, extract, and observe.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+async function main() {
+  const browser = await browserbase.launch({
+    apiKey: process.env.BROWSERBASE_API_KEY,
+  });
+  try {
+    const stagehand = await Stagehand.create({ browser });
+    console.log("Stagehand session started");
+    try {
+      const [page] = await browser.context.pages();
+
+      await page.goto("https://stagehand.dev");
+
+      const extractResult = await stagehand.extract(
+        "Extract the value proposition from the page.",
+        z.object({ valueProposition: z.string() }),
+      );
+      console.log("Extract result:\n", extractResult.data);
+
+      await stagehand.act("Click the 'Evals' button.");
+
+      const observeResult = await stagehand.observe("What can I click on this page?");
+      console.log("Observe result:\n", observeResult.data);
+    } finally {
+      await stagehand.close();
+    }
+  } finally {
+    await browser.close();
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import asyncio
+import os
+
+from pydantic import BaseModel
+from stagehand import Stagehand, browserbase
+
+
+class ValueProposition(BaseModel):
+    value_proposition: str
+
+
+async def main() -> None:
+    browser = await browserbase.launch(
+        api_key=os.environ["BROWSERBASE_API_KEY"],
+    )
+    try:
+        stagehand = await Stagehand.create(browser=browser)
+        print("Stagehand session started")
+        try:
+            page = (await browser.context.pages())[0]
+
+            await page.goto("https://stagehand.dev")
+
+            extract_result = await stagehand.extract(
+                "Extract the value proposition from the page.",
+                ValueProposition,
+            )
+            print("Extract result:\n", extract_result.data)
+
+            await stagehand.act("Click the 'Evals' button.")
+
+            observe_result = await stagehand.observe("What can I click on this page?")
+            print("Observe result:\n", observe_result.data)
+        finally:
+            await stagehand.close()
+    finally:
+        await browser.close()
+
+
+asyncio.run(main())
+```
+</Tab>
+
+<Tab title="Go">
+```go
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"os"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+type valueProposition struct {
+	ValueProposition string `json:"value_proposition"`
+}
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) (err error) {
+	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+
+	browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{APIKey: apiKey})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, browser.Close(ctx)) }()
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, client.Close(ctx)) }()
+
+	fmt.Println("Stagehand session started")
+
+	browserContext, err := browser.Context()
+	if err != nil {
+		return err
+	}
+	pages, err := browserContext.Pages(ctx)
+	if err != nil {
+		return err
+	}
+	if len(pages) == 0 {
+		return errors.New("Stagehand initialized without an active page")
+	}
+	page := pages[0]
+
+	if _, err := page.Goto(ctx, "https://stagehand.dev", nil); err != nil {
+		return err
+	}
+
+	extracted, err := stagehand.Extract[valueProposition](
+		ctx,
+		client,
+		"Extract the value proposition from the page.",
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Extract result:\n%+v\n", extracted)
+
+	if _, err := client.Act(ctx, stagehand.ActInstruction("Click the 'Evals' button."), nil); err != nil {
+		return err
+	}
+
+	instruction := "What can I click on this page?"
+	observeResult, err := client.Observe(ctx, &instruction, nil)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Observe result:\n%+v\n", observeResult.Data)
+
+	return nil
+}
+```
+</Tab>
+</Tabs>
+
+<Note>
+Stagehand never reads environment variables on your behalf. Read the Browserbase API key in your own code and pass it to the browser factory, as the script above does. With no model configured, Browserbase selects one automatically for each inference call.
+</Note>
+
+</Step>
+
+<Step title="Run it">
+
+Set your Browserbase API key, then run the script. Model Gateway selects and authenticates the model automatically, so no model provider key is required.
+
+<Tabs>
+<Tab title="TypeScript">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+npx tsx index.ts                         # Run the example script
+```
+</Tab>
+
+<Tab title="Python">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+python main.py                           # Run the example script
+```
+</Tab>
+
+<Tab title="Go">
+```bash
+export BROWSERBASE_API_KEY="bb_live_..." # Your Browserbase API key
+go run .                                 # Run the example script
+```
+</Tab>
+</Tabs>
+
+<Tip>
+Prefer to run against a browser on your own machine while you develop? Swap `browserbase.launch()` for `localBrowser.launch()` and drop the Browserbase key. See [Browser configuration](/v4/configuration/browser).
+</Tip>
+
+</Step>
+</Steps>
+
+## Next steps
+
+Learn about the Stagehand primitives: act, extract, and observe.
+
+<CardGroup cols={2}>
+  <Card
+    title="Act"
+    icon="arrow-pointer"
+    href="/v4/basics/act"
+  >
+    Perform actions on web pages with natural language
+  </Card>
+
+  <Card
+    title="Extract"
+    icon="download"
+    href="/v4/basics/extract"
+  >
+    Get structured data with typed schemas
+  </Card>
+
+  <Card
+    title="Observe"
+    icon="eye"
+    href="/v4/basics/observe"
+  >
+    Discover available elements and actions
+  </Card>
+
+  <Card
+    title="Installation"
+    icon="download"
+    href="/v4/first-steps/installation"
+  >
+    Add Stagehand to an existing project
+  </Card>
+</CardGroup>
