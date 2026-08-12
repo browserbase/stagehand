@@ -5,14 +5,14 @@ contributor needs: how the packages fit together, how to run the checks, and wha
 carry before it can be released.
 
 > [!NOTE]
-> For questions or support, join the [Discord community](https://stagehand.dev/discord).
+> For questions or support, join the [Discord community](https://discord.gg/stagehand).
 
 ## Where to start
 
 Browserbase prioritizes reliability, extensibility, speed, and cost, in that order. Bug fixes and
 small improvements are the best way to get started.
 
-For anything larger, raise it in [Discord](https://stagehand.dev/discord) first. A quick
+For anything larger, raise it in [Discord](https://discord.gg/stagehand) first. A quick
 conversation is the best way to confirm the direction fits the roadmap before you invest time in
 building it.
 
