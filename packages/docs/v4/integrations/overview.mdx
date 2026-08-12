@@ -1,0 +1,133 @@
+---
+title: "Code Mode integrations"
+sidebarTitle: "Overview"
+description: "Connect CrewAI, Deep Agents, Eve, Mastra, or the Vercel AI SDK to a persistent Stagehand browser."
+---
+
+Stagehand's Code Mode integrations give an agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Use an integration when you want an agent framework to decide how to navigate and interact while Stagehand owns the browser session.
+
+<Info>
+These integrations are experimental and currently run from the Stagehand monorepo. The adapters and shared Code Mode package are not published as standalone packages.
+</Info>
+
+## Choose an integration
+
+<CardGroup cols={2}>
+  <Card title="CrewAI" icon="users" href="/v4/integrations/crewai">
+    Connect a Python CrewAI agent over MCP/stdio.
+  </Card>
+  <Card title="Deep Agents" icon="diagram-project" href="/v4/integrations/deep-agents">
+    Run locally over MCP or deploy native tools with Managed Deep Agents.
+  </Card>
+  <Card title="Eve" icon="bolt" href="/v4/integrations/eve">
+    Bind native TypeScript tools directly to an Eve agent.
+  </Card>
+  <Card title="Mastra" icon="robot" href="/v4/integrations/mastra">
+    Connect a Mastra agent over MCP/stdio.
+  </Card>
+  <Card title="Vercel AI SDK" icon="code" href="/v4/integrations/vercel-ai-sdk">
+    Use Stagehand tools in a Vercel AI SDK tool loop over MCP/stdio.
+  </Card>
+</CardGroup>
+
+## Tool contract
+
+Every integration exposes the same browser capabilities.
+
+<AccordionGroup>
+  <Accordion title="snapshot">
+    Read a compact accessibility tree for the active page. Interactive elements include bracketed IDs that can be passed to `run` actions.
+
+    IDs are valid only for the latest snapshot of the active page. Take another snapshot after navigation or when an ID becomes stale.
+  </Accordion>
+  <Accordion title="run">
+    Execute JavaScript against Playwright-shaped `page`, `context`, and `browser` objects, or send a batch of actions that reference snapshot IDs.
+
+    `run` accepts exactly one of `code` or `actions`. Snapshot actions support `click`, `hover`, `fill`, `type`, `press`, and `select`.
+
+```json JavaScript
+{
+  "code": "await page.goto('https://example.com'); return await page.title();"
+}
+```
+
+```json Snapshot actions
+{
+  "actions": [{ "op": "click", "id": "1-42" }]
+}
+```
+  </Accordion>
+  <Accordion title="screenshot">
+    Capture the active page as a PNG or JPEG for visual inspection. Frameworks that support multimodal tool results receive the image directly; the CrewAI adapter writes it to a temporary file because its current tool loop is text-only.
+  </Accordion>
+</AccordionGroup>
+
+## How sessions work
+
+The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
+
+The CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve and Managed Deep Agents bind equivalent tools in-process.
+
+The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server used by the TypeScript integrations and CrewAI.
+
+<Warning>
+Do not create a new MCP process for every tool call. Doing so starts a new browser and invalidates any snapshot IDs from the previous call.
+</Warning>
+
+## Run the integrations from source
+
+CrewAI, Eve, Mastra, and the Vercel AI SDK use the shared TypeScript Code Mode server. They require Node.js 24 or newer and pnpm 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+
+<Steps>
+  <Step title="Clone and install Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+corepack pnpm@11.10.0 install
+```
+  </Step>
+  <Step title="Build the shared Code Mode package">
+```bash
+corepack pnpm@11.10.0 exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Open the framework guide">
+Follow the page for your framework to install its remaining dependencies, configure its agent model, and start a task. Deep Agents is a Python-native integration and has its own setup flow.
+  </Step>
+</Steps>
+
+## Choose a browser
+
+The examples use local Chrome when `BROWSERBASE_API_KEY` is not set. A current Google Chrome installation is required for local mode.
+
+Set these variables to use a disposable Browserbase browser instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+
+| Variable | Purpose |
+| --- | --- |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. The TypeScript integrations infer Browserbase when `BROWSERBASE_API_KEY` is set; Deep Agents defaults to local. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript Code Mode tools. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
+
+The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. A Stagehand model is needed only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
+
+## Security boundary
+
+`run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not in the agent host process. That code can control the browser and access anything available in its session.
+
+<Warning>
+Use Browserbase as the isolation boundary for untrusted tasks. Treat authenticated browser sessions and any data reachable from them as privileged.
+</Warning>
+
+The MCP examples forward only Stagehand and Browserbase configuration to the child process. Agent-model credentials remain in the framework process.
+
+<Card title="View all integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations">
+  Browse the shared implementation and all framework examples on GitHub.
+</Card>

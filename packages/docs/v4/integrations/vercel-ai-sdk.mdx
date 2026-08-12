@@ -1,0 +1,82 @@
+---
+title: "Vercel AI SDK"
+description: "Give a Vercel AI SDK agent persistent Stagehand Code Mode tools over MCP/stdio."
+---
+
+The Vercel AI SDK integration connects an AI SDK tool loop to the shared Stagehand Code Mode server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+
+<Tip>
+Building with Eve? Use the [native Eve integration](/v4/integrations/eve) to run the same tool contract in-process.
+</Tip>
+
+<Note>
+This experimental integration runs from the Stagehand repository and is not published as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- An OpenAI API key for the example agent
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+corepack pnpm@11.10.0 install
+corepack pnpm@11.10.0 exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Configure the AI SDK agent">
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Set `AI_SDK_STAGEHAND_MODEL` to select another model supported by the example.
+  </Step>
+  <Step title="Choose the browser">
+Local Chrome is used by default. To use Browserbase instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai start -- \
+  "Open https://example.com and report the page title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `AI_SDK_STAGEHAND_MODEL` | AI SDK agent model. |
+| `OPENAI_API_KEY` | Credential for the example agent. It is not forwarded to the MCP child. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`. |
+
+## Keep the browser session alive
+
+The example connects once with `createMCPClient`, loads the three tools, and closes the client only after the model loop finishes. Keep that lifetime when adapting the example; reconnecting for each call starts another browser and loses previous state.
+
+The MCP child receives only Stagehand and Browserbase configuration plus the process values required to launch Node. The host's model credential remains in the AI SDK process.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Vercel AI SDK integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/vercel-ai">
+  Read the MCP client setup, agent loop, and contract tests.
+</Card>
