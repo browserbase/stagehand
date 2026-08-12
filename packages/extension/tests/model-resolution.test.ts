@@ -133,12 +133,136 @@ describe("model configuration", () => {
   });
 
   describe("direct inference", () => {
-    it.todo("uses direct inference when provider authentication is provided");
-    it.todo("prefers direct inference when using a Browserbase browser with provider auth");
+    it("uses direct inference when provider authentication is provided", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = {
+        modelName: "openai/gpt-5.4-mini" as const,
+        apiKey: "sk-provider",
+      };
+      const controller = createStagehandController(
+        runtimeWith({ model } as StagehandInitParams),
+      );
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+            gateway: undefined,
+          }),
+        );
+      }
+    });
+
+    it("prefers direct inference when using a Browserbase browser with provider auth", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = {
+        modelName: "openai/gpt-5.4-mini" as const,
+        apiKey: "sk-provider",
+      };
+      const controller = createStagehandController(
+        runtimeWith({
+          apiKey: "bb-api-key",
+          browser: { sessionId: "session-123", region: "eu-central-1" },
+          model,
+        } as StagehandInitParams),
+      );
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      // Gateway is still passed; llmService prefers direct inference when apiKey is set.
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+            gateway: {
+              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
+              apiKey: "bb-api-key",
+              sessionId: "session-123",
+            },
+          }),
+        );
+      }
+    });
   });
 
   describe("Browserbase managed inference", () => {
-    it.todo("uses Browserbase managed inference for an explicit model without provider auth");
+    it("uses Browserbase managed inference for an explicit model without provider auth", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = { modelName: "openai/gpt-5.4-mini" as const };
+      const controller = createStagehandController(
+        runtimeWith({
+          apiKey: "bb-api-key",
+          browser: { sessionId: "session-123", region: "eu-central-1" },
+          model,
+        } as StagehandInitParams),
+      );
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+            gateway: {
+              apiUrl: "https://api.euc1.stagehand.browserbase.com/v1",
+              apiKey: "bb-api-key",
+              sessionId: "session-123",
+            },
+          }),
+        );
+      }
+    });
+
     it("routes every primitive without a model through the Browserbase gateway", async () => {
       const act = vi.spyOn(actService, "act").mockResolvedValue({
         data: { success: true, message: "", actionDescription: "", actions: [] },
@@ -203,18 +327,277 @@ describe("model configuration", () => {
       expect(extract).not.toHaveBeenCalled();
       expect(observe).not.toHaveBeenCalled();
     });
-    it.todo("rejects Browserbase managed inference when using a local browser");
-    it.todo("rejects an explicit model without provider auth when using a local browser");
-    it.todo("rejects a missing model when using a local browser");
+
+    it("rejects Browserbase managed inference when using a local browser", async () => {
+      const act = vi.spyOn(actService, "act");
+      const extract = vi.spyOn(extractService, "extract");
+      const observe = vi.spyOn(observeService, "observe");
+      const controller = createStagehandController(
+        runtimeWith({
+          apiKey: "bb-api-key",
+          browserCdpUrl: "ws://localhost:9222",
+        } as StagehandInitParams),
+      );
+
+      await expect(
+        controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(
+        controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {} },
+          handlerContext,
+        ),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(controller.observe({ pageId: "page-1" }, handlerContext)).rejects.toThrow(
+        "An LLM was not configured during Stagehand initialization",
+      );
+
+      expect(act).not.toHaveBeenCalled();
+      expect(extract).not.toHaveBeenCalled();
+      expect(observe).not.toHaveBeenCalled();
+    });
+
+    it("forwards an explicit keyless model when using a local browser", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = { modelName: "openai/gpt-5.4-mini" as const };
+      const controller = createStagehandController(
+        runtimeWith({
+          browserCdpUrl: "ws://localhost:9222",
+          model,
+        } as StagehandInitParams),
+      );
+
+      // Controller forwards keyless models; llmService rejects later without a gateway.
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+            gateway: undefined,
+          }),
+        );
+      }
+    });
+
+    it("rejects a missing model when using a local browser", async () => {
+      const act = vi.spyOn(actService, "act");
+      const extract = vi.spyOn(extractService, "extract");
+      const observe = vi.spyOn(observeService, "observe");
+      const controller = createStagehandController(
+        runtimeWith({
+          browserCdpUrl: "ws://localhost:9222",
+        } as StagehandInitParams),
+      );
+
+      await expect(
+        controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(
+        controller.extract(
+          { pageId: "page-1", instruction: "Extract", schema: {} },
+          handlerContext,
+        ),
+      ).rejects.toThrow("An LLM was not configured during Stagehand initialization");
+      await expect(controller.observe({ pageId: "page-1" }, handlerContext)).rejects.toThrow(
+        "An LLM was not configured during Stagehand initialization",
+      );
+
+      expect(act).not.toHaveBeenCalled();
+      expect(extract).not.toHaveBeenCalled();
+      expect(observe).not.toHaveBeenCalled();
+    });
   });
 
   describe("client inference", () => {
-    it.todo("uses the connected SDK when a client LLM callback is provided");
+    it("uses the connected SDK when a client LLM callback is provided", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = { source: "client" as const };
+      const runtime = runtimeWith({ model } as StagehandInitParams);
+      const controller = createStagehandController(runtime);
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+            clientLLMGenerate: runtime.adapters.clientLLMGenerate,
+            gateway: undefined,
+          }),
+        );
+      }
+    });
   });
 
   describe("per-call models", () => {
-    it.todo("uses the initialized model when a call does not provide one");
-    it.todo("uses the complete per-call model when a call provides one");
-    it.todo("does not inherit initialized credentials into a per-call model");
+    it("uses the initialized model when a call does not provide one", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const model = {
+        modelName: "openai/gpt-5.4-mini" as const,
+        apiKey: "sk-init",
+      };
+      const controller = createStagehandController(
+        runtimeWith({ model } as StagehandInitParams),
+      );
+
+      await controller.act({ pageId: "page-1", instruction: "Click" }, handlerContext);
+      await controller.extract(
+        { pageId: "page-1", instruction: "Extract", schema: {} },
+        handlerContext,
+      );
+      await controller.observe({ pageId: "page-1" }, handlerContext);
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model,
+          }),
+        );
+      }
+    });
+
+    it("uses the complete per-call model when a call provides one", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const initModel = {
+        modelName: "openai/gpt-5.4-mini" as const,
+        apiKey: "sk-init",
+      };
+      const callModel = {
+        modelName: "anthropic/claude-sonnet-4-6" as const,
+        apiKey: "sk-call",
+        headers: { "x-call": "1" },
+      };
+      const controller = createStagehandController(
+        runtimeWith({ model: initModel } as StagehandInitParams),
+      );
+
+      await controller.act(
+        { pageId: "page-1", instruction: "Click", options: { model: callModel } },
+        handlerContext,
+      );
+      await controller.extract(
+        {
+          pageId: "page-1",
+          instruction: "Extract",
+          schema: {},
+          options: { model: callModel },
+        },
+        handlerContext,
+      );
+      await controller.observe(
+        { pageId: "page-1", options: { model: callModel } },
+        handlerContext,
+      );
+
+      for (const service of [act, extract, observe]) {
+        expect(service).toHaveBeenCalledWith(
+          expect.objectContaining({
+            model: callModel,
+          }),
+        );
+      }
+    });
+
+    it("does not inherit initialized credentials into a per-call model", async () => {
+      const act = vi.spyOn(actService, "act").mockResolvedValue({
+        data: { success: true, message: "", actionDescription: "", actions: [] },
+        metadata,
+      });
+      const extract = vi.spyOn(extractService, "extract").mockResolvedValue({
+        data: {},
+        metadata,
+      });
+      const observe = vi.spyOn(observeService, "observe").mockResolvedValue({
+        data: [],
+        metadata,
+      });
+      const initModel = {
+        modelName: "openai/gpt-5.4-mini" as const,
+        apiKey: "sk-init",
+        headers: { "x-init": "1" },
+      };
+      // Keyless per-call model is forwarded as-is; llmService rejects later without a gateway.
+      const callModel = { modelName: "anthropic/claude-sonnet-4-6" as const };
+      const controller = createStagehandController(
+        runtimeWith({ model: initModel } as StagehandInitParams),
+      );
+
+      await controller.act(
+        { pageId: "page-1", instruction: "Click", options: { model: callModel } },
+        handlerContext,
+      );
+      await controller.extract(
+        {
+          pageId: "page-1",
+          instruction: "Extract",
+          schema: {},
+          options: { model: callModel },
+        },
+        handlerContext,
+      );
+      await controller.observe(
+        { pageId: "page-1", options: { model: callModel } },
+        handlerContext,
+      );
+
+      for (const service of [act, extract, observe]) {
+        expect(service.mock.calls[0]?.[0].model).toEqual(callModel);
+      }
+    });
   });
 });
