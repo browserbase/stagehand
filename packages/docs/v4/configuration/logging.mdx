@@ -433,14 +433,10 @@ capabilities.
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
+import type { StagehandLog } from "@browserbasehq/stagehand";
 
 // Simple logger without parsing (for basic console output)
-// The callback receives a `StagehandLog`; see the reference below for the shape.
-const simpleLogger = (log: {
-  level: "debug" | "info" | "warn" | "error";
-  message: string;
-  data: Record<string, unknown>;
-}) => {
+const simpleLogger = (log: StagehandLog) => {
   console.log(`[${log.level}] ${log.message}`);
 
   // Optional: log raw structured data
@@ -453,9 +449,10 @@ const simpleLogger = (log: {
 
 <Tab title="Python">
 ```python
+from stagehand import StagehandLog
 
 # Simple logger without parsing (for basic console output)
-def simple_logger(log) -> None:
+def simple_logger(log: StagehandLog) -> None:
     print(f"[{log.level.value}] {log.message}")
 
     # Optional: log raw structured data
@@ -1206,27 +1203,29 @@ The level is also forwarded to the Stagehand runtime, so suppressed records are 
 
 ### Log structure
 
-{/* TODO: neither SDK currently re-exports the StagehandLog type from its public entrypoint, so callbacks rely on inference. Export it and add an import line to these samples. */}
-
 Each log entry follows a structured format:
 
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
-interface StagehandLog {
-  level: "debug" | "info" | "warn" | "error"; // Severity
-  message: string;                            // "act completed successfully"
-  data: Record<string, unknown>;              // Structured metadata, JSON-serializable
-}
+import type { StagehandLog } from "@browserbasehq/stagehand";
+
+// StagehandLog = {
+//   level: "debug" | "info" | "warn" | "error"; // Severity
+//   message: string;                            // "act completed successfully"
+//   data: Record<string, unknown>;              // Structured metadata, JSON-serializable
+// }
 ```
 </Tab>
 
 <Tab title="Python">
 ```python
-class StagehandLog(BaseModel):
-    level: StagehandLogLevel  # "debug" | "info" | "warn" | "error"
-    message: str              # "act completed successfully"
-    data: StagehandLogData    # Structured metadata, JSON-serializable
+from stagehand import StagehandLog
+
+# StagehandLog:
+#   level: "debug" | "info" | "warn" | "error"
+#   message: str              # "act completed successfully"
+#   data: dict                # Structured metadata, JSON-serializable
 ```
 </Tab>
 
