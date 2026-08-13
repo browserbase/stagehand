@@ -69,6 +69,7 @@ jobs:
           commit: release Stagehand packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANGESETS_ACTION_PRESERVE_CHANGELOGS: "true"
 
   python-release-status:
     name: Check Python release status

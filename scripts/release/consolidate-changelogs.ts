@@ -138,8 +138,11 @@ async function main(): Promise<void> {
     await writeFile(rootChangelogPath, nextRootChangelog);
   }
 
-  for (const { path: generatedPath } of generated) {
-    await unlink(generatedPath);
+  // changesets/action reads each versioned package changelog after this command exits.
+  if (process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS !== "true") {
+    for (const { path: generatedPath } of generated) {
+      await unlink(generatedPath);
+    }
   }
 }
 
