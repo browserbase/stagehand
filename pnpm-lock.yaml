@@ -37,7 +37,7 @@ catalogs:
       specifier: ^2.16.0
       version: 2.16.0
     '@browserbasehq/sdk-functions':
-      specifier: github:browserbase/sdk-functions-node#44304977d902a93d6ebc6b3c4fd6379fc6a89f78
+      specifier: github:browserbase/sdk-functions-node#4d7db8bdc5917fed0af17e78fe4cc8ed33e64468
       version: 1.0.2
     '@changesets/changelog-github':
       specifier: 0.7.0
@@ -223,7 +223,7 @@ importers:
         version: 2.16.0
       '@browserbasehq/sdk-functions':
         specifier: 'catalog:'
-        version: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/44304977d902a93d6ebc6b3c4fd6379fc6a89f78
+        version: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468
       '@oclif/core':
         specifier: ^4.11.0
         version: 4.13.0
@@ -989,8 +989,8 @@ packages:
       '@types/react':
         optional: true
 
-  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/44304977d902a93d6ebc6b3c4fd6379fc6a89f78':
-    resolution: {gitHosted: true, integrity: sha512-4k72bB/TQlbflcZy6Ro6h07w9oPsmW0rHBWwGkkE/4WVG4QZjTNL8ZLQ8b5BdK9abHU3TdeJcktDj7ezDQ/3lw==, tarball: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/44304977d902a93d6ebc6b3c4fd6379fc6a89f78}
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468':
+    resolution: {gitHosted: true, integrity: sha512-306uwW7KliLo25OF5Ybn+7fWsagT2wQrXBxYCgVqq1q6Re3rjPNkG5Fq3kKQVXfr4zD6Xm741E3+20fIh4d6xg==, tarball: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468}
     version: 1.0.2
     hasBin: true
 
@@ -8196,7 +8196,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
 
-  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/44304977d902a93d6ebc6b3c4fd6379fc6a89f78':
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468':
     dependencies:
       '@browserbasehq/sdk': 2.16.0
       archiver: 7.0.1
