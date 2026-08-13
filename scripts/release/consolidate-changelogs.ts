@@ -105,6 +105,10 @@ export async function cleanupGeneratedChangelogs(
   }
 }
 
+export function shouldPreservePackageChangelogs(value: string | undefined): boolean {
+  return value === "true";
+}
+
 async function checkPackageChangelogsAreTemporary(): Promise<void> {
   const existingPaths: string[] = [];
   for (const changelog of packageChangelogs) {
@@ -154,7 +158,7 @@ async function main(): Promise<void> {
   // changesets/action reads each versioned package changelog after this command exits.
   await cleanupGeneratedChangelogs(
     generated.map(({ path: generatedPath }) => generatedPath),
-    process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS === "true",
+    shouldPreservePackageChangelogs(process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS),
   );
 }
 

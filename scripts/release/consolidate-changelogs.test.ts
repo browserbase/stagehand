@@ -6,6 +6,7 @@ import {
   cleanupGeneratedChangelogs,
   consolidateChangelog,
   formatPackageChangelog,
+  shouldPreservePackageChangelogs,
 } from "./consolidate-changelogs.ts";
 
 async function createTemporaryChangelog(): Promise<{
@@ -162,5 +163,15 @@ describe("cleanupGeneratedChangelogs", () => {
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe("shouldPreservePackageChangelogs", () => {
+  it.each([
+    { value: "true", expected: true },
+    { value: "false", expected: false },
+    { value: undefined, expected: false },
+  ])("returns $expected for $value", ({ value, expected }) => {
+    expect(shouldPreservePackageChangelogs(value)).toBe(expected);
   });
 });
