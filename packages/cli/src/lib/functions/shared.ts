@@ -16,6 +16,10 @@ export interface FunctionsApiConfig {
   baseUrl: string;
 }
 
+export interface FunctionsProjectConfig extends FunctionsApiConfig {
+  projectId?: string;
+}
+
 export interface PollOptions<T> {
   done: (value: T) => boolean;
   intervalMs?: number;
@@ -34,6 +38,16 @@ export function resolveFunctionsApiConfig(args: {
       process.env.BROWSERBASE_API_BASE_URL ||
       defaultFunctionsBaseUrl,
   };
+}
+
+export function resolveFunctionsProjectConfig(args: {
+  apiKey?: string;
+  baseUrl?: string;
+  projectId?: string;
+}): FunctionsProjectConfig {
+  const apiConfig = resolveFunctionsApiConfig(args);
+  const projectId = args.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
+  return projectId ? { ...apiConfig, projectId } : apiConfig;
 }
 
 export async function functionsRequest(

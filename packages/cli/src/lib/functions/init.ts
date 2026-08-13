@@ -68,7 +68,7 @@ export async function initFunctionsProject({
     );
   }
 
-  ensureCommand(packageManager);
+  const packageManagerVersion = ensureCommand(packageManager);
 
   const projectRoot = resolve(projectName);
   if (existsSync(projectRoot)) {
@@ -79,7 +79,9 @@ export async function initFunctionsProject({
 
   const packageJson = {
     name: projectName,
+    version: "1.0.0",
     private: true,
+    packageManager: `${packageManager}@${packageManagerVersion}`,
     type: "module",
     scripts: {
       dev: "browse functions dev index.ts",
@@ -102,7 +104,7 @@ export async function initFunctionsProject({
 
   runPackageManager(
     packageManager,
-    [...install, "@browserbasehq/sdk-functions", "playwright-core"],
+    [...install, "@browserbasehq/sdk-functions", "playwright-core", "zod"],
     projectRoot,
   );
   runPackageManager(
@@ -137,11 +139,15 @@ export async function initFunctionsProject({
   );
 }
 
-function ensureCommand(command: string): void {
-  const result = spawnSync(command, ["--version"], { stdio: "ignore" });
+function ensureCommand(command: string): string {
+  const result = spawnSync(command, ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
   if (result.error || result.status !== 0) {
     fail(`${command} is required but was not found on PATH.`);
   }
+  return result.stdout.trim();
 }
 
 function runPackageManager(

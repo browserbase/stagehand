@@ -21,7 +21,7 @@ import {
   functionsRequest,
   pollUntil,
   resolveEntrypoint,
-  resolveFunctionsApiConfig,
+  resolveFunctionsProjectConfig,
 } from "./shared.js";
 
 export interface PublishFunctionOptions {
@@ -29,6 +29,7 @@ export interface PublishFunctionOptions {
   baseUrl?: string;
   dryRun: boolean;
   entrypoint: string;
+  projectId?: string;
 }
 
 interface BuildUploadResponse {
@@ -67,11 +68,13 @@ const defaultIgnorePatterns = [
   ".browserbase/",
 ];
 
+const maxArchiveSizeBytes = 50 * 1024 * 1024;
+
 export async function publishFunction(
   options: PublishFunctionOptions,
 ): Promise<void> {
   const entrypoint = await resolveEntrypoint(options.entrypoint);
-  const config = resolveFunctionsApiConfig(options);
+  const config = resolveFunctionsProjectConfig(options);
   const entrypointPath = relative(process.cwd(), entrypoint);
 
   if (options.dryRun) {
@@ -84,6 +87,7 @@ export async function publishFunction(
           dryRun: true,
           entrypoint: entrypointPath,
           files: entries,
+          projectId: config.projectId,
         },
         null,
         2,
@@ -94,8 +98,21 @@ export async function publishFunction(
 
   const { archivePath } = await createArchive(process.cwd());
   try {
+    const archiveStats = await stat(archivePath);
+    if (archiveStats.size > maxArchiveSizeBytes) {
+      fail(
+        `Functions archive is ${(archiveStats.size / 1024 / 1024).toFixed(2)} MB; the maximum is 50 MB. Add files to .gitignore to reduce its size.`,
+      );
+    }
+
     const formData = new FormData();
-    formData.append("metadata", JSON.stringify({ entrypoint: entrypointPath }));
+    formData.append(
+      "metadata",
+      JSON.stringify({
+        entrypoint: entrypointPath,
+        projectId: config.projectId,
+      }),
+    );
     formData.append(
       "archive",
       new Blob([await readFile(archivePath)], { type: "application/gzip" }),

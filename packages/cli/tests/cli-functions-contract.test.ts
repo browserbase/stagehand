@@ -7,6 +7,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -85,7 +86,9 @@ describe("functions API contracts", () => {
             "index.ts",
             "--api-key",
             "test-key",
-            "--base-url",
+            "--project-id",
+            "test-project",
+            "--api-url",
             baseUrl,
           ],
           { cwd },
@@ -101,6 +104,7 @@ describe("functions API contracts", () => {
           "multipart/form-data",
         );
         expect(requests[0]?.bodyText).toContain('"entrypoint":"index.ts"');
+        expect(requests[0]?.bodyText).toContain('"projectId":"test-project"');
         expectRequest(
           requests[1],
           "GET",
@@ -133,6 +137,8 @@ describe("functions API contracts", () => {
         "--dry-run",
         "--api-key",
         "test-key",
+        "--project-id",
+        "test-project",
       ],
       {
         cwd,
@@ -147,9 +153,11 @@ describe("functions API contracts", () => {
       dryRun: boolean;
       entrypoint: string;
       files: string[];
+      projectId: string;
     };
     expect(output.dryRun).toBe(true);
     expect(output.entrypoint).toBe("index.ts");
+    expect(output.projectId).toBe("test-project");
     expect(output.files).toContain("index.ts");
     expect(output.files).toContain("package.json");
     expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(
@@ -183,6 +191,8 @@ describe("functions API contracts", () => {
             "index.ts",
             "--api-key",
             "test-key",
+            "--project-id",
+            "test-project",
             "--base-url",
             baseUrl,
           ],
@@ -196,6 +206,51 @@ describe("functions API contracts", () => {
         });
       },
     );
+  });
+
+  it("rejects publish archives larger than 50 MB", async () => {
+    const cwd = await createFunctionFixture("functions-publish-oversized-");
+    await writeFile(join(cwd, "payload.bin"), randomBytes(51 * 1024 * 1024));
+    await writeFile(join(cwd, "package-lock.json"), "{}\n");
+
+    const result = await runCli(
+      [
+        "functions",
+        "publish",
+        "index.ts",
+        "--api-key",
+        "test-key",
+        "--project-id",
+        "test-project",
+      ],
+      { cwd },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("the maximum is 50 MB");
+  }, 30_000);
+
+  it("infers the project when no project ID is provided", async () => {
+    const cwd = await createFunctionFixture("functions-missing-project-");
+    const result = await runCli(
+      [
+        "functions",
+        "publish",
+        "index.ts",
+        "--dry-run",
+        "--api-key",
+        "test-key",
+      ],
+      {
+        cwd,
+        env: {
+          BROWSERBASE_PROJECT_ID: "",
+        },
+      },
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).not.toHaveProperty("projectId");
   });
 
   it("invokes a deployed Function and polls invocation status", async () => {
@@ -237,7 +292,7 @@ describe("functions API contracts", () => {
           '{"url":"https://example.com"}',
           "--api-key",
           "test-key",
-          "--base-url",
+          "--api-url",
           baseUrl,
         ]);
 
@@ -338,15 +393,25 @@ describe("functions scaffolding and local dev", () => {
     expect(entrypoint).toContain(
       'import { defineFn } from "@browserbasehq/sdk-functions";',
     );
-    expect(
-      await readFile(join(cwd, "demo-function", ".env"), "utf8"),
-    ).toContain("BROWSERBASE_API_KEY=");
+    const packageJson = JSON.parse(
+      await readFile(join(cwd, "demo-function", "package.json"), "utf8"),
+    ) as {
+      packageManager?: string;
+      version?: string;
+    };
+    expect(packageJson.packageManager).toBe("pnpm@10.0.0");
+    expect(packageJson.version).toBe("1.0.0");
+    const envFile = await readFile(join(cwd, "demo-function", ".env"), "utf8");
+    expect(envFile).toContain("BROWSERBASE_API_KEY=");
+    expect(envFile).not.toContain("BROWSERBASE_PROJECT_ID=");
   });
 
   it("runs a local dev server and invokes a function", async () => {
     const cwd = await createTempDir("functions-dev-");
     const port = await getFreePort();
-    await writeRuntimeEntrypoint(cwd);
+    await writeRuntimeEntrypoint(cwd, {
+      sessionConfig: { projectId: "manifest-project" },
+    });
 
     await withServer(
       async (request, response) => {
@@ -383,6 +448,8 @@ describe("functions scaffolding and local dev", () => {
             String(port),
             "--api-key",
             "test-key",
+            "--project-id",
+            "test-project",
             "--base-url",
             baseUrl,
           ],
@@ -434,12 +501,98 @@ describe("functions scaffolding and local dev", () => {
         await expect(invokeResponse.json()).resolves.toMatchObject({
           ok: true,
           params: { answer: 42 },
+          invocation: {
+            id: expect.any(String),
+            region: "local",
+          },
           sessionId: "sess_123",
         });
 
         await waitForRequests(requests, 2);
         expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        expect(requests[0]?.jsonBody).toMatchObject({
+          projectId: "test-project",
+        });
         expectRequest(requests[1], "POST", "/v1/sessions/sess_123", "test-key");
+        expect(requests[1]?.jsonBody).toMatchObject({
+          projectId: "test-project",
+          status: "REQUEST_RELEASE",
+        });
+      },
+    );
+  }, 30_000);
+
+  it("uses the manifest session project when no CLI override is set", async () => {
+    const cwd = await createTempDir("functions-dev-manifest-project-");
+    const port = await getFreePort();
+    await writeRuntimeEntrypoint(cwd, {
+      sessionConfig: { projectId: "manifest-project" },
+    });
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, {
+            connectUrl: "ws://example.test/devtools",
+            id: "sess_manifest",
+          });
+          return;
+        }
+
+        if (
+          request.method === "POST" &&
+          request.path === "/v1/sessions/sess_manifest"
+        ) {
+          jsonResponse(response, 200, {
+            id: "sess_manifest",
+            status: "REQUEST_RELEASE",
+          });
+          return;
+        }
+
+        jsonResponse(response, 404, { error: "not found" });
+      },
+      async ({ baseUrl, requests }) => {
+        const child = spawn(
+          process.execPath,
+          [
+            join(repoRoot, "bin/run.js"),
+            "functions",
+            "dev",
+            "runtime-entry.mjs",
+            "--port",
+            String(port),
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          {
+            cwd,
+            env: {
+              ...process.env,
+              BROWSERBASE_PROJECT_ID: "",
+              NODE_ENV: "test",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        cleanupProcesses.push(child);
+
+        await waitForStdout(child, '"ok": true');
+        const invokeResponse = await invokeLocalFunction(port, {});
+        expect(invokeResponse.status).toBe(200);
+        await expect(invokeResponse.json()).resolves.toMatchObject({
+          sessionId: "sess_manifest",
+        });
+
+        await waitForRequests(requests, 2);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          projectId: "manifest-project",
+        });
+        expect(requests[1]?.jsonBody).toEqual({
+          status: "REQUEST_RELEASE",
+        });
       },
     );
   }, 30_000);
@@ -480,6 +633,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -557,6 +711,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               BROWSERBASE_FUNCTIONS_DEV_STARTUP_TIMEOUT_MS: "0",
               NODE_ENV: "test",
             },
@@ -605,6 +760,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -680,6 +836,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -758,6 +915,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -772,9 +930,10 @@ describe("functions scaffolding and local dev", () => {
         expect(first.headers.get("access-control-allow-origin")).toBeNull();
         await expect(first.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
+            message: expect.stringContaining(
               "Invalid runtime response payload",
             ),
+            type: "RuntimeResponseError",
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n");
@@ -783,9 +942,10 @@ describe("functions scaffolding and local dev", () => {
         expect(second.status).toBe(500);
         await expect(second.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining(
+            message: expect.stringContaining(
               "Invalid runtime response payload",
             ),
+            type: "RuntimeResponseError",
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n400\n");
@@ -821,6 +981,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -863,7 +1024,7 @@ async function createTempDir(prefix: string): Promise<string> {
 
 async function createFakePackageManagerBin(
   name = "pnpm",
-  contents = "#!/bin/sh\nexit 0\n",
+  contents = "#!/bin/sh\necho 10.0.0\n",
 ): Promise<string> {
   const directory = await createTempDir("functions-fake-bin-");
   const scriptPath = join(directory, name);
@@ -874,7 +1035,11 @@ async function createFakePackageManagerBin(
 
 async function writeRuntimeEntrypoint(
   cwd: string,
-  options: { malformedResponse?: boolean; runtimeStatusLog?: string } = {},
+  options: {
+    malformedResponse?: boolean;
+    runtimeStatusLog?: string;
+    sessionConfig?: Record<string, unknown>;
+  } = {},
 ): Promise<void> {
   await writeFile(
     join(cwd, "runtime-entry.mjs"),
@@ -886,7 +1051,7 @@ const manifestsDir = join(process.cwd(), ".browserbase", "functions", "manifests
 mkdirSync(manifestsDir, { recursive: true });
 writeFileSync(join(manifestsDir, "test-function.json"), JSON.stringify({
   name: "test-function",
-  config: {},
+  config: { sessionConfig: ${JSON.stringify(options.sessionConfig ?? {})} },
 }, null, 2));
 
 const runtimeApi = process.env.AWS_LAMBDA_RUNTIME_API;
@@ -916,6 +1081,7 @@ while (true) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       ok: true,
+      invocation: event.context.invocation,
       params: event.params,
       sessionId: event.context.session.id,
     }),
