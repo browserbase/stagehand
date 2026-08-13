@@ -13,7 +13,7 @@ export interface FunctionsApiConfig {
 }
 
 export interface FunctionsProjectConfig extends FunctionsApiConfig {
-  projectId: string;
+  projectId?: string;
 }
 
 export interface PollOptions<T> {
@@ -43,25 +43,7 @@ export function resolveFunctionsProjectConfig(args: {
 }): FunctionsProjectConfig {
   const apiConfig = resolveFunctionsApiConfig(args);
   const projectId = args.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
-  if (!projectId) {
-    fail(
-      [
-        "Missing Browserbase project ID. Functions dev and publish need an explicit project.",
-        "Set BROWSERBASE_PROJECT_ID or pass --project-id.",
-        "Find your project ID at https://browserbase.com/settings.",
-      ].join("\n"),
-      1,
-      {
-        resultCode: "missing_project_id",
-        requestHadHttpResponse: false,
-      },
-    );
-  }
-
-  return {
-    ...apiConfig,
-    projectId,
-  };
+  return projectId ? { ...apiConfig, projectId } : apiConfig;
 }
 
 export async function functionsRequest(

@@ -179,7 +179,7 @@ describe("functions API contracts", () => {
     );
   });
 
-  it("requires a project ID before publishing", async () => {
+  it("infers the project when no project ID is provided", async () => {
     const cwd = await createFunctionFixture("functions-missing-project-");
     const result = await runCli(
       ["functions", "publish", "index.ts", "--dry-run", "--api-key", "test-key"],
@@ -191,8 +191,8 @@ describe("functions API contracts", () => {
       },
     );
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain("Missing Browserbase project ID");
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).not.toHaveProperty("projectId");
   });
 
   it("invokes a deployed Function and polls invocation status", async () => {
@@ -321,7 +321,7 @@ describe("functions scaffolding and local dev", () => {
     expect(packageJson.version).toBe("1.0.0");
     const envFile = await readFile(join(cwd, "demo-function", ".env"), "utf8");
     expect(envFile).toContain("BROWSERBASE_API_KEY=");
-    expect(envFile).toContain("BROWSERBASE_PROJECT_ID=");
+    expect(envFile).not.toContain("BROWSERBASE_PROJECT_ID=");
   });
 
   it("runs a local dev server and invokes a function", async () => {

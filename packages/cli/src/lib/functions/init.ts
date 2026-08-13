@@ -6,10 +6,9 @@ import { join, resolve } from "node:path";
 import { fail } from "../errors.js";
 
 const envTemplate = `# Browserbase Configuration
-# Get your API key and project ID from https://browserbase.com/settings
+# Get your API key from https://browserbase.com/settings
 
 BROWSERBASE_API_KEY=your_api_key_here
-BROWSERBASE_PROJECT_ID=your_project_id_here
 `;
 
 const gitignoreTemplate = `node_modules/
@@ -121,7 +120,7 @@ export async function initFunctionsProject({
         projectRoot,
         nextSteps: [
           `cd ${projectName}`,
-          "Edit .env with your Browserbase API key and project ID",
+          "Edit .env with your Browserbase API key",
           packageManager === "pnpm" ? "pnpm dev" : "npm run dev",
           packageManager === "pnpm" ? "pnpm run deploy" : "npm run deploy",
         ],
