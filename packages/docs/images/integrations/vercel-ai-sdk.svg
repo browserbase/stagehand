@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Vercel AI SDK">
-  <!-- Icon from the official vercel/ai documentation app. -->
+  <!-- Official Vercel mark, shared with the Eve card. -->
   <rect width="64" height="64" rx="14" fill="#000" />
-  <path d="M17 44 29 20h6l12 24h-7l-2.5-5H26.5L24 44h-7Zm12-11h6l-3-6-3 6Z" fill="#fff" />
+  <path d="M32 14 52 50H12L32 14Z" fill="#fff" />
 </svg>
