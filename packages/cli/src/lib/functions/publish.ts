@@ -108,7 +108,10 @@ export async function publishFunction(
     const formData = new FormData();
     formData.append(
       "metadata",
-      JSON.stringify({ entrypoint: entrypointPath, projectId: config.projectId }),
+      JSON.stringify({
+        entrypoint: entrypointPath,
+        projectId: config.projectId,
+      }),
     );
     formData.append(
       "archive",
