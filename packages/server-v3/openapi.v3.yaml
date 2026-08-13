@@ -769,6 +769,11 @@ components:
         actTimeoutMs:
           description: Timeout in ms for act operations (deprecated, v2 only)
           type: number
+        useTouch:
+          description: Actuate coordinate pointer actions as trusted touch taps instead of
+            mouse input (for sessions rendering a mobile layout)
+          example: false
+          type: boolean
       required:
         - modelName
     SessionStartResult:
