@@ -120,7 +120,7 @@ const EXPECTED_TOOL_SCHEMAS: Record<HermesBrowserSurface, HermesToolSchema> = {
     ],
   },
   hermes_browser_exec: { bytes: 10_387, names: ["browser_exec"] },
-  hermes_stagehand_batch: { bytes: 1_794, names: ["browser_exec"] },
+  hermes_stagehand_batch: { bytes: 10_461, names: ["browser_exec"] },
 };
 const PINNED_BROWSER_USE = {
   packageVersion: "0.13.7",

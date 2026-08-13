@@ -192,10 +192,26 @@ describe("Hermes runner", () => {
     };
 
     expect(() => validateHermesArtifact(artifact)).not.toThrow();
-    expect(() => validateHermesArtifact({ ...artifact, stepObservations: [] })).toThrow(
-      /independently captured/,
+    expect(() =>
+      validateHermesArtifact({
+        ...artifact,
+        surface: "hermes_stagehand_batch",
+        toolSchema: { bytes: 10_461, names: ["browser_exec"] },
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateHermesArtifact({
+        ...artifact,
+        surface: "hermes_stagehand_batch",
+        toolSchema: { bytes: 1_794, names: ["browser_exec"] },
+      }),
+    ).toThrow(/schema drifted/);
+    expect(() =>
+      validateHermesArtifact({ ...artifact, stepObservations: [] }),
+    ).toThrow(/independently captured/);
+    expect(() => validateHermesArtifact({ ...artifact, toolCallCount: 2 })).toThrow(
+      /disagrees/,
     );
-    expect(() => validateHermesArtifact({ ...artifact, toolCallCount: 2 })).toThrow(/disagrees/);
     expect(() =>
       validateHermesArtifact({
         ...artifact,
