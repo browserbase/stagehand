@@ -66,7 +66,17 @@ describe("functions API contracts", () => {
       },
       async ({ baseUrl, requests }) => {
         const result = await runCli(
-          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
+          [
+            "functions",
+            "publish",
+            "index.ts",
+            "--api-key",
+            "test-key",
+            "--project-id",
+            "test-project",
+            "--api-url",
+            baseUrl,
+          ],
           { cwd },
         );
 
@@ -78,6 +88,7 @@ describe("functions API contracts", () => {
         expectRequest(requests[0], "POST", "/v1/functions/builds", "test-key");
         expect(requests[0]?.headers["content-type"]).toContain("multipart/form-data");
         expect(requests[0]?.bodyText).toContain('"entrypoint":"index.ts"');
+        expect(requests[0]?.bodyText).toContain('"projectId":"test-project"');
         expectRequest(requests[1], "GET", "/v1/functions/builds/build_123", "test-key");
       },
     );
@@ -95,7 +106,16 @@ describe("functions API contracts", () => {
     await writeFile(join(cwd, ".browserbase", "functions", "manifests", "local.json"), "{}");
 
     const result = await runCli(
-      ["functions", "publish", "index.ts", "--dry-run", "--api-key", "test-key"],
+      [
+        "functions",
+        "publish",
+        "index.ts",
+        "--dry-run",
+        "--api-key",
+        "test-key",
+        "--project-id",
+        "test-project",
+      ],
       {
         cwd,
         env: {
@@ -109,9 +129,11 @@ describe("functions API contracts", () => {
       dryRun: boolean;
       entrypoint: string;
       files: string[];
+      projectId: string;
     };
     expect(output.dryRun).toBe(true);
     expect(output.entrypoint).toBe("index.ts");
+    expect(output.projectId).toBe("test-project");
     expect(output.files).toContain("index.ts");
     expect(output.files).toContain("package.json");
     expect(output.files.some((file) => file.startsWith(".browserbase/"))).toBe(false);
@@ -134,7 +156,17 @@ describe("functions API contracts", () => {
       },
       async ({ baseUrl }) => {
         const result = await runCli(
-          ["functions", "publish", "index.ts", "--api-key", "test-key", "--base-url", baseUrl],
+          [
+            "functions",
+            "publish",
+            "index.ts",
+            "--api-key",
+            "test-key",
+            "--project-id",
+            "test-project",
+            "--base-url",
+            baseUrl,
+          ],
           { cwd },
         );
 
@@ -145,6 +177,22 @@ describe("functions API contracts", () => {
         });
       },
     );
+  });
+
+  it("requires a project ID before publishing", async () => {
+    const cwd = await createFunctionFixture("functions-missing-project-");
+    const result = await runCli(
+      ["functions", "publish", "index.ts", "--dry-run", "--api-key", "test-key"],
+      {
+        cwd,
+        env: {
+          BROWSERBASE_PROJECT_ID: "",
+        },
+      },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("Missing Browserbase project ID");
   });
 
   it("invokes a deployed Function and polls invocation status", async () => {
@@ -180,7 +228,7 @@ describe("functions API contracts", () => {
           '{"url":"https://example.com"}',
           "--api-key",
           "test-key",
-          "--base-url",
+          "--api-url",
           baseUrl,
         ]);
 
@@ -263,9 +311,17 @@ describe("functions scaffolding and local dev", () => {
 
     const entrypoint = await readFile(join(cwd, "demo-function", "index.ts"), "utf8");
     expect(entrypoint).toContain('import { defineFn } from "@browserbasehq/sdk-functions";');
-    expect(await readFile(join(cwd, "demo-function", ".env"), "utf8")).toContain(
-      "BROWSERBASE_API_KEY=",
-    );
+    const packageJson = JSON.parse(
+      await readFile(join(cwd, "demo-function", "package.json"), "utf8"),
+    ) as {
+      packageManager?: string;
+      version?: string;
+    };
+    expect(packageJson.packageManager).toBe("pnpm@10.0.0");
+    expect(packageJson.version).toBe("1.0.0");
+    const envFile = await readFile(join(cwd, "demo-function", ".env"), "utf8");
+    expect(envFile).toContain("BROWSERBASE_API_KEY=");
+    expect(envFile).toContain("BROWSERBASE_PROJECT_ID=");
   });
 
   it("runs a local dev server and invokes a function", async () => {
@@ -305,6 +361,8 @@ describe("functions scaffolding and local dev", () => {
             String(port),
             "--api-key",
             "test-key",
+            "--project-id",
+            "test-project",
             "--base-url",
             baseUrl,
           ],
@@ -352,12 +410,21 @@ describe("functions scaffolding and local dev", () => {
         await expect(invokeResponse.json()).resolves.toMatchObject({
           ok: true,
           params: { answer: 42 },
+          invocation: {
+            id: expect.any(String),
+            region: "local",
+          },
           sessionId: "sess_123",
         });
 
         await waitForRequests(requests, 2);
         expectRequest(requests[0], "POST", "/v1/sessions", "test-key");
+        expect(requests[0]?.jsonBody).toMatchObject({ projectId: "test-project" });
         expectRequest(requests[1], "POST", "/v1/sessions/sess_123", "test-key");
+        expect(requests[1]?.jsonBody).toMatchObject({
+          projectId: "test-project",
+          status: "REQUEST_RELEASE",
+        });
       },
     );
   }, 30_000);
@@ -398,6 +465,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -471,6 +539,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               BROWSERBASE_FUNCTIONS_DEV_STARTUP_TIMEOUT_MS: "0",
               NODE_ENV: "test",
             },
@@ -519,6 +588,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -591,6 +661,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -666,6 +737,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -680,7 +752,8 @@ describe("functions scaffolding and local dev", () => {
         expect(first.headers.get("access-control-allow-origin")).toBeNull();
         await expect(first.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining("Invalid runtime response payload"),
+            message: expect.stringContaining("Invalid runtime response payload"),
+            type: "RuntimeResponseError",
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n");
@@ -689,7 +762,8 @@ describe("functions scaffolding and local dev", () => {
         expect(second.status).toBe(500);
         await expect(second.json()).resolves.toMatchObject({
           error: {
-            errorMessage: expect.stringContaining("Invalid runtime response payload"),
+            message: expect.stringContaining("Invalid runtime response payload"),
+            type: "RuntimeResponseError",
           },
         });
         await waitForFileText(runtimeStatusLog, "400\n400\n");
@@ -725,6 +799,7 @@ describe("functions scaffolding and local dev", () => {
             cwd,
             env: {
               ...process.env,
+              BROWSERBASE_PROJECT_ID: "test-project",
               NODE_ENV: "test",
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -767,7 +842,7 @@ async function createTempDir(prefix: string): Promise<string> {
 
 async function createFakePackageManagerBin(
   name = "pnpm",
-  contents = "#!/bin/sh\nexit 0\n",
+  contents = "#!/bin/sh\necho 10.0.0\n",
 ): Promise<string> {
   const directory = await createTempDir("functions-fake-bin-");
   const scriptPath = join(directory, name);
@@ -820,6 +895,7 @@ while (true) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       ok: true,
+      invocation: event.context.invocation,
       params: event.params,
       sessionId: event.context.session.id,
     }),

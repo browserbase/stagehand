@@ -277,7 +277,7 @@ browse functions invoke <function-id> --params '{"url":"https://example.com"}'
 browse functions invoke --check-status <invocation-id>
 ```
 
-Functions commands use `BROWSERBASE_API_KEY`. Generated projects import `defineFn` from `@browserbasehq/sdk-functions`.
+Functions commands use `BROWSERBASE_API_KEY`; local development and publishing also require `BROWSERBASE_PROJECT_ID`. Generated projects import `defineFn` from `@browserbasehq/sdk-functions`.
 
 ## Templates
 
