@@ -60,11 +60,11 @@ export function resolveXPathAtIndex(
   if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
 
   const native = resolveNativeMatches(xp);
-  if (native.length > 0 && requiresNativePredicateSemantics(xp)) {
-    return native[targetIndex] ?? null;
+  if (!native.error && requiresNativePredicateSemantics(xp)) {
+    return native.values[targetIndex] ?? null;
   }
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  const matches = mergeXPathMatches(native, composed, shadowCtx.getShadowRoot);
+  const matches = mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot);
   return matches[targetIndex] ?? null;
 }
 
@@ -93,11 +93,11 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
   if (shadowHopCount > 0) return shadowHopCount;
 
   const native = resolveNativeMatches(xp);
-  if (native.length > 0 && requiresNativePredicateSemantics(xp)) {
-    return native.length;
+  if (!native.error && requiresNativePredicateSemantics(xp)) {
+    return native.values.length;
   }
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return mergeXPathMatches(native, composed, shadowCtx.getShadowRoot).length;
+  return mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot).length;
 }
 
 function requiresNativePredicateSemantics(xp: string): boolean {
@@ -315,7 +315,7 @@ function mergeXPathMatches(
   );
 }
 
-function resolveNativeMatches(xp: string): Element[] {
+function resolveNativeMatches(xp: string): { values: Element[]; error: boolean } {
   try {
     const snapshot = document.evaluate(
       xp,
@@ -329,9 +329,9 @@ function resolveNativeMatches(xp: string): Element[] {
       const value = snapshot.snapshotItem(index);
       if (value instanceof Element) values.push(value);
     }
-    return values;
+    return { values, error: false };
   } catch {
-    return [];
+    return { values: [], error: true };
   }
 }
 

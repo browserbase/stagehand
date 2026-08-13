@@ -71,9 +71,8 @@ describe("Locator count() method tests", () => {
     await expect(page.locator("xpath=//div[2]").count()).resolves.toBe(2);
     await expect(page.locator("xpath=//div[0]").count()).resolves.toBe(0);
     await expect(page.locator("xpath=(//div)[2]").count()).resolves.toBe(1);
-    await expect(page.locator("xpath=//div[position() > 1]").count()).rejects.toThrow(
-      "Unsupported XPath predicate in composed-tree traversal: position() > 1",
-    );
+    await expect(page.locator("xpath=//div[position() > 1]").count()).resolves.toBe(2);
+    await expect(page.locator("xpath=//button[last()]").count()).resolves.toBe(0);
   });
 
   it("keeps both light and shadow DOM matches for supported XPath", async () => {
