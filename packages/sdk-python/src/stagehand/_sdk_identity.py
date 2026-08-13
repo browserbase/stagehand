@@ -1,8 +1,16 @@
-from importlib.metadata import version
+from importlib.metadata import PackageNotFoundError, version
 
 from ._generated.models import ImplementationInfo
 
-STAGEHAND_SDK_VERSION = version("stagehand")
+
+def _resolve_sdk_version() -> str:
+    try:
+        return version("stagehand")
+    except PackageNotFoundError:
+        return "0.0.0-dev"
+
+
+STAGEHAND_SDK_VERSION = _resolve_sdk_version()
 
 STAGEHAND_SDK_CLIENT_INFO = ImplementationInfo(
     name="stagehand-sdk-python",
