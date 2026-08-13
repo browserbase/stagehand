@@ -94,9 +94,9 @@ export function consolidateChangelog(rootChangelog: string, sections: string[]):
 
 export async function cleanupGeneratedChangelogs(
   generatedPaths: string[],
-  preservePackageChangelogs: string | undefined,
+  preservePackageChangelogs: boolean,
 ): Promise<void> {
-  if (preservePackageChangelogs === "true") {
+  if (preservePackageChangelogs) {
     return;
   }
 
@@ -154,7 +154,7 @@ async function main(): Promise<void> {
   // changesets/action reads each versioned package changelog after this command exits.
   await cleanupGeneratedChangelogs(
     generated.map(({ path: generatedPath }) => generatedPath),
-    process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS,
+    process.env.CHANGESETS_ACTION_PRESERVE_CHANGELOGS === "true",
   );
 }
 

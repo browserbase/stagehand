@@ -144,7 +144,7 @@ describe("cleanupGeneratedChangelogs", () => {
     const { directory, changelogPath } = await createTemporaryChangelog();
 
     try {
-      await cleanupGeneratedChangelogs([changelogPath], "true");
+      await cleanupGeneratedChangelogs([changelogPath], true);
 
       await expect(readFile(changelogPath, "utf8")).resolves.toBe("## 4.0.1\n");
     } finally {
@@ -152,18 +152,15 @@ describe("cleanupGeneratedChangelogs", () => {
     }
   });
 
-  it.each([undefined, "false"])(
-    "deletes package changelogs when the preserve setting is %s",
-    async (preservePackageChangelogs) => {
-      const { directory, changelogPath } = await createTemporaryChangelog();
+  it("deletes package changelogs when preservation is disabled", async () => {
+    const { directory, changelogPath } = await createTemporaryChangelog();
 
-      try {
-        await cleanupGeneratedChangelogs([changelogPath], preservePackageChangelogs);
+    try {
+      await cleanupGeneratedChangelogs([changelogPath], false);
 
-        await expect(readFile(changelogPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
-      } finally {
-        await rm(directory, { recursive: true, force: true });
-      }
-    },
-  );
+      await expect(readFile(changelogPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
 });
