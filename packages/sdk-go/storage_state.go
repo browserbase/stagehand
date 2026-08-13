@@ -68,6 +68,21 @@ func cookieToParam(cookie Cookie) CookieParam {
 	}
 }
 
+func normalizeStorageStateCookieSameSite(cookies []Cookie) []Cookie {
+	if cookies == nil {
+		return nil
+	}
+	out := make([]Cookie, len(cookies))
+	copy(out, cookies)
+	for index := range out {
+		// CDP may omit SameSite; Playwright-compatible storage state uses Lax.
+		if out[index].SameSite == "" {
+			out[index].SameSite = CookieSameSiteLax
+		}
+	}
+	return out
+}
+
 func validateStorageStateCookies(cookies []Cookie) error {
 	for index, cookie := range cookies {
 		switch cookie.SameSite {
@@ -80,18 +95,19 @@ func validateStorageStateCookies(cookies []Cookie) error {
 }
 
 func writeStorageStateFile(path string, state StorageState) error {
-	if err := validateStorageStateCookies(state.Cookies); err != nil {
+	cookies := normalizeStorageStateCookieSameSite(state.Cookies)
+	if err := validateStorageStateCookies(cookies); err != nil {
 		return err
 	}
 
 	payload := storageStateFile{
-		Cookies: make([]storageStateCookieJSON, len(state.Cookies)),
+		Cookies: make([]storageStateCookieJSON, len(cookies)),
 		Origins: state.Origins,
 	}
 	if payload.Origins == nil {
 		payload.Origins = []StorageStateOrigin{}
 	}
-	for index, cookie := range state.Cookies {
+	for index, cookie := range cookies {
 		name := cookie.Name
 		value := cookie.Value
 		domain := cookie.Domain

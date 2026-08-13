@@ -298,6 +298,57 @@ func TestWriteStorageStateFileRejectsInvalidSameSite(t *testing.T) {
 	}
 }
 
+func TestWriteStorageStateFileNormalizesEmptySameSite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	err := writeStorageStateFile(path, StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: "",
+		}},
+		Origins: []StorageStateOrigin{},
+	})
+	if err != nil {
+		t.Fatalf("writeStorageStateFile() error = %v", err)
+	}
+
+	state, err := readStorageStateFile(path)
+	if err != nil {
+		t.Fatalf("readStorageStateFile() error = %v", err)
+	}
+	if len(state.Cookies) != 1 || state.Cookies[0].SameSite != CookieSameSiteLax {
+		t.Fatalf("writeStorageStateFile() = %#v, want SameSite=Lax", state)
+	}
+}
+
+func TestSetStorageStateNormalizesEmptySameSite(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+		"context.add_cookies":   ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+	err := browserContext.SetStorageState(context.Background(), StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: "",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("SetStorageState() error = %v", err)
+	}
+	if got := methods(rpc); len(got) != 2 || got[0] != "context.clear_cookies" || got[1] != "context.add_cookies" {
+		t.Fatalf("SetStorageState() calls = %#v", got)
+	}
+	params, ok := rpc.calls[1].params.(ContextAddCookiesParams)
+	if !ok || len(params.Cookies) != 1 || params.Cookies[0].SameSite == nil ||
+		*params.Cookies[0].SameSite != CookieParamSameSiteLax {
+		t.Fatalf("SetStorageState() add params = %#v", rpc.calls[1].params)
+	}
+}
+
 func methods(rpc *recordingProtocolClient) []string {
 	out := make([]string, len(rpc.calls))
 	for index, call := range rpc.calls {

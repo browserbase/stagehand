@@ -148,7 +148,10 @@ func (c *BrowserContext) StorageState(ctx context.Context, options *StorageState
 	if err != nil {
 		return StorageState{}, err
 	}
-	state := StorageState{Cookies: cookies, Origins: []StorageStateOrigin{}}
+	state := StorageState{
+		Cookies: normalizeStorageStateCookieSameSite(cookies),
+		Origins: []StorageStateOrigin{},
+	}
 	if options != nil && options.Path != "" {
 		if err := writeStorageStateFile(options.Path, state); err != nil {
 			return StorageState{}, err
@@ -163,17 +166,18 @@ func (c *BrowserContext) SetStorageState(ctx context.Context, state StorageState
 	if state.Cookies == nil {
 		return errors.New("storage state must include a cookies array")
 	}
-	if err := validateStorageStateCookies(state.Cookies); err != nil {
+	cookies := normalizeStorageStateCookieSameSite(state.Cookies)
+	if err := validateStorageStateCookies(cookies); err != nil {
 		return err
 	}
 	if err := c.ClearCookies(ctx, nil); err != nil {
 		return err
 	}
-	if len(state.Cookies) == 0 {
+	if len(cookies) == 0 {
 		return nil
 	}
-	params := make([]CookieParam, len(state.Cookies))
-	for index, cookie := range state.Cookies {
+	params := make([]CookieParam, len(cookies))
+	for index, cookie := range cookies {
 		params[index] = cookieToParam(cookie)
 	}
 	return c.AddCookies(ctx, params)
