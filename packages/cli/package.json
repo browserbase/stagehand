@@ -1,6 +1,6 @@
 {
   "name": "browse",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "private": false,
   "description": "Unified Browserbase CLI for browser automation and cloud APIs.",
   "homepage": "https://github.com/browserbase/stagehand/tree/main/packages/cli#readme",

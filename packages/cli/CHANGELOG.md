@@ -1,5 +1,11 @@
 # browse
 
+## 0.9.7
+
+### Patch Changes
+
+- [#2700](https://github.com/browserbase/stagehand/pull/2700) [`da283f3`](https://github.com/browserbase/stagehand/commit/da283f38846cb585ef101a040fa15ef91fb8fe96) Thanks [@shrey150](https://github.com/shrey150)! - Repair `browse functions` parity with the Browserbase Functions SDK: infer the project from the API key by default, preserve optional project overrides, and align scaffolding, local invocation, runtime errors, archive limits, and the `--api-url` option.
+
 ## 0.9.6
 
 ### Patch Changes

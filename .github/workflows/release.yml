@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v4-spike-cli
 
 permissions:
   contents: write
@@ -15,8 +16,114 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-browse:
+    name: Release Browse CLI
+    if: github.ref == 'refs/heads/v4-spike-cli'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: "11.10.0"
+          run_install: false
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24"
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install npm
+        run: npm install --global npm@11.16.0
+
+      - name: Check release status
+        id: release
+        shell: bash
+        run: |
+          package_name="$(node -p "require('./packages/cli/package.json').name")"
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          test "$package_name" = "browse"
+
+          published_versions="$(npm view "$package_name" versions --json)"
+          if jq -e --arg version "$package_version" 'index($version) != null' \
+            <<<"$published_versions" >/dev/null; then
+            echo "browse@$package_version is already published; nothing to do."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing browse@$package_version from $GITHUB_SHA."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint Browse
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm --filter browse lint
+
+      - name: Test Browse
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm --filter browse test
+
+      - name: Pack Browse
+        if: steps.release.outputs.should_publish == 'true'
+        id: pack
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          pack_dir="$RUNNER_TEMP/browse-pack"
+          mkdir -p "$pack_dir"
+          pnpm --filter browse pack --pack-destination "$pack_dir"
+
+          tarball="$pack_dir/browse-$VERSION.tgz"
+          test -f "$tarball"
+          tar -xOf "$tarball" package/package.json | \
+            jq -e --arg version "$VERSION" '.name == "browse" and .version == $version' >/dev/null
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test packed CLI
+        if: steps.release.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          smoke_dir="$RUNNER_TEMP/browse-smoke"
+          mkdir -p "$smoke_dir"
+          npm install --prefix "$smoke_dir" "$TARBALL"
+          "$smoke_dir/node_modules/.bin/browse" --version | grep -F "$VERSION"
+          "$smoke_dir/node_modules/.bin/browse" functions --help | grep -F "functions publish"
+
+      - name: Publish Browse
+        if: steps.release.outputs.should_publish == 'true'
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance
+
+      - name: Tag Browse release
+        if: steps.release.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          tag="browse@$VERSION"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+
   release-typescript:
     name: Release TypeScript SDK
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
