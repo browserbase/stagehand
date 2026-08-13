@@ -211,6 +211,7 @@ describe("functions API contracts", () => {
   it("rejects publish archives larger than 50 MB", async () => {
     const cwd = await createFunctionFixture("functions-publish-oversized-");
     await writeFile(join(cwd, "payload.bin"), randomBytes(51 * 1024 * 1024));
+    await writeFile(join(cwd, "package-lock.json"), "{}\n");
 
     const result = await runCli(
       [
@@ -515,6 +516,81 @@ describe("functions scaffolding and local dev", () => {
         expectRequest(requests[1], "POST", "/v1/sessions/sess_123", "test-key");
         expect(requests[1]?.jsonBody).toMatchObject({
           projectId: "test-project",
+          status: "REQUEST_RELEASE",
+        });
+      },
+    );
+  }, 30_000);
+
+  it("uses the manifest session project when no CLI override is set", async () => {
+    const cwd = await createTempDir("functions-dev-manifest-project-");
+    const port = await getFreePort();
+    await writeRuntimeEntrypoint(cwd, {
+      sessionConfig: { projectId: "manifest-project" },
+    });
+
+    await withServer(
+      async (request, response) => {
+        if (request.method === "POST" && request.path === "/v1/sessions") {
+          jsonResponse(response, 200, {
+            connectUrl: "ws://example.test/devtools",
+            id: "sess_manifest",
+          });
+          return;
+        }
+
+        if (
+          request.method === "POST" &&
+          request.path === "/v1/sessions/sess_manifest"
+        ) {
+          jsonResponse(response, 200, {
+            id: "sess_manifest",
+            status: "REQUEST_RELEASE",
+          });
+          return;
+        }
+
+        jsonResponse(response, 404, { error: "not found" });
+      },
+      async ({ baseUrl, requests }) => {
+        const child = spawn(
+          process.execPath,
+          [
+            join(repoRoot, "bin/run.js"),
+            "functions",
+            "dev",
+            "runtime-entry.mjs",
+            "--port",
+            String(port),
+            "--api-key",
+            "test-key",
+            "--base-url",
+            baseUrl,
+          ],
+          {
+            cwd,
+            env: {
+              ...process.env,
+              BROWSERBASE_PROJECT_ID: "",
+              NODE_ENV: "test",
+            },
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+        cleanupProcesses.push(child);
+
+        await waitForStdout(child, '"ok": true');
+        const invokeResponse = await invokeLocalFunction(port, {});
+        expect(invokeResponse.status).toBe(200);
+        await expect(invokeResponse.json()).resolves.toMatchObject({
+          sessionId: "sess_manifest",
+        });
+
+        await waitForRequests(requests, 2);
+        expect(requests[0]?.jsonBody).toMatchObject({
+          projectId: "manifest-project",
+        });
+        expect(requests[1]?.jsonBody).toEqual({
           status: "REQUEST_RELEASE",
         });
       },
