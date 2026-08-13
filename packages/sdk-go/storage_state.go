@@ -9,8 +9,8 @@ import (
 // StorageState is a Playwright-compatible cookie export. Origins is reserved for
 // future localStorage support and is always empty on export today.
 type StorageState struct {
-	Cookies []Cookie               `json:"cookies"`
-	Origins []StorageStateOrigin   `json:"origins"`
+	Cookies []Cookie             `json:"cookies"`
+	Origins []StorageStateOrigin `json:"origins"`
 }
 
 // StorageStateOrigin holds origin-scoped storage. Unused on export today.
@@ -80,6 +80,10 @@ func validateStorageStateCookies(cookies []Cookie) error {
 }
 
 func writeStorageStateFile(path string, state StorageState) error {
+	if err := validateStorageStateCookies(state.Cookies); err != nil {
+		return err
+	}
+
 	payload := storageStateFile{
 		Cookies: make([]storageStateCookieJSON, len(state.Cookies)),
 		Origins: state.Origins,

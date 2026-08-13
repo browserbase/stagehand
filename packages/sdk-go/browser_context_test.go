@@ -279,6 +279,25 @@ func TestReadStorageStateFileRejectsMissingCookiesAndFlags(t *testing.T) {
 	}
 }
 
+func TestWriteStorageStateFileRejectsInvalidSameSite(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "state.json")
+	err := writeStorageStateFile(path, StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSite("Nope"),
+		}},
+		Origins: []StorageStateOrigin{},
+	})
+	if err == nil {
+		t.Fatal("writeStorageStateFile() accepted invalid sameSite")
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("writeStorageStateFile() wrote file despite invalid sameSite: %v", statErr)
+	}
+}
+
 func methods(rpc *recordingProtocolClient) []string {
 	out := make([]string, len(rpc.calls))
 	for index, call := range rpc.calls {
