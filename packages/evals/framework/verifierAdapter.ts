@@ -19,6 +19,15 @@ import type { TaskResult } from "./types.js";
 const VERIFIER_MODEL_ENV = "EVAL_VERIFIER_MODEL";
 const KEYLESS_VERIFIER_PROVIDERS = new Set(["bedrock", "ollama"]);
 
+export function loadVerifierApiKey(provider: string | undefined): string | undefined {
+  // Stagehand v3's key loader predates the AI SDK `gateway/*` provider
+  // prefix. Vercel AI Gateway uses the same key as Hermes's ai-gateway route.
+  if (provider === "gateway") {
+    return process.env.AI_GATEWAY_API_KEY?.trim() || undefined;
+  }
+  return loadApiKeyFromEnv(provider, () => {});
+}
+
 /**
  * Build the shared rubric verifier. By default V3Evaluator keeps its existing
  * model selection; EVAL_VERIFIER_MODEL makes the verifier independently
@@ -31,7 +40,7 @@ export function createVerifierEvaluator(v3: V3): V3Evaluator {
   }
 
   const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
-  const apiKey = loadApiKeyFromEnv(provider, () => {});
+  const apiKey = loadVerifierApiKey(provider);
   if (!apiKey && !KEYLESS_VERIFIER_PROVIDERS.has(provider ?? "")) {
     throw new Error(
       `${VERIFIER_MODEL_ENV} is set to "${modelName}", but no API key was found for provider "${provider ?? "unknown"}".`,
@@ -201,13 +210,16 @@ export interface GradeExternalTrajectoryOptions {
   /** Logger category ("claude_code" | "codex"). */
   category: string;
   logger: EvalLogger;
+  /** Treat verifier/trajectory failures as benchmark failures, never agent passes. */
+  failClosedOnVerifierError?: boolean;
 }
 
 /**
  * Grade an external-harness run with the rubric verifier and fold the verdict
  * into the TaskResult. Never throws: on any failure in the verifier path the
- * self-reported result is returned with `verifierError` set, so downstream
- * consumers can tell an ungraded run apart from a graded one.
+ * the result is returned with `verifierError` set. Callers evaluating a
+ * benchmark contract can additionally fail closed instead of inheriting the
+ * agent's self-reported status.
  */
 export async function gradeExternalTrajectory({
   buildTrajectory,
@@ -216,6 +228,7 @@ export async function gradeExternalTrajectory({
   errorMessage,
   category,
   logger,
+  failClosedOnVerifierError = false,
 }: GradeExternalTrajectoryOptions): Promise<TaskResult> {
   try {
     const trajectory = buildTrajectory();
@@ -274,10 +287,14 @@ export async function gradeExternalTrajectory({
         error: { value: message, type: "string" },
       },
     });
-    // Surface the failure on the result — `_success` falls back to the
-    // agent's self-report, and downstream consumers must be able to tell
-    // this run apart from one the verifier actually graded.
-    return { ...baseResult, verifierError: message };
+    return {
+      ...baseResult,
+      ...(failClosedOnVerifierError && {
+        _success: false,
+        error: baseResult.error ?? `verifier integration failed: ${message}`,
+      }),
+      verifierError: message,
+    };
   }
 }
 

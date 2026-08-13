@@ -28,6 +28,7 @@ describe("RubricCache", () => {
 
   afterEach(async () => {
     warn.mockRestore();
+    delete process.env.EVAL_RUBRIC_CACHE_ROOT;
     await fs.rm(tmpRoot, { recursive: true, force: true });
   });
 
@@ -41,5 +42,16 @@ describe("RubricCache", () => {
     await expect(cache.read(taskB)).resolves.toBeUndefined();
     await expect(cache.read(taskA)).resolves.toEqual(rubric);
     expect(warn).toHaveBeenCalledWith("[rubric-cache] task-id mismatch for task:a; regenerating");
+  });
+
+  it("uses one explicit durable cache root across separate cache instances", async () => {
+    process.env.EVAL_RUBRIC_CACHE_ROOT = tmpRoot;
+    const task: TaskSpec = { id: "task-1", instruction: "frozen instruction" };
+
+    await new RubricCache({ dataset: "onlineMind2Web" }).write(task, rubric);
+
+    await expect(new RubricCache({ dataset: "onlineMind2Web" }).read(task)).resolves.toEqual(
+      rubric,
+    );
   });
 });

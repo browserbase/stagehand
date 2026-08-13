@@ -76,7 +76,7 @@ export function printRunHelp(): void {
     "",
     row(
       `${cyan("--harness")} ${dim("<name>")}`,
-      `Bench harness ${gray("(stagehand | claude_code | codex)")}`,
+      `Bench harness ${gray("(stagehand | claude_code | codex | hermes)")}`,
     ),
     row(
       `${cyan("--success")} ${dim("<mode>")}`,

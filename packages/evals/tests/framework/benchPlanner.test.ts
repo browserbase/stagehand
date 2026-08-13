@@ -134,6 +134,54 @@ describe("benchPlanner", () => {
     expect(testcases[0].metadata.agentMode).toBeUndefined();
   });
 
+  it("plans Hermes browser_exec against an unchanged OnlineMind2Web row", async () => {
+    const testcases = await withEnvOverrides(
+      {
+        EVAL_MAX_K: "1",
+        EVAL_ONLINEMIND2WEB_LIMIT: "1",
+      },
+      async () =>
+        generateBenchTestcases([makeSuiteTask("agent/onlineMind2Web")], {
+          modelOverride: "anthropic/claude-opus-4.8",
+          datasetFilter: "onlineMind2Web",
+          harness: "hermes",
+          environment: "BROWSERBASE",
+          coreToolSurface: "hermes_browser_exec",
+        }),
+    );
+
+    expect(testcases).toHaveLength(1);
+    expect(testcases[0].input.name).toBe("agent/onlineMind2Web");
+    expect(testcases[0].input.params?.confirmed_task).toBeTruthy();
+    expect(testcases[0].metadata).toMatchObject({
+      dataset: "onlineMind2Web",
+      harness: "hermes",
+      toolSurface: "hermes_browser_exec",
+      startupProfile: "tool_create_browserbase",
+      provider: "anthropic",
+    });
+  });
+
+  it("plans Hermes Stagehand batch as a Browserbase-owned one-tool arm", async () => {
+    const testcases = await withEnvOverrides(
+      { EVAL_MAX_K: "1", EVAL_ONLINEMIND2WEB_LIMIT: "1" },
+      async () =>
+        generateBenchTestcases([makeSuiteTask("agent/onlineMind2Web")], {
+          modelOverride: "anthropic/claude-opus-4.8",
+          datasetFilter: "onlineMind2Web",
+          harness: "hermes",
+          environment: "BROWSERBASE",
+          coreToolSurface: "hermes_stagehand_batch",
+        }),
+    );
+
+    expect(testcases[0].metadata).toMatchObject({
+      harness: "hermes",
+      toolSurface: "hermes_stagehand_batch",
+      startupProfile: "tool_create_browserbase",
+    });
+  });
+
   it("rejects unsupported Claude Code tasks from broad targets", async () => {
     const generate = () =>
       withEnvOverrides(

@@ -25,6 +25,7 @@ describe("resolveRunOptions", () => {
   it("accepts known bench harnesses", () => {
     const resolved = resolveRunOptions({ harness: "claude_code" }, {}, {});
     expect(resolved.harness).toBe("claude_code");
+    expect(resolveRunOptions({ harness: "hermes" }, {}, {}).harness).toBe("hermes");
   });
 
   it("rejects unknown bench harnesses", () => {

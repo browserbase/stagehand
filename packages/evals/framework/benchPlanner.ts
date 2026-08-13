@@ -21,11 +21,16 @@ import {
   resolveClaudeCodeToolSurface,
 } from "./claudeCodeToolAdapter.js";
 import { resolveCodexStartupProfile, resolveCodexToolSurface } from "./codexToolAdapter.js";
+import { resolveHermesStartupProfile, resolveHermesToolSurface } from "./hermesRunner.js";
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
   "anthropic/claude-sonnet-4-6" as AvailableModel,
 ];
 const DEFAULT_CODEX_MODELS: AvailableModel[] = ["openai/gpt-5.4-mini" as AvailableModel];
+const DEFAULT_HERMES_MODELS: AvailableModel[] = [
+  "anthropic/claude-opus-4.8" as AvailableModel,
+  "moonshotai/kimi-k3" as AvailableModel,
+];
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
@@ -107,6 +112,14 @@ function resolveDefaultModelEntries(
 
   if (harness === "codex") {
     return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map((modelName) => ({
+      modelName,
+      mode: "hybrid",
+      cua: false,
+    }));
+  }
+
+  if (harness === "hermes") {
+    return readModelListEnv("EVAL_HERMES_MODELS", DEFAULT_HERMES_MODELS).map((modelName) => ({
       modelName,
       mode: "hybrid",
       cua: false,
@@ -246,7 +259,11 @@ export function generateBenchTestcases(
   const suiteTestcases = generateSuiteTestcases(plannedTasks, options, modelEntries);
   const allTestcases = [...suiteTestcases.testcases];
 
-  if (options.harness === "claude_code" || options.harness === "codex") {
+  if (
+    options.harness === "claude_code" ||
+    options.harness === "codex" ||
+    options.harness === "hermes"
+  ) {
     if (suiteTestcases.remainingTasks.length > 0) {
       const unsupported = suiteTestcases.remainingTasks
         .map((task) => task.name)
@@ -308,6 +325,9 @@ function resolveBenchRowToolSurface(
   if (harness === "codex") {
     return resolveCodexToolSurface(requested);
   }
+  if (harness === "hermes") {
+    return resolveHermesToolSurface(requested);
+  }
   return requested;
 }
 
@@ -322,6 +342,13 @@ function resolveBenchRowStartupProfile(
   }
   if (harness === "codex") {
     return resolveCodexStartupProfile(toolSurface ?? "browse_cli", environment, requested);
+  }
+  if (harness === "hermes") {
+    return resolveHermesStartupProfile(
+      toolSurface ?? "hermes_browser_exec",
+      environment,
+      requested,
+    );
   }
   return requested;
 }

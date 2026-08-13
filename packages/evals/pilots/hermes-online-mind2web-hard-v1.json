@@ -1,0 +1,130 @@
+{
+  "id": "hermes-online-mind2web-hard-v1",
+  "dataset": "onlineMind2Web",
+  "dataset_file": "datasets/onlineMind2Web/onlineMind2Web.jsonl",
+  "dataset_file_sha256": "d10a837d6ea67349dca8541cd697eb2636ff61b937ba0f09596f775e1b327b30",
+  "selection": {
+    "candidate_filter": "level == hard",
+    "method": "curated frozen public-track slice",
+    "constraints": [
+      "ten distinct website hostnames",
+      "high reference length where feasible",
+      "no login, payment, irreversible, expired fixed-date, or relative-date tasks",
+      "assigned start sites live at preflight"
+    ],
+    "count": 10
+  },
+  "task_ids": [
+    "d02d236836924919f35f2438d9ed2374",
+    "c39d6c245f8243993e707d54d2f4acec",
+    "8f2611047de227a2ca8bda13f6e2e5fb",
+    "b64f938af842f6a1b4489d0e49a785a7",
+    "ec78d3a635e417bc2a80d03ca93d7165",
+    "1b867afecf072cb877ebfa4069263746",
+    "bb5d90e6f2fbc0ae146f7c1998c2b4a1",
+    "c577a14301a725e09ccd269a3e0b271e",
+    "a5c87cc1c94a090c9a8dc2c8b6a125d0",
+    "1ab384fb3a791edfb410213cc6b82151"
+  ],
+  "arms": [
+    {
+      "harness": "hermes",
+      "tool": "hermes_browser_legacy"
+    },
+    {
+      "harness": "hermes",
+      "tool": "hermes_browser_exec"
+    },
+    {
+      "harness": "hermes",
+      "tool": "hermes_stagehand_batch"
+    }
+  ],
+  "agent_provider": "ai-gateway",
+  "task_model_pairs": [
+    { "task_id": "d02d236836924919f35f2438d9ed2374", "model": "anthropic/claude-opus-4.8" },
+    { "task_id": "c39d6c245f8243993e707d54d2f4acec", "model": "moonshotai/kimi-k3" },
+    { "task_id": "8f2611047de227a2ca8bda13f6e2e5fb", "model": "anthropic/claude-opus-4.8" },
+    { "task_id": "b64f938af842f6a1b4489d0e49a785a7", "model": "moonshotai/kimi-k3" },
+    { "task_id": "ec78d3a635e417bc2a80d03ca93d7165", "model": "anthropic/claude-opus-4.8" },
+    { "task_id": "1b867afecf072cb877ebfa4069263746", "model": "moonshotai/kimi-k3" },
+    { "task_id": "bb5d90e6f2fbc0ae146f7c1998c2b4a1", "model": "anthropic/claude-opus-4.8" },
+    { "task_id": "c577a14301a725e09ccd269a3e0b271e", "model": "moonshotai/kimi-k3" },
+    { "task_id": "a5c87cc1c94a090c9a8dc2c8b6a125d0", "model": "anthropic/claude-opus-4.8" },
+    { "task_id": "1ab384fb3a791edfb410213cc6b82151", "model": "moonshotai/kimi-k3" }
+  ],
+  "verifier_model": "gateway/google/gemini-2.5-flash",
+  "verifier_selection": {
+    "methodology_target": "gateway/openai/o4-mini",
+    "methodology_target_status": "unavailable_through_vercel_ai_gateway",
+    "diagnostic": "GatewayInternalServerError: The API deployment for this resource does not exist.",
+    "selected_fallback": "gateway/google/gemini-2.5-flash"
+  },
+  "rubric_policy": "generate once per task, freeze by task id plus instruction hash, and reuse byte-identical cached rubric across every arm",
+  "environment": "BROWSERBASE",
+  "trials": 1,
+  "concurrency": 1,
+  "timeout_seconds": 1800,
+  "success_mode": "both",
+  "run_plan": [
+    {
+      "task_id": "d02d236836924919f35f2438d9ed2374",
+      "model": "anthropic/claude-opus-4.8",
+      "arm_order": ["A", "B", "D"]
+    },
+    {
+      "task_id": "c39d6c245f8243993e707d54d2f4acec",
+      "model": "moonshotai/kimi-k3",
+      "arm_order": ["B", "D", "A"]
+    },
+    {
+      "task_id": "8f2611047de227a2ca8bda13f6e2e5fb",
+      "model": "anthropic/claude-opus-4.8",
+      "arm_order": ["D", "A", "B"]
+    },
+    {
+      "task_id": "b64f938af842f6a1b4489d0e49a785a7",
+      "model": "moonshotai/kimi-k3",
+      "arm_order": ["A", "B", "D"]
+    },
+    {
+      "task_id": "ec78d3a635e417bc2a80d03ca93d7165",
+      "model": "anthropic/claude-opus-4.8",
+      "arm_order": ["B", "D", "A"]
+    },
+    {
+      "task_id": "1b867afecf072cb877ebfa4069263746",
+      "model": "moonshotai/kimi-k3",
+      "arm_order": ["D", "A", "B"]
+    },
+    {
+      "task_id": "bb5d90e6f2fbc0ae146f7c1998c2b4a1",
+      "model": "anthropic/claude-opus-4.8",
+      "arm_order": ["A", "B", "D"]
+    },
+    {
+      "task_id": "c577a14301a725e09ccd269a3e0b271e",
+      "model": "moonshotai/kimi-k3",
+      "arm_order": ["B", "D", "A"]
+    },
+    {
+      "task_id": "a5c87cc1c94a090c9a8dc2c8b6a125d0",
+      "model": "anthropic/claude-opus-4.8",
+      "arm_order": ["D", "A", "B"]
+    },
+    {
+      "task_id": "1ab384fb3a791edfb410213cc6b82151",
+      "model": "moonshotai/kimi-k3",
+      "arm_order": ["A", "B", "D"]
+    }
+  ],
+  "canary_plan": {
+    "task_id": "1b867afecf072cb877ebfa4069263746",
+    "model": "moonshotai/kimi-k3",
+    "arm_order": ["A", "B", "D"]
+  },
+  "verifiability_gate": {
+    "max_unverifiable_criteria": 0,
+    "ungraded_runs_allowed": 0
+  }
+}

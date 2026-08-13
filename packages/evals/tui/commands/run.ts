@@ -184,7 +184,7 @@ export async function runCommand(
 
   if (!canExecuteBenchHarness(options.harness) && tasks.some((t) => t.tier === "bench")) {
     throw new Error(
-      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, or --harness codex for executable bench runs.`,
+      `Harness "${options.harness}" is dry-run only for now. Use --harness stagehand, --harness claude_code, --harness codex, or --harness hermes for executable bench runs.`,
     );
   }
   const matrix = await buildDryRunMatrix(options, tasks, registry);
