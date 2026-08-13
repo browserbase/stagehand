@@ -3,6 +3,13 @@ import type { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 import { buildLocatorInvocation } from "./locatorInvocation.js";
 
+const UNSUPPORTED_XPATH_PREDICATE = "Unsupported XPath predicate in composed-tree traversal";
+
+function isUnsupportedXPathPredicate(details: Protocol.Runtime.ExceptionDetails): boolean {
+  const description = details.exception?.description ?? details.text ?? "";
+  return description.includes(UNSUPPORTED_XPATH_PREDICATE);
+}
+
 export type SelectorQuery =
   | { kind: "css"; value: string }
   | { kind: "text"; value: string }
@@ -246,11 +253,10 @@ export class FrameSelectorResolver {
       });
 
       if (evalRes.exceptionDetails) {
-        throw new Error(
-          evalRes.exceptionDetails.exception?.description ??
-            evalRes.exceptionDetails.text ??
-            "XPath evaluation failed",
-        );
+        if (isUnsupportedXPathPredicate(evalRes.exceptionDetails)) {
+          throw new Error(UNSUPPORTED_XPATH_PREDICATE);
+        }
+        return 0;
       }
 
       const num =
@@ -260,7 +266,8 @@ export class FrameSelectorResolver {
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
     } catch (error) {
-      throw error instanceof Error ? error : new Error(String(error));
+      if (error instanceof Error && error.message === UNSUPPORTED_XPATH_PREDICATE) throw error;
+      return 0;
     }
   }
 
@@ -337,21 +344,25 @@ export class FrameSelectorResolver {
     contextId: Protocol.Runtime.ExecutionContextId,
   ): Promise<ResolvedNode | null> {
     const session = this.frame.session;
-    const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
-      expression,
-      contextId,
-      returnByValue: false,
-      awaitPromise: true,
-    });
+    try {
+      const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+        expression,
+        contextId,
+        returnByValue: false,
+        awaitPromise: true,
+      });
 
-    if (evalRes.exceptionDetails) {
-      throw new Error(
-        evalRes.exceptionDetails.exception?.description ??
-          evalRes.exceptionDetails.text ??
-          "XPath evaluation failed",
-      );
+      if (evalRes.exceptionDetails) {
+        if (isUnsupportedXPathPredicate(evalRes.exceptionDetails)) {
+          throw new Error(UNSUPPORTED_XPATH_PREDICATE);
+        }
+        return null;
+      }
+      if (!evalRes.result.objectId) return null;
+      return this.resolveFromObjectId(evalRes.result.objectId);
+    } catch (error) {
+      if (error instanceof Error && error.message === UNSUPPORTED_XPATH_PREDICATE) throw error;
+      return null;
     }
-    if (!evalRes.result.objectId) return null;
-    return this.resolveFromObjectId(evalRes.result.objectId);
   }
 }

@@ -1,4 +1,9 @@
-import { applyPredicates, parseXPathSteps, type XPathStep } from "./xpathParser.js";
+import {
+  applyPredicates,
+  parseXPathSteps,
+  type XPathPredicate,
+  type XPathStep,
+} from "./xpathParser.js";
 import { documentHasShadowRoot, getOpenOrClosedShadowRoot } from "./shadowRoots.js";
 
 type ShadowRootGetter = (host: Element) => ShadowRoot | null;
@@ -54,9 +59,12 @@ export function resolveXPathAtIndex(
   const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
   if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
 
-  const native = resolveNativeMatchesWithError(xp);
+  const native = resolveNativeMatches(xp);
+  if (native.length > 0 && requiresNativePredicateSemantics(xp)) {
+    return native[targetIndex] ?? null;
+  }
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  const matches = mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot);
+  const matches = mergeXPathMatches(native, composed, shadowCtx.getShadowRoot);
   return matches[targetIndex] ?? null;
 }
 
@@ -84,9 +92,31 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
   const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
   if (shadowHopCount > 0) return shadowHopCount;
 
-  const native = resolveNativeMatchesWithError(xp);
+  const native = resolveNativeMatches(xp);
+  if (native.length > 0 && requiresNativePredicateSemantics(xp)) {
+    return native.length;
+  }
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
-  return mergeXPathMatches(native.values, composed, shadowCtx.getShadowRoot).length;
+  return mergeXPathMatches(native, composed, shadowCtx.getShadowRoot).length;
+}
+
+function requiresNativePredicateSemantics(xp: string): boolean {
+  return parseXPathSteps(xp).some((step) => step.predicates.some(isPositionalOrUnsupported));
+}
+
+function isPositionalOrUnsupported(predicate: XPathPredicate): boolean {
+  switch (predicate.type) {
+    case "index":
+    case "unsupported":
+      return true;
+    case "and":
+    case "or":
+      return predicate.predicates.some(isPositionalOrUnsupported);
+    case "not":
+      return isPositionalOrUnsupported(predicate.predicate);
+    default:
+      return false;
+  }
 }
 
 export function resolveXPathComposedMatches(
@@ -285,7 +315,7 @@ function mergeXPathMatches(
   );
 }
 
-function resolveNativeMatchesWithError(xp: string): { values: Element[]; error: boolean } {
+function resolveNativeMatches(xp: string): Element[] {
   try {
     const snapshot = document.evaluate(
       xp,
@@ -299,9 +329,9 @@ function resolveNativeMatchesWithError(xp: string): { values: Element[]; error: 
       const value = snapshot.snapshotItem(index);
       if (value instanceof Element) values.push(value);
     }
-    return { values, error: false };
+    return values;
   } catch {
-    return { values: [], error: true };
+    return [];
   }
 }
 
