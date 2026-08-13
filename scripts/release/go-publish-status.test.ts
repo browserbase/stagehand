@@ -32,9 +32,17 @@ describe("goPublishStatus", () => {
     );
   });
 
-  it("does not tag while a changeset is pending", async () => {
+  it("does not tag while a Go SDK changeset is pending", async () => {
     const repositoryRoot = await repositoryFixture();
-    await writeFile(path.join(repositoryRoot, ".changeset/release.md"), "pending\n");
+    await writeFile(
+      path.join(repositoryRoot, ".changeset/release.md"),
+      `---
+"@browserbasehq/stagehand-go": patch
+---
+
+Fix the Go SDK.
+`,
+    );
     const tagExists = vi.fn();
 
     await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
@@ -42,6 +50,54 @@ describe("goPublishStatus", () => {
       tag: "packages/sdk-go/v4.0.0",
     });
     expect(tagExists).not.toHaveBeenCalled();
+  });
+
+  it("ignores changesets for other packages", async () => {
+    const repositoryRoot = await repositoryFixture();
+    await writeFile(
+      path.join(repositoryRoot, ".changeset/release.md"),
+      `---
+"@browserbasehq/stagehand": patch
+---
+
+Fix the TypeScript SDK.
+`,
+    );
+    const tagExists = vi.fn(async () => false);
+
+    await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
+      shouldTag: true,
+      tag: "packages/sdk-go/v4.0.0",
+    });
+    expect(tagExists).toHaveBeenCalledWith("packages/sdk-go/v4.0.0");
+  });
+
+  it("ignores Go SDK mentions outside changeset frontmatter", async () => {
+    const repositoryRoot = await repositoryFixture();
+    await writeFile(
+      path.join(repositoryRoot, ".changeset/release.md"),
+      `---
+"@browserbasehq/stagehand": patch
+---
+
+Keep @browserbasehq/stagehand-go compatible.
+`,
+    );
+    const tagExists = vi.fn(async () => false);
+
+    await expect(goPublishStatus({ repositoryRoot, tagExists })).resolves.toEqual({
+      shouldTag: true,
+      tag: "packages/sdk-go/v4.0.0",
+    });
+  });
+
+  it("rejects malformed changeset frontmatter", async () => {
+    const repositoryRoot = await repositoryFixture();
+    await writeFile(path.join(repositoryRoot, ".changeset/release.md"), "not a changeset\n");
+
+    await expect(goPublishStatus({ repositoryRoot })).rejects.toThrow(
+      "release.md does not contain changeset frontmatter",
+    );
   });
 
   it("does not recreate an existing tag", async () => {

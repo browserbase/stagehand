@@ -7,6 +7,8 @@ import { pathToFileURL } from "node:url";
 const execFileAsync = promisify(execFile);
 const moduleBase = "github.com/browserbase/stagehand/packages/sdk-go";
 const packageVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/u;
+const goPackageKeyPattern =
+  /^\s*(?:"@browserbasehq\/stagehand-go"|'@browserbasehq\/stagehand-go'|@browserbasehq\/stagehand-go)\s*:/mu;
 
 export type GoPublishStatusOptions = {
   repositoryRoot?: string;
@@ -28,6 +30,28 @@ async function localTagExists(repositoryRoot: string, tag: string): Promise<bool
     if ((error as NodeJS.ErrnoException & { code?: number }).code === 1) return false;
     throw error;
   }
+}
+
+function changesetReleasesGo(contents: string, file: string): boolean {
+  const frontmatter = /^---\r?\n(?<body>[\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(contents)?.groups?.body;
+  if (frontmatter === undefined) {
+    throw new Error(`${file} does not contain changeset frontmatter`);
+  }
+  return goPackageKeyPattern.test(frontmatter);
+}
+
+async function hasPendingGoRelease(repositoryRoot: string): Promise<boolean> {
+  const changesetDirectory = path.join(repositoryRoot, ".changeset");
+  const files = (await readdir(changesetDirectory)).filter(
+    (file) => file.endsWith(".md") && file !== "README.md",
+  );
+
+  let pending = false;
+  for (const file of files) {
+    const contents = await readFile(path.join(changesetDirectory, file), "utf8");
+    pending = changesetReleasesGo(contents, file) || pending;
+  }
+  return pending;
 }
 
 export async function goPublishStatus({
@@ -54,10 +78,7 @@ export async function goPublishStatus({
   }
 
   const tag = `packages/sdk-go/v${version}`;
-  const pendingChangesets = (await readdir(path.join(repositoryRoot, ".changeset"))).some(
-    (file) => file.endsWith(".md") && file !== "README.md",
-  );
-  if (pendingChangesets) return { shouldTag: false, tag };
+  if (await hasPendingGoRelease(repositoryRoot)) return { shouldTag: false, tag };
 
   return { shouldTag: !(await tagExists(tag)), tag };
 }

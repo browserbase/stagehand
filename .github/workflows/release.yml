@@ -106,7 +106,6 @@ jobs:
 
   publish-go:
     name: Release Go SDK
-    needs: release-typescript
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
