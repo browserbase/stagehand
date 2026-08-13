@@ -43,6 +43,15 @@ afterEach(async () => {
 });
 
 describe("functions API contracts", () => {
+  it("imports the SDK core without executing the bundled bb CLI", async () => {
+    const core = await import("@browserbasehq/sdk-functions/core");
+
+    expect(core.createFunctionProject).toBeTypeOf("function");
+    expect(core.startDevServer).toBeTypeOf("function");
+    expect(core.publishFunction).toBeTypeOf("function");
+    expect(core.invokeFunction).toBeTypeOf("function");
+  });
+
   itPosix("publishes a Functions archive and polls build status", async () => {
     const cwd = await createFunctionFixture("functions-publish-");
 

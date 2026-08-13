@@ -8,6 +8,7 @@ catalog:
   "@ast-grep/lang-go": 0.0.6
   "@ast-grep/lang-python": 0.0.6
   "@ast-grep/napi": 0.44.1
+  "@browserbasehq/sdk-functions": github:browserbase/sdk-functions-node#4d7db8bdc5917fed0af17e78fe4cc8ed33e64468
   "@changesets/changelog-github": 0.7.0
   "@changesets/cli": 2.31.1
   "@mdx-js/mdx": 3.1.1
@@ -51,6 +52,9 @@ catalog:
 overrides:
   vite: "catalog:"
 allowBuilds:
+  # TODO(functions-core-release): remove this git-dependency build allowance once
+  # @browserbasehq/sdk-functions/core is available from npm.
+  "@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468": true
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false

@@ -1,161 +1,74 @@
-import { stat } from "node:fs/promises";
-import { extname, resolve } from "node:path";
+import {
+  FunctionsCoreError,
+  type ResolveFunctionsApiConfigOptions,
+} from "@browserbasehq/sdk-functions/core";
 
-import { CommandFailure, fail } from "../errors.js";
-import { classifyCommandHttpFailure, readBrowserbaseError, resolveApiKey } from "../cloud/api.js";
+import { classifyCommandHttpFailure, resolveApiKey } from "../cloud/api.js";
+import { fail } from "../errors.js";
 import { setRunTelemetryCompletion } from "../run-telemetry.js";
 
-const defaultFunctionsBaseUrl = "https://api.browserbase.com";
-
-export interface FunctionsApiConfig {
-  apiKey: string;
-  baseUrl: string;
-}
-
-export interface FunctionsProjectConfig extends FunctionsApiConfig {
-  projectId?: string;
-}
-
-export interface PollOptions<T> {
-  done: (value: T) => boolean;
-  intervalMs?: number;
-  maxAttempts?: number;
-}
-
-export function resolveFunctionsApiConfig(args: {
+export interface FunctionsApiOverrides {
   apiKey?: string;
   baseUrl?: string;
-}): FunctionsApiConfig {
-  return {
+}
+
+export function resolveFunctionsCoreOptions(
+  args: FunctionsApiOverrides,
+): ResolveFunctionsApiConfigOptions {
+  const options: ResolveFunctionsApiConfigOptions = {
     apiKey: resolveApiKey(args),
-    baseUrl:
-      args.baseUrl ||
-      process.env.BROWSERBASE_BASE_URL ||
-      process.env.BROWSERBASE_API_BASE_URL ||
-      defaultFunctionsBaseUrl,
-  };
-}
-
-export function resolveFunctionsProjectConfig(args: {
-  apiKey?: string;
-  baseUrl?: string;
-  projectId?: string;
-}): FunctionsProjectConfig {
-  const apiConfig = resolveFunctionsApiConfig(args);
-  const projectId = args.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
-  return projectId ? { ...apiConfig, projectId } : apiConfig;
-}
-
-export async function functionsRequest(
-  config: FunctionsApiConfig,
-  path: string,
-  init: RequestInit = {},
-): Promise<Response> {
-  let response: Response;
-  try {
-    response = await fetch(new URL(path, config.baseUrl), {
-      ...init,
-      headers: {
-        "x-bb-api-key": config.apiKey,
-        ...(init.headers ?? {}),
-      },
-    });
-  } catch (error) {
-    if (error instanceof CommandFailure) {
-      throw error;
-    }
-    fail(error instanceof Error ? error.message : String(error), 1, {
-      resultCode: "request_no_response",
-      requestHadHttpResponse: false,
-    });
-  }
-
-  setRunTelemetryCompletion({
-    httpStatus: response.status,
-    requestHadHttpResponse: true,
-  });
-
-  if (!response.ok) {
-    fail(await readBrowserbaseError(response), 1, {
-      resultCode: classifyCommandHttpFailure("functions", response.status),
-      httpStatus: response.status,
-      requestHadHttpResponse: true,
-    });
-  }
-
-  return response;
-}
-
-export async function functionsGet<T>(config: FunctionsApiConfig, path: string): Promise<T> {
-  const response = await functionsRequest(config, path);
-  return (await response.json()) as T;
-}
-
-export async function functionsPost<T>(
-  config: FunctionsApiConfig,
-  path: string,
-  body: unknown,
-): Promise<T> {
-  const response = await functionsRequest(config, path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+    onResponse(response) {
+      setRunTelemetryCompletion({
+        httpStatus: response.status,
+        requestHadHttpResponse: true,
+      });
     },
-    body: JSON.stringify(body),
-  });
-  return (await response.json()) as T;
-}
-
-export async function pollUntil<T>(loader: () => Promise<T>, options: PollOptions<T>): Promise<T> {
-  const intervalMs = options.intervalMs ?? 1_000;
-  const maxAttempts = options.maxAttempts ?? 120;
-
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const result = await loader();
-    if (options.done(result)) {
-      return result;
-    }
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, intervalMs));
+  };
+  if (args.baseUrl) {
+    options.baseUrl = args.baseUrl;
   }
-
-  fail("Timed out while waiting for the Browserbase Functions operation to complete.", 1, {
-    resultCode: "functions_timeout",
-  });
+  return options;
 }
 
-export async function resolveEntrypoint(entrypoint: string): Promise<string> {
-  const absolutePath = resolve(entrypoint);
-  let stats;
+export async function runFunctionsCore<T>(operation: () => Promise<T>): Promise<T> {
   try {
-    stats = await stat(absolutePath);
-  } catch {
-    fail(`Entrypoint file not found: ${absolutePath}`);
-  }
-
-  if (!stats.isFile()) {
-    fail(`Entrypoint must be a file: ${absolutePath}`);
-  }
-
-  const extension = extname(absolutePath).toLowerCase();
-  if (![".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts"].includes(extension)) {
-    fail(`Unsupported entrypoint extension: ${extension}`);
-  }
-
-  return absolutePath;
-}
-
-export function parseOptionalJsonValueArg(rawValue: unknown, label: string): unknown {
-  if (!rawValue) {
-    return {};
-  }
-
-  if (typeof rawValue !== "string") {
-    fail(`${label} must be provided as a JSON string.`);
-  }
-
-  try {
-    return JSON.parse(rawValue);
+    return await operation();
   } catch (error) {
-    fail(`Invalid JSON for ${label}: ${(error as Error).message}`);
+    rethrowFunctionsCoreError(error);
   }
+}
+
+export function rethrowFunctionsCoreError(error: unknown): never {
+  if (!(error instanceof FunctionsCoreError)) {
+    fail(error instanceof Error ? error.message : String(error));
+  }
+
+  const metadata: {
+    httpStatus?: number;
+    requestHadHttpResponse?: boolean;
+    resultCode: string;
+  } = {
+    resultCode: resultCodeForCoreError(error),
+  };
+  if (error.httpStatus !== undefined) {
+    metadata.httpStatus = error.httpStatus;
+    metadata.requestHadHttpResponse = true;
+  } else if (error.code === "request_failed") {
+    metadata.requestHadHttpResponse = false;
+  }
+  fail(error.message, 1, metadata);
+}
+
+function resultCodeForCoreError(error: FunctionsCoreError): string {
+  if (error.code === "http_error" && error.httpStatus !== undefined) {
+    return classifyCommandHttpFailure("functions", error.httpStatus) ?? "functions_http_error";
+  }
+  const codes: Partial<Record<FunctionsCoreError["code"], string>> = {
+    build_failed: "functions_build_failed",
+    build_missing_id: "functions_build_missing_id",
+    invocation_failed: "functions_invocation_failed",
+    request_failed: "request_no_response",
+    timeout: "functions_timeout",
+  };
+  return codes[error.code] ?? `functions_${error.code}`;
 }

@@ -36,6 +36,9 @@ catalogs:
     '@browserbasehq/sdk':
       specifier: ^2.16.0
       version: 2.16.0
+    '@browserbasehq/sdk-functions':
+      specifier: github:browserbase/sdk-functions-node#4d7db8bdc5917fed0af17e78fe4cc8ed33e64468
+      version: 1.0.2
     '@changesets/changelog-github':
       specifier: 0.7.0
       version: 0.7.0
@@ -218,15 +221,15 @@ importers:
       '@browserbasehq/sdk':
         specifier: ^2.14.0
         version: 2.16.0
+      '@browserbasehq/sdk-functions':
+        specifier: 'catalog:'
+        version: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468
       '@oclif/core':
         specifier: ^4.11.0
         version: 4.13.0
       '@vercel/detect-agent':
         specifier: ^1.2.3
         version: 1.2.3
-      archiver:
-        specifier: ^7.0.1
-        version: 7.0.1
       deepmerge:
         specifier: ^4.3.1
         version: 4.3.1
@@ -239,9 +242,6 @@ importers:
       http-status-codes:
         specifier: ^2.3.0
         version: 2.3.0
-      ignore:
-        specifier: ^7.0.5
-        version: 7.0.5
       node-html-markdown:
         specifier: ^1.3.0
         version: 1.3.0
@@ -251,9 +251,6 @@ importers:
       stagehand-v3:
         specifier: npm:@browserbasehq/stagehand@3.7.1
         version: '@browserbasehq/stagehand@3.7.1(playwright-core@1.56.1)(zod@4.4.3)'
-      tsx:
-        specifier: ^4.20.6
-        version: 4.23.1
       ws:
         specifier: ^8.18.3
         version: 8.21.0(bufferutil@4.1.0)
@@ -264,9 +261,6 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@1.21.7))
-      '@types/archiver':
-        specifier: ^6.0.3
-        version: 6.0.4
       '@types/node':
         specifier: ^20.11.30
         version: 20.19.43
@@ -994,6 +988,11 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468':
+    resolution: {gitHosted: true, integrity: sha512-306uwW7KliLo25OF5Ybn+7fWsagT2wQrXBxYCgVqq1q6Re3rjPNkG5Fq3kKQVXfr4zD6Xm741E3+20fIh4d6xg==, tarball: https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468}
+    version: 1.0.2
+    hasBin: true
 
   '@browserbasehq/sdk@2.16.0':
     resolution: {integrity: sha512-mPAuLRU9jWR7o0KJi9+gQnOBDUSIkoKbbFv4HjrA+80qWVcFacrNPlZmf4mguQnfZ0oP2t5c3ws6yuFyAX9vpA==}
@@ -3671,6 +3670,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@14.0.3:
+    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
+    engines: {node: '>=20'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -8193,6 +8196,22 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
 
+  '@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/4d7db8bdc5917fed0af17e78fe4cc8ed33e64468':
+    dependencies:
+      '@browserbasehq/sdk': 2.16.0
+      archiver: 7.0.1
+      chalk: 5.6.2
+      commander: 14.0.3
+      dotenv: 17.4.2
+      ignore: 7.0.5
+      tsx: 4.23.1
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - encoding
+      - react-native-b4a
+
   '@browserbasehq/sdk@2.16.0':
     dependencies:
       '@types/node': 18.19.130
@@ -11275,6 +11294,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   comma-separated-tokens@2.0.3: {}
+
+  commander@14.0.3: {}
 
   commander@2.20.3: {}
 

@@ -1,12 +1,12 @@
-import { fail } from "../errors.js";
-import { setRunTelemetryCompletion } from "../run-telemetry.js";
 import {
-  functionsGet,
-  functionsPost,
-  parseOptionalJsonValueArg,
-  pollUntil,
-  resolveFunctionsApiConfig,
-} from "./shared.js";
+  FunctionsCoreError,
+  invokeFunction as invokeFunctionCore,
+  parseJsonArgument,
+  type InvocationResponse,
+} from "@browserbasehq/sdk-functions/core";
+
+import { setRunTelemetryCompletion } from "../run-telemetry.js";
+import { rethrowFunctionsCoreError, resolveFunctionsCoreOptions } from "./shared.js";
 
 export interface InvokeFunctionOptions {
   apiKey?: string;
@@ -17,59 +17,24 @@ export interface InvokeFunctionOptions {
   params?: string;
 }
 
-interface InvocationResponse {
-  id: string;
-  functionId: string;
-  status: string;
-  sessionId?: string;
-  startedAt?: string;
-  endedAt?: string;
-  results?: unknown;
-}
-
 export async function invokeFunction(options: InvokeFunctionOptions): Promise<void> {
-  const config = resolveFunctionsApiConfig(options);
-
-  if (options.checkStatus) {
-    const status = await functionsGet<InvocationResponse>(
-      config,
-      `/v1/functions/invocations/${options.checkStatus}`,
-    );
-    console.log(JSON.stringify(status, null, 2));
-    return;
-  }
-
-  if (!options.functionId) {
-    fail("functionId is required unless --check-status is used.");
-  }
-
-  const params = parseOptionalJsonValueArg(options.params, "params");
-  const invocation = await functionsPost<InvocationResponse>(
-    config,
-    `/v1/functions/${options.functionId}/invoke`,
-    { params },
-  );
-
-  if (options.noWait) {
-    console.log(JSON.stringify(invocation, null, 2));
-    return;
-  }
-
-  const finalStatus = await pollUntil(
-    () => functionsGet<InvocationResponse>(config, `/v1/functions/invocations/${invocation.id}`),
-    {
-      done: (result) => !["PENDING", "RUNNING"].includes(result.status),
-      intervalMs: 1_000,
-      maxAttempts: 900,
-    },
-  );
-
-  console.log(JSON.stringify(finalStatus, null, 2));
-
-  if (finalStatus.status === "FAILED") {
-    setRunTelemetryCompletion({
-      resultCode: "functions_invocation_failed",
+  try {
+    const coreOptions = resolveFunctionsCoreOptions(options);
+    const result = await invokeFunctionCore({
+      ...coreOptions,
+      ...(options.checkStatus ? { checkStatus: options.checkStatus } : {}),
+      ...(options.functionId ? { functionId: options.functionId } : {}),
+      noWait: options.noWait,
+      params: parseJsonArgument(options.params, "params"),
     });
-    process.exitCode = 1;
+    console.log(JSON.stringify(result, null, 2));
+  } catch (error) {
+    if (error instanceof FunctionsCoreError && error.code === "invocation_failed") {
+      console.log(JSON.stringify(error.responseBody as InvocationResponse, null, 2));
+      setRunTelemetryCompletion({ resultCode: "functions_invocation_failed" });
+      process.exitCode = 1;
+      return;
+    }
+    rethrowFunctionsCoreError(error);
   }
 }
