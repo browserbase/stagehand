@@ -50,6 +50,26 @@ describe("Locator count() method tests", () => {
     expect(count).toBe(3);
   });
 
+  it("preserves native XPath predicates when an unrelated shadow root exists", async () => {
+    const page = await firstPage(stagehand);
+
+    await page.goto(
+      "data:text/html," +
+        encodeURIComponent(
+          '<section><div class="row">A1</div><div class="row">A2</div></section>' +
+            '<section><div class="row">B1</div><div class="row">B2</div></section>' +
+            '<div id="widget"></div>' +
+            "<script>document.getElementById('widget').attachShadow({mode: 'open'})</script>",
+        ),
+    );
+
+    await expect(page.locator("xpath=//div[position() > 1]").count()).resolves.toBe(2);
+    await expect(page.locator("xpath=//div[position() > 1]").first().textContent()).resolves.toBe(
+      "A2",
+    );
+    await expect(page.locator("xpath=//div[0]").count()).resolves.toBe(0);
+  });
+
   it("count() works with text selectors", async () => {
     const page = await firstPage(stagehand);
 

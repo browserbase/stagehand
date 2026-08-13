@@ -50,6 +50,9 @@ export function resolveXPathAtIndex(
   const shadowHopMatches = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot);
   if (shadowHopMatches.length > 0) return shadowHopMatches[targetIndex] ?? null;
 
+  const native = resolveNativeAtIndexWithError(xp, targetIndex);
+  if (!native.error && native.count > 0) return native.value;
+
   const composed = resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot);
   return composed[targetIndex] ?? null;
 }
@@ -73,6 +76,9 @@ export function countXPathMatches(rawXp: string, options?: XPathResolveOptions):
 
   const shadowHopCount = resolveStagehandShadowHopMatches(xp, shadowCtx.getShadowRoot).length;
   if (shadowHopCount > 0) return shadowHopCount;
+
+  const native = resolveNativeCountWithError(xp);
+  if (!native.error && native.count > 0) return native.count;
 
   return resolveXPathComposedMatches(xp, shadowCtx.getShadowRoot).length;
 }
@@ -259,7 +265,7 @@ function composedDescendants(
 function resolveNativeAtIndexWithError(
   xp: string,
   index: number,
-): { value: Element | null; error: boolean } {
+): { value: Element | null; count: number; error: boolean } {
   try {
     const snapshot = document.evaluate(
       xp,
@@ -270,10 +276,11 @@ function resolveNativeAtIndexWithError(
     );
     return {
       value: snapshot.snapshotItem(index) as Element | null,
+      count: snapshot.snapshotLength,
       error: false,
     };
   } catch {
-    return { value: null, error: true };
+    return { value: null, count: 0, error: true };
   }
 }
 
