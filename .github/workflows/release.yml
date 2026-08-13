@@ -70,6 +70,10 @@ jobs:
         if: steps.release.outputs.should_publish == 'true'
         run: pnpm --filter browse test
 
+      - name: Build Browse for packaging
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm --filter browse build
+
       - name: Pack Browse
         if: steps.release.outputs.should_publish == 'true'
         id: pack
@@ -107,14 +111,19 @@ jobs:
         run: npm publish "$TARBALL" --access public --provenance
 
       - name: Tag Browse release
-        if: steps.release.outputs.should_publish == 'true'
+        if: ${{ !cancelled() && steps.release.outputs.version != '' }}
         shell: bash
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
           tag="browse@$VERSION"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "Tag $tag already exists."
+          if ! npm view "browse@$VERSION" version >/dev/null 2>&1; then
+            echo "browse@$VERSION is not published; skipping tag."
+            exit 0
+          fi
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Remote tag $tag already exists."
             exit 0
           fi
 
