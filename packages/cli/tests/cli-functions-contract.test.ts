@@ -7,6 +7,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -207,6 +208,27 @@ describe("functions API contracts", () => {
     );
   });
 
+  it("rejects publish archives larger than 50 MB", async () => {
+    const cwd = await createFunctionFixture("functions-publish-oversized-");
+    await writeFile(join(cwd, "payload.bin"), randomBytes(51 * 1024 * 1024));
+
+    const result = await runCli(
+      [
+        "functions",
+        "publish",
+        "index.ts",
+        "--api-key",
+        "test-key",
+        "--project-id",
+        "test-project",
+      ],
+      { cwd },
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toContain("the maximum is 50 MB");
+  }, 30_000);
+
   it("infers the project when no project ID is provided", async () => {
     const cwd = await createFunctionFixture("functions-missing-project-");
     const result = await runCli(
@@ -386,7 +408,9 @@ describe("functions scaffolding and local dev", () => {
   it("runs a local dev server and invokes a function", async () => {
     const cwd = await createTempDir("functions-dev-");
     const port = await getFreePort();
-    await writeRuntimeEntrypoint(cwd);
+    await writeRuntimeEntrypoint(cwd, {
+      sessionConfig: { projectId: "manifest-project" },
+    });
 
     await withServer(
       async (request, response) => {
@@ -935,7 +959,11 @@ async function createFakePackageManagerBin(
 
 async function writeRuntimeEntrypoint(
   cwd: string,
-  options: { malformedResponse?: boolean; runtimeStatusLog?: string } = {},
+  options: {
+    malformedResponse?: boolean;
+    runtimeStatusLog?: string;
+    sessionConfig?: Record<string, unknown>;
+  } = {},
 ): Promise<void> {
   await writeFile(
     join(cwd, "runtime-entry.mjs"),
@@ -947,7 +975,7 @@ const manifestsDir = join(process.cwd(), ".browserbase", "functions", "manifests
 mkdirSync(manifestsDir, { recursive: true });
 writeFileSync(join(manifestsDir, "test-function.json"), JSON.stringify({
   name: "test-function",
-  config: {},
+  config: { sessionConfig: ${JSON.stringify(options.sessionConfig ?? {})} },
 }, null, 2));
 
 const runtimeApi = process.env.AWS_LAMBDA_RUNTIME_API;

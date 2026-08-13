@@ -202,15 +202,16 @@ class BrowserSessionManager {
   async createSession(
     sessionConfig: Record<string, unknown> = {},
   ): Promise<InvocationContext["session"]> {
+    const body: Record<string, unknown> = { ...sessionConfig };
+    if (this.config.projectId !== undefined) {
+      body.projectId = this.config.projectId;
+    }
     const response = await functionsRequest(this.config, "/v1/sessions", {
       method: "POST",
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        projectId: this.config.projectId,
-        ...sessionConfig,
-      }),
+      body: JSON.stringify(body),
     });
     const session = (await response.json()) as {
       id?: string;
