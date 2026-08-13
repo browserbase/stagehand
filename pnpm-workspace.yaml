@@ -54,7 +54,7 @@ overrides:
 allowBuilds:
   # TODO(functions-core-release): remove this git-dependency build allowance once
   # @browserbasehq/sdk-functions/core is available from npm.
-  "@browserbasehq/sdk-functions": true
+  "@browserbasehq/sdk-functions@https://codeload.github.com/browserbase/sdk-functions-node/tar.gz/44304977d902a93d6ebc6b3c4fd6379fc6a89f78": true
   "@ast-grep/lang-go": true
   "@ast-grep/lang-python": true
   "@google/genai": false
