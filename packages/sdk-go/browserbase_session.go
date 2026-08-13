@@ -68,10 +68,11 @@ func (client *browserbaseSessionClient) createSession(
 		return resolvedBrowserSource{}, fmt.Errorf("build Browserbase session request: %w", err)
 	}
 	if request.UserMetadata == nil {
-		request.UserMetadata = make(map[string]json.RawMessage, 2)
+		request.UserMetadata = make(map[string]json.RawMessage, 3)
 	}
 	request.UserMetadata["stagehand"] = json.RawMessage(`"true"`)
 	request.UserMetadata["stagehand_sdk_language"] = json.RawMessage(`"go"`)
+	request.UserMetadata["stagehand_sdk_version"] = json.RawMessage(`"` + stagehandSDKVersion + `"`)
 	extensionID := ""
 	ownsExtension := !callerHasExtension
 	if ownsExtension {

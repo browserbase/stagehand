@@ -5,6 +5,7 @@ import {
   createBrowserbaseSessionClient,
   type BrowserbaseApiClient,
 } from "../../src/browser/browserbaseSession.js";
+import { STAGEHAND_SDK_VERSION } from "../../src/version.js";
 
 describe("Browserbase session creation", () => {
   it("maps session creation and release to the official SDK surface", async () => {
@@ -143,6 +144,7 @@ describe("Browserbase session creation", () => {
       userMetadata: {
         stagehand: "false",
         stagehand_sdk_language: "python",
+        stagehand_sdk_version: "0.0.0-spoofed",
         suite: "unit",
       },
     });
@@ -155,6 +157,7 @@ describe("Browserbase session creation", () => {
       userMetadata: {
         stagehand: "true",
         stagehand_sdk_language: "typescript",
+        stagehand_sdk_version: STAGEHAND_SDK_VERSION,
         suite: "unit",
       },
     });
@@ -190,6 +193,7 @@ describe("Browserbase session creation", () => {
         userMetadata: {
           stagehand: "true",
           stagehand_sdk_language: "typescript",
+          stagehand_sdk_version: STAGEHAND_SDK_VERSION,
         },
       });
 

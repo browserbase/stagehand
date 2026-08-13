@@ -6,12 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from ._generated.models import BrowserbaseRegion, BrowserbaseSessionCreateParams
+from ._sdk_identity import STAGEHAND_SESSION_METADATA
 from .extension_assets import build_extension_archive
-
-_STAGEHAND_SESSION_METADATA = {
-    "stagehand": "true",
-    "stagehand_sdk_language": "python",
-}
 
 DEFAULT_BROWSERBASE_URL = "https://api.browserbase.com"
 
@@ -212,7 +208,7 @@ class _BrowserbaseSessionClient:
         extension_id = owned_extension_id or options.extension_id
         user_metadata = {
             **(options.user_metadata or {}),
-            **_STAGEHAND_SESSION_METADATA,
+            **STAGEHAND_SESSION_METADATA,
         }
         try:
             raw_session_id, raw_cdp_url = await self._api.create_session(

@@ -145,7 +145,7 @@ describe("All language SDK operations remain in sync", () => {
     ).root();
     for (const pattern of [
       'values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION',
-      'values["client_info"] = ImplementationInfo($$$ARGS)',
+      'values["client_info"] = STAGEHAND_SDK_CLIENT_INFO',
     ]) {
       expect(
         pythonRoot.find({ rule: { pattern } }),

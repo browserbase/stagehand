@@ -6,7 +6,6 @@ import inspect
 import json
 import sys
 from collections.abc import Callable, Mapping
-from importlib.metadata import version
 from typing import TypeVar, cast, overload
 
 from pydantic import BaseModel
@@ -27,7 +26,6 @@ from ._generated.models import (
     EmptyParams,
     ExtractOptions,
     FieldSchema0,
-    ImplementationInfo,
     LLMGenerateParams,
     LLMGenerateResult,
     ObserveOptions,
@@ -42,6 +40,7 @@ from ._generated.models import (
     StagehandObserveParams,
 )
 from ._generated.protocol_version import STAGEHAND_PROTOCOL_VERSION
+from ._sdk_identity import STAGEHAND_SDK_CLIENT_INFO
 from .browser import (
     StagehandBrowser,
     _attach_browser_context,
@@ -490,10 +489,7 @@ class Stagehand:
         elif self._create_config.model is not None:
             values["model"] = self._create_config.model
         values["protocol_version"] = STAGEHAND_PROTOCOL_VERSION
-        values["client_info"] = ImplementationInfo(
-            name="stagehand-sdk-python",
-            version=version("stagehand"),
-        )
+        values["client_info"] = STAGEHAND_SDK_CLIENT_INFO
         values["browser_cdp_url"] = browser_cdp_url
         values["log_level"] = self._create_config.logging.level
         metadata = claimed.worker_init_metadata
