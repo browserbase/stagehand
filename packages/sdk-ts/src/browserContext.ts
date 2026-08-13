@@ -243,7 +243,10 @@ async function writeStorageStateFile(path: string, state: StorageState): Promise
       "context.storageState(): path is only supported in Node.js; omit path to receive the state object",
     );
   })) as typeof import("node:fs/promises");
-  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
 }
 
 async function readStorageStateFile(path: string): Promise<StorageState> {

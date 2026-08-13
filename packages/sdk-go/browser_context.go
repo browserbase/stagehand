@@ -163,6 +163,9 @@ func (c *BrowserContext) SetStorageState(ctx context.Context, state StorageState
 	if state.Cookies == nil {
 		return errors.New("storage state must include a cookies array")
 	}
+	if err := validateStorageStateCookies(state.Cookies); err != nil {
+		return err
+	}
 	if err := c.ClearCookies(ctx, nil); err != nil {
 		return err
 	}

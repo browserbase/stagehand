@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -185,10 +186,7 @@ class BrowserContext:
         cookies = await self.cookies()
         state: StorageState = {"cookies": cookies, "origins": []}
         if path is not None:
-            Path(path).write_text(
-                json.dumps(_storage_state_to_json(state), indent=2) + "\n",
-                encoding="utf-8",
-            )
+            _write_storage_state_file(Path(path), state)
         return state
 
     async def set_storage_state(self, state: StorageState | str | Path | Mapping[str, object]) -> None:
@@ -263,6 +261,13 @@ def _storage_state_to_json(state: StorageState) -> dict[str, object]:
     }
 
 
+def _write_storage_state_file(path: Path, state: StorageState) -> None:
+    payload = json.dumps(_storage_state_to_json(state), indent=2) + "\n"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+
+
 def _load_storage_state_file(path: Path) -> StorageState:
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
@@ -288,6 +293,8 @@ def _normalize_storage_state(value: object) -> StorageState:
 
 
 def _normalize_storage_cookie(value: object, index: int) -> Cookie:
+    if isinstance(value, Cookie):
+        return value
     if not isinstance(value, Mapping):
         raise TypeError(f"storage state cookies[{index}] must be an object")
     same_site = value.get("sameSite", value.get("same_site"))

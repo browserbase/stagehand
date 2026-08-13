@@ -149,7 +149,7 @@ A persisted profile carries cookies, tokens, and site data across runs. Treat th
 
 ## Cookie storage state
 
-When you need a portable auth snapshot (CI artifacts, sharing cookies across machines) instead of a full Chrome profile, export and restore cookies with `storageState` / `storage_state` / `StorageState`. The JSON shape matches Playwright's cookie list; HttpOnly cookies are included because Stagehand reads them over CDP. localStorage is not exported yet (`origins` is always empty).
+When you need a portable auth snapshot (CI artifacts, sharing cookies across machines) instead of a full Chrome profile, export and restore cookies with `storageState` / `storage_state` / `StorageState`. The JSON shape matches Playwright's cookie list. Stagehand reads cookies over CDP, so the export includes HttpOnly cookies. Stagehand does not export localStorage yet and returns `origins` as an empty list.
 
 <Tabs>
 <Tab title="TypeScript">

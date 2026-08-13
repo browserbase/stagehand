@@ -125,9 +125,9 @@ func TestBrowserContextStorageStateRoundTrip(t *testing.T) {
 		Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSiteLax,
 	}
 	rpc := &recordingProtocolClient{responses: map[string]any{
-		"context.cookies":        ContextCookiesResult{cookie},
-		"context.clear_cookies":  ContextVoidResult{Ok: true},
-		"context.add_cookies":    ContextVoidResult{Ok: true},
+		"context.cookies":       ContextCookiesResult{cookie},
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+		"context.add_cookies":   ContextVoidResult{Ok: true},
 	}}
 	browserContext := &BrowserContext{rpc: rpc}
 	dir := t.TempDir()
@@ -160,6 +160,122 @@ func TestBrowserContextStorageStateRoundTrip(t *testing.T) {
 	params, ok := rpc.calls[2].params.(ContextAddCookiesParams)
 	if !ok || len(params.Cookies) != 1 || params.Cookies[0].HTTPOnly == nil || !*params.Cookies[0].HTTPOnly {
 		t.Fatalf("AddCookies() params = %#v", rpc.calls[2].params)
+	}
+}
+
+func TestBrowserContextStorageStateNilOptionsSkipsWrite(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.cookies": ContextCookiesResult{},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	state, err := browserContext.StorageState(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("StorageState() error = %v", err)
+	}
+	if state.Cookies == nil || len(state.Origins) != 0 {
+		t.Fatalf("StorageState() = %#v", state)
+	}
+	if got := methods(rpc); len(got) != 1 || got[0] != "context.cookies" {
+		t.Fatalf("rpc methods = %#v", got)
+	}
+}
+
+func TestBrowserContextSetStorageStateRejectsNilCookiesWithoutClearing(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	err := browserContext.SetStorageState(context.Background(), StorageState{})
+	if err == nil {
+		t.Fatal("SetStorageState() accepted nil cookies")
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("SetStorageState() mutated cookies before rejecting: %#v", methods(rpc))
+	}
+}
+
+func TestBrowserContextSetStorageStateRejectsInvalidSameSiteWithoutClearing(t *testing.T) {
+	t.Parallel()
+
+	rpc := &recordingProtocolClient{responses: map[string]any{
+		"context.clear_cookies": ContextVoidResult{Ok: true},
+	}}
+	browserContext := &BrowserContext{rpc: rpc}
+
+	err := browserContext.SetStorageState(context.Background(), StorageState{
+		Cookies: []Cookie{{
+			Name: "session", Value: "secret", Domain: "example.com", Path: "/",
+			Expires: -1, HTTPOnly: true, Secure: true, SameSite: CookieSameSite("Invalid"),
+		}},
+	})
+	if err == nil {
+		t.Fatal("SetStorageState() accepted invalid sameSite")
+	}
+	if len(rpc.calls) != 0 {
+		t.Fatalf("SetStorageState() mutated cookies before rejecting: %#v", methods(rpc))
+	}
+}
+
+func TestReadStorageStateFileRejectsMissingCookiesAndFlags(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	missingCookies := filepath.Join(dir, "missing-cookies.json")
+	if err := os.WriteFile(missingCookies, []byte(`{"origins":[]}`+"\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(missingCookies); err == nil {
+		t.Fatal("readStorageStateFile() accepted missing cookies array")
+	}
+
+	missingFlags := filepath.Join(dir, "missing-flags.json")
+	if err := os.WriteFile(missingFlags, []byte(`{
+  "cookies": [
+    {
+      "name": "session",
+      "value": "secret",
+      "domain": "example.com",
+      "path": "/",
+      "expires": -1,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(missingFlags); err == nil {
+		t.Fatal("readStorageStateFile() accepted missing httpOnly/secure")
+	}
+
+	invalidSameSite := filepath.Join(dir, "invalid-samesite.json")
+	if err := os.WriteFile(invalidSameSite, []byte(`{
+  "cookies": [
+    {
+      "name": "session",
+      "value": "secret",
+      "domain": "example.com",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Nope"
+    }
+  ],
+  "origins": []
+}
+`), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if _, err := readStorageStateFile(invalidSameSite); err == nil {
+		t.Fatal("readStorageStateFile() accepted invalid sameSite")
 	}
 }
 
