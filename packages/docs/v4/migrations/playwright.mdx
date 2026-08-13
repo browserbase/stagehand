@@ -1,0 +1,996 @@
+---
+title: Migrate Playwright to v4
+sidebarTitle: Migrate Playwright to v4
+icon: 'arrow-right-arrow-left'
+---
+
+Stagehand v4 drives Chromium over the Chrome DevTools Protocol and has no Playwright dependency, so you can't hand a Playwright `Page` to `act()`. There is no interop; moving a flow to Stagehand means porting it.
+
+The deterministic API is familiar but smaller. `page.goto()`, `page.locator()`, `locator.fill()`, and `page.screenshot()` behave the way you expect, but auto-waiting, `getBy*` locators, `expect()`, and route interception don't exist.
+
+In exchange you get [`act()`](/v4/basics/act), [`extract()`](/v4/basics/extract), and [`observe()`](/v4/basics/observe): natural-language steps that survive the UI changes that break selectors, plus [server-side caching](/v4/best-practices/caching) that removes inference from a flow once it's stable.
+
+<Note>
+This guide is TypeScript throughout, because that's where most Playwright code lives. Stagehand behaves the same way in Python and Go; the [SDK reference](/v4/reference/stagehand) carries each language's naming.
+</Note>
+
+## What changed
+
+What Stagehand does and doesn't cover, and what the smallest script looks like on both sides.
+
+### Stagehand is not a test framework
+
+Playwright is two things in one install: the library that automates a browser, and `@playwright/test`, the runner layered on top of it. Stagehand covers the first and has no counterpart to the second, so there are no fixtures, no `expect()`, no retries, no HTML reporter, no `codegen`, and no trace viewer.
+
+Keep your existing runner if it's a general one such as Vitest or Jest, and call Stagehand inside it. Tests that depend on `@playwright/test` fixtures need porting, because those fixtures hand you a Playwright page.
+
+### Hello world, side by side
+
+<CodeGroup>
+```typescript Playwright
+import { chromium } from "playwright";
+
+const browser = await chromium.launch();
+const context = await browser.newContext();
+const page = await context.newPage();
+
+await page.goto("https://example.com");
+await page.click("a");
+console.log(await page.title());
+
+await browser.close();
+```
+
+```typescript Stagehand v4
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await browserbase.launch({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+});
+const stagehand = await Stagehand.create({ browser });
+
+const page = await browser.context.newPage("https://example.com");
+await page.locator("a").click();
+console.log(await page.title());
+
+await stagehand.close();
+await browser.close();
+```
+</CodeGroup>
+
+The smallest possible script shows the shape of the port:
+
+- A browser factory replaces `chromium.launch()`, and `Stagehand.create()` attaches the runtime to it.
+- There's one context per browser, reached at `browser.context`. `browser.newContext()` has no equivalent.
+- `page.click(selector)` is now `page.locator(selector).click()`. In v4, `page.click(x, y)` clicks page coordinates.
+
+<Warning>
+`page.click()`, `page.hover()`, and `page.type()` all changed meaning. They take coordinates or raw text now, not selectors, so the compiler catches the mistake. Route every selector through `page.locator()`.
+</Warning>
+
+## Port a script
+
+The order to work in, and a worked example end to end.
+
+Most of the work is mechanical, so consider handing it to a coding assistant with the [porting rules](#porting-rules) before doing it by hand.
+
+### Recommended migration order
+
+1. Port one script end to end, keeping selectors exactly as they are. Get it launching, navigating, and closing on v4 first.
+2. Add explicit waits wherever you relied on Playwright's auto-waiting.
+3. Replace `getBy*` locators and assertions, which have no direct equivalent.
+4. Swap the selectors that break most often for `act()` and `extract()`.
+5. Turn on `cache` once the flow is stable.
+
+### A complete port
+
+A Playwright script that opens Hacker News, switches to the newest stories, and reads the top five titles:
+
+```typescript
+import { chromium } from "playwright";
+
+const browser = await chromium.launch();
+const page = await browser.newPage();
+
+await page.goto("https://news.ycombinator.com");
+await page.getByRole("link", { name: "new" }).click();
+await page.waitForLoadState("domcontentloaded");
+
+const titles = await page.locator(".titleline > a").allTextContents();
+console.log(titles.slice(0, 5));
+
+await browser.close();
+```
+
+The v4 port keeps the stable selector and spends a model call only where Playwright's `getByRole()` did the work:
+
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod/v4";
+
+const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
+const stagehand = await Stagehand.create({ browser });
+
+try {
+  const page = await browser.context.newPage("https://news.ycombinator.com");
+
+  // getByRole() has no built-in equivalent, and the link has no stable selector.
+  await stagehand.act("Click the 'new' link in the top navigation");
+  await page.waitForLoadState("domcontentloaded");
+
+  // extract() replaces the allTextContents() loop and returns typed data in one call.
+  const { data } = await stagehand.extract(
+    "Extract the titles of the first five stories",
+    z.object({ titles: z.array(z.string()) }),
+  );
+  console.log(data.titles);
+} finally {
+  await stagehand.close();
+  await browser.close();
+}
+```
+
+## API differences
+
+One section per area of the API. Skip to the one you're porting.
+
+### Launching and connecting
+
+`chromium.launch()` becomes a browser factory, and `Stagehand.create()` attaches to what the factory returns:
+
+```diff
+- const browser = await chromium.launch({ headless: false });
++ const browser = await localBrowser.launch({ headless: false });
++ const stagehand = await Stagehand.create({ browser });
+```
+
+`localBrowser.launch()` accepts the launch and context options you already use: `headless`, `args`, `executablePath`, `userDataDir`, `proxy`, `locale`, `viewport`, `deviceScaleFactor`, `hasTouch`, `ignoreHTTPSErrors`, `downloadsPath`, and `acceptDownloads`.
+
+For a hosted browser, use `browserbase.launch({ apiKey })`. That's what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). To attach to a browser that's already running, use `localBrowser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })`.
+
+Close both handles. `stagehand.close()` releases the Stagehand runtime and leaves the browser running, so call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+
+<Note>
+Chromium only. Stagehand has no Firefox or WebKit support, and no bundled browser download step. A local run uses the Chrome you already have installed, and a Browserbase run needs nothing installed at all.
+</Note>
+
+### Contexts and pages
+
+A Stagehand browser has exactly one context, so there's no isolation-per-context pattern and no `storageState` handoff between them. Run separate browsers when you need separate profiles.
+
+```diff
+- const context = await browser.newContext();
+- const page = await context.newPage();
+- await page.goto("https://example.com");
++ const page = await browser.context.newPage("https://example.com");
+```
+
+`newPage()` takes an optional URL, which saves a `goto()`. The rest of the surface maps closely:
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `context.pages()` | `await browser.context.pages()` |
+| `page.bringToFront()` | `await browser.context.setActivePage(page)` |
+| The page you last used | `await browser.context.activePage()` |
+| `context.addCookies()`, `cookies()`, `clearCookies()` | Same names on `browser.context` |
+| `context.addInitScript()`, `setExtraHTTPHeaders()` | Same names on `browser.context` |
+
+`act()`, `extract()`, and `observe()` run against the active page unless you pass one: `stagehand.act("...", { page })`. See [using multiple tabs](/v4/best-practices/using-multiple-tabs).
+
+### Locators
+
+`page.locator()` takes CSS, XPath (`xpath=` or a leading `/`), or `text=`. CSS selectors pierce shadow DOM, including closed roots, and `>>` hops through iframes, so `page.locator("iframe#checkout >> button.submit")` reaches the button inside the frame. That replaces `frameLocator()`.
+
+The `getBy*` family has no equivalent. In order of preference:
+
+**Rewrite as CSS**, when the app gives you something stable:
+
+```diff
+- page.getByTestId("submit")
++ page.locator("[data-testid=submit]")
+```
+
+**Use `text=`**, which matches a case-insensitive substring of the element's text:
+
+```diff
+- page.getByText("Add to cart")
++ page.locator("text=Add to cart")
+```
+
+**Ask a model**, when the original describes the target by role or context rather than markup. `observe()` returns candidate actions with real selectors attached, so you can inspect one, then drive it deterministically:
+
+```diff
+- await page.getByRole("button", { name: "Add to cart" }).click();
++ const { data: actions } = await stagehand.observe("the add to cart button");
++ await page.locator(actions[0].selector).click();
+```
+
+Passing that action straight to `act()` replays it with no further inference. See [observe use cases](/v4/best-practices/usecase-observe).
+
+**Rebuild it**, when you want the original semantics with no model in the loop. Role, accessible name, and label lookups are DOM logic, and [Rebuilding the missing APIs](#rebuilding-the-missing-apis) implements them.
+
+Chaining and filtering are gone: no `locator.locator()`, `filter()`, `and()`, or `or()`. Write one selector, narrow with `observe()`, or [filter in the page](#filter-and-strict-mode). `first()` and `nth()` work; build `last()` and `all()` from `count()`:
+
+```diff
+- const titles = await page.locator(".titleline > a").allTextContents();
++ const links = page.locator(".titleline > a");
++ const count = await links.count();
++ const titles = [];
++ for (let i = 0; i < count; i++) {
++   titles.push(await links.nth(i).innerText());
++ }
+```
+
+For a list you're going to read anyway, `extract()` with an array schema replaces that loop and one round trip per row.
+
+### Waiting and timeouts
+
+Waiting is where most ported scripts start flaking. Playwright retries every action until the element is attached, visible, stable, and enabled. Stagehand resolves the selector once and throws `Could not find an element for the given xPath(s)` if it isn't there yet.
+
+Navigation defaults differ, which is easy to miss because nothing errors. Playwright's `goto()` waits for `load`; v4's waits for `domcontentloaded`. A script that relied on subresources being ready needs the state spelled out, and `waitUntil: "commit"` has no equivalent, since v4 accepts `load`, `domcontentloaded`, and `networkidle` only.
+
+```diff
+- await page.goto(url);                                 // waits for load
++ await page.goto(url, { waitUntil: "load" });          // v4 defaults to domcontentloaded
+```
+
+Wait first, then act:
+
+```diff
+- await page.locator("#results").click();
++ await page.waitForSelector("#results", { state: "visible" });
++ await page.locator("#results").click();
+```
+
+`waitForSelector()` returns a boolean rather than an element handle, so branch on it instead of catching. `waitForLoadState()` and `waitForTimeout()` work as you'd expect. Actions do scroll their target into view, so `scrollIntoViewIfNeeded()` has no port. `locator.scrollTo(percent)` is a different call: it scrolls content inside a scrollable element.
+
+A single wait isn't the same as Playwright's per-action retry. When a step races a re-render, use the [retry loop](#auto-waiting-and-retries) instead.
+
+There are no default-timeout setters. `page.setDefaultTimeout()` and `setDefaultNavigationTimeout()` have no equivalent, so pass `timeout` per call: on `goto()`, `waitForSelector()`, `waitForLoadState()`, and on `act()`, `observe()`, and `extract()`. [`domSettleTimeoutMs`](/v4/configuration/browser#dom-settle-timeout) on `Stagehand.create()` sets how long the runtime waits for the DOM to settle.
+
+Event-based waits have no equivalent: no `waitForResponse()`, `waitForRequest()`, `waitForEvent()`, or `waitForURL()`. `page.on()` supports `"console"` only. Poll `page.url()` for navigation, or wait for something that only exists on the destination page.
+
+Where a wait condition is hard to express as a selector, `act()` absorbs it. The model reads the page when the call runs, so it sees whatever has rendered by then.
+
+### Assertions
+
+There's no `expect()` and no web-first assertion retry. Combine an explicit wait with your runner's assertions:
+
+```diff
+- await expect(page.locator(".cart-count")).toHaveText("1");
++ await page.waitForSelector(".cart-count", { state: "visible" });
++ expect(await page.locator(".cart-count").innerText()).toBe("1");
+```
+
+Locator state reads that survive the port: `textContent()`, `innerText()`, `innerHtml()`, `inputValue()`, `isChecked()`, `isVisible()`, and `count()`. For `getAttribute()`, `isEnabled()`, `isEditable()`, or a bounding box, drop to `page.evaluate()`. `locator.centroid()` gives you the element's center point.
+
+For assertions about what a page *says* rather than what it contains, `extract()` with a schema is usually the shorter path:
+
+```typescript
+const { data } = await stagehand.extract(
+  "Extract the cart item count and order total",
+  z.object({ itemCount: z.number(), total: z.number() }),
+);
+expect(data.itemCount).toBe(1);
+```
+
+### Network, storage, and files
+
+Route interception has no equivalent. `page.route()`, `context.route()`, and request mocking don't exist. The closest control is a domain allowlist or blocklist on the context:
+
+```diff
+- await context.route("**/analytics/**", (route) => route.abort());
++ await browser.context.setDomainPolicy({ blockedDomains: ["analytics.example.com"] });
+```
+
+`storageState()` has no equivalent either. Persist auth with the cookie API, or with a Browserbase context for full profile reuse. See [user data](/v4/best-practices/user-data).
+
+```diff
+- await context.storageState({ path: "auth.json" });
++ const cookies = await browser.context.cookies();
++ await fs.writeFile("auth.json", JSON.stringify(cookies));
+```
+
+Dialogs have no handler. There's no `page.on("dialog")` and no `dialog.accept()`, so replace those flows by stubbing the dialog functions before the page loads:
+
+```diff
+- page.on("dialog", (dialog) => dialog.accept());
++ await browser.context.addInitScript(() => {
++   window.confirm = () => true;
++   window.alert = () => undefined;
++ });
+```
+
+`locator.setInputFiles()` ports directly, and also accepts in-memory payloads. The SDK serializes each file in memory and caps it at 50 MiB.
+
+Downloads are configured at launch rather than awaited. `localBrowser.launch()` takes `acceptDownloads` and `downloadsPath`, and `downloadsPath` is required whenever `acceptDownloads` is `true`. There's no download event and no `download.saveAs()`, so watch the directory yourself instead of awaiting the download.
+
+### Debugging
+
+`page.pause()`, the Playwright Inspector, the trace viewer, `page.video()`, and `npx playwright codegen` are all Playwright test tooling, so none of them come along.
+
+On Browserbase, the session inspector gives you live view, a full recording with frame-by-frame playback, and network detail. Locally, `logging: { level: "debug" }` and `locator.highlight()` cover most of the gap. `stagehand.metrics()` reports token usage and inference timing per method. See [observability](/v4/configuration/observability).
+
+## Rebuilding the missing APIs
+
+Most of what Playwright gives you and v4 doesn't is DOM logic: `getByRole()` reads roles and accessible names, `filter()` compares text, and auto-waiting is a polling loop. All of that runs in the page, so `page.evaluate()` plus `page.locator()` is enough to rebuild it. These are the implementations Browserbase uses for its own agent integrations.
+
+### The tag-and-locate pattern
+
+One obstacle shapes every recipe here: `page.evaluate()` returns JSON, so it can't hand an element back. Work around it by stamping matches with a temporary attribute inside the page, then addressing them with an ordinary locator.
+
+That gives you an escape hatch for any query you can express as JavaScript. Here's `getByRole()`:
+
+```typescript
+const TAG = "data-sh-tag";
+
+// Tag every element matching a role and accessible name, then return one locator per match.
+async function locateByRole(page: Page, role: string, name?: string): Promise<Locator[]> {
+  const count = await page.evaluate(
+    ({ tag, role, name }) => {
+      const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+      const roleOf = (element: Element) => {
+        const explicit = element.getAttribute("role");
+        if (explicit) return explicit.trim().split(/\s+/)[0];
+        const tagName = element.tagName.toLowerCase();
+        if (tagName === "button") return "button";
+        if (tagName === "a") return element.hasAttribute("href") ? "link" : undefined;
+        if (/^h[1-6]$/.test(tagName)) return "heading";
+        if (tagName === "textarea") return "textbox";
+        if (tagName === "select") return element.hasAttribute("multiple") ? "listbox" : "combobox";
+        if (tagName !== "input") return undefined;
+        const type = (element.getAttribute("type") || "text").toLowerCase();
+        if (["button", "submit", "reset", "image"].includes(type)) return "button";
+        if (["checkbox", "radio"].includes(type)) return type;
+        return ["hidden", "file"].includes(type) ? undefined : "textbox";
+      };
+
+      const labelOf = (element: Element) => {
+        const id = element.getAttribute("id");
+        const explicit = id && document.querySelector(`label[for="${id}"]`);
+        return explicit?.textContent || element.closest("label")?.textContent || "";
+      };
+
+      const nameOf = (element: Element) =>
+        element.getAttribute("aria-label") ||
+        labelOf(element) ||
+        element.getAttribute("alt") ||
+        element.textContent ||
+        "";
+
+      const isVisible = (element: Element) => {
+        const style = getComputedStyle(element);
+        if (style.visibility === "hidden" || style.display === "none") return false;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const matches = [...document.querySelectorAll("*")].filter(
+        (element) =>
+          roleOf(element) === role &&
+          isVisible(element) &&
+          (name === undefined || normalize(nameOf(element)).includes(normalize(name))),
+      );
+
+      matches.forEach((element, index) => element.setAttribute(tag, String(index)));
+      return matches.length;
+    },
+    { tag: TAG, role, name },
+  );
+
+  return Array.from({ length: count }, (_, index) => page.locator(`[${TAG}="${index}"]`));
+}
+
+// Drop the attributes once you're done with the locators.
+async function clearTags(page: Page): Promise<void> {
+  await page.evaluate(
+    (tag) => document.querySelectorAll(`[${tag}]`).forEach((el) => el.removeAttribute(tag)),
+    TAG,
+  );
+}
+```
+
+```typescript
+const [addToCart] = await locateByRole(page, "button", "Add to cart");
+await addToCart.click();
+await clearTags(page);
+```
+
+Worth knowing about the pattern:
+
+- Tag immediately before you act, and clear afterwards. A tag written before a re-render points at a detached node.
+- The role map above covers the tags that carry an implicit role in practice. `option`, `list`, `listitem`, `table`, `row`, `columnheader`, `cell`, `navigation`, `main`, `form`, `slider`, `spinbutton`, and `searchbox` follow the same shape if you need them.
+- Accessible name precedence is `aria-label`, then the associated label's text, then `alt` on an image, then a button's `value`, then `textContent`, then `title`. Playwright's `name` option is a case-insensitive substring match unless you pass `exact: true`.
+- `document.querySelectorAll()` stops at the main document. To reach shadow DOM, recurse through `element.shadowRoot`, which exposes open roots only. `page.locator()` pierces both open and closed roots, so prefer a plain selector when the target sits inside one.
+
+### getByText and the smallest-match rule
+
+`page.locator("text=Add to cart")` matches every element whose text contains the string, including wrappers, so it can resolve a `<div>` around the button rather than the button. Playwright targets the smallest match. That rule is one line: keep an element only when no child also matches.
+
+```typescript
+async function locateByText(page: Page, text: string): Promise<Locator[]> {
+  const count = await page.evaluate(
+    ({ tag, text }) => {
+      const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+      const target = normalize(text);
+      const hasText = (element: Element) => normalize(element.textContent).includes(target);
+
+      const matches = [...document.querySelectorAll("*")].filter(
+        (element) => hasText(element) && ![...element.children].some(hasText),
+      );
+
+      matches.forEach((element, index) => element.setAttribute(tag, String(index)));
+      return matches.length;
+    },
+    { tag: TAG, text },
+  );
+
+  return Array.from({ length: count }, (_, index) => page.locator(`[${TAG}="${index}"]`));
+}
+```
+
+### filter() and strict mode
+
+`filter({ hasText })` is a loop over `count()` and `nth()`. Playwright normalizes whitespace and ignores case, so do the same or the port will miss rows:
+
+```typescript
+async function filterByText(locator: Locator, hasText: string): Promise<Locator[]> {
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+  const target = normalize(hasText);
+  const total = await locator.count();
+
+  const kept: Locator[] = [];
+  for (let index = 0; index < total; index++) {
+    const candidate = locator.nth(index);
+    if (normalize(await candidate.textContent()).includes(target)) kept.push(candidate);
+  }
+  return kept;
+}
+```
+
+Strict mode is worth rebuilding too, and it's the difference most likely to hide a bug. Playwright refuses to act when a locator matches more than one element. v4 acts on the first match, so a selector that quietly went ambiguous keeps working on the wrong element:
+
+```typescript
+const submit = page.locator("button.submit");
+const matches = await submit.count();
+if (matches !== 1) throw new Error(`strict mode violation: ${matches} elements matched`);
+await submit.click();
+```
+
+### Auto-waiting and retries
+
+Playwright retries an action until the element is actionable, which is why ported scripts flake without explicit waits. The loop is short: poll until the element is present and visible, act, and retry if it detached between the check and the action.
+
+```typescript
+async function actWhenReady(
+  page: Page,
+  locator: Locator,
+  action: (target: Locator) => Promise<void>,
+  timeout = 30_000,
+): Promise<void> {
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    if ((await locator.count()) > 0 && (await locator.isVisible())) {
+      try {
+        await action(locator);
+        return;
+      } catch (error) {
+        // A re-render between the check and the action detaches the element.
+        if (Date.now() >= deadline) throw error;
+      }
+    }
+    await page.waitForTimeout(50);
+  }
+
+  throw new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
+}
+
+await actWhenReady(page, page.locator("#checkout"), (target) => target.click());
+```
+
+Retry only the errors that mean "not ready yet": a message matching detached, not visible, no element found, or timed out. Rethrow anything else, or a genuine failure will burn the full timeout before surfacing.
+
+The same loop replaces `locator.waitFor({ state })` when the query isn't a selector you can hand to `page.waitForSelector()`. Read `count()` for `attached` and `detached`, and `count()` plus `isVisible()` for `visible` and `hidden`.
+
+<Warning>
+Don't wrap `act()` in a retry loop. A failed `act()` may already have clicked or submitted before the error surfaced. Retry `observe()`, which only plans, then pass its action to `act()` once.
+</Warning>
+
+### Element reads through evaluate
+
+`Locator` covers text, value, checked state, visibility, and count. Everything else is a one-line `evaluate()`:
+
+```typescript
+const href = await page.evaluate(
+  (selector) => document.querySelector(selector).getAttribute("href"),
+  "a.download",
+);
+
+const enabled = await page.evaluate(
+  (selector) => !document.querySelector(selector).matches(":disabled"),
+  "button.submit",
+);
+
+const box = await page.evaluate((selector) => {
+  const { x, y, width, height } = document.querySelector(selector).getBoundingClientRect();
+  return { x, y, width, height };
+}, "#banner");
+```
+
+### The remaining equivalences
+
+Each of these is a direct substitution:
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `locator.check()` | `if (!(await locator.isChecked())) await locator.click()` |
+| `locator.uncheck()` | `if (await locator.isChecked()) await locator.click()` |
+| `locator.clear()` | `locator.fill("")` |
+| `locator.press(key)` | `await locator.click()`, then `page.keyPress(key)`. Combos such as `"Control+A"` work |
+| `locator.pressSequentially(text)` | `locator.type(text)` |
+| `locator.dblclick()` | `locator.click({ clickCount: 2 })` |
+| `locator.dispatchEvent("click")` | `locator.sendClickEvent()` |
+| `locator.last()` | `locator.nth(await locator.count() - 1)` |
+| `locator.allTextContents()` | `page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => el.textContent), selector)` |
+| `locator.selectOption({ index })` | Read `select.options[index].value` with `evaluate()`, then pass that value |
+| `locator.focus()`, `blur()` | `page.evaluate((s) => document.querySelector(s).focus(), selector)` |
+| `page.content()` | `page.evaluate(() => document.documentElement.outerHTML)` |
+| `page.$eval(selector, fn)` | `page.evaluate()` with the selector as its argument |
+| `page.getByTestId(x)` | `page.locator('[data-testid="x"]')` |
+| `page.getByPlaceholder(x)` | `page.locator('[placeholder*="x"]')`, substring like Playwright's default |
+| `page.getByAltText(x)`, `getByTitle(x)` | `page.locator('[alt*="x"]')`, `page.locator('[title*="x"]')` |
+| `page.getByLabel(x)` | Tag with the `label[for]` and wrapping-label lookup from `locateByRole()` |
+| `page.waitForNavigation()` | Poll `page.url()` every 50 ms until it changes |
+| `page.waitForFunction(fn)` | Poll `page.evaluate(fn)` on the same 50 ms loop |
+| `keyboard.press(key)`, `keyboard.type(text)` | `page.keyPress(key)`, `page.type(text)` |
+| `mouse.move(x, y)`, `mouse.click(x, y)` | `page.hover(x, y)`, `page.click(x, y)` |
+| `mouse.wheel(dx, dy)` | `page.scroll(x, y, dx, dy)` |
+| `request.fetch(url)` | `page.evaluate(async (u) => (await fetch(u)).text(), url)` |
+
+What doesn't rebuild this way is anything that needs the network layer rather than the DOM: `page.route()`, request mocking, `waitForResponse()`, `waitForRequest()`, and the `request`, `response`, and `download` page events. The SDK exposes no CDP escape hatch and `page.on()` carries `"console"` only, so those stay unported.
+
+## What to convert after the port
+
+A one-for-one port gets the script running on v4. Once it's green, convert the steps that break most often:
+
+- **Selectors that churn.** Marketing pages, third-party checkouts, and A/B tested UI. Replace with `act()`, and turn on `selfHeal` so a recorded action re-infers when its selector breaks.
+- **Scraping loops.** A `count()` and `nth()` loop over rows becomes one `extract()` call with an array schema, typed and validated.
+- **Flows you run repeatedly.** Set `cache: true` on `Stagehand.create()`. Browserbase caches `act()`, `observe()`, and `extract()` results keyed on the instruction, page content, and options, so a stable flow stops paying for inference. Read `metadata.cache.status` to confirm hits.
+- **Chatty stretches of deterministic code.** Every SDK call is a round trip to the browser, which a Playwright script full of `locator` reads will feel. [`experimentalBatch()`](/v4/reference/stagehand#experimentalbatch) runs a callback next to the page so those calls stay local. The callback can't capture variables from your process, so pass what it needs as `input`. It's experimental and can change in patch releases.
+
+Reach for `page.locator()` everywhere a selector is stable. A model call per step costs latency and money that a CSS selector doesn't. See [cost optimization](/v4/best-practices/cost-optimization).
+
+## Quick reference
+
+"No equivalent" here means no built-in method. [Rebuilding the missing APIs](#rebuilding-the-missing-apis) implements most of them in a few lines.
+
+### Setup and lifecycle
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `chromium.launch()` | `localBrowser.launch()` or `browserbase.launch({ apiKey })` |
+| `chromium.connectOverCDP(url)` | `localBrowser.connect({ cdpUrl })` |
+| `firefox`, `webkit` | Not supported. Chromium only |
+| `npx playwright install` | Not needed. Local uses installed Chrome |
+| `browser.newContext()` | One context per browser: `browser.context` |
+| `context.newPage()` | `browser.context.newPage()`, optionally with a URL |
+| `browser.close()` | `await stagehand.close()`, then `await browser.close()` |
+
+### Navigation and page state
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `page.goto()`, `reload()`, `goBack()`, `goForward()` | Same names |
+| `page.url()`, `page.title()` | Same names, both async |
+| `page.goto()` default `waitUntil` | `"domcontentloaded"`, not Playwright's `"load"` |
+| `waitUntil: "commit"` | Not supported. `load`, `domcontentloaded`, and `networkidle` only |
+| `page.waitForURL()` | Poll `page.url()`, or wait for a destination selector |
+| `page.setContent()` | No equivalent. Navigate, or build the DOM in `page.evaluate()` |
+| `page.evaluate()`, `addInitScript()` | Same names |
+| `page.$eval()`, `$$eval()` | `page.evaluate()` |
+| `page.setViewportSize()` | Same name, two arguments instead of an object |
+| `page.setExtraHTTPHeaders()` | Same name, also on the context |
+| `page.screenshot()` | Same, returns bytes and honors `path` |
+| `page.pdf()` | No equivalent |
+| `page.accessibility.snapshot()` | `page.snapshot()`, returns a tree plus an XPath map |
+
+### Locators
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `page.locator(css)` | Same, and it pierces shadow DOM |
+| `page.locator("xpath=...")` | Same, or a leading `/` |
+| `page.locator("text=...")` | Same, matches a case-insensitive substring |
+| `page.getByRole()`, `getByLabel()` | `observe()`, or [rebuild the query](#the-tag-and-locate-pattern) |
+| `page.getByPlaceholder()`, `getByAltText()`, `getByTitle()` | `page.locator('[placeholder*="..."]')`, and the same for `alt` and `title` |
+| `page.getByText()` | `page.locator("text=...")`, plus the [leaf rule](#getbytext-and-the-smallest-match-rule) |
+| `page.getByTestId()` | `page.locator("[data-testid=...]")` |
+| `locator.locator()`, `filter()`, `and()`, `or()` | One selector, `observe()`, or [a count and nth loop](#filter-and-strict-mode) |
+| `locator.first()`, `nth()` | Same names |
+| `locator.last()` | `nth(count - 1)` |
+| `locator.all()`, `allTextContents()` | `count()` plus `nth()`, or `extract()` |
+| Strict mode | Not enforced. [Assert `count() === 1`](#filter-and-strict-mode) |
+| `frameLocator("iframe").locator(x)` | `page.locator("iframe >> x")` |
+| `page.frames()` | No equivalent. Selectors cross frames |
+
+### Actions
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `page.click(selector)` | `page.locator(selector).click()`. `page.click(x, y)` takes coordinates |
+| `page.fill(selector, value)` | `page.locator(selector).fill(value)` |
+| `page.type(selector, text)` | `page.locator(selector).type(text)` |
+| `locator.click()`, `hover()`, `fill()`, `type()` | Same names |
+| `locator.dblclick()` | `locator.click({ clickCount: 2 })` |
+| `locator.press("Enter")` | `locator.click()`, then `page.keyPress("Enter")` |
+| `locator.check()`, `uncheck()` | `locator.click()`, confirm with `isChecked()` |
+| `locator.clear()` | `locator.fill("")` |
+| `locator.selectOption()`, `setInputFiles()` | Same names |
+| `locator.dragTo()` | `page.dragAndDrop(fromX, fromY, toX, toY)` with `locator.centroid()` |
+| `locator.scrollIntoViewIfNeeded()` | Automatic. `locator.scrollTo()` scrolls within an element |
+| `locator.dispatchEvent("click")` | `locator.sendClickEvent()` |
+| `mouse`, `keyboard`, `touchscreen` | `page.click(x, y)`, `hover()`, `scroll()`, `type()`, `keyPress()` |
+
+### Waiting and assertions
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| Auto-waiting on every action | Not automatic. `page.waitForSelector()`, or a [retry loop](#auto-waiting-and-retries) |
+| `page.waitForSelector()` | Same name, returns a boolean |
+| `page.waitForLoadState()`, `waitForTimeout()` | Same names |
+| `page.setDefaultTimeout()`, `setDefaultNavigationTimeout()` | No equivalent. Pass `timeout` per call |
+| `page.waitForFunction()` | Poll `page.evaluate()` |
+| `page.waitForResponse()`, `waitForRequest()`, `waitForEvent()` | No equivalent |
+| `page.on("request")`, `on("response")`, `on("dialog")` | `page.on("console")` only |
+| `expect(locator).toBeVisible()` | `waitForSelector()`, then your runner's assertion |
+| `expect(locator).toHaveText()` | `innerText()`, or `extract()` with a schema |
+
+### Reading state
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `locator.textContent()`, `innerText()`, `inputValue()`, `isChecked()`, `isVisible()`, `count()` | Same names |
+| `locator.innerHTML()` | `locator.innerHtml()` |
+| `locator.getAttribute()`, `isEnabled()`, `isEditable()` | [`page.evaluate()`](#element-reads-through-evaluate) |
+| `locator.boundingBox()` | `locator.centroid()` for the center point |
+
+### Storage, network, and tooling
+
+| Playwright | Stagehand v4 |
+| --- | --- |
+| `context.cookies()`, `addCookies()`, `clearCookies()` | Same names on `browser.context` |
+| `context.storageState()` | Cookie API, or a [Browserbase context](/v4/best-practices/user-data) |
+| `page.route()`, `context.route()`, request mocking | No equivalent. `context.setDomainPolicy()` blocks whole domains |
+| `page.on("dialog")`, `dialog.accept()` | Stub `window.confirm` and `window.alert` with `addInitScript()` |
+| `page.waitForEvent("download")`, `download.saveAs()` | No equivalent. Set `acceptDownloads` and `downloadsPath` at launch |
+| `@playwright/test`, fixtures, `expect` | Bring your own runner, such as Vitest or Jest |
+| Trace viewer, `page.video()`, `page.pause()` | Browserbase session recordings and `stagehand.metrics()` |
+| `npx playwright codegen` | A coding assistant with [AI rules](/v4/first-steps/ai-rules), or `observe()` |
+
+## Agent instructions
+
+Most of this guide is a mapping table, so hand it to a coding assistant rather than retyping the rules. The rules below carry the whole mapping, so pair them with the prompt and the assistant has everything the page covers.
+
+Set up [AI rules](/v4/first-steps/ai-rules) first. Without them, assistants fall back on the v2 and v3 patterns in their training data, and on Playwright APIs that v4 doesn't have.
+
+### Kick off the port
+
+```text
+Port this Playwright script to Stagehand v4 (@browserbasehq/stagehand).
+
+Apply the porting rules below verbatim; they override anything you remember
+about Stagehand. Keep every selector as-is. Where a Playwright API has no
+equivalent, comment out the line and add a TODO naming the API instead of
+inventing one. List every TODO you left when you're done.
+```
+
+### Porting rules
+
+Paste this block into your rules file (`AGENTS.md`, `CLAUDE.md`, or `.cursor/rules`) for the length of the migration. It's the mapping an assistant gets wrong most often, stated as rules rather than prose:
+
+```text
+PORTING PLAYWRIGHT TO STAGEHAND V4
+
+Stagehand v4 has no Playwright interop. Port the code; never pass a Playwright
+object to Stagehand. Keep every original selector unless a rule below says
+otherwise. Where an API has no equivalent, comment out the original line and
+leave a TODO naming it. Do not invent APIs.
+
+SETUP AND LIFECYCLE
+- import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand".
+- chromium.launch(opts) -> localBrowser.launch(opts), or
+  browserbase.launch({ apiKey }) for a hosted browser.
+- chromium.connectOverCDP(url) -> localBrowser.connect({ cdpUrl }).
+  Existing Browserbase session -> browserbase.connect({ apiKey, sessionId }).
+- After launching: const stagehand = await Stagehand.create({ browser }).
+- localBrowser.launch() accepts args, executablePath, port, userDataDir,
+  preserveUserDataDir, headless, devtools, chromiumSandbox, ignoreDefaultArgs,
+  proxy, locale, viewport, deviceScaleFactor, hasTouch, ignoreHTTPSErrors,
+  downloadsPath, acceptDownloads, and keepAlive.
+- Stagehand.create() accepts model, cache, logging, systemPrompt, selfHeal,
+  domSettleTimeoutMs, and apiKey. Stagehand reads no environment variables;
+  pass every key explicitly.
+- Teardown: await stagehand.close() then await browser.close().
+  stagehand.close() leaves the browser running.
+- Chromium only. Do not port firefox or webkit projects. No browser download
+  step: local runs use installed Chrome.
+
+CONTEXTS AND PAGES
+- One context per browser, at browser.context. Never call browser.newContext().
+  Separate profiles need separate browsers.
+- context.newPage() -> browser.context.newPage(url?), URL optional.
+- context.pages() -> await browser.context.pages() (async).
+- The current page -> await browser.context.activePage().
+- page.bringToFront() -> await browser.context.setActivePage(page).
+- context.addCookies, cookies, clearCookies, addInitScript, and
+  setExtraHTTPHeaders keep their names on browser.context.
+- act(), observe(), and extract() target the active page unless you pass
+  { page }: stagehand.act("...", { page }).
+
+RESULT SHAPES
+- act(), observe(), and extract() return { data, metadata }. Read .data.
+  metadata carries the action id, cache status, and token usage.
+- extract() is positional: extract(instruction, schema, options?). With no
+  schema it returns { extraction: string }.
+- observe() returns Action[] on .data. Each Action has selector, description,
+  and optional method and arguments.
+- act() accepts a string or an Action. Passing an Action replays it with no
+  inference.
+- act(), observe(), and extract() accept model, timeout, cache, locator, and
+  ignoreLocators. act() and observe() also accept variables, which keeps
+  secrets out of the instruction.
+
+SELECTORS
+- page.locator() accepts CSS, xpath= or a leading /, css=, and text=.
+  It pierces shadow DOM including closed roots. Use >> to hop into an iframe:
+  page.locator("iframe#checkout >> button.submit").
+- frameLocator("f").locator("x") -> page.locator("f >> x").
+  There is no page.frames() and no frame objects.
+- getByTestId(x) -> page.locator('[data-testid="x"]').
+- getByPlaceholder(x) -> page.locator('[placeholder*="x"]').
+  Same shape for getByAltText -> [alt*="x"] and getByTitle -> [title*="x"].
+  Use *= because Playwright's default is a substring match.
+- getByText(x) -> page.locator("text=x"), which is a case-insensitive
+  substring match. WARNING: it also matches wrapper elements, so it can
+  resolve a container instead of the leaf. When the port depends on
+  Playwright's leaf match, use tagAndLocate below with the leaf rule.
+- getByRole and getByLabel have no selector form. Options, in order:
+  1. Rewrite as CSS when the markup is stable.
+  2. const { data } = await stagehand.observe("<description>"), then
+     page.locator(data[0].selector), or hand data[0] to act().
+  3. Rebuild with tagAndLocate below.
+- No locator.locator(), filter(), and(), or or(). Collapse to one selector,
+  or filter with a count() and nth() loop.
+- first() and nth() exist. last() is nth(await locator.count() - 1).
+  all() and allTextContents() are a count() and nth() loop, or one extract().
+- STRICT MODE IS NOT ENFORCED. A locator matching several elements acts on the
+  first. Where the original relied on strict mode, assert count() === 1 first.
+- Stuck finding a target? Read (await page.snapshot()).formattedTree, which is
+  the accessibility tree, and use the paired xpathMap.
+
+TAG AND LOCATE (rebuilding getByRole, getByLabel, and any custom query)
+page.evaluate() returns JSON and cannot hand back an element, so run the query
+in the page, stamp matches with an attribute, then address them with a locator:
+
+  const TAG = "data-sh-tag";
+
+  // Write the query inline in the callback. Do not build it with new Function()
+  // or eval(): that is page-level eval and a strict CSP blocks it.
+  async function locateByRole(page, role, name) {
+    const count = await page.evaluate(
+      ({ tag, role, name }) => {
+        const normalize = (v) => v.replace(/\s+/g, " ").trim().toLowerCase();
+        const roleOf = (el) => { /* implicit role map, see below */ };
+        const nameOf = (el) => { /* accessible name precedence, see below */ };
+        const isVisible = (el) => { /* see below */ };
+
+        const matches = [...document.querySelectorAll("*")].filter(
+          (el) =>
+            roleOf(el) === role &&
+            isVisible(el) &&
+            (name === undefined || normalize(nameOf(el)).includes(normalize(name))),
+        );
+        matches.forEach((el, i) => el.setAttribute(tag, String(i)));
+        return matches.length;
+      },
+      { tag: TAG, role, name },
+    );
+    return Array.from({ length: count }, (_, i) => page.locator(`[${TAG}="${i}"]`));
+  }
+
+  async function clearTags(page) {
+    await page.evaluate(
+      (tag) => document.querySelectorAll(`[${tag}]`).forEach((el) => el.removeAttribute(tag)),
+      TAG,
+    );
+  }
+
+Rules for it:
+- page.evaluate() serializes the callback and JSON-stringifies its argument, so
+  the callback captures nothing from the calling scope. Pass everything it needs
+  as the second argument, and return only JSON.
+- Write one helper per query shape (role, label, leaf text) on this pattern.
+- Tag immediately before acting and clear afterwards. A tag written before a
+  re-render points at a detached node.
+- Implicit roles: button->button, a[href]->link, h1-h6->heading,
+  textarea->textbox, select->combobox (listbox when multiple), input by type
+  (button/submit/reset/image->button, checkbox, radio, range->slider,
+  number->spinbutton, search->searchbox, otherwise textbox). An explicit
+  role attribute wins.
+- Accessible name precedence: aria-label, then associated label text
+  (aria-labelledby ids, then label[for=id], then a wrapping label), then alt,
+  then a button's value, then textContent, then title. Playwright's name
+  option is a case-insensitive substring unless exact: true.
+- Normalize text before comparing: value.replace(/\s+/g, " ").trim() and
+  lowercase, matching Playwright.
+- Leaf rule for text queries: keep an element only when no child also matches.
+- Visibility: getComputedStyle display and visibility, plus a
+  getBoundingClientRect with non-zero width and height.
+- document.querySelectorAll() stops at the main document. Recurse
+  element.shadowRoot for open roots. Closed roots are unreachable from
+  evaluate(), so use page.locator() for those.
+
+ACTIONS
+- page.click(selector) -> page.locator(selector).click().
+  page.click(x, y) takes COORDINATES. Same for page.hover(x, y).
+  page.type(text) types at the focused element. Never pass a selector to these.
+- Locator has click, hover, fill, type, selectOption, setInputFiles, scrollTo,
+  centroid, highlight, sendClickEvent, count, isChecked, isVisible, innerText,
+  innerHtml, textContent, inputValue, first, and nth.
+- locator.press(key) -> await locator.click() then page.keyPress(key).
+  Combos work: page.keyPress("Control+A").
+- locator.pressSequentially(text) -> locator.type(text).
+- locator.check() -> if (!(await locator.isChecked())) await locator.click().
+  locator.uncheck() is the same with the condition inverted.
+- locator.clear() -> locator.fill("").
+- locator.dblclick() -> locator.click({ clickCount: 2 }).
+- locator.dispatchEvent("click") -> locator.sendClickEvent().
+- locator.dragTo(target) -> page.dragAndDrop(fromX, fromY, toX, toY) using
+  coordinates from locator.centroid().
+- locator.scrollIntoViewIfNeeded() -> drop it. Actions scroll their target
+  into view. locator.scrollTo(percent) is unrelated: it scrolls content
+  inside a scrollable element.
+- locator.selectOption({ index }) -> read select.options[index].value with
+  evaluate(), then pass that value.
+- locator.setInputFiles() keeps its name and also takes in-memory payloads
+  ({ name, mimeType, buffer }). Cap is 50 MiB per file.
+- keyboard.press/type -> page.keyPress/page.type.
+  mouse.move/click -> page.hover(x, y)/page.click(x, y).
+  mouse.wheel(dx, dy) -> page.scroll(x, y, dx, dy).
+
+NAVIGATION AND WAITING
+- goto, reload, goBack, and goForward keep their names and return the main
+  document Response or null.
+- DEFAULT LOAD STATE DIFFERS. Playwright goto() waits for "load"; v4 waits for
+  "domcontentloaded". Pass { waitUntil: "load" } where the original relied on
+  subresources. Valid states: load, domcontentloaded, networkidle.
+  waitUntil: "commit" does not exist.
+- page.url() and page.title() are async. Await them.
+- NOTHING AUTO-WAITS. Stagehand resolves a selector once and throws
+  "Could not find an element for the given xPath(s)". Before acting on or
+  reading an element that may not be present, call
+  await page.waitForSelector(selector, { state: "visible" }).
+  It returns a boolean, not an element handle.
+- One wait is not Playwright's per-action retry. For a step that races a
+  re-render, wrap it:
+
+  async function actWhenReady(page, locator, action, timeout = 30_000) {
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      if ((await locator.count()) > 0 && (await locator.isVisible())) {
+        try { await action(locator); return; }
+        catch (error) { if (Date.now() >= deadline) throw error; }
+      }
+      await page.waitForTimeout(50);
+    }
+    throw new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
+  }
+
+  Retry only messages that mean "not ready yet": detached, not visible, no
+  element found, timed out. Rethrow anything else. NEVER retry act(): a failed
+  act() may already have clicked or submitted. Retry observe() instead, then
+  pass its Action to act() once.
+- locator.waitFor({ state }) -> the same loop. count() for attached and
+  detached; count() plus isVisible() for visible and hidden.
+- page.waitForFunction(fn) -> poll page.evaluate(fn) on that loop.
+- page.waitForNavigation() -> poll page.url() until it changes.
+- page.waitForURL() -> poll page.url(), or wait for a selector that exists
+  only on the destination.
+- No waitForResponse, waitForRequest, or waitForEvent. page.on() supports
+  "console" only: no request, response, requestfailed, download, dialog,
+  popup, or pageerror events, and no CDP escape hatch.
+- No setDefaultTimeout or setDefaultNavigationTimeout. Pass timeout per call.
+  waitForLoadState takes it positionally: waitForLoadState(state, timeout).
+  domSettleTimeoutMs on Stagehand.create() covers DOM settling.
+
+ASSERTIONS AND READING STATE
+- expect() does not exist, and neither does assertion retry. Read state, then
+  assert with the runner already in the project (Vitest, Jest).
+- Available directly: textContent, innerText, innerHtml (note the casing),
+  inputValue, isChecked, isVisible, count.
+- Via page.evaluate(): getAttribute, isEnabled and isDisabled
+  (element.matches(":disabled")), isEditable, allTextContents
+  ([...document.querySelectorAll(s)].map((el) => el.textContent)),
+  focus, blur, page.content() (document.documentElement.outerHTML),
+  and $eval / $$eval.
+- locator.boundingBox() -> locator.centroid() for the center point, or
+  getBoundingClientRect() inside evaluate() for the full box.
+- When the assertion is about page content rather than DOM structure, prefer
+  extract() with a schema and assert on the typed result.
+
+NETWORK, STORAGE, AND FILES
+- No page.route(), context.route(), or request mocking. The nearest control is
+  await browser.context.setDomainPolicy({ allowedDomains, blockedDomains }).
+- No context.storageState(). Persist auth with browser.context.cookies() and
+  addCookies(), or a Browserbase context for full profile reuse.
+- request.fetch(url) -> page.evaluate(async (u) => (await fetch(u)).text(), url).
+- page.on("dialog") -> stub the dialog functions before load:
+  await browser.context.addInitScript(() => { window.confirm = () => true; });
+- Downloads are launch-time only: acceptDownloads plus downloadsPath on
+  localBrowser.launch(), and downloadsPath is required when acceptDownloads is
+  true. There is no download event and no download.saveAs().
+- page.setViewportSize(width, height) takes two arguments, not an object.
+- page.screenshot(options?) keeps its name and returns bytes (Uint8Array).
+  fullPage, clip, mask, maskColor, omitBackground, type, quality, scale, style,
+  animations, caret, path, and timeout are all supported.
+- page.accessibility.snapshot() -> page.snapshot(), which returns
+  formattedTree, xpathMap, and urlMap.
+- No page.pdf(), page.setContent(), page.pause(), tracing, or video. For
+  page.setContent(), navigate to a real URL or build the DOM in evaluate().
+
+WHAT TO USE INSTEAD OF SELECTORS
+- Prefer page.locator() wherever a selector is stable. A model call per step
+  costs latency and money that a CSS selector does not.
+- Replace the steps that break most often with act(), and set selfHeal: true so
+  a recorded action re-infers when its selector breaks.
+- Replace a count()/nth() scraping loop with one extract() call and an array
+  schema.
+- Set cache: true on Stagehand.create() once a flow is stable, then check
+  metadata.cache.status for HIT.
+- For long stretches of deterministic calls, stagehand.experimentalBatch()
+  runs a callback next to the page and avoids a round trip per call. The
+  callback cannot capture outer variables; pass them as input. It is
+  experimental.
+
+DEBUGGING WHAT YOU PORTED
+- logging: { level: "debug" } on Stagehand.create(), locator.highlight() to see
+  what a selector resolved to, and await stagehand.metrics() for token usage
+  and inference timing.
+- On Browserbase, the session inspector replaces the trace viewer: live view,
+  recording, and network detail.
+```
+
+## Troubleshooting
+
+**`Could not find an element for the given xPath(s)`.** The element wasn't in the DOM when the locator resolved. Stagehand doesn't auto-wait, so add `page.waitForSelector()` before the action.
+
+**`page.click()` clicks the wrong thing, or nothing.** You passed a selector to the coordinate API. Use `page.locator(selector).click()`.
+
+**`Property 'getByRole' does not exist on type 'Page'`.** The `getBy*` family has no equivalent. Rewrite as CSS, use `text=`, or resolve the element with `observe()`.
+
+**A Playwright page won't type-check as `act()`'s `page` option.** v4 has no page interop, so that option only accepts a page from `browser.context`.
+
+**`Property 'length' does not exist`** on an `observe()` result. Every primitive returns `{ data, metadata }`. Read `.data`.
+
+**Assertions pass locally and fail in CI.** Playwright's assertion retry is gone. An `innerText()` read that follows a click needs a `waitForSelector()` between them.
+
+**Your generated script uses Playwright APIs on a Stagehand page.** The assistant is pattern-matching on Playwright in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Page reference" icon="page" href="/v4/reference/page">
+    The full deterministic surface
+  </Card>
+  <Card title="Observe" icon="eye" href="/v4/basics/observe">
+    Get real selectors from a description
+  </Card>
+  <Card title="Extract" icon="download" href="/v4/basics/extract">
+    Replace scraping loops with typed data
+  </Card>
+  <Card title="Caching" icon="database" href="/v4/best-practices/caching">
+    Cut inference out of a stable flow
+  </Card>
+</CardGroup>

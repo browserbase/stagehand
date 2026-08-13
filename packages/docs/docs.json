@@ -61,7 +61,7 @@
           },
           {
             "group": "Migration guide",
-            "pages": ["v4/migrations/v3"]
+            "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
           },
           {
             "group": "SDK reference",
