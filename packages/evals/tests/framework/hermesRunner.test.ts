@@ -30,10 +30,16 @@ describe("Hermes runner", () => {
     expect(resolveHermesToolSurface()).toBe("hermes_browser_exec");
     expect(resolveHermesToolSurface("hermes_browser_legacy")).toBe("hermes_browser_legacy");
     expect(resolveHermesToolSurface("hermes_stagehand_batch")).toBe("hermes_stagehand_batch");
+    expect(resolveHermesToolSurface("hermes_stagehand_facade")).toBe(
+      "hermes_stagehand_facade",
+    );
     expect(resolveHermesStartupProfile("hermes_browser_exec", "BROWSERBASE")).toBe(
       "tool_create_browserbase",
     );
     expect(() => resolveHermesStartupProfile("hermes_stagehand_batch", "LOCAL")).toThrow(
+      /requires --env browserbase/,
+    );
+    expect(() => resolveHermesStartupProfile("hermes_stagehand_facade", "LOCAL")).toThrow(
       /requires --env browserbase/,
     );
     expect(() => resolveHermesToolSurface("browse_cli")).toThrow(/Hermes harness supports/);

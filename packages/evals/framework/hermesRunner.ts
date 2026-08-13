@@ -20,6 +20,7 @@ export const HERMES_BROWSER_SURFACES = [
   "hermes_browser_legacy",
   "hermes_browser_exec",
   "hermes_stagehand_batch",
+  "hermes_stagehand_facade",
 ] as const;
 export type HermesBrowserSurface = (typeof HERMES_BROWSER_SURFACES)[number];
 
@@ -121,6 +122,7 @@ const EXPECTED_TOOL_SCHEMAS: Record<HermesBrowserSurface, HermesToolSchema> = {
   },
   hermes_browser_exec: { bytes: 10_387, names: ["browser_exec"] },
   hermes_stagehand_batch: { bytes: 10_461, names: ["browser_exec"] },
+  hermes_stagehand_facade: { bytes: 3_694, names: ["run", "screenshot", "snapshot"] },
 };
 const PINNED_BROWSER_USE = {
   packageVersion: "0.13.7",
@@ -138,12 +140,13 @@ export function resolveHermesToolSurface(requested?: ToolSurface): HermesBrowser
   if (
     requested === "hermes_browser_legacy" ||
     requested === "hermes_browser_exec" ||
-    requested === "hermes_stagehand_batch"
+    requested === "hermes_stagehand_batch" ||
+    requested === "hermes_stagehand_facade"
   ) {
     return requested;
   }
   throw new EvalsError(
-    `Hermes harness supports --tool hermes_browser_legacy, --tool hermes_browser_exec, or --tool hermes_stagehand_batch; received "${requested}".`,
+    `Hermes harness supports --tool hermes_browser_legacy, --tool hermes_browser_exec, --tool hermes_stagehand_batch, or --tool hermes_stagehand_facade; received "${requested}".`,
   );
 }
 
@@ -153,7 +156,10 @@ export function resolveHermesStartupProfile(
   requested?: StartupProfile,
 ): StartupProfile {
   resolveHermesToolSurface(toolSurface);
-  if (toolSurface === "hermes_stagehand_batch" && environment !== "BROWSERBASE") {
+  if (
+    (toolSurface === "hermes_stagehand_batch" || toolSurface === "hermes_stagehand_facade") &&
+    environment !== "BROWSERBASE"
+  ) {
     throw new EvalsError(
       "Hermes Stagehand batch launches through Browserbase and requires --env browserbase.",
     );
@@ -181,6 +187,8 @@ export function applyHermesSurfaceEnvironment(
     ].join(path.delimiter);
     return;
   }
+
+  if (surface === "hermes_stagehand_facade") return;
 
   env.HERMES_BENCHMARK_BROWSER_EXEC_ONLY = "1";
   if (surface === "hermes_browser_exec") {
@@ -520,6 +528,10 @@ async function executeHermes(input: HermesRunnerInput): Promise<HermesRunArtifac
   validateHermesBenchmarkRoot(root);
   const stagehandV4Root =
     input.surface === "hermes_stagehand_batch" ? resolvePinnedStagehandV4Root() : undefined;
+  const stagehandFacadeRoot =
+    input.surface === "hermes_stagehand_facade"
+      ? path.resolve(process.env.EVAL_STAGEHAND_FACADE_ROOT?.trim() || "/workspace/stagehand")
+      : undefined;
   const python =
     process.env.EVAL_HERMES_PYTHON?.trim() || path.join(root, ".venv", "bin", "python");
   const hermesEntrypoint = path.join(root, "hermes");
@@ -535,6 +547,24 @@ async function executeHermes(input: HermesRunnerInput): Promise<HermesRunArtifac
     ]) {
       if (!fs.existsSync(required)) {
         throw new EvalsError(`Hermes Stagehand batch prerequisite is missing: ${required}`);
+      }
+    }
+  }
+  if (input.surface === "hermes_stagehand_facade") {
+    for (const required of [
+      path.join(stagehandFacadeRoot!, "packages", "sdk-ts", "dist", "index.mjs"),
+      path.join(
+        stagehandFacadeRoot!,
+        "packages",
+        "integrations",
+        "core",
+        "dist",
+        "facade",
+        "index.mjs",
+      ),
+    ]) {
+      if (!fs.existsSync(required)) {
+        throw new EvalsError(`Hermes Stagehand facade prerequisite is missing: ${required}`);
       }
     }
   }
@@ -560,14 +590,22 @@ async function executeHermes(input: HermesRunnerInput): Promise<HermesRunArtifac
   ]);
   await fsp.writeFile(
     path.join(hermesHome, "config.yaml"),
-    buildHermesConfig(input.surface, input.environment, root, stagehandV4Root),
+    buildHermesConfig(
+      input.surface,
+      input.environment,
+      root,
+      stagehandV4Root,
+      stagehandFacadeRoot,
+    ),
     "utf8",
   );
 
   const usagePath = path.join(runDir, "usage.json");
   const childBaseEnvironment = buildHermesChildBaseEnvironment(process.env);
   const browserbaseEnvironment =
-    input.environment === "BROWSERBASE" && input.surface !== "hermes_stagehand_batch"
+    input.environment === "BROWSERBASE" &&
+    input.surface !== "hermes_stagehand_batch" &&
+    input.surface !== "hermes_stagehand_facade"
       ? await resolveBrowserbaseChildEnvironment(childBaseEnvironment)
       : childBaseEnvironment;
   const env: NodeJS.ProcessEnv = {
@@ -674,6 +712,7 @@ function buildHermesConfig(
   environment: "LOCAL" | "BROWSERBASE",
   hermesRoot: string,
   stagehandV4Root?: string,
+  stagehandFacadeRoot?: string,
 ): string {
   const browserLines = ["browser:"];
   if (surface === "hermes_browser_exec") browserLines.push("  backend: browser-use");
@@ -688,10 +727,21 @@ function buildHermesConfig(
     browserLines.push(
       `  stagehand_python_executable: ${path.join(hermesRoot, ".stagehand-venv", "bin", "python")}`,
     );
+  } else if (surface === "hermes_stagehand_facade") {
+    if (!stagehandFacadeRoot) {
+      throw new EvalsError("Hermes Stagehand facade requires a validated integration root.");
+    }
+    browserLines.push("  backend: stagehand-facade");
+    browserLines.push(`  stagehand_facade_root: ${stagehandFacadeRoot}`);
+    browserLines.push(`  stagehand_facade_node_executable: ${process.execPath}`);
   } else if (environment === "BROWSERBASE") {
     browserLines.push("  cloud_provider: browserbase");
   }
-  return `${browserLines.join("\n")}\n`;
+  const toolSearchLines =
+    surface === "hermes_stagehand_facade"
+      ? ["tools:", "  tool_search:", "    enabled: off"]
+      : [];
+  return `${[...browserLines, ...toolSearchLines].join("\n")}\n`;
 }
 
 function resolveHermesRoot(): string {
@@ -979,7 +1029,12 @@ export async function resolveHermesToolSchema(input: {
   env: NodeJS.ProcessEnv;
   surface: HermesBrowserSurface;
 }): Promise<HermesToolSchema> {
-  const toolset = input.surface === "hermes_browser_legacy" ? "browser" : "browser-use";
+  const toolset =
+    input.surface === "hermes_browser_legacy"
+      ? "browser"
+      : input.surface === "hermes_stagehand_facade"
+        ? "stagehand-facade"
+        : "browser-use";
   const source = [
     "import json",
     "from hermes_cli.oneshot import _validate_explicit_toolsets",
