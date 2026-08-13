@@ -4,6 +4,11 @@ import type { Page } from "./page.js";
 import { Frame } from "./frame.js";
 import { executionContexts } from "./executionContextRegistry.js";
 
+/** Bounded wait only for genuine frame transitions (not same-frame locator ops). */
+const FRAME_LOCATOR_READY_TIMEOUT_MS = 15_000;
+/** Cap each locator-world wait so OOPIF session ownership can be re-resolved. */
+const SESSION_RECHECK_MS = 200;
+
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
  * creating locators scoped to that frame. Supports chaining.
@@ -59,7 +64,7 @@ export class FrameLocator {
           }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
           if (owner.backendNodeId === iframeBackendNodeId) {
             // Ensure child frame is ready (handles OOPIF adoption or same-process)
-            await ensureChildFrameReady(this.page, parentFrame, fid, 1200);
+            await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS);
             return this.page.frameForId(fid);
           }
         } catch {
@@ -186,90 +191,34 @@ function findFrameNode(
 }
 
 /**
- * Ensure we can evaluate in the child frame with minimal delay.
- * - If the child is same-process: parent session owns it and main world appears quickly.
- * - If OOPIF and adoption not finished: wait briefly for ownership change, then main world.
+ * Block until the Stagehand locator/extension world is usable in the child frame.
+ * Re-resolves CDP session ownership on each attempt so OOPIF adoption cannot pin
+ * the wait to a stale session for the full budget.
  */
 async function ensureChildFrameReady(
   page: Page,
-  parentFrame: Frame,
   childFrameId: string,
   budgetMs: number,
 ): Promise<void> {
-  const parentSession = parentFrame.session;
   const deadline = Date.now() + Math.max(0, budgetMs);
+  let lastError: unknown;
 
-  // If already owned by a different session (OOPIF adopted), wait briefly there.
-  const owner = page.getSessionForFrame(childFrameId);
-  if (owner && owner !== parentSession) {
+  while (Date.now() < deadline) {
+    const session = page.getSessionForFrame(childFrameId);
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
     try {
-      await executionContexts.waitForMainWorld(owner, childFrameId, 600);
-    } catch {
-      // best effort
+      await executionContexts.waitForLocatorWorld(
+        session,
+        childFrameId,
+        Math.min(remaining, SESSION_RECHECK_MS),
+      );
+      return;
+    } catch (error) {
+      lastError = error;
     }
-    return;
   }
 
-  const hasMainWorldOnParent = (): boolean => {
-    try {
-      return executionContexts.getMainWorld(parentSession, childFrameId) !== null;
-    } catch {
-      return false;
-    }
-  };
-
-  if (hasMainWorldOnParent()) return;
-
-  await parentSession.send("Page.setLifecycleEventsEnabled", { enabled: true }).catch(() => {});
-  await parentSession.send("Runtime.enable").catch(() => {});
-
-  await new Promise<void>((resolve) => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      parentSession.off("Page.lifecycleEvent", onLifecycle);
-      resolve();
-    };
-    const onLifecycle = (evt: Protocol.Page.LifecycleEventEvent) => {
-      if (
-        evt.frameId !== childFrameId ||
-        (evt.name !== "DOMContentLoaded" &&
-          evt.name !== "load" &&
-          evt.name !== "networkIdle" &&
-          evt.name !== "networkidle")
-      ) {
-        return;
-      }
-      if (hasMainWorldOnParent()) return finish();
-      try {
-        const nowOwner = page.getSessionForFrame(childFrameId);
-        if (nowOwner && nowOwner !== parentSession) {
-          const left = Math.max(150, deadline - Date.now());
-          void executionContexts.waitForMainWorld(nowOwner, childFrameId, left).finally(finish);
-        }
-      } catch {
-        // ignore
-      }
-    };
-    parentSession.on("Page.lifecycleEvent", onLifecycle);
-
-    const tick = () => {
-      if (done) return;
-      if (hasMainWorldOnParent()) return finish();
-      try {
-        const nowOwner = page.getSessionForFrame(childFrameId);
-        if (nowOwner && nowOwner !== parentSession) {
-          const left = Math.max(150, deadline - Date.now());
-          void executionContexts.waitForMainWorld(nowOwner, childFrameId, left).finally(finish);
-          return;
-        }
-      } catch {
-        // ignore
-      }
-      if (Date.now() >= deadline) return finish();
-      setTimeout(tick, 50);
-    };
-    tick();
-  });
+  if (lastError instanceof Error) throw lastError;
+  throw new Error(`Locator world not ready for frame ${childFrameId}`);
 }
