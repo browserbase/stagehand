@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v3-cli
 
 permissions:
   contents: write
@@ -14,8 +15,117 @@ permissions:
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
+  release-browse:
+    name: Release Browse CLI
+    if: github.ref == 'refs/heads/v3-cli'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-node-pnpm-turbo
+        with:
+          use-prebuilt-artifacts: "false"
+
+      - name: Configure npm registry for Trusted Publishing
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Update npm for Trusted Publishing
+        run: npm install -g npm@11.18.0
+
+      - name: Check release status
+        id: release
+        shell: bash
+        run: |
+          package_name="$(node -p "require('./packages/cli/package.json').name")"
+          package_version="$(node -p "require('./packages/cli/package.json').version")"
+          test "$package_name" = "browse"
+
+          published_versions="$(npm view "$package_name" versions --json)"
+          if jq -e --arg version "$package_version" 'index($version) != null' \
+            <<<"$published_versions" >/dev/null; then
+            echo "browse@$package_version is already published; nothing to do."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Publishing browse@$package_version from $GITHUB_SHA."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$package_version" >> "$GITHUB_OUTPUT"
+
+      - name: Lint Browse
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm --filter browse lint
+
+      - name: Test Browse
+        if: steps.release.outputs.should_publish == 'true'
+        run: pnpm --filter browse test
+
+      - name: Pack Browse
+        if: steps.release.outputs.should_publish == 'true'
+        id: pack
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          pack_dir="$RUNNER_TEMP/browse-pack"
+          mkdir -p "$pack_dir"
+          pnpm --dir packages/cli pack --pack-destination "$pack_dir"
+
+          tarball="$pack_dir/browse-$VERSION.tgz"
+          test -f "$tarball"
+          tar -xOf "$tarball" package/package.json | \
+            jq -e --arg version "$VERSION" '.name == "browse" and .version == $version' >/dev/null
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke-test packed CLI
+        if: steps.release.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          smoke_dir="$RUNNER_TEMP/browse-smoke"
+          mkdir -p "$smoke_dir"
+          npm install --prefix "$smoke_dir" "$TARBALL"
+          "$smoke_dir/node_modules/.bin/browse" --version | grep -F "$VERSION"
+          "$smoke_dir/node_modules/.bin/browse" functions --help | grep -F "functions publish"
+
+      - name: Publish Browse
+        if: steps.release.outputs.should_publish == 'true'
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance
+
+      - name: Tag Browse release
+        if: steps.release.outputs.should_publish == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          tag="browse@$VERSION"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "Tag $tag already exists."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+
   release:
     name: Release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
