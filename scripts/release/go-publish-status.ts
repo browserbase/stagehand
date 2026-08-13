@@ -1,3 +1,4 @@
+import parseChangeset from "@changesets/parse";
 import { execFile } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -7,8 +8,6 @@ import { pathToFileURL } from "node:url";
 const execFileAsync = promisify(execFile);
 const moduleBase = "github.com/browserbase/stagehand/packages/sdk-go";
 const packageVersionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/u;
-const goPackageKeyPattern =
-  /^\s*(?:"@browserbasehq\/stagehand-go"|'@browserbasehq\/stagehand-go'|@browserbasehq\/stagehand-go)\s*:/mu;
 
 export type GoPublishStatusOptions = {
   repositoryRoot?: string;
@@ -33,11 +32,13 @@ async function localTagExists(repositoryRoot: string, tag: string): Promise<bool
 }
 
 function changesetReleasesGo(contents: string, file: string): boolean {
-  const frontmatter = /^---\r?\n(?<body>[\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(contents)?.groups?.body;
-  if (frontmatter === undefined) {
-    throw new Error(`${file} does not contain changeset frontmatter`);
+  try {
+    return parseChangeset(contents).releases.some(
+      ({ name }) => name === "@browserbasehq/stagehand-go",
+    );
+  } catch (error) {
+    throw new Error(`${file} does not contain valid changeset frontmatter`, { cause: error });
   }
-  return goPackageKeyPattern.test(frontmatter);
 }
 
 async function hasPendingGoRelease(repositoryRoot: string): Promise<boolean> {
