@@ -1,5 +1,5 @@
 export type XPathPredicate =
-  | { type: "unsupported" }
+  | { type: "unsupported"; source: string }
   | { type: "index"; index: number }
   | { type: "attrEquals"; name: string; value: string; normalize?: boolean }
   | { type: "attrExists"; name: string }
@@ -53,8 +53,8 @@ export interface XPathStep {
  *  - Union operator (`|`)
  *  - Grouped expressions (`(//div)[n]`)
  *
- * Unsupported predicates never match in the composed-tree fallback. Native
- * XPath evaluation still handles them when the selector matches the light DOM.
+ * Unsupported predicates throw in the composed-tree fallback so callers never
+ * receive a broadened or incomplete result that looks authoritative.
  */
 export function parseXPathSteps(input: string): XPathStep[] {
   const path = String(input || "")
@@ -153,7 +153,7 @@ function parseStep(raw: string): {
 
   for (const inner of extractPredicates(predicateStr)) {
     const parsed = parsePredicateExpression(inner);
-    predicates.push(parsed ?? { type: "unsupported" });
+    predicates.push(parsed ?? { type: "unsupported", source: inner });
   }
 
   return { tag, predicates };
@@ -382,7 +382,9 @@ function normalizeMaybe(value: string, normalize?: boolean): string {
 export function evaluatePredicate(element: Element, predicate: XPathPredicate): boolean {
   switch (predicate.type) {
     case "unsupported":
-      return false;
+      throw new Error(
+        `Unsupported XPath predicate in composed-tree traversal: ${predicate.source}`,
+      );
     case "and":
       return predicate.predicates.every((p) => evaluatePredicate(element, p));
     case "or":

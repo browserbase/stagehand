@@ -161,7 +161,7 @@ export class FrameSelectorResolver {
         JSON.stringify(value),
         String(index),
       ]);
-      const resolved = await this.evaluateElement(expr, ctxId);
+      const resolved = await this.evaluateXPathElement(expr, ctxId);
       if (!resolved) break;
       results.push(resolved);
     }
@@ -246,7 +246,11 @@ export class FrameSelectorResolver {
       });
 
       if (evalRes.exceptionDetails) {
-        return 0;
+        throw new Error(
+          evalRes.exceptionDetails.exception?.description ??
+            evalRes.exceptionDetails.text ??
+            "XPath evaluation failed",
+        );
       }
 
       const num =
@@ -255,8 +259,8 @@ export class FrameSelectorResolver {
           : Number(evalRes.result.value);
       if (!Number.isFinite(num)) return 0;
       return Math.max(0, Math.floor(num));
-    } catch {
-      return 0;
+    } catch (error) {
+      throw error instanceof Error ? error : new Error(String(error));
     }
   }
 
@@ -326,5 +330,28 @@ export class FrameSelectorResolver {
     } catch {
       return null;
     }
+  }
+
+  async evaluateXPathElement(
+    expression: string,
+    contextId: Protocol.Runtime.ExecutionContextId,
+  ): Promise<ResolvedNode | null> {
+    const session = this.frame.session;
+    const evalRes = await session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
+      expression,
+      contextId,
+      returnByValue: false,
+      awaitPromise: true,
+    });
+
+    if (evalRes.exceptionDetails) {
+      throw new Error(
+        evalRes.exceptionDetails.exception?.description ??
+          evalRes.exceptionDetails.text ??
+          "XPath evaluation failed",
+      );
+    }
+    if (!evalRes.result.objectId) return null;
+    return this.resolveFromObjectId(evalRes.result.objectId);
   }
 }
