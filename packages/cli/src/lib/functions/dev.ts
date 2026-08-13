@@ -15,8 +15,8 @@ import { fail } from "../errors.js";
 import {
   functionsRequest,
   resolveEntrypoint,
-  resolveFunctionsApiConfig,
-  type FunctionsApiConfig,
+  resolveFunctionsProjectConfig,
+  type FunctionsProjectConfig,
 } from "./shared.js";
 
 const DEFAULT_RUNTIME_STARTUP_TIMEOUT_MS = 10_000;
@@ -27,10 +27,15 @@ export interface StartFunctionsDevServerOptions {
   entrypoint: string;
   host: string;
   port: number;
+  projectId?: string;
   verbose: boolean;
 }
 
 interface InvocationContext {
+  invocation: {
+    id: string;
+    region: "local";
+  };
   session: {
     id: string;
     connectUrl: string;
@@ -120,7 +125,13 @@ class InvocationBridge {
     sendJson(
       this.invokeConnection.response,
       500,
-      { error: payload },
+      {
+        error: {
+          message: payload.errorMessage,
+          stackTrace: payload.stackTrace,
+          type: payload.errorType,
+        },
+      },
       this.invokeConnection.corsHeaders,
     );
     try {
@@ -154,7 +165,7 @@ class InvocationBridge {
       "content-type": "application/json",
       "Lambda-Runtime-Aws-Request-Id": requestId,
       "Lambda-Runtime-Deadline-Ms": String(Date.now() + 300_000),
-      "Lambda-Runtime-Invoked-Function-Arn": `arn:aws:lambda:local:function:${functionName}`,
+      "Lambda-Runtime-Invoked-Function-Arn": `arn:aws:lambda:us-east-1:000000000000:function:${functionName}`,
     });
     this.nextConnection.response.end(
       JSON.stringify({
@@ -186,7 +197,7 @@ class InvocationBridge {
 }
 
 class BrowserSessionManager {
-  constructor(private readonly config: FunctionsApiConfig) {}
+  constructor(private readonly config: FunctionsProjectConfig) {}
 
   async createSession(
     sessionConfig: Record<string, unknown> = {},
@@ -196,7 +207,10 @@ class BrowserSessionManager {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify(sessionConfig),
+      body: JSON.stringify({
+        projectId: this.config.projectId,
+        ...sessionConfig,
+      }),
     });
     const session = (await response.json()) as {
       id?: string;
@@ -219,7 +233,10 @@ class BrowserSessionManager {
       headers: {
         "content-type": "application/json",
       },
-      body: JSON.stringify({ status: "REQUEST_RELEASE" }),
+      body: JSON.stringify({
+        projectId: this.config.projectId,
+        status: "REQUEST_RELEASE",
+      }),
     });
   }
 }
@@ -359,7 +376,7 @@ export async function startFunctionsDevServer(
     fail("Port must be an integer between 1 and 65535.");
   }
 
-  const config = resolveFunctionsApiConfig(options);
+  const config = resolveFunctionsProjectConfig(options);
   const runtimeApi = `${options.host}:${options.port}`;
   const bridge = new InvocationBridge();
   const sessionManager = new BrowserSessionManager(config);
@@ -587,7 +604,13 @@ async function routeRequest(
     const accepted = bridge.triggerInvocation(
       functionName,
       params,
-      { session },
+      {
+        invocation: {
+          id: randomUUID(),
+          region: "local",
+        },
+        session,
+      },
       corsHeaders,
       response,
     );
@@ -664,11 +687,12 @@ async function routeRequest(
       );
       return;
     }
-    const completed = await bridge.completeWithError(requestId, {
+    const runtimeError = {
       errorMessage: payload?.errorMessage || "Unknown runtime error",
       errorType: payload?.errorType || "RuntimeError",
       stackTrace: Array.isArray(payload?.stackTrace) ? payload.stackTrace : [],
-    });
+    };
+    const completed = await bridge.completeWithError(requestId, runtimeError);
     sendJson(
       response,
       completed ? 202 : 400,

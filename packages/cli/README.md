@@ -256,6 +256,10 @@ browse functions invoke <function-id> --params '{"url":"https://example.com"}'
 browse functions invoke --check-status <invocation-id>
 ```
 
+Set both `BROWSERBASE_API_KEY` and `BROWSERBASE_PROJECT_ID` for `functions dev` and
+`functions publish`. `functions invoke` only requires `BROWSERBASE_API_KEY`. You can also pass
+`--api-key` and `--project-id` explicitly; `--api-url` is accepted as an alias for `--base-url`.
+
 ## Templates
 
 Discover and scaffold ready-to-run Browserbase example projects.
