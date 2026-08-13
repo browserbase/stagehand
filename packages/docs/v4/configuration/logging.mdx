@@ -1220,12 +1220,12 @@ import type { StagehandLog } from "@browserbasehq/stagehand";
 
 <Tab title="Python">
 ```python
-from stagehand import StagehandLog
+from stagehand import StagehandLog, StagehandLogData, StagehandLogLevel
 
 # StagehandLog:
-#   level: "debug" | "info" | "warn" | "error"
+#   level: StagehandLogLevel  # "debug" | "info" | "warn" | "error"
 #   message: str              # "act completed successfully"
-#   data: dict                # Structured metadata, JSON-serializable
+#   data: StagehandLogData    # Structured metadata, JSON-serializable
 ```
 </Tab>
 

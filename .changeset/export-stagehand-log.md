@@ -3,4 +3,4 @@
 "@browserbasehq/stagehand-python": patch
 ---
 
-Export `StagehandLog` from the public TypeScript and Python SDK entrypoints
+Export `StagehandLog` (and Python `StagehandLogLevel` / `StagehandLogData`) from the public SDK entrypoints
