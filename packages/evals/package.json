@@ -17,6 +17,7 @@
     "test:evals": "tsx scripts/test-evals.ts --cli packages/evals/dist/cli/cli.js",
     "eval": "tsx cli.ts",
     "regrade:hermes": "tsx scripts/regrade-hermes-artifact.ts",
+    "freeze:hermes-rubrics": "tsx scripts/freeze-hermes-rubrics.ts",
     "benchmark:hermes-public-hard": "tsx scripts/run-hermes-public-hard.ts",
     "report:core": "tsx scripts/render-braintrust-core-report.ts"
   },
