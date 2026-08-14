@@ -5,7 +5,7 @@ import {
 } from "@browserbasehq/stagehand-integrations/facade";
 import { fileURLToPath } from "node:url";
 
-import { buildAllowlistedEnv } from "./env.js";
+import { buildAllowlistedEnv } from "./env.ts";
 
 const serverPath = fileURLToPath(
   import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
@@ -53,8 +53,12 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error: unknown) => {
+if (import.meta.main) {
+  main().catch(handleFailure);
+}
+
+function handleFailure(error: unknown): void {
   // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
-});
+}
