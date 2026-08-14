@@ -92,6 +92,10 @@ export default function stagehandExtension(pi: ExtensionAPI) {
   }
 
   async function closeResources(): Promise<void> {
+    // A shutdown can race a still-pending launch; wait for it so the browser
+    // it produces is closed rather than leaked.
+    const pending = resourcesPromise;
+    if (pending) await pending.catch(() => undefined);
     const current = resources;
     resources = undefined;
     if (!current) return;
