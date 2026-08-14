@@ -1,0 +1,78 @@
+---
+title: "Mastra"
+description: "Give a Mastra agent persistent Stagehand browser tools over MCP/stdio."
+---
+
+The Mastra integration connects an agent to the Stagehand facade MCP server over MCP/stdio. The MCP client remains open for the agent run, so browser state survives across tool calls.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- An OpenAI API key for the example agent
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+corepack pnpm@11.10.0 install --frozen-lockfile
+corepack pnpm@11.10.0 exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Configure the Mastra agent">
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Set `MASTRA_STAGEHAND_MODEL` to select another model supported by the example.
+  </Step>
+  <Step title="Choose the browser">
+The example uses local Chrome by default. To use Browserbase instead:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+corepack pnpm@11.10.0 --dir packages/integrations/mastra start -- \
+  "Open https://example.com and report the page title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `MASTRA_STAGEHAND_MODEL` | Mastra agent model. |
+| `OPENAI_API_KEY` | Credential for the example agent. Mastra does not forward it to the MCP child. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
+
+## Keep the browser session alive
+
+The example creates one MCP client and one facade MCP server for the entire model loop. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
+
+The MCP child receives only Stagehand and Browserbase configuration plus the process values required to launch Node. The host's model credential remains in the Mastra process.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Mastra integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/mastra">
+  Read the MCP client setup, agent prompt, and contract tests.
+</Card>
