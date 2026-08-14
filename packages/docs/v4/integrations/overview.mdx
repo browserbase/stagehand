@@ -7,7 +7,7 @@ description: "Connect CrewAI, Deep Agents, Eve, Mastra, or the Vercel AI SDK to 
 Each integration gives your agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Your agent decides how to navigate and interact while Stagehand manages the browser session.
 
 <Info>
-Stagehand ships these experimental integrations from the monorepo and does not publish the adapters or shared Code Mode package as standalone packages.
+Stagehand ships these experimental integrations from the monorepo and does not publish the adapters or shared integration package as standalone packages.
 </Info>
 
 ## Choose an integration
@@ -76,7 +76,7 @@ Do not create a new MCP process for every tool call. Doing so starts a new brows
 
 ## Run the integrations from source
 
-CrewAI, Eve, Mastra, and the Vercel AI SDK use the shared TypeScript Code Mode server. They require Node.js 24 or newer and pnpm 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+CrewAI, Eve, Mastra, and the Vercel AI SDK use the shared TypeScript integration server. They require Node.js 24 or newer and pnpm 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
 
 <Steps>
   <Step title="Clone and install Stagehand">
@@ -86,7 +86,7 @@ cd stagehand
 corepack pnpm@11.10.0 install --frozen-lockfile
 ```
   </Step>
-  <Step title="Build the shared Code Mode package">
+  <Step title="Build the shared integration package">
 ```bash
 corepack pnpm@11.10.0 exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
@@ -113,7 +113,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. The TypeScript integrations infer Browserbase when `BROWSERBASE_API_KEY` is set; Deep Agents defaults to local. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
-| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript Code Mode tools. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript integration tools. |
 | `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; the MCP examples require this variable. |
 
 The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. Configure a Stagehand model only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
