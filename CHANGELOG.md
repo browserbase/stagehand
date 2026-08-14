@@ -3,6 +3,26 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.0.1
+
+### Patch Changes
+
+- [#2666](https://github.com/browserbase/stagehand/pull/2666) [`00fc44c`](https://github.com/browserbase/stagehand/commit/00fc44c2bd6d43414b7ab922efb631155f7951a7) Thanks [@miguelg719](https://github.com/miguelg719)! - Allow overriding the extension asset locations via `STAGEHAND_EXTENSION_ARCHIVE_PATH` and `STAGEHAND_EXTENSION_DIRECTORY_PATH`
+
+- [#2691](https://github.com/browserbase/stagehand/pull/2691) [`7e09557`](https://github.com/browserbase/stagehand/commit/7e09557a6d25361476fd1712eab9d2a53a591782) Thanks [@shrey150](https://github.com/shrey150)! - Track the Stagehand SDK version in Browserbase session metadata.
+
+## Python SDK 4.0.1
+
+### Patch Changes
+
+- [#2691](https://github.com/browserbase/stagehand/pull/2691) [`7e09557`](https://github.com/browserbase/stagehand/commit/7e09557a6d25361476fd1712eab9d2a53a591782) Thanks [@shrey150](https://github.com/shrey150)! - Track the Stagehand SDK version in Browserbase session metadata.
+
+## Go SDK 4.0.1
+
+### Patch Changes
+
+- [#2691](https://github.com/browserbase/stagehand/pull/2691) [`7e09557`](https://github.com/browserbase/stagehand/commit/7e09557a6d25361476fd1712eab9d2a53a591782) Thanks [@shrey150](https://github.com/shrey150)! - Track the Stagehand SDK version in Browserbase session metadata.
+
 ## TypeScript SDK 4.0.0
 
 ### Major Changes
