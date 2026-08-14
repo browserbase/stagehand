@@ -56,6 +56,10 @@ codex exec \
   "your instruction"
 ```
 
+Note: the SDK's config overrides _merge_ with any `[mcp_servers]` already in your
+`~/.codex/config.toml` rather than replacing them; set `CODEX_HOME` to a scratch directory if
+you need isolation.
+
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's

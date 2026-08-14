@@ -14,11 +14,18 @@ const serverPath = fileURLToPath(
  */
 export function buildCodexConfig(): NonNullable<CodexOptions["config"]> {
   return {
+    // Required for headless MCP calls on machines without a global
+    // approvals_reviewer: without it, tool calls die with "user cancelled
+    // MCP tool call" regardless of approvalPolicy.
+    approvals_reviewer: "auto_review",
     mcp_servers: {
       stagehand: {
         command: process.execPath,
         args: [serverPath],
         env: buildAllowlistedEnv(),
+        // Browser launches exceed the default MCP timeouts.
+        startup_timeout_sec: 60,
+        tool_timeout_sec: 300,
       },
     },
   };
