@@ -6,5 +6,5 @@
     "moduleResolution": "nodenext",
     "skipLibCheck": true
   },
-  "include": ["extensions", "tests"]
+  "include": ["src/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
 }

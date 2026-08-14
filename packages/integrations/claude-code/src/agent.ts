@@ -7,16 +7,18 @@ import { fileURLToPath } from "node:url";
 
 import { buildAllowlistedEnv } from "./env.ts";
 
-const serverPath = fileURLToPath(
-  import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
-);
-
 export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `mcp__stagehand__${tool.name}`);
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const instruction = (args[0] === "--" ? args.slice(1) : args).join(" ").trim();
   if (!instruction) throw new Error('Usage: pnpm start "your instruction"');
+
+  // Resolved here (not at module load) so a missing build surfaces through
+  // handleFailure instead of an uncaught module error.
+  const serverPath = fileURLToPath(
+    import.meta.resolve("@browserbasehq/stagehand-integrations/facade/stdio-server"),
+  );
 
   const result = query({
     prompt: instruction,
@@ -51,6 +53,7 @@ async function main(): Promise<void> {
       throw new Error(`Agent did not finish: ${message.subtype}`);
     }
   }
+  throw new Error("Agent stream ended without a result message.");
 }
 
 if (import.meta.main) {
