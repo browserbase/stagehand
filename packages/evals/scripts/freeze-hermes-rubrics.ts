@@ -71,6 +71,8 @@ async function main(): Promise<void> {
     throw new Error("Rubric block range is outside the frozen manifest");
   }
   const tasks = manifest.tasks.slice(firstBlock - 1, lastBlock);
+  const concurrency = optionalPositiveIntArg("--concurrency") ?? 1;
+  if (concurrency > 8) throw new Error("--concurrency must be at most 8");
   process.env.EVAL_RUBRIC_CACHE_ROOT = cacheRoot;
   process.env.EVAL_VERIFIER_MODEL = manifest.grading.primary_verifier.model;
 
@@ -87,31 +89,41 @@ async function main(): Promise<void> {
   const evaluator = createVerifierEvaluator(carrier);
   let cached = 0;
   let generated = 0;
-  const identities: Array<Record<string, unknown>> = [];
+  let completed = 0;
+  let cursor = 0;
+  const identities: Array<Record<string, unknown> | undefined> = new Array(tasks.length);
   try {
-    for (const task of tasks) {
-      const taskSpec: TaskSpec = {
-        id: task.task_id,
-        instruction: task.confirmed_task,
-        initUrl: task.website,
-      };
-      const resolved = await resolveRubricTraced(evaluator, {
-        taskSpec,
-        dataset: "onlineMind2Web",
-        cacheRoot,
-      });
-      if (resolved.source === "cached") cached += 1;
-      else generated += 1;
-      identities.push({
-        task_id: task.task_id,
-        source: resolved.source,
-        criterion_count: resolved.rubric.items.length,
-        rubric_sha256: sha256(JSON.stringify(resolved.rubric)),
-      });
-      process.stderr.write(
-        `[rubric-freeze] ${cached + generated}/${tasks.length} ${task.task_id} ${resolved.source}\n`,
-      );
-    }
+    const worker = async (): Promise<void> => {
+      while (cursor < tasks.length) {
+        const index = cursor++;
+        const task = tasks[index];
+        const taskSpec: TaskSpec = {
+          id: task.task_id,
+          instruction: task.confirmed_task,
+          initUrl: task.website,
+        };
+        const resolved = await resolveRubricTraced(evaluator, {
+          taskSpec,
+          dataset: "onlineMind2Web",
+          cacheRoot,
+        });
+        if (resolved.source === "cached") cached += 1;
+        else generated += 1;
+        identities[index] = {
+          task_id: task.task_id,
+          source: resolved.source,
+          criterion_count: resolved.rubric.items.length,
+          rubric_sha256: sha256(JSON.stringify(resolved.rubric)),
+        };
+        completed += 1;
+        process.stderr.write(
+          `[rubric-freeze] ${completed}/${tasks.length} ${task.task_id} ${resolved.source}\n`,
+        );
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, tasks.length) }, async () => worker()),
+    );
   } finally {
     void carrier.close().catch(() => {});
   }
@@ -126,9 +138,13 @@ async function main(): Promise<void> {
     first_block: firstBlock,
     last_block: lastBlock,
     task_count: tasks.length,
+    concurrency,
     cached,
     generated,
-    identities,
+    identities: identities.map((identity, index) => {
+      if (!identity) throw new Error(`Missing rubric identity at selected index ${index}`);
+      return identity;
+    }),
   };
   const output = path.resolve(requiredArg("--output"));
   fs.mkdirSync(path.dirname(output), { recursive: true });
