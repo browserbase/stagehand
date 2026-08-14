@@ -3,7 +3,7 @@ title: "Vercel AI SDK"
 description: "Give a Vercel AI SDK agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Vercel AI SDK integration connects an AI SDK tool loop to the shared Stagehand integration server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+The Vercel AI SDK integration connects an AI SDK tool loop to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Tip>
 Building with Eve? Use the [native Eve integration](/v4/integrations/eve) to run the same tool contract in-process.
