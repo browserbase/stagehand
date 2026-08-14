@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { V3, type TaskSpec } from "stagehand-v3";
@@ -22,6 +23,13 @@ interface PilotManifest {
   verifier_model: string;
 }
 
+interface BenchmarkManifest {
+  schema_version: "1";
+  suite: { id: string };
+  grading: { primary_verifier: { model: string } };
+  tasks: OnlineMind2WebRow[];
+}
+
 function readRequiredArg(name: string): string {
   const index = process.argv.indexOf(name);
   const value = index >= 0 ? process.argv[index + 1]?.trim() : undefined;
@@ -35,6 +43,14 @@ function readOptionalArg(name: string): string | undefined {
   const index = process.argv.indexOf(name);
   const value = index >= 0 ? process.argv[index + 1]?.trim() : undefined;
   return value && !value.startsWith("--") ? value : undefined;
+}
+
+function taskSpec(row: OnlineMind2WebRow): TaskSpec {
+  return {
+    id: row.task_id,
+    instruction: row.confirmed_task,
+    initUrl: row.website,
+  };
 }
 
 function readTask(taskId: string): TaskSpec {
@@ -51,11 +67,33 @@ function readTask(taskId: string): TaskSpec {
     .map((line) => JSON.parse(line) as OnlineMind2WebRow)
     .find((candidate) => candidate.task_id === taskId);
   if (!row) throw new Error(`OnlineMind2Web task not found: ${taskId}`);
-  return {
-    id: row.task_id,
-    instruction: row.confirmed_task,
-    initUrl: row.website,
-  };
+  return taskSpec(row);
+}
+
+function readBenchmarkTask(
+  file: string,
+  expectedSha256: string,
+  taskId: string,
+): { task: TaskSpec; verifierModel: string } {
+  const bytes = fs.readFileSync(file);
+  const observed = crypto.createHash("sha256").update(bytes).digest("hex");
+  if (observed !== expectedSha256) {
+    throw new Error(
+      `Benchmark manifest digest mismatch: expected ${expectedSha256}, observed ${observed}`,
+    );
+  }
+  const manifest = JSON.parse(bytes.toString("utf8")) as BenchmarkManifest;
+  if (
+    manifest.schema_version !== "1" ||
+    typeof manifest.suite?.id !== "string" ||
+    !Array.isArray(manifest.tasks) ||
+    typeof manifest.grading?.primary_verifier?.model !== "string"
+  ) {
+    throw new Error("Benchmark manifest is malformed");
+  }
+  const row = manifest.tasks.find((candidate) => candidate.task_id === taskId);
+  if (!row) throw new Error(`Task ${taskId} is not part of the retained benchmark manifest.`);
+  return { task: taskSpec(row), verifierModel: manifest.grading.primary_verifier.model };
 }
 
 async function main(): Promise<void> {
@@ -64,15 +102,36 @@ async function main(): Promise<void> {
   const trajectoryRoot = path.resolve(readRequiredArg("--trajectory-root"));
   const resultJsonArg = readOptionalArg("--result-json");
   const resultJson = resultJsonArg ? path.resolve(resultJsonArg) : undefined;
-  const packageRoot = getPackageRootDir();
-  const manifest = JSON.parse(
-    fs.readFileSync(
-      path.join(packageRoot, "pilots", "hermes-online-mind2web-hard-v1.json"),
-      "utf8",
-    ),
-  ) as PilotManifest;
-  if (!manifest.task_ids.includes(taskId)) {
-    throw new Error(`Task ${taskId} is not part of the frozen Hermes pilot.`);
+  const benchmarkManifestArg = readOptionalArg("--benchmark-manifest");
+  const benchmarkManifestSha256 = readOptionalArg("--benchmark-manifest-sha256");
+  if (Boolean(benchmarkManifestArg) !== Boolean(benchmarkManifestSha256)) {
+    throw new Error(
+      "--benchmark-manifest and --benchmark-manifest-sha256 must be supplied together",
+    );
+  }
+  let task: TaskSpec;
+  let declaredVerifierModel: string;
+  if (benchmarkManifestArg && benchmarkManifestSha256) {
+    const retained = readBenchmarkTask(
+      path.resolve(benchmarkManifestArg),
+      benchmarkManifestSha256,
+      taskId,
+    );
+    task = retained.task;
+    declaredVerifierModel = retained.verifierModel;
+  } else {
+    const packageRoot = getPackageRootDir();
+    const manifest = JSON.parse(
+      fs.readFileSync(
+        path.join(packageRoot, "pilots", "hermes-online-mind2web-hard-v1.json"),
+        "utf8",
+      ),
+    ) as PilotManifest;
+    if (!manifest.task_ids.includes(taskId)) {
+      throw new Error(`Task ${taskId} is not part of the frozen Hermes pilot.`);
+    }
+    task = readTask(taskId);
+    declaredVerifierModel = manifest.verifier_model;
   }
 
   const surfaceValue = readOptionalArg("--surface") ?? "hermes_stagehand_batch";
@@ -80,11 +139,16 @@ async function main(): Promise<void> {
     throw new Error(`Unsupported Hermes surface: ${surfaceValue}`);
   }
   const surface = surfaceValue as HermesBrowserSurface;
-  const verifierModel = readOptionalArg("--verifier-model") ?? manifest.verifier_model;
+  const verifierModel = readOptionalArg("--verifier-model") ?? declaredVerifierModel;
+  if (verifierModel !== declaredVerifierModel) {
+    throw new Error(
+      `Verifier model ${verifierModel} differs from retained declaration ${declaredVerifierModel}`,
+    );
+  }
   process.env.EVAL_VERIFIER_MODEL = verifierModel;
   process.env.VERIFIER_PERSIST_TRAJECTORIES = "1";
 
-  const taskSpec = readTask(taskId);
+  const taskSpec = task;
   const artifact = await loadHermesArtifactDirectory(artifactDir, surface);
   const logger = new EvalLogger(true);
   const carrier = new V3({
