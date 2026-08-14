@@ -474,6 +474,7 @@ async function actWhenReady(
   timeout = 30_000,
 ): Promise<void> {
   const deadline = Date.now() + timeout;
+  let lastError;
 
   while (Date.now() < deadline) {
     if ((await locator.count()) > 0 && (await locator.isVisible())) {
@@ -482,19 +483,20 @@ async function actWhenReady(
         return;
       } catch (error) {
         if (!RETRYABLE.test(String(error))) throw error;
-        if (Date.now() >= deadline) throw error;
+        lastError = error;
       }
     }
     await page.waitForTimeout(50);
   }
 
-  throw new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
+  // Surface the real failure. A generic timeout would hide which locator broke and why.
+  throw lastError ?? new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
 }
 
 await actWhenReady(page, page.locator("#checkout"), (target) => target.click());
 ```
 
-The `RETRYABLE` test matters. Without it the loop swallows assertion and logic failures until the deadline, so a genuine bug surfaces 30 seconds later as a timeout. Widen the pattern as you meet new transient messages, and keep rethrowing everything else immediately.
+Both halves of the error handling matter. Without the `RETRYABLE` test, the loop swallows assertion and logic failures until the deadline, so a genuine bug surfaces 30 seconds later as a timeout. Without `lastError`, a failure that keeps recurring loses its message and locator detail to the generic timeout. Widen the pattern as you meet new transient messages, and keep rethrowing everything else immediately.
 
 The same loop replaces `locator.waitFor({ state })` when the query isn't a selector you can hand to `page.waitForSelector()`. Read `count()` for `attached` and `detached`, and `count()` plus `isVisible()` for `visible` and `hidden`.
 
@@ -885,23 +887,25 @@ NAVIGATION AND WAITING
 
   async function actWhenReady(page, locator, action, timeout = 30_000) {
     const deadline = Date.now() + timeout;
+    let lastError;
     while (Date.now() < deadline) {
       if ((await locator.count()) > 0 && (await locator.isVisible())) {
         try { await action(locator); return; }
         catch (error) {
           if (!RETRYABLE.test(String(error))) throw error;
-          if (Date.now() >= deadline) throw error;
+          lastError = error;
         }
       }
       await page.waitForTimeout(50);
     }
-    throw new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
+    throw lastError ?? new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
   }
 
-  The RETRYABLE guard is required. Retrying every error swallows assertion and
-  logic failures until the deadline, turning a real bug into a timeout. NEVER
-  retry act(): a failed act() may already have clicked or submitted. Retry
-  observe() instead, then pass its Action to act() once.
+  Both guards are required. Without RETRYABLE, the loop swallows assertion and
+  logic failures until the deadline, turning a real bug into a timeout. Without
+  lastError, a recurring failure loses its message to the generic timeout.
+  NEVER retry act(): a failed act() may already have clicked or submitted.
+  Retry observe() instead, then pass its Action to act() once.
 - locator.waitFor({ state }) -> the same loop. count() for attached and
   detached; count() plus isVisible() for visible and hidden.
 - page.waitForFunction(fn) -> poll page.evaluate(fn) on that loop.
