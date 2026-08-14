@@ -31,11 +31,6 @@ type StorageStateOptions struct {
 	Path string
 }
 
-type storageStateFile struct {
-	Cookies []storageStateCookieJSON `json:"cookies"`
-	Origins []StorageStateOrigin     `json:"origins"`
-}
-
 // Pointer fields force presence checks so missing httpOnly/secure/etc. reject
 // instead of silently defaulting to false/zero.
 type storageStateCookieJSON struct {
@@ -47,6 +42,27 @@ type storageStateCookieJSON struct {
 	HTTPOnly *bool    `json:"httpOnly"`
 	Secure   *bool    `json:"secure"`
 	SameSite *string  `json:"sameSite"`
+}
+
+type storageStateFile struct {
+	Cookies []storageStateCookieJSON `json:"cookies"`
+	Origins json.RawMessage          `json:"origins"`
+}
+
+type storageStateExportCookie struct {
+	Name     string  `json:"name"`
+	Value    string  `json:"value"`
+	Domain   string  `json:"domain"`
+	Path     string  `json:"path"`
+	Expires  float64 `json:"expires"`
+	HTTPOnly bool    `json:"httpOnly"`
+	Secure   bool    `json:"secure"`
+	SameSite string  `json:"sameSite"`
+}
+
+type storageStateExport struct {
+	Cookies []storageStateExportCookie `json:"cookies"`
+	Origins []StorageStateOrigin       `json:"origins"`
 }
 
 func cookieToParam(cookie Cookie) CookieParam {
@@ -68,9 +84,10 @@ func cookieToParam(cookie Cookie) CookieParam {
 	}
 }
 
-func normalizeStorageStateCookieSameSite(cookies []Cookie) []Cookie {
+// prepareStorageStateCookies normalizes empty SameSite to Lax and rejects invalid values.
+func prepareStorageStateCookies(cookies []Cookie) ([]Cookie, error) {
 	if cookies == nil {
-		return nil
+		return nil, nil
 	}
 	out := make([]Cookie, len(cookies))
 	copy(out, cookies)
@@ -79,52 +96,34 @@ func normalizeStorageStateCookieSameSite(cookies []Cookie) []Cookie {
 		if out[index].SameSite == "" {
 			out[index].SameSite = CookieSameSiteLax
 		}
-	}
-	return out
-}
-
-func validateStorageStateCookies(cookies []Cookie) error {
-	for index, cookie := range cookies {
-		switch cookie.SameSite {
+		switch out[index].SameSite {
 		case CookieSameSiteStrict, CookieSameSiteLax, CookieSameSiteNone:
 		default:
-			return fmt.Errorf("storage state cookies[%d] has an invalid sameSite", index)
+			return nil, fmt.Errorf("storage state cookies[%d] has an invalid sameSite", index)
 		}
 	}
-	return nil
+	return out, nil
 }
 
 func writeStorageStateFile(path string, state StorageState) error {
-	cookies := normalizeStorageStateCookieSameSite(state.Cookies)
-	if err := validateStorageStateCookies(cookies); err != nil {
+	cookies, err := prepareStorageStateCookies(state.Cookies)
+	if err != nil {
 		return err
 	}
-
-	payload := storageStateFile{
-		Cookies: make([]storageStateCookieJSON, len(cookies)),
-		Origins: state.Origins,
-	}
-	if payload.Origins == nil {
-		payload.Origins = []StorageStateOrigin{}
+	payload := storageStateExport{
+		Cookies: make([]storageStateExportCookie, len(cookies)),
+		Origins: []StorageStateOrigin{},
 	}
 	for index, cookie := range cookies {
-		name := cookie.Name
-		value := cookie.Value
-		domain := cookie.Domain
-		pathValue := cookie.Path
-		expires := cookie.Expires
-		httpOnly := cookie.HTTPOnly
-		secure := cookie.Secure
-		sameSite := string(cookie.SameSite)
-		payload.Cookies[index] = storageStateCookieJSON{
-			Name:     &name,
-			Value:    &value,
-			Domain:   &domain,
-			Path:     &pathValue,
-			Expires:  &expires,
-			HTTPOnly: &httpOnly,
-			Secure:   &secure,
-			SameSite: &sameSite,
+		payload.Cookies[index] = storageStateExportCookie{
+			Name:     cookie.Name,
+			Value:    cookie.Value,
+			Domain:   cookie.Domain,
+			Path:     cookie.Path,
+			Expires:  cookie.Expires,
+			HTTPOnly: cookie.HTTPOnly,
+			Secure:   cookie.Secure,
+			SameSite: string(cookie.SameSite),
 		}
 	}
 	data, err := json.MarshalIndent(payload, "", "  ")
@@ -159,11 +158,8 @@ func normalizeStorageStateFile(payload storageStateFile) (StorageState, error) {
 		}
 		cookies[index] = cookie
 	}
-	origins := payload.Origins
-	if origins == nil {
-		origins = []StorageStateOrigin{}
-	}
-	return StorageState{Cookies: cookies, Origins: origins}, nil
+	// origins / localStorage are ignored until supported; keep the Playwright shape.
+	return StorageState{Cookies: cookies, Origins: []StorageStateOrigin{}}, nil
 }
 
 func cookieFromStorageStateJSON(entry storageStateCookieJSON, index int) (Cookie, error) {
@@ -172,6 +168,9 @@ func cookieFromStorageStateJSON(entry storageStateCookieJSON, index int) (Cookie
 		return Cookie{}, fmt.Errorf("storage state cookies[%d] has an invalid shape", index)
 	}
 	sameSite := CookieSameSite(*entry.SameSite)
+	if sameSite == "" {
+		sameSite = CookieSameSiteLax
+	}
 	switch sameSite {
 	case CookieSameSiteStrict, CookieSameSiteLax, CookieSameSiteNone:
 	default:

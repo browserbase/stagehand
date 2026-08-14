@@ -113,7 +113,7 @@ export class BrowserContext {
    * localStorage / IndexedDB are not included yet (`origins` is always `[]`).
    */
   async storageState(options?: StorageStateOptions): Promise<StorageState> {
-    const cookies = await this.cookies();
+    const cookies = normalizeStorageStateCookieSameSite(await this.cookies());
     const state: StorageState = { cookies, origins: [] };
     if (options?.path !== undefined) {
       await writeStorageStateFile(options.path, state);
@@ -163,6 +163,13 @@ function cookieToParam(cookie: Cookie): CookieParam {
   };
 }
 
+/** CDP may omit SameSite; Playwright-compatible storage state uses Lax. */
+function normalizeStorageStateCookieSameSite(cookies: Cookie[]): Cookie[] {
+  return cookies.map((cookie) =>
+    cookie.sameSite ? cookie : { ...cookie, sameSite: "Lax" },
+  );
+}
+
 function normalizeStorageState(value: unknown): StorageState {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError("storage state must be an object with a cookies array");
@@ -171,12 +178,13 @@ function normalizeStorageState(value: unknown): StorageState {
   if (!Array.isArray(cookiesValue)) {
     throw new TypeError("storage state must include a cookies array");
   }
-  const cookies = cookiesValue.map((entry, index) => normalizeStorageCookie(entry, index));
-  const originsValue = (value as { origins?: unknown }).origins;
-  const origins = Array.isArray(originsValue)
-    ? originsValue.map((entry, index) => normalizeStorageOrigin(entry, index))
-    : [];
-  return { cookies, origins };
+  // origins / localStorage are ignored until supported; keep the Playwright shape.
+  return {
+    cookies: normalizeStorageStateCookieSameSite(
+      cookiesValue.map((entry, index) => normalizeStorageCookie(entry, index)),
+    ),
+    origins: [],
+  };
 }
 
 function normalizeStorageCookie(value: unknown, index: number): Cookie {
@@ -184,7 +192,8 @@ function normalizeStorageCookie(value: unknown, index: number): Cookie {
     throw new TypeError(`storage state cookies[${index}] must be an object`);
   }
   const record = value as Record<string, unknown>;
-  const sameSite = record.sameSite ?? record.same_site;
+  const rawSameSite = record.sameSite ?? record.same_site;
+  const sameSite = rawSameSite === "" || rawSameSite === undefined ? "Lax" : rawSameSite;
   if (
     typeof record.name !== "string" ||
     typeof record.value !== "string" ||
@@ -206,33 +215,6 @@ function normalizeStorageCookie(value: unknown, index: number): Cookie {
     httpOnly: Boolean(record.httpOnly ?? record.http_only),
     secure: record.secure,
     sameSite,
-  };
-}
-
-function normalizeStorageOrigin(value: unknown, index: number): StorageStateOrigin {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new TypeError(`storage state origins[${index}] must be an object`);
-  }
-  const record = value as { origin?: unknown; localStorage?: unknown };
-  if (typeof record.origin !== "string" || !Array.isArray(record.localStorage)) {
-    throw new TypeError(`storage state origins[${index}] has an invalid shape`);
-  }
-  return {
-    origin: record.origin,
-    localStorage: record.localStorage.map((entry, entryIndex) => {
-      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
-        throw new TypeError(
-          `storage state origins[${index}].localStorage[${entryIndex}] must be an object`,
-        );
-      }
-      const item = entry as { name?: unknown; value?: unknown };
-      if (typeof item.name !== "string" || typeof item.value !== "string") {
-        throw new TypeError(
-          `storage state origins[${index}].localStorage[${entryIndex}] has an invalid shape`,
-        );
-      }
-      return { name: item.name, value: item.value };
-    }),
   };
 }
 

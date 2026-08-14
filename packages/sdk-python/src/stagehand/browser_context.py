@@ -183,7 +183,7 @@ class BrowserContext:
 
         localStorage / IndexedDB are not included yet (``origins`` is always ``[]``).
         """
-        cookies = await self.cookies()
+        cookies = _normalize_storage_state_cookie_same_site(await self.cookies())
         state: StorageState = {"cookies": cookies, "origins": []}
         if path is not None:
             _write_storage_state_file(Path(path), state)
@@ -276,20 +276,34 @@ def _load_storage_state_file(path: Path) -> StorageState:
     return _normalize_storage_state(parsed)
 
 
+def _normalize_storage_state_cookie_same_site(cookies: Sequence[Cookie]) -> list[Cookie]:
+    """CDP may omit SameSite; Playwright-compatible storage state uses Lax."""
+    normalized: list[Cookie] = []
+    for cookie in cookies:
+        same_site = cookie.same_site
+        if isinstance(same_site, SameSite):
+            same_site = same_site.value
+        if same_site in (None, ""):
+            normalized.append(cookie.model_copy(update={"same_site": SameSite.lax}))
+        else:
+            normalized.append(cookie)
+    return normalized
+
+
 def _normalize_storage_state(value: object) -> StorageState:
     if not isinstance(value, Mapping):
         raise TypeError("storage state must be an object with a cookies array")
     cookies_value = value.get("cookies")
     if not isinstance(cookies_value, list):
         raise TypeError("storage state must include a cookies array")
-    cookies = [_normalize_storage_cookie(entry, index) for index, entry in enumerate(cookies_value)]
-    origins_value = value.get("origins", [])
-    if origins_value is None:
-        origins_value = []
-    if not isinstance(origins_value, list):
-        raise TypeError("storage state origins must be an array when provided")
-    origins = [_normalize_storage_origin(entry, index) for index, entry in enumerate(origins_value)]
-    return {"cookies": cookies, "origins": origins}
+    cookies = [
+        _normalize_storage_cookie(entry, index) for index, entry in enumerate(cookies_value)
+    ]
+    # origins / localStorage are ignored until supported; keep the Playwright shape.
+    return {
+        "cookies": _normalize_storage_state_cookie_same_site(cookies),
+        "origins": [],
+    }
 
 
 def _normalize_storage_cookie(value: object, index: int) -> Cookie:
@@ -298,6 +312,8 @@ def _normalize_storage_cookie(value: object, index: int) -> Cookie:
     if not isinstance(value, Mapping):
         raise TypeError(f"storage state cookies[{index}] must be an object")
     same_site = value.get("sameSite", value.get("same_site"))
+    if same_site in (None, ""):
+        same_site = "Lax"
     http_only = value.get("httpOnly", value.get("http_only"))
     try:
         return Cookie.model_validate({
@@ -312,26 +328,3 @@ def _normalize_storage_cookie(value: object, index: int) -> Cookie:
         })
     except (KeyError, TypeError, ValueError) as error:
         raise TypeError(f"storage state cookies[{index}] has an invalid shape") from error
-
-
-def _normalize_storage_origin(value: object, index: int) -> StorageStateOrigin:
-    if not isinstance(value, Mapping):
-        raise TypeError(f"storage state origins[{index}] must be an object")
-    origin = value.get("origin")
-    local_storage = value.get("localStorage")
-    if not isinstance(origin, str) or not isinstance(local_storage, list):
-        raise TypeError(f"storage state origins[{index}] has an invalid shape")
-    items: list[StorageStateLocalStorageItem] = []
-    for entry_index, entry in enumerate(local_storage):
-        if not isinstance(entry, Mapping):
-            raise TypeError(
-                f"storage state origins[{index}].localStorage[{entry_index}] must be an object"
-            )
-        name = entry.get("name")
-        item_value = entry.get("value")
-        if not isinstance(name, str) or not isinstance(item_value, str):
-            raise TypeError(
-                f"storage state origins[{index}].localStorage[{entry_index}] has an invalid shape"
-            )
-        items.append({"name": name, "value": item_value})
-    return {"origin": origin, "localStorage": items}

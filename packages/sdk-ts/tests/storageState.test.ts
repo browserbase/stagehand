@@ -148,4 +148,39 @@ describe("BrowserContext.storageState", () => {
       /cookies array/,
     );
   });
+
+  it("normalizes empty sameSite to Lax on export and restore", async () => {
+    const emptySameSite = { ...sampleCookie, sameSite: "" as Cookie["sameSite"] };
+    const { client, calls } = mockClient([emptySameSite]);
+    const context = new BrowserContext(client);
+
+    await expect(context.storageState()).resolves.toStrictEqual({
+      cookies: [{ ...sampleCookie, sameSite: "Lax" }],
+      origins: [],
+    });
+
+    await context.setStorageState({
+      cookies: [emptySameSite],
+      origins: [{ origin: "https://example.com", localStorage: [] }],
+    });
+    expect(calls.map((call) => call.method)).toEqual([
+      "context.cookies",
+      "context.clear_cookies",
+      "context.add_cookies",
+    ]);
+    expect(calls[2]?.params).toStrictEqual({
+      cookies: [
+        {
+          name: "session",
+          value: "secret",
+          domain: "example.com",
+          path: "/",
+          expires: -1,
+          httpOnly: true,
+          secure: true,
+          sameSite: "Lax",
+        },
+      ],
+    });
+  });
 });
