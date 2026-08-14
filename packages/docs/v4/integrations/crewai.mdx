@@ -1,9 +1,9 @@
 ---
 title: "CrewAI"
-description: "Give a CrewAI agent persistent Stagehand Code Mode tools over MCP/stdio."
+description: "Give a CrewAI agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The CrewAI integration connects a Python agent to the shared Stagehand Code Mode server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+The CrewAI integration connects a Python agent to the shared Stagehand integration server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -82,7 +82,7 @@ CrewAI's current tool loop is text-only, and its standard MCP adapter drops imag
 The example opens one MCP session around the complete CrewAI run. Keep that lifetime when adapting the example: creating a new MCP process for each tool call loses the browser and invalidates prior snapshot IDs.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
 </Warning>
 
 <Card title="CrewAI integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/crewai">

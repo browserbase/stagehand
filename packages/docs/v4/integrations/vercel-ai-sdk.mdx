@@ -1,9 +1,9 @@
 ---
 title: "Vercel AI SDK"
-description: "Give a Vercel AI SDK agent persistent Stagehand Code Mode tools over MCP/stdio."
+description: "Give a Vercel AI SDK agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Vercel AI SDK integration connects an AI SDK tool loop to the shared Stagehand Code Mode server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+The Vercel AI SDK integration connects an AI SDK tool loop to the shared Stagehand integration server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
 
 <Tip>
 Building with Eve? Use the [native Eve integration](/v4/integrations/eve) to run the same tool contract in-process.
@@ -74,7 +74,7 @@ The example connects once with `createMCPClient`, loads the three tools, and clo
 The MCP child receives only Stagehand and Browserbase configuration plus the process values required to launch Node. The host's model credential remains in the AI SDK process.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
 </Warning>
 
 <Card title="Vercel AI SDK integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/vercel-ai">

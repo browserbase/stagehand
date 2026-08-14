@@ -1,9 +1,9 @@
 ---
 title: "Mastra"
-description: "Give a Mastra agent persistent Stagehand Code Mode tools over MCP/stdio."
+description: "Give a Mastra agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Mastra integration connects an agent to the shared Stagehand Code Mode server over MCP/stdio. The MCP client remains open for the agent run, so browser state survives across tool calls.
+The Mastra integration connects an agent to the shared Stagehand integration server over MCP/stdio. The MCP client remains open for the agent run, so browser state survives across tool calls.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -65,12 +65,12 @@ corepack pnpm@11.10.0 --dir packages/integrations/mastra start -- \
 
 ## Keep the browser session alive
 
-The example creates one MCP client and one Code Mode server for the entire model loop. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
+The example creates one MCP client and one integration server for the entire model loop. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
 
 The MCP child receives only Stagehand and Browserbase configuration plus the process values required to launch Node. The host's model credential remains in the Mastra process.
 
 <Warning>
-`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
 </Warning>
 
 <Card title="Mastra integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/mastra">

@@ -1,6 +1,6 @@
 ---
 title: "Eve"
-description: "Give Eve, Vercel's framework for building agents, native Stagehand Code Mode tools backed by one durable browser session."
+description: "Give Eve, Vercel's framework for building agents, native Stagehand browser tools backed by one durable browser session."
 ---
 
 The Stagehand integration binds `run`, `snapshot`, and `screenshot` as native in-process [Eve](https://vercel.com/eve) tools backed by one durable browser session, without starting an MCP server or bridge process. Eve is Vercel's framework for building agents with Markdown instructions and skills, TypeScript tools, and durable execution.
@@ -84,7 +84,7 @@ On Browserbase, the example creates a `keepAlive` session and writes its ID to a
 A Browserbase keep-alive session continues running and can continue billing until Eve reattaches it, you release it through Browserbase, or the project timeout ends it.
 </Warning>
 
-`run` executes model-authored JavaScript in the browser. For untrusted tasks, review the [Code Mode security boundary](/v4/integrations/overview#security-boundary).
+`run` executes model-authored JavaScript in the browser. For untrusted tasks, review the [integration security boundary](/v4/integrations/overview#security-boundary).
 
 <Card title="Eve integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/eve">
   Read the native tool bindings and durable-session implementation.
