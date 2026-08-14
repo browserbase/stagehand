@@ -303,7 +303,7 @@ Dialogs have no handler. There's no `page.on("dialog")` and no `dialog.accept()`
 
 `locator.setInputFiles()` ports directly, and also accepts in-memory payloads. The SDK serializes each file in memory and caps it at 50 MiB.
 
-Downloads are configured at launch rather than awaited. `localBrowser.launch()` takes `acceptDownloads` and `downloadsPath`, and `downloadsPath` is required whenever `acceptDownloads` is `true`. There's no download event and no `download.saveAs()`, so watch the directory yourself instead of awaiting the download.
+Stagehand configures downloads at launch rather than exposing them as events. Pass `acceptDownloads` and `downloadsPath` to `localBrowser.launch()`, and note that Stagehand requires `downloadsPath` whenever `acceptDownloads` is `true`. Stagehand emits no download event and provides no `download.saveAs()`, so watch the directory yourself instead of awaiting the download.
 
 ### Debugging
 
@@ -401,7 +401,7 @@ Worth knowing about the pattern:
 
 - Tag immediately before you act, and clear afterwards. A tag written before a re-render points at a detached node.
 - The role map above covers the tags that carry an implicit role in practice. `option`, `list`, `listitem`, `table`, `row`, `columnheader`, `cell`, `navigation`, `main`, `form`, `slider`, `spinbutton`, and `searchbox` follow the same shape if you need them.
-- Accessible name precedence is `aria-label`, then the associated label's text, then `alt` on an image, then a button's `value`, then `textContent`, then `title`. Playwright's `name` option is a case-insensitive substring match unless you pass `exact: true`.
+- Accessible name precedence is `aria-label`, then the associated label's text, then `alt` on an image, then `value` on an `<input>` of type `button`, `submit`, or `reset`, then `textContent`, then `title`. The snippet stops at `textContent`, which covers most targets. Add the rest when a page needs it. Playwright's `name` option is a case-insensitive substring match unless you pass `exact: true`.
 - `document.querySelectorAll()` stops at the main document. To reach shadow DOM, recurse through `element.shadowRoot`, which exposes open roots only. `page.locator()` pierces both open and closed roots, so prefer a plain selector when the target sits inside one.
 
 ### getByText and the smallest-match rule
@@ -463,6 +463,10 @@ await submit.click();
 Playwright retries an action until the element is actionable, which is why ported scripts flake without explicit waits. The loop is short: poll until the element is present and visible, act, and retry if it detached between the check and the action.
 
 ```typescript
+// A re-render between the check and the action produces one of these. Anything
+// else is a real failure and must not wait out the deadline.
+const RETRYABLE = /detached|not visible|could not find|no element|timed? out/i;
+
 async function actWhenReady(
   page: Page,
   locator: Locator,
@@ -477,7 +481,7 @@ async function actWhenReady(
         await action(locator);
         return;
       } catch (error) {
-        // A re-render between the check and the action detaches the element.
+        if (!RETRYABLE.test(String(error))) throw error;
         if (Date.now() >= deadline) throw error;
       }
     }
@@ -490,7 +494,7 @@ async function actWhenReady(
 await actWhenReady(page, page.locator("#checkout"), (target) => target.click());
 ```
 
-Retry only the errors that mean "not ready yet": a message matching detached, not visible, no element found, or timed out. Rethrow anything else, or a genuine failure will burn the full timeout before surfacing.
+The `RETRYABLE` test matters. Without it the loop swallows assertion and logic failures until the deadline, so a genuine bug surfaces 30 seconds later as a timeout. Widen the pattern as you meet new transient messages, and keep rethrowing everything else immediately.
 
 The same loop replaces `locator.waitFor({ state })` when the query isn't a selector you can hand to `page.waitForSelector()`. Read `count()` for `attached` and `detached`, and `count()` plus `isVisible()` for `visible` and `hidden`.
 
@@ -821,7 +825,8 @@ Rules for it:
   role attribute wins.
 - Accessible name precedence: aria-label, then associated label text
   (aria-labelledby ids, then label[for=id], then a wrapping label), then alt,
-  then a button's value, then textContent, then title. Playwright's name
+  then value on an <input> of type button, submit, or reset, then textContent,
+  then title. Playwright's name
   option is a case-insensitive substring unless exact: true.
 - Normalize text before comparing: value.replace(/\s+/g, " ").trim() and
   lowercase, matching Playwright.
@@ -876,22 +881,27 @@ NAVIGATION AND WAITING
 - One wait is not Playwright's per-action retry. For a step that races a
   re-render, wrap it:
 
+  const RETRYABLE = /detached|not visible|could not find|no element|timed? out/i;
+
   async function actWhenReady(page, locator, action, timeout = 30_000) {
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
       if ((await locator.count()) > 0 && (await locator.isVisible())) {
         try { await action(locator); return; }
-        catch (error) { if (Date.now() >= deadline) throw error; }
+        catch (error) {
+          if (!RETRYABLE.test(String(error))) throw error;
+          if (Date.now() >= deadline) throw error;
+        }
       }
       await page.waitForTimeout(50);
     }
     throw new Error(`Timed out after ${timeout}ms waiting for an actionable element`);
   }
 
-  Retry only messages that mean "not ready yet": detached, not visible, no
-  element found, timed out. Rethrow anything else. NEVER retry act(): a failed
-  act() may already have clicked or submitted. Retry observe() instead, then
-  pass its Action to act() once.
+  The RETRYABLE guard is required. Retrying every error swallows assertion and
+  logic failures until the deadline, turning a real bug into a timeout. NEVER
+  retry act(): a failed act() may already have clicked or submitted. Retry
+  observe() instead, then pass its Action to act() once.
 - locator.waitFor({ state }) -> the same loop. count() for attached and
   detached; count() plus isVisible() for visible and hidden.
 - page.waitForFunction(fn) -> poll page.evaluate(fn) on that loop.
