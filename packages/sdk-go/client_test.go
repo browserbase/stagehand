@@ -193,6 +193,9 @@ func TestThinClientUsesGeneratedBoundaryTypes(t *testing.T) {
 	if initParams.APIURL == nil || *initParams.APIURL != apiURL {
 		t.Fatalf("API URL = %#v, want %q", initParams.APIURL, apiURL)
 	}
+	if initParams.Telemetry != nil {
+		t.Fatalf("telemetry = %#v, want nil", initParams.Telemetry)
+	}
 	if !rpc.closed {
 		t.Error("protocol client was not closed")
 	}

@@ -87,7 +87,7 @@ func createWithAdapters(ctx context.Context, options CreateOptions, adapters cli
 		domSettleTimeoutMs: options.DOMSettleTimeoutMs, model: options.Model,
 		generate: options.Generate, logLevel: logging.level,
 		selfHeal: options.SelfHeal, systemPrompt: options.SystemPrompt,
-		telemetry: options.Telemetry, browserCDPURL: rpc.browserWebSocketDebuggerURL(),
+		telemetry: optionalTelemetry(options.Telemetry), browserCDPURL: rpc.browserWebSocketDebuggerURL(),
 	})
 	var initResult StagehandInitResult
 	if err := rpc.call(initCtx, "stagehand.init", initParams, &initResult); err != nil {
@@ -347,8 +347,15 @@ type workerInitOptions struct {
 	logLevel           StagehandClientLogLevel
 	selfHeal           *bool
 	systemPrompt       *string
-	telemetry          TelemetryConfig
+	telemetry          *TelemetryConfig
 	browserCDPURL      string
+}
+
+func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
+	if telemetry.Traces.Endpoint == "" {
+		return nil
+	}
+	return &telemetry
 }
 
 func workerInitParams(options workerInitOptions) StagehandInitParams {

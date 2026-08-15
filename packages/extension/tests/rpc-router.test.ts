@@ -279,7 +279,7 @@ describe("Stagehand RPC router", () => {
     const logs: string[] = [];
     const initializeStagehand = vi.fn(async () => {
       expect(configureTracing).toHaveBeenCalledWith(
-        expect.any(Object),
+        undefined,
         expect.objectContaining({ name: "stagehand-sdk-ts", version: "4.0.0" }),
       );
       return { initialized: true as const, pages: [] };

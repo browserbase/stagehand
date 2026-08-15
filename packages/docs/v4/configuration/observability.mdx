@@ -1211,11 +1211,11 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 | endpoint | OTLP HTTP traces endpoint. Must end in `/v1/traces`. |
 | headers | Headers sent with every export, typically an authorization token. |
 
+Telemetry export is disabled when the `telemetry` option is omitted.
+
 <Note>
 Spans are tagged with a span type: `operation` spans wrap act, observe, and extract, and record exceptions and error status; `log` spans carry the structured data from each log record. Traces are sampled at 100%.
 </Note>
-
-{/* TODO: the default telemetry endpoint is still the https://example.com/v1/traces placeholder in the protocol defaults. Document the Browserbase ingestion endpoint and the opt-out story once they are settled. */}
 
 ## Best practices
 

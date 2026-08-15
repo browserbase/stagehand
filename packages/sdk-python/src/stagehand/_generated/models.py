@@ -2118,9 +2118,7 @@ class StagehandInitParams(WireModel):
     browser: Optional[BrowserSessionMetadata] = None
     model: Optional[Union[ModelConfig, ClientModelReference]] = None
     """Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls"""
-    telemetry: Annotated[TelemetryConfig, Field(validate_default=True)] = {
-        "traces": {"endpoint": "https://example.com/v1/traces", "headers": {}}
-    }
+    telemetry: Optional[TelemetryConfig] = None
     log_level: LogLevel = LogLevel.info
     system_prompt: Optional[StrictStr] = None
     self_heal: Optional[StrictBool] = None

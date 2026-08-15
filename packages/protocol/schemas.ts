@@ -1543,13 +1543,6 @@ export const LocatorDescriptorSchema = z
   })
   .meta({ id: "LocatorDescriptor" });
 
-export const DEFAULT_TELEMETRY_CONFIG = {
-  traces: {
-    endpoint: "https://example.com/v1/traces", // TODO: Replace with the Browserbase OTLP traces ingestion endpoint.
-    headers: {},
-  },
-};
-
 export const ImplementationInfoSchema = z
   .strictObject({
     name: z.string().min(1),
@@ -1604,7 +1597,7 @@ export const StagehandInitParamsSchema = z
       description:
         "Default model configuration; when omitted and a Browserbase Model Gateway session is available, Browserbase selects a model automatically for inference calls",
     }),
-    telemetry: TelemetryConfigSchema.default(DEFAULT_TELEMETRY_CONFIG),
+    telemetry: TelemetryConfigSchema.optional(),
     logLevel: z.enum(["off", "error", "warn", "info", "debug"]).default("info"),
     systemPrompt: z.string().optional(),
     selfHeal: z.boolean().optional(),
