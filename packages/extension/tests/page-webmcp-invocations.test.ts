@@ -188,6 +188,59 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
   });
 
+  it("retains a terminal response delivered before invokeTool resolves", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: { value: "early" },
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await page.invokeWebMCPTool("frame-1", "search");
+
+    await expect(
+      page.waitForWebMCPInvocationResult("invocation-1", { timeout: 10 }),
+    ).resolves.toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { value: "early" },
+    });
+  });
+
+  it("matches early terminal responses to concurrent invocations", async () => {
+    let invocation = 0;
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        const invocationId = `invocation-${++invocation}`;
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId,
+          status: "Completed",
+          output: invocationId,
+        });
+        return { invocationId };
+      },
+    });
+    const page = createPage(session);
+
+    await Promise.all([
+      page.invokeWebMCPTool("frame-1", "first"),
+      page.invokeWebMCPTool("frame-1", "second"),
+    ]);
+
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "invocation-1",
+    });
+    await expect(page.waitForWebMCPInvocationResult("invocation-2")).resolves.toMatchObject({
+      output: "invocation-2",
+    });
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+  });
+
   it("times out only the current result caller and allows a later retry", async () => {
     vi.useFakeTimers();
     const session = new FakeCDPSession({

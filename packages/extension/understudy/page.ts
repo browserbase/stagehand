@@ -170,23 +170,37 @@ export class Page {
   readonly initScripts: string[] = [];
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
+  private readonly earlyWebMCPResponses = new Map<string, WebMCPToolResponse>();
+  private webMCPInvokeRequestsInFlight = 0;
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
 
   private readonly onWebMCPToolResponded = (event: Protocol.WebMCP.ToolRespondedEvent): void => {
     const record = this.webMCPInvocations.get(event.invocationId);
-    if (!record || record.result !== undefined) return;
+    if (!record) {
+      if (
+        this.webMCPInvokeRequestsInFlight > 0 &&
+        !this.earlyWebMCPResponses.has(event.invocationId)
+      ) {
+        this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
+      }
+      return;
+    }
+    if (record.result !== undefined) return;
 
-    const result = webMCPToolResponse(event);
+    this.settleWebMCPInvocation(record, webMCPToolResponse(event));
+  };
+
+  private settleWebMCPInvocation(record: WebMCPInvocationRecord, result: WebMCPToolResponse): void {
     record.result = result;
     record.deferred.resolve(result);
     record.retentionTimer = setTimeout(() => {
-      if (this.webMCPInvocations.get(event.invocationId) === record) {
-        this.webMCPInvocations.delete(event.invocationId);
+      if (this.webMCPInvocations.get(result.invocationId) === record) {
+        this.webMCPInvocations.delete(result.invocationId);
         this.removeWebMCPResponseListenerIfIdle();
       }
     }, WEBMCP_SETTLED_INVOCATION_RETENTION_MS);
-  };
+  }
 
   constructor(
     readonly conn: CdpConnection,
@@ -669,10 +683,10 @@ export class Page {
   ): Promise<WebMCPInvocationDescriptor> {
     const { input } = WebMCPInvokeOptionsSchema.parse(options ?? {});
     this.ensureWebMCPResponseListener();
+    this.webMCPInvokeRequestsInFlight += 1;
 
-    let response: Protocol.WebMCP.InvokeToolResponse;
     try {
-      response = await this.mainSession.send<Protocol.WebMCP.InvokeToolResponse>(
+      const response = await this.mainSession.send<Protocol.WebMCP.InvokeToolResponse>(
         "WebMCP.invokeTool",
         {
           frameId,
@@ -680,26 +694,34 @@ export class Page {
           input,
         },
       );
-    } catch (error) {
+
+      if (this.webMCPInvocations.has(response.invocationId)) {
+        throw new Error(`WebMCP returned duplicate invocation ID "${response.invocationId}".`);
+      }
+
+      const descriptor = WebMCPInvocationDescriptorSchema.parse({
+        invocationId: response.invocationId,
+        toolName,
+        frameId,
+        input,
+      });
+      const record: WebMCPInvocationRecord = {
+        descriptor,
+        deferred: createDeferred<WebMCPToolResponse>(),
+      };
+      this.webMCPInvocations.set(response.invocationId, record);
+
+      const earlyResponse = this.earlyWebMCPResponses.get(response.invocationId);
+      if (earlyResponse !== undefined) {
+        this.earlyWebMCPResponses.delete(response.invocationId);
+        this.settleWebMCPInvocation(record, earlyResponse);
+      }
+      return descriptor;
+    } finally {
+      this.webMCPInvokeRequestsInFlight -= 1;
+      if (this.webMCPInvokeRequestsInFlight === 0) this.earlyWebMCPResponses.clear();
       this.removeWebMCPResponseListenerIfIdle();
-      throw error;
     }
-
-    if (this.webMCPInvocations.has(response.invocationId)) {
-      throw new Error(`WebMCP returned duplicate invocation ID "${response.invocationId}".`);
-    }
-
-    const descriptor = WebMCPInvocationDescriptorSchema.parse({
-      invocationId: response.invocationId,
-      toolName,
-      frameId,
-      input,
-    });
-    this.webMCPInvocations.set(response.invocationId, {
-      descriptor,
-      deferred: createDeferred<WebMCPToolResponse>(),
-    });
-    return descriptor;
   }
 
   public async waitForWebMCPInvocationResult(
@@ -744,7 +766,13 @@ export class Page {
   }
 
   private removeWebMCPResponseListenerIfIdle(): void {
-    if (this.webMCPInvocations.size > 0 || !this.webMCPResponseListenerInstalled) return;
+    if (
+      this.webMCPInvocations.size > 0 ||
+      this.webMCPInvokeRequestsInFlight > 0 ||
+      !this.webMCPResponseListenerInstalled
+    ) {
+      return;
+    }
     this.mainSession.off<Protocol.WebMCP.ToolRespondedEvent>(
       "WebMCP.toolResponded",
       this.onWebMCPToolResponded,
@@ -779,6 +807,7 @@ export class Page {
       }
     }
     this.webMCPInvocations.clear();
+    this.earlyWebMCPResponses.clear();
   }
 
   /** Seed the cached URL before navigation events converge. */
