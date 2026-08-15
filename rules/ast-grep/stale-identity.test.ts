@@ -17,6 +17,7 @@ const allowedLegacyCleanupMatches = new Set([
 const findUnexpectedMatches = (stdout: string): string[] =>
   stdout
     .trim()
+    // Windows git writes CRLF; retaining the carriage return breaks the anchored parser below.
     .split(/\r?\n/u)
     .filter(Boolean)
     .flatMap((match) => {
