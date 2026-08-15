@@ -352,7 +352,7 @@ type workerInitOptions struct {
 }
 
 func optionalTelemetry(telemetry TelemetryConfig) *TelemetryConfig {
-	if telemetry.Traces.Endpoint == "" {
+	if telemetry.Traces.Endpoint == "" && len(telemetry.Traces.Headers) == 0 {
 		return nil
 	}
 	return &telemetry

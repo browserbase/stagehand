@@ -100,15 +100,33 @@ describe("generated Stagehand schema integrity", () => {
       protocol,
       asRecord(asRecord(method.properties).params).$ref as string,
     );
+    const telemetrySchema = asRecord(asRecord(asRecord(params).properties).telemetry);
 
     expect(asRecord(params).required).not.toContain("telemetry");
-    expect(asRecord(asRecord(asRecord(params).properties).telemetry)).not.toHaveProperty("default");
+    expect(telemetrySchema).toStrictEqual({ $ref: "#/$defs/TelemetryConfig" });
     expect(
       StagehandInitParamsSchema.parse({
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
       }),
     ).not.toHaveProperty("telemetry");
+    expect(
+      StagehandInitParamsSchema.parse({
+        protocolVersion: STAGEHAND_PROTOCOL_VERSION,
+        clientInfo: { name: "stagehand-sdk-test", version: "1.0.0" },
+        telemetry: {
+          traces: {
+            endpoint: "https://collector.example.com/v1/traces",
+            headers: { Authorization: "Bearer test" },
+          },
+        },
+      }).telemetry,
+    ).toStrictEqual({
+      traces: {
+        endpoint: "https://collector.example.com/v1/traces",
+        headers: { Authorization: "Bearer test" },
+      },
+    });
   });
 });
 

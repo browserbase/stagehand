@@ -1211,7 +1211,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 | endpoint | OTLP HTTP traces endpoint. Must end in `/v1/traces`. |
 | headers | Headers sent with every export, typically an authorization token. |
 
-Telemetry export is disabled when the `telemetry` option is omitted.
+Stagehand disables telemetry export when you omit the `telemetry` option.
 
 <Note>
 Spans are tagged with a span type: `operation` spans wrap act, observe, and extract, and record exceptions and error status; `log` spans carry the structured data from each log record. Traces are sampled at 100%.

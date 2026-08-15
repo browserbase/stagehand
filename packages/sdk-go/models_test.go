@@ -139,6 +139,22 @@ func TestTelemetryOmittedAndExplicit(t *testing.T) {
 	}
 }
 
+func TestOptionalTelemetryOnlyOmitsTheZeroValue(t *testing.T) {
+	t.Parallel()
+
+	if telemetry := optionalTelemetry(TelemetryConfig{}); telemetry != nil {
+		t.Fatalf("zero telemetry = %#v, want nil", telemetry)
+	}
+	configuredHeaders := TelemetryConfig{
+		Traces: TelemetryTraces{
+			Headers: TelemetryTracesHeaders{"authorization": "Bearer test"},
+		},
+	}
+	if telemetry := optionalTelemetry(configuredHeaders); telemetry == nil {
+		t.Fatal("telemetry with configured headers was omitted")
+	}
+}
+
 func TestObjectUnionsRoundTrip(t *testing.T) {
 	t.Parallel()
 
