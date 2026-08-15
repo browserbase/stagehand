@@ -425,6 +425,41 @@ describe("SDK reference surface", () => {
     expect(problems, "Every supported value must appear in its owning language tab").toEqual([]);
   });
 
+  it("documents caller-owned browser cleanup in Stagehand lifecycle examples", async () => {
+    const content = await readFile(resolve(REFERENCE_ROOT, "stagehand.mdx"), "utf8");
+    const cases = [
+      {
+        language: "TypeScript",
+        inlineLaunch: "browser: await localBrowser.launch()",
+        launch: "const browser = await localBrowser.launch();",
+        create: "Stagehand.create({ browser })",
+        closeStagehand: "await stagehand.close();",
+        closeBrowser: "await browser.close();",
+      },
+      {
+        language: "Python",
+        inlineLaunch: "browser=await local_browser.launch()",
+        launch: "browser = await local_browser.launch()",
+        create: "Stagehand.create(browser=browser)",
+        closeStagehand: "await stagehand.close()",
+        closeBrowser: "await browser.close()",
+      },
+    ] as const;
+
+    for (const lifecycle of cases) {
+      const tab = languageTabSource(content, lifecycle.language);
+      expect(tab).not.toContain(lifecycle.inlineLaunch);
+      expect(tab).toContain(lifecycle.launch);
+      expect(tab).toContain(lifecycle.create);
+      expect(tab).toContain(lifecycle.closeStagehand);
+      expect(tab).toContain(lifecycle.closeBrowser);
+      expect(tab).toContain("The browser handle stays open");
+      expect(tab.indexOf(lifecycle.closeBrowser)).toBeGreaterThan(
+        tab.indexOf(lifecycle.closeStagehand),
+      );
+    }
+  });
+
   it("resolves every internal v4 reference link and anchor", async () => {
     const contentPages = (await listFiles(V4_DOCS_ROOT, shouldInspectDocsDirectory)).filter(
       (filePath) => extname(filePath) === ".mdx",
