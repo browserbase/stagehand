@@ -430,6 +430,7 @@ describe("SDK reference surface", () => {
     const cases = [
       {
         language: "TypeScript",
+        closeHeading: "## close()",
         inlineLaunch: "browser: await localBrowser.launch()",
         launch: "const browser = await localBrowser.launch();",
         create: "Stagehand.create({ browser })",
@@ -438,6 +439,7 @@ describe("SDK reference surface", () => {
       },
       {
         language: "Python",
+        closeHeading: "## close()",
         inlineLaunch: "browser=await local_browser.launch()",
         launch: "browser = await local_browser.launch()",
         create: "Stagehand.create(browser=browser)",
@@ -454,10 +456,28 @@ describe("SDK reference surface", () => {
       expect(tab).toContain(lifecycle.closeStagehand);
       expect(tab).toContain(lifecycle.closeBrowser);
       expect(tab).toContain("The browser handle stays open");
-      expect(tab.indexOf(lifecycle.closeBrowser)).toBeGreaterThan(
-        tab.indexOf(lifecycle.closeStagehand),
+      const closeSectionStart = tab.indexOf(lifecycle.closeHeading);
+      expect(closeSectionStart).toBeGreaterThanOrEqual(0);
+      const nextSectionStart = tab.indexOf(
+        "\n## ",
+        closeSectionStart + lifecycle.closeHeading.length,
+      );
+      const closeSection = tab.slice(
+        closeSectionStart,
+        nextSectionStart === -1 ? undefined : nextSectionStart,
+      );
+      expect(closeSection.indexOf(lifecycle.closeBrowser)).toBeGreaterThan(
+        closeSection.indexOf(lifecycle.closeStagehand),
       );
     }
+
+    const goTab = languageTabSource(content, "Go");
+    const deferBrowser = "defer browser.Close(ctx)";
+    const deferStagehand = "defer client.Close(ctx)";
+    expect(goTab).toContain(deferBrowser);
+    expect(goTab).toContain(deferStagehand);
+    expect(goTab).toContain("The `Browser` handle stays open");
+    expect(goTab.indexOf(deferBrowser)).toBeLessThan(goTab.indexOf(deferStagehand));
   });
 
   it("resolves every internal v4 reference link and anchor", async () => {
