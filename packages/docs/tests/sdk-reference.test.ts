@@ -466,6 +466,8 @@ describe("SDK reference surface", () => {
         closeSectionStart,
         nextSectionStart === -1 ? undefined : nextSectionStart,
       );
+      expect(closeSection).toContain(lifecycle.closeStagehand);
+      expect(closeSection).toContain(lifecycle.closeBrowser);
       expect(closeSection.indexOf(lifecycle.closeBrowser)).toBeGreaterThan(
         closeSection.indexOf(lifecycle.closeStagehand),
       );
