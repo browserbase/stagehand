@@ -193,6 +193,12 @@ export class Page {
           // invokeTool reveals its ID, only the affected invocation must fail.
           // IDs are much smaller than response payloads and live only while
           // invokeTool requests are in flight.
+          if (this.droppedEarlyWebMCPResponseIds.size >= MAX_EARLY_WEBMCP_RESPONSES) {
+            const oldestDroppedId = this.droppedEarlyWebMCPResponseIds.values().next().value;
+            if (oldestDroppedId !== undefined) {
+              this.droppedEarlyWebMCPResponseIds.delete(oldestDroppedId);
+            }
+          }
           this.droppedEarlyWebMCPResponseIds.add(event.invocationId);
         }
       }
