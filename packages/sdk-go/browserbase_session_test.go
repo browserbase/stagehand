@@ -661,7 +661,10 @@ func TestBrowserbaseSessionClientCleansInvalidUploadResponse(t *testing.T) {
 
 	_, err := client.createSession(ctx, BrowserbaseLaunchOptions{})
 	if err == nil || !strings.Contains(err.Error(), "required field createdAt is missing") ||
-		!strings.Contains(err.Error(), "failed to delete the Browserbase extension") {
+		!strings.Contains(
+			err.Error(),
+			"failed to delete the Browserbase extension after upload validation failed",
+		) {
 		t.Fatalf("createSession() error = %v", err)
 	}
 	if deletedExtensionID != "ext_orphaned" {
