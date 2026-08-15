@@ -174,6 +174,7 @@ export class Page {
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly earlyWebMCPResponses = new Map<string, WebMCPToolResponse>();
   private readonly droppedEarlyWebMCPResponseIds = new Set<string>();
+  private earlyWebMCPResponseAttributionLost = false;
   private webMCPInvokeRequestsInFlight = 0;
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
@@ -189,17 +190,17 @@ export class Page {
         if (this.earlyWebMCPResponses.size < MAX_EARLY_WEBMCP_RESPONSES) {
           this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
         } else {
-          // Retain the ID when the full response cannot be buffered. Once
-          // invokeTool reveals its ID, only the affected invocation must fail.
-          // IDs are much smaller than response payloads and live only while
-          // invokeTool requests are in flight.
-          if (this.droppedEarlyWebMCPResponseIds.size >= MAX_EARLY_WEBMCP_RESPONSES) {
-            const oldestDroppedId = this.droppedEarlyWebMCPResponseIds.values().next().value;
-            if (oldestDroppedId !== undefined) {
-              this.droppedEarlyWebMCPResponseIds.delete(oldestDroppedId);
-            }
+          // Retain exact IDs when possible so only the affected invocation
+          // fails once invokeTool reveals its ID. IDs are much smaller than
+          // response payloads and live only while requests are in flight.
+          if (this.droppedEarlyWebMCPResponseIds.size < MAX_EARLY_WEBMCP_RESPONSES) {
+            this.droppedEarlyWebMCPResponseIds.add(event.invocationId);
+          } else {
+            // Exact attribution is no longer possible without unbounded state.
+            // Conservatively fail unmatched in-flight invokes instead of
+            // returning a descriptor whose terminal response was discarded.
+            this.earlyWebMCPResponseAttributionLost = true;
           }
-          this.droppedEarlyWebMCPResponseIds.add(event.invocationId);
         }
       }
       return;
@@ -727,7 +728,10 @@ export class Page {
       const matchingResponseWasDropped = this.droppedEarlyWebMCPResponseIds.delete(
         response.invocationId,
       );
-      if (earlyResponse === undefined && matchingResponseWasDropped) {
+      if (
+        earlyResponse === undefined &&
+        (matchingResponseWasDropped || this.earlyWebMCPResponseAttributionLost)
+      ) {
         throw new WebMCPResponseBufferOverflowError(response.invocationId);
       }
 
@@ -746,6 +750,7 @@ export class Page {
       if (this.webMCPInvokeRequestsInFlight === 0) {
         this.earlyWebMCPResponses.clear();
         this.droppedEarlyWebMCPResponseIds.clear();
+        this.earlyWebMCPResponseAttributionLost = false;
       }
       this.removeWebMCPResponseListenerIfIdle();
     }
@@ -836,6 +841,7 @@ export class Page {
     this.webMCPInvocations.clear();
     this.earlyWebMCPResponses.clear();
     this.droppedEarlyWebMCPResponseIds.clear();
+    this.earlyWebMCPResponseAttributionLost = false;
   }
 
   /** Seed the cached URL before navigation events converge. */

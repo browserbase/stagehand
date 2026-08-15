@@ -318,7 +318,7 @@ describe("Page WebMCP invocation lifecycle", () => {
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
-  it("bounds discarded response IDs while invokeTool remains in flight", async () => {
+  it("fails explicitly when discarded response ID tracking overflows", async () => {
     const session = new FakeCDPSession({
       "WebMCP.invokeTool": (currentSession) => {
         for (let index = 0; index < 100; index += 1) {
@@ -327,31 +327,25 @@ describe("Page WebMCP invocation lifecycle", () => {
             status: "Completed",
           });
         }
-        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
-          invocationId: "invocation-1",
-          status: "Completed",
-        });
         for (let index = 0; index < 100; index += 1) {
           currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
             invocationId: `discarded-${index}`,
             status: "Completed",
           });
         }
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+        });
         return { invocationId: "invocation-1" };
       },
     });
     const page = createPage(session);
 
-    await page.invokeWebMCPTool("frame-1", "search");
-    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
-      invocationId: "invocation-1",
-      status: "Completed",
-      output: "late",
-    });
-
-    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
-      output: "late",
-    });
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toBeInstanceOf(
+      WebMCPResponseBufferOverflowError,
+    );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
   it("times out only the current result caller and allows a later retry", async () => {
