@@ -75,6 +75,7 @@ const LIFECYCLE_NAME: Record<LoadState, string> = {
 };
 
 const MAX_WEBMCP_TOOLS_QUIET_WINDOW_MS = 100;
+const MAX_EARLY_WEBMCP_RESPONSES = 100;
 const WEBMCP_SETTLED_INVOCATION_RETENTION_MS = 5 * 60 * 1_000;
 
 type Deferred<T> = {
@@ -182,6 +183,10 @@ export class Page {
         this.webMCPInvokeRequestsInFlight > 0 &&
         !this.earlyWebMCPResponses.has(event.invocationId)
       ) {
+        if (this.earlyWebMCPResponses.size >= MAX_EARLY_WEBMCP_RESPONSES) {
+          const oldestResponse = this.earlyWebMCPResponses.keys().next();
+          if (!oldestResponse.done) this.earlyWebMCPResponses.delete(oldestResponse.value);
+        }
         this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
       }
       return;
