@@ -6,8 +6,11 @@ import { executionContexts } from "./executionContextRegistry.js";
 
 /** Bounded wait only for genuine frame transitions (not same-frame locator ops). */
 const FRAME_LOCATOR_READY_TIMEOUT_MS = 15_000;
-/** Cap each locator-world wait so OOPIF session ownership can be re-resolved. */
-const SESSION_RECHECK_MS = 200;
+/**
+ * Best-effort timeout for each locator-world attempt. Fallback eligibility can
+ * extend an attempt while it waits for the main world.
+ */
+const LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS = 200;
 
 /**
  * FrameLocator: resolves iframe elements to their child Frames and allows
@@ -57,18 +60,23 @@ export class FrameLocator {
       );
 
       for (const fid of childIds) {
+        let owner: {
+          backendNodeId: Protocol.DOM.BackendNodeId;
+          nodeId?: Protocol.DOM.NodeId;
+        };
         try {
-          const owner = await parentSession.send<{
+          owner = await parentSession.send<{
             backendNodeId: Protocol.DOM.BackendNodeId;
             nodeId?: Protocol.DOM.NodeId;
           }>("DOM.getFrameOwner", { frameId: fid as Protocol.Page.FrameId });
-          if (owner.backendNodeId === iframeBackendNodeId) {
-            // Ensure child frame is ready (handles OOPIF adoption or same-process)
-            await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS);
-            return this.page.frameForId(fid);
-          }
         } catch {
           // ignore and try next
+          continue;
+        }
+        if (owner.backendNodeId === iframeBackendNodeId) {
+          // Readiness failures must propagate after the matching child is identified.
+          await ensureChildFrameReady(this.page, fid, FRAME_LOCATOR_READY_TIMEOUT_MS);
+          return this.page.frameForId(fid);
         }
       }
       throw new Error(`Unable to obtain a content frame for selector: ${this.selector}`);
@@ -211,9 +219,9 @@ async function ensureChildFrameReady(
       await executionContexts.waitForLocatorWorld(
         session,
         childFrameId,
-        Math.min(remaining, SESSION_RECHECK_MS),
+        Math.min(remaining, LOCATOR_WORLD_ATTEMPT_TIMEOUT_MS),
       );
-      return;
+      if (page.getSessionForFrame(childFrameId) === session) return;
     } catch (error) {
       lastError = error;
     }
