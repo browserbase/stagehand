@@ -53,6 +53,7 @@ import {
 } from "./screenshotUtils.js";
 import { InitScriptSource } from "../types/private/index.js";
 import { withTimeout } from "../timeoutConfig.js";
+import { WebMCPResponseBufferOverflowError } from "../errors.js";
 
 /**
  * Page
@@ -172,7 +173,7 @@ export class Page {
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly earlyWebMCPResponses = new Map<string, WebMCPToolResponse>();
-  private earlyWebMCPResponsesOverflowed = false;
+  private readonly droppedEarlyWebMCPResponseIds = new Set<string>();
   private webMCPInvokeRequestsInFlight = 0;
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
@@ -182,15 +183,18 @@ export class Page {
     if (!record) {
       if (
         this.webMCPInvokeRequestsInFlight > 0 &&
-        !this.earlyWebMCPResponses.has(event.invocationId)
+        !this.earlyWebMCPResponses.has(event.invocationId) &&
+        !this.droppedEarlyWebMCPResponseIds.has(event.invocationId)
       ) {
-        // Invocation IDs are unavailable until invokeTool replies. Never evict a
-        // possible match: on overflow, unmatched invokes fail explicitly instead.
-        if (this.earlyWebMCPResponses.size >= MAX_EARLY_WEBMCP_RESPONSES) {
-          this.earlyWebMCPResponsesOverflowed = true;
-          return;
+        if (this.earlyWebMCPResponses.size < MAX_EARLY_WEBMCP_RESPONSES) {
+          this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
+        } else {
+          // Retain the ID when the full response cannot be buffered. Once
+          // invokeTool reveals its ID, only the affected invocation must fail.
+          // IDs are much smaller than response payloads and live only while
+          // invokeTool requests are in flight.
+          this.droppedEarlyWebMCPResponseIds.add(event.invocationId);
         }
-        this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
       }
       return;
     }
@@ -714,11 +718,11 @@ export class Page {
         input,
       });
       const earlyResponse = this.earlyWebMCPResponses.get(response.invocationId);
-      if (earlyResponse === undefined && this.earlyWebMCPResponsesOverflowed) {
-        throw new Error(
-          `WebMCP response buffer overflowed before invocation "${response.invocationId}" ` +
-            "could be registered.",
-        );
+      const matchingResponseWasDropped = this.droppedEarlyWebMCPResponseIds.delete(
+        response.invocationId,
+      );
+      if (earlyResponse === undefined && matchingResponseWasDropped) {
+        throw new WebMCPResponseBufferOverflowError(response.invocationId);
       }
 
       const record: WebMCPInvocationRecord = {
@@ -735,7 +739,7 @@ export class Page {
       this.webMCPInvokeRequestsInFlight -= 1;
       if (this.webMCPInvokeRequestsInFlight === 0) {
         this.earlyWebMCPResponses.clear();
-        this.earlyWebMCPResponsesOverflowed = false;
+        this.droppedEarlyWebMCPResponseIds.clear();
       }
       this.removeWebMCPResponseListenerIfIdle();
     }
@@ -825,7 +829,7 @@ export class Page {
     }
     this.webMCPInvocations.clear();
     this.earlyWebMCPResponses.clear();
-    this.earlyWebMCPResponsesOverflowed = false;
+    this.droppedEarlyWebMCPResponseIds.clear();
   }
 
   /** Seed the cached URL before navigation events converge. */

@@ -5,6 +5,7 @@ import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
 import { BrowserContext } from "../understudy/context.js";
 import { Page } from "../understudy/page.js";
+import { WebMCPResponseBufferOverflowError } from "../errors.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly id = "main";
@@ -267,7 +268,7 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
   });
 
-  it("fails explicitly when overflow may have dropped an early response", async () => {
+  it("allows a normally ordered response after unrelated early-response overflow", async () => {
     const session = new FakeCDPSession({
       "WebMCP.invokeTool": (currentSession) => {
         for (let index = 0; index < 150; index += 1) {
@@ -281,8 +282,38 @@ describe("Page WebMCP invocation lifecycle", () => {
     });
     const page = createPage(session);
 
-    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toThrow(
-      'WebMCP response buffer overflowed before invocation "invocation-1" could be registered.',
+    await page.invokeWebMCPTool("frame-1", "search");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "late",
+    });
+
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "late",
+    });
+  });
+
+  it("fails only the invocation whose early response was discarded", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        for (let index = 0; index < 100; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `unrelated-${index}`,
+            status: "Completed",
+          });
+        }
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toBeInstanceOf(
+      WebMCPResponseBufferOverflowError,
     );
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
