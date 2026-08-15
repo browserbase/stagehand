@@ -172,6 +172,7 @@ export class Page {
   extraHTTPHeaders: Record<string, string> = {};
   private readonly webMCPInvocations = new Map<string, WebMCPInvocationRecord>();
   private readonly earlyWebMCPResponses = new Map<string, WebMCPToolResponse>();
+  private earlyWebMCPResponsesOverflowed = false;
   private webMCPInvokeRequestsInFlight = 0;
   private webMCPResponseListenerInstalled = false;
   private readonly cdpEventSubscriptions = new Set<CDPEventSubscription>();
@@ -183,9 +184,11 @@ export class Page {
         this.webMCPInvokeRequestsInFlight > 0 &&
         !this.earlyWebMCPResponses.has(event.invocationId)
       ) {
+        // Invocation IDs are unavailable until invokeTool replies. Never evict a
+        // possible match: on overflow, unmatched invokes fail explicitly instead.
         if (this.earlyWebMCPResponses.size >= MAX_EARLY_WEBMCP_RESPONSES) {
-          const oldestResponse = this.earlyWebMCPResponses.keys().next();
-          if (!oldestResponse.done) this.earlyWebMCPResponses.delete(oldestResponse.value);
+          this.earlyWebMCPResponsesOverflowed = true;
+          return;
         }
         this.earlyWebMCPResponses.set(event.invocationId, webMCPToolResponse(event));
       }
@@ -710,13 +713,19 @@ export class Page {
         frameId,
         input,
       });
+      const earlyResponse = this.earlyWebMCPResponses.get(response.invocationId);
+      if (earlyResponse === undefined && this.earlyWebMCPResponsesOverflowed) {
+        throw new Error(
+          `WebMCP response buffer overflowed before invocation "${response.invocationId}" ` +
+            "could be registered.",
+        );
+      }
+
       const record: WebMCPInvocationRecord = {
         descriptor,
         deferred: createDeferred<WebMCPToolResponse>(),
       };
       this.webMCPInvocations.set(response.invocationId, record);
-
-      const earlyResponse = this.earlyWebMCPResponses.get(response.invocationId);
       if (earlyResponse !== undefined) {
         this.earlyWebMCPResponses.delete(response.invocationId);
         this.settleWebMCPInvocation(record, earlyResponse);
@@ -724,7 +733,10 @@ export class Page {
       return descriptor;
     } finally {
       this.webMCPInvokeRequestsInFlight -= 1;
-      if (this.webMCPInvokeRequestsInFlight === 0) this.earlyWebMCPResponses.clear();
+      if (this.webMCPInvokeRequestsInFlight === 0) {
+        this.earlyWebMCPResponses.clear();
+        this.earlyWebMCPResponsesOverflowed = false;
+      }
       this.removeWebMCPResponseListenerIfIdle();
     }
   }
@@ -813,6 +825,7 @@ export class Page {
     }
     this.webMCPInvocations.clear();
     this.earlyWebMCPResponses.clear();
+    this.earlyWebMCPResponsesOverflowed = false;
   }
 
   /** Seed the cached URL before navigation events converge. */

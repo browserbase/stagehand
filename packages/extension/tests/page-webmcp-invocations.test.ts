@@ -241,20 +241,20 @@ describe("Page WebMCP invocation lifecycle", () => {
     expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
   });
 
-  it("retains a matching early response after bounded unrelated event noise", async () => {
+  it("never evicts a retained early response when the bounded buffer overflows", async () => {
     const session = new FakeCDPSession({
       "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: "matched",
+        });
         for (let index = 0; index < 150; index += 1) {
           currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
             invocationId: `unrelated-${index}`,
             status: "Completed",
           });
         }
-        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
-          invocationId: "invocation-1",
-          status: "Completed",
-          output: "matched",
-        });
         return { invocationId: "invocation-1" };
       },
     });
@@ -265,6 +265,26 @@ describe("Page WebMCP invocation lifecycle", () => {
     await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
       output: "matched",
     });
+  });
+
+  it("fails explicitly when overflow may have dropped an early response", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        for (let index = 0; index < 150; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `unrelated-${index}`,
+            status: "Completed",
+          });
+        }
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toThrow(
+      'WebMCP response buffer overflowed before invocation "invocation-1" could be registered.',
+    );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
   it("times out only the current result caller and allows a later retry", async () => {
