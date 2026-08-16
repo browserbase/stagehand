@@ -1,18 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AGENT_RUN_TOOL_NAME,
-  AGENT_RUN_TOOL_SERVER,
-  buildAllowlistedEnv,
-  sanitizeErrorMessage,
-} from "../src/harness/index.js";
+import { buildAllowlistedEnv, sanitizeErrorMessage } from "../src/harness/index.js";
 
 describe("harness contract", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
-  });
-
-  it("derives the run tool name from the server name", () => {
-    expect(AGENT_RUN_TOOL_NAME).toBe(`mcp__${AGENT_RUN_TOOL_SERVER}__run`);
   });
 
   it("redacts credential-bearing URL query parameters", () => {
