@@ -256,6 +256,7 @@ jobs:
             packages/sdk-ts/dist/**
             packages/integrations/core/dist/**
             packages/integrations/claude-agent-sdk/dist/**
+            packages/integrations/codex-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 

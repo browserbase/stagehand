@@ -1,32 +1,32 @@
+import {
+  buildCodexTranscript,
+  loadCodexSdk,
+  normalizeCodexModel,
+  runCodexSession,
+  stringifyError,
+  toFiniteNumber,
+  validateCodexApprovalPolicy,
+  validateCodexSandboxMode,
+  type CodexSdk,
+  type CodexTokenUsage,
+} from "@browserbasehq/stagehand-integrations-codex-sdk";
 import type { AvailableModel } from "stagehand-v3";
-import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
-import type { TaskResult } from "./types.js";
-import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
-import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedCodexToolAdapter } from "./codexToolAdapter.js";
+import { datasetPromptGuidance, type ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
 import { codexAdapter } from "./harnesses/codexAdapter.js";
+import type { TaskResult } from "./types.js";
 import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
+export type { CodexSdk, CodexThread } from "@browserbasehq/stagehand-integrations-codex-sdk";
+export {
+  buildCodexTranscript,
+  loadCodexSdk,
+  normalizeCodexModel,
+  runCodexSession,
+} from "@browserbasehq/stagehand-integrations-codex-sdk";
+
 type MetricValue = { count: number; value: number };
-type CodexEvent = Record<string, unknown>;
-type CodexUsage = {
-  input_tokens?: number;
-  cached_input_tokens?: number;
-  output_tokens?: number;
-  reasoning_output_tokens?: number;
-};
-
-export type CodexThread = {
-  runStreamed: (
-    input: string,
-    options?: Record<string, unknown>,
-  ) => Promise<{ events: AsyncIterable<CodexEvent> }>;
-};
-
-export type CodexSdk = {
-  startThread: (options?: Record<string, unknown>) => CodexThread;
-};
 
 export interface CodexRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -35,15 +35,6 @@ export interface CodexRunnerInput {
   toolAdapter?: PreparedCodexToolAdapter;
   signal?: AbortSignal;
   sdk?: CodexSdk;
-  /**
-   * Optional verifier integration. When provided, the runner builds a
-   * Trajectory from the codex event stream (via codexAdapter), runs
-   * V3Evaluator.verify() against the trajectory's embedded TaskSpec, and folds
-   * the EvaluationResult into the returned TaskResult ({_success} mode follows
-   * EVAL_SUCCESS_MODE).
-   * When omitted, the runner falls back to parsing the legacy JSON result —
-   * preserves current behavior for callers that haven't migrated.
-   */
   verifier?: ExternalHarnessVerifierConfig;
 }
 
@@ -53,8 +44,6 @@ export interface ParsedCodexResult {
   finalAnswer?: string;
   raw: string;
 }
-
-const CODEX_SDK_PACKAGE = "@openai/codex-sdk";
 
 const EVAL_RESULT_SCHEMA = {
   type: "object",
@@ -66,21 +55,6 @@ const EVAL_RESULT_SCHEMA = {
   required: ["success", "summary", "finalAnswer"],
   additionalProperties: false,
 } as const;
-
-/** Tool-step budget: EVAL_CODEX_MAX_STEPS, falling back to the pre-migration
- * AGENT_EVAL_MAX_STEPS knob so carried-forward run configs keep working. */
-function readCodexMaxToolSteps(): number {
-  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
-    const parsed = Number.parseInt(process.env[key] ?? "", 10);
-    if (Number.isFinite(parsed) && parsed > 0) return parsed;
-  }
-  return 50;
-}
-
-export function normalizeCodexModel(model: AvailableModel): string {
-  if (model === ("codex/default" as AvailableModel)) return "gpt-5.4-mini";
-  return model.includes("/") ? model.slice(model.indexOf("/") + 1) : model;
-}
 
 export function buildCodexPrompt(plan: ExternalHarnessTaskPlan, toolInstructions?: string): string {
   return [
@@ -123,7 +97,6 @@ export function parseCodexResult(raw: string): ParsedCodexResult {
     const parsed = tryParseCodexJson(candidate);
     if (parsed) return { ...parsed, raw };
   }
-
   return { success: false, raw };
 }
 
@@ -133,124 +106,45 @@ export async function runCodexAgent({
   logger,
   toolAdapter,
   signal,
-  sdk: injectedSdk,
+  sdk,
   verifier,
 }: CodexRunnerInput): Promise<TaskResult> {
-  const sdk =
-    injectedSdk ??
-    (await loadCodexSdk(
-      toolAdapter?.env,
-      toolAdapter && "codexConfig" in toolAdapter ? toolAdapter.codexConfig : undefined,
-    ));
   const prompt = buildCodexPrompt(plan, toolAdapter?.promptInstructions);
-  const events: CodexEvent[] = [];
-  let finalResponse = "";
-  let usage: CodexUsage | undefined;
-  let iterationError: unknown;
-  let stopReason: string | undefined;
-
-  // Codex has no native turn/step limit, so a run could grind indefinitely.
-  // Cap tool steps (command executions + MCP tool calls) and abort the
-  // stream at the budget — the analogue of Claude Code's maxTurns, and it
-  // gives every published run a citable, reproducible action budget.
-  const maxToolSteps = readCodexMaxToolSteps();
-  const budgetController = new AbortController();
-  const forwardAbort = () => budgetController.abort(signal?.reason);
-  if (signal) {
-    if (signal.aborted) budgetController.abort(signal.reason);
-    else signal.addEventListener("abort", forwardAbort, { once: true });
-  }
-  let toolStepCount = 0;
-
-  try {
-    const thread = sdk.startThread({
-      model: normalizeCodexModel(model),
-      ...(toolAdapter?.cwd && {
-        workingDirectory: toolAdapter.cwd,
-        skipGitRepoCheck: true,
-      }),
-      sandboxMode: readCodexSandboxMode(),
-      approvalPolicy: readCodexApprovalPolicy(),
+  const sessionResult = await runCodexSession({
+    prompt,
+    model,
+    logger,
+    sdk:
+      sdk ??
+      (await loadEvalCodexSdk(
+        toolAdapter?.env,
+        toolAdapter && "codexConfig" in toolAdapter ? toolAdapter.codexConfig : undefined,
+      )),
+    signal,
+    thread: {
+      ...(toolAdapter?.cwd && { workingDirectory: toolAdapter.cwd }),
+      sandboxMode: validateCodexSandboxMode(process.env.EVAL_CODEX_SANDBOX_MODE),
+      approvalPolicy: validateCodexApprovalPolicy(process.env.EVAL_CODEX_APPROVAL_POLICY),
       networkAccessEnabled: readBooleanEnv("EVAL_CODEX_NETWORK_ACCESS", true),
       webSearchMode: "disabled",
-    });
-    const streamed = await thread.runStreamed(prompt, {
-      outputSchema: EVAL_RESULT_SCHEMA,
-      signal: budgetController.signal,
-    });
-
-    for await (const event of streamed.events) {
-      events.push(event);
-      logCodexEvent(logger, event);
-
-      if (event.type === "turn.completed" && isRecord(event.usage)) {
-        usage = event.usage;
-      } else if (event.type === "turn.failed") {
-        stopReason = readCodexErrorMessage(event.error);
-      } else if (event.type === "error") {
-        stopReason = typeof event.message === "string" ? event.message : "error";
-      }
-
-      const item = isRecord(event.item) ? event.item : undefined;
-      if (
-        event.type === "item.completed" &&
-        item?.type === "agent_message" &&
-        typeof item.text === "string"
-      ) {
-        finalResponse = item.text;
-      }
-      if (
-        event.type === "item.completed" &&
-        (item?.type === "command_execution" || item?.type === "mcp_tool_call")
-      ) {
-        toolStepCount += 1;
-        if (toolStepCount >= maxToolSteps && !budgetController.signal.aborted) {
-          stopReason = `tool step budget exhausted (${maxToolSteps} steps)`;
-          budgetController.abort(new Error(stopReason));
-        }
-      }
-      // MCP-mounted surfaces: each completed MCP tool call consumes one
-      // observation index, in stream order (mirrors the bridge's
-      // onRunExecuted for code surfaces).
-      if (
-        event.type === "item.completed" &&
-        item?.type === "mcp_tool_call" &&
-        toolAdapter &&
-        "recordObservation" in toolAdapter
-      ) {
-        toolAdapter.recordObservation?.();
-      }
-    }
-  } catch (error) {
-    iterationError = error;
-    logger.warn({
-      category: "codex",
-      message: `Codex stopped before a normal result: ${stringifyError(error)}`,
-      level: 0,
-      auxiliary: {
-        error: {
-          value: stringifyError(error),
-          type: "string",
-        },
-      },
-    });
-  }
-
-  // Long batches share one abort signal; detach the forwarder so completed
-  // runs don't accumulate listeners on it.
-  signal?.removeEventListener("abort", forwardAbort);
-
+      skipGitRepoCheck: true,
+    },
+    outputSchema: EVAL_RESULT_SCHEMA,
+    maxToolSteps: readCodexMaxToolSteps(),
+    onToolStep:
+      toolAdapter && "recordObservation" in toolAdapter ? toolAdapter.recordObservation : undefined,
+  });
+  const { events, finalMessage, iterationError, status, stopReason, tokenUsage } = sessionResult;
   const transcriptText = buildCodexTranscript(events);
   const iterationErrorMessage = stringifyError(iterationError);
-  const rawResult = [finalResponse, transcriptText, iterationErrorMessage]
+  const rawResult = [finalMessage, transcriptText, iterationErrorMessage]
     .filter(Boolean)
     .join("\n\n");
   const parsed = parseCodexResult(rawResult);
-  const status = resolveCodexStatus(iterationError, stopReason);
   const errorMessage =
     parsed.summary ??
     stopReason ??
-    (iterationErrorMessage || finalResponse || transcriptText || "Codex did not report success");
+    (iterationErrorMessage || finalMessage || transcriptText || "Codex did not report success");
   const baseResult: TaskResult = {
     _success: parsed.success,
     error: !parsed.success ? errorMessage : undefined,
@@ -260,16 +154,10 @@ export async function runCodexAgent({
     codexStatus: status,
     ...(stopReason && { codexStopReason: stopReason }),
     logs: logger.getLogs(),
-    metrics: buildCodexMetrics(usage),
+    metrics: buildCodexMetrics(tokenUsage),
   };
+  if (!verifier) return baseResult;
 
-  if (!verifier) {
-    return baseResult;
-  }
-
-  // Artifact-grounded grading: capture the terminal page state through the
-  // tool surface (harness-observed, independent of the agent's self-report)
-  // before cleanup, mirroring the claude_code runner.
   const finalObservation =
     toolAdapter && "captureEvidence" in toolAdapter
       ? await toolAdapter.captureEvidence?.().catch((): undefined => undefined)
@@ -278,9 +166,6 @@ export async function runCodexAgent({
     toolAdapter && "drainStepObservations" in toolAdapter
       ? await toolAdapter.drainStepObservations?.()
       : undefined;
-
-  // Build a Trajectory from the codex event stream and grade it with the
-  // rubric verifier; any failure in that path folds into `verifierError`.
   return gradeExternalTrajectory({
     buildTrajectory: () =>
       codexAdapter.fromHarnessResult(
@@ -293,17 +178,13 @@ export async function runCodexAgent({
             toolAdapter.observedToolMatcher && {
               observedToolName: toolAdapter.observedToolMatcher,
             }),
-          finalAnswer: parsed.finalAnswer ?? finalResponse,
+          finalAnswer: parsed.finalAnswer ?? finalMessage,
           status: status === "completed" ? "complete" : "error",
           usage: {
-            input_tokens: toFiniteNumber(usage?.input_tokens),
-            output_tokens: toFiniteNumber(usage?.output_tokens),
-            ...(usage?.reasoning_output_tokens !== undefined && {
-              reasoning_tokens: toFiniteNumber(usage.reasoning_output_tokens),
-            }),
-            ...(usage?.cached_input_tokens !== undefined && {
-              cached_input_tokens: toFiniteNumber(usage.cached_input_tokens),
-            }),
+            input_tokens: tokenUsage.input_tokens,
+            output_tokens: tokenUsage.output_tokens,
+            reasoning_tokens: tokenUsage.reasoning_output_tokens,
+            cached_input_tokens: tokenUsage.cached_input_tokens,
           },
         },
         verifier.taskSpec,
@@ -314,6 +195,34 @@ export async function runCodexAgent({
     category: "codex",
     logger,
   });
+}
+
+async function loadEvalCodexSdk(
+  env?: Record<string, string>,
+  extraConfig?: Record<string, unknown>,
+): Promise<CodexSdk> {
+  return loadCodexSdk({
+    env,
+    codexPathOverride: process.env.EVAL_CODEX_PATH,
+    baseUrl: process.env.EVAL_CODEX_BASE_URL,
+    apiKey: process.env.OPENAI_API_KEY,
+    rawReasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
+    extraConfig,
+  });
+}
+
+function readCodexMaxToolSteps(): number {
+  for (const key of ["EVAL_CODEX_MAX_STEPS", "AGENT_EVAL_MAX_STEPS"]) {
+    const parsed = Number.parseInt(process.env[key] ?? "", 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 50;
+}
+
+function readBooleanEnv(key: string, fallback: boolean): boolean {
+  const raw = process.env[key];
+  if (!raw) return fallback;
+  return raw === "true" || raw === "1";
 }
 
 function tryParseCodexJson(candidate: string): Omit<ParsedCodexResult, "raw"> | undefined {
@@ -333,19 +242,11 @@ function tryParseCodexJson(candidate: string): Omit<ParsedCodexResult, "raw"> | 
   }
 }
 
-function resolveCodexStatus(
-  iterationError: unknown,
-  stopReason: string | undefined,
-): "completed" | "sdk_error" {
-  return iterationError || stopReason ? "sdk_error" : "completed";
-}
-
-function buildCodexMetrics(usage: CodexUsage | undefined): Record<string, MetricValue> {
-  const inputTokens = toFiniteNumber(usage?.input_tokens);
-  const cachedInputTokens = toFiniteNumber(usage?.cached_input_tokens);
-  const outputTokens = toFiniteNumber(usage?.output_tokens);
-  const reasoningOutputTokens = toFiniteNumber(usage?.reasoning_output_tokens);
-
+function buildCodexMetrics(usage: CodexTokenUsage): Record<string, MetricValue> {
+  const inputTokens = toFiniteNumber(usage.input_tokens);
+  const cachedInputTokens = toFiniteNumber(usage.cached_input_tokens);
+  const outputTokens = toFiniteNumber(usage.output_tokens);
+  const reasoningOutputTokens = toFiniteNumber(usage.reasoning_output_tokens);
   return {
     codex_input_tokens: metricValue(inputTokens),
     codex_cached_input_tokens: metricValue(cachedInputTokens),
@@ -358,195 +259,5 @@ function buildCodexMetrics(usage: CodexUsage | undefined): Record<string, Metric
 }
 
 function metricValue(value: unknown): MetricValue {
-  return {
-    count: 1,
-    value: toFiniteNumber(value),
-  };
-}
-
-function toFiniteNumber(value: unknown): number {
-  const parsed =
-    typeof value === "number"
-      ? value
-      : typeof value === "string" && value.trim()
-        ? Number(value)
-        : 0;
-
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function buildCodexTranscript(events: CodexEvent[]): string {
-  return events
-    .map((event) => summarizeCodexEvent(event).detail)
-    .filter((detail): detail is string => Boolean(detail))
-    .join("\n");
-}
-
-function logCodexEvent(logger: EvalLogger, event: CodexEvent): void {
-  const summary = summarizeCodexEvent(event);
-  logger.log({
-    category: "codex",
-    message: summary.message,
-    level: 1,
-    auxiliary: {
-      type: {
-        value: String(event.type ?? "unknown"),
-        type: "string",
-      },
-      ...(summary.detail && {
-        detail: {
-          value: summary.detail,
-          type: "string",
-        },
-      }),
-    },
-  });
-}
-
-function summarizeCodexEvent(event: CodexEvent): {
-  message: string;
-  detail?: string;
-} {
-  const type = String(event.type ?? "unknown");
-  const item = isRecord(event.item) ? event.item : undefined;
-  if (item?.type === "agent_message" && typeof item.text === "string") {
-    return {
-      message: `agent: ${clip(item.text, 500)}`,
-      detail: item.text,
-    };
-  }
-  if (item?.type === "command_execution") {
-    return {
-      message: `command: ${String(item.command ?? "")} ${String(item.status ?? "")}`.trim(),
-      detail: safeJson(item),
-    };
-  }
-  if (item?.type === "mcp_tool_call") {
-    return {
-      message:
-        `mcp: ${String(item.server ?? "")}.${String(item.tool ?? "")} ${String(item.status ?? "")}`.trim(),
-      detail: safeJson(item),
-    };
-  }
-  if (item?.type === "error" && typeof item.message === "string") {
-    return {
-      message: `error item: ${clip(item.message, 500)}`,
-      detail: item.message,
-    };
-  }
-  if (type === "turn.completed") {
-    return {
-      message: "turn completed",
-      detail: safeJson(event.usage),
-    };
-  }
-  if (type === "turn.failed") {
-    const message = readCodexErrorMessage(event.error) ?? "turn failed";
-    return {
-      message: `turn failed: ${clip(message, 500)}`,
-      detail: message,
-    };
-  }
-  if (type === "error" && typeof event.message === "string") {
-    return {
-      message: `error: ${clip(event.message, 500)}`,
-      detail: event.message,
-    };
-  }
-  return {
-    message: `${type} event`,
-    detail: safeJson(event),
-  };
-}
-
-async function loadCodexSdk(
-  env?: Record<string, string>,
-  extraConfig?: Record<string, unknown>,
-): Promise<CodexSdk> {
-  try {
-    const specifier = CODEX_SDK_PACKAGE;
-    const mod = (await import(specifier)) as {
-      Codex?: new (options?: Record<string, unknown>) => CodexSdk;
-    };
-    if (typeof mod.Codex !== "function") {
-      throw new Error("Codex export missing");
-    }
-    return new mod.Codex({
-      ...(env && { env }),
-      ...(process.env.EVAL_CODEX_PATH && {
-        codexPathOverride: process.env.EVAL_CODEX_PATH,
-      }),
-      ...(process.env.EVAL_CODEX_BASE_URL && {
-        baseUrl: process.env.EVAL_CODEX_BASE_URL,
-      }),
-      ...(process.env.OPENAI_API_KEY && {
-        apiKey: process.env.OPENAI_API_KEY,
-      }),
-      config: {
-        show_raw_agent_reasoning: process.env.EVAL_CODEX_RAW_REASONING === "true",
-        // Adapter-provided overrides (e.g. mcp_servers for MCP mounts).
-        ...extraConfig,
-      },
-    });
-  } catch (error) {
-    throw new EvalsError(
-      `Codex harness requires ${CODEX_SDK_PACKAGE}. Install it in packages/evals before running --harness codex. ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-  }
-}
-
-function readCodexSandboxMode(): "read-only" | "workspace-write" | "danger-full-access" {
-  const raw = process.env.EVAL_CODEX_SANDBOX_MODE;
-  if (raw === "read-only" || raw === "workspace-write" || raw === "danger-full-access") {
-    return raw;
-  }
-  return "workspace-write";
-}
-
-function readCodexApprovalPolicy(): "never" | "on-request" | "on-failure" | "untrusted" {
-  const raw = process.env.EVAL_CODEX_APPROVAL_POLICY;
-  if (raw === "never" || raw === "on-request" || raw === "on-failure" || raw === "untrusted") {
-    return raw;
-  }
-  return "never";
-}
-
-function readBooleanEnv(key: string, fallback: boolean): boolean {
-  const raw = process.env[key];
-  if (!raw) return fallback;
-  return raw === "true" || raw === "1";
-}
-
-function readCodexErrorMessage(value: unknown): string | undefined {
-  if (!value) return undefined;
-  if (typeof value === "string") return value;
-  if (isRecord(value) && typeof value.message === "string") {
-    return value.message;
-  }
-  return safeJson(value);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function safeJson(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
-
-function stringifyError(value: unknown): string {
-  if (!value) return "";
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  return safeJson(value) ?? String(value);
-}
-
-function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
+  return { count: 1, value: toFiniteNumber(value) };
 }
