@@ -25,6 +25,7 @@
     "@browserbasehq/sdk": "catalog:",
     "@browserbasehq/stagehand": "workspace:*",
     "@browserbasehq/stagehand-integrations": "workspace:*",
+    "@browserbasehq/stagehand-integrations-claude-agent-sdk": "workspace:*",
     "@openai/codex-sdk": "catalog:",
     "@opentelemetry/api": "catalog:",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",

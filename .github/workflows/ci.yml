@@ -255,6 +255,7 @@ jobs:
             packages/extension/artifacts/**
             packages/sdk-ts/dist/**
             packages/integrations/core/dist/**
+            packages/integrations/claude-agent-sdk/dist/**
             packages/evals/dist/**
           retention-days: 1
 
