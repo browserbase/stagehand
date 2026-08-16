@@ -52,7 +52,11 @@ export interface PreparedCodexCodeAdapter {
 export type PreparedCodexToolAdapter = PreparedBrowseCliHarnessAdapter | PreparedCodexCodeAdapter;
 
 const CODE_SURFACES = new Set<ToolSurface>(["stagehand_code", "playwright_code", "cdp_code"]);
-const MCP_SURFACES = new Set<ToolSurface>(["playwright_mcp", "chrome_devtools_mcp"]);
+const MCP_SURFACES = new Set<ToolSurface>([
+  "playwright_mcp",
+  "chrome_devtools_mcp",
+  "stagehand_facade",
+]);
 
 /** Mirrors the claude adapter's bounded, best-effort terminal capture. */
 function boundedCaptureEvidence(
@@ -281,7 +285,7 @@ export function resolveCodexToolSurface(requested?: ToolSurface): ToolSurface {
     return requested;
   }
   throw new EvalsError(
-    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp for execution right now; received "${requested}".`,
+    `Codex harness supports --tool browse_cli, playwright_code, cdp_code, stagehand_code, playwright_mcp, or chrome_devtools_mcp, with stagehand_facade also available; received "${requested}".`,
   );
 }
 
@@ -292,13 +296,17 @@ export function resolveCodexStartupProfile(
 ): StartupProfile {
   if (requested) return requested;
 
-  // browse_cli and stagehand_code own their browser; playwright/cdp attach to a
-  // runner-provided CDP endpoint (same defaults as the claude_code harness).
-  if (toolSurface === "browse_cli" || toolSurface === "stagehand_code") {
+  // browse_cli, stagehand_code, and stagehand_facade own their browser;
+  // playwright/cdp attach to a runner-provided CDP endpoint.
+  if (
+    toolSurface === "browse_cli" ||
+    toolSurface === "stagehand_code" ||
+    toolSurface === "stagehand_facade"
+  ) {
     return environment === "BROWSERBASE" ? "tool_create_browserbase" : "tool_launch_local";
   }
-  // MCP surfaces need a runner-provided endpoint so the harness-side session
-  // (evidence capture) and the agent's own server instance share one browser.
+  // Attachable surfaces need a runner-provided endpoint so the harness-side
+  // session (evidence capture) and the agent's server instance share a browser.
   if (
     toolSurface === "playwright_code" ||
     toolSurface === "cdp_code" ||
