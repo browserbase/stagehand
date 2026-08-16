@@ -19,6 +19,10 @@
     },
     "./facade/stdio-server": {
       "import": "./dist/facade/stdio-server.mjs"
+    },
+    "./harness": {
+      "types": "./dist/harness/index.d.mts",
+      "import": "./dist/harness/index.mjs"
     }
   },
   "scripts": {
