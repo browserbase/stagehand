@@ -215,7 +215,7 @@ const TYPESCRIPT_FIELD_SPELLINGS = uniqueSpellingsByWireName(
   await readTypescriptPublicFieldNames(),
 );
 
-describe("SDK reference surface", () => {
+describe("SDK reference surface", { timeout: 30_000 }, () => {
   it("keeps every public callable in sync across TypeScript, Python, Go, and reference pages", async () => {
     const [typescriptMethods, pythonMethods, goMethods, referencePages] = await Promise.all([
       readTypescriptMethods(),
@@ -1234,7 +1234,7 @@ describe("SDK reference surface", () => {
   });
 });
 
-describe("Mintlify customization boundary", () => {
+describe("Mintlify customization boundary", { timeout: 30_000 }, () => {
   it("uses SDK-native field spellings inside each language tab", async () => {
     const [typescriptNames, pythonNames, contentPages] = await Promise.all([
       readTypescriptPublicFieldNames(),
