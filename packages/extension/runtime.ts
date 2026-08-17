@@ -678,7 +678,6 @@ export class StagehandRuntime {
     const bytes = await page.screenshot(options);
     return {
       data: bytesToBase64(bytes),
-      type: params.options?.type ?? "png",
     };
   }
 

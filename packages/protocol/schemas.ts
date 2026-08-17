@@ -2085,7 +2085,6 @@ export const PageEvaluateResultSchema = z
 export const PageScreenshotResultSchema = z
   .strictObject({
     data: z.base64().meta({ format: "byte" }),
-    type: z.enum(["png", "jpeg"]),
   })
   .meta({ id: "PageScreenshotResult" });
 

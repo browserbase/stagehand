@@ -926,7 +926,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     const mask = page.locator("[data-secret]");
@@ -961,7 +960,6 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "iVBORw0KGgo=",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
     vi.stubGlobal("Buffer", undefined);
@@ -980,11 +978,9 @@ describe("Stagehand TS object wrapper", () => {
     const client = new FakeProtocolClient();
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     client.queueResponse(StagehandMethods.pageScreenshot, {
       data: "Zh==",
-      type: "png",
     });
     const page = new Page(client, { pageId: "page-1" });
 
@@ -1006,7 +1002,6 @@ describe("Stagehand TS object wrapper", () => {
       const client = new FakeProtocolClient();
       client.queueResponse(StagehandMethods.pageScreenshot, {
         data: "iVBORw0KGgo=",
-        type: "png",
       });
       const page = new Page(client, { pageId: "page-1" });
 

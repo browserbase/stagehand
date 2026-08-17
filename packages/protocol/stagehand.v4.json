@@ -3804,13 +3804,9 @@
           "format": "byte",
           "contentEncoding": "base64",
           "pattern": "^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$"
-        },
-        "type": {
-          "type": "string",
-          "enum": ["png", "jpeg"]
         }
       },
-      "required": ["data", "type"],
+      "required": ["data"],
       "additionalProperties": false
     },
     "PageSnapshotParams": {
