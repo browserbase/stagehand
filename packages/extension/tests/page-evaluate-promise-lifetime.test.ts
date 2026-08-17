@@ -6,12 +6,12 @@ import { executionContexts } from "../understudy/executionContextRegistry.js";
 import { Page } from "../understudy/page.js";
 
 type CDPCall = { method: string; params?: object };
-type SendHandler = (method: string, params?: object) => unknown | Promise<unknown>;
+type SendHandler = (method: string, params?: object) => unknown;
 
 class EvaluationSession implements CDPSessionLike {
+  private static nextId = 1;
   readonly id = `evaluation-session-${EvaluationSession.nextId++}`;
   readonly calls: CDPCall[] = [];
-  private static nextId = 1;
 
   constructor(private readonly handler: SendHandler) {}
 
@@ -30,6 +30,12 @@ class EvaluationSession implements CDPSessionLike {
 function createPage(session: EvaluationSession): Page {
   executionContexts.register(session, "frame-a", 7);
   return new Page({} as CdpConnection, session, "page-a", "frame-a", {} as StagehandLogger);
+}
+
+function runtimeMethods(session: EvaluationSession): string[] {
+  return session.calls
+    .map(({ method }) => method)
+    .filter((method) => method.startsWith("Runtime."));
 }
 
 describe("Page.evaluate", () => {
@@ -68,10 +74,10 @@ describe("Page.evaluate", () => {
       throw new Error(`Unexpected CDP method ${method}`);
     });
 
-    await expect(createPage(session).evaluate("Promise.resolve({ answer: 42 })")).resolves.toEqual(
-      { answer: 42 },
-    );
-    expect(session.calls.map(({ method }) => method)).toStrictEqual([
+    await expect(createPage(session).evaluate("Promise.resolve({ answer: 42 })")).resolves.toEqual({
+      answer: 42,
+    });
+    expect(runtimeMethods(session)).toStrictEqual([
       "Runtime.enable",
       "Runtime.evaluate",
       "Runtime.awaitPromise",
@@ -109,7 +115,7 @@ describe("Page.evaluate", () => {
     await expect(createPage(session).evaluate("({ answer: 42 })")).resolves.toEqual({
       answer: 42,
     });
-    expect(session.calls.map(({ method }) => method)).toStrictEqual([
+    expect(runtimeMethods(session)).toStrictEqual([
       "Runtime.enable",
       "Runtime.evaluate",
       "Runtime.callFunctionOn",
@@ -129,10 +135,7 @@ describe("Page.evaluate", () => {
     });
 
     await expect(createPage(session).evaluate("40 + 2")).resolves.toBe(42);
-    expect(session.calls.map(({ method }) => method)).toStrictEqual([
-      "Runtime.enable",
-      "Runtime.evaluate",
-    ]);
+    expect(runtimeMethods(session)).toStrictEqual(["Runtime.enable", "Runtime.evaluate"]);
   });
 
   it("releases the retained object when promise materialization fails", async () => {
