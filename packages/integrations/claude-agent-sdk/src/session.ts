@@ -79,11 +79,10 @@ export async function runClaudeAgentSession(input: {
 }): Promise<ClaudeSessionResult> {
   const sdk = input.sdk ?? (await loadClaudeAgentSdk());
   const abortController = new AbortController();
+  const forwardAbort = (): void => abortController.abort(input.signal?.reason);
   if (input.signal) {
     if (input.signal.aborted) abortController.abort(input.signal.reason);
-    input.signal.addEventListener("abort", () => abortController.abort(input.signal?.reason), {
-      once: true,
-    });
+    input.signal.addEventListener("abort", forwardAbort, { once: true });
   }
 
   const messages: ClaudeSdkMessage[] = [];
@@ -135,12 +134,16 @@ export async function runClaudeAgentSession(input: {
     iterationError = error;
     input.logger.warn({
       category: "claude_code",
-      message: `Claude Code stopped before a normal result: ${stringifyError(error)}`,
+      message: `Claude Code stopped before a normal result: ${sanitizeErrorMessage(stringifyError(error))}`,
       level: 0,
       auxiliary: {
-        error: { value: stringifyError(error), type: "string" },
+        error: { value: sanitizeErrorMessage(stringifyError(error)), type: "string" },
       },
     });
+  } finally {
+    // A long-lived caller signal must not accumulate forwarders across
+    // sessions that complete without aborting.
+    input.signal?.removeEventListener("abort", forwardAbort);
   }
 
   return {
@@ -203,7 +206,7 @@ export function buildClaudeCodeStopReason(
   resultMessage: ClaudeSdkMessage | undefined,
   iterationError: unknown,
 ): string | undefined {
-  if (iterationError) return stringifyError(iterationError);
+  if (iterationError) return sanitizeErrorMessage(stringifyError(iterationError));
   if (resultMessage?.is_error === true) {
     if (typeof resultMessage.result === "string" && resultMessage.result.trim()) {
       return resultMessage.result.trim();
