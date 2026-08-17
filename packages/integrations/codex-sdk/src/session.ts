@@ -54,13 +54,24 @@ export async function loadCodexSdk(
     extraConfig?: Record<string, unknown>;
   } = {},
 ): Promise<CodexSdk> {
+  let codexCtor: new (options?: Record<string, unknown>) => CodexSdk;
   try {
     const specifier = CODEX_SDK_PACKAGE;
     const mod = (await import(specifier)) as {
       Codex?: new (options?: Record<string, unknown>) => CodexSdk;
     };
     if (typeof mod.Codex !== "function") throw new Error("Codex export missing");
-    return new mod.Codex({
+    codexCtor = mod.Codex;
+  } catch (error) {
+    const detail = sanitizeErrorMessage(stringifyError(error));
+    throw new HarnessAdapterError(
+      `Codex SDK harness requires ${CODEX_SDK_PACKAGE}. Install it in the consuming workspace.${detail ? ` ${detail}` : ""}`,
+      { cause: error },
+    );
+  }
+  // Construction failures are auth/config problems, not missing installs.
+  try {
+    return new codexCtor({
       ...(options.env && { env: options.env }),
       ...(options.codexPathOverride && { codexPathOverride: options.codexPathOverride }),
       ...(options.baseUrl && { baseUrl: options.baseUrl }),
@@ -71,9 +82,8 @@ export async function loadCodexSdk(
       },
     });
   } catch (error) {
-    const detail = sanitizeErrorMessage(stringifyError(error));
     throw new HarnessAdapterError(
-      `Codex SDK harness requires ${CODEX_SDK_PACKAGE}. Install it in the consuming workspace.${detail ? ` ${detail}` : ""}`,
+      `Failed to initialize the Codex SDK: ${sanitizeErrorMessage(stringifyError(error))}`,
       { cause: error },
     );
   }
@@ -185,9 +195,9 @@ export async function runCodexSession(input: {
     iterationError = error;
     input.logger.warn({
       category: "codex",
-      message: `Codex stopped before a normal result: ${stringifyError(error)}`,
+      message: `Codex stopped before a normal result: ${sanitizeErrorMessage(stringifyError(error))}`,
       level: 0,
-      auxiliary: { error: { value: stringifyError(error), type: "string" } },
+      auxiliary: { error: { value: sanitizeErrorMessage(stringifyError(error)), type: "string" } },
     });
   } finally {
     input.signal?.removeEventListener("abort", forwardAbort);
@@ -197,7 +207,7 @@ export async function runCodexSession(input: {
     events,
     finalMessage,
     status: resolveCodexStatus(iterationError, stopReason),
-    ...(stopReason && { stopReason }),
+    ...(stopReason && { stopReason: sanitizeErrorMessage(stopReason) }),
     tokenUsage,
     ...(iterationError !== undefined && { iterationError }),
   };
@@ -298,7 +308,7 @@ export function toFiniteNumber(value: unknown): number {
 
 function positiveInteger(value: unknown, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0
-    ? Math.floor(value)
+    ? Math.max(1, Math.floor(value))
     : fallback;
 }
 
