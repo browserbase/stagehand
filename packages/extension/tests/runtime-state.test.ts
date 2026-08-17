@@ -1,6 +1,7 @@
 import { ROOT_CONTEXT } from "@opentelemetry/api";
 import { describe, expect, it, vi } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../protocol/schemas.js";
+import type { StagehandInitParams } from "../../protocol/types.js";
 import type { StagehandBrowserSession } from "../runtime.js";
 import { createStagehandRuntime } from "../runtime.js";
 
@@ -99,6 +100,68 @@ describe("Stagehand runtime state", () => {
         selfHeal: true,
       },
     });
+  });
+
+  it("updates configuration when an initialized runtime is attached again", async () => {
+    const prepareForInitialization = vi.fn();
+    const browserSessionFactory = vi.fn(async () =>
+      createBrowserSession({ prepareForInitialization }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://browser.example",
+    });
+    await runtime.initialize({
+      ...runtimeIdentity,
+      model: { modelName: "openai/gpt-5" },
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    });
+
+    const replacementParams: StagehandInitParams = {
+      ...runtimeIdentity,
+      model: { modelName: "anthropic/claude-sonnet-4-5" },
+      systemPrompt: "Replacement caller",
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+
+    await expect(runtime.initialize(replacementParams)).resolves.toStrictEqual({
+      initialized: true,
+      pages: [],
+    });
+
+    expect(browserSessionFactory).toHaveBeenCalledOnce();
+    expect(prepareForInitialization).toHaveBeenCalledOnce();
+    expect(runtime.state.getState()).toStrictEqual({
+      status: "initialized",
+      initParams: replacementParams,
+    });
+  });
+
+  it("does not initialize a closed runtime", async () => {
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async () => createBrowserSession(),
+    });
+
+    await runtime.replaceBrowserConnection({
+      cdpUrl: "ws://browser.example",
+    });
+    const params = {
+      ...runtimeIdentity,
+      telemetry: {
+        traces: { endpoint: "https://collector.example.com/v1/traces", headers: {} },
+      },
+    };
+    await runtime.initialize(params);
+    await runtime.close();
+
+    await expect(runtime.initialize(params)).rejects.toThrow(
+      "Stagehand has been closed and cannot be initialized again",
+    );
   });
 
   it("leaves server state unchanged when initialization fails", async () => {
