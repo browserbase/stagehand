@@ -20,6 +20,8 @@ interface FrameManager {
   pageId: string;
 }
 
+const RETURN_REMOTE_OBJECT_BY_VALUE = "function() { return this; }";
+
 /**
  * Frame
  *
@@ -155,11 +157,13 @@ export class Frame implements FrameManager {
 
     let res: Protocol.Runtime.EvaluateResponse;
     try {
+      // Keep object results alive across evaluation and serialization. Asking
+      // Runtime.evaluate to await directly can let V8 collect the promise first.
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId,
-        awaitPromise: true,
-        returnByValue: true,
+        awaitPromise: false,
+        returnByValue: false,
       });
     } catch (error) {
       // Execution contexts can be recreated between context lookup and
@@ -170,14 +174,45 @@ export class Frame implements FrameManager {
       res = await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.evaluate", {
         expression,
         contextId: freshContextId,
-        awaitPromise: true,
-        returnByValue: true,
+        awaitPromise: false,
+        returnByValue: false,
       });
     }
+    res = await this.materializeEvaluationResult(res);
     if (res.exceptionDetails) {
-      throw new Error(res.exceptionDetails.text ?? "Evaluation failed");
+      throw new Error(
+        res.exceptionDetails.text ||
+          res.exceptionDetails.exception?.description ||
+          "Evaluation failed",
+      );
     }
     return res.result.value as R;
+  }
+
+  private async materializeEvaluationResult(
+    response: Protocol.Runtime.EvaluateResponse,
+  ): Promise<Protocol.Runtime.EvaluateResponse> {
+    const objectId = response.result.objectId;
+    if (!objectId) return response;
+
+    try {
+      if (response.exceptionDetails) return response;
+
+      if (response.result.subtype === "promise") {
+        return await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.awaitPromise", {
+          promiseObjectId: objectId,
+          returnByValue: true,
+        });
+      }
+
+      return await this.session.send<Protocol.Runtime.EvaluateResponse>("Runtime.callFunctionOn", {
+        objectId,
+        functionDeclaration: RETURN_REMOTE_OBJECT_BY_VALUE,
+        returnByValue: true,
+      });
+    } finally {
+      await this.session.send("Runtime.releaseObject", { objectId }).catch(() => {});
+    }
   }
 
   /** Evaluate an internal expression in Stagehand's selected locator world. */
