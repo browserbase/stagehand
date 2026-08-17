@@ -6,6 +6,33 @@ function keyName(key: ESTree.PropertyKey): string | null {
   return null;
 }
 
+function protocolRegistryName(node: ESTree.ObjectProperty): string | null {
+  const operation = node.parent;
+  if (operation.type !== "ObjectExpression") return null;
+
+  const operationEntry = operation.parent;
+  if (operationEntry.type !== "Property" || operationEntry.value !== operation) return null;
+
+  const registry = operationEntry.parent;
+  if (registry.type !== "ObjectExpression") return null;
+
+  let parent = registry.parent;
+  while (
+    parent.type === "ParenthesizedExpression" ||
+    parent.type === "TSAsExpression" ||
+    parent.type === "TSNonNullExpression" ||
+    parent.type === "TSSatisfiesExpression" ||
+    parent.type === "TSTypeAssertion"
+  ) {
+    parent = parent.parent;
+  }
+
+  if (parent.type !== "VariableDeclarator" || parent.id.type !== "Identifier") return null;
+  return parent.id.name === "StagehandMethods" || parent.id.name === "StagehandNotifications"
+    ? parent.id.name
+    : null;
+}
+
 export const noLooseJsonSchemaInProtocolOperations = defineRule({
   meta: {
     type: "problem",
@@ -31,8 +58,10 @@ export const noLooseJsonSchemaInProtocolOperations = defineRule({
       },
 
       Property(node: ESTree.ObjectProperty) {
+        if (!protocolRegistryName(node)) return;
+
         const propertyName = keyName(node.key);
-        if (propertyName !== "paramsSchema" && propertyName !== "resultSchema") return;
+        if (propertyName !== "params" && propertyName !== "result") return;
         if (node.value.type === "Identifier" && canonicalSchemas.has(node.value.name)) return;
 
         context.report({
