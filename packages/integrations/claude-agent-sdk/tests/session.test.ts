@@ -106,4 +106,37 @@ describe("Claude Agent SDK session", () => {
     });
     expect(completed).toEqual(["mcp__stagehand__run"]);
   });
+
+  it("redacts secrets from stop reasons and detaches the abort forwarder", async () => {
+    const sdk: ClaudeAgentSdk = {
+      query: async function* () {
+        yield { type: "assistant", message: { content: [] } };
+        throw new Error(
+          "connect failed: wss://c.example?signingKey=top-secret with sk-abcdef1234567890",
+        );
+      },
+    };
+    const added: string[] = [];
+    const removed: string[] = [];
+    const signal = {
+      aborted: false,
+      reason: undefined,
+      addEventListener: (type: string) => added.push(type),
+      removeEventListener: (type: string) => removed.push(type),
+    } as unknown as AbortSignal;
+    const result = await runClaudeAgentSession({
+      prompt: "task",
+      model: "claude-sonnet-4-5",
+      sdk,
+      signal,
+      logger,
+      session: {},
+    });
+    expect(result.status).toBe("sdk_error");
+    expect(result.stopReason).toContain("signingKey=[redacted]");
+    expect(result.stopReason).toContain("sk-abcdef[redacted]");
+    expect(result.stopReason).not.toContain("top-secret");
+    expect(added).toEqual(["abort"]);
+    expect(removed).toEqual(["abort"]);
+  });
 });
