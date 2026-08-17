@@ -386,7 +386,8 @@ env:
 
       async function syncOwnedPr({ github, context }) {
         const pr = context.payload.pull_request;
-        const match = pr.body?.match(OWNED_RE);
+        const matches = [...(pr.body || '').matchAll(new RegExp(OWNED_RE.source, 'g'))];
+        const match = matches.at(-1);
         if (!match) return;
 
         const sourcePrNumber = Number(match[1]);
@@ -399,7 +400,20 @@ env:
           pull_number: sourcePrNumber,
         });
 
+        const markStaleForSourceMismatch = async () => {
+          await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:stale']);
+          await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
+          await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
+            `This mirrored PR is stale because the original external PR ${externalPr.html_url} now points at a different source SHA.`,
+            'Approve the latest external commit to refresh this same internal PR.',
+          ]);
+        };
+
         if (context.payload.action === 'reopened') {
+          if (externalPr.head.sha !== sourceSha) {
+            await markStaleForSourceMismatch();
+            return;
+          }
           await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:mirrored']);
           await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:mirrored']);
           if (externalPr.state !== 'closed') {
@@ -420,16 +434,13 @@ env:
           return;
         }
 
-        await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:stale']);
-        await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
         if (externalPr.head.sha !== sourceSha) {
-          await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
-            `This mirrored PR is stale because the original external PR ${externalPr.html_url} now points at a different source SHA.`,
-            'Approve the latest external commit to refresh this same internal PR.',
-          ]);
+          await markStaleForSourceMismatch();
           return;
         }
 
+        await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:stale']);
+        await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
         if (externalPr.state === 'closed') {
           await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: sourcePrNumber, state: 'open' });
         }
