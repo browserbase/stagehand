@@ -90,6 +90,15 @@
     "@browserbasehq/stagehand-integrations-example-vercel-ai-facade#typecheck": {
       "dependsOn": ["^build"]
     },
+    "@browserbasehq/stagehand-integrations-example-pi-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-example-claude-code-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "@browserbasehq/stagehand-integrations-example-codex-facade#typecheck": {
+      "dependsOn": ["^build"]
+    },
     "@browserbasehq/stagehand-docs#typecheck": {},
     "test:unit": {
       "dependsOn": ["^build"],
