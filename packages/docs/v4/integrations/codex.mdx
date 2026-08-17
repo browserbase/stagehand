@@ -3,7 +3,7 @@ title: "Codex"
 description: "Give a Codex agent persistent Stagehand browser tools over MCP/stdio."
 ---
 
-The Codex integration connects a Codex SDK thread to the Stagehand facade MCP server over MCP/stdio. One server process owns the browser, so page state survives across `run`, `snapshot`, and `screenshot` calls.
+The Codex integration gives a Codex agent a persistent Stagehand browser it can drive with `run`, `snapshot`, and `screenshot`. A Codex SDK thread connects to the Stagehand facade MCP server over MCP/stdio, and one server process owns the browser, so page state survives across tool calls.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
