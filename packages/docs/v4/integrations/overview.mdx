@@ -1,7 +1,7 @@
 ---
 title: "Integrations"
 sidebarTitle: "Overview"
-description: "Connect CrewAI, Deep Agents, Eve, Mastra, or the Vercel AI SDK to a persistent Stagehand browser."
+description: "Connect Claude Code, Codex, CrewAI, Deep Agents, Eve, Mastra, Pi, or the Vercel AI SDK to a persistent Stagehand browser."
 ---
 
 Each integration gives your agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Your agent decides how to navigate and interact while Stagehand manages the browser session.
@@ -13,17 +13,26 @@ Stagehand ships these experimental integrations from the monorepo and does not p
 ## Choose an integration
 
 <CardGroup cols={2}>
-  <Card title="CrewAI" icon="/images/integrations/crewai.svg" href="/v4/integrations/crewai">
-    Connect a Python CrewAI agent over MCP/stdio.
+  <Card title="Claude Code" icon="/images/integrations/claude-code.svg" href="/v4/integrations/claude-code">
+    Give a Claude Code agent persistent Stagehand browser tools over MCP/stdio.
   </Card>
-  <Card title="Deep Agents" icon="/images/integrations/deep-agents.svg" href="/v4/integrations/deep-agents">
-    Run locally over MCP or deploy native tools with Managed Deep Agents.
+  <Card title="Codex" icon="/images/integrations/codex.svg" href="/v4/integrations/codex">
+    Give a Codex agent persistent Stagehand browser tools over MCP/stdio.
   </Card>
   <Card title="Eve by Vercel" icon="/images/integrations/eve.svg" href="/v4/integrations/eve">
     Give Vercel's framework for building durable agents native Stagehand tools.
   </Card>
+  <Card title="Deep Agents" icon="/images/integrations/deep-agents.svg" href="/v4/integrations/deep-agents">
+    Run locally over MCP or deploy native tools with Managed Deep Agents.
+  </Card>
+  <Card title="CrewAI" icon="/images/integrations/crewai.svg" href="/v4/integrations/crewai">
+    Connect a Python CrewAI agent over MCP/stdio.
+  </Card>
   <Card title="Mastra" icon="/images/integrations/mastra.svg" href="/v4/integrations/mastra">
     Connect a Mastra agent over MCP/stdio.
+  </Card>
+  <Card title="Pi" icon="/images/integrations/pi.svg" href="/v4/integrations/pi">
+    Give the Pi coding agent native Stagehand browser tools registered directly by an extension.
   </Card>
   <Card title="Vercel AI SDK" icon="/images/integrations/vercel-ai-sdk.svg" href="/v4/integrations/vercel-ai-sdk">
     Use Stagehand tools in a Vercel AI SDK tool loop over MCP/stdio.
@@ -66,7 +75,7 @@ Every integration exposes the same browser capabilities.
 
 The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
 
-The CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve and Managed Deep Agents bind equivalent tools in-process.
+The Claude Code, Codex, CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
 
 The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
 
@@ -76,7 +85,7 @@ Do not create a new MCP process for every tool call. Doing so starts a new brows
 
 ## Run the integrations from source
 
-CrewAI, Mastra, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve uses native in-process bindings from the same package. These integrations require Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+Claude Code, Codex, CrewAI, Mastra, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve and Pi use native in-process bindings from the same package. These integrations require Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
 
 <Steps>
   <Step title="Clone and install Stagehand">
@@ -114,7 +123,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID for the TypeScript integrations. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called from TypeScript integration tools. |
-| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve can infer a supported provider key; the MCP examples require this variable. |
+| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. Eve and Pi can infer a supported provider key; the MCP examples require this variable. |
 
 The framework's agent model and Stagehand's optional browser model are separate. The agent model decides which tool to call. Configure a Stagehand model only when JavaScript passed to `run` calls AI methods such as `act`, `extract`, or `observe`.
 
