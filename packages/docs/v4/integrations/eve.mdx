@@ -23,8 +23,8 @@ Stagehand ships this experimental integration from the repository rather than pu
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install --frozen-lockfile
-corepack pnpm@11.10.0 exec turbo run build \
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
   </Step>
@@ -47,7 +47,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
   </Step>
   <Step title="Start Eve">
 ```bash
-corepack pnpm@11.10.0 --dir packages/integrations/eve dev
+pnpm --dir packages/integrations/eve dev
 ```
   </Step>
   <Step title="Run a browser task">

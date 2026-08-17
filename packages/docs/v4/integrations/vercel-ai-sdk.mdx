@@ -27,8 +27,8 @@ Stagehand ships this experimental integration from its repository and does not p
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install --frozen-lockfile
-corepack pnpm@11.10.0 exec turbo run build \
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
   </Step>
@@ -49,7 +49,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
   </Step>
   <Step title="Run a browser task">
 ```bash
-corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai start -- \
+pnpm --dir packages/integrations/vercel-ai start -- \
   "Open https://example.com and report the page title."
 ```
   </Step>
