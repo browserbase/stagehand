@@ -103,6 +103,7 @@ describe("Codex SDK session", () => {
       maxToolSteps: 1,
     });
     expect(signal?.aborted).toBe(true);
+    expect(result.status).toBe("sdk_error");
     expect(result.stopReason).toBe("tool step budget exhausted (1 steps)");
   });
 });
