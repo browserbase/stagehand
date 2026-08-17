@@ -51,9 +51,9 @@
               "v4/integrations/overview",
               "v4/integrations/claude-code",
               "v4/integrations/codex",
-              "v4/integrations/crewai",
-              "v4/integrations/deep-agents",
               "v4/integrations/eve",
+              "v4/integrations/deep-agents",
+              "v4/integrations/crewai",
               "v4/integrations/mastra",
               "v4/integrations/pi",
               "v4/integrations/vercel-ai-sdk"
