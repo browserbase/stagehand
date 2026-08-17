@@ -13,6 +13,7 @@ function harness(opts: { usesTouch: boolean; recording?: boolean }) {
   const click = vi.fn<Pointer>(async () => "/html/body/button");
   const type = vi.fn<(text: string) => Promise<void>>(async () => {});
   const recorded: Array<{ actions?: Action[] }> = [];
+  const resolveViewport = vi.fn(async () => ({ width: 1000, height: 1000 }));
 
   const page = {
     tap,
@@ -26,6 +27,7 @@ function harness(opts: { usesTouch: boolean; recording?: boolean }) {
     usesTouch: opts.usesTouch,
     isVerified: false,
     configuredViewport: { width: 1288, height: 711 },
+    resolveViewport,
     isAgentReplayActive: () => opts.recording ?? false,
     recordAgentReplayStep: (step: { actions?: Action[] }) => {
       recorded.push(step);
@@ -34,7 +36,7 @@ function harness(opts: { usesTouch: boolean; recording?: boolean }) {
     context: { awaitActivePage: async () => page },
   } as unknown as V3;
 
-  return { v3, tap, click, type, recorded };
+  return { v3, tap, click, type, recorded, resolveViewport };
 }
 
 // `tool()` wraps execute; the runtime always passes options, so supply a stub.
@@ -143,6 +145,14 @@ describe("hybrid tool touch routing", () => {
         [3, 4],
       ]);
       expect(h.tap).not.toHaveBeenCalled();
+    });
+
+    it("resolves the viewport once for all fields", async () => {
+      const h = harness({ usesTouch: true });
+
+      await run(fillFormVisionTool(h.v3, "google"), { fields });
+
+      expect(h.resolveViewport).toHaveBeenCalledOnce();
     });
   });
 });

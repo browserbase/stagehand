@@ -1,8 +1,5 @@
 import type { V3 } from "../../v3.js";
 
-// Default viewport for Browserbase managed fingerprinting mode
-const STEALTH_VIEWPORT = { width: 1288, height: 711 };
-
 export function isGoogleProvider(provider?: string): boolean {
   if (!provider) return false;
   return provider.toLowerCase().includes("google");
@@ -23,16 +20,17 @@ export function normalizeGoogleCoordinates(
   };
 }
 
-export function processCoordinates(
+export async function processCoordinates(
   x: number,
   y: number,
   provider?: string,
   v3?: V3,
-): { x: number; y: number } {
-  if (isGoogleProvider(provider) && v3) {
-    // Browserbase managed fingerprinting uses a fixed viewport fallback.
-    const viewport = v3.isVerified ? STEALTH_VIEWPORT : v3.configuredViewport;
-    return normalizeGoogleCoordinates(x, y, viewport);
+  resolvedViewport?: { width: number; height: number },
+): Promise<{ x: number; y: number }> {
+  if (isGoogleProvider(provider)) {
+    const viewport =
+      resolvedViewport ?? (v3 ? await v3.resolveViewport() : undefined);
+    if (viewport) return normalizeGoogleCoordinates(x, y, viewport);
   }
   return { x, y };
 }
