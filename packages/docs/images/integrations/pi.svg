@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="pi">
+  <!-- Pi glyph mark for the pi coding agent. -->
+  <rect width="64" height="64" rx="14" fill="#fff" />
+  <g stroke="#000" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M16 22 H48" />
+    <path d="M25 22 V46" />
+    <path d="M40 22 V41 Q40 46 46 46" />
+  </g>
+</svg>

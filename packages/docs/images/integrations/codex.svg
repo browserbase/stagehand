@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Codex">
+  <!-- Terminal prompt mark for the Codex CLI. -->
+  <rect width="64" height="64" rx="14" fill="#000" />
+  <g stroke="#fff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M18 22 30 32 18 42" />
+    <line x1="36" y1="44" x2="48" y2="44" />
+  </g>
+</svg>
