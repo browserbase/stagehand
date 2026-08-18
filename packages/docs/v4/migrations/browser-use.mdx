@@ -4,9 +4,13 @@ sidebarTitle: Migrate Browser Use to v4
 icon: 'robot'
 ---
 
-Browser Use hands a task to an autonomous agent: you write `Agent(task="...", llm=...)`, call `run()`, and the agent decides every click and keystroke on its own. Stagehand v4 has no such object. There is no `Agent`, no `run()`, and nothing that takes a whole task and drives the browser end to end without you.
+Browser Use hands a task to an autonomous agent: you write `Agent(task="...", llm=...)`, call `run()`, and the agent picks each action. Stagehand v4 has no equivalent object.
 
-So this isn't a rename pass. Browser Use is one primitive; v4 is a browser SDK plus three model-backed steps: [`act()`](/v4/basics/act), [`extract()`](/v4/basics/extract), and [`observe()`](/v4/basics/observe). Moving a flow means deciding, step by step, where a sentence of English is still worth a model call and where a selector does the job for free.
+Most of this migration hinges on these principles:
+1. There is no `Agent`. Nothing in v4 takes a whole task and drives the browser for you.
+2. v4 is a browser SDK plus three model-backed steps. [`act()`](/v4/basics/act), [`extract()`](/v4/basics/extract), and [`observe()`](/v4/basics/observe) take natural-language instructions. Everything else is ordinary browser control.
+
+Porting a flow means writing out the steps the agent used to infer, and deciding for each one whether it needs a model or a selector.
 
 <Note>
 Browser Use is Python-first, so this guide leads with Python. Stagehand behaves the same way in TypeScript; the [SDK reference](/v4/reference/stagehand) carries each language's naming.
