@@ -24,12 +24,16 @@ export const launchLocalBrowser: LocalBrowserLauncher = async (options) => {
     (options.preserveUserDataDir === true
       ? await mkdtemp(path.join(tmpdir(), "stagehand-chrome-"))
       : undefined);
+  const resolvedOptions = userDataDir === undefined ? options : { ...options, userDataDir };
   const chrome = await launch({
     chromePath: options.executablePath ?? getChromePath(),
     startingUrl: "about:blank",
     ignoreDefaultFlags: true,
-    chromeFlags: localBrowserChromeFlags(options, Launcher.defaultFlags(), Boolean(process.env.CI)),
-    userDataDir,
+    chromeFlags: localBrowserChromeFlags(
+      resolvedOptions,
+      Launcher.defaultFlags(),
+      Boolean(process.env.CI),
+    ),
     ...(options.port === undefined ? {} : { port: options.port }),
     logLevel: "silent",
   });
@@ -69,6 +73,7 @@ export function localBrowserChromeFlags(
     ...(isCI || options.chromiumSandbox === false ? ["--no-sandbox"] : []),
     ...(options.proxy ? [`--proxy-server=${options.proxy.server}`] : []),
     ...(options.proxy?.bypass ? [`--proxy-bypass-list=${options.proxy.bypass}`] : []),
+    ...(options.userDataDir ? [`--user-data-dir=${options.userDataDir}`] : []),
     ...(options.locale ? [`--lang=${options.locale}`] : []),
     ...(options.deviceScaleFactor === undefined
       ? []
