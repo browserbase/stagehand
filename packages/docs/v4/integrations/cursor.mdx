@@ -67,9 +67,9 @@ pnpm --dir packages/integrations/cursor start -- \
 
 ## SDK and session lifecycle
 
-This V1 integration uses Cursor's local runtime. The agent loop and temporary workspace run locally, while model inference remains hosted by Cursor. Cursor Cloud requires a remotely reachable MCP server and is not part of this example.
+This V1 integration uses Cursor's local runtime. The agent loop and temporary workspace run locally, while Cursor hosts model inference. Cursor Cloud requires a remotely reachable MCP server and is not part of this example.
 
-The example creates an isolated temporary workspace, disables ambient Cursor setting sources, and enables only Cursor's `mcp` capability group. Its only inline server is the Stagehand facade, so the model receives `run`, `snapshot`, and `screenshot` without shell, file-editing, user MCP, or project MCP tools. The canonical Stagehand tool instructions are prefixed to the task because the main Cursor agent API does not expose a separate system-prompt option.
+The example creates an isolated temporary workspace, disables ambient Cursor setting sources, and enables only Cursor's `mcp` capability group. Its only inline server is the Stagehand facade, so the model receives `run`, `snapshot`, and `screenshot` without shell, file-editing, user MCP, or project MCP tools. The example prefixes the canonical Stagehand tool instructions to the task because the main Cursor agent API does not expose a separate system-prompt option.
 
 The facade process remains attached to one Cursor agent for the full run. On completion or failure, the example disposes the agent and deletes its temporary workspace. `SIGINT` and `SIGTERM` first cancel the active run so in-flight MCP calls stop cleanly.
 

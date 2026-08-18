@@ -102,6 +102,10 @@ export async function runCursor(
     agent = await createAgent(buildCursorAgentOptions(workspaceDirectory, facadeServerPath, env));
     if (interrupted) throw new Error("Cursor run interrupted.");
     activeRun = await agent.send(buildCursorPrompt(instruction));
+    if (interrupted) {
+      await activeRun.cancel().catch(() => undefined);
+      throw new Error("Cursor run interrupted.");
+    }
 
     const result = await activeRun.wait();
     if (interrupted) throw new Error("Cursor run interrupted.");
