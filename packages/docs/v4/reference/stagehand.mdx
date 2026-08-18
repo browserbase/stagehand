@@ -62,7 +62,7 @@ const stagehand = await Stagehand.create({ browser });
 </ParamField>
 
 <ParamField path="selfHeal" type="boolean" optional>
-  Whether a cached action should be re-inferred and retried when its recorded selector no longer resolves.
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
 </ParamField>
 
 <ParamField path="domSettleTimeoutMs" type="number" optional>
@@ -919,7 +919,7 @@ stagehand = await Stagehand.create(browser=browser)
 </ParamField>
 
 <ParamField path="self_heal" type="bool" optional>
-  Whether a cached action should be re-inferred and retried when its recorded selector no longer resolves.
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
 </ParamField>
 
 <ParamField path="dom_settle_timeout_ms" type="int" optional>
@@ -1736,7 +1736,7 @@ func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
 </ParamField>
 
 <ParamField path="options.SelfHeal" type="*bool" optional>
-  Whether a cached action should be re-inferred and retried when its recorded selector no longer resolves.
+  Whether Stagehand re-infers and retries a cached action when its recorded selector no longer resolves.
 </ParamField>
 
 <ParamField path="options.DOMSettleTimeoutMs" type="*int" optional>
