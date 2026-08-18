@@ -20,3 +20,12 @@ export class DuplicatePageEventSubscriptionError extends Error {
     this.name = "DuplicatePageEventSubscriptionError";
   }
 }
+
+export class WebMCPResponseBufferOverflowError extends Error {
+  constructor(readonly invocationId: string) {
+    super(
+      `Unable to safely register WebMCP invocation "${invocationId}" because its early response could not be retained.`,
+    );
+    this.name = "WebMCPResponseBufferOverflowError";
+  }
+}

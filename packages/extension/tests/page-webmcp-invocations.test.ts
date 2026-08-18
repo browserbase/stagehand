@@ -5,6 +5,7 @@ import type { ChromeTabTargetController } from "../understudy/chromeTabs.js";
 import type { CDPSessionLike, CdpConnection } from "../understudy/cdp.js";
 import { BrowserContext } from "../understudy/context.js";
 import { Page } from "../understudy/page.js";
+import { WebMCPResponseBufferOverflowError } from "../errors.js";
 
 class FakeCDPSession implements CDPSessionLike {
   readonly id = "main";
@@ -186,6 +187,165 @@ describe("Page WebMCP invocation lifecycle", () => {
       status: "Completed",
       output: { value: 2 },
     });
+  });
+
+  it("retains a terminal response delivered before invokeTool resolves", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: { value: "early" },
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await page.invokeWebMCPTool("frame-1", "search");
+
+    await expect(
+      page.waitForWebMCPInvocationResult("invocation-1", { timeout: 10 }),
+    ).resolves.toStrictEqual({
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: { value: "early" },
+    });
+  });
+
+  it("matches early terminal responses to concurrent invocations", async () => {
+    let invocation = 0;
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        const invocationId = `invocation-${++invocation}`;
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId,
+          status: "Completed",
+          output: invocationId,
+        });
+        return { invocationId };
+      },
+    });
+    const page = createPage(session);
+
+    await Promise.all([
+      page.invokeWebMCPTool("frame-1", "first"),
+      page.invokeWebMCPTool("frame-1", "second"),
+    ]);
+
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "invocation-1",
+    });
+    await expect(page.waitForWebMCPInvocationResult("invocation-2")).resolves.toMatchObject({
+      output: "invocation-2",
+    });
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(1);
+  });
+
+  it("never evicts a retained early response when the bounded buffer overflows", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+          output: "matched",
+        });
+        for (let index = 0; index < 150; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `unrelated-${index}`,
+            status: "Completed",
+          });
+        }
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await page.invokeWebMCPTool("frame-1", "search");
+
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "matched",
+    });
+  });
+
+  it("allows a normally ordered response after unrelated early-response overflow", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        for (let index = 0; index < 150; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `unrelated-${index}`,
+            status: "Completed",
+          });
+        }
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await page.invokeWebMCPTool("frame-1", "search");
+    session.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+      invocationId: "invocation-1",
+      status: "Completed",
+      output: "late",
+    });
+
+    await expect(page.waitForWebMCPInvocationResult("invocation-1")).resolves.toMatchObject({
+      output: "late",
+    });
+  });
+
+  it("fails only the invocation whose early response was discarded", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        for (let index = 0; index < 100; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `unrelated-${index}`,
+            status: "Completed",
+          });
+        }
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toBeInstanceOf(
+      WebMCPResponseBufferOverflowError,
+    );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
+  });
+
+  it("fails explicitly when discarded response ID tracking overflows", async () => {
+    const session = new FakeCDPSession({
+      "WebMCP.invokeTool": (currentSession) => {
+        for (let index = 0; index < 100; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `buffered-${index}`,
+            status: "Completed",
+          });
+        }
+        for (let index = 0; index < 100; index += 1) {
+          currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+            invocationId: `discarded-${index}`,
+            status: "Completed",
+          });
+        }
+        currentSession.emit<Protocol.WebMCP.ToolRespondedEvent>("WebMCP.toolResponded", {
+          invocationId: "invocation-1",
+          status: "Completed",
+        });
+        return { invocationId: "invocation-1" };
+      },
+    });
+    const page = createPage(session);
+
+    await expect(page.invokeWebMCPTool("frame-1", "search")).rejects.toBeInstanceOf(
+      WebMCPResponseBufferOverflowError,
+    );
+    expect(session.listenerCount("WebMCP.toolResponded")).toBe(0);
   });
 
   it("times out only the current result caller and allows a later retry", async () => {
