@@ -18,6 +18,7 @@ catalog:
   "@opentelemetry/resources": 2.9.0
   "@opentelemetry/sdk-trace-web": 2.9.0
   "@opentelemetry/semantic-conventions": 1.43.0
+  "@opencode-ai/sdk": 1.18.18
   "@types/node": ^24
   typescript: ^5
   oxfmt: 0.57.0
@@ -52,6 +53,7 @@ catalog:
   esbuild: 0.28.1
   tsx: ^4.23.1
   openai: ^6.48.0
+  opencode-ai: 1.18.18
   "@browserbasehq/sdk": ^2.16.0
   fflate: ^0.8.3
   mint: 4.2.788
@@ -67,6 +69,7 @@ allowBuilds:
   bufferutil: false
   esbuild: true
   keytar: false
+  opencode-ai: true
   protobufjs: false
   puppeteer: false
   sharp: true

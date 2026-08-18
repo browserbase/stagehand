@@ -51,6 +51,7 @@
               "v4/integrations/overview",
               "v4/integrations/claude-code",
               "v4/integrations/codex",
+              "v4/integrations/opencode",
               "v4/integrations/eve",
               "v4/integrations/deep-agents",
               "v4/integrations/crewai",
