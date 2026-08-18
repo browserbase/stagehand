@@ -86,37 +86,45 @@ const browser = await browserbase.launch({
   apiKey: BROWSERBASE_API_KEY,
 });
 
-const stagehand = await Stagehand.create({
-  browser,
-  model: {
-    modelName: "openai/gpt-5.4-mini",
-    apiKey: OPENAI_API_KEY,
-  },
-});
+try {
+  const stagehand = await Stagehand.create({
+    browser,
+    model: {
+      modelName: "openai/gpt-5.4-mini",
+      apiKey: OPENAI_API_KEY,
+    },
+  });
 
-// Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
-const [page] = await browser.context.pages();
-await page.goto("https://github.com/browserbase");
+  try {
+    // Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
+    const [page] = await browser.context.pages();
+    await page.goto("https://github.com/browserbase");
 
-// Use act() to execute individual actions
-await stagehand.act("click on the stagehand repo");
+    // Use act() to execute individual actions
+    await stagehand.act("click on the stagehand repo");
 
-// Use observe() to see what's actionable on the page
-const { data: actions } = await stagehand.observe("find the latest PR");
+    // Use observe() to see what's actionable on the page
+    const { data: actions } = await stagehand.observe("find the latest PR");
 
-// Use locators for deterministic Playwright-style actions
-await page.locator(actions[0].selector).click();
+    // Use locators for deterministic Playwright-style actions
+    await page.locator(actions[0].selector).click();
 
-// Use extract() to get structured data from the page
-const {
-  data: { author, title },
-} = await stagehand.extract(
-  "extract the author and title of the PR",
-  z.object({
-    author: z.string().describe("The username of the PR author"),
-    title: z.string().describe("The title of the PR"),
-  }),
-);
+    // Use extract() to get structured data from the page
+    const {
+      data: { author, title },
+    } = await stagehand.extract(
+      "extract the author and title of the PR",
+      z.object({
+        author: z.string().describe("The username of the PR author"),
+        title: z.string().describe("The title of the PR"),
+      }),
+    );
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
 ```
 
 See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/README.md) READMEs for equivalent examples.
