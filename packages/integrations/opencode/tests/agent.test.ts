@@ -110,17 +110,23 @@ describe("opencode stagehand example", () => {
   it("restores temporary process environment overrides", async () => {
     const original = process.env.OPENCODE_CONFIG;
     process.env.OPENCODE_CONFIG = "before";
-    await expect(
-      withTemporaryEnvironment({ OPENCODE_CONFIG: "during", OPENCODE_CONFIG_DIR: "/tmp/x" }, () => {
-        expect(process.env.OPENCODE_CONFIG).toBe("during");
-        expect(process.env.OPENCODE_CONFIG_DIR).toBe("/tmp/x");
-        return Promise.resolve("done");
-      }),
-    ).resolves.toBe("done");
-    expect(process.env.OPENCODE_CONFIG).toBe("before");
-    expect(process.env.OPENCODE_CONFIG_DIR).toBeUndefined();
-    if (original === undefined) delete process.env.OPENCODE_CONFIG;
-    else process.env.OPENCODE_CONFIG = original;
+    try {
+      await expect(
+        withTemporaryEnvironment(
+          { OPENCODE_CONFIG: "during", OPENCODE_CONFIG_DIR: "/tmp/x" },
+          () => {
+            expect(process.env.OPENCODE_CONFIG).toBe("during");
+            expect(process.env.OPENCODE_CONFIG_DIR).toBe("/tmp/x");
+            return Promise.resolve("done");
+          },
+        ),
+      ).resolves.toBe("done");
+      expect(process.env.OPENCODE_CONFIG).toBe("before");
+      expect(process.env.OPENCODE_CONFIG_DIR).toBeUndefined();
+    } finally {
+      if (original === undefined) delete process.env.OPENCODE_CONFIG;
+      else process.env.OPENCODE_CONFIG = original;
+    }
   });
 
   it("runs one session with canonical instructions and cleans up", async () => {
@@ -176,7 +182,7 @@ describe("opencode stagehand example", () => {
           makeRuntimeDirectory: async () => directory,
           startRuntime: async () => fakes.runtime,
         }),
-      ).rejects.toThrow(failure);
+      ).rejects.toHaveProperty("message", `OpenCode ${failure} failed.`);
       expect(fakes.close).toHaveBeenCalledOnce();
       await expect(access(directory)).rejects.toThrow();
     },
@@ -209,8 +215,11 @@ describe("opencode stagehand example", () => {
 });
 
 function fakeRuntime(failure?: string) {
+  const leakedPayload = { request: { context: { authorization: "secret-token" } } };
   const create = vi.fn(async () =>
-    failure === "session creation" ? { error: "session creation" } : { data: { id: "session-1" } },
+    failure === "session creation"
+      ? { error: leakedPayload }
+      : { data: { id: "session-1" } },
   );
   const prompt = vi.fn(
     async (
@@ -218,7 +227,7 @@ function fakeRuntime(failure?: string) {
       _options?: unknown,
     ): Promise<{ data?: unknown; error?: unknown }> =>
       failure === "prompt"
-        ? { error: "prompt" }
+        ? { error: leakedPayload }
         : { data: { parts: [{ type: "text", text: "done" }] } },
   );
   const deleteSession = vi.fn(async () => ({ data: true }));

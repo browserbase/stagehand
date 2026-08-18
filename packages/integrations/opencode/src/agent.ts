@@ -223,7 +223,7 @@ function forwardTerminationSignals(controller: AbortController): () => void {
 
 function assertNoApiError(result: ApiResult, operation: string): void {
   if (result.error !== undefined) {
-    throw new Error(`OpenCode ${operation} failed: ${formatUnknown(result.error)}`);
+    throw new Error(`OpenCode ${operation} failed.`);
   }
 }
 
@@ -235,16 +235,6 @@ function readRecord(value: unknown): Record<string, unknown> | undefined {
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function formatUnknown(value: unknown): string {
-  if (value instanceof Error) return value.message;
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
-  }
 }
 
 async function main(): Promise<void> {

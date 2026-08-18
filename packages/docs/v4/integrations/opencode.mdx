@@ -58,7 +58,7 @@ pnpm --dir packages/integrations/opencode start -- \
 | Variable | Purpose |
 | --- | --- |
 | `OPENCODE_MODEL` | Optional OpenCode model in `provider/model` form. |
-| Provider variables | Credentials supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. They are not forwarded to Stagehand. |
+| Provider variables | Credentials supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. OpenCode does not forward them to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise local. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
@@ -67,7 +67,7 @@ pnpm --dir packages/integrations/opencode start -- \
 
 ## SDK and session lifecycle
 
-The example uses the official `@opencode-ai/sdk/v2` API to start the server, create one session, send one prompt, collect ordered text parts, delete the session, and close the server. The Stagehand MCP process stays alive for the full prompt, preserving page state and snapshot IDs. Native MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
+The example uses the official `@opencode-ai/sdk/v2` API to start the server, create one session, send one prompt, collect ordered text parts, delete the session, and close the server. The Stagehand facade MCP server stays alive for the full prompt, preserving page state and snapshot IDs. Native MCP image blocks remain in OpenCode's tool loop, so `screenshot` stays multimodal.
 
 OpenCode config discovery runs against temporary empty config and workspace directories. The inline config supplies exactly one `stagehand` MCP server, disables all tools except `stagehand_run`, `stagehand_snapshot`, and `stagehand_screenshot`, and denies permission to other tools. Existing OpenCode provider authentication remains available.
 
