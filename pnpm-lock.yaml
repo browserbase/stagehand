@@ -205,6 +205,9 @@ settings:
 
 catalogs:
   default:
+    '@agentclientprotocol/sdk':
+      specifier: 1.3.0
+      version: 1.3.0
     '@ai-sdk/anthropic':
       specifier: ^4.0.8
       version: 4.0.8
@@ -289,6 +292,9 @@ catalogs:
     '@types/node':
       specifier: ^24
       version: 24.13.2
+    '@xai-official/grok':
+      specifier: 1.0.5
+      version: 1.0.5
     ai:
       specifier: ^7.0.16
       version: 7.0.16
@@ -628,6 +634,9 @@ importers:
 
   packages/integrations/core:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 'catalog:'
+        version: 1.3.0(zod@4.4.3)
       '@browserbasehq/stagehand':
         specifier: workspace:*
         version: link:../../sdk-ts
@@ -668,6 +677,25 @@ importers:
       eve:
         specifier: 'catalog:'
         version: 0.29.4(@opentelemetry/api@1.9.1)(ai@7.0.16(zod@4.4.3))(aws4fetch@1.0.20)(dotenv@17.4.2)(jiti@2.7.0)(lru-cache@11.5.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))(xml2js@0.6.2)
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.2
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@24.13.2)(vite@8.1.3(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1)(yaml@2.9.0))
+
+  packages/integrations/grok-build:
+    dependencies:
+      '@browserbasehq/stagehand-integrations':
+        specifier: workspace:*
+        version: link:../core
+      '@xai-official/grok':
+        specifier: 'catalog:'
+        version: 1.0.5
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -836,6 +864,11 @@ packages:
         optional: true
       express:
         optional: true
+
+  '@agentclientprotocol/sdk@1.3.0':
+    resolution: {integrity: sha512-i3h/efaeuMUFAO1HSfo97QZQnnvMd7wWBYtBsdL6UMZg3a78sk3Ffya5Xu7C7tYsXomXoDXJBAzQF2PcFKAhIQ==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@ai-sdk/amazon-bedrock@3.0.111':
     resolution: {integrity: sha512-vkwKdIn8qLsAXEsr8IPp+6U0INmL0Z6aXz93SPCKU9pfWHVnZXEpBE6N4tVIpa6Y9EBqdRo9XGiLmaoYx5XhrQ==}
@@ -1885,6 +1918,9 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@iarna/toml@3.0.0':
+    resolution: {integrity: sha512-td6ZUkz2oS3VeleBcN+m//Q6HlCFCPrnI0FZhrt/h4XqLEdOyYp2u21nd8MdsR+WJy5r9PTDaHTDDfhf4H4l6Q==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -3545,6 +3581,43 @@ packages:
 
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
+
+  '@xai-official/grok-darwin-arm64@1.0.5':
+    resolution: {integrity: sha512-akEtE93V7nOHEMfj16kkl3Nxl/AjcNaRkZCnY5HoIayy3VR6qQ6VTsQdUka4ZgT1bGJCZff4UIcTVpFGDaMAQQ==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@xai-official/grok-darwin-x64@1.0.5':
+    resolution: {integrity: sha512-kIr1YUidX+Zl8Ti7qFBCmQyVzR/D779Q0/pNvCBo7enLObFaGiM7JUAuQ7Y23aaIC/m1rwPv7xzoQ3DGHOO1yA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@xai-official/grok-linux-arm64@1.0.5':
+    resolution: {integrity: sha512-yPdBddzfqBNfmyKGEuy0Vy+8zr/0I9xTqX9aYzaaz5QUS3+3Xe3bIJ2EYbAZV6o/16WUC2ZbkLNUx3X3IkBSRA==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@xai-official/grok-linux-x64@1.0.5':
+    resolution: {integrity: sha512-JJ6ajCCdBeLc14jvcGKQmeOvoJdEvWMe2Bj82McNikup1d6QaX/E7MI7nmMmoHfQthqRfUSnFk/ExFRu4fodTw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@xai-official/grok-win32-arm64@1.0.5':
+    resolution: {integrity: sha512-B4cIPElA8KWpOX2fvIxFeb8U5Ifwal56ZNKtvqPgatflLMf9Quo+3KnBUXH7X8/Ohwe81ff8G+mcU6Ja6Z5RKQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@xai-official/grok-win32-x64@1.0.5':
+    resolution: {integrity: sha512-EqPxlKg5FMFymmnF+w58VQ8V+ZrghIp7Qsuc2VCurIY82H+6qvnAMgJXGCpo2qH6JSWfh0HPiHkmTk32kHstjw==}
+    cpu: [x64]
+    os: [win32]
+
+  '@xai-official/grok@1.0.5':
+    resolution: {integrity: sha512-kk5hez+Oz5CvWonDGkMNmL483CWRIGRF2ki8jQzpIXH56P0fhCgaX9lrr0IUoFCKh/rYAm5vfCPgQsdIIYLu8Q==}
+    engines: {node: '>=20'}
+    cpu: [arm64, x64]
+    os: [darwin, linux, win32]
+    hasBin: true
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -8226,6 +8299,10 @@ snapshots:
     optionalDependencies:
       express: 5.2.1
 
+  '@agentclientprotocol/sdk@1.3.0(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
+
   '@ai-sdk/amazon-bedrock@3.0.111(zod@4.4.3)':
     dependencies:
       '@ai-sdk/anthropic': 2.0.91(zod@4.4.3)
@@ -9464,6 +9541,8 @@ snapshots:
   '@hono/node-server@1.19.15(hono@4.12.32)':
     dependencies:
       hono: 4.12.32
+
+  '@iarna/toml@3.0.0': {}
 
   '@img/colour@1.1.0': {}
 
@@ -11263,6 +11342,35 @@ snapshots:
   '@workflow/serde@4.1.0': {}
 
   '@workflow/serde@4.1.0-beta.2': {}
+
+  '@xai-official/grok-darwin-arm64@1.0.5':
+    optional: true
+
+  '@xai-official/grok-darwin-x64@1.0.5':
+    optional: true
+
+  '@xai-official/grok-linux-arm64@1.0.5':
+    optional: true
+
+  '@xai-official/grok-linux-x64@1.0.5':
+    optional: true
+
+  '@xai-official/grok-win32-arm64@1.0.5':
+    optional: true
+
+  '@xai-official/grok-win32-x64@1.0.5':
+    optional: true
+
+  '@xai-official/grok@1.0.5':
+    dependencies:
+      '@iarna/toml': 3.0.0
+    optionalDependencies:
+      '@xai-official/grok-darwin-arm64': 1.0.5
+      '@xai-official/grok-darwin-x64': 1.0.5
+      '@xai-official/grok-linux-arm64': 1.0.5
+      '@xai-official/grok-linux-x64': 1.0.5
+      '@xai-official/grok-win32-arm64': 1.0.5
+      '@xai-official/grok-win32-x64': 1.0.5
 
   abort-controller@3.0.0:
     dependencies:
