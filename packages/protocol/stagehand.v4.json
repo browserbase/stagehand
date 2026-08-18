@@ -1188,12 +1188,6 @@
           ]
         },
         "telemetry": {
-          "default": {
-            "traces": {
-              "endpoint": "https://example.com/v1/traces",
-              "headers": {}
-            }
-          },
           "$ref": "#/$defs/TelemetryConfig"
         },
         "log_level": {

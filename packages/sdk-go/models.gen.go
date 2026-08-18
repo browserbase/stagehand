@@ -1858,7 +1858,7 @@ type StagehandInitParams struct {
 	SystemPrompt *string `json:"system_prompt,omitempty,omitzero"`
 
 	// Telemetry corresponds to the JSON schema field "telemetry".
-	Telemetry TelemetryConfig `json:"telemetry,omitempty,omitzero"`
+	Telemetry *TelemetryConfig `json:"telemetry,omitempty,omitzero"`
 }
 
 type StagehandInitParamsLogLevel string

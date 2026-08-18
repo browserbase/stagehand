@@ -370,6 +370,7 @@ async def test_create_omits_unset_browser_region_from_the_wire(
     params = cast(StagehandInitParams, recording.calls[0][1])
     wire = json.loads(params.model_dump_json(by_alias=True, exclude_unset=True, warnings="none"))
     assert wire["browser"] == {"session_id": "session-1"}
+    assert "telemetry" not in wire
 
 
 @pytest.mark.asyncio

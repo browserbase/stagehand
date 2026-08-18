@@ -36,7 +36,7 @@ type StagehandTracingRuntime = {
 };
 
 export type StagehandTracing = StagehandTracingRuntime & {
-  configure(telemetry: TelemetryConfig, clientInfo: ImplementationInfo): void;
+  configure(telemetry: TelemetryConfig | undefined, clientInfo: ImplementationInfo): void;
 };
 
 type StagehandTracingRuntimeDependencies = {
@@ -98,7 +98,7 @@ export function createStagehandTracing(
       return runtime?.tracer ?? pendingTracer;
     },
     configure(telemetry, clientInfo) {
-      if (runtime || shutDown) return;
+      if (!telemetry || runtime || shutDown) return;
       runtime = createStagehandTracingRuntime(
         {
           ...options,

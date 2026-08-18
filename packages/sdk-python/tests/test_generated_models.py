@@ -100,12 +100,12 @@ def test_generated_models_retain_cross_field_validation() -> None:
 
 def test_generated_models_serialize_protocol_defaults() -> None:
     telemetry = models.TelemetryConfig.model_validate({
-        "traces": {"endpoint": "https://example.com/v1/traces"}
+        "traces": {"endpoint": "https://collector.example.com/v1/traces"}
     })
 
     assert telemetry.model_dump(mode="json", exclude_unset=True) == {
         "traces": {
-            "endpoint": "https://example.com/v1/traces",
+            "endpoint": "https://collector.example.com/v1/traces",
             "headers": {},
         }
     }
