@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  FACADE_TOOLS,
+} from "@browserbasehq/stagehand-integrations/facade";
 
 import {
   buildAllowlistedEnv,
@@ -11,6 +14,7 @@ import {
   extractAssistantText,
   resolveInstruction,
   runOpenCode,
+  STAGEHAND_TOOL_NAMES,
   withTemporaryEnvironment,
   type OpenCodeRuntime,
 } from "../src/agent.ts";
@@ -53,6 +57,11 @@ describe("opencode stagehand example", () => {
       },
     });
     expect(JSON.stringify(config)).not.toContain("agent-secret");
+  });
+
+  it("allows exactly the OpenCode-prefixed facade tools", () => {
+    const expected = FACADE_TOOLS.map((tool) => `stagehand_${tool.name}`).sort();
+    expect([...STAGEHAND_TOOL_NAMES].sort()).toEqual(expected);
   });
 
   it("disables every tool except the three Stagehand tools", () => {

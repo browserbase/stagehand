@@ -1,15 +1,14 @@
-import { FACADE_AGENT_INSTRUCTIONS } from "@browserbasehq/stagehand-integrations/facade";
+import {
+  FACADE_AGENT_INSTRUCTIONS,
+  FACADE_TOOLS,
+} from "@browserbasehq/stagehand-integrations/facade";
 import { createOpencodeClient, createOpencodeServer, type Config } from "@opencode-ai/sdk/v2";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const STAGEHAND_TOOL_NAMES = [
-  "stagehand_run",
-  "stagehand_snapshot",
-  "stagehand_screenshot",
-] as const;
+export const STAGEHAND_TOOL_NAMES = FACADE_TOOLS.map((tool) => `stagehand_${tool.name}`);
 
 export function buildAllowlistedEnv(
   source: NodeJS.ProcessEnv = process.env,

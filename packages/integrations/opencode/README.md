@@ -44,3 +44,11 @@ The SDK server runs with isolated config discovery, exactly one inline Stagehand
 all non-Stagehand tools disabled and denied. Only `STAGEHAND_*` and `BROWSERBASE_*` variables
 cross into the MCP child; provider credentials remain in OpenCode. Native MCP image results stay
 inside OpenCode's tool loop, so `screenshot` remains multimodal.
+
+## Security model
+
+The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
+service worker — browser-side, never on your machine. Browserbase is the recommended isolation
+boundary: the privileged execution environment is a disposable cloud browser. The SDK example
+spawns the facade server with an explicit `STAGEHAND_*`/`BROWSERBASE_*` allowlist; OpenCode's
+provider credentials never reach the browser session.
