@@ -14,7 +14,29 @@ const allowedLegacyCleanupMatches = new Set([
   `packages/sdk-python/tests/test_build.py:"${legacyDistributionName}-0.1.0.tar.gz",`,
 ]);
 
+const findUnexpectedMatches = (stdout: string): string[] =>
+  stdout
+    .trim()
+    // Windows git writes CRLF; retaining the carriage return breaks the anchored parser below.
+    .split(/\r?\n/u)
+    .filter(Boolean)
+    .flatMap((match) => {
+      const parsed = /^(?<file>[^:]+):\d+:(?<contents>.*)$/u.exec(match)?.groups;
+      if (!parsed?.file || parsed.contents === undefined) return [match];
+      const identity = `${parsed.file}:${parsed.contents.trim()}`;
+      return allowedLegacyCleanupMatches.has(identity) ? [] : [match];
+    });
+
 describe("Retired package identities", () => {
+  it("accepts exact legacy cleanup matches with CRLF line endings", () => {
+    const output = [
+      `packages/sdk-python/scripts/build.py:18:        "${legacyDistributionName}-*.whl",`,
+      `packages/sdk-python/tests/test_build.py:13:        "${legacyDistributionName}-0.1.0.tar.gz",`,
+    ].join("\r\n");
+
+    expect(findUnexpectedMatches(output)).toEqual([]);
+  });
+
   it("does not reintroduce a Stagehand v4 package or test identity", async () => {
     const pattern = ["stagehand", "[-_]v4"].join("");
     let stdout = "";
@@ -27,16 +49,7 @@ describe("Retired package identities", () => {
       if (grepError.code !== 1) throw error;
       stdout = grepError.stdout ?? "";
     }
-    const unexpected = stdout
-      .trim()
-      .split("\n")
-      .filter(Boolean)
-      .flatMap((match) => {
-        const parsed = /^(?<file>[^:]+):\d+:(?<contents>.*)$/u.exec(match)?.groups;
-        if (!parsed?.file || parsed.contents === undefined) return [match];
-        const identity = `${parsed.file}:${parsed.contents.trim()}`;
-        return allowedLegacyCleanupMatches.has(identity) ? [] : [match];
-      });
+    const unexpected = findUnexpectedMatches(stdout);
 
     expect(
       unexpected,
