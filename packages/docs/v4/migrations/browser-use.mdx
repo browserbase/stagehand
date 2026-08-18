@@ -20,7 +20,7 @@ Browser Use is Python-first, so this guide leads with Python. Stagehand behaves 
 
 `Agent(task=...).run()` was built for a world where a model couldn't be trusted with the browser on its own, so the framework wrapped it in a loop, showed it the page each step, and asked it to pick one action at a time. Every step was an inference call, whether the page needed judgement or not.
 
-That trade stopped being worth it. A per-step agent loop is slow, non-deterministic, and expensive precisely where it doesn't need to be: navigating to a URL, clicking a button with a stable selector, reading a table. v4 gives you the discrete tools and leaves the control flow to you.
+Many of those steps do not need a model: navigating to a URL, clicking a button with a stable selector, reading a table. v4 exposes discrete tools and leaves the control flow to you.
 
 Two approaches replace the agent:
 
