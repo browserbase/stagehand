@@ -1,49 +1,66 @@
-# Vercel AI SDK + Stagehand facade over MCP/stdio
+# Vercel AI SDK + Stagehand codemode tools
 
-This example connects the Vercel AI SDK to the Stagehand facade MCP server over
-stdio. It exposes the facade's `run`, `snapshot`, and `screenshot` tools to an AI
-SDK agent.
+> [!NOTE]
+> Looking to build with Eve? Start with the [Eve + Stagehand codemode integration](../eve/README.md).
 
-This route wraps the facade as an MCP server over stdio, so any MCP-capable
-framework (here, the Vercel AI SDK) can consume the identical tool contract
-without Stagehand-specific glue, at the cost of a child process and JSON-RPC
-hop. Alternatively, the same contract can be bound as native in-process tools
-sharing a durable Stagehand session, with no bridge process but
-framework-specific code.
+Give a Vercel AI SDK agent one persistent Stagehand browser through the `run`, `snapshot`, and `screenshot` tools. The AI SDK connects to the shared codemode tool server over MCP/stdio, so browser state survives across tool calls.
 
-## Setup
+## Prerequisites
 
-Node.js 24 or newer is required. From the repository root, build the integrations
-package first so its `dist` server entrypoint exists:
+- Node.js 24 or newer
+- pnpm 11.10.0
+- An OpenAI API key for the example agent
 
-```sh
-pnpm exec turbo run build --filter @browserbasehq/stagehand-integrations
+## Quickstart
+
+From the repository root:
+
+```bash
+corepack pnpm@11.10.0 install --frozen-lockfile
+corepack pnpm@11.10.0 exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
 ```
 
-Configure the environment as needed:
+Set the credential for the AI SDK agent, then run a browser task:
 
-| Variable                  | Purpose                                                                                                                                                                                                           |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`       | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                                                                                  |
-| `BROWSERBASE_API_KEY`     | Browserbase API key.                                                                                                                                                                                              |
-| `BROWSERBASE_PROJECT_ID`  | Browserbase project ID.                                                                                                                                                                                           |
-| `STAGEHAND_MODEL_NAME`    | Model used by the facade server.                                                                                                                                                                                  |
-| `STAGEHAND_MODEL_API_KEY` | API key for the facade server model.                                                                                                                                                                              |
-| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model; defaults to `gpt-5.6-luna`.                                                                                                                                                                   |
-| `OPENAI_API_KEY`          | Used by the AI SDK agent model in the host process. It is not forwarded: it is neither allowlisted nor one of the host variables (`HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM`, `USER`) inherited by the transport. |
-
-## Run
-
-```sh
-pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-ai-facade test
-pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-ai-facade typecheck
-pnpm --filter @browserbasehq/stagehand-integrations-example-vercel-ai-facade start "your instruction"
+```bash
+export OPENAI_API_KEY="your-key"
+corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai start -- \
+  "Open https://example.com and report the page title."
 ```
 
-## Security model
+Local Chrome is the default. To run the browser on Browserbase:
 
-`run(code)` executes model-authored JavaScript in the extension service worker:
-it runs browser-side, never in the Node host process. Browserbase is the
-recommended isolation boundary. The Node host process spawns the facade server
-and holds only the MCP connection; model-authored JavaScript does not execute
-inside the host process.
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-key"
+```
+
+## Configuration
+
+| Variable                  | Purpose                                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `AI_SDK_STAGEHAND_MODEL`  | AI SDK agent model. Defaults to `gpt-5.6-luna`.                                                  |
+| `OPENAI_API_KEY`          | Credential for the AI SDK agent. It stays in the host process.                                   |
+| `STAGEHAND_BROWSER`       | `local` or `browserbase`. Inferred from `BROWSERBASE_API_KEY` when unset.                        |
+| `BROWSERBASE_API_KEY`     | Required for Browserbase.                                                                        |
+| `BROWSERBASE_PROJECT_ID`  | Optional Browserbase project ID.                                                                 |
+| `STAGEHAND_MODEL_NAME`    | Optional model for Stagehand AI methods used inside `run`.                                       |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive agent-provider credentials. |
+
+## Verify the integration
+
+The MCP contract tests need no browser or API key:
+
+```bash
+corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai test
+corepack pnpm@11.10.0 --dir packages/integrations/vercel-ai typecheck
+```
+
+The quickstart command above is the live browser smoke test.
+
+## Security boundary
+
+`run` executes model-authored JavaScript inside the Stagehand browser extension's service worker, not in the AI SDK process. The MCP child receives only `STAGEHAND_*` and `BROWSERBASE_*` variables plus a small set of process basics required to launch Node; the full host environment and `OPENAI_API_KEY` are not forwarded.
+
+Use Browserbase as the isolation boundary for untrusted tasks. The browser can still reach any page or data available inside its own session.
