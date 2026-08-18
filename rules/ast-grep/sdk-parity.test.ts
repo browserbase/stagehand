@@ -160,15 +160,15 @@ describe("All language SDK operations remain in sync", () => {
     const registeredOperations = [...registry.values()].sort();
 
     expect(
-      await clientProtocolOperations("typescript", typescriptSource, registry),
+      await protocolOperations("typescript", typescriptSource, registry),
       "TypeScript must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
     expect(
-      await clientProtocolOperations("python", pythonSource, registry),
+      await protocolOperations("python", pythonSource, registry),
       "Python must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
     expect(
-      await clientProtocolOperations("go", goSource, registry),
+      await protocolOperations("go", goSource, registry),
       "Go must reference every StagehandMethods operation",
     ).toStrictEqual(registeredOperations);
   });
@@ -177,7 +177,7 @@ describe("All language SDK operations remain in sync", () => {
     const registry = await stagehandMethodNames();
     const [extensionInbound, typescriptInbound] = await Promise.all([
       extensionRouterOperations(),
-      protocolOperationsAtBoundary("typescript", typescriptSource, registry, "inbound"),
+      protocolOperations("typescript", typescriptSource, registry, "inbound"),
     ]);
     const registeredOperations = [...registry.values()].sort();
     const handledByBothEndpoints = extensionInbound.filter((method) =>
@@ -200,11 +200,11 @@ describe("All language SDK operations remain in sync", () => {
       ["go", goSource],
     ] as const) {
       expect(
-        await protocolOperationsAtBoundary(language, source, registry, "outbound"),
+        await protocolOperations(language, source, registry, "outbound"),
         `${language} outbound operations must match the extension router`,
       ).toStrictEqual(extensionInbound);
       expect(
-        await protocolOperationsAtBoundary(language, source, registry, "inbound"),
+        await protocolOperations(language, source, registry, "inbound"),
         `${language} inbound request handlers must match TypeScript inbound request handlers`,
       ).toStrictEqual(typescriptInbound);
     }
@@ -750,35 +750,13 @@ async function publicAccessors(
     .sort();
 }
 
-async function clientProtocolOperations(
-  language: SdkLanguage,
-  source: URL,
-  registry: ReadonlyMap<string, string>,
-): Promise<string[]> {
-  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
-  const files = (await readdir(source, { recursive: true }))
-    .filter((file) => file.endsWith(extension) && !file.endsWith(`_test${extension}`))
-    .sort();
-  const operations = new Set<string>();
-
-  for (const file of files) {
-    const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
-    for (const call of protocolCalls(root, language)) {
-      const method = protocolMethodNode(call, language);
-      if (method) operations.add(wireMethodForCall(method, language, registry));
-    }
-  }
-
-  return [...operations].sort();
-}
-
 type RequestBoundary = "inbound" | "outbound";
 
-async function protocolOperationsAtBoundary(
+async function protocolOperations(
   language: SdkLanguage,
   source: URL,
   registry: ReadonlyMap<string, string>,
-  boundary: RequestBoundary,
+  boundary?: RequestBoundary,
 ): Promise<string[]> {
   const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
   const files = (await readdir(source, { recursive: true }))
@@ -794,7 +772,7 @@ async function protocolOperationsAtBoundary(
 
   for (const file of files) {
     const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
-    for (const call of protocolBoundaryCalls(root, language, boundary)) {
+    for (const call of protocolCalls(root, language, boundary)) {
       const method = protocolMethodNode(call, language);
       if (method) operations.add(wireMethodForCall(method, language, registry));
     }
@@ -1045,20 +1023,14 @@ async function goRpcCalls(): Promise<GoRpcCall[]> {
   return calls;
 }
 
-function protocolCalls(node: SgNode, language: SdkLanguage): SgNode[] {
+function protocolCalls(node: SgNode, language: SdkLanguage, boundary?: RequestBoundary): SgNode[] {
   const callKind = language === "python" ? "call" : "call_expression";
   return node.findAll({ rule: { kind: callKind } }).filter((call) => {
     const calledFunction = namedChildren(call)[0]?.text();
-    const isProtocolBoundary =
-      calledFunction?.endsWith(".send") === true ||
-      calledFunction?.endsWith("?.send") === true ||
-      (language === "typescript" &&
-        (calledFunction?.endsWith(".onRequest") === true ||
-          calledFunction?.endsWith("?.onRequest") === true)) ||
-      (language === "python" && calledFunction?.endsWith(".on_request") === true) ||
-      (language === "go" &&
-        (calledFunction?.endsWith(".call") === true ||
-          calledFunction?.endsWith(".onRequest") === true));
+    const isProtocolBoundary = boundary
+      ? matchesProtocolBoundary(calledFunction, language, boundary)
+      : matchesProtocolBoundary(calledFunction, language, "outbound") ||
+        matchesProtocolBoundary(calledFunction, language, "inbound");
     if (!isProtocolBoundary) return false;
     const method = protocolMethodNode(call, language);
     return language === "typescript"
@@ -1069,35 +1041,22 @@ function protocolCalls(node: SgNode, language: SdkLanguage): SgNode[] {
   });
 }
 
-function protocolBoundaryCalls(
-  node: SgNode,
+function matchesProtocolBoundary(
+  calledFunction: string | undefined,
   language: SdkLanguage,
   boundary: RequestBoundary,
-): SgNode[] {
-  const callKind = language === "python" ? "call" : "call_expression";
-  return node.findAll({ rule: { kind: callKind } }).filter((call) => {
-    const calledFunction = namedChildren(call)[0]?.text();
-    const matchesBoundary =
-      boundary === "outbound"
-        ? language === "go"
-          ? calledFunction?.endsWith(".call") === true
-          : calledFunction?.endsWith(".send") === true ||
-            calledFunction?.endsWith("?.send") === true
-        : language === "typescript"
-          ? calledFunction?.endsWith(".onRequest") === true ||
-            calledFunction?.endsWith("?.onRequest") === true
-          : language === "python"
-            ? calledFunction?.endsWith(".on_request") === true
-            : calledFunction?.endsWith(".onRequest") === true;
-    if (!matchesBoundary) return false;
-
-    const method = protocolMethodNode(call, language);
-    return language === "typescript"
-      ? method?.text().startsWith("StagehandMethods.") === true
-      : language === "python"
-        ? method?.kind() === "string"
-        : method?.kind() === "interpreted_string_literal";
-  });
+): boolean {
+  if (boundary === "outbound") {
+    return language === "go"
+      ? calledFunction?.endsWith(".call") === true
+      : calledFunction?.endsWith(".send") === true || calledFunction?.endsWith("?.send") === true;
+  }
+  return language === "typescript"
+    ? calledFunction?.endsWith(".onRequest") === true ||
+        calledFunction?.endsWith("?.onRequest") === true
+    : language === "python"
+      ? calledFunction?.endsWith(".on_request") === true
+      : calledFunction?.endsWith(".onRequest") === true;
 }
 
 type DirectClassMethod = {

@@ -555,9 +555,9 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 When the browser already has the Stagehand extension installed, identify it with `extensionId` in
-TypeScript, `extension_id` in Python, or `ExtensionID` in Go. When omitted, Stagehand attempts to
-load its bundled extension; pass the ID explicitly when the connected Chrome build does not support
-loading an unpacked extension over CDP.
+TypeScript, `extension_id` in Python, or `ExtensionID` in Go. If you omit this option, Stagehand
+attempts to load its bundled extension; pass the ID explicitly when the connected Chrome build does
+not support loading an unpacked extension over CDP.
 
 <Note>
 Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
