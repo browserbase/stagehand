@@ -89,7 +89,7 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
       }
 
       for (const [field, fieldSchema] of Object.entries(schemaProperties(protocol, params))) {
-        const nestedFields = nestedLeafNames(protocol, fieldSchema);
+        const nestedFields = nestedFieldNames(protocol, fieldSchema);
         if (nestedFields.length === 0) continue;
         if (directlyForwardsParameter(call.params, field, scopeText)) continue;
 
@@ -214,9 +214,23 @@ function schemaProperties(
   );
 }
 
-function nestedLeafNames(protocol: ProtocolDocument, schema: JsonSchema): string[] {
+function nestedFieldNames(protocol: ProtocolDocument, schema: JsonSchema): string[] {
   const properties = schemaProperties(protocol, schema);
   return [...new Set(Object.keys(properties))];
+}
+
+async function sdkSourceFiles(source: URL, language: Language): Promise<string[]> {
+  const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
+  return (await readdir(source, { recursive: true }))
+    .filter(
+      (file) =>
+        file.endsWith(extension) &&
+        !file.endsWith(`_test${extension}`) &&
+        !file.endsWith(`.test${extension}`) &&
+        !file.split("/").includes("tests") &&
+        !file.split("/").includes("_generated"),
+    )
+    .sort();
 }
 
 async function publicRpcCalls(): Promise<RpcCall[]> {
@@ -226,17 +240,7 @@ async function publicRpcCalls(): Promise<RpcCall[]> {
   ]);
   const calls = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
-      const files = (await readdir(source, { recursive: true }))
-        .filter(
-          (file) =>
-            file.endsWith(extension) &&
-            !file.endsWith(`_test${extension}`) &&
-            !file.endsWith(`.test${extension}`) &&
-            !file.split("/").includes("tests") &&
-            !file.split("/").includes("_generated"),
-        )
-        .sort();
+      const files = await sdkSourceFiles(source, language);
       const languageCalls: RpcCall[] = [];
 
       for (const file of files) {
@@ -461,15 +465,7 @@ function assignsResultWhole(call: RpcCall, resultName: string): boolean {
 async function callableBodies(): Promise<Map<Language, Map<string, string>>> {
   const entries = await Promise.all(
     (Object.entries(sources) as Array<[Language, URL]>).map(async ([language, source]) => {
-      const extension = language === "typescript" ? ".ts" : language === "python" ? ".py" : ".go";
-      const files = (await readdir(source, { recursive: true })).filter(
-        (file) =>
-          file.endsWith(extension) &&
-          !file.endsWith(`_test${extension}`) &&
-          !file.endsWith(`.test${extension}`) &&
-          !file.split("/").includes("tests") &&
-          !file.split("/").includes("_generated"),
-      );
+      const files = await sdkSourceFiles(source, language);
       const bodies = new Map<string, string>();
       for (const file of files) {
         const root = parse(language, await readFile(new URL(file, source), "utf8")).root();
@@ -496,7 +492,6 @@ function relatedHelperBodies(
   scope: SgNode,
   language: Language,
   helperBodies: ReadonlyMap<Language, ReadonlyMap<string, string>>,
-  argumentName?: string,
 ): string {
   const bodies = helperBodies.get(language);
   if (!bodies) return "";
@@ -504,12 +499,6 @@ function relatedHelperBodies(
   return scope
     .findAll({ rule: { kind: callKind } })
     .flatMap((call) => {
-      if (
-        argumentName &&
-        !callArguments(call).some((argument) => argument.text() === argumentName)
-      ) {
-        return [];
-      }
       const called = namedChildren(call)[0]?.text().split(".").at(-1)?.replace(/^\?\./u, "");
       const body = called && bodies.get(called);
       return body ? [body] : [];
