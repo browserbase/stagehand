@@ -13,6 +13,7 @@ import {
   resolveInstruction,
   runCursor,
   type CursorRuntimeAgent,
+  type CursorRuntimeRun,
 } from "../src/agent.ts";
 
 const temporaryDirectories: string[] = [];
@@ -194,6 +195,44 @@ describe("cursor stagehand example", () => {
     await expect(running).rejects.toThrow("Cursor run interrupted.");
     expect(fake.send).not.toHaveBeenCalled();
     expect(fake.dispose).toHaveBeenCalledOnce();
+    await expect(access(directory)).rejects.toThrow();
+  });
+
+  it("cancels the new run when interrupted during send", async () => {
+    const directory = await makeTemporaryDirectory();
+    let finishSend!: () => void;
+    let notifySendStarted!: () => void;
+    const sendStarted = new Promise<void>((resolve) => {
+      notifySendStarted = resolve;
+    });
+    const wait = vi.fn(() => new Promise<never>(() => undefined));
+    const cancel = vi.fn(async () => undefined);
+    const dispose = vi.fn(async () => undefined);
+    const pendingRun: CursorRuntimeRun = { wait, cancel };
+    const agent: CursorRuntimeAgent = {
+      send: vi.fn(
+        () =>
+          new Promise<CursorRuntimeRun>((resolve) => {
+            finishSend = () => resolve(pendingRun);
+            notifySendStarted();
+          }),
+      ),
+      [Symbol.asyncDispose]: dispose,
+    };
+    const running = runCursor("browse", {
+      facadeServerPath: "/tmp/facade-server.mjs",
+      makeWorkspaceDirectory: async () => directory,
+      createAgent: async () => agent,
+    });
+
+    await sendStarted;
+    process.emit("SIGINT");
+    finishSend();
+
+    await expect(running).rejects.toThrow("Cursor run interrupted.");
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(wait).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledOnce();
     await expect(access(directory)).rejects.toThrow();
   });
 

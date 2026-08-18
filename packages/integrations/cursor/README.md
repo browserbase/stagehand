@@ -53,8 +53,8 @@ STAGEHAND_BROWSER=browserbase pnpm --dir packages/integrations/cursor start -- \
 This example intentionally uses Cursor's local agent runtime. "Local" means the agent loop and
 workspace run on your machine; model inference remains hosted by Cursor. The temporary workspace
 loads no ambient Cursor settings, and the agent's built-in tool allowlist contains only the `mcp`
-capability. Its one inline MCP server is the Stagehand facade, so shell and file-editing tools are
-not offered to the model.
+capability. Its one inline MCP server is the Stagehand facade, so Cursor does not offer shell and
+file-editing tools to the model.
 
 The MCP child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables. The Cursor API
 key and unrelated host secrets remain in the agent process. `SIGINT` and `SIGTERM` cancel the
