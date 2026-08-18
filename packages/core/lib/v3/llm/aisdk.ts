@@ -29,6 +29,16 @@ type ProviderOptionMap = Record<string, ProviderOptionValue>;
 
 function inferProviderName(modelId: string): string | undefined {
   const [providerName] = modelId.split("/");
+  if (providerName !== modelId) {
+    return providerName || undefined;
+  }
+
+  // Bedrock model IDs use `vendor.model` or `region.vendor.model` instead of
+  // the `provider/model` format used by the other AI SDK providers.
+  if (/^(?:[a-z0-9-]+\.)?anthropic\./i.test(modelId)) {
+    return "anthropic";
+  }
+
   return providerName || undefined;
 }
 

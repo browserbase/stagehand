@@ -40,6 +40,11 @@ describe("AISdkClient structured output provider options", () => {
 
   it.each([
     ["openai/gpt-4.1", { openai: { strictJsonSchema: true } }],
+    ["anthropic.claude-3", { anthropic: { structuredOutputMode: "auto" } }],
+    [
+      "us.anthropic.claude-sonnet-4-6[1m]",
+      { anthropic: { structuredOutputMode: "auto" } },
+    ],
     ["azure/gpt-4.1", { azure: { strictJsonSchema: true } }],
     ["google/gemini-2.5-pro", { google: { structuredOutputs: true } }],
     ["vertex/gemini-2.5-pro", { vertex: { structuredOutputs: true } }],
