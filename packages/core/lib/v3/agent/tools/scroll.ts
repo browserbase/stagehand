@@ -116,7 +116,7 @@ export const scrollVisionTool = (v3: V3, provider?: string) =>
       let cx: number;
       let cy: number;
       if (coordinates) {
-        const processed = processCoordinates(
+        const processed = await processCoordinates(
           coordinates[0],
           coordinates[1],
           provider,

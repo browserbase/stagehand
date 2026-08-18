@@ -33,6 +33,7 @@ describe("V3CuaAgentHandler keypress chord handling", () => {
       url: () => "https://example.com",
     };
     const mockV3 = {
+      resolveViewport: async () => ({ width: 1288, height: 711 }),
       context: {
         awaitActivePage: vi.fn().mockResolvedValue(mockPage),
       },

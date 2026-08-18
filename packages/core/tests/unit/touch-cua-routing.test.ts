@@ -39,6 +39,30 @@ function harness(opts: { usesTouch: boolean; recording?: boolean }) {
 }
 
 describe("CUA click touch routing", () => {
+  it("sets the client viewport from the shared resolver", async () => {
+    const setViewport = vi.fn();
+    const resolveViewport = vi.fn(async () => ({ width: 384, height: 696 }));
+    const v3 = {
+      resolveViewport,
+    } as unknown as V3;
+    const handler = Object.create(
+      V3CuaAgentHandler.prototype,
+    ) as V3CuaAgentHandler;
+    const internals = handler as unknown as {
+      v3: V3;
+      agentClient: { setViewport: typeof setViewport };
+      updateClientViewport: () => Promise<void>;
+    };
+    internals.v3 = v3;
+    internals.agentClient = { setViewport };
+
+    await internals.updateClientViewport();
+
+    expect(resolveViewport).toHaveBeenCalledOnce();
+    expect(setViewport).toHaveBeenCalledOnce();
+    expect(setViewport).toHaveBeenCalledWith(384, 696);
+  });
+
   it("taps a single left click on a touch session", async () => {
     const h = harness({ usesTouch: true });
     const result = await h.executeAction({ type: "click", x: 10, y: 20 });
