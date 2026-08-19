@@ -73,6 +73,22 @@ OpenCode config discovery runs against temporary empty config and workspace dire
 
 The MCP child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables. Provider credentials and unrelated host secrets remain available only to OpenCode.
 
+## Connect a running OpenCode CLI
+
+The package ships a project-scoped `opencode.json` that mounts the same facade server in the OpenCode CLI and enables only the three Stagehand tools. Its command path is relative to the package, so start the CLI from that directory:
+
+```bash
+cd packages/integrations/opencode
+opencode mcp list
+opencode
+```
+
+OpenCode inherits your shell environment, so the exports above are the only configuration. For a headless one-shot run:
+
+```bash
+opencode run "your instruction"
+```
+
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
 </Warning>

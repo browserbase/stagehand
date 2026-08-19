@@ -45,6 +45,24 @@ all non-Stagehand tools disabled and denied. Only `STAGEHAND_*` and `BROWSERBASE
 cross into the MCP child; provider credentials remain in OpenCode. Native MCP image results stay
 inside OpenCode's tool loop, so `screenshot` remains multimodal.
 
+## Connecting a running OpenCode CLI instead
+
+To use the facade from the interactive `opencode` CLI rather than the SDK, the project-scoped
+`opencode.json` in this directory is all that's needed. It enables only the three Stagehand tools
+and inherits the Stagehand and Browserbase exports above. Start the CLI from this directory:
+
+```bash
+cd packages/integrations/opencode
+opencode mcp list
+opencode
+```
+
+For a headless one-shot run:
+
+```bash
+opencode run "your instruction"
+```
+
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's
