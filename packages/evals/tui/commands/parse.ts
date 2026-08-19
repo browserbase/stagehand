@@ -18,7 +18,6 @@ import {
   parseBenchHarness,
   type Harness,
 } from "../../framework/benchTypes.js";
-import type { AgentToolMode } from "@browserbasehq/stagehand";
 
 export interface RunFlags {
   target?: string;
@@ -26,13 +25,10 @@ export interface RunFlags {
   concurrency?: number;
   env?: string;
   model?: string;
-  provider?: string;
   api?: boolean;
   tool?: string;
   startup?: string;
   harness?: string;
-  agentMode?: string;
-  agentModes?: AgentToolMode[];
   limit?: number;
   sample?: number;
   filter?: Array<[string, string]>;
@@ -46,8 +42,6 @@ export interface RunFlags {
    * Plumbed to bench tasks via the EVAL_SUCCESS_MODE env override.
    */
   success?: SuccessMode;
-  /** Spawn the pre-refactor index.eval.ts runner instead of the unified path. */
-  legacy?: boolean;
 }
 
 export type SuccessMode = "outcome" | "process" | "both";
@@ -61,11 +55,9 @@ export interface ConfigDefaults {
   env?: string;
   trials?: number;
   concurrency?: number;
-  provider?: string | null;
   model?: string | null;
   api?: boolean;
   verbose?: boolean | null;
-  agentModes?: AgentToolMode[] | null;
 }
 
 export interface ResolvedRunOptions {
@@ -75,13 +67,10 @@ export interface ResolvedRunOptions {
   concurrency: number;
   environment: "LOCAL" | "BROWSERBASE";
   model?: string;
-  provider?: string;
   useApi: boolean;
   coreToolSurface?: string;
   coreStartupProfile?: string;
   harness: Harness;
-  agentMode?: AgentToolMode;
-  agentModes?: AgentToolMode[];
   datasetFilter?: string;
   /** Rubric success mode forwarded to bench tasks via EVAL_SUCCESS_MODE. */
   successMode: SuccessMode;
@@ -91,19 +80,15 @@ export interface ResolvedRunOptions {
   verbose: boolean;
 }
 
-/**
- * Suites wired into the unified runner. GAIA remains legacy-only;
- * WebBench never had a unified suite implementation.
- */
+/** Suites wired into the unified runner. */
 const SUPPORTED_BENCHMARKS = new Set([
   "webvoyager",
   "onlineMind2Web",
   "webtailbench",
+  "odysseysbench",
 ]);
 
-const LEGACY_ONLY_BENCHMARKS = new Set(["gaia", "osworld"]);
-
-const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview", "legacy"]);
+const BOOLEAN_FLAGS = new Set(["api", "dry-run", "preview"]);
 const VALUE_FLAGS = new Set([
   "trials",
   "concurrency",
@@ -111,12 +96,9 @@ const VALUE_FLAGS = new Set([
   "sample",
   "env",
   "model",
-  "provider",
   "tool",
   "startup",
   "harness",
-  "agent-mode",
-  "agent-modes",
   "filter",
   "success",
 ]);
@@ -126,7 +108,6 @@ const FLAG_ALIASES: Record<string, string> = {
   c: "concurrency",
   e: "env",
   m: "model",
-  p: "provider",
   l: "limit",
   s: "sample",
   f: "filter",
@@ -144,36 +125,12 @@ function parsePositiveInteger(raw: string, optionName: string): number {
   return parsed;
 }
 
-function normalizeEnvironment(
-  raw: string,
-  source: string,
-): "local" | "browserbase" {
+function normalizeEnvironment(raw: string, source: string): "local" | "browserbase" {
   const normalized = raw.toLowerCase();
   if (normalized !== "local" && normalized !== "browserbase") {
     throw new Error(`${source} must be "local" or "browserbase"`);
   }
   return normalized;
-}
-
-function normalizeAgentMode(raw: string): AgentToolMode {
-  if (raw !== "dom" && raw !== "hybrid" && raw !== "cua") {
-    throw new Error('--agent-mode must be "dom", "hybrid", or "cua"');
-  }
-  return raw;
-}
-
-export function parseAgentModes(raw: string): AgentToolMode[] {
-  const modes = raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map(normalizeAgentMode);
-
-  if (modes.length === 0) {
-    throw new Error("--agent-modes must include at least one mode");
-  }
-
-  return [...new Set(modes)];
 }
 
 function parseFilter(raw: string): [string, string] {
@@ -193,10 +150,7 @@ function parseFilter(raw: string): [string, string] {
   return [key, value];
 }
 
-function readPositiveInteger(
-  value: number | undefined | null,
-  source: string,
-): number | undefined {
+function readPositiveInteger(value: number | undefined | null, source: string): number | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${source} must be a positive integer`);
@@ -224,7 +178,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         if (name === "api") flags.api = true;
         else if (name === "dry-run") flags.dryRun = true;
         else if (name === "preview") flags.preview = true;
-        else if (name === "legacy") flags.legacy = true;
         i++;
         continue;
       }
@@ -257,9 +210,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         case "model":
           flags.model = value;
           break;
-        case "provider":
-          flags.provider = value;
-          break;
         case "tool":
           flags.tool = value;
           break;
@@ -269,12 +219,6 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         case "harness":
           flags.harness = value;
           break;
-        case "agent-mode":
-          flags.agentMode = normalizeAgentMode(value);
-          break;
-        case "agent-modes":
-          flags.agentModes = parseAgentModes(value);
-          break;
         case "filter": {
           filters.push(parseFilter(value));
           break;
@@ -282,9 +226,7 @@ export function parseRunArgs(tokens: string[]): RunFlags {
         case "success": {
           const v = value.toLowerCase() as SuccessMode;
           if (!SUCCESS_MODES.has(v)) {
-            throw new Error(
-              `--success must be one of: outcome, process, both (got "${value}")`,
-            );
+            throw new Error(`--success must be one of: outcome, process, both (got "${value}")`);
           }
           flags.success = v;
           break;
@@ -345,18 +287,7 @@ export function applyBenchmarkShorthand(
 
   const benchmarkName = match[2];
 
-  if (LEGACY_ONLY_BENCHMARKS.has(benchmarkName)) {
-    if (!flags.legacy) {
-      throw new Error(
-        `Benchmark "${benchmarkName}" is legacy-only. Use --legacy or choose one of: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
-      );
-    }
-  }
-
-  if (
-    !SUPPORTED_BENCHMARKS.has(benchmarkName) &&
-    !LEGACY_ONLY_BENCHMARKS.has(benchmarkName)
-  ) {
+  if (!SUPPORTED_BENCHMARKS.has(benchmarkName)) {
     throw new Error(
       `Unknown benchmark "${benchmarkName}". Supported: ${[...SUPPORTED_BENCHMARKS].join(", ")}.`,
     );
@@ -404,11 +335,7 @@ export function resolveRunOptions(
   };
 
   const rawEnv =
-    flags.env ??
-    env.STAGEHAND_BROWSER_TARGET ??
-    defaults.env ??
-    env.EVAL_ENV ??
-    "local";
+    flags.env ?? env.STAGEHAND_BROWSER_TARGET ?? defaults.env ?? env.EVAL_ENV ?? "local";
   const envLower = normalizeEnvironment(rawEnv, "Environment");
   const environment = envLower === "browserbase" ? "BROWSERBASE" : "LOCAL";
 
@@ -418,12 +345,8 @@ export function resolveRunOptions(
     envOverrides,
   } = applyBenchmarkShorthand(flags.target, flags);
 
-  const model =
-    flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
-  const provider =
-    flags.provider ?? defaults.provider ?? env.EVAL_PROVIDER ?? undefined;
-  const useApi =
-    flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
+  const model = flags.model ?? defaults.model ?? env.EVAL_MODEL_OVERRIDE ?? undefined;
+  const useApi = flags.api ?? defaults.api ?? (env.USE_API ?? "").toLowerCase() === "true";
   const trials =
     flags.trials ??
     readPositiveInteger(defaults.trials, "defaults.trials") ??
@@ -437,20 +360,11 @@ export function resolveRunOptions(
 
   const datasetFilter = shorthandDatasetFilter ?? env.EVAL_DATASET ?? undefined;
   const harness = parseBenchHarness(flags.harness ?? DEFAULT_BENCH_HARNESS);
-  const agentMode = flags.agentMode
-    ? normalizeAgentMode(flags.agentMode)
-    : undefined;
-  const agentModes = agentMode
-    ? undefined
-    : (flags.agentModes ?? defaults.agentModes ?? undefined);
 
   envOverrides.EVAL_ENV = environment;
   envOverrides.USE_API = String(Boolean(useApi));
   envOverrides.EVAL_TRIAL_COUNT = String(trials);
   envOverrides.EVAL_MAX_CONCURRENCY = String(concurrency);
-  if (provider !== undefined) {
-    envOverrides.EVAL_PROVIDER = provider;
-  }
   if (model !== undefined) {
     envOverrides.EVAL_MODEL_OVERRIDE = model;
   }
@@ -460,9 +374,7 @@ export function resolveRunOptions(
   const envSuccess = (env.EVAL_SUCCESS_MODE ?? "").toLowerCase();
   const successMode: SuccessMode =
     flags.success ??
-    (SUCCESS_MODES.has(envSuccess as SuccessMode)
-      ? (envSuccess as SuccessMode)
-      : "outcome");
+    (SUCCESS_MODES.has(envSuccess as SuccessMode) ? (envSuccess as SuccessMode) : "outcome");
   envOverrides.EVAL_SUCCESS_MODE = successMode;
 
   return {
@@ -472,13 +384,10 @@ export function resolveRunOptions(
     concurrency,
     environment,
     model: model ?? undefined,
-    provider: provider ?? undefined,
     useApi: Boolean(useApi),
     coreToolSurface: flags.tool ?? core.tool,
     coreStartupProfile: flags.startup ?? core.startup,
     harness,
-    agentMode,
-    agentModes,
     datasetFilter,
     successMode,
     envOverrides,
@@ -487,6 +396,18 @@ export function resolveRunOptions(
     verbose: defaults.verbose ?? false,
   };
 }
+
+/**
+ * Env vars a run stamps onto `process.env` from the inside (see
+ * `framework/trajectoryGroup.ts`). Their values are only known once the run has
+ * generated its testcases, so they can't be passed as `overrides` — but the REPL
+ * still must not leak them, so they are restored even though we never set them.
+ */
+const RUN_STAMPED_ENV_KEYS = [
+  "EVAL_TRAJECTORY_GROUP",
+  "EVAL_EXPERIMENT_NAME",
+  "EVAL_TRAJECTORY_MODEL",
+];
 
 /**
  * Set env overrides for the duration of `fn` and restore prior values in
@@ -498,11 +419,13 @@ export async function withEnvOverrides<T>(
   overrides: Record<string, string>,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const keys = Object.keys(overrides);
+  // Restore the run-stamped keys too, not just the ones we set: otherwise a run's
+  // trajectory group survives the command that created it.
+  const keys = [...new Set([...Object.keys(overrides), ...RUN_STAMPED_ENV_KEYS])];
   const previous: Record<string, string | undefined> = {};
   for (const key of keys) {
     previous[key] = process.env[key];
-    process.env[key] = overrides[key];
+    if (key in overrides) process.env[key] = overrides[key];
   }
   try {
     return await fn();

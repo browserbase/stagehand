@@ -26,7 +26,8 @@
  *     query in args.
  *   - todo_list items → not surfaced as tool calls (they aren't actions).
  */
-import type { TaskSpec, Trajectory } from "@browserbasehq/stagehand";
+import type { ProbeEvidence, TaskSpec, Trajectory } from "stagehand-v3";
+import type { StepObservation } from "../observationRecorder.js";
 import {
   buildTrajectory,
   type NormalizedToolCall,
@@ -42,11 +43,22 @@ export interface CodexRunResult {
   status?: Trajectory["status"];
   /** Optional usage to fold into Trajectory.usage. */
   usage?: Partial<Trajectory["usage"]>;
+  /**
+   * Harness-observed terminal page state (captured through the tool surface
+   * after the agent finished) — anchors the verifier's final observation.
+   */
+  finalObservation?: ProbeEvidence;
+  /** Per-step probe observations, indexed by bridge-run execution order. */
+  stepObservations?: StepObservation[];
+  /**
+   * Which normalized tool-call names consume observation indexes. Defaults
+   * to bridge runs (command_execution invoking browser_run.mjs); MCP mounts
+   * match their server's `<server>.<tool>` calls instead.
+   */
+  observedToolName?: (name: string) => boolean;
 }
 
-export class CodexTrajectoryAdapter
-  implements TrajectoryAdapter<CodexRunResult>
-{
+export class CodexTrajectoryAdapter implements TrajectoryAdapter<CodexRunResult> {
   fromHarnessResult(result: CodexRunResult, taskSpec: TaskSpec): Trajectory {
     const toolCalls: NormalizedToolCall[] = [];
     let pendingReasoning = "";
@@ -60,9 +72,7 @@ export class CodexTrajectoryAdapter
       const itemType = String(item.type ?? "");
 
       if (itemType === "reasoning" && typeof item.text === "string") {
-        pendingReasoning = pendingReasoning
-          ? `${pendingReasoning}\n${item.text}`
-          : item.text;
+        pendingReasoning = pendingReasoning ? `${pendingReasoning}\n${item.text}` : item.text;
         continue;
       }
 
@@ -80,6 +90,31 @@ export class CodexTrajectoryAdapter
       }
     }
 
+    // The Nth recorded observation pairs with the Nth bridge run — the
+    // command_execution items that invoke browser_run.mjs, in stream order.
+    // If a bridge run is not visible under that filter (the agent reached
+    // the bridge some other way), ordinals would shift and attach evidence
+    // to the wrong steps — misattribution is worse than a gap, so attach
+    // nothing and let the verifier take its evidence_insufficient path.
+    const observations = result.stepObservations ?? [];
+    if (observations.length > 0) {
+      const observedCalls = toolCalls.filter((call) =>
+        result.observedToolName
+          ? result.observedToolName(call.name)
+          : typeof call.args.command === "string" && call.args.command.includes("browser_run.mjs"),
+      );
+      // runIndex counts every observed run (failed captures leave gaps), so
+      // max+1 is the number of runs the recorder actually saw.
+      const totalObservedRuns = Math.max(...observations.map((o) => o.runIndex)) + 1;
+      if (observedCalls.length === totalObservedRuns) {
+        const observationsByRunIndex = new Map(observations.map((o) => [o.runIndex, o.evidence]));
+        observedCalls.forEach((call, ordinal) => {
+          const observation = observationsByRunIndex.get(ordinal);
+          if (observation) call.probeEvidence = observation;
+        });
+      }
+    }
+
     const finalAnswer = result.finalAnswer ?? latestAgentMessage;
 
     return buildTrajectory({
@@ -88,6 +123,9 @@ export class CodexTrajectoryAdapter
       finalAnswer,
       status: result.status ?? "complete",
       usage: result.usage,
+      ...(result.finalObservation?.screenshot && {
+        finalObservation: result.finalObservation,
+      }),
     });
   }
 }
@@ -101,12 +139,10 @@ function normalizeItem(
 ): NormalizedToolCall | undefined {
   if (itemType === "command_execution") {
     const command = typeof item.command === "string" ? item.command : "";
-    const exitCode =
-      typeof item.exit_code === "number" ? item.exit_code : undefined;
+    const exitCode = typeof item.exit_code === "number" ? item.exit_code : undefined;
     const status = String(item.status ?? "");
     const ok = exitCode === 0 || status === "completed";
-    const output =
-      typeof item.aggregated_output === "string" ? item.aggregated_output : "";
+    const output = typeof item.aggregated_output === "string" ? item.aggregated_output : "";
     // Use the leading token as the action name (`bash`, `browse`, etc.) when
     // possible; falls back to `command_execution`.
     const leading = command.split(/\s+/, 1)[0] || "command_execution";
@@ -116,10 +152,7 @@ function normalizeItem(
       result: output,
       ok,
       ...(!ok && {
-        error:
-          exitCode !== undefined
-            ? `exit code ${exitCode}`
-            : `command status ${status}`,
+        error: exitCode !== undefined ? `exit code ${exitCode}` : `command status ${status}`,
       }),
       reasoning: reasoning || undefined,
     };
@@ -128,9 +161,7 @@ function normalizeItem(
   if (itemType === "mcp_tool_call") {
     const server = typeof item.server === "string" ? item.server : "mcp";
     const tool = typeof item.tool === "string" ? item.tool : "tool";
-    const args = isRecord(item.arguments)
-      ? (item.arguments as Record<string, unknown>)
-      : {};
+    const args = isRecord(item.arguments) ? (item.arguments as Record<string, unknown>) : {};
     const status = String(item.status ?? "");
     const ok = status !== "failed";
     const mcpResult = isRecord(item.result) ? item.result : undefined;
@@ -200,8 +231,7 @@ function normalizeItem(
   }
 
   if (itemType === "error") {
-    const message =
-      typeof item.message === "string" ? item.message : "codex error item";
+    const message = typeof item.message === "string" ? item.message : "codex error item";
     return {
       name: "error",
       args: {},

@@ -17,6 +17,9 @@
     },
     "webtailbench": {
       "limit": 25
+    },
+    "odysseysbench": {
+      "limit": 25
     }
   }
 }

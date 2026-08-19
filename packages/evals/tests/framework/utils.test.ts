@@ -53,8 +53,7 @@ describe("generateExperimentName", () => {
         elements: {
           type: "object",
           value: JSON.stringify({
-            selector:
-              "xpath=/html/body/div/div/div/div/div/div/div/div/div/div/div/div/div/input",
+            selector: "xpath=/html/body/div/div/div/div/div/div/div/div/div/div/div/div/div/input",
           }),
         },
       },

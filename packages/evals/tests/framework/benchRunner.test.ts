@@ -2,32 +2,30 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import { executeBenchTask } from "../../framework/benchRunner.js";
 import type { DiscoveredTask, TaskRegistry } from "../../framework/types.js";
 
 const tempDirs: string[] = [];
 const closeMock = vi.fn(async () => {});
+const browserCloseMock = vi.fn(async () => {});
 
-vi.mock("../../initV3.js", () => ({
-  initV3: vi.fn(async ({ logger, modelName }) => ({
-    v3: {
-      context: {
-        pages: () => [{}],
-      },
+vi.mock("../../initStagehand.js", () => ({
+  initStagehand: vi.fn(async ({ logger, modelName }) => ({
+    stagehand: {
       close: closeMock,
-      browserbaseSessionURL: "https://www.browserbase.com/sessions/session-123",
-      browserbaseDebugURL: "https://debug.browserbase.test/session-123",
+      browser: { close: browserCloseMock },
+    },
+    page: { url: async () => "about:blank" },
+    debugUrl: "",
+    sessionUrl: "",
+    cleanup: async () => {
+      await closeMock();
+      await browserCloseMock();
     },
     logger,
     modelName,
-    sessionUrl: "https://www.browserbase.com/sessions/session-123",
-    debugUrl: "https://debug.browserbase.test/session-123",
   })),
-}));
-
-vi.mock("../../browserbaseCleanup.js", () => ({
-  endBrowserbaseSession: vi.fn(async () => {}),
 }));
 
 function makeTempDir(): string {
@@ -53,8 +51,24 @@ function makeRegistry(tasks: DiscoveredTask[]): TaskRegistry {
   return { tasks, byName, byTier, byCategory };
 }
 
+function writeDefinitionTask(dir: string, fileName: string, body: string): string {
+  const taskFile = path.join(dir, fileName);
+  fs.writeFileSync(
+    taskFile,
+    `
+    export default {
+      __taskDefinition: true,
+      meta: {},
+      fn: async (ctx) => { ${body} },
+    };
+    `,
+  );
+  return taskFile;
+}
+
 afterEach(() => {
   closeMock.mockClear();
+  browserCloseMock.mockClear();
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir) fs.rmSync(dir, { recursive: true, force: true });
@@ -62,50 +76,103 @@ afterEach(() => {
 });
 
 describe("bench runner", () => {
-  it("attaches Browserbase session URLs to legacy bench task results", async () => {
-    const taskDir = makeTempDir();
-    const taskFile = path.join(taskDir, "session_url_task.mjs");
-    fs.writeFileSync(
-      taskFile,
-      `
-      export const session_url_task = async () => ({
-        _success: true,
-        sessionUrl: "",
-        debugUrl: "",
-      });
-      `,
+  it("runs a/e/o definition tasks on the Stagehand SDK client and cleans up", async () => {
+    const taskFile = writeDefinitionTask(
+      makeTempDir(),
+      "act_task.mjs",
+      `return { _success: Boolean(ctx.stagehand && ctx.page) };`,
     );
 
     const task: DiscoveredTask = {
-      name: "act/session_url_task",
+      name: "act/act_task",
       tier: "bench",
       primaryCategory: "act",
       categories: ["act"],
       tags: [],
+      isLegacy: false,
       filePath: taskFile,
-      isLegacy: true,
     };
 
     const result = await executeBenchTask(
-      {
-        name: task.name,
-        modelName: "gpt-4o-mini" as AvailableModel,
-      },
+      { name: task.name, modelName: "gpt-4o-mini" as AvailableModel },
       task,
       {
         tasks: [task],
         registry: makeRegistry([task]),
-        environment: "BROWSERBASE",
+        environment: "LOCAL",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result).toMatchObject({ _success: true });
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(browserCloseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves task error messages", async () => {
+    const taskFile = writeDefinitionTask(
+      makeTempDir(),
+      "thrown_task.mjs",
+      `throw new Error("diagnostic failure");`,
+    );
+
+    const task: DiscoveredTask = {
+      name: "act/thrown_task",
+      tier: "bench",
+      primaryCategory: "act",
+      categories: ["act"],
+      tags: [],
+      isLegacy: false,
+      filePath: taskFile,
+    };
+
+    const result = await executeBenchTask(
+      { name: task.name, modelName: "gpt-4o-mini" as AvailableModel },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "LOCAL",
         harness: "stagehand",
         verbose: false,
       },
     );
 
     expect(result).toMatchObject({
-      _success: true,
-      sessionUrl: "https://www.browserbase.com/sessions/session-123",
-      debugUrl: "https://debug.browserbase.test/session-123",
+      _success: false,
+      error: "diagnostic failure",
     });
     expect(closeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects non-a/e/o tasks with external-harness guidance", async () => {
+    const taskFile = writeDefinitionTask(makeTempDir(), "agent_task.mjs", `return {};`);
+
+    const task: DiscoveredTask = {
+      name: "agent/agent_task",
+      tier: "bench",
+      primaryCategory: "agent",
+      categories: ["agent"],
+      tags: [],
+      isLegacy: false,
+      filePath: taskFile,
+    };
+
+    const result = await executeBenchTask(
+      { name: task.name, modelName: "gpt-4o-mini" as AvailableModel },
+      task,
+      {
+        tasks: [task],
+        registry: makeRegistry([task]),
+        environment: "LOCAL",
+        harness: "stagehand",
+        verbose: false,
+      },
+    );
+
+    expect(result._success).toBe(false);
+    expect(String(result.error)).toMatch(/--harness claude_code or --harness codex/);
+    expect(closeMock).not.toHaveBeenCalled();
   });
 });

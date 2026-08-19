@@ -1,42 +1,20 @@
-import type { AvailableModel, TaskSpec, V3 } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import type { EvalLogger } from "../logger.js";
 import type { TaskResult } from "./types.js";
 import type { ExternalHarnessTaskPlan } from "./externalHarnessPlan.js";
+import { datasetPromptGuidance } from "./externalHarnessPlan.js";
 import type { PreparedClaudeCodeToolAdapter } from "./claudeCodeToolAdapter.js";
 import { claudeCodeAdapter } from "./harnesses/claudeCodeAdapter.js";
-import { persistAdapterTrajectory } from "./harnesses/persistTrajectory.js";
-import { evaluationResultToSuccess } from "./verifierAdapter.js";
+import { gradeExternalTrajectory, type ExternalHarnessVerifierConfig } from "./verifierAdapter.js";
 
 type ClaudeSdkMessage = Record<string, unknown>;
 type ClaudeQuery = AsyncIterable<ClaudeSdkMessage>;
 type MetricValue = { count: number; value: number };
 
 export type ClaudeAgentSdk = {
-  query: (input: {
-    prompt: string;
-    options?: Record<string, unknown>;
-  }) => ClaudeQuery;
+  query: (input: { prompt: string; options?: Record<string, unknown> }) => ClaudeQuery;
 };
-
-export interface ClaudeCodeVerifierConfig {
-  /**
-   * V3 instance used solely as the LLM-client carrier for V3Evaluator. The
-   * instance does NOT need to have `init()` been called — V3Evaluator.verify()
-   * uses only `v3.logger` to construct its LLMProvider.
-   */
-  v3: V3;
-  /** TaskSpec to verify against. id + instruction + optional rubric/initUrl. */
-  taskSpec: TaskSpec;
-  /** Dataset name for rubric cache partitioning (used when no precomputedRubric). */
-  dataset: string;
-  /** Override --success mode. Defaults to EVAL_SUCCESS_MODE env or "outcome". */
-  successMode?: "outcome" | "process" | "both";
-  /** Override trajectory persistence root. */
-  trajectoryRoot?: string;
-  /** Override the run id (defaults to ISO timestamp). */
-  runId?: string;
-}
 
 export interface ClaudeCodeRunnerInput {
   plan: ExternalHarnessTaskPlan;
@@ -54,7 +32,7 @@ export interface ClaudeCodeRunnerInput {
    * When omitted, the runner falls back to parsing the legacy EVAL_RESULT
    * line — preserves current behavior for callers that haven't migrated.
    */
-  verifier?: ClaudeCodeVerifierConfig;
+  verifier?: ExternalHarnessVerifierConfig;
 }
 
 export interface ParsedClaudeCodeResult {
@@ -84,8 +62,8 @@ export function buildClaudeCodePrompt(
     "Instruction:",
     plan.instruction,
     "",
-    toolInstructions ??
-      "Use the available browser/web tools to complete the task.",
+    datasetPromptGuidance(plan.dataset),
+    toolInstructions ?? "Use the available browser/web tools to complete the task.",
     "At the end, print exactly one line beginning with EVAL_RESULT: followed by compact JSON.",
     'The JSON schema is: {"success": boolean, "summary": string, "finalAnswer": string}.',
   ]
@@ -96,17 +74,11 @@ export function buildClaudeCodePrompt(
 export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   const marker = "EVAL_RESULT:";
   const markerIndex = raw.lastIndexOf(marker);
+  const resultText = markerIndex >= 0 ? raw.slice(markerIndex + marker.length).trim() : raw.trim();
   const candidates =
     markerIndex >= 0
-      ? [
-          raw.slice(markerIndex + marker.length).trim(),
-          raw
-            .slice(markerIndex + marker.length)
-            .trim()
-            .split(/\r?\n/, 1)[0]
-            ?.trim(),
-        ]
-      : [raw.trim()];
+      ? [resultText, resultText.split(/\r?\n/, 1)[0]?.trim(), extractFirstJsonObject(resultText)]
+      : [resultText];
 
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -122,6 +94,40 @@ export function parseClaudeCodeResult(raw: string): ParsedClaudeCodeResult {
   return { success: false, raw };
 }
 
+function extractFirstJsonObject(value: string): string | undefined {
+  const start = value.indexOf("{");
+  if (start < 0) return undefined;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = start; index < value.length; index += 1) {
+    const character = value[index];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      inString = true;
+    } else if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) return value.slice(start, index + 1);
+    }
+  }
+
+  return undefined;
+}
+
 function tryParseClaudeCodeJson(
   candidate: string,
 ): Omit<ParsedClaudeCodeResult, "raw"> | undefined {
@@ -134,8 +140,7 @@ function tryParseClaudeCodeJson(
     return {
       success: parsed.success === true,
       summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
-      finalAnswer:
-        typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
+      finalAnswer: typeof parsed.finalAnswer === "string" ? parsed.finalAnswer : undefined,
     };
   } catch {
     return undefined;
@@ -144,9 +149,7 @@ function tryParseClaudeCodeJson(
 
 export function isClaudeCodeMaxTurnsError(value: unknown): boolean {
   const message = stringifyError(value);
-  return /(?:maximum number of turns|max(?:imum)? turns|turn limit)/i.test(
-    message,
-  );
+  return /(?:maximum number of turns|max(?:imum)? turns|turn limit)/i.test(message);
 }
 
 export async function runClaudeCodeAgent({
@@ -162,11 +165,7 @@ export async function runClaudeCodeAgent({
   const abortController = new AbortController();
   if (signal) {
     if (signal.aborted) abortController.abort(signal.reason);
-    signal.addEventListener(
-      "abort",
-      () => abortController.abort(signal.reason),
-      { once: true },
-    );
+    signal.addEventListener("abort", () => abortController.abort(signal.reason), { once: true });
   }
 
   const messages: ClaudeSdkMessage[] = [];
@@ -174,15 +173,16 @@ export async function runClaudeCodeAgent({
   const allowedTools =
     toolAdapter?.allowedTools ??
     readCsvEnv("EVAL_CLAUDE_CODE_ALLOWED_TOOLS", ["WebFetch", "WebSearch"]);
-  const permissionMode =
-    process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
+  const permissionMode = process.env.EVAL_CLAUDE_CODE_PERMISSION_MODE ?? "default";
   const maxTurns = readPositiveIntEnv("EVAL_CLAUDE_CODE_MAX_TURNS", 50);
-  const pathToClaudeCodeExecutable =
-    process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
+  const pathToClaudeCodeExecutable = process.env.EVAL_CLAUDE_CODE_EXECUTABLE || undefined;
 
   let resultText = "";
   let resultMessage: ClaudeSdkMessage | undefined;
   let iterationError: unknown;
+  // tool_use id -> tool name, so tool_result blocks (which carry only the id)
+  // can be attributed for per-step observation triggers.
+  const toolUseNames = new Map<string, string>();
 
   try {
     for await (const message of sdk.query({
@@ -218,6 +218,7 @@ export async function runClaudeCodeAgent({
     })) {
       messages.push(message);
       logClaudeCodeMessage(logger, message);
+      notifyToolResults(message, toolUseNames, toolAdapter?.onToolResult);
       if (message.type === "result") {
         resultMessage = message;
         if (typeof message.result === "string") {
@@ -271,89 +272,76 @@ export async function runClaudeCodeAgent({
     return baseResult;
   }
 
-  // Build a Trajectory from the SDK message stream and run the rubric verifier.
-  try {
-    const trajectory = claudeCodeAdapter.fromHarnessResult(
-      {
-        messages,
-        finalAnswer: parsed.finalAnswer ?? resultText,
-        status: status === "completed" ? "complete" : "error",
-        usage: {
-          input_tokens: tokenUsage.inputTokens,
-          output_tokens: tokenUsage.outputTokens,
-          cached_input_tokens: tokenUsage.cacheReadInputTokens,
+  // Artifact-grounded grading: capture the terminal page state through the
+  // tool surface (harness-observed, independent of the agent's self-report)
+  // before cleanup, and drain the per-step probe observations collected by
+  // the run tool.
+  const finalObservation = await toolAdapter?.captureEvidence?.().catch((): undefined => undefined);
+  const stepObservations = await toolAdapter?.drainStepObservations?.();
+
+  // Build a Trajectory from the SDK message stream and grade it with the
+  // rubric verifier; any failure in that path folds into `verifierError`.
+  return gradeExternalTrajectory({
+    buildTrajectory: () =>
+      claudeCodeAdapter.fromHarnessResult(
+        {
+          messages,
+          ...(finalObservation && { finalObservation }),
+          ...(stepObservations?.length && { stepObservations }),
+          ...(toolAdapter?.observedToolMatcher && {
+            observedToolName: toolAdapter.observedToolMatcher,
+          }),
+          finalAnswer: parsed.finalAnswer ?? resultText,
+          status: status === "completed" ? "complete" : "error",
+          usage: {
+            input_tokens: tokenUsage.inputTokens,
+            output_tokens: tokenUsage.outputTokens,
+            cached_input_tokens: tokenUsage.cacheReadInputTokens,
+          },
         },
-      },
-      verifier.taskSpec,
-    );
-
-    const { V3Evaluator } = await import("@browserbasehq/stagehand");
-    const { RubricCache } = await import("./rubricCache.js");
-    const evaluator = new V3Evaluator(verifier.v3, { backend: "verifier" });
-
-    // Hydrate rubric — use precomputed if present, otherwise cache-or-generate.
-    let rubric = verifier.taskSpec.precomputedRubric;
-    if (!rubric) {
-      if (process.env.VERIFIER_DISABLE_RUBRIC_CACHE === "1") {
-        rubric = await evaluator.generateRubric(verifier.taskSpec);
-      } else {
-        const cache = new RubricCache({ dataset: verifier.dataset });
-        rubric = await cache.getOrGenerate(verifier.taskSpec, evaluator);
-      }
-    }
-    const hydratedSpec: TaskSpec = {
-      ...verifier.taskSpec,
-      precomputedRubric: rubric,
-    };
-    const hydratedTrajectory = { ...trajectory, task: hydratedSpec };
-
-    const evaluationResult = await evaluator.verify(hydratedTrajectory);
-    const successMode = verifier.successMode ?? process.env.EVAL_SUCCESS_MODE;
-    const verifiedSuccess = evaluationResultToSuccess(
-      evaluationResult,
-      successMode,
-    );
-
-    const { directory: trajectoryDir } = await persistAdapterTrajectory({
-      trajectory: hydratedTrajectory,
-      taskSpec: hydratedSpec,
-      evaluationResult,
-      outputRoot: verifier.trajectoryRoot,
-      runId: verifier.runId,
-    });
-
-    logger.log({
-      category: "claude_code",
-      message: `result: outcome=${evaluationResult.outcomeSuccess} process=${formatProcessScore(evaluationResult.processScore)} steps=${hydratedTrajectory.steps.length}`,
-      level: 1,
-    });
-
-    return {
-      ...baseResult,
-      _success: verifiedSuccess,
-      error: verifiedSuccess ? undefined : (baseResult.error ?? errorMessage),
-      outcomeSuccess: evaluationResult.outcomeSuccess,
-      processScore: evaluationResult.processScore,
-      evidenceInsufficient: evaluationResult.evidenceInsufficient,
-      criterionCount: rubric.items.length,
-      stepCount: hydratedTrajectory.steps.length,
-      trajectoryDir,
-    };
-  } catch (verifyError) {
-    logger.warn({
-      category: "claude_code",
-      message: `verifier integration failed: ${stringifyError(verifyError)}`,
-      level: 0,
-      auxiliary: {
-        error: { value: stringifyError(verifyError), type: "string" },
-      },
-    });
-    return baseResult;
-  }
+        verifier.taskSpec,
+      ),
+    verifier,
+    baseResult,
+    errorMessage,
+    category: "claude_code",
+    logger,
+  });
 }
 
-function formatProcessScore(score: number | undefined): string {
-  return typeof score === "number" ? score.toFixed(2) : "n/a";
+/**
+ * Surfaces completed tool_results to the tool adapter. Assistant messages
+ * register tool_use id -> name; user messages carry the tool_result blocks.
+ * onToolResult is called in stream order, so observation indexes assigned at
+ * call time line up with tool_use ordinals in the trajectory adapter.
+ */
+function notifyToolResults(
+  message: ClaudeSdkMessage,
+  toolUseNames: Map<string, string>,
+  onToolResult?: (toolName: string) => void,
+): void {
+  const type = String((message as Record<string, unknown>).type ?? "");
+  const inner = (message as Record<string, unknown>).message;
+  if (!isRecord(inner) || !Array.isArray(inner.content)) return;
+
+  if (type === "assistant") {
+    for (const block of inner.content) {
+      if (!isRecord(block) || block.type !== "tool_use") continue;
+      if (typeof block.id === "string" && typeof block.name === "string") {
+        toolUseNames.set(block.id, block.name);
+      }
+    }
+    return;
+  }
+
+  if (type === "user" && onToolResult) {
+    for (const block of inner.content) {
+      if (!isRecord(block) || block.type !== "tool_result") continue;
+      const toolUseId = typeof block.tool_use_id === "string" ? block.tool_use_id : "";
+      const name = toolUseNames.get(toolUseId);
+      if (name) onToolResult(name);
+    }
+  }
 }
 
 function buildClaudeCodeMetrics(
@@ -367,46 +355,32 @@ function buildClaudeCodeMetrics(
     claude_code_cost_usd: metricValue(resultMessage?.total_cost_usd),
     claude_code_input_tokens: metricValue(tokenUsage.inputTokens),
     claude_code_output_tokens: metricValue(tokenUsage.outputTokens),
-    claude_code_cache_creation_input_tokens: metricValue(
-      tokenUsage.cacheCreationInputTokens,
-    ),
-    claude_code_cache_read_input_tokens: metricValue(
-      tokenUsage.cacheReadInputTokens,
-    ),
+    claude_code_cache_creation_input_tokens: metricValue(tokenUsage.cacheCreationInputTokens),
+    claude_code_cache_read_input_tokens: metricValue(tokenUsage.cacheReadInputTokens),
     claude_code_total_tokens: metricValue(tokenUsage.totalTokens),
   };
 }
 
-function extractClaudeCodeTokenUsage(
-  resultMessage: ClaudeSdkMessage | undefined,
-): {
+function extractClaudeCodeTokenUsage(resultMessage: ClaudeSdkMessage | undefined): {
   inputTokens: number;
   outputTokens: number;
   cacheCreationInputTokens: number;
   cacheReadInputTokens: number;
   totalTokens: number;
 } {
-  const usage = isRecord(resultMessage?.usage)
-    ? resultMessage.usage
-    : undefined;
+  const usage = isRecord(resultMessage?.usage) ? resultMessage.usage : undefined;
 
   const inputTokens =
-    readNumber(usage, "input_tokens") ??
-    sumModelUsage(resultMessage, "inputTokens");
+    readNumber(usage, "input_tokens") ?? sumModelUsage(resultMessage, "inputTokens");
   const outputTokens =
-    readNumber(usage, "output_tokens") ??
-    sumModelUsage(resultMessage, "outputTokens");
+    readNumber(usage, "output_tokens") ?? sumModelUsage(resultMessage, "outputTokens");
   const cacheCreationInputTokens =
     readNumber(usage, "cache_creation_input_tokens") ??
     sumModelUsage(resultMessage, "cacheCreationInputTokens");
   const cacheReadInputTokens =
     readNumber(usage, "cache_read_input_tokens") ??
     sumModelUsage(resultMessage, "cacheReadInputTokens");
-  const totalTokens =
-    inputTokens +
-    outputTokens +
-    cacheCreationInputTokens +
-    cacheReadInputTokens;
+  const totalTokens = inputTokens + outputTokens + cacheCreationInputTokens + cacheReadInputTokens;
 
   return {
     inputTokens,
@@ -417,10 +391,7 @@ function extractClaudeCodeTokenUsage(
   };
 }
 
-function sumModelUsage(
-  resultMessage: ClaudeSdkMessage | undefined,
-  key: string,
-): number {
+function sumModelUsage(resultMessage: ClaudeSdkMessage | undefined, key: string): number {
   if (!isRecord(resultMessage?.modelUsage)) return 0;
 
   let total = 0;
@@ -438,10 +409,7 @@ function metricValue(value: unknown): MetricValue {
   };
 }
 
-function readNumber(
-  record: Record<string, unknown> | undefined,
-  key: string,
-): number | undefined {
+function readNumber(record: Record<string, unknown> | undefined, key: string): number | undefined {
   if (!record || !(key in record)) return undefined;
   return toFiniteNumber(record[key]);
 }
@@ -461,10 +429,7 @@ function resolveClaudeCodeStatus(
   resultMessage: ClaudeSdkMessage | undefined,
   iterationError: unknown,
 ): "completed" | "max_turns" | "sdk_error" {
-  if (
-    isClaudeCodeMaxTurnsError(iterationError) ||
-    isClaudeCodeMaxTurnsError(resultMessage)
-  ) {
+  if (isClaudeCodeMaxTurnsError(iterationError) || isClaudeCodeMaxTurnsError(resultMessage)) {
     return "max_turns";
   }
   if (iterationError || resultMessage?.is_error === true) {
@@ -497,10 +462,7 @@ function buildClaudeCodeTranscript(messages: ClaudeSdkMessage[]): string {
     .join("\n");
 }
 
-function logClaudeCodeMessage(
-  logger: EvalLogger,
-  message: ClaudeSdkMessage,
-): void {
+function logClaudeCodeMessage(logger: EvalLogger, message: ClaudeSdkMessage): void {
   const summary = summarizeClaudeCodeMessage(message);
   logger.log({
     category: "claude_code",
@@ -596,9 +558,7 @@ function stringifyError(value: unknown): string {
 }
 
 function clip(value: string, maxLength: number): string {
-  return value.length <= maxLength
-    ? value
-    : `${value.slice(0, maxLength - 1)}…`;
+  return value.length <= maxLength ? value : `${value.slice(0, maxLength - 1)}…`;
 }
 
 async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdk> {

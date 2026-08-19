@@ -17,18 +17,14 @@
 import fs from "node:fs";
 import path from "node:path";
 import { bold, dim, cyan, gray, green, red } from "../format.js";
-import { parseAgentModes } from "./parse.js";
-import type { AgentToolMode } from "@browserbasehq/stagehand";
 
 type Defaults = {
   env?: string | null;
   trials?: number | null;
   concurrency?: number | null;
-  provider?: string | null;
   model?: string | null;
   api?: boolean | null;
   verbose?: boolean | null;
-  agentModes?: AgentToolMode[] | null;
 };
 
 export type CoreConfigSection = {
@@ -60,22 +56,18 @@ const VALID_KEYS: Array<keyof Defaults> = [
   "env",
   "trials",
   "concurrency",
-  "provider",
   "model",
   "api",
   "verbose",
-  "agentModes",
 ];
 
 const DEFAULT_VALUES: Defaults = {
   env: "local",
   trials: 3,
   concurrency: 3,
-  provider: null,
   model: null,
   api: false,
   verbose: false,
-  agentModes: null,
 };
 
 export function resolveConfigPath(entryDir: string): string {
@@ -93,12 +85,7 @@ export function readConfig(entryDir: string): ConfigFile {
       _meta: raw._meta ?? undefined,
     };
   } catch (error) {
-    if (
-      error &&
-      typeof error === "object" &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
       throw new Error(`Missing config file: ${configPath}`, { cause: error });
     }
 
@@ -132,25 +119,12 @@ export function printConfig(entryDir: string): void {
   console.log(`    ${cyan("concurrency")}  ${defaults.concurrency ?? 3}`);
   console.log(`    ${cyan("api")}          ${defaults.api ?? false}`);
   console.log(`    ${cyan("verbose")}      ${defaults.verbose ?? false}`);
-  console.log(
-    `    ${cyan("agentModes")}   ${
-      defaults.agentModes?.length
-        ? defaults.agentModes.join(",")
-        : gray("(default per model)")
-    }`,
-  );
-  console.log(
-    `    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`,
-  );
-  console.log(
-    `    ${cyan("provider")}     ${defaults.provider ?? gray("(all)")}`,
-  );
+  console.log(`    ${cyan("model")}        ${defaults.model ?? gray("(default per category)")}`);
 
   const env = process.env;
   const overrides: string[] = [];
   if (env.EVAL_ENV) overrides.push(`EVAL_ENV=${env.EVAL_ENV}`);
   if (env.EVAL_MODELS) overrides.push(`EVAL_MODELS=${env.EVAL_MODELS}`);
-  if (env.EVAL_PROVIDER) overrides.push(`EVAL_PROVIDER=${env.EVAL_PROVIDER}`);
   if (env.USE_API) overrides.push(`USE_API=${env.USE_API}`);
   if (env.STAGEHAND_BROWSER_TARGET)
     overrides.push(`STAGEHAND_BROWSER_TARGET=${env.STAGEHAND_BROWSER_TARGET}`);
@@ -165,10 +139,7 @@ export function printConfig(entryDir: string): void {
   console.log("");
 }
 
-export async function handleConfig(
-  args: string[],
-  entryDir: string,
-): Promise<void> {
+export async function handleConfig(args: string[], entryDir: string): Promise<void> {
   if (args.length === 0) {
     printConfig(entryDir);
     return;
@@ -260,7 +231,7 @@ const parseError = Symbol("parse-error");
 function parseValue(
   key: keyof Defaults,
   raw: string,
-): string | number | boolean | AgentToolMode[] | null | typeof parseError {
+): string | number | boolean | null | typeof parseError {
   if (raw === "null" || raw === "none") return null;
   if (key === "env") {
     const normalized = raw.toLowerCase();
@@ -288,16 +259,6 @@ function parseValue(
       return parseError;
     }
     return raw === "true";
-  }
-  if (key === "agentModes") {
-    try {
-      return parseAgentModes(raw);
-    } catch (error) {
-      console.error(
-        red(error instanceof Error ? `  ${error.message}` : String(error)),
-      );
-      return parseError;
-    }
   }
   return raw;
 }

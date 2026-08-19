@@ -145,8 +145,7 @@ function browserbaseEntry(): BrowserbaseKeyEntry {
   const apiOnlyAlias = aliasApiPresent && !canonApiPresent;
   const projOnlyAlias = aliasProjPresent && !canonProjPresent;
   const anyPresent = !apiAbsent || !projAbsent;
-  const allPresentAreAlias =
-    (apiAbsent || apiOnlyAlias) && (projAbsent || projOnlyAlias);
+  const allPresentAreAlias = (apiAbsent || apiOnlyAlias) && (projAbsent || projOnlyAlias);
   const viaAlias = anyPresent && allPresentAreAlias;
 
   return {
@@ -178,9 +177,7 @@ export function snapshotEnv(): EnvSnapshot {
 
 export function hasZeroProviderKeys(s: EnvSnapshot): boolean {
   return (
-    s.openai.state === "missing" &&
-    s.anthropic.state === "missing" &&
-    s.google.state === "missing"
+    s.openai.state === "missing" && s.anthropic.state === "missing" && s.google.state === "missing"
   );
 }
 

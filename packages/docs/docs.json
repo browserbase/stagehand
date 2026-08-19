@@ -21,14 +21,83 @@
   "navigation": {
     "versions": [
       {
+        "version": "v4",
+        "groups": [
+          {
+            "group": "First steps",
+            "pages": [
+              "v4/first-steps/introduction",
+              "v4/first-steps/quickstart",
+              "v4/first-steps/installation",
+              "v4/first-steps/ai-rules"
+            ]
+          },
+          {
+            "group": "The basics",
+            "pages": ["v4/basics/act", "v4/basics/extract", "v4/basics/observe", "v4/basics/webmcp"]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "v4/configuration/browser",
+              "v4/configuration/models",
+              "v4/configuration/logging",
+              "v4/configuration/observability"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "v4/integrations/overview",
+              "v4/integrations/claude-code",
+              "v4/integrations/codex",
+              "v4/integrations/eve",
+              "v4/integrations/deep-agents",
+              "v4/integrations/crewai",
+              "v4/integrations/mastra",
+              "v4/integrations/pi",
+              "v4/integrations/vercel-ai-sdk"
+            ]
+          },
+          {
+            "group": "Best practices",
+            "pages": [
+              "v4/best-practices/prompting-best-practices",
+              "v4/best-practices/usecase-observe",
+              "v4/best-practices/caching",
+              "v4/best-practices/using-multiple-tabs",
+              "v4/best-practices/user-data",
+              "v4/best-practices/speed-optimization",
+              "v4/best-practices/cost-optimization",
+              "v4/best-practices/deployments",
+              "v4/best-practices/mcp-integrations"
+            ]
+          },
+          {
+            "group": "Migration guide",
+            "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
+          },
+          {
+            "group": "SDK reference",
+            "pages": [
+              "v4/reference/stagehand",
+              "v4/reference/context",
+              "v4/reference/clipboard",
+              "v4/reference/page",
+              "v4/reference/webmcp",
+              "v4/reference/response",
+              "v4/reference/locator"
+            ]
+          }
+        ]
+      },
+      {
         "version": "v3",
         "dropdowns": [
           {
             "dropdown": "TypeScript",
             "icon": "code",
-            "pages": [
-              "v3/first-steps/introduction"
-            ],
+            "pages": ["v3/first-steps/introduction"],
             "groups": [
               {
                 "group": "First Steps",
@@ -138,25 +207,18 @@
               },
               {
                 "group": "Migration Guides",
-                "pages": [
-                  "v3/migrations/v2",
-                  "v3/migrations/python"
-                ]
+                "pages": ["v3/migrations/v2", "v3/migrations/python"]
               }
             ]
           },
           {
             "dropdown": "Python",
             "icon": "code",
-            "pages": [
-              "v3/sdk/python"
-            ],
+            "pages": ["v3/sdk/python"],
             "groups": [
               {
                 "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/python"
-                ]
+                "pages": ["v3/sdk/python"]
               },
               {
                 "group": "API Reference",
@@ -180,15 +242,11 @@
           {
             "dropdown": "Java",
             "icon": "code",
-            "pages": [
-              "v3/sdk/java"
-            ],
+            "pages": ["v3/sdk/java"],
             "groups": [
               {
                 "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/java"
-                ]
+                "pages": ["v3/sdk/java"]
               },
               {
                 "group": "API Reference",
@@ -212,15 +270,11 @@
           {
             "dropdown": "Go",
             "icon": "code",
-            "pages": [
-              "v3/sdk/go"
-            ],
+            "pages": ["v3/sdk/go"],
             "groups": [
               {
                 "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/go"
-                ]
+                "pages": ["v3/sdk/go"]
               },
               {
                 "group": "API Reference",
@@ -244,15 +298,11 @@
           {
             "dropdown": "Ruby",
             "icon": "code",
-            "pages": [
-              "v3/sdk/ruby"
-            ],
+            "pages": ["v3/sdk/ruby"],
             "groups": [
               {
                 "group": "SDK Reference",
-                "pages": [
-                  "v3/sdk/ruby"
-                ]
+                "pages": ["v3/sdk/ruby"]
               },
               {
                 "group": "API Reference",
@@ -289,12 +339,7 @@
           },
           {
             "group": "The Basics",
-            "pages": [
-              "v2/basics/agent",
-              "v2/basics/act",
-              "v2/basics/extract",
-              "v2/basics/observe"
-            ]
+            "pages": ["v2/basics/agent", "v2/basics/act", "v2/basics/extract", "v2/basics/observe"]
           },
           {
             "group": "Configuration",
@@ -376,7 +421,7 @@
       "anchors": [
         {
           "anchor": "Discord",
-          "href": "https://stagehand.dev/discord",
+          "href": "https://discord.gg/stagehand",
           "icon": "discord"
         },
         {
@@ -401,7 +446,7 @@
     "links": [
       {
         "label": "Discord",
-        "href": "https://stagehand.dev/discord"
+        "href": "https://discord.gg/stagehand"
       },
       {
         "label": "Support",
@@ -411,7 +456,7 @@
   },
   "footer": {
     "socials": {
-      "discord": "https://stagehand.dev/discord",
+      "discord": "https://discord.gg/stagehand",
       "x": "https://x.com/stagehanddev",
       "github": "https://github.com/browserbase/stagehand",
       "linkedin": "https://linkedin.com/company/browserbasehq"
@@ -424,21 +469,32 @@
     }
   },
   "contextual": {
-    "options": [
-      "copy",
-      "chatgpt",
-      "claude",
-      "view"
-    ]
+    "options": ["copy", "chatgpt", "claude", "view"]
   },
   "redirects": [
     {
       "source": "/first-steps/:slug*",
-      "destination": "/v3/first-steps/:slug*"
+      "destination": "/v4/first-steps/:slug*"
+    },
+    {
+      "source": "/basics/act",
+      "destination": "/v4/basics/act"
+    },
+    {
+      "source": "/basics/extract",
+      "destination": "/v4/basics/extract"
+    },
+    {
+      "source": "/basics/observe",
+      "destination": "/v4/basics/observe"
     },
     {
       "source": "/basics/:slug*",
       "destination": "/v3/basics/:slug*"
+    },
+    {
+      "source": "/configuration/logging",
+      "destination": "/v4/configuration/logging"
     },
     {
       "source": "/configuration/:slug*",
@@ -471,6 +527,10 @@
     {
       "source": "/references/:slug*",
       "destination": "/v3/references/:slug*"
+    },
+    {
+      "source": "/reference/:slug*",
+      "destination": "/v4/reference/:slug*"
     },
     {
       "source": "/migrations/:slug*",

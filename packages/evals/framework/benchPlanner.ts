@@ -1,13 +1,10 @@
-import type { AgentToolMode, AvailableModel } from "@browserbasehq/stagehand";
+import type { AvailableModel } from "stagehand-v3";
 import { EvalsError } from "../errors.js";
 import { buildOnlineMind2WebTestcases } from "../suites/onlineMind2Web.js";
 import { buildWebTailBenchTestcases } from "../suites/webtailbench.js";
 import { buildWebVoyagerTestcases } from "../suites/webvoyager.js";
-import {
-  getAgentModelEntries,
-  getModelList,
-  type AgentModelEntry,
-} from "../taskConfig.js";
+import { buildOdysseysBenchTestcases } from "../suites/odysseysbench.js";
+import { getModelList, type AgentModelEntry } from "../taskConfig.js";
 import type { Testcase } from "../types/evals.js";
 import type { StartupProfile, ToolSurface } from "../core/contracts/tool.js";
 import type { DiscoveredTask } from "./types.js";
@@ -23,31 +20,19 @@ import {
   resolveClaudeCodeStartupProfile,
   resolveClaudeCodeToolSurface,
 } from "./claudeCodeToolAdapter.js";
-import {
-  resolveCodexStartupProfile,
-  resolveCodexToolSurface,
-} from "./codexToolAdapter.js";
-import {
-  inferDefaultStagehandAgentMode,
-  isCuaCapableModel,
-} from "./agentModelModes.js";
+import { resolveCodexStartupProfile, resolveCodexToolSurface } from "./codexToolAdapter.js";
 
 const DEFAULT_CLAUDE_CODE_MODELS: AvailableModel[] = [
   "anthropic/claude-sonnet-4-6" as AvailableModel,
 ];
-const DEFAULT_CODEX_MODELS: AvailableModel[] = [
-  "openai/gpt-5.4-mini" as AvailableModel,
-];
+const DEFAULT_CODEX_MODELS: AvailableModel[] = ["openai/gpt-5.4-mini" as AvailableModel];
 
 export interface BenchPlanOptions {
   environment?: "LOCAL" | "BROWSERBASE";
   useApi?: boolean;
   modelOverride?: string;
-  provider?: string;
   categoryFilter?: string;
   datasetFilter?: string;
-  agentMode?: AgentToolMode;
-  agentModes?: AgentToolMode[];
   harness?: Harness;
   coreToolSurface?: ToolSurface;
   coreStartupProfile?: StartupProfile;
@@ -84,137 +69,34 @@ export function inferEffectiveBenchCategory(
 
 export function resolveBenchModelEntries(
   benchTasks: DiscoveredTask[],
-  options: Pick<
-    BenchPlanOptions,
-    "categoryFilter" | "modelOverride" | "agentMode" | "agentModes" | "harness"
-  >,
+  options: Pick<BenchPlanOptions, "categoryFilter" | "modelOverride" | "harness">,
 ): BenchModelResolution {
-  const effectiveCategory = inferEffectiveBenchCategory(
-    benchTasks,
-    options.categoryFilter,
-  );
+  const effectiveCategory = inferEffectiveBenchCategory(benchTasks, options.categoryFilter);
   const isAgentCategory =
-    effectiveCategory === "agent" ||
-    effectiveCategory === "external_agent_benchmarks";
+    effectiveCategory === "agent" || effectiveCategory === "external_agent_benchmarks";
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
-  const requestedAgentModes =
-    harness === "stagehand" ? resolveRequestedAgentModes(options) : undefined;
 
   if (options.modelOverride) {
-    const baseModes =
-      isAgentCategory && requestedAgentModes
-        ? requestedAgentModes
-        : [
-            harness === "stagehand"
-              ? resolveAgentModeForModel(options.modelOverride)
-              : "hybrid",
-          ];
-    const modelEntries = uniqueAgentModelEntries(
-      baseModes.map((mode) => ({
-        modelName: options.modelOverride,
-        mode,
-        cua: mode === "cua",
-      })),
-    );
-    const compatibleEntries =
-      isAgentCategory && requestedAgentModes
-        ? expandAgentEntriesForRequestedModes(modelEntries, requestedAgentModes)
-        : modelEntries;
-    assertCompatibleAgentModelEntries(compatibleEntries, requestedAgentModes);
-
     return {
       effectiveCategory,
       isAgentCategory,
-      modelEntries: compatibleEntries,
+      modelEntries: [{ modelName: options.modelOverride, mode: "hybrid", cua: false }],
     };
   }
-
-  const modelEntries = resolveDefaultModelEntries(
-    harness,
-    effectiveCategory,
-    isAgentCategory,
-  );
 
   return {
     effectiveCategory,
     isAgentCategory,
-    modelEntries:
-      isAgentCategory && requestedAgentModes
-        ? expandAgentEntriesForRequestedModes(modelEntries, requestedAgentModes)
-        : modelEntries,
+    modelEntries: resolveDefaultModelEntries(harness, effectiveCategory),
   };
-}
-
-function expandAgentEntriesForRequestedModes(
-  entries: AgentModelEntry[],
-  requestedModes: AgentToolMode[],
-): AgentModelEntry[] {
-  const expanded = entries.flatMap((entry) => {
-    if (isCuaCapableModel(entry.modelName)) {
-      return requestedModes.map((mode) => ({
-        modelName: entry.modelName,
-        mode,
-        cua: mode === "cua",
-      }));
-    }
-
-    return requestedModes
-      .filter((mode) => mode !== "cua")
-      .map((mode) => ({
-        modelName: entry.modelName,
-        mode,
-        cua: false,
-      }));
-  });
-
-  return uniqueAgentModelEntries(expanded);
-}
-
-function uniqueAgentModelEntries(
-  entries: AgentModelEntry[],
-): AgentModelEntry[] {
-  const seen = new Set<string>();
-  return entries.filter((entry) => {
-    const key = `${entry.modelName}:${entry.mode}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function assertCompatibleAgentModelEntries(
-  entries: AgentModelEntry[],
-  requestedModes?: AgentToolMode[],
-): void {
-  if (entries.length > 0 || !requestedModes || requestedModes.length === 0) {
-    return;
-  }
-
-  throw new EvalsError(
-    `No compatible agent model entries for requested mode(s): ${requestedModes.join(
-      ", ",
-    )}. Non-CUA models require "dom" or "hybrid"; CUA-capable models are required for "cua".`,
-  );
 }
 
 function resolveDefaultModelEntries(
   harness: Harness,
   effectiveCategory: string | null,
-  isAgentCategory: boolean,
 ): AgentModelEntry[] {
   if (harness === "claude_code") {
-    return readModelListEnv(
-      "EVAL_CLAUDE_CODE_MODELS",
-      DEFAULT_CLAUDE_CODE_MODELS,
-    ).map((modelName) => ({
-      modelName,
-      mode: "hybrid",
-      cua: false,
-    }));
-  }
-
-  if (harness === "codex") {
-    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map(
+    return readModelListEnv("EVAL_CLAUDE_CODE_MODELS", DEFAULT_CLAUDE_CODE_MODELS).map(
       (modelName) => ({
         modelName,
         mode: "hybrid",
@@ -223,19 +105,22 @@ function resolveDefaultModelEntries(
     );
   }
 
-  return isAgentCategory
-    ? getAgentModelEntries()
-    : getModelList(effectiveCategory).map((modelName) => ({
-        modelName,
-        mode: "hybrid" as const,
-        cua: false,
-      }));
+  if (harness === "codex") {
+    return readModelListEnv("EVAL_CODEX_MODELS", DEFAULT_CODEX_MODELS).map((modelName) => ({
+      modelName,
+      mode: "hybrid",
+      cua: false,
+    }));
+  }
+
+  return getModelList(effectiveCategory).map((modelName) => ({
+    modelName,
+    mode: "hybrid" as const,
+    cua: false,
+  }));
 }
 
-function readModelListEnv(
-  key: string,
-  fallback: AvailableModel[],
-): AvailableModel[] {
+function readModelListEnv(key: string, fallback: AvailableModel[]): AvailableModel[] {
   const raw = process.env[key];
   if (!raw) return fallback;
   const values = raw
@@ -245,36 +130,14 @@ function readModelListEnv(
   return values.length > 0 ? values : fallback;
 }
 
-function resolveRequestedAgentModes(
-  options: Pick<BenchPlanOptions, "agentMode" | "agentModes">,
-): AgentToolMode[] | undefined {
-  if (options.agentMode) return [options.agentMode];
-  if (!options.agentModes || options.agentModes.length === 0) {
-    return undefined;
-  }
-  return [...new Set(options.agentModes)];
-}
-
-function resolveAgentModeForModel(modelName: string): AgentToolMode {
-  return inferDefaultStagehandAgentMode(modelName);
-}
-
 export function inferBenchTaskKind(task: DiscoveredTask): BenchTaskKind {
   if (task.name.startsWith("agent/")) return "suite";
-  if (task.primaryCategory === "agent") return "agent";
   if (isBenchTaskKind(task.primaryCategory)) return task.primaryCategory;
-  return "combination";
+  return "act";
 }
 
 function isBenchTaskKind(value: string): value is BenchTaskKind {
-  return (
-    value === "act" ||
-    value === "extract" ||
-    value === "observe" ||
-    value === "agent" ||
-    value === "combination" ||
-    value === "suite"
-  );
+  return value === "act" || value === "extract" || value === "observe" || value === "suite";
 }
 
 export function buildBenchMatrixRow(
@@ -282,32 +145,26 @@ export function buildBenchMatrixRow(
   modelName: AvailableModel,
   options: BenchPlanOptions,
   params?: Record<string, unknown>,
-  isCUA?: boolean,
-  agentMode?: AgentToolMode,
 ): BenchMatrixRow {
   const harness = options.harness ?? DEFAULT_BENCH_HARNESS;
   const environment = options.environment ?? "LOCAL";
   const useApi = Boolean(options.useApi);
-  const toolSurface = resolveBenchRowToolSurface(
-    harness,
-    options.coreToolSurface,
-  );
+  const toolSurface = resolveBenchRowToolSurface(harness, options.coreToolSurface);
   const startupProfile = resolveBenchRowStartupProfile(
     harness,
     toolSurface,
     environment,
     options.coreStartupProfile,
   );
-  const resolvedAgentMode = agentMode ?? (isCUA ? "cua" : undefined);
-  const resolvedIsCUA = resolvedAgentMode ? resolvedAgentMode === "cua" : isCUA;
+  // Provider is derived from the model id ("provider/model") for metadata;
+  // there is no independent provider selector.
+  const provider = modelName.includes("/") ? modelName.slice(0, modelName.indexOf("/")) : undefined;
   const config = buildBenchHarnessConfig({
     harness,
     model: modelName,
-    provider: options.provider,
+    provider,
     environment,
     useApi,
-    agentMode: resolvedAgentMode,
-    isCUA: resolvedIsCUA,
     toolSurface,
     startupProfile,
     dataset: options.datasetFilter,
@@ -319,7 +176,7 @@ export function buildBenchMatrixRow(
     category: task.primaryCategory,
     taskKind: inferBenchTaskKind(task),
     model: modelName,
-    provider: options.provider,
+    provider,
     environment,
     useApi,
     toolSurface,
@@ -327,8 +184,6 @@ export function buildBenchMatrixRow(
     trial: 1,
     dataset: options.datasetFilter,
     params,
-    agentMode: resolvedAgentMode,
-    isCUA: resolvedIsCUA,
     config,
   };
 }
@@ -339,8 +194,6 @@ function buildBenchHarnessConfig(input: {
   provider?: string;
   environment: "LOCAL" | "BROWSERBASE";
   useApi: boolean;
-  agentMode?: AgentToolMode;
-  isCUA?: boolean;
   toolSurface?: ToolSurface;
   startupProfile?: StartupProfile;
   dataset?: string;
@@ -352,8 +205,6 @@ function buildBenchHarnessConfig(input: {
       provider: input.provider,
       environment: input.environment,
       useApi: input.useApi,
-      agentMode: input.agentMode,
-      isCUA: input.isCUA,
       toolSurface: input.toolSurface,
       startupProfile: input.startupProfile,
       dataset: input.dataset,
@@ -376,16 +227,23 @@ export function generateBenchTestcases(
   benchTasks: DiscoveredTask[],
   options: BenchPlanOptions,
 ): Testcase[] {
-  const { isAgentCategory, modelEntries } = resolveBenchModelEntries(
-    benchTasks,
-    options,
-  );
+  // Agent suites run exclusively through the external harnesses — the
+  // stagehand harness has no agent loop. A selection that leaves nothing to
+  // run (suite name, agent category, dataset shorthand) errors with guidance
+  // instead of planning zero cases; broad targets simply omit the suites.
+  let plannedTasks = benchTasks;
+  if ((options.harness ?? DEFAULT_BENCH_HARNESS) === "stagehand") {
+    plannedTasks = benchTasks.filter((task) => inferBenchTaskKind(task) !== "suite");
+    if (plannedTasks.length === 0 && benchTasks.length > 0) {
+      throw new EvalsError(
+        "Agent benchmark suites require an external harness. Re-run with --harness claude_code or --harness codex.",
+      );
+    }
+  }
 
-  const suiteTestcases = generateSuiteTestcases(
-    benchTasks,
-    options,
-    modelEntries,
-  );
+  const { modelEntries } = resolveBenchModelEntries(plannedTasks, options);
+
+  const suiteTestcases = generateSuiteTestcases(plannedTasks, options, modelEntries);
   const allTestcases = [...suiteTestcases.testcases];
 
   if (options.harness === "claude_code" || options.harness === "codex") {
@@ -395,7 +253,7 @@ export function generateBenchTestcases(
         .sort()
         .join(", ");
       throw new EvalsError(
-        `Harness "${options.harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench. Unsupported task(s): ${unsupported}.`,
+        `Harness "${options.harness}" only supports agent benchmark suites: agent/webvoyager, agent/onlineMind2Web, agent/webtailbench, agent/odysseysbench. Unsupported task(s): ${unsupported}.`,
       );
     }
     return allTestcases;
@@ -404,34 +262,15 @@ export function generateBenchTestcases(
   for (const entry of modelEntries) {
     for (const task of suiteTestcases.remainingTasks) {
       const model = entry.modelName as AvailableModel;
-      const row = buildBenchMatrixRow(
-        task,
-        model,
-        options,
-        undefined,
-        isAgentCategory && rowUsesStagehand(options)
-          ? entry.mode === "cua"
-          : undefined,
-        isAgentCategory && rowUsesStagehand(options)
-          ? (options.agentMode ?? entry.mode)
-          : undefined,
-      );
-      const agentMode = row.agentMode;
-      const includeStagehandAgentMode =
-        isAgentCategory && rowUsesStagehand(options) && agentMode;
+      const row = buildBenchMatrixRow(task, model, options);
       allTestcases.push({
         input: {
           name: task.name,
           modelName: model,
-          ...(includeStagehandAgentMode && {
-            agentMode,
-            isCUA: agentMode === "cua",
-          }),
         },
         name: task.name,
         tags: [
           entry.modelName,
-          ...(includeStagehandAgentMode ? [agentMode] : []),
           task.name,
           ...task.categories.map((x) => `category/${x}`),
           `harness/${row.harness}`,
@@ -450,7 +289,6 @@ export function generateBenchTestcases(
           toolSurface: row.toolSurface,
           startupProfile: row.startupProfile,
           ...buildToolMetadata(row),
-          agentMode: row.agentMode,
         },
         expected: true,
       });
@@ -458,10 +296,6 @@ export function generateBenchTestcases(
   }
 
   return allTestcases;
-}
-
-function rowUsesStagehand(options: Pick<BenchPlanOptions, "harness">): boolean {
-  return (options.harness ?? DEFAULT_BENCH_HARNESS) === "stagehand";
 }
 
 function resolveBenchRowToolSurface(
@@ -484,18 +318,10 @@ function resolveBenchRowStartupProfile(
   requested?: StartupProfile,
 ): StartupProfile | undefined {
   if (harness === "claude_code") {
-    return resolveClaudeCodeStartupProfile(
-      toolSurface ?? "browse_cli",
-      environment,
-      requested,
-    );
+    return resolveClaudeCodeStartupProfile(toolSurface ?? "browse_cli", environment, requested);
   }
   if (harness === "codex") {
-    return resolveCodexStartupProfile(
-      toolSurface ?? "browse_cli",
-      environment,
-      requested,
-    );
+    return resolveCodexStartupProfile(toolSurface ?? "browse_cli", environment, requested);
   }
   return requested;
 }
@@ -513,16 +339,8 @@ export function generateSuiteTestcases(
     "agent/webvoyager": (models) => buildWebVoyagerTestcases(models),
     "agent/onlineMind2Web": (models) => buildOnlineMind2WebTestcases(models),
     "agent/webtailbench": (models) => buildWebTailBenchTestcases(models),
+    "agent/odysseysbench": (models) => buildOdysseysBenchTestcases(models),
   };
-  const legacyOnlySuites = new Set(["agent/gaia"]);
-
-  for (const suiteName of legacyOnlySuites) {
-    const idx = remaining.findIndex((t) => t.name === suiteName);
-    if (idx === -1) continue;
-    throw new EvalsError(
-      `Benchmark "${suiteName}" is legacy-only. Use --legacy or choose b:webvoyager / b:onlineMind2Web / b:webtailbench.`,
-    );
-  }
 
   for (const [suiteName, builder] of Object.entries(suiteMap)) {
     const idx = remaining.findIndex((t) => t.name === suiteName);
@@ -531,9 +349,7 @@ export function generateSuiteTestcases(
     if (!datasetFilter || datasetFilter === datasetName) {
       const task = remaining[idx];
       testcases.push(
-        ...builder(modelEntries).map((testcase) =>
-          withBenchMetadata(testcase, task, options),
-        ),
+        ...builder(modelEntries).map((testcase) => withBenchMetadata(testcase, task, options)),
       );
     }
     remaining.splice(idx, 1);
@@ -547,42 +363,35 @@ function withBenchMetadata(
   task: DiscoveredTask,
   options: BenchPlanOptions,
 ): Testcase {
-  const isStagehand = rowUsesStagehand(options);
-  const agentMode = isStagehand
-    ? (options.agentMode ?? testcase.input.agentMode)
-    : undefined;
-  const row = buildBenchMatrixRow(
-    task,
-    testcase.input.modelName,
-    options,
-    testcase.input.params,
-    agentMode === "cua",
-    agentMode,
-  );
-  const tags = testcase.tags.filter(
-    (tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua",
-  );
-  if (isStagehand && agentMode) tags.push(agentMode);
+  const row = buildBenchMatrixRow(task, testcase.input.modelName, options, testcase.input.params);
   const inputWithoutStagehandMode = { ...testcase.input };
   delete inputWithoutStagehandMode.agentMode;
   delete inputWithoutStagehandMode.isCUA;
 
   return {
     ...testcase,
-    input: isStagehand
-      ? {
-          ...testcase.input,
-          ...(agentMode && { agentMode, isCUA: agentMode === "cua" }),
-        }
-      : inputWithoutStagehandMode,
-    tags: [...tags, `harness/${row.harness}`],
+    input: inputWithoutStagehandMode,
+    // Suite builders still emit Stagehand agent-mode tags (dom/hybrid/cua);
+    // stripping them keeps Braintrust tag filters from pooling external-
+    // harness rows with historical Stagehand agent runs.
+    tags: [
+      ...testcase.tags.filter((tag) => tag !== "dom" && tag !== "hybrid" && tag !== "cua"),
+      `harness/${row.harness}`,
+    ],
     metadata: {
       ...testcase.metadata,
       tier: "bench",
       task: task.name,
       category: task.categories[0] ?? task.primaryCategory,
       categories: task.categories,
-      task_category: task.primaryCategory,
+      // Preserve the dataset row's fine-grained category (e.g. webtailbench's
+      // hotels_head / flights / jobs) that the suite builder set on the
+      // testcase. Only fall back to the directory category when the row didn't
+      // carry one — otherwise all three category fields collapse to "agent".
+      task_category:
+        (testcase.metadata.task_category as string | undefined) ??
+        (row.params?.category as string | undefined) ??
+        task.primaryCategory,
       harness: row.harness,
       environment: row.environment,
       api: row.useApi,
@@ -590,7 +399,6 @@ function withBenchMetadata(
       toolSurface: row.toolSurface,
       startupProfile: row.startupProfile,
       ...buildToolMetadata(row),
-      agentMode: row.agentMode,
     },
   };
 }

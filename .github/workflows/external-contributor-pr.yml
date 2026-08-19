@@ -201,7 +201,7 @@ env:
         const fs = require('fs');
         const handoff = JSON.parse(fs.readFileSync(artifactPath, 'utf8'));
         core.setOutput('should-claim', 'false');
-        if (!handoff.shouldClaim || !handoff.prNumber || !handoff.reviewer || !handoff.approvedSha) return;
+        if (!handoff.shouldClaim || !handoff.prNumber || !handoff.reviewer || !handoff.reviewId || !handoff.approvedSha) return;
 
         const { data: pr } = await github.rest.pulls.get({
           owner: context.repo.owner,
@@ -210,17 +210,31 @@ env:
         });
         if (pr.head.repo.full_name === context.payload.repository.full_name || pr.state !== 'open') return;
 
+        const { data: review } = await github.rest.pulls.getReview({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: pr.number,
+          review_id: Number(handoff.reviewId),
+        });
+        const reviewer = review.user?.login || '';
+        const approvedSha = review.commit_id || pr.head.sha;
+        if (
+          review.state?.toLowerCase() !== 'approved' ||
+          reviewer !== handoff.reviewer ||
+          approvedSha !== handoff.approvedSha
+        ) return;
+
         const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
           owner: context.repo.owner,
           repo: context.repo.repo,
-          username: handoff.reviewer,
+          username: reviewer,
         });
         if (!new Set(['admin', 'maintain', 'write']).has(permission.permission)) {
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: pr.number,
-            body: `@${handoff.reviewer} submitted an approving review, but only stagehand team members with write access can claim external contributor PRs. A maintainer with write access must approve the latest commit to proceed.`,
+            body: `@${reviewer} submitted an approving review, but only stagehand team members with write access can claim external contributor PRs. A maintainer with write access must approve the latest commit to proceed.`,
           });
           return;
         }
@@ -230,7 +244,7 @@ env:
         const branch = sanitizeManagedBranch(pr.number, latestClaim?.branch);
         const title = `[Claimed #${pr.number}] ${pr.title}`;
         const body = [
-          `Mirrored from external contributor PR #${pr.number} after approval by @${handoff.reviewer}.`,
+          `Mirrored from external contributor PR #${pr.number} after approval by @${reviewer}.`,
           '',
           `Original author: @${pr.user.login}`,
           `Original PR: ${pr.html_url}`,
@@ -241,7 +255,7 @@ env:
           '## Original description',
           pr.body?.trim() || '_No description provided._',
           '',
-          `<!-- external-contributor-pr:owned source-pr=${pr.number} source-sha=${pr.head.sha} claimer=${handoff.reviewer} -->`,
+          `<!-- external-contributor-pr:owned source-pr=${pr.number} source-sha=${pr.head.sha} claimer=${reviewer} -->`,
         ].join('\n');
 
         const { data: ownedPrs } = await github.rest.pulls.list({
@@ -249,14 +263,15 @@ env:
           repo: context.repo.repo,
           state: 'all',
           head: `${context.repo.owner}:${branch}`,
-          base: 'main',
+          base: pr.base.ref,
           per_page: 100,
         });
 
         core.setOutput('should-claim', 'true');
-        core.setOutput('claimer', handoff.reviewer);
+        core.setOutput('claimer', reviewer);
         core.setOutput('pr-number', String(pr.number));
         core.setOutput('source-sha', pr.head.sha);
+        core.setOutput('base-ref', pr.base.ref);
         core.setOutput('previous-source-sha', latestClaim?.sourceSha || '');
         core.setOutput('branch', branch);
         core.setOutput('title', title);
@@ -279,6 +294,13 @@ env:
           refreshStatus,
           refreshReason,
         } = input;
+
+        const { data: sourcePr } = await github.rest.pulls.get({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          pull_number: Number(prNumber),
+        });
+        const baseRef = sourcePr.base.ref;
 
         if (refreshStatus !== 'updated') {
           if (existingNumber) {
@@ -308,7 +330,7 @@ env:
             pull_number: Number(existingNumber),
             title,
             body,
-            base: 'main',
+            base: baseRef,
             state: 'open',
           });
           ownedPr = data;
@@ -319,7 +341,7 @@ env:
             title,
             body,
             head: branch,
-            base: 'main',
+            base: baseRef,
           });
           ownedPr = data;
         }
@@ -364,7 +386,8 @@ env:
 
       async function syncOwnedPr({ github, context }) {
         const pr = context.payload.pull_request;
-        const match = pr.body?.match(OWNED_RE);
+        const matches = [...(pr.body || '').matchAll(new RegExp(OWNED_RE.source, 'g'))];
+        const match = matches.at(-1);
         if (!match) return;
 
         const sourcePrNumber = Number(match[1]);
@@ -377,7 +400,20 @@ env:
           pull_number: sourcePrNumber,
         });
 
+        const markStaleForSourceMismatch = async () => {
+          await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:stale']);
+          await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
+          await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
+            `This mirrored PR is stale because the original external PR ${externalPr.html_url} now points at a different source SHA.`,
+            'Approve the latest external commit to refresh this same internal PR.',
+          ]);
+        };
+
         if (context.payload.action === 'reopened') {
+          if (externalPr.head.sha !== sourceSha) {
+            await markStaleForSourceMismatch();
+            return;
+          }
           await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:mirrored']);
           await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:mirrored']);
           if (externalPr.state !== 'closed') {
@@ -390,24 +426,21 @@ env:
           await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:completed']);
           await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:completed']);
           await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
-            `This mirrored PR has been merged into \`main\`. The original external PR ${externalPr.html_url} is now completed.`,
+            `This mirrored PR has been merged into \`${pr.base.ref}\`. The original external PR ${externalPr.html_url} is now completed.`,
           ]);
           await upsertComment(github, context, sourcePrNumber, `<!-- external-contributor-pr:completed owned-pr=${pr.number} -->`, [
-            `The mirrored PR ${pr.html_url} has been merged into \`main\`. This original external contributor PR will stay closed as completed.`,
+            `The mirrored PR ${pr.html_url} has been merged into \`${pr.base.ref}\`. This original external contributor PR will stay closed as completed.`,
           ]);
+          return;
+        }
+
+        if (externalPr.head.sha !== sourceSha) {
+          await markStaleForSourceMismatch();
           return;
         }
 
         await syncLabels(github, context, pr.number, ['external-contributor', 'external-contributor:stale']);
         await syncLabels(github, context, sourcePrNumber, ['external-contributor', 'external-contributor:awaiting-approval']);
-        if (externalPr.head.sha !== sourceSha) {
-          await upsertComment(github, context, pr.number, '<!-- external-contributor-pr:owned-status -->', [
-            `This mirrored PR is stale because the original external PR ${externalPr.html_url} now points at a different source SHA.`,
-            'Approve the latest external commit to refresh this same internal PR.',
-          ]);
-          return;
-        }
-
         if (externalPr.state === 'closed') {
           await github.rest.pulls.update({ owner: context.repo.owner, repo: context.repo.repo, pull_number: sourcePrNumber, state: 'open' });
         }
@@ -475,6 +508,7 @@ jobs:
         continue-on-error: true
         env:
           INTERNAL_BRANCH: ${{ steps.prepare-claim.outputs.branch }}
+          BASE_REF: ${{ steps.prepare-claim.outputs.base-ref }}
           PR_NUMBER: ${{ steps.prepare-claim.outputs.pr-number }}
           PREVIOUS_SOURCE_SHA: ${{ steps.prepare-claim.outputs.previous-source-sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -513,7 +547,13 @@ jobs:
             exit 0
           fi
 
+          if ! git fetch origin "${BASE_REF}:refs/remotes/origin/external-pr-base-${PR_NUMBER}"; then
+            refresh_reason="fetch-base-failed"
+            exit 0
+          fi
+
           external_ref="refs/remotes/origin/external-pr-head-${PR_NUMBER}"
+          base_ref="refs/remotes/origin/external-pr-base-${PR_NUMBER}"
           branch_exists=false
           if git ls-remote --exit-code --heads origin "${INTERNAL_BRANCH}" >/dev/null 2>&1; then
             branch_exists=true
@@ -526,6 +566,12 @@ jobs:
           if [ "${branch_exists}" = false ]; then
             if ! git checkout -B "${INTERNAL_BRANCH}" "${external_ref}"; then
               refresh_reason="checkout-failed"
+              exit 0
+            fi
+
+            if ! git merge --no-edit "${base_ref}"; then
+              git merge --abort || true
+              refresh_reason="base-merge-conflict"
               exit 0
             fi
 
@@ -549,7 +595,13 @@ jobs:
             exit 0
           fi
 
-          if git rebase --onto "${external_ref}" "${PREVIOUS_SOURCE_SHA}" "${INTERNAL_BRANCH}"; then
+          if git rebase --rebase-merges --onto "${external_ref}" "${PREVIOUS_SOURCE_SHA}" "${INTERNAL_BRANCH}"; then
+            if ! git merge --no-edit "${base_ref}"; then
+              git merge --abort || true
+              refresh_reason="base-merge-conflict"
+              exit 0
+            fi
+
             if ! git push --force-with-lease origin "HEAD:refs/heads/${INTERNAL_BRANCH}"; then
               refresh_reason="push-failed"
               exit 0

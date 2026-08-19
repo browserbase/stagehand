@@ -1,0 +1,38 @@
+{
+  "name": "@browserbasehq/stagehand-integrations-example-pi-facade",
+  "version": "4.0.1",
+  "private": true,
+  "keywords": [
+    "pi-package"
+  ],
+  "type": "module",
+  "scripts": {
+    "start": "pi -e ./extensions/stagehand.ts --no-session -p",
+    "test": "pnpm -w exec turbo run build --filter @browserbasehq/stagehand-integrations && vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "workspace:*",
+    "@browserbasehq/stagehand-integrations": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@types/node": "catalog:",
+    "typebox": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/stagehand.ts"
+    ]
+  }
+}

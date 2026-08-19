@@ -1,0 +1,2465 @@
+---
+title: "Stagehand"
+description: "Initialize a browser session and run AI-powered actions, observations, and extractions"
+icon: "hand-horns"
+---
+
+`Stagehand` attaches to a browser connection and exposes top-level lifecycle, metrics, and AI methods. The browser handle remains caller-owned.
+
+<Tabs>
+<Tab title="TypeScript">
+
+## Quick start
+
+```typescript
+import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
+
+const browser = await localBrowser.launch();
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const page = await browser.context.activePage();
+    await page.goto("https://example.com");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
+```
+
+## create()
+
+Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
+
+```typescript
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
+```
+
+<ParamField path="browser" type="StagehandBrowser" required>
+  A browser handle from `browserbase.launch()`, `browserbase.connect()`, `localBrowser.launch()`, or `localBrowser.connect()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ResponseField name="result" type="Promise<Stagehand>">
+  An initialized Stagehand instance.
+</ResponseField>
+
+## Properties
+
+Read-only accessors on an instance.
+
+```typescript
+const page = await stagehand.browser.context.activePage();
+```
+
+<ResponseField name="stagehand.browser" type="StagehandBrowser">
+  The browser handle you passed to `Stagehand.create()`. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="stagehand.initialized" type="boolean">
+  Whether the instance is connected and able to serve calls. This is `false` after `close()`.
+</ResponseField>
+
+## close()
+
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
+
+```typescript
+await stagehand.close();
+await browser.close();
+```
+
+<ResponseField name="result" type="Promise<void>">
+  Resolves after the operation completes.
+</ResponseField>
+
+## experimentalBatch()
+
+Run a trusted, self-contained JavaScript callback inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding an
+SDK-to-browser round trip for every command.
+
+<Note>
+  This API is experimental and can change in patch releases.
+
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```typescript
+const result = await stagehand.experimentalBatch(
+  async (batch, input) => {
+    await batch.page.goto(input.url);
+    await batch.act("Click More information");
+
+    return {
+      title: await batch.page.title(),
+      heading: await batch.page.locator("h1").innerText(),
+    };
+  },
+  { url: "https://example.com" },
+);
+```
+
+### Callback arguments
+
+Stagehand invokes the function in the service worker with two arguments: a worker-local
+`ExperimentalBatchContext` and the JSON input supplied to `experimentalBatch()`.
+
+```typescript
+await callback(
+  {
+    page: workerPage,
+    context: workerContext,
+    act: workerAct,
+    observe: workerObserve,
+    extract: workerExtract,
+    metrics: workerMetrics,
+  },
+  input,
+);
+```
+
+The function parameter names are chosen by the caller. Destructuring is ordinary JavaScript
+shorthand, not special Stagehand injection syntax:
+
+```typescript
+async ({ page, act }, input) => {
+  await page.goto(input.url);
+  await act("Click More information");
+};
+
+// Equivalent to:
+async (batch, input) => {
+  const page = batch.page;
+  const act = batch.act;
+};
+```
+
+Callbacks may ignore arguments they do not need. For example,
+`await stagehand.experimentalBatch(async () => "done")` is valid.
+
+<ParamField path="callback" type="ExperimentalBatchCallback&lt;Input, Result&gt;">
+  A self-contained callback executed in the extension service worker. It receives the batch
+  context first and `input` second. Values from the caller's lexical scope are not captured.
+</ParamField>
+
+<ParamField path="input" type="Input" optional>
+  JSON-serializable input passed as the callback's second argument. When omitted, the callback
+  receives `undefined`; pass `null` explicitly to receive `null`.
+</ParamField>
+
+<ParamField path="options" type="ExperimentalBatchOptions" optional>
+  Options controlling the selected page and overall deadline.
+
+  <ParamField path="options.page" type="Page" optional>
+    The page exposed as the callback context's `page`. The active page at batch startup is used
+    when omitted. This does not change the default target of `act()`, `observe()`, or `extract()`;
+    those methods use their own `page` option or the active page when called.
+  </ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The overall callback deadline in milliseconds. Defaults to 30,000.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise&lt;Awaited&lt;Result&gt;&gt;">
+  The callback's JSON-serializable return value.
+</ResponseField>
+
+### Batch callback context
+
+The callback receives an `ExperimentalBatchContext`, not the outer SDK `Stagehand` instance:
+
+- `page`: the worker-local `Page` selected when the batch starts;
+- `context`: a worker-local browser context facade;
+- `act`, `observe`, and `extract`: the normal Stagehand AI operations;
+- `metrics`: the normal Stagehand metrics operation.
+
+The context intentionally does not expose `context.close()`, Stagehand lifecycle methods, nested
+callback batches, or page event subscriptions. Host-only behavior such as local file paths and
+screenshot output paths is also unavailable because the callback runs in a browser service worker,
+not Node.js.
+
+### Passing data across the worker boundary
+
+The callback is serialized and evaluated in a different JavaScript runtime, so it cannot capture
+variables from the calling process. Pass external data through `input`, similarly to
+`page.evaluate()`:
+
+```typescript
+const selector = "button[type=submit]";
+
+// Incorrect: selector is not defined in the service worker.
+await stagehand.experimentalBatch(async ({ page }) => {
+  await page.locator(selector).click();
+});
+
+// Correct: input explicitly crosses the runtime boundary.
+await stagehand.experimentalBatch(
+  async ({ page }, input) => {
+    await page.locator(input.selector).click();
+  },
+  { selector },
+);
+```
+
+Both `input` and the callback's return value must be JSON-serializable.
+
+### Selecting and targeting pages
+
+`options.page` transfers an SDK page ID to the worker. The callback receives the corresponding
+worker-local page as `batch.page`; the outer `Page` object itself does not cross the boundary.
+
+```typescript
+const [myPage] = await stagehand.browser.context.pages();
+
+await stagehand.experimentalBatch(
+  async ({ page: selectedPage }, input) => {
+    await selectedPage.goto(input.url);
+  },
+  { url: "https://example.com" },
+  { page: myPage },
+);
+```
+
+`batch.page` is fixed when the batch starts: it represents `options.page`, or the active page at
+startup when no page is supplied. The AI methods follow the same targeting rules as the regular
+SDK: an operation-level `page` option wins; otherwise they resolve the active page when the
+operation runs. Changing the active page therefore affects later `act()`, `observe()`, and
+`extract()` calls, but does not replace `batch.page`.
+
+```typescript
+await stagehand.experimentalBatch(async (batch) => {
+  const nextPage = await batch.context.newPage("https://example.com/next");
+  await batch.context.setActivePage(nextPage);
+
+  await batch.act("Click Continue"); // Uses nextPage, the current active page.
+  await batch.act("Click Back", { page: batch.page }); // Explicitly uses the startup page.
+});
+```
+
+Timeout cancellation prevents the callback from starting further Stagehand operations. An
+operation already running when the timeout occurs may still finish, so a batch is not an atomic
+transaction.
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that throw before returning a result are not recorded. Reading metrics does not reset them.
+
+```typescript
+const metrics = await stagehand.metrics();
+```
+
+<ResponseField name="result" type="Promise<StagehandMetrics>">
+  The operation result.
+
+<ResponseField name="result.actPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.actReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.actCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.actInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extractPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extractInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observePromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observeInferenceTimeMs" type="number">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.totalPromptTokens" type="number">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCompletionTokens" type="number">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalReasoningTokens" type="number">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.totalCachedInputTokens" type="number">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.totalInferenceTimeMs" type="number">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```typescript
+const result = await stagehand.act("Click the sign in button");
+```
+
+<ParamField path="instruction" type="Action | string">
+  A natural-language action to perform, or an action returned by `observe()`.
+
+  <ParamField path="instruction.selector" type="string">
+    The CSS selector or XPath for the action target.
+  </ParamField>
+
+  <ParamField path="instruction.description" type="string">
+    A human-readable description of the action.
+  </ParamField>
+
+  <ParamField path="instruction.method" type="string" optional>
+    The action method to execute.
+  </ParamField>
+
+  <ParamField path="instruction.arguments" type="string[]" optional>
+    Arguments to pass to the action method.
+  </ParamField>
+</ParamField>
+
+<ParamField path="options" type="StagehandClientActOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching with a boolean or threshold options object.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The positive identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.ignoreLocators" type="Locator[]" optional>
+    Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+  </ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      A supported provider-prefixed [model identifier](/v4/configuration/models).
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<ActResult>">
+  The operation result.
+
+<ResponseField name="result.data" type="ActResultData">
+  The action outcome.
+
+<ResponseField name="result.data.actionDescription" type="string">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.data.actions" type="Action[]">
+    The actions that were performed.
+
+    <ResponseField name="result.data.actions.arguments" type="string[]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.description" type="string">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.method" type="string" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.selector" type="string">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.data.message" type="string">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.data.success" type="boolean">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      `"HIT"` when a cached result was served, `"MISS"` when the result was computed, or
+      `"DISABLED"` when no cache lookup ran.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.actionId" type="string" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```typescript
+const actions = await stagehand.observe("Find the sign in button");
+```
+
+<ParamField path="instruction" type="string" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="options" type="StagehandClientObserveOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request. Requests with `locator` or `ignoreLocators` bypass server-side caching and return `metadata.cache.status` as `DISABLED`.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreLocators" type="Locator[]" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.timeout" type="number" optional>
+  The operation timeout in milliseconds.
+</ParamField>
+
+  <ParamField path="options.variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<ObserveResult>">
+  The operation result.
+
+<ResponseField name="result.data" type="Action[]">
+  Candidate actions found on the page.
+
+<ResponseField name="result.data.arguments" type="string[]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.data.description" type="string">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.data.method" type="string" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.data.selector" type="string">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.actionId" type="string" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```typescript
+const product = await stagehand.extract("Extract the product", ProductSchema);
+console.log(product.data, product.metadata.cache.status);
+```
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="Schema" optional>
+  The schema used to validate extracted data. Defaults to an object with a string `extraction` field
+  when omitted; when selecting a custom schema generic, provide the matching runtime schema.
+</ParamField>
+
+<ParamField path="options" type="StagehandClientExtractOptions" optional>
+  Options that configure this operation.
+
+  <ParamField path="options.cache" type="Caching" optional>
+    Override server-side caching for this request.
+
+    <ParamField path="options.cache.threshold" type="number" optional>
+      The identical-result threshold required before serving a cache hit.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.ignoreLocators" type="Locator[]" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
+</ParamField>
+
+  <ParamField path="options.locator" type="Locator" optional>
+    A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.model" type="ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.model.apiKey" type="string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.model.headers" type="object" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.model.modelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+<ParamField path="options.screenshot" type="boolean" optional>
+  Whether the operation may use a screenshot.
+</ParamField>
+
+  <ParamField path="options.timeout" type="number" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="Promise<ExtractResult<Schema>>">
+  The extraction result.
+
+  <ResponseField name="result.data" type="z.output<Schema>">
+    Data validated against the caller's schema.
+  </ResponseField>
+
+  <ResponseField name="result.metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="number" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="number" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.missReason" type="string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokensSaved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokensSaved.inputTokens" type="number">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.outputTokens" type="number">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokensSaved.totalTokens" type="number">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.actionId" type="string" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.inputTokens" type="number">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.outputTokens" type="number">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoningTokens" type="number">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cachedInputTokens" type="number">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inferenceTimeMs" type="number">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+</Tab>
+
+<Tab title="Python">
+
+## Quick start
+
+```python
+from stagehand import Stagehand, local_browser
+
+browser = await local_browser.launch()
+try:
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        page = await browser.context.active_page()
+        await page.goto("https://example.com")
+    finally:
+        await stagehand.close()
+finally:
+    await browser.close()
+```
+
+## create()
+
+Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
+
+```python
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
+```
+
+<ParamField path="browser" type="StagehandBrowser" required>
+  A browser handle from `browserbase.launch()`, `browserbase.connect()`, `local_browser.launch()`, or `local_browser.connect()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+<ResponseField name="result" type="Stagehand">
+  An initialized Stagehand instance.
+</ResponseField>
+
+## Properties
+
+Read-only accessors on an instance.
+
+```python
+page = await stagehand.browser.context.active_page()
+```
+
+<ResponseField name="stagehand.browser" type="StagehandBrowser">
+  The browser handle you passed to `Stagehand.create()`. Reach pages and the context through it when you hold the instance but not the handle: `stagehand.browser.context`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="stagehand.initialized" type="bool">
+  Whether the instance is connected and able to serve calls. This is `False` after `close()`.
+</ResponseField>
+
+## close()
+
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
+
+```python
+await stagehand.close()
+await browser.close()
+```
+
+<ResponseField name="result" type="None">
+  Resolves after the operation completes.
+</ResponseField>
+
+## experimental_batch()
+
+Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding a
+Python-to-browser round trip for every command. Python source is not translated to JavaScript;
+this method accepts an explicit JavaScript function string.
+
+<Note>
+  This API is experimental and can change in patch releases.
+
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```python
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.goto(input.url);
+      await batch.act("Click More information");
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"url": "https://example.com"},
+)
+```
+
+Stagehand evaluates the function in the service worker and calls it with two JavaScript arguments:
+
+1. a worker-local batch context containing `page`, `context`, `act`, `observe`, `extract`, and
+   `metrics`;
+2. the decoded JSON value passed as the Python method's `input` argument.
+
+JavaScript destructuring such as `async ({ page, act }, input) => { ... }` only creates local
+variables from that context. It does not select a page or tell Stagehand which values to inject.
+
+<ParamField path="source" type="str">
+  Self-contained JavaScript function source executed in the extension service worker. Python
+  variables and closures are not captured.
+</ParamField>
+
+<ParamField path="input" type="object" optional>
+  JSON-serializable input passed as the JavaScript callback's second argument. When omitted, the
+  callback receives JavaScript `undefined`; explicitly passing `None` produces JavaScript `null`.
+</ParamField>
+
+<ParamField path="timeout" type="int" optional>
+  The overall callback deadline in milliseconds. Defaults to 30,000.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The page exposed as the callback context's `page`. The active page at batch startup is used when
+  omitted. This does not change the default target of `act()`, `observe()`, or `extract()`; those
+  methods use their own `page` option or the active page when called.
+</ParamField>
+
+<ResponseField name="result" type="object">
+  The callback's decoded JSON return value.
+</ResponseField>
+
+### Batch callback context
+
+The first JavaScript argument is a batch context, not the outer Python `Stagehand` object:
+
+- `batch.page`: the worker-local page selected when the batch starts;
+- `batch.context`: a worker-local browser context facade;
+- `batch.act()`, `batch.observe()`, and `batch.extract()`: Stagehand AI operations;
+- `batch.metrics()`: Stagehand metrics.
+
+The context does not expose `context.close()`, Stagehand lifecycle methods, nested batches, or page
+event subscriptions. Node.js APIs, local filesystem paths, screenshot output paths, and other
+host-only behavior are unavailable in the browser service worker.
+
+### Passing input instead of capturing variables
+
+The JavaScript source cannot reference Python variables. Transfer values explicitly through the
+method's second argument:
+
+```python
+selector = "button[type=submit]"
+
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.locator(input.selector).click();
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"selector": selector},
+)
+```
+
+Both input and output must be JSON-serializable.
+
+### Selecting and targeting pages
+
+Passing `page=my_page` transfers the Python page's ID. The service worker reconstructs it as
+`batch.page`; the Python `Page` object itself is not available inside the JavaScript source.
+
+```python
+my_page = (await stagehand.browser.context.pages())[0]
+
+result = await stagehand.experimental_batch(
+    """
+    async (batch, input) => {
+      await batch.page.goto(input.url);
+      return { title: await batch.page.title() };
+    }
+    """,
+    {"url": "https://example.com"},
+    page=my_page,
+)
+```
+
+`batch.page` is fixed at batch startup. It represents the supplied page, or the active page at
+startup when `page` is omitted. `batch.act()`, `batch.observe()`, and `batch.extract()` instead use
+their own operation-level `page` option or resolve the active page when called, matching ordinary
+Stagehand behavior.
+
+Timeout cancellation prevents later Stagehand operations from starting, but an operation already
+running at the deadline may still finish. Callback batches are not atomic transactions.
+
+## metrics()
+
+Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `metadata.usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that raise before returning a result are not recorded. Reading metrics does not reset them.
+
+```python
+metrics = await stagehand.metrics()
+```
+
+<ResponseField name="result" type="StagehandMetrics">
+  The operation result.
+
+<ResponseField name="result.act_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.act_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.extract_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.extract_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.observe_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.observe_inference_time_ms" type="float">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.total_prompt_tokens" type="float">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_completion_tokens" type="float">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_reasoning_tokens" type="float">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.total_cached_input_tokens" type="float">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.total_inference_time_ms" type="float">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## act()
+
+Perform an action described in natural language.
+
+```python
+result = await stagehand.act("Click the sign in button")
+```
+
+<ParamField path="instruction" type="Action | ActionInput | str">
+  A natural-language action to perform, or an action returned by `observe()`.
+
+  <ParamField path="instruction.selector" type="str">
+    The CSS selector or XPath for the action target.
+  </ParamField>
+
+  <ParamField path="instruction.description" type="str">
+    A human-readable description of the action.
+  </ParamField>
+
+  <ParamField path="instruction.method" type="str" optional>
+    The action method to execute.
+  </ParamField>
+
+  <ParamField path="instruction.arguments" type="list[str]" optional>
+    Arguments to pass to the action method.
+  </ParamField>
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    A supported provider-prefixed [model identifier](/v4/configuration/models).
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="Locator | None" optional>
+  The page locator that identifies the action target. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match.
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page-created locators to exclude from instruction-planning context. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match.
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching with a boolean or `CacheOptions`.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The positive identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ActResult">
+  The operation result.
+
+<ResponseField name="result.data" type="ActResultData">
+  The action outcome.
+
+<ResponseField name="result.data.action_description" type="str">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.data.actions" type="list[Action]">
+    The actions that were performed.
+
+    <ResponseField name="result.data.actions.arguments" type="list[str]" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.description" type="str">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.method" type="str" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.data.actions.selector" type="str">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.data.message" type="str">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.data.success" type="bool">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      `"HIT"` when a cached result was served, `"MISS"` when the result was computed, or
+      `"DISABLED"` when no cache lookup ran.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="str" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```python
+actions = await stagehand.observe("Find the sign in button")
+```
+
+<ParamField path="instruction" type="str | None" optional>
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="variables" type="Variables | None" optional>
+  Variables available to the instruction.
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="Locator | None" optional>
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for observe snapshot scoping.
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for observe snapshot scoping.
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request. Requests with `locator` or `ignore_locators` bypass server-side caching and return `metadata.cache.status` as `DISABLED`.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ObserveResult">
+  The operation result.
+
+<ResponseField name="result.data" type="list[Action]">
+  Candidate actions found on the page.
+
+<ResponseField name="result.data.arguments" type="list[str]" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.data.description" type="str">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.data.method" type="str" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.data.selector" type="str">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="str" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## extract()
+
+Extract structured data from the page.
+
+```python
+product = await stagehand.extract("Extract the product", Product)
+print(product.data, product.metadata.cache.status)
+```
+
+<ParamField path="instruction" type="str">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="schema" type="type[ResultModel]" optional>
+  The schema used to validate extracted data. Defaults to a model with a string `extraction` field.
+</ParamField>
+
+<ParamField path="page" type="Page | None" optional>
+  The SDK page to target. Uses the active page when omitted.
+</ParamField>
+
+<ParamField path="model" type="ModelConfig" optional>
+  Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+<ParamField path="model.api_key" type="str" optional>
+  The model provider API key.
+</ParamField>
+
+<ParamField path="model.headers" type="dict[str, object]" optional>
+  Additional model provider headers.
+</ParamField>
+
+  <ParamField path="model.model_name" type="ModelName">
+    The model identifier.
+  </ParamField>
+</ParamField>
+
+<ParamField path="timeout" type="float | None" optional>
+  Maximum wait time in milliseconds.
+</ParamField>
+
+<ParamField path="locator" type="Locator | None" optional>
+  A page-created CSS or XPath locator that scopes the operation. Create it with `page.locator("...")`; use `.nth(index)` on the locator to target a specific match. `text=` locators are not yet supported for extract snapshot scoping.
+</ParamField>
+
+<ParamField path="screenshot" type="bool | None" optional>
+  Whether extraction may use a screenshot.
+</ParamField>
+
+<ParamField path="ignore_locators" type="list[Locator] | None" optional>
+  Page-created CSS or XPath locators to exclude from consideration. Create each with `page.locator("...")`; use `.nth(index)` on a locator to exclude only that indexed match. `text=` locators are not yet supported for extract snapshot scoping.
+</ParamField>
+
+<ParamField path="cache" type="bool | CacheOptions | None" optional>
+  Override server-side caching for this request.
+
+  <ParamField path="cache.threshold" type="int" optional>
+    The identical-result threshold required before serving a cache hit.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="ExtractResult[ResultModel]">
+  The extraction result.
+
+  <ResponseField name="result.data" type="ResultModel">
+    Data validated against the caller's Pydantic model.
+  </ResponseField>
+
+  <ResponseField name="result.metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.metadata.cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.metadata.cache.status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.count" type="int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.threshold" type="int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.metadata.cache.miss_reason" type="str" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.cache.tokens_saved" type="CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.metadata.cache.tokens_saved.input_tokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.output_tokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.metadata.cache.tokens_saved.total_tokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.metadata.action_id" type="str" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.metadata.usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.metadata.usage.input_tokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.output_tokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.reasoning_tokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.cached_input_tokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.metadata.usage.inference_time_ms" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+</Tab>
+
+<Tab title="Go">
+
+## Quick start
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	stagehand "github.com/browserbase/stagehand/packages/sdk-go/v4"
+)
+
+func main() {
+	if err := run(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run(ctx context.Context) error {
+	browser, err := stagehand.LaunchLocalBrowser(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer browser.Close(ctx)
+
+	client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
+	if err != nil {
+		return err
+	}
+	defer client.Close(ctx)
+
+	return nil
+}
+```
+
+Every Stagehand call takes a `context.Context` as its first parameter and returns an `error` as its last result; cancel the context to abandon the call.
+
+## Create()
+
+Create a Stagehand instance and connect it to a browser. The package-level `stagehand.Create()` function is the only way to build one, and the returned instance is already initialized.
+
+```go
+func Create(ctx context.Context, options CreateOptions) (*Stagehand, error)
+```
+
+<ParamField path="options.Browser" type="*Browser" required>
+  A browser handle from `LaunchBrowserbase()`, `ConnectBrowserbase()`, `LaunchLocalBrowser()`, or `ConnectLocalBrowser()`. Each handle can back only one Stagehand instance.
+</ParamField>
+
+The remaining `CreateOptions` fields (`APIKey`, `APIURL`, `Cache`, `DOMSettleTimeoutMs`, `Model`, `Generate`, `Logging`, `SelfHeal`, `SystemPrompt`, and `Telemetry`) are optional and covered in the configuration guides.
+
+<ResponseField name="result" type="(*Stagehand, error)">
+  An initialized Stagehand instance.
+</ResponseField>
+
+## Properties
+
+Read-only accessor methods on an instance.
+
+```go
+browserContext, err := client.Browser().Context()
+if err != nil {
+	return err
+}
+page, err := browserContext.ActivePage(ctx)
+if err != nil {
+	return err
+}
+if _, err := page.Goto(ctx, "https://example.com", nil); err != nil {
+	return err
+}
+```
+
+<ResponseField name="client.Browser()" type="*Browser">
+  The browser handle you passed to `Create()`. Reach pages and the context through it when you hold the instance but not the handle: `client.Browser().Context()`. Stagehand does not close this browser for you.
+</ResponseField>
+
+<ResponseField name="client.Initialized()" type="bool">
+  Whether the instance is connected and able to serve calls. This is `false` after `Close()`.
+</ResponseField>
+
+## Close()
+
+Close the Stagehand session and release its resources. The `Browser` handle stays open; close it separately with `browser.Close(ctx)`.
+
+```go
+if err := client.Close(ctx); err != nil {
+	return err
+}
+```
+
+<ResponseField name="result" type="error">
+  `nil` after the operation completes. `Close()` runs once; later calls return the first result.
+</ResponseField>
+
+## ExperimentalBatch()
+
+Run trusted, self-contained JavaScript source inside the Stagehand extension service worker.
+Operations made through the supplied batch context route directly through the worker, avoiding a
+Go-to-browser round trip for every command. Go source is not translated to JavaScript; this method
+accepts an explicit JavaScript function string.
+
+<Note>
+  This API is experimental and can change in patch releases.
+
+  Batch callbacks execute in the Stagehand service worker, not the webpage. Treat callback source
+  as application code rather than untrusted input.
+</Note>
+
+```go
+func (s *Stagehand) ExperimentalBatch(ctx context.Context, source string, input any, result any, options ExperimentalBatchOptions) error
+```
+
+```go
+var result struct {
+	Title string `json:"title"`
+}
+err := client.ExperimentalBatch(
+	ctx,
+	`async (batch, input) => {
+	  await batch.page.goto(input.url);
+	  await batch.act("Click More information");
+	  return { title: await batch.page.title() };
+	}`,
+	map[string]string{"url": "https://example.com"},
+	&result,
+	stagehand.ExperimentalBatchOptions{},
+)
+if err != nil {
+	return err
+}
+```
+
+Stagehand evaluates the function in the service worker and calls it with two JavaScript arguments:
+
+1. a worker-local batch context containing `page`, `context`, `act`, `observe`, `extract`, and
+   `metrics`;
+2. the decoded JSON value passed as the Go method's `input` argument.
+
+JavaScript destructuring such as `async ({ page, act }, input) => { ... }` only creates local
+variables from that context. It does not select a page or tell Stagehand which values to inject.
+
+<ParamField path="source" type="string">
+  Self-contained JavaScript function source executed in the extension service worker. Go variables
+  are not captured.
+</ParamField>
+
+<ParamField path="input" type="any" optional>
+  JSON-serializable input passed as the JavaScript callback's second argument. When `nil`, the
+  callback receives JavaScript `undefined`.
+</ParamField>
+
+<ParamField path="result" type="any" required>
+  A non-nil pointer that receives the callback's decoded JSON return value. A callback that returns
+  `undefined` decodes as JSON `null`.
+</ParamField>
+
+<ParamField path="options" type="ExperimentalBatchOptions">
+  Batch configuration. Pass the zero value `stagehand.ExperimentalBatchOptions{}` for the
+  defaults.
+</ParamField>
+
+<ParamField path="options.Timeout" type="time.Duration" optional>
+  The overall callback deadline. Defaults to 30 seconds.
+</ParamField>
+
+<ParamField path="options.Page" type="*Page" optional>
+  The page exposed as the callback context's `page`. The active page at batch startup is used when
+  omitted. This does not change the default target of `Act()`, `Observe()`, or `Extract()`; those
+  methods use their own `Page` option or the active page when called.
+</ParamField>
+
+<ResponseField name="result" type="error">
+  `nil` after the callback's return value is decoded into `result`.
+</ResponseField>
+
+### Batch callback context
+
+The first JavaScript argument is a batch context, not the outer Go `Stagehand` client:
+
+- `batch.page`: the worker-local page selected when the batch starts;
+- `batch.context`: a worker-local browser context facade;
+- `batch.act()`, `batch.observe()`, and `batch.extract()`: Stagehand AI operations;
+- `batch.metrics()`: Stagehand metrics.
+
+The context does not expose `context.close()`, Stagehand lifecycle methods, nested batches, or page
+event subscriptions. Node.js APIs, local filesystem paths, screenshot output paths, and other
+host-only behavior are unavailable in the browser service worker.
+
+### Passing input instead of capturing variables
+
+The JavaScript source cannot reference Go variables. Transfer values explicitly through the
+method's `input` argument:
+
+```go
+selector := "button[type=submit]"
+
+var result struct {
+	Title string `json:"title"`
+}
+err := client.ExperimentalBatch(
+	ctx,
+	`async (batch, input) => {
+	  await batch.page.locator(input.selector).click();
+	  return { title: await batch.page.title() };
+	}`,
+	map[string]string{"selector": selector},
+	&result,
+	stagehand.ExperimentalBatchOptions{},
+)
+if err != nil {
+	return err
+}
+```
+
+Both input and output must be JSON-serializable.
+
+### Selecting and targeting pages
+
+Passing `Page` in the options transfers the Go page's ID. The service worker reconstructs it as
+`batch.page`; the Go `Page` object itself is not available inside the JavaScript source.
+
+```go
+pages, err := browserContext.Pages(ctx)
+if err != nil {
+	return err
+}
+myPage := pages[0]
+
+var result struct {
+	Title string `json:"title"`
+}
+err = client.ExperimentalBatch(
+	ctx,
+	`async (batch, input) => {
+	  await batch.page.goto(input.url);
+	  return { title: await batch.page.title() };
+	}`,
+	map[string]string{"url": "https://example.com"},
+	&result,
+	stagehand.ExperimentalBatchOptions{Page: myPage},
+)
+if err != nil {
+	return err
+}
+```
+
+`batch.page` is fixed at batch startup. It represents the supplied page, or the active page at
+startup when `Page` is omitted. `batch.act()`, `batch.observe()`, and `batch.extract()` instead use
+their own operation-level `page` option or resolve the active page when called, matching ordinary
+Stagehand behavior.
+
+Timeout cancellation prevents later Stagehand operations from starting, but an operation already
+running at the deadline may still finish. Callback batches are not atomic transactions.
+
+## Metrics()
+
+Return token usage and inference timing metrics for this session.
+Each Stagehand instance starts at zero. Every successful operation returns `Metadata.Usage`; deterministic actions and cache hits report zero-valued usage, so they leave the counters unchanged. Calls that return an error before producing a result are not recorded. Reading metrics does not reset them.
+
+```go
+metrics, err := client.Metrics(ctx)
+if err != nil {
+	return err
+}
+fmt.Println(metrics)
+```
+
+<ResponseField name="result" type="(StagehandMetrics, error)">
+  The operation result.
+
+<ResponseField name="result.ActPromptTokens" type="float64">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.ActCompletionTokens" type="float64">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.ActReasoningTokens" type="float64">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.ActCachedInputTokens" type="float64">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.ActInferenceTimeMs" type="float64">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.ExtractPromptTokens" type="float64">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.ExtractCompletionTokens" type="float64">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.ExtractReasoningTokens" type="float64">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.ExtractCachedInputTokens" type="float64">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.ExtractInferenceTimeMs" type="float64">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.ObservePromptTokens" type="float64">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.ObserveCompletionTokens" type="float64">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.ObserveReasoningTokens" type="float64">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.ObserveCachedInputTokens" type="float64">
+  Cached input tokens used.
+</ResponseField>
+
+<ResponseField name="result.ObserveInferenceTimeMs" type="float64">
+  Inference time in milliseconds.
+</ResponseField>
+
+<ResponseField name="result.TotalPromptTokens" type="float64">
+  Prompt tokens used.
+</ResponseField>
+
+<ResponseField name="result.TotalCompletionTokens" type="float64">
+  Completion tokens used.
+</ResponseField>
+
+<ResponseField name="result.TotalReasoningTokens" type="float64">
+  Reasoning tokens used.
+</ResponseField>
+
+<ResponseField name="result.TotalCachedInputTokens" type="float64">
+  Cached input tokens used.
+</ResponseField>
+
+  <ResponseField name="result.TotalInferenceTimeMs" type="float64">
+    Inference time in milliseconds.
+  </ResponseField>
+</ResponseField>
+
+## Act()
+
+Perform an action described in natural language.
+
+```go
+result, err := client.Act(ctx, stagehand.ActInstruction("Click the sign in button"), nil)
+if err != nil {
+	return err
+}
+fmt.Println(result)
+```
+
+```go
+func (s *Stagehand) Act(ctx context.Context, instruction ActInstructionValue, options *StagehandClientActOptions) (ActResult, error)
+```
+
+<ParamField path="instruction" type="ActInstructionValue">
+  A natural-language action to perform, or an action returned by `Observe()`. Construct with
+  `stagehand.ActInstruction("...")` for natural language, or `stagehand.ObservedAction(action)`
+  for an observed `Action` with these fields:
+
+  <ParamField path="instruction.Selector" type="string">
+    The CSS selector or XPath for the action target.
+  </ParamField>
+
+  <ParamField path="instruction.Description" type="string">
+    A human-readable description of the action.
+  </ParamField>
+
+  <ParamField path="instruction.Method" type="*string" optional>
+    The action method to execute.
+  </ParamField>
+
+  <ParamField path="instruction.Arguments" type="[]string" optional>
+    Arguments to pass to the action method.
+  </ParamField>
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientActOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Cache" type="*Caching" optional>
+    Override server-side caching for this request. Construct with `stagehand.CacheEnabled(enabled)`
+    or `stagehand.CacheWithThreshold(threshold)`, where the threshold is the positive
+    identical-result count required before serving a cache hit.
+  </ParamField>
+
+  <ParamField path="options.IgnoreLocators" type="[]*PageLocator" optional>
+    Page-created locators to exclude from instruction-planning context. Create each with
+    `page.Locator("...")`; use `Nth(index)` on a locator to exclude only that indexed match.
+  </ParamField>
+
+  <ParamField path="options.Locator" type="*PageLocator" optional>
+    The page locator that identifies the action target. Create it with `page.Locator("...")`; use
+    `Nth(index)` on the locator to target a specific match.
+  </ParamField>
+
+  <ParamField path="options.Model" type="*ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.Model.APIKey" type="*string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.Model.Headers" type="ModelConfigHeaders" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.Model.ModelName" type="ModelName">
+      A supported provider-prefixed [model identifier](/v4/configuration/models).
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The SDK page to target. Uses the active page when omitted.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+
+  <ParamField path="options.Variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(ActResult, error)">
+  The operation result.
+
+<ResponseField name="result.Data" type="ActResultData">
+  The action outcome.
+
+<ResponseField name="result.Data.ActionDescription" type="string">
+  A summary of the completed action.
+</ResponseField>
+
+  <ResponseField name="result.Data.Actions" type="[]Action">
+    The actions that were performed.
+
+    <ResponseField name="result.Data.Actions.Arguments" type="[]string" optional>
+      Arguments passed to the action.
+    </ResponseField>
+
+    <ResponseField name="result.Data.Actions.Description" type="string">
+      A human-readable action description.
+    </ResponseField>
+
+    <ResponseField name="result.Data.Actions.Method" type="*string" optional>
+      The action method.
+    </ResponseField>
+
+    <ResponseField name="result.Data.Actions.Selector" type="string">
+      The action target selector.
+    </ResponseField>
+
+  </ResponseField>
+
+<ResponseField name="result.Data.Message" type="string">
+  The operation message.
+</ResponseField>
+
+  <ResponseField name="result.Data.Success" type="bool">
+    Whether the action succeeded.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.Metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.Metadata.Cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.Metadata.Cache.Status" type="CacheStatus">
+      `CacheStatusHIT` when a cached result was served, `CacheStatusMISS` when the result was
+      computed, or `CacheStatusDISABLED` when no cache lookup ran.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Count" type="*int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Threshold" type="*int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.Metadata.Cache.MissReason" type="*string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.TokensSaved" type="*CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.InputTokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.OutputTokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.TotalTokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.ActionID" type="*string" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.Usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.Metadata.Usage.InputTokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.OutputTokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.ReasoningTokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.CachedInputTokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.InferenceTimeMs" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## Observe()
+
+Find candidate actions on the page from an optional instruction.
+
+```go
+instruction := "Find the sign in button"
+
+actions, err := client.Observe(ctx, &instruction, nil)
+if err != nil {
+	return err
+}
+fmt.Println(actions)
+```
+
+```go
+func (s *Stagehand) Observe(ctx context.Context, instruction *string, options *StagehandClientObserveOptions) (ObserveResult, error)
+```
+
+<ParamField path="instruction" type="*string" optional>
+  The natural-language instruction. Pass `nil` to observe without one.
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientObserveOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Cache" type="*Caching" optional>
+    Override server-side caching for this request. Construct with `stagehand.CacheEnabled(enabled)`
+    or `stagehand.CacheWithThreshold(threshold)`, where the threshold is the identical-result count
+    required before serving a cache hit.
+  </ParamField>
+
+  <ParamField path="options.IgnoreLocators" type="[]*PageLocator" optional>
+    Page-created CSS or XPath locators to exclude from consideration. Create each with
+    `page.Locator("...")`; use `Nth(index)` on a locator to exclude only that indexed match.
+    `text=` locators are not yet supported for observe snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.Locator" type="*PageLocator" optional>
+    A page-created CSS or XPath locator that scopes the operation. Create it with
+    `page.Locator("...")`; use `Nth(index)` on the locator to target a specific match. `text=`
+    locators are not yet supported for observe snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.Model" type="*ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.Model.APIKey" type="*string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.Model.Headers" type="ModelConfigHeaders" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.Model.ModelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The SDK page to target. Uses the active page when omitted.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+
+  <ParamField path="options.Variables" type="Variables" optional>
+    Variables available to the instruction.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(ObserveResult, error)">
+  The operation result.
+
+<ResponseField name="result.Data" type="[]Action">
+  Candidate actions found on the page.
+
+<ResponseField name="result.Data.Arguments" type="[]string" optional>
+  Arguments passed to the action.
+</ResponseField>
+
+<ResponseField name="result.Data.Description" type="string">
+  A human-readable action description.
+</ResponseField>
+
+<ResponseField name="result.Data.Method" type="*string" optional>
+  The action method.
+</ResponseField>
+
+  <ResponseField name="result.Data.Selector" type="string">
+    The action target selector.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="result.Metadata" type="StagehandResultMetadata">
+  Metadata associated with the operation.
+
+  <ResponseField name="result.Metadata.Cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.Metadata.Cache.Status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Count" type="*int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Threshold" type="*int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.Metadata.Cache.MissReason" type="*string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.TokensSaved" type="*CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.InputTokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.OutputTokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.TotalTokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.ActionID" type="*string" optional>
+    The action ID associated with the operation.
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.Usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.Metadata.Usage.InputTokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.OutputTokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.ReasoningTokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.CachedInputTokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.InferenceTimeMs" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+</ResponseField>
+</ResponseField>
+
+## Extract()
+
+Extract structured data from the page. `Extract` is a package-level generic function rather than a method: the type parameter is the schema. Stagehand derives a JSON Schema from `T`, extracts matching data, and decodes the result into a `T`. Unlike TypeScript and Python, there is no default schema; supply `T` explicitly.
+
+```go
+type Product struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+}
+
+product, err := stagehand.Extract[Product](ctx, client, "Extract the product", nil)
+if err != nil {
+	return err
+}
+fmt.Println(product.Data, product.Metadata.Cache.Status)
+```
+
+```go
+func Extract[T any](ctx context.Context, client *Stagehand, instruction string, options *StagehandClientExtractOptions) (TypedExtractResult[T], error)
+```
+
+<ParamField path="client" type="*Stagehand">
+  The Stagehand instance to extract with.
+</ParamField>
+
+<ParamField path="instruction" type="string">
+  The natural-language instruction.
+</ParamField>
+
+<ParamField path="options" type="*StagehandClientExtractOptions" optional>
+  Options that configure this operation. Pass `nil` for defaults.
+
+  <ParamField path="options.Cache" type="*Caching" optional>
+    Override server-side caching for this request. Construct with `stagehand.CacheEnabled(enabled)`
+    or `stagehand.CacheWithThreshold(threshold)`, where the threshold is the identical-result count
+    required before serving a cache hit.
+  </ParamField>
+
+  <ParamField path="options.IgnoreLocators" type="[]*PageLocator" optional>
+    Page-created CSS or XPath locators to exclude from consideration. Create each with
+    `page.Locator("...")`; use `Nth(index)` on a locator to exclude only that indexed match.
+    `text=` locators are not yet supported for extract snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.Locator" type="*PageLocator" optional>
+    A page-created CSS or XPath locator that scopes the operation. Create it with
+    `page.Locator("...")`; use `Nth(index)` on the locator to target a specific match. `text=`
+    locators are not yet supported for extract snapshot scoping.
+  </ParamField>
+
+  <ParamField path="options.Model" type="*ModelConfig" optional>
+    Model configuration for this call. When neither this nor an initialized model exists, Browserbase selects one automatically for Gateway sessions.
+
+    <ParamField path="options.Model.APIKey" type="*string" optional>
+      The model provider API key.
+    </ParamField>
+
+    <ParamField path="options.Model.Headers" type="ModelConfigHeaders" optional>
+      Additional model provider headers.
+    </ParamField>
+
+    <ParamField path="options.Model.ModelName" type="ModelName">
+      The model identifier.
+    </ParamField>
+
+  </ParamField>
+
+  <ParamField path="options.Page" type="*Page" optional>
+    The SDK page to target. Uses the active page when omitted.
+  </ParamField>
+
+  <ParamField path="options.Screenshot" type="*bool" optional>
+    Whether the operation may use a screenshot.
+  </ParamField>
+
+  <ParamField path="options.Timeout" type="*float64" optional>
+    The operation timeout in milliseconds.
+  </ParamField>
+</ParamField>
+
+<ResponseField name="result" type="(TypedExtractResult[T], error)">
+  The extraction result.
+
+  <ResponseField name="result.Data" type="T">
+    Data decoded into the caller's type.
+  </ResponseField>
+
+  <ResponseField name="result.Metadata" type="StagehandResultMetadata">
+    Metadata associated with the extraction.
+
+  <ResponseField name="result.Metadata.Cache" type="CacheMetadata">
+    Cache observability for this result; status is DISABLED when no cache lookup ran.
+
+    <ResponseField name="result.Metadata.Cache.Status" type="CacheStatus">
+      Whether server-side caching served or computed this result.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Count" type="*int" optional>
+      Times this cache key has been seen, including this request.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.Threshold" type="*int" optional>
+      The hit-count threshold in effect for this key.
+    </ResponseField>
+
+
+    <ResponseField name="result.Metadata.Cache.MissReason" type="*string" optional>
+      Why the cache did not serve this request; misses only.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Cache.TokensSaved" type="*CacheTokenSavings" optional>
+      LLM tokens avoided by serving this request from cache; hits only.
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.InputTokens" type="int">
+        Input tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.OutputTokens" type="int">
+        Output tokens avoided.
+      </ResponseField>
+
+      <ResponseField name="result.Metadata.Cache.TokensSaved.TotalTokens" type="int">
+        Total tokens avoided.
+      </ResponseField>
+
+    </ResponseField>
+
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.ActionID" type="*string" optional>
+    The action ID associated with the extraction.
+  </ResponseField>
+
+  <ResponseField name="result.Metadata.Usage" type="StagehandResultUsage">
+    Aggregate LLM usage for the operation. All counters are `0` when the operation does not run inference.
+
+    <ResponseField name="result.Metadata.Usage.InputTokens" type="int">
+      Input tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.OutputTokens" type="int">
+      Output tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.ReasoningTokens" type="int">
+      Reasoning tokens consumed by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.CachedInputTokens" type="int">
+      Cached input tokens used by all LLM calls.
+    </ResponseField>
+
+    <ResponseField name="result.Metadata.Usage.InferenceTimeMs" type="int">
+      Total time spent waiting for LLM inference, in milliseconds.
+    </ResponseField>
+  </ResponseField>
+  </ResponseField>
+</ResponseField>
+
+</Tab>
+</Tabs>

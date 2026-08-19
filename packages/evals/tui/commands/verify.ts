@@ -16,12 +16,12 @@ import {
   loadTrajectoryFromDisk,
   nextResultFilename,
   type AvailableModel,
-} from "@browserbasehq/stagehand";
+} from "stagehand-v3";
 
 import { bold, cyan, dim, gray, green, red, yellow } from "../format.js";
 
 export interface VerifyOptions {
-  /** Absolute or cwd-relative path to a `<run-id>/<task-id>/` directory. */
+  /** Absolute or cwd-relative path to a `<group>/<task-id>/<run-id>/` directory. */
   trajectoryDir: string;
   /** Override the verifier model. Defaults to whatever V3Evaluator picks. */
   model?: string;
@@ -42,7 +42,9 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
 
   ${cyan("Arguments")}
     <trajectory-dir>       Path to a saved trajectory directory containing
-                           trajectory.json (typically under .trajectories/<run-id>/<task-id>/).
+                           trajectory.json (typically under
+                           .trajectories/<group>/<task-id>/<run-id>/, where <group>
+                           is <experiment>__<model>__<runToken> or "default").
 
   ${cyan("Options")}
     --model <name>         Override the verifier LLM (default: V3Evaluator's default,
@@ -55,9 +57,9 @@ ${bold("evals verify")} ${dim("— re-score a saved trajectory offline")}
     --help, -h             This message.
 
   ${cyan("Examples")}
-    evals verify .trajectories/2026-05-11T06-47-09-697Z/united_13
-    evals verify .trajectories/<run>/<task> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
-    evals verify .trajectories/<run>/<task> --json > result.json
+    evals verify .trajectories/agent__20260715-110342/united_13/2026-07-15T11-03-51-204Z
+    evals verify .trajectories/<group>/<task>/<run> --model anthropic/claude-haiku-4-5 --label tuning-pass-1
+    evals verify .trajectories/<group>/<task>/<run> --json > result.json
 `);
 }
 
@@ -83,18 +85,14 @@ function parseArgs(args: string[]): ParsedArgs {
     } else if (a === "--model" || a === "--label") {
       const value = args[++i];
       if (value === undefined || value.startsWith("-")) {
-        throw new Error(
-          `Missing value for ${a}. Run 'evals verify --help' for usage.`,
-        );
+        throw new Error(`Missing value for ${a}. Run 'evals verify --help' for usage.`);
       }
       if (a === "--model") parsed.model = value;
       else parsed.label = value;
     } else if (!a.startsWith("-") && !parsed.trajectoryDir) {
       parsed.trajectoryDir = a;
     } else {
-      throw new Error(
-        `Unknown argument: ${a}. Run 'evals verify --help' for usage.`,
-      );
+      throw new Error(`Unknown argument: ${a}. Run 'evals verify --help' for usage.`);
     }
   }
   return parsed;
@@ -156,8 +154,7 @@ export async function handleVerify(args: string[]): Promise<void> {
   // ── Human summary ──────────────────────────────────────────────────────
   console.log(`  ${green("✓")} verified in ${(elapsedMs / 1000).toFixed(1)}s`);
   console.log();
-  const processScore =
-    result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
+  const processScore = result.processScore === undefined ? "n/a" : result.processScore.toFixed(3);
   console.log(
     `${bold("Result")}  outcomeSuccess=${result.outcomeSuccess}  processScore=${processScore}`,
   );
@@ -172,9 +169,7 @@ export async function handleVerify(args: string[]): Promise<void> {
     console.log(bold("Per-criterion"));
     for (const c of perCriterion) {
       const earned = c.earnedPoints === null ? "—" : c.earnedPoints.toFixed(1);
-      const flag = c.evidenceInsufficient
-        ? ` ${yellow("[evidence_insufficient]")}`
-        : "";
+      const flag = c.evidenceInsufficient ? ` ${yellow("[evidence_insufficient]")}` : "";
       console.log(`  ${cyan(earned)}/${c.maxPoints}  ${c.criterion}${flag}`);
       if (c.explanation) {
         console.log(`    ${dim(c.explanation.slice(0, 220))}`);
@@ -192,9 +187,7 @@ export async function handleVerify(args: string[]): Promise<void> {
           : f.severity === "warning"
             ? yellow(`[${f.severity}]`)
             : dim(`[${f.severity}]`);
-      const steps = f.relatedSteps?.length
-        ? gray(` steps=[${f.relatedSteps.join(",")}]`)
-        : "";
+      const steps = f.relatedSteps?.length ? gray(` steps=[${f.relatedSteps.join(",")}]`) : "";
       console.log(`  ${sev} ${f.category}${steps}`);
       console.log(`    ${f.description}`);
       if (f.suggestedAction) {
@@ -214,9 +207,7 @@ export async function handleVerify(args: string[]): Promise<void> {
   await fs.mkdir(path.dirname(outPath), { recursive: true });
   await fs.writeFile(outPath, JSON.stringify(result, null, 2));
   console.log();
-  console.log(
-    `${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`,
-  );
+  console.log(`${green("✓")} wrote ${cyan(path.relative(process.cwd(), outPath))}`);
 }
 
 async function assertTrajectoryDir(dir: string): Promise<void> {
@@ -234,8 +225,6 @@ async function assertTrajectoryDir(dir: string): Promise<void> {
   try {
     await fs.access(path.join(dir, "trajectory.json"));
   } catch {
-    throw new Error(
-      `Missing trajectory.json in ${dir}. Is this a valid trajectory directory?`,
-    );
+    throw new Error(`Missing trajectory.json in ${dir}. Is this a valid trajectory directory?`);
   }
 }

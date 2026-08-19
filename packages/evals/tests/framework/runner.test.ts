@@ -1,9 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { DiscoveredTask } from "../../framework/types.js";
-import {
-  resolveBenchModelEntries,
-  type RunEvalsOptions,
-} from "../../framework/runner.js";
+import { resolveBenchModelEntries, type RunEvalsOptions } from "../../framework/runner.js";
 
 vi.mock("playwright", () => ({
   chromium: {},
@@ -164,7 +161,7 @@ describe("runner: single-task agent model detection", () => {
     expect(effectiveCategory).toBeNull();
   });
 
-  it("uses agent and CUA model entries for direct suite benchmarks", () => {
+  it("resolves suite benchmarks as the external-benchmark category", () => {
     const benchTasks = [
       makeTask({
         name: "agent/webvoyager",
@@ -180,7 +177,7 @@ describe("runner: single-task agent model detection", () => {
 
     expect(resolved.effectiveCategory).toBe("external_agent_benchmarks");
     expect(resolved.isAgentCategory).toBe(true);
-    expect(resolved.modelEntries.length).toBeGreaterThan(1);
-    expect(resolved.modelEntries.some((entry) => entry.cua)).toBe(true);
+    expect(resolved.modelEntries.length).toBeGreaterThan(0);
+    expect(resolved.modelEntries.every((entry) => entry.mode === "hybrid")).toBe(true);
   });
 });
