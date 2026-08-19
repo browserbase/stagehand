@@ -21,7 +21,6 @@ Export credentials (Browserbase is the default and recommended backend). Codex a
 ```bash
 export OPENAI_API_KEY=sk-...
 export BROWSERBASE_API_KEY=bb_live_...
-export BROWSERBASE_PROJECT_ID=...   # optional
 ```
 
 ## Run
@@ -30,14 +29,13 @@ export BROWSERBASE_PROJECT_ID=...   # optional
 pnpm --filter @browserbasehq/stagehand-integrations-example-codex-facade start "Open https://example.com, snapshot it, and report the heading citing the snapshot ID."
 ```
 
-| Variable                 | Purpose                                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STAGEHAND_BROWSER`      | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                              |
-| `BROWSERBASE_API_KEY`    | Browserbase credential for the browser session.                                                                                                               |
-| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID.                                                                                                                              |
-| `CODEX_STAGEHAND_MODEL`  | Optional model override; by default Codex uses its own harness-tuned model.                                                                                   |
-| `OPENAI_API_KEY`         | Codex SDK credential (never forwarded to the browser).                                                                                                        |
-| `CODEX_PATH_OVERRIDE`    | Path to a locally installed `codex` binary if your package manager skips the SDK's vendored-binary postinstall (`export CODEX_PATH_OVERRIDE=$(which codex)`). |
+| Variable                | Purpose                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STAGEHAND_BROWSER`     | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`.                                                              |
+| `BROWSERBASE_API_KEY`   | Browserbase credential for the browser session.                                                                                                               |
+| `CODEX_STAGEHAND_MODEL` | Optional model override; by default Codex uses its own harness-tuned model.                                                                                   |
+| `OPENAI_API_KEY`        | Codex SDK credential (never forwarded to the browser).                                                                                                        |
+| `CODEX_PATH_OVERRIDE`   | Path to a locally installed `codex` binary if your package manager skips the SDK's vendored-binary postinstall (`export CODEX_PATH_OVERRIDE=$(which codex)`). |
 
 The local sandbox stays `read-only` — all browser work happens inside the MCP server. Note
 Codex has no native turn limit; long tasks run until the model finishes.

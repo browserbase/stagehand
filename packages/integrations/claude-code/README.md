@@ -18,7 +18,6 @@ Export credentials (Browserbase is the default and recommended backend):
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 export BROWSERBASE_API_KEY=bb_live_...
-export BROWSERBASE_PROJECT_ID=...   # optional
 ```
 
 ## Run
@@ -31,7 +30,6 @@ pnpm --filter @browserbasehq/stagehand-integrations-example-claude-code-facade s
 | ------------------------ | ------------------------------------------------------------------------------------------------ |
 | `STAGEHAND_BROWSER`      | Browser backend. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
 | `BROWSERBASE_API_KEY`    | Browserbase credential for the browser session.                                                  |
-| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID.                                                                 |
 | `CLAUDE_STAGEHAND_MODEL` | Agent model; defaults to `claude-sonnet-5`.                                                      |
 | `ANTHROPIC_API_KEY`      | Claude Agent SDK credential (never forwarded to the browser).                                    |
 

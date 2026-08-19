@@ -21,7 +21,6 @@ else, never restated.
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
 
-Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`
-(`BROWSERBASE_PROJECT_ID` is optional), and run — see the directory's README. TypeScript
-examples consume `core/` as a workspace dependency; the Python projects resolve the published
+Each example is a self-contained project: install, export `BROWSERBASE_API_KEY`, and run —
+see the directory's README. TypeScript examples consume `core/` as a workspace dependency; the Python projects resolve the published
 `stagehand` package.
