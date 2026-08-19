@@ -113,7 +113,6 @@ when any block is set:
   "PATH": "/usr/local/bin:/usr/bin:/bin",
   "HOME": "/Users/you",
   "STAGEHAND_BROWSER": "browserbase",
-  "BROWSERBASE_API_KEY": "bb_live_...",
-  "BROWSERBASE_PROJECT_ID": "..."
+  "BROWSERBASE_API_KEY": "bb_live_..."
 }
 ```
