@@ -58,7 +58,7 @@ pnpm --dir packages/integrations/opencode start -- \
 | Variable | Purpose |
 | --- | --- |
 | `OPENCODE_MODEL` | Optional OpenCode model in `provider/model` form. |
-| Provider variables | Credentials supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. OpenCode does not forward them to the MCP child. |
+| Provider variables | Credentials supported by OpenCode, such as `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. The SDK example does not forward them to the MCP child. |
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise local. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
@@ -75,7 +75,7 @@ The MCP child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variable
 
 ## Connect a running OpenCode CLI
 
-The package ships a project-scoped `opencode.json` that mounts the same facade server in the OpenCode CLI and enables only the three Stagehand tools. Its command path is relative to the package, so start the CLI from that directory:
+The package ships a project-scoped `opencode.json` that mounts the Stagehand facade MCP server in the OpenCode CLI and enables only the three Stagehand tools. Its command path is relative to the package, so start the CLI from that directory:
 
 ```bash
 cd packages/integrations/opencode
@@ -83,7 +83,7 @@ opencode mcp list
 opencode
 ```
 
-OpenCode inherits your shell environment, so the exports above are the only configuration. For a headless one-shot run:
+OpenCode passes the CLI's shell environment to local MCP servers, so the facade process also receives provider credentials exported in that shell. This differs from the SDK example's explicit environment allowlist. The exports above are otherwise the only configuration. For a headless one-shot run:
 
 ```bash
 opencode run "your instruction"
