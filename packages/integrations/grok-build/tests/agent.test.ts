@@ -9,6 +9,7 @@ import {
   createGrokProfile,
   createGrokRuntime,
   grokAcpArgs,
+  resolveGrokAuthHome,
   resolveGrokExecutable,
   resolveInstruction,
   runGrokBuild,
@@ -113,6 +114,15 @@ describe("Grok ACP profile", () => {
     const executable = resolveGrokExecutable();
     await expect(access(executable)).resolves.toBeUndefined();
     expect(executable).toContain("@xai-official/grok/bin/grok");
+  });
+
+  it("resolves cached auth only from the supplied environment", () => {
+    expect(resolveGrokAuthHome({ GROK_HOME: "/configured", HOME: "/home" })).toBe("/configured");
+    expect(resolveGrokAuthHome({ HOME: "/home" })).toBe(join("/home", ".grok"));
+    expect(resolveGrokAuthHome({ USERPROFILE: "C:\\Users\\test" })).toBe(
+      join("C:\\Users\\test", ".grok"),
+    );
+    expect(resolveGrokAuthHome({})).toBeUndefined();
   });
 });
 

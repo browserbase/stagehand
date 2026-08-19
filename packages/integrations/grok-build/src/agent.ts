@@ -6,7 +6,7 @@ import { runAcpFacadeAgent } from "@browserbasehq/stagehand-integrations/acp";
 import { FACADE_TOOLS } from "@browserbasehq/stagehand-integrations/facade";
 import { createRequire } from "node:module";
 import { access, copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
@@ -53,6 +53,13 @@ export type RunGrokBuildOptions = {
 
 export function resolveGrokExecutable(): string {
   return require.resolve("@xai-official/grok/bin/grok");
+}
+
+export function resolveGrokAuthHome(env: NodeJS.ProcessEnv): string | undefined {
+  const configured = env.GROK_HOME?.trim();
+  if (configured) return configured;
+  const userHome = env.HOME?.trim() || env.USERPROFILE?.trim();
+  return userHome ? join(userHome, ".grok") : undefined;
 }
 
 export function grokAcpArgs(agentProfilePath: string): string[] {
@@ -155,15 +162,17 @@ export async function createGrokRuntime(
 
   let cachedAuthAvailable = false;
   if (!env.XAI_API_KEY?.trim()) {
-    const sourceHome = env.GROK_HOME?.trim() || join(homedir(), ".grok");
-    const sourceAuth = join(sourceHome, "auth.json");
-    try {
-      await access(sourceAuth);
-      await copyFile(sourceAuth, join(grokHome, "auth.json"));
-      cachedAuthAvailable = true;
-    } catch {
-      // Missing cached auth is reported after ACP initialization, when Grok's
-      // advertised methods are known.
+    const sourceHome = resolveGrokAuthHome(env);
+    if (sourceHome) {
+      const sourceAuth = join(sourceHome, "auth.json");
+      try {
+        await access(sourceAuth);
+        await copyFile(sourceAuth, join(grokHome, "auth.json"));
+        cachedAuthAvailable = true;
+      } catch {
+        // Missing cached auth is reported after ACP initialization, when Grok's
+        // advertised methods are known.
+      }
     }
   }
   return { root, userHome, cwd, grokHome, agentProfilePath, cachedAuthAvailable };

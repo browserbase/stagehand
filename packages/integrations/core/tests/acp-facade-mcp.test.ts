@@ -76,4 +76,18 @@ describe("ACP facade MCP adapter", () => {
       BROWSERBASE_API_KEY: "bb-secret",
     });
   });
+
+  it.skipIf(process.platform === "win32")(
+    "preserves signal termination from the facade process",
+    async () => {
+      const child = spawn(
+        process.execPath,
+        [builtFacadeLauncher, "-e", 'process.kill(process.pid, "SIGTERM")'],
+        { stdio: "ignore" },
+      );
+
+      const [code, signal] = (await once(child, "exit")) as [number | null, NodeJS.Signals | null];
+      expect({ code, signal }).toStrictEqual({ code: null, signal: "SIGTERM" });
+    },
+  );
 });

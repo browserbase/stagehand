@@ -70,6 +70,7 @@ export async function runAcpFacadeAgent(options: RunAcpFacadeAgentOptions): Prom
     options.facadeServerPath ??
     fileURLToPath(new URL("../facade/stdio-server.mjs", import.meta.url));
   const signal = options.signal;
+  if (signal?.aborted) throw interruptedError(options.profile.id);
   const agentProcess = spawnAcpAgentProcess({
     command: options.profile.command,
     args: options.profile.args,
@@ -106,6 +107,14 @@ export async function runAcpFacadeAgent(options: RunAcpFacadeAgentOptions): Prom
   );
 
   try {
+    try {
+      await agentProcess.started;
+    } catch (error) {
+      throw new Error(
+        `Unable to start ACP agent ${options.profile.id}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
     return await app.connectWith(agentProcess.transport, async (context) => {
       agentContext = context;
       const initialization = await context.request<InitializeResponse, InitializeRequest>(

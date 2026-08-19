@@ -156,6 +156,36 @@ describe("ACP facade runner", () => {
     ).rejects.toThrow();
   });
 
+  it("reports a controlled startup failure when the ACP executable is missing", async () => {
+    const runtime = await makeRuntime("success");
+    await expect(
+      runAcpFacadeAgent({
+        profile: { ...profile(), command: join(runtime.cwd, "missing-acp-agent") },
+        instruction: "Task",
+        cwd: runtime.cwd,
+        env: runtime.env,
+        facadeServerPath: "/facade.mjs",
+        terminationGraceMs: 10,
+      }),
+    ).rejects.toThrow("Unable to start ACP agent fake");
+  });
+
+  it("does not spawn the ACP process when already cancelled", async () => {
+    const runtime = await makeRuntime("success");
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      runAcpFacadeAgent({
+        profile: { ...profile(), command: join(runtime.cwd, "missing-acp-agent") },
+        instruction: "Task",
+        cwd: runtime.cwd,
+        env: runtime.env,
+        facadeServerPath: "/facade.mjs",
+        signal: controller.signal,
+      }),
+    ).rejects.toThrow("run interrupted");
+  });
+
   it.each([
     { behavior: "empty", message: "returned no assistant text" },
     { behavior: "refusal", message: "stopped with refusal" },
@@ -249,11 +279,16 @@ async function makeRuntime(behavior: string): Promise<{
   temporaryDirectories.push(cwd);
   const recordPath = join(cwd, "events.jsonl");
   await writeFile(recordPath, "");
+  const hostEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => !name.startsWith("STAGEHAND_") && !name.startsWith("BROWSERBASE_"),
+    ),
+  );
   return {
     cwd,
     recordPath,
     env: {
-      ...process.env,
+      ...hostEnv,
       ACP_FAKE_BEHAVIOR: behavior,
       ACP_RECORD_PATH: recordPath,
       STAGEHAND_BROWSER: "local",

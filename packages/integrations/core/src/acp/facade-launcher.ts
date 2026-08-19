@@ -17,8 +17,10 @@ const forwardSignal = (signal: NodeJS.Signals) => {
   if (!facade.kill(signal)) process.exit(signal === "SIGINT" ? 130 : 143);
 };
 
-process.once("SIGINT", () => forwardSignal("SIGINT"));
-process.once("SIGTERM", () => forwardSignal("SIGTERM"));
+const onSigint = () => forwardSignal("SIGINT");
+const onSigterm = () => forwardSignal("SIGTERM");
+process.once("SIGINT", onSigint);
+process.once("SIGTERM", onSigterm);
 facade.once("error", (error) => {
   process.stderr.write(`Unable to start Stagehand facade: ${error.message}\n`);
   process.exit(1);
@@ -26,6 +28,9 @@ facade.once("error", (error) => {
 facade.once("exit", (code, signal) => {
   if (exiting) return;
   exiting = true;
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 1);
+  if (signal) {
+    process.removeListener("SIGINT", onSigint);
+    process.removeListener("SIGTERM", onSigterm);
+    process.kill(process.pid, signal);
+  } else process.exit(code ?? 1);
 });

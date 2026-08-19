@@ -3,7 +3,7 @@ title: "Grok Build"
 description: "Give a Grok Build agent persistent Stagehand browser tools over ACP."
 ---
 
-The Grok Build integration starts Grok as an ACP agent and gives its session exactly one MCP server: the Stagehand facade. The facade owns one persistent browser and exposes `run`, `snapshot`, and `screenshot` for the full prompt turn.
+The Grok Build integration starts Grok as an ACP agent and gives its session exactly one MCP server: the Stagehand facade MCP server. The facade owns one persistent browser and exposes `run`, `snapshot`, and `screenshot` for the full prompt turn.
 
 <Note>
 Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
@@ -63,7 +63,7 @@ pnpm --dir packages/integrations/grok-build start -- \
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
 | `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
-| `STAGEHAND_MODEL_API_KEY` | Credential for `STAGEHAND_MODEL_NAME`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive Grok's credential. |
 
 ## Keep the browser session alive
 

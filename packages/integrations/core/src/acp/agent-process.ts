@@ -4,6 +4,7 @@ import { Readable, Writable } from "node:stream";
 
 export type AcpAgentProcess = {
   readonly transport: Stream;
+  readonly started: Promise<void>;
   signal(signal: "SIGTERM" | "SIGKILL"): Promise<void>;
   terminate(graceMs: number): Promise<void>;
 };
@@ -21,6 +22,10 @@ export function spawnAcpAgentProcess(options: {
     env: definedEnvironment(options.env),
     stdio: ["pipe", "pipe", "pipe"],
   });
+  const started = new Promise<void>((resolve, reject) => {
+    child.once("spawn", resolve);
+    child.on("error", reject);
+  });
   child.stderr.pipe(options.stderr, { end: false });
 
   let closed = false;
@@ -32,6 +37,7 @@ export function spawnAcpAgentProcess(options: {
   });
 
   return {
+    started,
     transport: ndJsonStream(
       Writable.toWeb(child.stdin) as WritableStream<Uint8Array>,
       Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
