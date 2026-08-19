@@ -72,6 +72,16 @@ export type CursorRuntimeAgent = {
   [Symbol.asyncDispose](): Promise<void>;
 };
 
+export class CursorInterruptionError extends Error {
+  readonly signal: NodeJS.Signals | undefined;
+
+  constructor(signal?: NodeJS.Signals) {
+    super("Cursor run interrupted.");
+    this.name = "CursorInterruptionError";
+    this.signal = signal;
+  }
+}
+
 export type RunCursorOptions = {
   env?: NodeJS.ProcessEnv;
   facadeServerPath?: string;
@@ -90,26 +100,26 @@ export async function runCursor(
   const workspaceDirectory = await (options.makeWorkspaceDirectory ?? createWorkspaceDirectory)();
   let agent: CursorRuntimeAgent | undefined;
   let activeRun: CursorRuntimeRun | undefined;
-  let interrupted = false;
+  let interruptedBy: NodeJS.Signals | undefined;
 
-  const removeSignalHandlers = forwardTerminationSignals(() => {
-    interrupted = true;
+  const removeSignalHandlers = forwardTerminationSignals((signal) => {
+    interruptedBy = signal;
     if (activeRun) void activeRun.cancel().catch(() => undefined);
   });
 
   try {
     const createAgent = options.createAgent ?? ((agentOptions) => Agent.create(agentOptions));
     agent = await createAgent(buildCursorAgentOptions(workspaceDirectory, facadeServerPath, env));
-    if (interrupted) throw new Error("Cursor run interrupted.");
+    if (interruptedBy) throw new CursorInterruptionError(interruptedBy);
     activeRun = await agent.send(buildCursorPrompt(instruction));
-    if (interrupted) {
+    if (interruptedBy) {
       await activeRun.cancel().catch(() => undefined);
-      throw new Error("Cursor run interrupted.");
+      throw new CursorInterruptionError(interruptedBy);
     }
 
     const result = await activeRun.wait();
-    if (interrupted) throw new Error("Cursor run interrupted.");
-    if (result.status === "cancelled") throw new Error("Cursor run interrupted.");
+    if (interruptedBy) throw new CursorInterruptionError(interruptedBy);
+    if (result.status === "cancelled") throw new CursorInterruptionError();
     if (result.status === "error") {
       const detail = result.error?.message?.trim();
       throw new Error(detail ? `Cursor run failed: ${detail}` : "Cursor run failed.");
@@ -132,12 +142,14 @@ async function createWorkspaceDirectory(): Promise<string> {
   return mkdtemp(join(tmpdir(), "stagehand-cursor-"));
 }
 
-function forwardTerminationSignals(onSignal: () => void): () => void {
-  process.once("SIGINT", onSignal);
-  process.once("SIGTERM", onSignal);
+function forwardTerminationSignals(onSignal: (signal: NodeJS.Signals) => void): () => void {
+  const onSigint = () => onSignal("SIGINT");
+  const onSigterm = () => onSignal("SIGTERM");
+  process.once("SIGINT", onSigint);
+  process.once("SIGTERM", onSigterm);
   return () => {
-    process.removeListener("SIGINT", onSignal);
-    process.removeListener("SIGTERM", onSignal);
+    process.removeListener("SIGINT", onSigint);
+    process.removeListener("SIGTERM", onSigterm);
   };
 }
 
@@ -150,6 +162,10 @@ async function main(): Promise<void> {
 
 if (import.meta.main) {
   main().catch((error: unknown) => {
+    if (error instanceof CursorInterruptionError && error.signal) {
+      process.kill(process.pid, error.signal);
+      return;
+    }
     // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
