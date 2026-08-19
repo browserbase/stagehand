@@ -44,7 +44,10 @@ so if you must pin variables there, restate `PATH` explicitly.
 
 ## Run
 
-Run fx from this directory so it picks up `.fx.json` (which raises `max_tool_result_bytes` —
+Run fx from this directory — this is required, not optional: the `skills/stagehand-facade`
+skill teaches the model the exact `mcp_stagehand_*` tool names (fx's tool search cannot find
+them), and without it runs stall in discovery and fall back to shell exploration. Running here
+also picks up `.fx.json` (which raises `max_tool_result_bytes` —
 page snapshots exceed fx's 64 KB default — and `max_agent_steps`, since fx's tool discovery
 adds a `mcp_search_tools`/`mcp_select_tool` round trip before the browser tools are callable)
 and the `skills/stagehand-facade` skill:
@@ -71,6 +74,21 @@ the tools in `~/.fx/settings.json`:
 ```
 
 or pass `--auto`, accepting that fx adjudicates each gated call with an extra model request.
+For browser-only workflows, also deny fx's shell tool — if the model cannot find the browser
+tools (for example when the skill is not loaded), it falls back to exploring the machine with
+`run_command`, which can dump your environment (including credentials) into the model
+transcript:
+
+```json
+{
+  "permission": {
+    "mcp_stagehand_run": "allow",
+    "mcp_stagehand_snapshot": "allow",
+    "mcp_stagehand_screenshot": "allow",
+    "run_command": "deny"
+  }
+}
+```
 
 <Note>
 fx starts MCP servers with a fixed 10-second timeout and discards their stderr. The facade
