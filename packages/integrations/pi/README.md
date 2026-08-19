@@ -19,7 +19,7 @@ key pi supports:
 
 ```bash
 export BROWSERBASE_API_KEY=bb_live_...
-export BROWSERBASE_PROJECT_ID=...
+export BROWSERBASE_PROJECT_ID=...   # optional
 export OPENAI_API_KEY=sk-...   # or ANTHROPIC_API_KEY
 ```
 
