@@ -3,6 +3,7 @@ import { generateObject, generateText } from "ai";
 import { z } from "zod";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AISdkClient } from "../../lib/v3/llm/aisdk.js";
+import { LLMProvider } from "../../lib/v3/llm/LLMProvider.js";
 
 vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
@@ -75,6 +76,31 @@ describe("AISdkClient structured output provider options", () => {
       );
     },
   );
+
+  it("passes Anthropic options through LLMProvider", async () => {
+    const client = new LLMProvider(vi.fn()).getClient(
+      "anthropic/claude-opus-4-8",
+    );
+
+    await client.createChatCompletion({
+      options: {
+        messages: [{ role: "user", content: "hello" }],
+        response_model: {
+          name: "test",
+          schema: z.object({ ok: z.boolean() }),
+        },
+      },
+      logger: vi.fn(),
+    });
+
+    expect(mockGenerateObject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerOptions: {
+          anthropic: { structuredOutputMode: "auto" },
+        },
+      }),
+    );
+  });
 
   it("omits temperature for claude-opus-4-7 structured calls", async () => {
     const client = new AISdkClient({
