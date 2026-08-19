@@ -27,7 +27,6 @@ Export the browser credentials (Browserbase is the default and recommended backe
 
 ```bash
 export BROWSERBASE_API_KEY=bb_live_...
-export BROWSERBASE_PROJECT_ID=...
 ```
 
 ## Configure
