@@ -10,6 +10,7 @@ import {
   buildAllowlistedEnv,
   buildCursorAgentOptions,
   buildCursorPrompt,
+  CursorInterruptionError,
   resolveInstruction,
   runCursor,
   type CursorRuntimeAgent,
@@ -262,6 +263,10 @@ describe("cursor stagehand example", () => {
       await vi.waitFor(() => expect(wait).toHaveBeenCalledOnce());
       process.emit(signal);
       await expect(running).rejects.toThrow("Cursor run interrupted.");
+      await expect(running).rejects.toMatchObject({
+        name: CursorInterruptionError.name,
+        signal,
+      });
       expect(cancel).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledOnce();
       await expect(access(directory)).rejects.toThrow();
