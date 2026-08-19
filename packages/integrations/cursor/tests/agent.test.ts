@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -270,6 +272,21 @@ describe("cursor stagehand example", () => {
       expect(cancel).toHaveBeenCalledOnce();
       expect(dispose).toHaveBeenCalledOnce();
       await expect(access(directory)).rejects.toThrow();
+    },
+  );
+
+  it.skipIf(process.platform === "win32").each(["SIGINT", "SIGTERM"] as const)(
+    "re-raises %s from the CLI failure handler",
+    async (signal) => {
+      const agentModule = new URL("../src/agent.ts", import.meta.url).href;
+      const script = `import { CursorInterruptionError, handleFailure } from ${JSON.stringify(agentModule)}; handleFailure(new CursorInterruptionError(${JSON.stringify(signal)}));`;
+      const child = spawn(process.execPath, ["--input-type=module", "--eval", script], {
+        stdio: "ignore",
+      });
+
+      const [exitCode, exitSignal] = await once(child, "exit");
+      expect(exitCode).toBeNull();
+      expect(exitSignal).toBe(signal);
     },
   );
 });
