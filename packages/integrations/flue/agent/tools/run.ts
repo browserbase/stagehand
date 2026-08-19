@@ -8,7 +8,7 @@ import {
 
 import { discardFacadeToolsIfUnhealthy, getFacadeTools } from "../../src/session.js";
 
-const runInput = v.object({
+const runInput = v.strictObject({
   code: v.optional(v.pipe(v.string(), v.minLength(1))),
   actions: v.optional(v.pipe(v.array(v.record(v.string(), v.unknown())), v.minLength(1))),
 });

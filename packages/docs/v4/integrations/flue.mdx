@@ -38,7 +38,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 Set `FLUE_STAGEHAND_MODEL` to select another Flue model.
   </Step>
   <Step title="Choose the browser">
-The example uses local Chrome by default. To use Browserbase instead:
+The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
 
 ```bash
 export STAGEHAND_BROWSER="browserbase"
@@ -61,7 +61,7 @@ Flue uses the `run` tool and should report `Example Domain` before the process e
 | --- | --- |
 | `FLUE_STAGEHAND_MODEL` | Flue agent model. Defaults to `openai/gpt-5.6-luna`. |
 | `OPENAI_API_KEY` | Credential for the example's default Flue model. |
-| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
 | `STAGEHAND_MODEL_NAME` | Optional. The facade tools are deterministic and do not call a Stagehand model today. |

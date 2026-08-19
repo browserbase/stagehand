@@ -12,7 +12,7 @@ import { discardFacadeToolsIfUnhealthy, getFacadeTools } from "../../src/session
 export default defineTool({
   name: "screenshot",
   description: SCREENSHOT_TOOL_DESCRIPTION,
-  input: v.object({
+  input: v.strictObject({
     fullPage: v.optional(v.boolean()),
     type: v.optional(v.picklist(["png", "jpeg"])),
     quality: v.optional(v.pipe(v.number(), v.minValue(0), v.maxValue(100))),

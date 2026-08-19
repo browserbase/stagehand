@@ -11,7 +11,7 @@ import { discardFacadeToolsIfUnhealthy, getFacadeTools } from "../../src/session
 export default defineTool({
   name: "snapshot",
   description: SNAPSHOT_TOOL_DESCRIPTION,
-  input: v.object({
+  input: v.strictObject({
     includeIframes: v.optional(v.boolean()),
   }),
   async run({ data }) {

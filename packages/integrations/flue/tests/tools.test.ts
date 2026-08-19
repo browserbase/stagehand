@@ -5,6 +5,7 @@ import path from "node:path";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import { init } from "@flue/runtime";
 import { start } from "@flue/runtime/node";
+import * as v from "valibot";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -66,6 +67,9 @@ describe("Flue Stagehand facade tools", () => {
     await expect(
       runTool.run(runContext({ code: "return 1;", actions: [{ op: "click", id: "1-1" }] })),
     ).rejects.toThrow("run requires exactly one of code or actions");
+    expect(() => v.parse(runTool.input, { code: "return 1;", extra: true })).toThrow();
+    expect(() => v.parse(snapshotTool.input, { includeIframes: false, extra: true })).toThrow();
+    expect(() => v.parse(screenshotTool.input, { type: "png", extra: true })).toThrow();
   });
 
   it("routes valid inputs through one facade tool set", async () => {
@@ -112,15 +116,16 @@ describe("Flue Stagehand facade tools", () => {
       fauxAssistantMessage(fauxText("Example Domain")),
     ]);
 
-    const flue = await start({ agents: [StagehandAgent], providers: [faux.provider] });
+    let flue: Awaited<ReturnType<typeof start>> | undefined;
     try {
+      flue = await start({ agents: [StagehandAgent], providers: [faux.provider] });
       const agent = init(StagehandAgent, { id: `stagehand-test-${randomUUID()}` });
       const receipt = await agent.dispatch("Open example.com and report its title.");
       const reply = await agent.read(receipt, { signal: AbortSignal.timeout(10_000) });
       expect(reply.text).toBe("Example Domain");
       expect(fakeFacade.run).toHaveBeenCalledWith("return await page.title();");
     } finally {
-      await flue.stop();
+      await flue?.stop();
       if (previousModel === undefined) delete process.env.FLUE_STAGEHAND_MODEL;
       else process.env.FLUE_STAGEHAND_MODEL = previousModel;
     }
