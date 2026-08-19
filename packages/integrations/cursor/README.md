@@ -62,22 +62,22 @@ active Cursor run before the agent, MCP process, and temporary workspace are cle
 
 ## Connecting a running Cursor CLI instead
 
-To use the facade from the interactive `cursor-agent` CLI rather than the SDK, the project-scoped
+To use the facade from the interactive `agent` CLI rather than the SDK, the project-scoped
 `.cursor/mcp.json` in this directory is all that's needed. Cursor automatically discovers it and
 inherits the Stagehand and Browserbase exports above. Start the CLI from this directory:
 
 ```bash
 cd packages/integrations/cursor
-cursor-agent mcp list
-cursor-agent mcp list-tools stagehand
-cursor-agent
+agent mcp list
+agent mcp list-tools stagehand
+agent
 ```
 
 For a headless one-shot run, approve the configured MCP server so tool calls do not wait for an
 interactive prompt:
 
 ```bash
-cursor-agent -p --approve-mcps "your instruction"
+agent -p --approve-mcps "your instruction"
 ```
 
 ## Security model

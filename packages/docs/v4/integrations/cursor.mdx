@@ -81,15 +81,15 @@ The package ships a project-scoped `.cursor/mcp.json` that mounts the Stagehand 
 
 ```bash
 cd packages/integrations/cursor
-cursor-agent mcp list
-cursor-agent mcp list-tools stagehand
-cursor-agent
+agent mcp list
+agent mcp list-tools stagehand
+agent
 ```
 
 Cursor inherits your shell environment, so the exports above are the only configuration. For a headless one-shot run, approve the configured MCP server so tool calls do not wait for an interactive prompt:
 
 ```bash
-cursor-agent -p --approve-mcps "your instruction"
+agent -p --approve-mcps "your instruction"
 ```
 
 <Warning>

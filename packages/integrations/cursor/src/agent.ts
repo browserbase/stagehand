@@ -161,13 +161,15 @@ async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
-  main().catch((error: unknown) => {
-    if (error instanceof CursorInterruptionError && error.signal) {
-      process.kill(process.pid, error.signal);
-      return;
-    }
-    // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
+  main().catch(handleFailure);
+}
+
+export function handleFailure(error: unknown): void {
+  if (error instanceof CursorInterruptionError && error.signal) {
+    process.kill(process.pid, error.signal);
+    return;
+  }
+  // oxlint-disable-next-line no-console -- CLI example reports failures to stderr.
+  console.error(error instanceof Error ? error.message : error);
+  process.exitCode = 1;
 }
