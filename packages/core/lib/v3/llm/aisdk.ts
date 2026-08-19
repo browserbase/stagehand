@@ -27,8 +27,8 @@ import { toJsonSchema } from "../zodCompat.js";
 type ProviderOptionValue = JSONValue;
 type ProviderOptionMap = Record<string, ProviderOptionValue>;
 
-function inferProviderName(modelId: string): string | undefined {
-  const [providerName] = modelId.split("/");
+function inferProviderName(model: LanguageModelV2): string | undefined {
+  const [providerName] = model.provider?.split(".") ?? model.modelId.split("/");
   return providerName || undefined;
 }
 
@@ -160,7 +160,7 @@ export class AISdkClient extends LLMClient {
     const userReasoningEffort = this.clientOptions?.reasoningEffort;
     const resolvedReasoningEffort =
       userReasoningEffort ?? (isGPT5SubModel ? "none" : undefined);
-    const providerName = inferProviderName(this.model.modelId);
+    const providerName = inferProviderName(this.model);
 
     // Models that lack native structured-output support need a prompt-based
     // JSON fallback instead of response_format: { type: "json_schema" }.
