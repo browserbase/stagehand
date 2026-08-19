@@ -50,8 +50,10 @@ inside OpenCode's tool loop, so `screenshot` remains multimodal.
 To use the facade from the interactive `opencode` CLI rather than the SDK, the project-scoped
 `opencode.json` in this directory is all that's needed. It enables only the three Stagehand tools
 and inherits your shell environment, including the Stagehand and Browserbase exports above.
-Unlike the isolated SDK example, OpenCode also passes provider credentials from that environment
-to the facade process. Start the CLI from this directory:
+Unlike the isolated SDK example, OpenCode also passes provider credentials that you export in
+that shell to the facade process. If JavaScript passed to `run` uses `act`, `extract`, or
+`observe`, export `STAGEHAND_MODEL_NAME` and the separate `STAGEHAND_MODEL_API_KEY`; OpenCode's
+provider credential is not reused as the Stagehand credential. Start the CLI from this directory:
 
 ```bash
 cd packages/integrations/opencode

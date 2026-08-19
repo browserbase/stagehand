@@ -83,7 +83,7 @@ opencode mcp list
 opencode
 ```
 
-OpenCode passes the CLI's shell environment to local MCP servers, so the facade process also receives provider credentials exported in that shell. This differs from the SDK example's explicit environment allowlist. The exports above are otherwise the only configuration. For a headless one-shot run:
+OpenCode passes the CLI's shell environment to local MCP servers, so the facade process also receives provider credentials that you export in that shell. This differs from the SDK example's explicit environment allowlist. If JavaScript passed to `run` uses `act`, `extract`, or `observe`, export `STAGEHAND_MODEL_NAME` and the separate `STAGEHAND_MODEL_API_KEY`; OpenCode's provider credential is not reused as the Stagehand credential. The exports above are otherwise the only configuration. For a headless one-shot run:
 
 ```bash
 opencode run "your instruction"
