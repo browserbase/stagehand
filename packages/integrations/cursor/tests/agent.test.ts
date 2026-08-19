@@ -289,6 +289,24 @@ describe("cursor stagehand example", () => {
       expect(exitSignal).toBe(signal);
     },
   );
+
+  it("reports an ordinary CLI failure to stderr with exit code 1", async () => {
+    const agentModule = new URL("../src/agent.ts", import.meta.url).href;
+    const script = `import { handleFailure } from ${JSON.stringify(agentModule)}; handleFailure(new Error("boom"));`;
+    const child = spawn(process.execPath, ["--input-type=module", "--eval", script], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    child.stderr.setEncoding("utf8");
+    let stderr = "";
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+
+    const [exitCode, exitSignal] = await once(child, "close");
+    expect(exitCode).toBe(1);
+    expect(exitSignal).toBeNull();
+    expect(stderr).toBe("boom\n");
+  });
 });
 
 function fakeAgent(result: {
