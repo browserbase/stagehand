@@ -60,6 +60,26 @@ The MCP child receives only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variable
 key and unrelated host secrets remain in the agent process. `SIGINT` and `SIGTERM` cancel the
 active Cursor run before the agent, MCP process, and temporary workspace are cleaned up.
 
+## Connecting a running Cursor CLI instead
+
+To use the facade from the interactive `cursor-agent` CLI rather than the SDK, the project-scoped
+`.cursor/mcp.json` in this directory is all that's needed. Cursor automatically discovers it and
+inherits the Stagehand and Browserbase exports above. Start the CLI from this directory:
+
+```bash
+cd packages/integrations/cursor
+cursor-agent mcp list
+cursor-agent mcp list-tools stagehand
+cursor-agent
+```
+
+For a headless one-shot run, approve the configured MCP server so tool calls do not wait for an
+interactive prompt:
+
+```bash
+cursor-agent -p --approve-mcps "your instruction"
+```
+
 ## Security model
 
 The `run` tool executes model-authored JavaScript inside the Stagehand browser extension's service

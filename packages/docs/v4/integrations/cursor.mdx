@@ -75,6 +75,23 @@ The facade process remains attached to one Cursor agent for the full run. On com
 
 Only non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables cross into the MCP child. The Cursor API key and unrelated host secrets remain in the agent process.
 
+## Connect a running Cursor CLI
+
+The package ships a project-scoped `.cursor/mcp.json` that mounts the same facade server in the Cursor CLI. Its `args` path is relative to the package, so start the CLI from that directory:
+
+```bash
+cd packages/integrations/cursor
+cursor-agent mcp list
+cursor-agent mcp list-tools stagehand
+cursor-agent
+```
+
+Cursor inherits your shell environment, so the exports above are the only configuration. For a headless one-shot run, approve the configured MCP server so tool calls do not wait for an interactive prompt:
+
+```bash
+cursor-agent -p --approve-mcps "your instruction"
+```
+
 <Warning>
 `run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
 </Warning>
