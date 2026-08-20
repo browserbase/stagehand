@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import type { LLMGenerateParams, LLMGenerateResult } from "../../protocol/types.js";
 import type { CacheClient } from "../clients/cacheClient.js";
 import { extract } from "../inference.js";
+import { replaceElementIdsWithUrls, transformSchema } from "../utils.js";
 import { StagehandLogger } from "../logger.js";
 import * as cacheService from "../services/cacheService.js";
 import * as extractService from "../services/extractService.js";
@@ -61,6 +62,8 @@ describe("extract inference", () => {
       cached_input_tokens: 2,
     });
     expect(generate).toHaveBeenCalledTimes(2);
+    expect(generate.mock.calls[0]?.[0].systemPrompt).toContain("frameId-backendId");
+    expect(generate.mock.calls[0]?.[0].systemPrompt).not.toContain("ONLY the IDs");
     expect(generate.mock.calls[0]?.[0]).toMatchObject({
       responseFormat: { type: "json_schema", name: "Extraction" },
       messages: [
@@ -512,6 +515,83 @@ describe("extract service", () => {
       expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("extract URL id resolution", () => {
+  it("transforms z.url() fields but leaves plain strings alone", () => {
+    const schema = z.object({
+      title: z.string(),
+      url: z.url(),
+      href: z.string(),
+    });
+    const [, urlPaths] = transformSchema(schema, []);
+    expect(urlPaths).toStrictEqual([{ segments: ["url"] }]);
+  });
+
+  it("replaces leaked element IDs in plain string fields", () => {
+    const output = {
+      title: "Example Domain",
+      url: "0-74",
+      stories: "[0-74]\n[0-112]",
+      rank1_url: "0-3152",
+      hrefs: "0-74, see notes",
+      already: "https://keep.example/",
+      score: "0-74",
+      notes: "see [0-74]",
+      unresolved: "[9-9]",
+    };
+    replaceElementIdsWithUrls(output, {
+      "0-74": "https://example.com/",
+      "0-112": "https://example.com/about",
+      "0-3152": "https://news.ycombinator.com/item?id=1",
+    });
+    expect(output).toStrictEqual({
+      title: "Example Domain",
+      url: "https://example.com/",
+      stories: "https://example.com/\nhttps://example.com/about",
+      rank1_url: "https://news.ycombinator.com/item?id=1",
+      hrefs: "https://example.com/, see notes",
+      already: "https://keep.example/",
+      score: "0-74",
+      notes: "see https://example.com/",
+      unresolved: "[9-9]",
+    });
+  });
+
+  it("resolves IDs returned in z.string() URL fields after extraction", async () => {
+    const generate = vi.fn(async (params: LLMGenerateParams): Promise<LLMGenerateResult> => {
+      const name = params.responseFormat?.type === "json_schema" && params.responseFormat.name;
+      return structuredResult(
+        name === "Extraction"
+          ? { title: "Example Domain", url: "0-74" }
+          : { progress: "Extracted the story", completed: true },
+      );
+    });
+
+    const result = await extractService.extract({
+      params: {
+        pageId: "page-1",
+        instruction: "Extract the first story title and its destination URL",
+        schema: z.json().parse(z.toJSONSchema(z.object({ title: z.string(), url: z.string() }))),
+      },
+      page: {
+        captureSnapshot: async () => ({
+          combinedTree: "[0-74] link: Example Domain",
+          combinedXpathMap: {},
+          combinedUrlMap: { "0-74": "https://example.com/" },
+        }),
+        screenshot: async () => new Uint8Array(),
+      },
+      model: { source: "client" },
+      clientLLMGenerate: generate,
+      logger: testLogger(),
+    });
+
+    expect(result.data).toStrictEqual({
+      title: "Example Domain",
+      url: "https://example.com/",
+    });
+  });
 });
 
 function structuredResult(
