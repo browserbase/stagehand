@@ -21,6 +21,15 @@ const AISDKProviderFactories: Record<ModelProvider, AISDKProviderFactory> = {
   google: createGoogleGenerativeAI as AISDKProviderFactory,
   groq: createGroq as AISDKProviderFactory,
   cerebras: createCerebras as AISDKProviderFactory,
+  // OrcaRouter is an OpenAI-compatible gateway; the createOpenAI factory talks
+  // to it once baseURL points at the gateway.
+  orcarouter: createOpenAI as AISDKProviderFactory,
+};
+
+// Default base URL for each OpenAI-compatible gateway provider, applied when the
+// caller does not set one explicitly.
+const DEFAULT_BASE_URL: Partial<Record<ModelProvider, string>> = {
+  orcarouter: "https://api.orcarouter.ai/v1",
 };
 
 type AISDKProviderClientOptions = ClientOptions & Record<string, unknown>;
@@ -30,7 +39,7 @@ function parseClientOptions(clientOptions?: ClientOptions): ClientOptions {
 }
 
 export function toAISDKClientOptions(
-  _subProvider: ModelProvider,
+  subProvider: ModelProvider,
   clientOptions?: ClientOptions,
 ): AISDKProviderClientOptions | undefined {
   const { auth, providerOptions: _providerOptions, ...rest } = parseClientOptions(clientOptions);
@@ -40,6 +49,12 @@ export function toAISDKClientOptions(
     ...rest,
     ...apiKeyOption,
   };
+
+  // OpenAI-compatible gateways route through the Responses API; give them a
+  // sensible base URL when the caller did not pin one.
+  if (DEFAULT_BASE_URL[subProvider] && !options.baseURL) {
+    options.baseURL = DEFAULT_BASE_URL[subProvider];
+  }
 
   return Object.values(options).some((value) => value !== undefined && value !== null)
     ? options
@@ -63,7 +78,12 @@ export function getAISDKLanguageModel(
   const model =
     subProvider === "openai"
       ? (provider as ReturnType<typeof createOpenAI>).responses(subModelName)
-      : provider(subModelName);
+      : subProvider === "orcarouter"
+        ? // OrcaRouter routes on the full gateway-qualified model name
+          // (`orcarouter/fusion`, `orcarouter/deepseek/deepseek-v4-pro`), so
+          // send the complete model name rather than the stripped suffix.
+          (provider as ReturnType<typeof createOpenAI>).responses(`orcarouter/${subModelName}`)
+        : provider(subModelName);
 
   if (middleware) {
     return wrapLanguageModel({ model: model as never, middleware });

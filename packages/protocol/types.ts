@@ -218,6 +218,8 @@ import type {
   ThinkingEffortSchema,
   OpenAIModelIdSchema,
   OpenAIModelNameSchema,
+  OrcaRouterModelIdSchema,
+  OrcaRouterModelNameSchema,
   VariablePrimitiveSchema,
   VariablesSchema,
   VariableValueSchema,
@@ -256,11 +258,13 @@ export type AnthropicModelId = z.infer<typeof AnthropicModelIdSchema>;
 export type GoogleModelId = z.infer<typeof GoogleModelIdSchema>;
 export type GroqModelId = z.infer<typeof GroqModelIdSchema>;
 export type CerebrasModelId = z.infer<typeof CerebrasModelIdSchema>;
+export type OrcaRouterModelId = z.infer<typeof OrcaRouterModelIdSchema>;
 export type OpenAIModelName = z.infer<typeof OpenAIModelNameSchema>;
 export type AnthropicModelName = z.infer<typeof AnthropicModelNameSchema>;
 export type GoogleModelName = z.infer<typeof GoogleModelNameSchema>;
 export type GroqModelName = z.infer<typeof GroqModelNameSchema>;
 export type CerebrasModelName = z.infer<typeof CerebrasModelNameSchema>;
+export type OrcaRouterModelName = z.infer<typeof OrcaRouterModelNameSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type ModelName = z.infer<typeof ModelNameSchema>;
 export type ModelProvider = z.infer<typeof ModelProviderSchema>;

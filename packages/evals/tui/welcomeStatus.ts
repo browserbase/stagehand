@@ -45,6 +45,7 @@ export type EnvSnapshot = {
   google: GoogleKeyEntry;
   browserbase: BrowserbaseKeyEntry;
   braintrust: ProviderKeyEntry;
+  orcarouter: ProviderKeyEntry;
 };
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,7 @@ export function snapshotEnv(): EnvSnapshot {
     google: googleEntry(),
     browserbase: browserbaseEntry(),
     braintrust: providerEntry("BRAINTRUST_API_KEY"),
+    orcarouter: providerEntry("ORCAROUTER_API_KEY"),
   };
 }
 
@@ -177,7 +179,10 @@ export function snapshotEnv(): EnvSnapshot {
 
 export function hasZeroProviderKeys(s: EnvSnapshot): boolean {
   return (
-    s.openai.state === "missing" && s.anthropic.state === "missing" && s.google.state === "missing"
+    s.openai.state === "missing" &&
+    s.anthropic.state === "missing" &&
+    s.google.state === "missing" &&
+    s.orcarouter.state === "missing"
   );
 }
 

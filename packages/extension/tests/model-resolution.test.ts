@@ -7,6 +7,7 @@ import {
   ModelConfigSchema,
   ModelNameSchema,
   OpenAIModelIdSchema,
+  OrcaRouterModelIdSchema,
 } from "../../protocol/schemas.js";
 import type { StagehandInitParams, StagehandResultMetadata } from "../../protocol/types.js";
 import { createStagehandController } from "../controllers/stagehandController.js";
@@ -64,6 +65,7 @@ describe("model configuration", () => {
         ["google", GoogleModelIdSchema.options],
         ["groq", GroqModelIdSchema.options],
         ["cerebras", CerebrasModelIdSchema.options],
+        ["orcarouter", OrcaRouterModelIdSchema.options],
       ] as const;
 
       for (const [provider, modelIds] of providers) {
@@ -75,6 +77,11 @@ describe("model configuration", () => {
 
     it("accepts a provider model ID that contains additional slashes", () => {
       expect(ModelNameSchema.safeParse("groq/openai/gpt-oss-120b").success).toBe(true);
+    });
+
+    it("accepts an OrcaRouter gateway alias and a vendor-prefixed model", () => {
+      expect(ModelNameSchema.safeParse("orcarouter/auto").success).toBe(true);
+      expect(ModelNameSchema.safeParse("orcarouter/deepseek/deepseek-v4-pro").success).toBe(true);
     });
 
     it("rejects a model from an unsupported provider", () => {
