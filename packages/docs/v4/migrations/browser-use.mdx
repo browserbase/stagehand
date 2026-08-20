@@ -554,7 +554,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 
 **`ImportError: cannot import name 'Agent'`.** There is no `Agent` in v4. Replace `Agent(task=...).run()` with [code mode](#code-mode) or [tool calling](#tool-calling).
 
-**Nothing reads my API key.** Stagehand reads no environment variables. Pass the Browserbase key to `browserbase.launch()` and any model key in the `model` option. `load_dotenv()` only populates `os.environ`; you still pass the values in.
+**`KeyError: 'BROWSERBASE_API_KEY'`.** Stagehand reads no environment variables. Pass the Browserbase key to `browserbase.launch()` and any model key in the `model` option. `load_dotenv()` only populates `os.environ`; you still pass the values in.
 
 **My script has no `history` object to read results from.** There's no run history. The value you'd have read from `history.final_result()` or `history.structured_output` is the return of your last `extract()` call, on `.data`.
 
