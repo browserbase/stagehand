@@ -51,11 +51,24 @@ function screenshotAttempts(requested: ScreenshotOptions): ScreenshotOptions[] {
     type: requested.type ?? "jpeg",
     ...(requested.type === "png" ? {} : { quality: requested.quality ?? 40 }),
   };
+  const maxFallbackQuality = requested.type === "png" ? 40 : (requested.quality ?? 40);
   const attempts = [
     initial,
-    { fullPage: false, type: "jpeg" as const, quality: 40 },
-    { fullPage: false, type: "jpeg" as const, quality: 25 },
-    { fullPage: false, type: "jpeg" as const, quality: 10 },
+    {
+      fullPage: false,
+      type: "jpeg" as const,
+      quality: Math.min(maxFallbackQuality, 40),
+    },
+    {
+      fullPage: false,
+      type: "jpeg" as const,
+      quality: Math.min(maxFallbackQuality, 25),
+    },
+    {
+      fullPage: false,
+      type: "jpeg" as const,
+      quality: Math.min(maxFallbackQuality, 10),
+    },
   ];
   return attempts.filter(
     (candidate, index) => attempts.findIndex((other) => sameOptions(candidate, other)) === index,

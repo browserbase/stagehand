@@ -63,6 +63,26 @@ describe("facade screenshot transport", () => {
     expect(result.adjusted).toBe(true);
   });
 
+  it("never increases an explicitly requested jpeg quality during retries", async () => {
+    const capture = vi.fn(async (options: ScreenshotOptions) => ({
+      data: "a".repeat(options.quality === 10 ? 50_000 : 90_000),
+      mimeType: "image/jpeg" as const,
+    }));
+
+    const result = await captureScreenshotWithinBase64Budget(
+      capture,
+      { fullPage: true, type: "jpeg", quality: 20 },
+      60_000,
+    );
+
+    expect(capture.mock.calls.map(([options]) => options)).toStrictEqual([
+      { fullPage: true, type: "jpeg", quality: 20 },
+      { fullPage: false, type: "jpeg", quality: 20 },
+      { fullPage: false, type: "jpeg", quality: 10 },
+    ]);
+    expect(result.options).toStrictEqual({ fullPage: false, type: "jpeg", quality: 10 });
+  });
+
   it("throws a small error instead of returning an oversized frame", async () => {
     const capture = vi.fn(async () => ({
       data: "a".repeat(90_000),
