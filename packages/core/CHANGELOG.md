@@ -1,5 +1,15 @@
 # @browserbasehq/stagehand
 
+## 3.7.2
+
+### Patch Changes
+
+- [#2775](https://github.com/browserbase/stagehand/pull/2775) [`b954a46`](https://github.com/browserbase/stagehand/commit/b954a469e24267d82d8cb944f39f4618311b17b7) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix Anthropic structured output options for provider-prefixed models
+
+- [#2767](https://github.com/browserbase/stagehand/pull/2767) [`98fa7a4`](https://github.com/browserbase/stagehand/commit/98fa7a455d9ee2342464e5135032107b62022cb7) Thanks [@miguelg719](https://github.com/miguelg719)! - Fix: Normalize CUA coordinates to actual viewport
+
+- [#2385](https://github.com/browserbase/stagehand/pull/2385) [`7566804`](https://github.com/browserbase/stagehand/commit/7566804ed4b97649706782bccdcab5d80f6fe588) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `useTouch` option to actuate agent clicks as trusted touch
+
 ## 3.7.1
 
 ### Patch Changes
