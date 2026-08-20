@@ -1,0 +1,12 @@
+{
+  "mcp": {
+    "stagehand": {
+      "type": "stdio",
+      "command": [
+        "node",
+        "/absolute/path/to/stagehand/packages/integrations/core/dist/facade/stdio-server.mjs"
+      ],
+      "required": true
+    }
+  }
+}

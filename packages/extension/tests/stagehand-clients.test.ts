@@ -9,6 +9,7 @@ import {
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.ts";
 import { startStagehandServiceWorker } from "../service-worker.ts";
+import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
   UnderstudyRuntimeClipboardOptions,
@@ -804,7 +805,7 @@ describe("Stagehand worker clients", () => {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         serverInfo: {
           name: "stagehand",
-          version: "1.0.0",
+          version: STAGEHAND_RUNTIME_VERSION,
         },
       },
       __stagehandReceiveFromHost: expect.any(Function),
