@@ -55,6 +55,7 @@
               "v4/integrations/deep-agents",
               "v4/integrations/crewai",
               "v4/integrations/mastra",
+              "v4/integrations/fx",
               "v4/integrations/pi",
               "v4/integrations/vercel-ai-sdk"
             ]
