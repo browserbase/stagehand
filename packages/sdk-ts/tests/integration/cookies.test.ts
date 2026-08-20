@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Stagehand } from "../../src/index.js";
 import {
@@ -192,5 +195,38 @@ describe("cookies", () => {
     expect(keys.sort()).toEqual(
       ["name", "value", "domain", "path", "expires", "httpOnly", "secure", "sameSite"].sort(),
     );
+  });
+
+  it("storageState round-trips cookies including httpOnly", async () => {
+    const ctx = stagehand.browser.context;
+    const page = (await ctx.pages())[0]!;
+    await page.goto(fixtureServer.url);
+
+    const name = `stagehand_storage_${Date.now()}`;
+    await ctx.addCookies([{ name, value: "kept", url: fixtureServer.url, httpOnly: true }]);
+
+    const tempDir = await mkdtemp(path.join(tmpdir(), "stagehand-cookie-storage-"));
+    const statePath = path.join(tempDir, "state.json");
+    try {
+      const exported = await ctx.storageState({ path: statePath });
+      expect(exported.origins).toEqual([]);
+      expect(exported.cookies.some((cookie) => cookie.name === name && cookie.httpOnly)).toBe(
+        true,
+      );
+
+      await ctx.clearCookies();
+      expect((await ctx.cookies(fixtureServer.url)).some((cookie) => cookie.name === name)).toBe(
+        false,
+      );
+
+      await ctx.setStorageState(statePath);
+      const restored = await ctx.cookies(fixtureServer.url);
+      const match = restored.find((cookie) => cookie.name === name);
+      expect(match).toBeDefined();
+      expect(match!.value).toBe("kept");
+      expect(match!.httpOnly).toBe(true);
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

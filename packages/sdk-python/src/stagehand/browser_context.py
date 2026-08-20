@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import TypedDict
 
 from ._generated.input_types import CookieParam
 from ._generated.input_types import DomainPolicy as DomainPolicyInput
@@ -28,10 +31,28 @@ from ._generated.models import (
     DomainPolicy,
     EmptyParams,
     PageRef,
+    SameSite,
 )
 from .browser_clipboard import BrowserClipboard
 from .page import Page
 from .rpc_client import RPCClient
+
+
+class StorageStateLocalStorageItem(TypedDict):
+    name: str
+    value: str
+
+
+class StorageStateOrigin(TypedDict):
+    origin: str
+    localStorage: list[StorageStateLocalStorageItem]
+
+
+class StorageState(TypedDict):
+    """Playwright-compatible storage state. ``origins`` is always empty on export today."""
+
+    cookies: list[Cookie]
+    origins: list[StorageStateOrigin]
 
 
 class BrowserContext:
@@ -157,6 +178,33 @@ class BrowserContext:
             ContextVoidResult,
         )
 
+    async def storage_state(self, *, path: str | Path | None = None) -> StorageState:
+        """Export cookies in a Playwright-compatible storage state shape.
+
+        localStorage / IndexedDB are not included yet (``origins`` is always ``[]``).
+        """
+        cookies = _normalize_storage_state_cookie_same_site(await self.cookies())
+        state: StorageState = {"cookies": cookies, "origins": []}
+        if path is not None:
+            _write_storage_state_file(Path(path), state)
+        return state
+
+    async def set_storage_state(self, state: StorageState | str | Path | Mapping[str, object]) -> None:
+        """Replace cookies from a storage state object or JSON file.
+
+        Clears existing cookies first. ``origins`` / localStorage entries are ignored for now.
+        """
+        resolved = (
+            _load_storage_state_file(Path(state))
+            if isinstance(state, (str, Path))
+            else _normalize_storage_state(state)
+        )
+        cookies = [_cookie_to_param(cookie) for cookie in resolved["cookies"]]
+        await self.clear_cookies()
+        if not cookies:
+            return
+        await self.add_cookies(cookies)
+
 
 def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
     if isinstance(value, str):
@@ -171,3 +219,112 @@ def _cookie_filter(value: str | re.Pattern[str]) -> CookieFilter:
         if enabled
     )
     return CookieFilter(root=CookieRegex(source=value.pattern, flags=flags or None))
+
+
+def _cookie_to_param(cookie: Cookie) -> CookieParam:
+    return {
+        "name": cookie.name,
+        "value": cookie.value,
+        "domain": cookie.domain,
+        "path": cookie.path,
+        "expires": cookie.expires,
+        "http_only": cookie.http_only,
+        "secure": cookie.secure,
+        "same_site": (
+            cookie.same_site.value
+            if isinstance(cookie.same_site, SameSite)
+            else cookie.same_site
+        ),
+    }
+
+
+def _storage_state_to_json(state: StorageState) -> dict[str, object]:
+    return {
+        "cookies": [
+            {
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path,
+                "expires": cookie.expires,
+                "httpOnly": cookie.http_only,
+                "secure": cookie.secure,
+                "sameSite": (
+                    cookie.same_site.value
+                    if isinstance(cookie.same_site, SameSite)
+                    else cookie.same_site
+                ),
+            }
+            for cookie in state["cookies"]
+        ],
+        "origins": list(state["origins"]),
+    }
+
+
+def _write_storage_state_file(path: Path, state: StorageState) -> None:
+    payload = json.dumps(_storage_state_to_json(state), indent=2) + "\n"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+
+
+def _load_storage_state_file(path: Path) -> StorageState:
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise TypeError(f"set_storage_state(): failed to parse JSON from {path}: {error}") from error
+    return _normalize_storage_state(parsed)
+
+
+def _normalize_storage_state_cookie_same_site(cookies: Sequence[Cookie]) -> list[Cookie]:
+    """CDP may omit SameSite; Playwright-compatible storage state uses Lax."""
+    normalized: list[Cookie] = []
+    for cookie in cookies:
+        same_site = cookie.same_site
+        if isinstance(same_site, SameSite):
+            same_site = same_site.value
+        if same_site in (None, ""):
+            normalized.append(cookie.model_copy(update={"same_site": SameSite.lax}))
+        else:
+            normalized.append(cookie)
+    return normalized
+
+
+def _normalize_storage_state(value: object) -> StorageState:
+    if not isinstance(value, Mapping):
+        raise TypeError("storage state must be an object with a cookies array")
+    cookies_value = value.get("cookies")
+    if not isinstance(cookies_value, list):
+        raise TypeError("storage state must include a cookies array")
+    cookies = [
+        _normalize_storage_cookie(entry, index) for index, entry in enumerate(cookies_value)
+    ]
+    # origins / localStorage are ignored until supported; keep the Playwright shape.
+    return {
+        "cookies": _normalize_storage_state_cookie_same_site(cookies),
+        "origins": [],
+    }
+
+
+def _normalize_storage_cookie(value: object, index: int) -> Cookie:
+    if isinstance(value, Cookie):
+        return value
+    if not isinstance(value, Mapping):
+        raise TypeError(f"storage state cookies[{index}] must be an object")
+    same_site = value.get("sameSite", value.get("same_site"))
+    if same_site in (None, ""):
+        same_site = "Lax"
+    http_only = value.get("httpOnly", value.get("http_only"))
+    try:
+        return Cookie.model_validate({
+            "name": value["name"],
+            "value": value["value"],
+            "domain": value["domain"],
+            "path": value["path"],
+            "expires": value["expires"],
+            "http_only": http_only,
+            "secure": value["secure"],
+            "same_site": same_site,
+        })
+    except (KeyError, TypeError, ValueError) as error:
+        raise TypeError(f"storage state cookies[{index}] has an invalid shape") from error

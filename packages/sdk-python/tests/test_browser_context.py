@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -9,6 +11,7 @@ from pydantic import ValidationError
 from stagehand._generated.models import (
     ContextClearCookiesParams,
     ContextVoidResult,
+    Cookie,
     PageRef,
 )
 from stagehand.browser_context import BrowserContext
@@ -80,3 +83,76 @@ async def test_browser_context_serializes_python_cookie_filters() -> None:
             "domain": "example.com",
         }
     })
+
+
+@pytest.mark.asyncio
+async def test_browser_context_storage_state_exports_and_restores(tmp_path: Path) -> None:
+    cookie = Cookie.model_validate({
+        "name": "session",
+        "value": "secret",
+        "domain": "example.com",
+        "path": "/",
+        "expires": -1,
+        "http_only": True,
+        "secure": True,
+        "same_site": "Lax",
+    })
+    recording = RecordingRPCClient({
+        "context.cookies": [cookie],
+        "context.clear_cookies": ContextVoidResult(ok=True),
+        "context.add_cookies": ContextVoidResult(ok=True),
+    })
+    context = BrowserContext(cast(RPCClient, recording))
+    state_path = tmp_path / "state.json"
+
+    exported = await context.storage_state(path=state_path)
+    assert exported["origins"] == []
+    assert exported["cookies"][0].name == "session"
+    written = json.loads(state_path.read_text(encoding="utf-8"))
+    assert written["cookies"][0]["httpOnly"] is True
+    assert written["origins"] == []
+
+    await context.set_storage_state(state_path)
+    assert [call[0] for call in recording.calls] == [
+        "context.cookies",
+        "context.clear_cookies",
+        "context.add_cookies",
+    ]
+    assert recording.calls[2][1].model_dump(exclude_unset=True)["cookies"][0]["http_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_browser_context_set_storage_state_accepts_exported_object() -> None:
+    cookie = Cookie.model_validate({
+        "name": "session",
+        "value": "secret",
+        "domain": "example.com",
+        "path": "/",
+        "expires": -1,
+        "http_only": True,
+        "secure": True,
+        "same_site": "Lax",
+    })
+    recording = RecordingRPCClient({
+        "context.cookies": [cookie],
+        "context.clear_cookies": ContextVoidResult(ok=True),
+        "context.add_cookies": ContextVoidResult(ok=True),
+    })
+    context = BrowserContext(cast(RPCClient, recording))
+
+    exported = await context.storage_state()
+    await context.set_storage_state(exported)
+
+    assert [call[0] for call in recording.calls] == [
+        "context.cookies",
+        "context.clear_cookies",
+        "context.add_cookies",
+    ]
+    assert recording.calls[2][1].model_dump(exclude_unset=True)["cookies"][0]["name"] == "session"
+
+
+@pytest.mark.asyncio
+async def test_browser_context_set_storage_state_rejects_invalid_payload() -> None:
+    context = BrowserContext(cast(RPCClient, RecordingRPCClient()))
+    with pytest.raises(TypeError, match="cookies array"):
+        await context.set_storage_state({})

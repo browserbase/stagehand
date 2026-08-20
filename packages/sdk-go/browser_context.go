@@ -140,3 +140,58 @@ func (c *BrowserContext) ClearCookies(ctx context.Context, options *ClearCookieO
 	var result ContextVoidResult
 	return c.rpc.call(ctx, "context.clear_cookies", params, &result)
 }
+
+// StorageState exports cookies in a Playwright-compatible storage state shape.
+// localStorage / IndexedDB are not included yet (Origins is always empty).
+func (c *BrowserContext) StorageState(ctx context.Context, options *StorageStateOptions) (StorageState, error) {
+	cookies, err := c.Cookies(ctx, nil)
+	if err != nil {
+		return StorageState{}, err
+	}
+	prepared, err := prepareStorageStateCookies(cookies)
+	if err != nil {
+		return StorageState{}, err
+	}
+	state := StorageState{
+		Cookies: prepared,
+		Origins: []StorageStateOrigin{},
+	}
+	if options != nil && options.Path != "" {
+		if err := writeStorageStateFile(options.Path, state); err != nil {
+			return StorageState{}, err
+		}
+	}
+	return state, nil
+}
+
+// SetStorageState replaces cookies from a storage state object.
+// Clears existing cookies first. Origins / localStorage entries are ignored for now.
+func (c *BrowserContext) SetStorageState(ctx context.Context, state StorageState) error {
+	if state.Cookies == nil {
+		return errors.New("storage state must include a cookies array")
+	}
+	cookies, err := prepareStorageStateCookies(state.Cookies)
+	if err != nil {
+		return err
+	}
+	if err := c.ClearCookies(ctx, nil); err != nil {
+		return err
+	}
+	if len(cookies) == 0 {
+		return nil
+	}
+	params := make([]CookieParam, len(cookies))
+	for index, cookie := range cookies {
+		params[index] = cookieToParam(cookie)
+	}
+	return c.AddCookies(ctx, params)
+}
+
+// SetStorageStatePath replaces cookies from a Playwright-compatible JSON file.
+func (c *BrowserContext) SetStorageStatePath(ctx context.Context, path string) error {
+	state, err := readStorageStateFile(path)
+	if err != nil {
+		return err
+	}
+	return c.SetStorageState(ctx, state)
+}

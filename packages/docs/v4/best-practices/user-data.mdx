@@ -146,3 +146,44 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 <Warning>
 A persisted profile carries cookies, tokens, and site data across runs. Treat the directory or context ID as a credential: keep it out of version control and scope it to a single automation.
 </Warning>
+
+## Cookie storage state
+
+When you need a portable auth snapshot (CI artifacts, sharing cookies across machines) instead of a full Chrome profile, export and restore cookies with `storageState` / `storage_state` / `StorageState`. The JSON shape matches Playwright's cookie list. Stagehand reads cookies over CDP, so the export includes HttpOnly cookies. Stagehand does not export localStorage yet and returns `origins` as an empty list.
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+// After login
+await stagehand.browser.context.storageState({ path: "auth.json" });
+
+// Later / another process
+await stagehand.browser.context.setStorageState("auth.json");
+```
+</Tab>
+
+<Tab title="Python">
+```python
+# After login
+await stagehand.browser.context.storage_state(path="auth.json")
+
+# Later / another process
+await stagehand.browser.context.set_storage_state("auth.json")
+```
+</Tab>
+
+<Tab title="Go">
+```go
+if _, err := browserContext.StorageState(ctx, &stagehand.StorageStateOptions{Path: "auth.json"}); err != nil {
+	return err
+}
+
+if err := browserContext.SetStorageStatePath(ctx, "auth.json"); err != nil {
+	return err
+}
+```
+</Tab>
+</Tabs>
+
+Prefer `userDataDir` or Browserbase contexts when you want the whole browser profile. Use storage state when you only need cookies in a file.
+
