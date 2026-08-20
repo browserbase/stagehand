@@ -27,7 +27,7 @@ Two approaches replace the agent:
 - **[Code mode](#code-mode)** puts the model in front of the run, not inside it. A coding assistant writes a Stagehand script once; you run that script every time after. Browserbase recommends starting here.
 - **[Tool calling](#tool-calling)** keeps a model in the loop at runtime, the way Browser Use does, but drives the browser through the full Stagehand API as its tools instead of one broad task string.
 
-Either way, `act()`, `extract()`, and `observe()` stay in your toolbox for the steps that genuinely need a model. You just stop handing a model the entire task.
+`act()`, `extract()`, and `observe()` stay available for the steps where a natural-language instruction beats a selector.
 
 ## Hello world, side by side
 
