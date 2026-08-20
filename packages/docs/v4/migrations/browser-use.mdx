@@ -83,7 +83,7 @@ The shape of the migration is already visible:
 
 - A browser factory (`browserbase.launch()` or `local_browser.launch()`) replaces the implicit browser inside `Agent`, and `Stagehand.create()` attaches the runtime to it.
 - The task string is gone. You write the steps.
-- Where Browser Use would have spent a model call reading the page, a `page.locator()` does it for free. Spend `act()` and `extract()` only where the page needs judgement.
+- Where Browser Use would have spent a model call reading the page, a `page.locator()` reads it directly. Spend `act()` and `extract()` only where the page needs judgement.
 
 <Warning>
 Stagehand reads no environment variables of its own. Browser Use auto-loads `.env` and picks up `OPENAI_API_KEY`, `BROWSER_USE_API_KEY`, and friends. In v4 you pass every key explicitly: the Browserbase API key to the factory, and any model key in the `model` option. `load_dotenv()` still works to get values into `os.environ`; nothing reads them for you.
