@@ -13,7 +13,7 @@ Most of this migration hinges on these principles:
 Porting a flow means writing out the steps the agent used to infer, and deciding for each one whether it needs a model or a selector.
 
 <Note>
-Browser Use is Python-first, so this guide leads with Python. Stagehand behaves the same way in TypeScript; the [SDK reference](/v4/reference/stagehand) carries each language's naming.
+Browser Use is Python-first, so this guide is Python throughout. Stagehand behaves the same way in TypeScript; the [SDK reference](/v4/reference/stagehand) carries each language's naming.
 </Note>
 
 ## Why there's no Agent
@@ -110,8 +110,6 @@ extract() for steps that need a model.
 
 What comes back should read like the script you'd have written yourself:
 
-<Tabs>
-<Tab title="Python">
 ```python
 import asyncio
 import os
@@ -155,42 +153,6 @@ async def main() -> None:
 
 asyncio.run(main())
 ```
-</Tab>
-
-<Tab title="TypeScript">
-```typescript
-import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-import { z } from "zod/v4";
-
-const commentSchema = z.object({
-  comments: z.array(z.object({ author: z.string(), body: z.string() })),
-});
-
-const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
-const stagehand = await Stagehand.create({ browser });
-
-try {
-  const page = await browser.context.newPage("https://news.ycombinator.com");
-
-  // Deterministic where the page allows it: no inference, no variance.
-  await page.locator("a.morelink").first().click();
-  await page.waitForLoadState("domcontentloaded");
-
-  // A model call where the page needs judgement.
-  await stagehand.act("Open the comments for the story with the most comments");
-
-  const { data } = await stagehand.extract(
-    "Extract the top five comments, with each author and body",
-    commentSchema,
-  );
-  console.log(data.comments);
-} finally {
-  await stagehand.close();
-  await browser.close();
-}
-```
-</Tab>
-</Tabs>
 
 Generated code should use `page.locator()` and `page.goto()` wherever a selector is stable, and spend a model call only where the page needs judgement. A Browser Use agent couldn't make that split, because every step it ran was an inference call.
 
@@ -204,20 +166,18 @@ Expose the real API:
 
 | Capability | Tools worth exposing |
 | --- | --- |
-| Navigation | `page.goto()`, `page.reload()`, `page.goBack()`, `page.goForward()` |
+| Navigation | `page.goto()`, `page.reload()`, `page.go_back()`, `page.go_forward()` |
 | Perception | `page.snapshot()`, `page.screenshot()`, `page.url()`, `page.title()` |
-| Element interaction | `locator.click()`, `locator.fill()`, `locator.type()`, `locator.selectOption()`, `locator.setInputFiles()`, `locator.scrollTo()` |
-| Element inspection | `locator.textContent()`, `locator.innerText()`, `locator.isVisible()`, `locator.isChecked()`, `locator.count()`, `locator.inputValue()` |
-| Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.keyPress()`, `page.dragAndDrop()` |
-| Tabs and state | `context.newPage()`, `context.pages()`, `context.setActivePage()`, `context.cookies()` |
-| Waiting | `page.waitForSelector()`, `page.waitForLoadState()`, `page.waitForTimeout()` |
+| Element interaction | `locator.click()`, `locator.fill()`, `locator.type()`, `locator.select_option()`, `locator.set_input_files()`, `locator.scroll_to()` |
+| Element inspection | `locator.text_content()`, `locator.inner_text()`, `locator.is_visible()`, `locator.is_checked()`, `locator.count()`, `locator.input_value()` |
+| Raw input | `page.click(x, y)`, `page.hover()`, `page.scroll()`, `page.type()`, `page.key_press()`, `page.drag_and_drop()` |
+| Tabs and state | `context.new_page()`, `context.pages()`, `context.set_active_page()`, `context.cookies()` |
+| Waiting | `page.wait_for_selector()`, `page.wait_for_load_state()`, `page.wait_for_timeout()` |
 | Model-backed steps | `stagehand.act()`, `stagehand.extract()`, `stagehand.observe()` |
 | Page-declared tools | `page.tools()`, see [WebMCP](/v4/basics/webmcp) |
 
-`page.snapshot()` anchors the loop the way Browser Use's page state did. It returns `formattedTree`, the accessibility tree, plus an `xpathMap`, so the model reads real page structure and hands back a selector you can drive deterministically.
+`page.snapshot()` anchors the loop the way Browser Use's page state did. It returns `formatted_tree`, the accessibility tree, plus an `xpath_map`, so the model reads real page structure and hands back a selector you can drive deterministically.
 
-<Tabs>
-<Tab title="Python">
 ```python
 async def goto(url: str) -> str:
     """Navigate to a URL."""
@@ -257,62 +217,6 @@ async def extract(instruction: str) -> str:
 
 TOOLS = [goto, snapshot, click, fill, read_text, act, extract]
 ```
-</Tab>
-
-<Tab title="TypeScript">
-```typescript
-import { z } from "zod/v4";
-
-const tools = {
-  goto: {
-    description: "Navigate to a URL",
-    parameters: z.object({ url: z.string() }),
-    execute: async ({ url }: { url: string }) => {
-      await page.goto(url);
-      return await page.url();
-    },
-  },
-  snapshot: {
-    description: "Read the accessibility tree of the current page",
-    parameters: z.object({}),
-    execute: async () => (await page.snapshot()).formattedTree,
-  },
-  click: {
-    description: "Click the element matching a selector from the snapshot",
-    parameters: z.object({ selector: z.string() }),
-    execute: async ({ selector }: { selector: string }) => {
-      await page.locator(selector).click();
-    },
-  },
-  fill: {
-    description: "Fill the input matching a selector",
-    parameters: z.object({ selector: z.string(), value: z.string() }),
-    execute: async ({ selector, value }: { selector: string; value: string }) => {
-      await page.locator(selector).fill(value);
-    },
-  },
-  readText: {
-    description: "Read the text of the element matching a selector",
-    parameters: z.object({ selector: z.string() }),
-    execute: async ({ selector }: { selector: string }) =>
-      await page.locator(selector).textContent(),
-  },
-  act: {
-    description: "Perform one action in natural language when no selector is known",
-    parameters: z.object({ instruction: z.string() }),
-    execute: async ({ instruction }: { instruction: string }) =>
-      (await stagehand.act(instruction)).data.message,
-  },
-  extract: {
-    description: "Read structured data off the current page",
-    parameters: z.object({ instruction: z.string() }),
-    execute: async ({ instruction }: { instruction: string }) =>
-      (await stagehand.extract(instruction)).data.extraction,
-  },
-};
-```
-</Tab>
-</Tabs>
 
 <Tip>
 Escalate on `observe()`, never on `act()`. A failed `act()` may already have clicked, submitted, or paid before the error surfaced, so retrying it can repeat the side effect. `observe()` only plans, so retrying it is free. Browser Use's `max_failures` retry loop had the same hazard; keep the retry on the planning step. [Cost optimization](/v4/best-practices/cost-optimization) applies the same idea to model escalation.
@@ -350,8 +254,6 @@ Then work through the sections below for anything it missed.
 
 Browser Use constructs a browser inside the agent and closes it for you. v4 separates the browser from the runtime, and you close both:
 
-<Tabs>
-<Tab title="Python">
 ```diff
 - from browser_use import Agent, ChatOpenAI
 -
@@ -368,25 +270,8 @@ Browser Use constructs a browser inside the agent and closes it for you. v4 sepa
 +     await stagehand.close()
 +     await browser.close()
 ```
-</Tab>
 
-<Tab title="TypeScript">
-```diff
-+ import { browserbase, Stagehand } from "@browserbasehq/stagehand";
-+
-+ const browser = await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY });
-+ const stagehand = await Stagehand.create({ browser });
-+ try {
-+   // your steps
-+ } finally {
-+   await stagehand.close();
-+   await browser.close();
-+ }
-```
-</Tab>
-</Tabs>
-
-Use `local_browser.launch()` for a browser on your machine, `browserbase.launch({ apiKey })` for a hosted one, and `local_browser.connect({ cdpUrl })` or `browserbase.connect({ apiKey, sessionId })` to attach to one that's already running. `browserbase.launch()` is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). Stagehand closes only the browsers it launched, so `stagehand.close()` leaves the browser running and you call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
+Use `local_browser.launch()` for a browser on your machine, `browserbase.launch(api_key=...)` for a hosted one, and `local_browser.connect(cdp_url=...)` or `browserbase.connect(api_key=..., session_id=...)` to attach to one that's already running. `browserbase.launch()` is what enables [server-side caching](/v4/best-practices/caching) and the [Model Gateway](/v4/configuration/models#model-gateway). Stagehand closes only the browsers it launched, so `stagehand.close()` leaves the browser running and you call `browser.close()` yourself. See [browser configuration](/v4/configuration/browser).
 
 ### The task string becomes explicit steps
 
@@ -396,33 +281,15 @@ There's no direct diff here, because a `task` string has no single replacement. 
 
 Browser Use selects a provider by the chat class you construct (`ChatOpenAI`, `ChatAnthropic`, `ChatGoogle`, `ChatBrowserUse`). v4 takes one `model` object, and the model name always carries a provider prefix:
 
-<Tabs>
-<Tab title="Python">
 ```diff
 - from browser_use import Agent, ChatAnthropic
 - agent = Agent(task="...", llm=ChatAnthropic(model="claude-sonnet-4-0"))
 + stagehand = await Stagehand.create(
 +     browser=browser,
-stagehand = await Stagehand.create(
-    browser=browser,
-    model="anthropic/claude-sonnet-4-6",
-    model_api_key=os.environ["ANTHROPIC_API_KEY"],
-)
++     model="anthropic/claude-sonnet-4-6",
++     model_api_key=os.environ["ANTHROPIC_API_KEY"],
++ )
 ```
-</Tab>
-
-<Tab title="TypeScript">
-```diff
-+ const stagehand = await Stagehand.create({
-+   browser,
-+   model: {
-+     modelName: "anthropic/claude-sonnet-4-6",
-+     apiKey: process.env.ANTHROPIC_API_KEY,
-+   },
-+ });
-```
-</Tab>
-</Tabs>
 
 On a Browserbase browser you can omit `model` entirely and the Model Gateway picks one for you, which is the closest analogue to `ChatBrowserUse()`. Pass the same shape to a single `act()`, `extract()`, or `observe()` call to override it there. Browser Use's `page_extraction_llm` (a separate model for extraction) maps to passing `model` on the `extract()` call. See [models](/v4/configuration/models).
 
@@ -430,8 +297,6 @@ On a Browserbase browser you can omit `model` entirely and the Model Gateway pic
 
 Browser Use validates the final result against `output_model_schema` on the agent. v4 puts the schema on the `extract()` call that reads the data, and returns it typed:
 
-<Tabs>
-<Tab title="Python">
 ```diff
 - class SearchResult(BaseModel):
 -     title: str
@@ -448,26 +313,13 @@ Browser Use validates the final result against `output_model_schema` on the agen
 + )
 + # result.data is a SearchResult
 ```
-</Tab>
 
-<Tab title="TypeScript">
-```diff
-+ const { data } = await stagehand.extract(
-+   "Extract the title and URL of the top result",
-+   z.object({ title: z.string(), url: z.url() }),
-+ );
-```
-</Tab>
-</Tabs>
-
-Calling `extract()` with no schema returns `{ extraction: string }`. See [extract](/v4/basics/extract).
+Calling `extract()` with no schema returns an object whose `extraction` field is a string. See [extract](/v4/basics/extract).
 
 ### Sensitive data
 
 Both frameworks keep secrets out of the model's context. Browser Use uses a `sensitive_data` dict of placeholder-to-value; v4 uses `variables` with `%name%` placeholders in the instruction, on `act()` and `observe()`:
 
-<Tabs>
-<Tab title="Python">
 ```diff
 - agent = Agent(
 -     task="Log in with x_user and x_pass",
@@ -484,20 +336,6 @@ Both frameworks keep secrets out of the model's context. Browser Use uses a `sen
 + )
 + await stagehand.act("click the login button")
 ```
-</Tab>
-
-<Tab title="TypeScript">
-```diff
-+ await stagehand.act("type %username% into the email field", {
-+   variables: { username: "user@example.com" },
-+ });
-+ await stagehand.act("type %password% into the password field", {
-+   variables: { password: process.env.PW },
-+ });
-+ await stagehand.act("click the login button");
-```
-</Tab>
-</Tabs>
 
 Stagehand exposes only the variable names to the model and substitutes the real values locally. One exception: with [server-side caching](/v4/best-practices/caching) on, variable values travel to the cache service, so turn `cache` off for calls that carry credentials. See [act](/v4/basics/act#secure-your-automations). For Browser Use's TOTP support (`sensitive_data` keys ending in `bu_2fa_code`), generate the code in your own script and pass it as a variable; v4 has no built-in 2FA step.
 
@@ -511,15 +349,15 @@ Browser Use's `@tools.action(...)` / `@controller.action(...)` decorators regist
 
 | Browser Use | Stagehand v4 |
 | --- | --- |
-| `Browser(headless=False)` | `local_browser.launch({ headless: false })` |
-| `Browser(cdp_url="http://localhost:9222")` | `local_browser.connect({ cdpUrl: "http://localhost:9222" })` |
+| `Browser(headless=False)` | `local_browser.launch(headless=False)` |
+| `Browser(cdp_url="http://localhost:9222")` | `local_browser.connect(cdp_url="http://localhost:9222")` |
 | `Browser(proxy=ProxySettings(...))` | `proxy` on `local_browser.launch()`, or Browserbase proxies |
-| `Browser(allowed_domains=[...])` / `prohibited_domains=[...]` | `browser.context.setDomainPolicy({ allowedDomains, blockedDomains })` |
+| `Browser(allowed_domains=[...])` / `prohibited_domains=[...]` | `browser.context.set_domain_policy(allowed_domains=..., blocked_domains=...)` |
 | `Browser(storage_state="auth.json")` | Cookie API on `browser.context`, or a [Browserbase context](/v4/best-practices/user-data) |
-| `Browser(user_data_dir=...)` | `userDataDir` on `local_browser.launch()` |
-| `Browser(accept_downloads=True, downloads_path=...)` | `acceptDownloads` and `downloadsPath` on `local_browser.launch()` |
-| `Browser(keep_alive=True)` | `keepAlive` on `local_browser.launch()` |
-| `@sandbox(...)` cloud deployment | `browserbase.launch({ apiKey })` plus [deployments](/v4/best-practices/deployments) |
+| `Browser(user_data_dir=...)` | `user_data_dir` on `local_browser.launch()` |
+| `Browser(accept_downloads=True, downloads_path=...)` | `accept_downloads` and `downloads_path` on `local_browser.launch()` |
+| `Browser(keep_alive=True)` | `keep_alive` on `local_browser.launch()` |
+| `@sandbox(...)` cloud deployment | `browserbase.launch(api_key=...)` plus [deployments](/v4/best-practices/deployments) |
 
 Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud infrastructure. The v4 equivalent is a Browserbase browser: `browserbase.launch()` gives you the hosted session, and the [live view, recording, and network detail](/v4/configuration/observability) replace `@sandbox`'s `on_browser_created` / `live_url` and `on_log` callbacks.
 
@@ -531,7 +369,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 | The `task` string | Explicit steps: `page.locator()`, `act()`, `extract()` |
 | `run(max_steps=...)` | Your loop bound, or the length of the script |
 | `agent.add_new_task(...)` (follow-up) | Keep calling steps on the same browser |
-| `ChatOpenAI`, `ChatAnthropic`, `ChatGoogle` | `model: { modelName: "provider/model", apiKey }` |
+| `ChatOpenAI`, `ChatAnthropic`, `ChatGoogle` | `model="provider/model"`, `model_api_key=...` |
 | `ChatBrowserUse()` | Omit `model` on a Browserbase browser (Model Gateway picks) |
 | `page_extraction_llm` | `model` option on the `extract()` call |
 | `output_model_schema=Model` | `extract(instruction, Model)` |
@@ -541,13 +379,13 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 | `history.final_result()` | The return of your last `extract()` |
 | `history.structured_output` | `extract().data`, typed by the schema |
 | `history.urls()`, `history.errors()` | Your own bookkeeping between steps |
-| `use_vision=True` | `screenshot: true` on an `extract()` call |
+| `use_vision=True` | `screenshot=True` on an `extract()` call |
 | `generate_gif=True` | Browserbase [session recording](/v4/configuration/observability) |
 | `Browser(...)` / `BrowserSession(...)` | `local_browser.launch()` or `browserbase.launch()` |
-| `Browser(cdp_url=...)` | `local_browser.connect({ cdpUrl })` |
-| `Browser(allowed_domains=...)` | `browser.context.setDomainPolicy({ allowedDomains })` |
+| `Browser(cdp_url=...)` | `local_browser.connect(cdp_url=...)` |
+| `Browser(allowed_domains=...)` | `browser.context.set_domain_policy(allowed_domains=...)` |
 | `Browser(storage_state=...)` | Cookie API, or a Browserbase context |
-| `@sandbox(...)` | `browserbase.launch({ apiKey })` |
+| `@sandbox(...)` | `browserbase.launch(api_key=...)` |
 | `calculate_cost=True`, `history.usage` | `await stagehand.metrics()` |
 
 ## Troubleshooting
