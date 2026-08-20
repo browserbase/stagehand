@@ -560,7 +560,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 
 **My custom `@tools.action` function has nowhere to register.** Call it directly in code mode, or add it to your tool set for [tool calling](#tool-calling). Only the decorator goes away; the function body is unchanged.
 
-**A retried step repeats a side effect.** You're retrying `act()`, the same hazard Browser Use's `max_failures` loop had. Retry `observe()` instead and pass the resulting action to `act()` once.
+**A retried step repeats a side effect.** You're retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
 
 **My generated script uses `Agent` or old Stagehand APIs.** The assistant is drawing on Browser Use and older Stagehand patterns in its training data. Install the rule files from [AI rules](/v4/first-steps/ai-rules).
 
