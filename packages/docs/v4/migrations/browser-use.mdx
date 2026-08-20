@@ -558,7 +558,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 
 **My script has no `history` object to read results from.** There's no run history. The value you'd have read from `history.final_result()` or `history.structured_output` is the return of your last `extract()` call, on `.data`.
 
-**My custom `@tools.action` function has nowhere to register.** Call it directly in code mode, or add it to your tool set for [tool calling](#tool-calling). Only the decorator goes away; the function body is unchanged.
+**A `@tools.action` function has nowhere to register.** Call it directly in code mode, or add it to your tool set for [tool calling](#tool-calling). Only the decorator goes away; the function body is unchanged.
 
 **A retried step repeats a side effect.** You're retrying `act()`. Retry `observe()` instead and pass the resulting action to `act()` once.
 
