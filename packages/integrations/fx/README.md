@@ -2,8 +2,8 @@
 
 [fx](https://fx.sh) consumes the Stagehand facade as a standard MCP server — no integration
 code, just an entry in fx's user-global MCP config. This directory ships the config template,
-a project config that sizes fx's limits for browser work, and a skill carrying the facade
-usage guidance.
+a project config that sizes fx's limits for browser work, and project instructions plus a skill
+carrying the facade usage guidance.
 
 <!-- Verified against fx v0.0.3; fx is experimental and its config surface may change. -->
 
@@ -43,9 +43,10 @@ so if you must pin variables there, restate `PATH` explicitly.
 
 ## Run
 
-Run fx from this directory — this is required, not optional: the `skills/stagehand-facade`
-skill teaches the model the exact `mcp_stagehand_*` tool names (fx's tool search cannot find
-them), and without it runs stall in discovery and fall back to shell exploration. Running here
+Run fx from this directory — this is required, not optional: `AGENTS.md` and the
+`skills/stagehand-facade` skill teach the model the exact `mcp_stagehand_*` tool names (fx's
+tool search cannot find them), and without that guidance runs stall in discovery, invent legacy
+tool names, or fall back to shell exploration. Running here
 also picks up `.fx.json` (which raises `max_tool_result_bytes` —
 page snapshots exceed fx's 64 KB default — and `max_agent_steps`, since fx's tool discovery
 adds a `mcp_search_tools`/`mcp_select_tool` round trip before the browser tools are callable)
@@ -59,7 +60,18 @@ fx ask --json "Use the stagehand browser tools: open https://example.com, snapsh
 The three tools surface as `mcp_stagehand_run`, `mcp_stagehand_snapshot`, and
 `mcp_stagehand_screenshot`. fx v0.0.3's `mcp_search_tools` returns no results for this server,
 so the shipped skill instructs the model to select the tools by those exact names instead —
-without the skill, runs stall in discovery. Headless runs cannot answer permission prompts; either pre-allow
+without the project guidance, runs stall in discovery. There is no separate navigate or start
+tool; `mcp_stagehand_run` navigates with `await page.goto(...)` and initializes the browser on
+first use.
+
+The template starts the facade with `--max-screenshot-base64-bytes=60000`. In this mode,
+unspecified screenshot options default to a viewport JPEG at quality 40. An oversized requested
+image is retried with progressively smaller viewport JPEGs; if none fits, the server returns a
+small tool error instead of emitting a frame that makes fx close the MCP connection. This is
+separate from `.fx.json`'s `max_tool_result_bytes`: fx enforces the raw response-frame cap before
+it can parse or truncate an inline MCP image.
+
+Headless runs cannot answer permission prompts; either pre-allow
 the tools in `~/.fx/settings.json`:
 
 ```json
