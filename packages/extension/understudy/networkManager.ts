@@ -23,6 +23,8 @@ import {
  * Aggregates network information for all CDP sessions owned by a Page.
  */
 export class NetworkManager {
+  private enabled: boolean;
+  private enableTask?: Promise<void>;
   readonly sessions = new Map<
     string,
     {
@@ -36,6 +38,10 @@ export class NetworkManager {
   readonly requests = new Map<string, NetworkRequestInfo>();
 
   readonly documentRequestsByFrame = new Map<string, string>();
+
+  constructor(enabled = true) {
+    this.enabled = enabled;
+  }
 
   /**
    * Begin tracking network traffic for a CDP session (top-level or OOPIF).
@@ -139,8 +145,10 @@ export class NetworkManager {
     session.on("Network.responseReceived", onResponse);
     session.on("Page.frameStoppedLoading", onFrameStopped);
 
-    void session.send("Network.enable").catch(() => {});
-    void session.send("Page.enable").catch(() => {});
+    if (this.enabled) {
+      void session.send("Network.enable").catch(() => {});
+      void session.send("Page.enable").catch(() => {});
+    }
 
     this.sessions.set(sid, {
       session,
@@ -153,6 +161,40 @@ export class NetworkManager {
         session.off("Page.frameStoppedLoading", onFrameStopped);
       },
     });
+  }
+
+  /** Enable network events after resident bootstrap begins initialization. */
+  public async enable(): Promise<void> {
+    if (this.enabled) return;
+    if (this.enableTask) return await this.enableTask;
+
+    const task = (async () => {
+      const enabledSessions = new Set<CDPSessionLike>();
+      while (true) {
+        const pending = [...this.sessions.values()]
+          .map(({ session }) => session)
+          .filter((session) => !enabledSessions.has(session));
+        if (pending.length === 0) break;
+        await Promise.all(
+          pending.map(async (session) => {
+            try {
+              await session.send("Network.enable");
+              enabledSessions.add(session);
+            } catch (error) {
+              if (this.sessions.get(this.sessionKey(session))?.session !== session) return;
+              throw error;
+            }
+          }),
+        );
+      }
+      this.enabled = true;
+    })();
+    this.enableTask = task;
+    try {
+      await task;
+    } finally {
+      if (this.enableTask === task) this.enableTask = undefined;
+    }
   }
 
   /**
