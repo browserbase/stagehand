@@ -489,16 +489,52 @@
       "destination": "/v4/basics/observe"
     },
     {
+      "source": "/basics/webmcp",
+      "destination": "/v4/basics/webmcp"
+    },
+    {
       "source": "/basics/:slug*",
       "destination": "/v3/basics/:slug*"
     },
     {
-      "source": "/configuration/logging",
-      "destination": "/v4/configuration/logging"
+      "source": "/configuration/:slug*",
+      "destination": "/v4/configuration/:slug*"
     },
     {
-      "source": "/configuration/:slug*",
-      "destination": "/v3/configuration/:slug*"
+      "source": "/best-practices/caching",
+      "destination": "/v4/best-practices/caching"
+    },
+    {
+      "source": "/best-practices/cost-optimization",
+      "destination": "/v4/best-practices/cost-optimization"
+    },
+    {
+      "source": "/best-practices/deployments",
+      "destination": "/v4/best-practices/deployments"
+    },
+    {
+      "source": "/best-practices/mcp-integrations",
+      "destination": "/v4/best-practices/mcp-integrations"
+    },
+    {
+      "source": "/best-practices/prompting-best-practices",
+      "destination": "/v4/best-practices/prompting-best-practices"
+    },
+    {
+      "source": "/best-practices/speed-optimization",
+      "destination": "/v4/best-practices/speed-optimization"
+    },
+    {
+      "source": "/best-practices/usecase-observe",
+      "destination": "/v4/best-practices/usecase-observe"
+    },
+    {
+      "source": "/best-practices/user-data",
+      "destination": "/v4/best-practices/user-data"
+    },
+    {
+      "source": "/best-practices/using-multiple-tabs",
+      "destination": "/v4/best-practices/using-multiple-tabs"
     },
     {
       "source": "/best-practices/:slug*",
@@ -531,6 +567,14 @@
     {
       "source": "/reference/:slug*",
       "destination": "/v4/reference/:slug*"
+    },
+    {
+      "source": "/migrations/playwright",
+      "destination": "/v4/migrations/playwright"
+    },
+    {
+      "source": "/migrations/v3",
+      "destination": "/v4/migrations/v3"
     },
     {
       "source": "/migrations/:slug*",
