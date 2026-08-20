@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { STAGEHAND_PROTOCOL_VERSION } from "../../schemas.ts";
 import {
+  discoverInstalledStagehandExtensionId,
   loadUnpackedExtension,
   resolveBrowserWebSocketUrl,
   StagehandRuntimeIncompatibleError,
-  waitForPreloadedStagehandServiceWorker,
   waitForRuntimeReady,
   waitForServiceWorker,
 } from "../../../sdk-ts/src/cdpClient.ts";
@@ -189,6 +189,7 @@ describe("waitForServiceWorker", () => {
 
     await expect(
       waitForServiceWorker(cdp, {
+        extensionId: "stagehandext",
         delayFn: async () => {},
         signal: lifecycleSignal,
       }),
@@ -227,167 +228,38 @@ describe("waitForServiceWorker", () => {
   });
 });
 
-describe("waitForPreloadedStagehandServiceWorker", () => {
-  it("probes candidate workers and returns the one with the Stagehand runtime", async () => {
-    const wrongWorker = target("wrong-worker", "chrome-extension://otherext/service-worker.js");
-    const stagehandWorker = target(
-      "stagehand-worker",
-      "chrome-extension://stagehandext/service-worker.js",
-    );
-    const attachedSessions = ["wrong-session", "stagehand-session"];
-    const readiness = [
+describe("discoverInstalledStagehandExtensionId", () => {
+  it("returns the enabled Stagehand extension id from Chrome's inventory", async () => {
+    const cdp = new FakeCdp().on("Extensions.getExtensions", () => ({
+      extensions: [
+        installedExtension("otherext", "Other Extension"),
+        installedExtension("stagehandext", "Stagehand Runtime"),
+      ],
+    }));
+
+    await expect(
+      discoverInstalledStagehandExtensionId(cdp, { signal: lifecycleSignal }),
+    ).resolves.toBe("stagehandext");
+
+    expect(cdp.calls).toStrictEqual([
       {
-        marker: {
-          protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-          serverInfo: { name: "other", version: "1" },
-        },
-        hasReceiver: false,
+        method: "Extensions.getExtensions",
+        params: {},
+        sessionId: undefined,
+        signal: lifecycleSignal,
       },
-      readyRuntime(),
-    ];
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: [wrongWorker, stagehandWorker] }))
-      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
-      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
-      .on("Target.detachFromTarget", () => ({}));
-
-    await expect(
-      waitForPreloadedStagehandServiceWorker(cdp, {
-        delayFn: async () => {},
-        signal: lifecycleSignal,
-      }),
-    ).resolves.toStrictEqual({
-      serviceWorker: stagehandWorker,
-      sessionId: "stagehand-session",
-    });
-
-    expect(cdp.calls).toContainEqual({
-      method: "Target.detachFromTarget",
-      params: { sessionId: "wrong-session" },
-      sessionId: undefined,
-      signal: lifecycleSignal,
-    });
-    expect(cdp.calls.some((call) => call.method === "Extensions.loadUnpacked")).toBe(false);
+    ]);
   });
 
-  it("skips a stale Stagehand runtime and selects the compatible version", async () => {
-    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
-    const currentWorker = target(
-      "current-worker",
-      "chrome-extension://currentext/service-worker.js",
-    );
-    const attachedSessions = ["stale-session", "current-session"];
-    const readiness = [runtimeReadiness("2.0.0"), readyRuntime()];
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
-      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
-      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
-      .on("Target.detachFromTarget", () => ({}));
+  it("fails immediately when Stagehand is absent from Chrome's inventory", async () => {
+    const cdp = new FakeCdp().on("Extensions.getExtensions", () => ({
+      extensions: [installedExtension("otherext", "Other Extension")],
+    }));
 
     await expect(
-      waitForPreloadedStagehandServiceWorker(cdp, {
-        delayFn: async () => {},
-        signal: lifecycleSignal,
-      }),
-    ).resolves.toStrictEqual({
-      serviceWorker: currentWorker,
-      sessionId: "current-session",
-    });
-
-    expect(cdp.calls).toContainEqual({
-      method: "Target.detachFromTarget",
-      params: { sessionId: "stale-session" },
-      sessionId: undefined,
-      signal: lifecycleSignal,
-    });
-  });
-
-  it("keeps looking past a stale runtime until initialization is cancelled", async () => {
-    const controller = new AbortController();
-    const reason = new Error("initialization cancelled");
-    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
-      .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
-      .on("Runtime.evaluate", () => ({
-        result: { value: runtimeReadiness("2.0.0") },
-      }))
-      .on("Target.detachFromTarget", () => ({}));
-
-    const error = await rejectedError(
-      waitForPreloadedStagehandServiceWorker(cdp, {
-        pollIntervalMs: 1,
-        signal: controller.signal,
-        delayFn: async () => {
-          controller.abort(reason);
-        },
-      }),
-    );
-
-    expect(error).toBe(reason);
-
-    expect(cdp.calls).toContainEqual({
-      method: "Target.detachFromTarget",
-      params: { sessionId: "stale-session" },
-      sessionId: undefined,
-      signal: controller.signal,
-    });
-  });
-
-  it("throws for a stale runtime when fallback installation is disabled", async () => {
-    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: [staleWorker] }))
-      .on("Target.attachToTarget", () => ({ sessionId: "stale-session" }))
-      .on("Runtime.evaluate", () => ({ result: { value: runtimeReadiness("2.0.0") } }))
-      .on("Target.detachFromTarget", () => ({}));
-
-    await expect(
-      waitForPreloadedStagehandServiceWorker(cdp, {
-        allowFallbackInstall: false,
-        signal: lifecycleSignal,
-      }),
-    ).rejects.toBeInstanceOf(StagehandRuntimeIncompatibleError);
-
-    expect(cdp.calls).toContainEqual({
-      method: "Target.detachFromTarget",
-      params: { sessionId: "stale-session" },
-      sessionId: undefined,
-      signal: lifecycleSignal,
-    });
-  });
-
-  it("continues past a stale runtime when fallback installation is disabled", async () => {
-    const staleWorker = target("stale-worker", "chrome-extension://staleext/service-worker.js");
-    const currentWorker = target(
-      "current-worker",
-      "chrome-extension://currentext/service-worker.js",
-    );
-    const attachedSessions = ["stale-session", "current-session"];
-    const readiness = [runtimeReadiness("2.0.0"), readyRuntime()];
-    const cdp = new FakeCdp()
-      .on("Target.getTargets", () => ({ targetInfos: [staleWorker, currentWorker] }))
-      .on("Target.attachToTarget", () => ({ sessionId: attachedSessions.shift() }))
-      .on("Runtime.evaluate", () => ({ result: { value: readiness.shift() } }))
-      .on("Target.detachFromTarget", () => ({}));
-
-    await expect(
-      waitForPreloadedStagehandServiceWorker(cdp, {
-        allowFallbackInstall: false,
-        delayFn: async () => {},
-        signal: lifecycleSignal,
-      }),
-    ).resolves.toStrictEqual({
-      serviceWorker: currentWorker,
-      sessionId: "current-session",
-    });
-
-    expect(cdp.calls).toContainEqual({
-      method: "Target.detachFromTarget",
-      params: { sessionId: "stale-session" },
-      sessionId: undefined,
-      signal: lifecycleSignal,
-    });
+      discoverInstalledStagehandExtensionId(cdp, { signal: lifecycleSignal }),
+    ).rejects.toThrow("Stagehand extension is not installed in the connected browser");
+    expect(cdp.calls).toHaveLength(1);
   });
 });
 
@@ -583,6 +455,16 @@ function target(targetId: string, url: string): TargetInfo {
     type: "service_worker",
     title: "Service Worker",
     url,
+  };
+}
+
+function installedExtension(id: string, name: string): Record<string, unknown> {
+  return {
+    id,
+    name,
+    version: "1.0.0",
+    path: `/extensions/${id}`,
+    enabled: true,
   };
 }
 
