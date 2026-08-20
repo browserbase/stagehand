@@ -556,7 +556,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 
 **`KeyError: 'BROWSERBASE_API_KEY'`.** Stagehand reads no environment variables. Pass the Browserbase key to `browserbase.launch()` and any model key in the `model` option. `load_dotenv()` only populates `os.environ`; you still pass the values in.
 
-**My script has no `history` object to read results from.** There's no run history. The value you'd have read from `history.final_result()` or `history.structured_output` is the return of your last `extract()` call, on `.data`.
+**`AttributeError` on `history` or `final_result()`.** There's no run history. The value you'd have read from `history.final_result()` or `history.structured_output` is the return of your last `extract()` call, on `.data`.
 
 **A `@tools.action` function has nowhere to register.** Call it directly in code mode, or add it to your tool set for [tool calling](#tool-calling). Only the decorator goes away; the function body is unchanged.
 
