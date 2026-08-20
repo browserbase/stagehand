@@ -1196,6 +1196,8 @@ type ObserveResult struct {
 
 type OpenAIModelName string
 
+type OrcaRouterModelName string
+
 type PageAddInitScriptParams struct {
 	// PageID corresponds to the JSON schema field "page_id".
 	PageID string `json:"page_id"`
@@ -2548,6 +2550,9 @@ type generatedModelCatalog struct {
 
 	// OpenAIModelName corresponds to the JSON schema field "OpenAIModelName".
 	OpenAIModelName *OpenAIModelName `json:"OpenAIModelName,omitempty,omitzero"`
+
+	// OrcaRouterModelName corresponds to the JSON schema field "OrcaRouterModelName".
+	OrcaRouterModelName *OrcaRouterModelName `json:"OrcaRouterModelName,omitempty,omitzero"`
 
 	// PageAddInitScriptParams corresponds to the JSON schema field
 	// "PageAddInitScriptParams".

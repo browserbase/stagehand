@@ -17,6 +17,7 @@ import {
   LLMGenerateResultSchema,
   ModelProviderSchema,
   OpenAIModelIdSchema,
+  OrcaRouterModelNameSchema,
 } from "../../protocol/schemas.js";
 import type { LLMGenerateParams, LLMGenerateResult, ModelConfig } from "../../protocol/types.js";
 
@@ -163,6 +164,18 @@ export function createAiSdkLanguageModel(
       return createGroq(connection)(GroqModelIdSchema.parse(modelId));
     case "cerebras":
       return createCerebras(connection)(CerebrasModelIdSchema.parse(modelId));
+    case "orcarouter": {
+      const orcaRouter = createOpenAI({
+        ...connection,
+        baseURL: "https://api.orcarouter.ai/v1",
+      });
+      // OrcaRouter routes on the full gateway-qualified model name
+      // (`orcarouter/fusion`), so re-attach the provider prefix.
+      const orcaRouterModelName = OrcaRouterModelNameSchema.parse(config.modelName);
+      return params?.stopSequences?.length
+        ? orcaRouter.chat(orcaRouterModelName)
+        : orcaRouter.responses(orcaRouterModelName);
+    }
   }
 }
 

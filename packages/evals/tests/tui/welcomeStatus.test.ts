@@ -16,6 +16,7 @@ const PROVIDER_KEYS = [
   "BB_API_KEY",
   "BB_PROJECT_ID",
   "BRAINTRUST_API_KEY",
+  "ORCAROUTER_API_KEY",
 ];
 
 const savedEnv: Record<string, string | undefined> = {};
@@ -157,6 +158,12 @@ describe("hasZeroProviderKeys", () => {
 
   it("false with only Google set (via GEMINI_API_KEY)", () => {
     process.env.GEMINI_API_KEY = "gemini-test";
+    __resetPackageEnvCacheForTests();
+    expect(hasZeroProviderKeys(snapshotEnv())).toBe(false);
+  });
+
+  it("false with only OrcaRouter set", () => {
+    process.env.ORCAROUTER_API_KEY = "sk-orca-test";
     __resetPackageEnvCacheForTests();
     expect(hasZeroProviderKeys(snapshotEnv())).toBe(false);
   });

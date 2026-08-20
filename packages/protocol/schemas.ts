@@ -179,8 +179,38 @@ export const CerebrasModelIdSchema = z
   ])
   .meta({ id: "CerebrasModelId" });
 
+// OrcaRouter is an OpenAI-compatible gateway that fronts hundreds of models
+// (frontier + open weights) behind a single `sk-orca-` key. The gateway's own
+// routing aliases live under the `orcarouter/` prefix; upstream models exposed
+// by https://api.orcarouter.ai/v1/models are addressable by their vendor name.
+// Like Groq, model IDs may themselves contain slashes, so `orcarouter/auto`
+// and `orcarouter/deepseek/deepseek-v4-pro` are both valid full model names.
+export const OrcaRouterModelIdSchema = z
+  .enum([
+    "auto",
+    "free",
+    "fusion",
+    "fusion-flash",
+    "fusion-mini",
+    "open-code",
+    "code-review",
+    "deepseek/deepseek-v4-flash",
+    "deepseek/deepseek-v4-pro",
+    "openai/gpt-5.6-luna",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
+    "anthropic/claude-sonnet-5",
+    "anthropic/claude-fable-5",
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-3.1-flash-lite",
+    "google/gemini-3.6-flash",
+    "qwen/qwen3.6-flash",
+    "qwen/qwen3.8-27b",
+  ])
+  .meta({ id: "OrcaRouterModelId" });
+
 export const ModelProviderSchema = z
-  .enum(["openai", "anthropic", "google", "groq", "cerebras"])
+  .enum(["openai", "anthropic", "google", "groq", "cerebras", "orcarouter"])
   .meta({ id: "ModelProvider" });
 
 export const OpenAIModelNameSchema = z
@@ -198,6 +228,9 @@ export const GroqModelNameSchema = z
 export const CerebrasModelNameSchema = z
   .templateLiteral(["cerebras/", CerebrasModelIdSchema])
   .meta({ id: "CerebrasModelName" });
+export const OrcaRouterModelNameSchema = z
+  .templateLiteral(["orcarouter/", OrcaRouterModelIdSchema])
+  .meta({ id: "OrcaRouterModelName" });
 
 export const ModelNameSchema = z
   .union([
@@ -206,6 +239,7 @@ export const ModelNameSchema = z
     GoogleModelNameSchema,
     GroqModelNameSchema,
     CerebrasModelNameSchema,
+    OrcaRouterModelNameSchema,
   ])
   .meta({
     id: "ModelName",

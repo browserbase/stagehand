@@ -328,7 +328,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-Model names for the providers below carry a `provider/` prefix, and the provider must be one of the five. Stagehand ships a list of known model IDs per provider and validates the full name when you call `Stagehand.create()` or pass a per-call override, so a name it does not recognize fails before any request reaches the provider. Upgrade the SDK to pick up newly released models. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those five providers, use the [bring-your-own-LLM callback](#custom-models).
+Model names for the providers below carry a `provider/` prefix, and the provider must be one of the first-class providers listed on this page. Stagehand ships a list of known model IDs per provider and validates the full name when you call `Stagehand.create()` or pass a per-call override, so a name it does not recognize fails before any request reaches the provider. Upgrade the SDK to pick up newly released models. The prefix is never optional: to reach an Azure OpenAI deployment, a self-hosted model, or anything else outside those first-class providers, use the [bring-your-own-LLM callback](#custom-models).
 </Note>
 
 
@@ -666,6 +666,74 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 Commonly used: `cerebras/gpt-oss-120b`, `cerebras/qwen-3-235b-a22b-instruct-2507`, `cerebras/zai-glm-4.7`, `cerebras/llama3.1-8b`.
 
 [View all supported Cerebras models →](https://inference-docs.cerebras.ai/models/overview)
+</Tab>
+
+<Tab title="OrcaRouter">
+
+<Tabs>
+<Tab title="TypeScript">
+```typescript
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
+
+const stagehand = await Stagehand.create({
+  browser: await browserbase.launch({ apiKey: process.env.BROWSERBASE_API_KEY }),
+  model: {
+    modelName: "orcarouter/auto",
+    apiKey: process.env.ORCAROUTER_API_KEY,
+  },
+});
+```
+</Tab>
+
+<Tab title="Python">
+```python
+import os
+
+from stagehand import Stagehand, browserbase
+
+browser = await browserbase.launch(api_key=os.environ["BROWSERBASE_API_KEY"])
+
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="orcarouter/auto",
+    model_api_key=os.environ["ORCAROUTER_API_KEY"],
+)
+```
+</Tab>
+
+<Tab title="Go">
+```go
+apiKey := os.Getenv("BROWSERBASE_API_KEY")
+modelAPIKey := os.Getenv("ORCAROUTER_API_KEY")
+model := stagehand.ModelConfig{
+	ModelName: "orcarouter/auto",
+	APIKey:    &modelAPIKey,
+}
+
+browser, err := stagehand.LaunchBrowserbase(ctx, stagehand.BrowserbaseLaunchOptions{
+	APIKey: apiKey,
+})
+if err != nil {
+	return err
+}
+
+client, err := stagehand.Create(ctx, stagehand.CreateOptions{
+	Browser: browser,
+	Model:   &model,
+})
+if err != nil {
+	return err
+}
+defer func() { err = errors.Join(err, client.Close(ctx)) }()
+```
+</Tab>
+</Tabs>
+
+[OrcaRouter](https://www.orcarouter.ai) is an OpenAI-compatible gateway that fronts hundreds of frontier and open-weight models behind a single `sk-orca-` key. Use a gateway routing alias like `orcarouter/auto` or a vendor-prefixed model like `orcarouter/deepseek/deepseek-v4-pro`. It also runs gateway-level, zero-trust security for AI agents on the same endpoint — screening every prompt/response and governing every tool call on a default-deny basis, with no application code changes.
+
+Commonly used: `orcarouter/auto`, `orcarouter/fusion`, `orcarouter/fusion-flash`, `orcarouter/fusion-mini`, `orcarouter/deepseek/deepseek-v4-pro`.
+
+[View all supported OrcaRouter models →](https://www.orcarouter.ai)
 </Tab>
 
 </Tabs>
@@ -1570,7 +1638,7 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tabs>
 
 <Note>
-There is no base URL option. A model configuration always names one of the five supported providers, so Azure OpenAI deployments, self-hosted models, and any other custom endpoint go through the [bring-your-own-LLM callback](#custom-models) instead, where you own the client, the transport, and the credentials.
+There is no base URL option. A model configuration always names one of the first-class providers, so Azure OpenAI deployments, self-hosted models, and any other custom endpoint go through the [bring-your-own-LLM callback](#custom-models) instead, where you own the client, the transport, and the credentials.
 </Note>
 
 ---
@@ -1746,6 +1814,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 | OpenAI     | `OPENAI_API_KEY`               |
 | Groq       | `GROQ_API_KEY`                 |
 | Cerebras   | `CEREBRAS_API_KEY`             |
+| OrcaRouter | `ORCAROUTER_API_KEY`           |
 | Bring your own LLM | None; your callback owns its credentials |
 
 </Accordion>
@@ -1756,7 +1825,7 @@ You pinned a `model` but gave it no `apiKey`, and the browser is not a Browserba
 **Solutions:**
 
 - Use the `provider/model` format: `openai/gpt-5`. The prefix is required; bare model names are rejected
-- Use one of the five supported providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`
+- Use one of the first-class providers: `openai`, `anthropic`, `google`, `groq`, `cerebras`, `orcarouter`
 - Check the model ID against the lists on this page. Stagehand validates the whole name, so a typo fails at `Stagehand.create()` rather than on the first inference
 - Upgrade the SDK if the model shipped after your installed version
 - For a provider outside that list, use the [bring-your-own-LLM callback](#custom-models)

@@ -1446,19 +1446,28 @@ class OpenAIModelName(RootModel[StrictStr]):
     ]
 
 
-class ModelName(
-    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]]
-):
-    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName]
-    """An explicitly supported model name with its provider prefix"""
-
-
 class OperatingSystem(StrEnum):
     android = "android"
     ios = "ios"
     linux = "linux"
     macos = "macos"
     windows = "windows"
+
+
+class OrcaRouterModelName(RootModel[StrictStr]):
+    root: Annotated[
+        StrictStr,
+        Field(
+            pattern="^orcarouter\\/(auto|free|fusion|fusion-flash|fusion-mini|open-code|code-review|deepseek\\/deepseek-v4-flash|deepseek\\/deepseek-v4-pro|openai\\/gpt-5\\.6-luna|openai\\/gpt-5\\.6-sol|openai\\/gpt-5\\.6-terra|anthropic\\/claude-sonnet-5|anthropic\\/claude-fable-5|anthropic\\/claude-haiku-4\\.5|google\\/gemini-3\\.1-flash-lite|google\\/gemini-3\\.6-flash|qwen\\/qwen3\\.6-flash|qwen\\/qwen3\\.8-27b)$"
+        ),
+    ]
+
+
+class ModelName(
+    RootModel[Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName, OrcaRouterModelName]]
+):
+    root: Union[OpenAIModelName, AnthropicModelName, GoogleModelName, GroqModelName, CerebrasModelName, OrcaRouterModelName]
+    """An explicitly supported model name with its provider prefix"""
 
 
 class Os(StrEnum):

@@ -1300,6 +1300,10 @@
       "type": "string",
       "pattern": "^cerebras\\/(llama3\\.1-8b|gpt-oss-120b|qwen-3-235b-a22b-instruct-2507|qwen-3-235b-a22b-thinking-2507|zai-glm-4\\.6|zai-glm-4\\.7)$"
     },
+    "OrcaRouterModelName": {
+      "type": "string",
+      "pattern": "^orcarouter\\/(auto|free|fusion|fusion-flash|fusion-mini|open-code|code-review|deepseek\\/deepseek-v4-flash|deepseek\\/deepseek-v4-pro|openai\\/gpt-5\\.6-luna|openai\\/gpt-5\\.6-sol|openai\\/gpt-5\\.6-terra|anthropic\\/claude-sonnet-5|anthropic\\/claude-fable-5|anthropic\\/claude-haiku-4\\.5|google\\/gemini-3\\.1-flash-lite|google\\/gemini-3\\.6-flash|qwen\\/qwen3\\.6-flash|qwen\\/qwen3\\.8-27b)$"
+    },
     "ModelName": {
       "anyOf": [
         {
@@ -1316,6 +1320,9 @@
         },
         {
           "$ref": "#/$defs/CerebrasModelName"
+        },
+        {
+          "$ref": "#/$defs/OrcaRouterModelName"
         }
       ],
       "description": "An explicitly supported model name with its provider prefix"

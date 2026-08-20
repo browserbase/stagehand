@@ -191,6 +191,14 @@ export class AISdkClient extends LLMClient {
           strictJsonSchema: true,
         };
         break;
+      case "orcarouter":
+        // OrcaRouter is an OpenAI-compatible gateway served through the
+        // createOpenAI factory, so its provider options ride under the openai
+        // key and the Responses API applies strict JSON schema.
+        providerOptions.openai = {
+          strictJsonSchema: true,
+        };
+        break;
       case "mistral":
         providerOptions.mistral = {
           structuredOutputs: true,

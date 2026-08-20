@@ -109,6 +109,8 @@ function providerApiKey(provider: string | undefined, env: NodeJS.ProcessEnv): s
       return nonEmpty(env.GROQ_API_KEY);
     case "cerebras":
       return nonEmpty(env.CEREBRAS_API_KEY);
+    case "orcarouter":
+      return nonEmpty(env.ORCAROUTER_API_KEY);
     default:
       return undefined;
   }

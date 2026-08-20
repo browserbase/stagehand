@@ -47,6 +47,12 @@ describe("AI SDK language models", () => {
       modelId: "gpt-oss-120b",
       provider: "cerebras.chat",
     },
+    {
+      name: "OrcaRouter",
+      modelName: "orcarouter/auto" as const,
+      modelId: "orcarouter/auto",
+      provider: "openai.responses",
+    },
   ])("creates a direct $name model from its validated configuration", (testCase) => {
     const model = createAiSdkLanguageModel({
       modelName: testCase.modelName,
@@ -72,6 +78,21 @@ describe("AI SDK language models", () => {
     expect(model).toMatchObject({
       provider: "openai.chat",
       modelId: "gpt-5.4-mini",
+    });
+  });
+
+  it("uses Chat Completions for OrcaRouter requests with stop sequences", () => {
+    const model = createAiSdkLanguageModel(
+      {
+        modelName: "orcarouter/fusion",
+        apiKey: "provider-secret",
+      },
+      { stopSequences: ["STOP"] },
+    );
+
+    expect(model).toMatchObject({
+      provider: "openai.chat",
+      modelId: "orcarouter/fusion",
     });
   });
 

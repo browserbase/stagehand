@@ -652,7 +652,10 @@ class NavigationServerAddr(TypedDict):
 OpenAIModelName: TypeAlias = str
 
 
-ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName
+OrcaRouterModelName: TypeAlias = str
+
+
+ModelName: TypeAlias = OpenAIModelName | AnthropicModelName | GoogleModelName | GroqModelName | CerebrasModelName | OrcaRouterModelName
 
 
 class ModelConfig(TypedDict):

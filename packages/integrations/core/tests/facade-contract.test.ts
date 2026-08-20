@@ -104,4 +104,25 @@ describe("Stagehand facade contract", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("resolves an OrcaRouter model key from STAGEHAND_MODEL_NAME", () => {
+    const config = stagehandFacadeConfigFromEnv({
+      BROWSERBASE_API_KEY: "bb-test",
+      STAGEHAND_MODEL_NAME: "orcarouter/auto",
+      ORCAROUTER_API_KEY: "sk-orca-test",
+    });
+    expect(config.stagehand.model).toMatchObject({
+      modelName: "orcarouter/auto",
+      apiKey: "sk-orca-test",
+    });
+  });
+
+  it("rejects an unsupported OrcaRouter model name", () => {
+    expect(() =>
+      stagehandFacadeConfigFromEnv({
+        BROWSERBASE_API_KEY: "bb-test",
+        STAGEHAND_MODEL_NAME: "orcarouter/not-a-real-model",
+      }),
+    ).toThrow(/Unsupported STAGEHAND_MODEL_NAME/);
+  });
 });
