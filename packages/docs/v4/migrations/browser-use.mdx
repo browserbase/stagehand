@@ -403,11 +403,11 @@ Browser Use selects a provider by the chat class you construct (`ChatOpenAI`, `C
 - agent = Agent(task="...", llm=ChatAnthropic(model="claude-sonnet-4-0"))
 + stagehand = await Stagehand.create(
 +     browser=browser,
-+     model=ModelConfig(
-+         model_name="anthropic/claude-sonnet-4-6",
-+         api_key=os.environ["ANTHROPIC_API_KEY"],
-+     ),
-+ )
+stagehand = await Stagehand.create(
+    browser=browser,
+    model="anthropic/claude-sonnet-4-6",
+    model_api_key=os.environ["ANTHROPIC_API_KEY"],
+)
 ```
 </Tab>
 
