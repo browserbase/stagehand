@@ -1,7 +1,7 @@
 ---
 title: "Integrations"
 sidebarTitle: "Overview"
-description: "Connect Claude Code, Codex, CrewAI, Deep Agents, Eve, Mastra, Pi, or the Vercel AI SDK to a persistent Stagehand browser."
+description: "Connect Claude Code, Codex, CrewAI, Deep Agents, Eve, Mastra, fx, Pi, or the Vercel AI SDK to a persistent Stagehand browser."
 ---
 
 Each integration gives your agent one persistent browser and three tools: `run`, `snapshot`, and `screenshot`. Your agent decides how to navigate and interact while Stagehand manages the browser session.
@@ -30,6 +30,9 @@ Stagehand ships these experimental integrations from the monorepo and does not p
   </Card>
   <Card title="Mastra" icon="/images/integrations/mastra.svg" href="/v4/integrations/mastra">
     Connect a Mastra agent over MCP/stdio.
+  </Card>
+  <Card title="fx" icon="/images/integrations/fx.png" href="/v4/integrations/fx">
+    Give the fx coding agent persistent Stagehand browser tools over MCP/stdio.
   </Card>
   <Card title="Pi" icon="/images/integrations/pi.svg" href="/v4/integrations/pi">
     Give the Pi coding agent native Stagehand browser tools registered directly by an extension.
@@ -75,7 +78,7 @@ Every integration exposes the same browser capabilities.
 
 The tools share a browser for the lifetime of the integration's client session. A navigation performed by `run` is visible to the next `snapshot`, and authentication and page state remain available across calls.
 
-The Claude Code, Codex, CrewAI, Mastra, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
+The Claude Code, Codex, CrewAI, Mastra, fx, Vercel AI SDK, and local Deep Agents examples keep one MCP client session open so the stdio server and browser stay alive. Eve, Pi, and Managed Deep Agents bind equivalent tools in-process.
 
 The private [`core/` workspace package](https://github.com/browserbase/stagehand/tree/main/packages/integrations/core) owns the shared TypeScript tool contract, browser runtime, native bindings, and stdio MCP server. The TypeScript integrations and CrewAI use this package.
 
@@ -85,7 +88,7 @@ Do not create a new MCP process for every tool call. Doing so starts a new brows
 
 ## Run the integrations from source
 
-Claude Code, Codex, CrewAI, Mastra, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve and Pi use native in-process bindings from the same package. These integrations require Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
+Claude Code, Codex, CrewAI, Mastra, fx, and the Vercel AI SDK use the shared TypeScript Stagehand facade MCP server. Eve and Pi use native in-process bindings from the same package. These integrations require Node.js 24 or newer and [pnpm](https://pnpm.io/installation) 11.10.0. CrewAI also requires Python 3.11–3.13 and [uv](https://docs.astral.sh/uv/).
 
 <Steps>
   <Step title="Clone and install Stagehand">
