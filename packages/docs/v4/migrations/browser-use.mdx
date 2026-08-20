@@ -352,7 +352,7 @@ Browser Use's `@tools.action(...)` / `@controller.action(...)` decorators regist
 | `Browser(headless=False)` | `local_browser.launch(headless=False)` |
 | `Browser(cdp_url="http://localhost:9222")` | `local_browser.connect(cdp_url="http://localhost:9222")` |
 | `Browser(proxy=ProxySettings(...))` | `proxy` on `local_browser.launch()`, or Browserbase proxies |
-| `Browser(allowed_domains=[...])` / `prohibited_domains=[...]` | `browser.context.set_domain_policy(allowed_domains=..., blocked_domains=...)` |
+| `Browser(allowed_domains=[...])` / `prohibited_domains=[...]` | `browser.context.set_domain_policy(DomainPolicy(allowed_domains=..., blocked_domains=...))` |
 | `Browser(storage_state="auth.json")` | Cookie API on `browser.context`, or a [Browserbase context](/v4/best-practices/user-data) |
 | `Browser(user_data_dir=...)` | `user_data_dir` on `local_browser.launch()` |
 | `Browser(accept_downloads=True, downloads_path=...)` | `accept_downloads` and `downloads_path` on `local_browser.launch()` |
@@ -383,7 +383,7 @@ Browser Use's `@sandbox` decorator runs the agent next to the browser on cloud i
 | `generate_gif=True` | Browserbase [session recording](/v4/configuration/observability) |
 | `Browser(...)` / `BrowserSession(...)` | `local_browser.launch()` or `browserbase.launch()` |
 | `Browser(cdp_url=...)` | `local_browser.connect(cdp_url=...)` |
-| `Browser(allowed_domains=...)` | `browser.context.set_domain_policy(allowed_domains=...)` |
+| `Browser(allowed_domains=...)` | `browser.context.set_domain_policy(DomainPolicy(allowed_domains=...))` |
 | `Browser(storage_state=...)` | Cookie API, or a Browserbase context |
 | `@sandbox(...)` | `browserbase.launch(api_key=...)` |
 | `calculate_cost=True`, `history.usage` | `await stagehand.metrics()` |
