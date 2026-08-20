@@ -75,7 +75,7 @@
           },
           {
             "group": "Migration guide",
-            "pages": ["v4/migrations/v3", "v4/migrations/playwright"]
+            "pages": ["v4/migrations/v3", "v4/migrations/playwright", "v4/migrations/browser-use"]
           },
           {
             "group": "SDK reference",
