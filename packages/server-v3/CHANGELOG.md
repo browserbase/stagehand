@@ -1,5 +1,11 @@
 # @browserbasehq/stagehand-server-v3
 
+## 3.7.5
+
+### Patch Changes
+
+- [#2711](https://github.com/browserbase/stagehand/pull/2711) [`df28040`](https://github.com/browserbase/stagehand/commit/df28040c8b61f5dba377d55b1adb953021b980c9) Thanks [@miguelg719](https://github.com/miguelg719)! - Add `useTouch` option to actuate agent clicks as trusted touch
+
 ## 3.7.4
 
 ### Patch Changes
