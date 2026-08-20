@@ -7,7 +7,10 @@ import type {
   ModelOutputContentItem,
   Variables,
 } from "../../types/public/agent.js";
-import { processCoordinates } from "../utils/coordinateNormalization.js";
+import {
+  isGoogleProvider,
+  processCoordinates,
+} from "../utils/coordinateNormalization.js";
 import { ensureXPath } from "../utils/xpath.js";
 import { waitAndCaptureScreenshot } from "../utils/screenshotHandler.js";
 import { substituteVariables } from "../utils/variables.js";
@@ -63,25 +66,31 @@ MANDATORY USE CASES (always use fillFormVision for these):
     execute: async ({ fields }): Promise<FillFormVisionToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
+        const viewport = isGoogleProvider(provider)
+          ? await v3.resolveViewport()
+          : undefined;
 
         // Process coordinates per field. Keep the original `value` (with any
         // `%variableName%` tokens) so substituted secrets never leak through
         // the tool result, replay cache, returned AgentResult.actions, or
         // anything that logs the action. Variables are substituted only at
         // typing time below.
-        const safeFields = fields.map((field) => {
-          const processed = processCoordinates(
-            field.coordinates.x,
-            field.coordinates.y,
-            provider,
-            v3,
-          );
-          return {
-            action: field.action,
-            value: field.value,
-            coordinates: { x: processed.x, y: processed.y },
-          };
-        });
+        const safeFields = await Promise.all(
+          fields.map(async (field) => {
+            const processed = await processCoordinates(
+              field.coordinates.x,
+              field.coordinates.y,
+              provider,
+              v3,
+              viewport,
+            );
+            return {
+              action: field.action,
+              value: field.value,
+              coordinates: { x: processed.x, y: processed.y },
+            };
+          }),
+        );
 
         v3.logger({
           category: "agent",

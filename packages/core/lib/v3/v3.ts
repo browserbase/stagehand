@@ -241,24 +241,44 @@ export class V3 {
    * Falls back to default 1288x711 if not configured.
    */
   public get configuredViewport(): { width: number; height: number } {
-    const defaultWidth = 1288;
-    const defaultHeight = 711;
+    const viewport = this.rawConfiguredViewport();
+    return {
+      width: viewport?.width ?? 1288,
+      height: viewport?.height ?? 711,
+    };
+  }
 
+  public get hasConfiguredViewport(): boolean {
+    return this.rawConfiguredViewport() !== undefined;
+  }
+
+  private rawConfiguredViewport():
+    | { width?: number; height?: number }
+    | undefined {
     if (this.opts.env === "BROWSERBASE") {
-      const vp =
-        this.opts.browserbaseSessionCreateParams?.browserSettings?.viewport;
-      return {
-        width: vp?.width ?? defaultWidth,
-        height: vp?.height ?? defaultHeight,
-      };
+      return this.opts.browserbaseSessionCreateParams?.browserSettings
+        ?.viewport;
     }
 
-    // LOCAL env
-    const vp = this.opts.localBrowserLaunchOptions?.viewport;
-    return {
-      width: vp?.width ?? defaultWidth,
-      height: vp?.height ?? defaultHeight,
-    };
+    return this.opts.localBrowserLaunchOptions?.viewport;
+  }
+
+  public async resolveViewport(): Promise<{ width: number; height: number }> {
+    const configured = this.rawConfiguredViewport();
+    if (configured) return this.configuredViewport;
+
+    try {
+      const page = await this.context.awaitActivePage();
+      const { width, height } = await page.mainFrame().evaluate<{
+        width: number;
+        height: number;
+      }>("({ width: window.innerWidth, height: window.innerHeight })");
+      if (width && height) return { width, height };
+    } catch {
+      //
+    }
+
+    return this.configuredViewport;
   }
 
   private _onCdpClosed = (why: string) => {

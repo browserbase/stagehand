@@ -27,7 +27,7 @@ export const clickTool = (v3: V3, provider?: string) =>
     execute: async ({ describe, coordinates }): Promise<ClickToolResult> => {
       try {
         const page = await v3.context.awaitActivePage();
-        const processed = processCoordinates(
+        const processed = await processCoordinates(
           coordinates[0],
           coordinates[1],
           provider,

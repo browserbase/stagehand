@@ -734,26 +734,8 @@ export class V3CuaAgentHandler {
   }
 
   private async updateClientViewport(): Promise<void> {
-    try {
-      // For Google CUA, use configured viewport for coordinate normalization
-      // Browserbase managed fingerprinting uses a fixed 1288x711 fallback.
-      if (this.agentClient instanceof GoogleCUAClient) {
-        const dims = this.v3.isVerified
-          ? { width: 1288, height: 711 }
-          : this.v3.configuredViewport;
-        this.agentClient.setViewport(dims.width, dims.height);
-      } else {
-        // For other clients, use actual window dimensions
-        const page = await this.v3.context.awaitActivePage();
-        const { w, h } = await page.mainFrame().evaluate<{
-          w: number;
-          h: number;
-        }>("({ w: window.innerWidth, h: window.innerHeight })");
-        if (w && h) this.agentClient.setViewport(w, h);
-      }
-    } catch {
-      //
-    }
+    const { width, height } = await this.v3.resolveViewport();
+    this.agentClient.setViewport(width, height);
   }
 
   private async updateClientUrl(): Promise<void> {
