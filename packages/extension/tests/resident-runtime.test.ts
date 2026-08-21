@@ -634,6 +634,44 @@ describe("resident runtime lifecycle", () => {
     expect(thirdPage.subscribeCDPEvent).toHaveBeenCalledOnce();
   });
 
+  it("a stagehand.init awaiting a stalled stale reconnect follows the new generation instead of wedging the init guard", async () => {
+    const first = createSession([createPage("page-a").page]);
+    const second = createSession([createPage("page-a").page]);
+    const third = createSession([createPage("page-a").page]);
+    second.prepareForInitialization.mockImplementation(
+      async () => await new Promise<void>(() => {}),
+    );
+    const sessions = [first.session, second.session, third.session];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: connectedFactory(async () => sessions.shift()!),
+    });
+    const hooks = captureHooks(runtime);
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [60_000, 0] }),
+    );
+
+    await lifecycle.initialize(initParams);
+    first.disconnect();
+    hooks[0]?.lifecycle?.onDisconnected?.();
+    expect(lifecycle.marker.state).toBe("reconnecting");
+    expect(hooks).toHaveLength(1);
+
+    const secondInit = lifecycle.initialize({
+      ...initParams,
+      model: { modelName: "openai/gpt-5" },
+    });
+    await vi.waitFor(() => expect(hooks).toHaveLength(2));
+    second.disconnect();
+    hooks[1]?.lifecycle?.onDisconnected?.();
+
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("ready"));
+    expect(runtime.browserSession).toBe(third.session);
+    await expect(secondInit).resolves.toMatchObject({ initialized: true });
+    await expect(lifecycle.initialize(initParams)).resolves.toMatchObject({ initialized: true });
+    expect(third.prepareForInitialization).toHaveBeenCalledOnce();
+  });
+
   it("honors page.off for a subscription that is pending restoration", async () => {
     const firstPage = createPage("page-a");
     const secondPage = createPage("page-a");

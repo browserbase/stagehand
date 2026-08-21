@@ -50,6 +50,7 @@ export class ResidentRuntimeLifecycle {
   private readonly now: () => number;
   private readonly reconnectDelaysMs: readonly number[];
   private operationGeneration = 0;
+  private supersession: { promise: Promise<void>; resolve: () => void };
   private operationTail: Promise<void> = Promise.resolve();
   private bootstrapPromise?: Promise<void>;
   private initializationInFlight?: Promise<unknown>;
@@ -64,6 +65,7 @@ export class ResidentRuntimeLifecycle {
   ) {
     this.now = options.now ?? (() => performance.now());
     this.reconnectDelaysMs = options.reconnectDelaysMs ?? DEFAULT_RECONNECT_DELAYS_MS;
+    this.supersession = this.createSupersession();
     this.marker = {
       name: "stagehand",
       version: STAGEHAND_RUNTIME_VERSION,
@@ -93,7 +95,7 @@ export class ResidentRuntimeLifecycle {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
-      this.operationGeneration += 1;
+      this.bumpOperationGeneration();
       // Generation guards isolate the stale operation, so the replacement need not wait for it.
       this.operationTail = Promise.resolve();
     }
@@ -143,7 +145,7 @@ export class ResidentRuntimeLifecycle {
     this.closed = true;
     this.residentBootstrapEnabled = false;
     this.bootstrapPromise = undefined;
-    ++this.operationGeneration;
+    this.bumpOperationGeneration();
     try {
       await this.runtime.close();
     } finally {
@@ -182,18 +184,31 @@ export class ResidentRuntimeLifecycle {
       return this.enqueue(() => this.runtime.initialize(params, logger));
     }
 
-    const bootstrap = this.bootstrap(logger);
-    const generation = this.operationGeneration;
-    return this.enqueue(async () => {
-      await bootstrap;
-      if (generation !== this.operationGeneration || this.closed) {
-        throw new Error("Resident runtime bootstrap was superseded");
+    const initialBootstrap = this.bootstrap(logger);
+    return (async () => {
+      let bootstrap = initialBootstrap;
+      while (true) {
+        const superseded = this.supersession.promise;
+        const outcome = await Promise.race([
+          bootstrap.then(() => "ready" as const),
+          superseded.then(() => "superseded" as const),
+        ]);
+        if (this.closed) {
+          throw new Error("Resident runtime bootstrap was superseded");
+        }
+        if (outcome === "superseded") {
+          if (!this.residentBootstrapEnabled) {
+            throw new Error("Resident runtime bootstrap was superseded");
+          }
+          bootstrap = this.bootstrapPromise ?? this.bootstrap(logger);
+          continue;
+        }
+        if (this.marker.state !== "ready" || !this.runtime.browserConnectionStatus().connected) {
+          throw new Error("Resident runtime is not ready for stagehand.init");
+        }
+        return await this.enqueue(() => this.runtime.initialize(params, logger));
       }
-      if (this.marker.state !== "ready" || !this.runtime.browserConnectionStatus().connected) {
-        throw new Error("Resident runtime is not ready for stagehand.init");
-      }
-      return await this.runtime.initialize(params, logger);
-    });
+    })();
   }
 
   private enqueue<Result>(operation: () => Promise<Result>): Promise<Result> {
@@ -301,7 +316,7 @@ export class ResidentRuntimeLifecycle {
       this.reconnectTimer = undefined;
       if (this.closed) return;
       this.bootstrapPromise = undefined;
-      this.operationGeneration += 1;
+      this.bumpOperationGeneration();
       // Generation guards isolate the stale operation, so the replacement need not wait for it.
       this.operationTail = Promise.resolve();
       void this.bootstrap().catch(() => {});
@@ -319,11 +334,26 @@ export class ResidentRuntimeLifecycle {
     return this.residentBootstrapEnabled && generation === this.operationGeneration;
   }
 
+  private createSupersession(): { promise: Promise<void>; resolve: () => void } {
+    let resolve!: () => void;
+    const promise = new Promise<void>((resolvePromise) => {
+      resolve = resolvePromise;
+    });
+    return { promise, resolve };
+  }
+
+  private bumpOperationGeneration(): void {
+    const supersession = this.supersession;
+    this.operationGeneration += 1;
+    this.supersession = this.createSupersession();
+    supersession.resolve();
+  }
+
   private disableResidentBootstrap(): void {
     this.cancelReconnects();
     this.residentBootstrapEnabled = false;
     this.bootstrapPromise = undefined;
-    ++this.operationGeneration;
+    this.bumpOperationGeneration();
     this.publish("unconfigured", false, {});
   }
 
