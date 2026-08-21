@@ -848,7 +848,6 @@ class PageScreenshotParams(TypedDict):
 
 class PageScreenshotResult(TypedDict):
     data: str
-    type: Literal["png", "jpeg"]
 
 
 class PageScrollParams(TypedDict):

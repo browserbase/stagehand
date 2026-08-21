@@ -1521,15 +1521,7 @@ type PageScreenshotParams struct {
 type PageScreenshotResult struct {
 	// Data corresponds to the JSON schema field "data".
 	Data string `json:"data"`
-
-	// Type corresponds to the JSON schema field "type".
-	Type PageScreenshotResultType `json:"type"`
 }
-
-type PageScreenshotResultType string
-
-const PageScreenshotResultTypeJPEG PageScreenshotResultType = "jpeg"
-const PageScreenshotResultTypePNG PageScreenshotResultType = "png"
 
 type PageScrollParams struct {
 	// DeltaX corresponds to the JSON schema field "delta_x".

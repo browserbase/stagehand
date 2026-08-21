@@ -1773,7 +1773,6 @@ class PageScreenshotResult(WireModel):
             pattern="^$|^(?:[0-9a-zA-Z+/]{4})*(?:(?:[0-9a-zA-Z+/]{2}==)|(?:[0-9a-zA-Z+/]{3}=))?$",
         ),
     ]
-    type: Type
 
 
 class PageScrollParams(WireModel):

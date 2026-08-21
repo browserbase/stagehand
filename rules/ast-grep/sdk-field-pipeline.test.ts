@@ -52,7 +52,6 @@ const sources = {
 const protocolUrl = new URL("../../packages/protocol/stagehand.v4.json", import.meta.url);
 const registryUrl = new URL("../../packages/protocol/schema-registry.ts", import.meta.url);
 const referenceUrl = new URL("../../packages/docs/v4/reference/", import.meta.url);
-const intentionallyUnusedResultFields = new Set(["page.screenshot.type"]);
 
 describe("Every public SDK field participates in the protocol pipeline", () => {
   it("constructs every declared request field in every SDK", async () => {
@@ -144,11 +143,7 @@ describe("Every public SDK field participates in the protocol pipeline", () => {
       }
 
       for (const field of fields) {
-        const fieldPath = `${call.wireMethod}.${field}`;
-        if (
-          !usesResultField(scopeText, resultName, field) &&
-          !intentionallyUnusedResultFields.has(fieldPath)
-        ) {
+        if (!usesResultField(scopeText, resultName, field)) {
           missing.push(`${call.language} ${call.wireMethod}: result field ${field}`);
         }
       }

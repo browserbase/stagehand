@@ -1930,7 +1930,7 @@ describe("Stagehand worker clients", () => {
     ).resolves.toStrictEqual({
       jsonrpc: "2.0",
       id: 30,
-      result: { data: "iVBORw0KGgo=", type: "png" },
+      result: { data: "iVBORw0KGgo=" },
     });
 
     await expect(
