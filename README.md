@@ -40,41 +40,41 @@
 
 ## What is Stagehand?
 
-Stagehand is the SDK for browser agents. Playwright was built for testing, Stagehand is built for agents. Use familiar APIs, self-healing actions, and network-level security across TypeScript, Python, and Go.
+Stagehand is an SDK for browser agents. It combines familiar browser-control APIs with AI primitives that recover when websites change. Build with TypeScript, Python, or Go.
 
 ## Why Stagehand?
 
-Stagehand gives browser agents an interface built for how they actually work. It combines familiar Playwright-style APIs with self-healing actions, agent-optimized page context, and native support for complex DOM structures like out-of-process iframes and closed Shadow DOMs.
+Stagehand gives agents the browser interface they need in production. It combines Playwright-style APIs with self-healing actions, agent-optimized page context, and support for out-of-process iframes and closed Shadow DOMs.
 
-Agents use fewer tokens, recover when websites change, and complete tasks more reliably. With a complete browser driver across TypeScript, Python, and Go, Stagehand delivers the flexibility of AI without sacrificing the speed, control, determinism, reliability, and observability required in production.
 
-### 1. Familiar APIs
 
-The Playwright-style methods you and your agents already know and love (`goto`, `click`, `locator`, `screenshot`).
+### Familiar APIs
 
-### 2. Token efficiency as a priority
+Use the browser-control methods you already know, including `goto`, `click`, `locator`, and `screenshot`.
 
-Stagehand's hybrid accessibility tree trimming gives your agents exactly what they need to understand the page and nothing more.
+### Token-efficient page context
 
-### 3. Faster in production
+Hybrid accessibility-tree trimming gives agents the page context they need without sending the full DOM.
 
-Stagehand runs as an extension next to the browser, closing the distance and reducing round-trip latency for all actions on the page.
+### Low-latency execution
 
-### 4. Self-healing primitives
+Stagehand runs as an extension beside the browser, which reduces round-trip latency for page actions.
 
-Use `act`, `observe`, and `extract` with natural language to automate pages. When sites change, Stagehand detects it and refreshes how the actions happen on the page automatically.
+### Self-healing primitives
 
-### 5. Features agents need
+Use `act`, `observe`, and `extract` to automate pages with natural language. When a site changes, Stagehand refreshes the action path automatically.
 
-WebMCP, clipboard support, self-healing actions, batch commands, deep locators for nested iframes, and OTel support.
+### Agent-ready features
 
-## Getting Started
+Use WebMCP, clipboard support, batch commands, deep locators for nested iframes, and OpenTelemetry support.
 
-Check out our [Quickstart Guide](https://docs.stagehand.dev/v4/first-steps/quickstart) for more information:
+## Getting started
+
+Start with the [Quickstart guide](https://docs.stagehand.dev/v4/first-steps/quickstart), then try the example below.
 
 ## Example
 
-Here's how to build a sample browser automation with Stagehand:
+This example opens Browserbase's GitHub organization, finds the latest Stagehand PR, and extracts its author and title.
 
 ```typescript
 import { browserbase, Stagehand } from "@browserbasehq/stagehand";
@@ -94,20 +94,20 @@ const stagehand = await Stagehand.create({
   },
 });
 
-// Stagehand's CDP engine provides an optimized, low level interface to the browser built for automation
+// Use the browser's CDP interface directly when you need deterministic control.
 const [page] = await browser.context.pages();
 await page.goto("https://github.com/browserbase");
 
-// Use act() to execute individual actions
+// Execute an action with natural language.
 await stagehand.act("click on the stagehand repo");
 
-// Use observe() to see what's actionable on the page
+// Inspect actions before choosing one.
 const { data: actions } = await stagehand.observe("find the latest PR");
 
-// Use locators for deterministic Playwright-style actions
+// Use the returned locator for deterministic control.
 await page.locator(actions[0].selector).click();
 
-// Use extract() to get structured data from the page
+// Extract typed data from the page.
 const {
   data: { author, title },
 } = await stagehand.extract(
@@ -125,7 +125,7 @@ See the [Python](./packages/sdk-python/README.md) and [Go](./packages/sdk-go/REA
 
 Visit [docs.stagehand.dev](https://docs.stagehand.dev) to view the full documentation.
 
-### Build and Run from Source
+### Build and run from source
 
 Stagehand is a TypeScript, Python, and Go monorepo. We use [`just`](https://github.com/casey/just) to drive `pnpm`, `uv`, and `go` together.
 
@@ -137,14 +137,14 @@ just generate
 just build
 ```
 
-Stagehand is best when you have an API key for an LLM provider and Browserbase credentials. Export them so they're available on `process.env`:
+The TypeScript examples use an LLM provider API key and Browserbase credentials. Export the following values before running an example.
 
 ```bash
 export OPENAI_API_KEY="your-openai-api-key"
 export BROWSERBASE_API_KEY="your-browserbase-api-key"
 ```
 
-Then run any of the scripts in [`packages/sdk-ts/examples`](./packages/sdk-ts/examples):
+Run an example from [`packages/sdk-ts/examples`](./packages/sdk-ts/examples).
 
 ```bash
 just example act # runs packages/sdk-ts/examples/act.ts
@@ -155,9 +155,9 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full TypeScript, Python, and Go
 ## Contributing
 
 > [!NOTE]
-> We highly value contributions to Stagehand! For questions or support, please join our [Discord community](https://discord.gg/stagehand).
+> We welcome contributions. For questions or support, join our [Discord community](https://discord.gg/stagehand).
 
-We're focused on improving reliability, extensibility, speed, and cost in that order of priority. If you're interested in contributing, **bug fixes and small improvements are the best way to get started**. For more involved features, we strongly recommend reaching out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://discord.gg/stagehand) before starting to ensure that your contribution aligns with our goals.
+We prioritize reliability, extensibility, speed, and cost, in that order. Start with bug fixes or small improvements. Before beginning a larger feature, reach out to [Miguel Gonzalez](https://x.com/miguel_gonzf) or [Paul Klein](https://x.com/pk_iv) in our [Discord community](https://discord.gg/stagehand) to align on the approach.
 
 <!-- For more information, please see our [CONTRIBUTING.md](CONTRIBUTING.md) -->
 
