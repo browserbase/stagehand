@@ -369,13 +369,15 @@ export async function runEvals(
     process.env.EVAL_MODEL_OVERRIDE = options.modelOverride;
   if (options.provider) process.env.EVAL_PROVIDER = options.provider;
 
-  const braintrustProjectName = hasCoreOnly
-    ? process.env.CI === "true"
-      ? "stagehand-core"
-      : "stagehand-core-dev"
-    : process.env.CI === "true"
-      ? "stagehand"
-      : "stagehand-dev";
+  const braintrustProjectName =
+    process.env.BRAINTRUST_PROJECT ??
+    (hasCoreOnly
+      ? process.env.CI === "true"
+        ? "stagehand-core"
+        : "stagehand-core-dev"
+      : process.env.CI === "true"
+        ? "stagehand"
+        : "stagehand-dev");
 
   const scores = hasCoreOnly
     ? [passRate, errorMatch]
