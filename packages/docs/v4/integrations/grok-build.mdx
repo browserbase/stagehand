@@ -1,0 +1,96 @@
+---
+title: "Grok Build"
+description: "Give a Grok Build agent persistent Stagehand browser tools over ACP."
+---
+
+The Grok Build integration starts Grok as an ACP agent and gives its session exactly one MCP server: the Stagehand facade MCP server. The facade owns one persistent browser and exposes `run`, `snapshot`, and `screenshot` for the full prompt turn.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- `XAI_API_KEY` or an existing `grok login`
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and install Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Authenticate Grok">
+Use an API key for headless or CI runs:
+
+```bash
+export XAI_API_KEY="your-xai-api-key"
+```
+
+Alternatively, run `grok login` once. The example copies only Grok's cached `auth.json` into its temporary isolated home.
+  </Step>
+  <Step title="Choose the browser">
+The example defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+pnpm --dir packages/integrations/grok-build start -- \
+  "Open https://example.com, snapshot it, request a screenshot, and report the title."
+```
+  </Step>
+</Steps>
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `XAI_API_KEY` | Grok agent credential. It is not made available to the Stagehand facade runtime. |
+| `GROK_HOME` | Optional path to an existing Grok home. When `XAI_API_KEY` is unset, the example copies cached `auth.json` from this directory (or `~/.grok`) into the isolated runtime. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. Defaults to `browserbase` when `BROWSERBASE_API_KEY` is set, otherwise `local`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_API_KEY` | Required with `STAGEHAND_MODEL_NAME`; the MCP child does not receive Grok's credential. |
+
+## Keep the browser session alive
+
+The example opens one ACP session with Grok and mounts exactly one MCP server: the Stagehand facade. That server owns the browser for the full prompt turn, so `run`, `snapshot`, and `screenshot` share page state. Preserve that lifetime if you adapt the integration; a new process per tool call starts a new browser.
+
+Grok is restricted to a browser-only tool surface, matching the Claude and Codex examples. An agent profile allowlists only `search_tool` and `use_tool` (required to discover and invoke lazy MCP tools). Shell, file, plan, subagent, memory, and web-search capabilities are denied. The client approves one-time permission only for `stagehand__run`, `stagehand__snapshot`, and `stagehand__screenshot`; everything else is rejected or cancelled.
+
+Each run uses a disposable workspace, home directory, and `GROK_HOME`. Compatibility MCP imports from Claude/Cursor are disabled, and user or project MCP servers, plugins, hooks, skills, and rules are not loaded. A minimal launcher creates the actual facade runtime with non-empty `STAGEHAND_*` and `BROWSERBASE_*` variables plus basic OS values needed to launch Node and local Chrome; `XAI_API_KEY` and unrelated host secrets are unavailable to the facade. The ACP bridge terminates the full agent process tree on cancellation or failure.
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Grok requires authentication">
+Set `XAI_API_KEY` or run `grok login`. A login stored under a custom home is discovered when `GROK_HOME` points to that directory before starting the example.
+  </Accordion>
+  <Accordion title="The agent cannot start the facade server">
+Build `@browserbasehq/stagehand-integrations` from the repository root. The ACP profile resolves the built `facade/stdio-server.mjs` entrypoint.
+  </Accordion>
+  <Accordion title="A browser call times out">
+Confirm Chrome is available for local mode, or set valid Browserbase credentials. The browser starts lazily on the first facade tool call.
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Grok Build integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/grok-build">
+  Read the ACP profile, isolated runtime setup, and tests.
+</Card>

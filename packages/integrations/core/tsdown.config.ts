@@ -2,6 +2,8 @@ import { defineConfig } from "tsdown";
 
 export default defineConfig({
   entry: {
+    "acp/facade-launcher": "src/acp/facade-launcher.ts",
+    "acp/index": "src/acp/index.ts",
     "codemode/stdio-server": "src/codemode/stdio-server.ts",
     "facade/index": "src/facade/index.ts",
     "facade/stdio-server": "src/facade/stdio-server.ts",

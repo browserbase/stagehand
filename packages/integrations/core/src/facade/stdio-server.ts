@@ -183,8 +183,8 @@ async function shutdown(code: number): Promise<void> {
   process.exit(code === 0 && !clean ? 1 : code);
 }
 
-process.once("SIGINT", () => void shutdown(130));
-process.once("SIGTERM", () => void shutdown(143));
+process.on("SIGINT", () => void shutdown(130));
+process.on("SIGTERM", () => void shutdown(143));
 process.stdin.once("end", () => void shutdown(0));
 process.stdin.once("close", () => void shutdown(0));
 
