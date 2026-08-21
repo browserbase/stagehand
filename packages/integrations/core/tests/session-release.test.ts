@@ -58,6 +58,20 @@ describe("Browserbase session release", () => {
     expect(mocks.retrieve).toHaveBeenCalledWith("session-one");
   });
 
+  it("normalizes trailing slashes in a custom Browserbase API URL", async () => {
+    mocks.update.mockResolvedValueOnce({ status: "COMPLETED" });
+
+    await releaseBrowserbaseSession({
+      apiKey: "test-key",
+      baseUrl: "https://api.example.test///",
+      sessionId: "session-one",
+    });
+
+    expect(mocks.createClient).toHaveBeenCalledWith(
+      expect.objectContaining({ baseURL: "https://api.example.test" }),
+    );
+  });
+
   it("reports a release that remains incomplete", async () => {
     mocks.update.mockRejectedValueOnce(new Error("release failed"));
     mocks.retrieve.mockResolvedValueOnce({ status: "RUNNING" });

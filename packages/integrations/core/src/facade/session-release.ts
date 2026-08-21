@@ -21,7 +21,7 @@ export class BrowserbaseSessionReleaseError extends Error {
 export async function releaseBrowserbaseSession(session: BrowserbaseSessionRelease): Promise<void> {
   const browserbase = new Browserbase({
     apiKey: session.apiKey,
-    baseURL: session.baseUrl ?? BROWSERBASE_API_URL,
+    baseURL: (session.baseUrl ?? BROWSERBASE_API_URL).replace(/\/+$/u, ""),
     maxRetries: SESSION_RELEASE_MAX_RETRIES,
     timeout: SESSION_RELEASE_TIMEOUT_MS,
   });
