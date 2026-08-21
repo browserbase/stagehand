@@ -21,6 +21,11 @@ type Concept = {
 const pythonSource = new URL("../../packages/sdk-python/src/stagehand/", import.meta.url);
 const goSource = new URL("../../packages/sdk-go/", import.meta.url);
 const docsSource = new URL("../../packages/docs/v4/", import.meta.url);
+// These legacy Chrome extension ID overrides are not user-actionable and are pending deprecation.
+const intentionallyUndocumentedBrowserFields = new Set([
+  "LocalBrowserConnectOptions.extension_id",
+  "BrowserbaseConnectOptions.extension_id",
+]);
 
 const concepts: readonly Concept[] = [
   {
@@ -239,17 +244,26 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
           : "browser_factories.go";
       const goFields = await goStructFieldSpellings(goFile, concept.name);
       for (const field of typescriptFields) {
-        if (!browserDocs.includes(field)) {
+        if (
+          !isIntentionallyUndocumentedBrowserField(concept.name, field) &&
+          !browserDocs.includes(field)
+        ) {
           missing.push(`browser TypeScript ${concept.name}.${field}`);
         }
       }
       for (const field of pythonFields) {
-        if (!browserDocs.includes(field)) {
+        if (
+          !isIntentionallyUndocumentedBrowserField(concept.name, field) &&
+          !browserDocs.includes(field)
+        ) {
           missing.push(`browser Python ${concept.name}.${field}`);
         }
       }
       for (const field of goFields) {
-        if (!browserDocs.includes(field)) {
+        if (
+          !isIntentionallyUndocumentedBrowserField(concept.name, field) &&
+          !browserDocs.includes(field)
+        ) {
           missing.push(`browser Go ${concept.name}.${field}`);
         }
       }
@@ -279,6 +293,10 @@ describe("SDK-owned schemas remain one cross-language contract", () => {
 
 function schemaFields(schema: ObjectSchema): string[] {
   return Object.keys(schema.shape).map(snakeCase).sort();
+}
+
+function isIntentionallyUndocumentedBrowserField(concept: string, field: string): boolean {
+  return intentionallyUndocumentedBrowserFields.has(`${concept}.${snakeCase(field)}`);
 }
 
 async function pythonClassFields(file: string, className: string): Promise<string[]> {
