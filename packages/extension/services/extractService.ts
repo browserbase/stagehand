@@ -75,7 +75,8 @@ export async function extract({
     page,
     data: cacheService.buildExtractCacheData(params),
     caching: options?.cache,
-    bypass: cacheService.shouldBypassCacheForLocatorScope(options),
+    focusLocator: options?.locator,
+    ignoreLocators: options?.ignoreLocators,
     context: cache,
     logger,
     onHit: (value) => ({

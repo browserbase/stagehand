@@ -501,7 +501,7 @@ if emailField != nil && passwordField != nil {
 
 When running on Browserbase, Stagehand can cache `observe()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on the constructor and override it per call:
 
-Locator-scoped observations, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
+Locator-scoped observations are cached too: `locator` and `ignoreLocators` (including `nth` indices) are part of the cache key, and the page fingerprint is scoped to the locator's subtree with ignored subtrees excluded.
 
 <Tabs>
 <Tab title="TypeScript">

@@ -6,6 +6,25 @@ import * as inference from "../inference.js";
 import { StagehandLogger } from "../logger.js";
 import * as observeService from "../services/observeService.js";
 
+// The cache path resolves locator scope to backendNodeIds through
+// FrameSelectorResolver, which needs a live locator-world execution context;
+// tests fake the resolver and answer DOM.describeNode from the frame's fake
+// session instead.
+const resolver = vi.hoisted(() => ({
+  resolveAtIndex: vi.fn(),
+  resolveAll: vi.fn(),
+}));
+
+vi.mock("../understudy/selectorResolver.js", () => ({
+  FrameSelectorResolver: class {
+    static parseSelector(raw: string) {
+      return { kind: "css", value: raw };
+    }
+    resolveAtIndex = resolver.resolveAtIndex;
+    resolveAll = resolver.resolveAll;
+  },
+}));
+
 describe("observe inference", () => {
   it("runs one structured observation call and exposes variable placeholders", async () => {
     const generate = vi.fn(
@@ -242,10 +261,20 @@ describe("observe service", () => {
     expect(set).not.toHaveBeenCalled();
   });
 
-  it("bypasses cache reads and writes for locator-scoped observations", async () => {
+  it("caches locator-scoped observations with resolved scope node ids", async () => {
+    resolver.resolveAtIndex.mockImplementation(async (query: { value: string }) =>
+      query.value === "main"
+        ? { objectId: "obj-main", nodeId: null }
+        : { objectId: "obj-nav", nodeId: null },
+    );
     const frame = {
       frameId: "frame-1",
       getAccessibilityTree: vi.fn(async () => []),
+      session: {
+        send: vi.fn(async (_method: string, params: { objectId: string }) => ({
+          node: { backendNodeId: params.objectId === "obj-main" ? 42 : 7 },
+        })),
+      },
     };
     const page = {
       captureSnapshot: vi.fn(async () => ({
@@ -257,8 +286,8 @@ describe("observe service", () => {
       frames: () => [frame],
       mainFrame: () => frame,
     };
-    const get = vi.fn();
-    const set = vi.fn();
+    const get = vi.fn().mockResolvedValue({ hit: false, cacheKey: "key", missReason: "not_found" });
+    const set = vi.fn().mockResolvedValue({ written: true, cacheKey: "key" });
     const clientLLMGenerate = vi.fn(async (): Promise<LLMGenerateResult> => observationResult());
 
     const result = await observeService.observe({
@@ -275,7 +304,7 @@ describe("observe service", () => {
       model: { source: "client" },
       clientLLMGenerate,
       logger: new StagehandLogger(
-        { tracer: trace.getTracer("observe-locator-cache-bypass-test") },
+        { tracer: trace.getTracer("observe-locator-cache-test") },
         () => {},
       ),
       cache: {
@@ -285,15 +314,28 @@ describe("observe service", () => {
       },
     });
 
-    expect(result.metadata.cache).toStrictEqual({ status: "DISABLED" });
+    expect(result.metadata.cache).toStrictEqual({ status: "MISS", missReason: "not_found" });
     expect(page.captureSnapshot).toHaveBeenCalledWith({
       focusLocator: { selector: "main", nth: 1 },
       ignoreLocators: [{ selector: "nav", nth: 2 }],
     });
     expect(clientLLMGenerate).toHaveBeenCalledTimes(1);
-    expect(get).not.toHaveBeenCalled();
-    expect(set).not.toHaveBeenCalled();
-    expect(frame.getAccessibilityTree).not.toHaveBeenCalled();
+    expect(get).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          options: expect.objectContaining({
+            locator: { selector: "main", nth: 1 },
+            ignoreLocators: [{ selector: "nav", nth: 2 }],
+          }),
+        }),
+        cdpTree: expect.objectContaining({
+          focusBackendNodeId: 42,
+          ignoredBackendNodeIds: [7],
+        }),
+      }),
+    );
+    expect(set).toHaveBeenCalledTimes(1);
+    expect(frame.getAccessibilityTree).toHaveBeenCalled();
   });
 
   it("enforces the configured timeout at service checkpoints", async () => {

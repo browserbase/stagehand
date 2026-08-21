@@ -1,7 +1,10 @@
+import type { Protocol } from "devtools-protocol";
+
 import type {
   Action,
   CacheMetadata,
   Caching,
+  Locator,
   StagehandActParams,
   StagehandExtractParams,
   StagehandInitParams,
@@ -17,6 +20,7 @@ import {
 import { apiUrlForRegion } from "../clients/stagehandApi.js";
 import type { StagehandLogger } from "../logger.js";
 import type { Frame } from "../understudy/frame.js";
+import { FrameSelectorResolver, type ResolvedNode } from "../understudy/selectorResolver.js";
 
 /**
  * Server-side caching for act/observe/extract via the Stagehand API's
@@ -82,6 +86,7 @@ export function buildActCacheData(params: StagehandActParams): Record<string, un
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
+          ...locatorCacheFields(params.options),
         }
       : undefined,
   };
@@ -94,6 +99,7 @@ export function buildObserveCacheData(params: StagehandObserveParams): Record<st
       ? {
           variables: params.options.variables,
           timeout: params.options.timeout,
+          ...locatorCacheFields(params.options),
         }
       : undefined,
   };
@@ -107,18 +113,35 @@ export function buildExtractCacheData(params: StagehandExtractParams): Record<st
       ? {
           timeout: params.options.timeout,
           screenshot: params.options.screenshot,
+          ...locatorCacheFields(params.options),
         }
       : undefined,
   };
 }
 
-export function shouldBypassCacheForLocatorScope(
-  options:
-    | StagehandActParams["options"]
-    | StagehandObserveParams["options"]
-    | StagehandExtractParams["options"],
-): boolean {
-  return Boolean(options?.locator || options?.ignoreLocators?.length);
+/**
+ * The locator scoping fields of the cache key payload. Conditional spreads,
+ * not always-present fields: the server hashes explicit undefined as null,
+ * which would fork the key away from unscoped requests. Empty ignoreLocators
+ * is omitted for the same reason ([] keys identically to absent server-side).
+ */
+function locatorCacheFields(options: {
+  locator?: Locator;
+  ignoreLocators?: Locator[];
+}): Record<string, unknown> {
+  return {
+    ...(options.locator && { locator: locatorCacheParam(options.locator) }),
+    ...(options.ignoreLocators?.length && {
+      ignoreLocators: options.ignoreLocators.map(locatorCacheParam),
+    }),
+  };
+}
+
+function locatorCacheParam(locator: Locator): Record<string, unknown> {
+  return {
+    selector: locator.selector,
+    ...(locator.nth !== undefined && { nth: locator.nth }),
+  };
 }
 
 /**
@@ -202,7 +225,8 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   page,
   data,
   caching,
-  bypass,
+  focusLocator,
+  ignoreLocators,
   context,
   logger,
   onHit,
@@ -213,8 +237,12 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
   data: Record<string, unknown>;
   /** Per-request override from options.cache. */
   caching?: Caching;
-  /** Client-side bypass for requests the current server cache contract cannot key safely. */
-  bypass?: boolean;
+  /** options.locator — resolved to the focusBackendNodeId the server needs to
+   * scope the DOM hash to the locator's subtree. */
+  focusLocator?: Locator;
+  /** options.ignoreLocators — resolved to the ignoredBackendNodeIds the
+   * server prunes from the DOM hash. */
+  ignoreLocators?: Locator[];
   context: CacheContext | undefined;
   logger: StagehandLogger;
   onHit: (value: unknown) => Promise<Result> | Result;
@@ -222,11 +250,11 @@ export async function withCache<Result extends { metadata: { cache: CacheMetadat
 }): Promise<Result> {
   const resolvedCaching = caching ?? context?.defaultCaching ?? false;
   const cachePage = resolvedCaching !== false ? asCachePage(page) : null;
-  if (bypass || !context || !cachePage) {
+  if (!context || !cachePage) {
     return (await execute()).result;
   }
 
-  const cdpTree = await collectCdpTree(cachePage, logger);
+  const cdpTree = await collectCdpTree(cachePage, focusLocator, ignoreLocators, logger);
   if (!cdpTree) {
     return (await execute()).result;
   }
@@ -341,10 +369,24 @@ function asCachePage(page: unknown): CachePage | null {
 }
 
 /**
- * Collects the verbatim Accessibility.getFullAXTree nodes for every frame.
- * Returns null (skip caching) when the payload can't be assembled.
+ * Collects the verbatim Accessibility.getFullAXTree nodes for every frame,
+ * plus the node ids the server needs to reproduce the request's scoping in
+ * the DOM hash: the resolved backendNodeId for the focus locator, and the
+ * resolved backendNodeIds for every ignore locator. Returns null (skip
+ * caching) when the payload can't be assembled or a focus locator does not
+ * resolve — a scoped request must never be keyed on an unscoped tree.
+ *
+ * Locators resolve against the main frame only, mirroring the legacy
+ * selector contract: an iframe-only match isn't pruned from the hash, but the
+ * literal locator fields in the cache data still key the request, so this is
+ * conservative (extra misses), never a collision.
  */
-async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise<CdpTree | null> {
+async function collectCdpTree(
+  page: CachePage,
+  focusLocator: Locator | undefined,
+  ignoreLocators: Locator[] | undefined,
+  logger: StagehandLogger,
+): Promise<CdpTree | null> {
   try {
     const mainFrame = page.mainFrame();
     const frames: CdpTree["frames"] = [];
@@ -355,9 +397,31 @@ async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise
       });
     }
 
+    let focusBackendNodeId: number | undefined;
+    if (focusLocator) {
+      focusBackendNodeId = await resolveLocatorBackendNodeId(mainFrame, focusLocator);
+      if (focusBackendNodeId === undefined) {
+        logger.debug("Cache skipped: focus locator did not resolve to a node", {
+          category: "cache",
+          selector: focusLocator.selector,
+          nth: focusLocator.nth ?? 0,
+        });
+        return null;
+      }
+    }
+
+    let ignoredBackendNodeIds: number[] | undefined;
+    if (ignoreLocators?.length) {
+      // May legitimately be empty — the locators can match nothing on this
+      // page; the server accepts [] and prunes nothing.
+      ignoredBackendNodeIds = await resolveIgnoredBackendNodeIds(mainFrame, ignoreLocators);
+    }
+
     return {
       rootFrameId: mainFrame.frameId,
       frames,
+      ...(focusBackendNodeId !== undefined && { focusBackendNodeId }),
+      ...(ignoredBackendNodeIds !== undefined && { ignoredBackendNodeIds }),
     };
   } catch (error) {
     logger.warn("Failed to collect CDP tree for cache; executing without cache", {
@@ -366,4 +430,60 @@ async function collectCdpTree(page: CachePage, logger: StagehandLogger): Promise
     });
     return null;
   }
+}
+
+/**
+ * Resolves a locator to the backendNodeId of its match, honoring the index —
+ * nth defaults to 0, matching how snapshot scoping picks its focus target.
+ */
+async function resolveLocatorBackendNodeId(
+  frame: Frame,
+  locator: Locator,
+): Promise<number | undefined> {
+  const resolver = new FrameSelectorResolver(frame);
+  const resolved = await resolver.resolveAtIndex(
+    FrameSelectorResolver.parseSelector(locator.selector),
+    locator.nth ?? 0,
+  );
+  if (!resolved) return undefined;
+  return await describeBackendNodeId(frame, resolved);
+}
+
+/**
+ * Resolves each ignore locator to the backendNodeIds the server prunes from
+ * the hash: no nth = every match, nth = that single match (mirroring how the
+ * snapshot excludes ignored nodes). A locator that matches nothing
+ * contributes no ids; resolution errors bubble to collectCdpTree's catch and
+ * skip caching for the request.
+ */
+async function resolveIgnoredBackendNodeIds(
+  frame: Frame,
+  ignoreLocators: Locator[],
+): Promise<number[]> {
+  const resolver = new FrameSelectorResolver(frame);
+  const ids = new Set<number>();
+  for (const locator of ignoreLocators) {
+    const query = FrameSelectorResolver.parseSelector(locator.selector);
+    const matches =
+      locator.nth === undefined
+        ? await resolver.resolveAll(query)
+        : [await resolver.resolveAtIndex(query, locator.nth)].filter(
+            (node): node is ResolvedNode => node !== null,
+          );
+    for (const match of matches) {
+      const backendNodeId = await describeBackendNodeId(frame, match);
+      if (backendNodeId !== undefined) ids.add(backendNodeId);
+    }
+  }
+  return [...ids];
+}
+
+async function describeBackendNodeId(
+  frame: Frame,
+  resolved: ResolvedNode,
+): Promise<number | undefined> {
+  const { node } = await frame.session.send<{ node: Protocol.DOM.Node }>("DOM.describeNode", {
+    objectId: resolved.objectId,
+  });
+  return node.backendNodeId;
 }

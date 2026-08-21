@@ -444,7 +444,7 @@ fmt.Println(result.Data.Name)
 
 When running on Browserbase, Stagehand can cache `extract()` results server-side. Repeated calls with the same inputs return instantly without consuming LLM tokens. Enable caching on `Stagehand.create()` and override it per call:
 
-Locator-scoped extractions, including calls with `locator` or `ignoreLocators`, bypass the server-side cache and report `metadata.cache.status` as `DISABLED`.
+Locator-scoped extractions are cached too: `locator` and `ignoreLocators` (including `nth` indices) are part of the cache key, and the page fingerprint is scoped to the locator's subtree with ignored subtrees excluded.
 
 <Tabs>
 <Tab title="TypeScript">
