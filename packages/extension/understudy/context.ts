@@ -124,6 +124,12 @@ export class BrowserContext {
   private deferPageInstrumentation: boolean;
   private pageInstrumentationTask?: Promise<void>;
   private readonly pendingTargetAttachments = new Set<TargetId>();
+  /**
+   * Top-level page targets deliberately left unattached in `restrictToWebTargets`
+   * mode, eligible for re-attachment from `Target.targetInfoChanged` once they
+   * reach web content.
+   */
+  private readonly ignoredTargets = new Set<TargetId>();
 
   readonly _targetSessionListeners = new Set<SessionId>();
   readonly _domainPolicySessionListeners = new Map<
@@ -673,6 +679,7 @@ export class BrowserContext {
     this.typeByTarget.clear();
     this.pendingCreatedTargetUrl.clear();
     this.pendingTargetAttachments.clear();
+    this.ignoredTargets.clear();
     this.pageCreationFailures.clear();
     this.pendingInitialTopLevelTargets.clear();
     this.pendingNewPageTargets.clear();
@@ -740,7 +747,12 @@ export class BrowserContext {
         continue;
       }
       if (currentTarget.attached) continue; // auto-attach already handled this target
-      if (!this.isSupportedTarget(currentTarget)) continue;
+      if (!this.isSupportedTarget(currentTarget)) {
+        if (this.restrictToWebTargets && isTopLevelPage(currentTarget)) {
+          this.ignoredTargets.add(currentTarget.targetId);
+        }
+        continue;
+      }
       try {
         await this.attachToTarget(t.targetId);
       } catch (error) {
@@ -755,8 +767,11 @@ export class BrowserContext {
     if (await this.closePopupIfBlockedByDomainPolicy(info, "targetInfoChanged")) return;
     if (!this.restrictToWebTargets) return;
     if (!isTopLevelPage(info)) return;
-    if (info.attached || !this.isSupportedTarget(info) || this.pagesByTarget.has(info.targetId))
-      return;
+    // `info.attached` reports whether ANY DevTools client is attached (the SDK over
+    // public CDP, Browserbase tooling, DevTools), so it cannot tell us whether this
+    // connection owns a session. Only re-attach pages we deliberately let go.
+    if (!this.ignoredTargets.has(info.targetId)) return;
+    if (!this.isSupportedTarget(info) || this.pagesByTarget.has(info.targetId)) return;
     await this.attachToTarget(info.targetId).catch(() => {});
   }
 
@@ -765,6 +780,7 @@ export class BrowserContext {
     this.pendingTargetAttachments.add(targetId);
     try {
       await this.conn.attachToTarget(targetId);
+      this.ignoredTargets.delete(targetId);
     } finally {
       this.pendingTargetAttachments.delete(targetId);
     }
@@ -793,6 +809,9 @@ export class BrowserContext {
     // waitForDebuggerOnStart. Trying to initialize these targets can throw or
     // corrupt their internal state (e.g. Chrome's PDF viewer).
     if (!this.isSupportedTarget(info)) {
+      if (this.restrictToWebTargets && isTopLevelPage(info)) {
+        this.ignoredTargets.add(info.targetId);
+      }
       const session = this.conn.getSession(sessionId);
       if (session) {
         await session.send("Runtime.runIfWaitingForDebugger").catch(() => {});
@@ -802,6 +821,7 @@ export class BrowserContext {
       }
       return;
     }
+    this.ignoredTargets.delete(info.targetId);
 
     const session = this.conn.getSession(sessionId);
     if (!session) return;
@@ -1226,6 +1246,7 @@ export class BrowserContext {
    * Cleanup a top-level Page by target id, removing its root and staged children.
    */
   cleanupByTarget(targetId: TargetId): void {
+    this.ignoredTargets.delete(targetId);
     this.recordPageCreationFailure(
       targetId,
       new Error(`Target closed before page registration (${targetId})`),
