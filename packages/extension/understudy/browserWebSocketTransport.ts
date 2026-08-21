@@ -27,6 +27,9 @@ class BrowserWebSocketTransport implements CdpWebSocketTransport {
   }
 
   send(payload: string): void {
+    if (this.socket.readyState !== WebSocket.OPEN) {
+      throw new Error("CDP websocket is not open");
+    }
     this.socket.send(payload);
   }
 

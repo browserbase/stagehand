@@ -440,14 +440,21 @@ export class StagehandRuntime {
     if (this.state.getState().status !== "initialized") return;
     const session = this.requireBrowserSession();
     await session.prepareForInitialization?.();
-    for (const source of this.contextInitScripts) await session.addInitScript(source);
+    this.assertBrowserSessionCurrent(session);
+    for (const source of this.contextInitScripts) {
+      await session.addInitScript(source);
+      this.assertBrowserSessionCurrent(session);
+    }
     if (this.contextExtraHTTPHeaders) {
       await session.setExtraHTTPHeaders(this.contextExtraHTTPHeaders);
+      this.assertBrowserSessionCurrent(session);
     }
     if (this.contextDomainPolicy !== undefined) {
       await session.setDomainPolicy(this.contextDomainPolicy);
+      this.assertBrowserSessionCurrent(session);
     }
     await this.contextPages();
+    this.assertBrowserSessionCurrent(session);
     // Pages that vanished while the connection was down never flowed through
     // refreshPageRegistry's prune, so drop their restore bookkeeping here.
     for (const pageId of new Set([
@@ -460,19 +467,40 @@ export class StagehandRuntime {
     for (const [pageId, page] of this.pagesById) {
       for (const source of this.pageInitScriptsById.get(pageId) ?? []) {
         await page.addInitScript(source);
+        this.assertBrowserSessionCurrent(session);
       }
       const headers = this.pageExtraHTTPHeadersById.get(pageId);
-      if (headers) await page.setExtraHTTPHeaders(headers);
+      if (headers) {
+        await page.setExtraHTTPHeaders(headers);
+        this.assertBrowserSessionCurrent(session);
+      }
       const viewport = this.pageViewportById.get(pageId);
       if (viewport) {
         await page.setViewportSize(viewport.width, viewport.height, viewport.options);
+        this.assertBrowserSessionCurrent(session);
       }
     }
     for (const [subscriptionId, { pageId, event }] of this.pendingPageEventResubscriptions) {
-      if (!this.pagesById.has(pageId) || this.pageEventSubscriptions.has(subscriptionId)) continue;
+      if (!this.pagesById.has(pageId)) {
+        this.logger.warn(
+          "Dropped page CDP event subscription for a page that did not survive the reconnect",
+          { category: "resident", pageId, subscriptionId },
+        );
+        // There is intentionally no wire-level invalidation event: the page is gone,
+        // so its next SDK use fails with the normal page-not-found error.
+        continue;
+      }
+      if (this.pageEventSubscriptions.has(subscriptionId)) continue;
       this.pageOn({ pageId, subscriptionId, event });
     }
+    this.assertBrowserSessionCurrent(session);
     this.pendingPageEventResubscriptions.clear();
+  }
+
+  private assertBrowserSessionCurrent(session: StagehandBrowserSession): void {
+    if (this.browserSession !== session) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
   }
 
   async runWithTelemetryContext<Result>(

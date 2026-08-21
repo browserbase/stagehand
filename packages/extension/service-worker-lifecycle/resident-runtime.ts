@@ -7,6 +7,7 @@ import type {
 import type { StagehandLogger } from "../logger.js";
 import type { StagehandRuntime } from "../runtime.js";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.js";
+import { ResidentBrowserProxyError } from "./resident-browser-proxy.js";
 
 export type ResidentRuntimeState =
   | "unconfigured"
@@ -30,6 +31,7 @@ export type StagehandRuntimeMarker = RuntimeDescriptor & {
   failure?: {
     phase: "connecting" | "bootstrapping" | "reconnecting";
     message: string;
+    code?: string;
   };
 };
 
@@ -42,7 +44,7 @@ export type ResidentRuntimeLifecycleOptions = {
   reconnectDelaysMs?: readonly number[];
 };
 
-const DEFAULT_RECONNECT_DELAYS_MS = [100, 250, 500] as const;
+export const DEFAULT_RECONNECT_DELAYS_MS = [100, 250, 500, 1000, 2000] as const;
 
 /** Coordinates one browser VM's resident connection and same-session reconnects. */
 export class ResidentRuntimeLifecycle {
@@ -58,6 +60,7 @@ export class ResidentRuntimeLifecycle {
   private reconnectAttempt = 0;
   private closed = false;
   private residentBootstrapEnabled = true;
+  private hasConnected = false;
 
   constructor(
     private readonly runtime: StagehandRuntime,
@@ -91,14 +94,18 @@ export class ResidentRuntimeLifecycle {
     if (this.marker.state === "ready" && this.runtime.browserConnectionStatus().connected) {
       return Promise.resolve();
     }
+    if (this.marker.state === "failed") {
+      this.cancelReconnects();
+      this.bootstrapPromise = undefined;
+    }
     if (this.bootstrapPromise) return this.bootstrapPromise;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
-      this.bumpOperationGeneration();
-      // Generation guards isolate the stale operation, so the replacement need not wait for it.
-      this.operationTail = Promise.resolve();
     }
+    // A fresh run always opens a new generation so the hooks of an abandoned (raced-out)
+    // run can never publish into, or schedule reconnects for, the run that replaces it.
+    this.bumpOperationGeneration();
 
     const generation = this.operationGeneration;
     const operation = this.enqueue(() => this.runResidentBootstrap(generation, logger));
@@ -190,7 +197,19 @@ export class ResidentRuntimeLifecycle {
       while (true) {
         const superseded = this.supersession.promise;
         const outcome = await Promise.race([
-          bootstrap.then(() => "ready" as const),
+          bootstrap.then(
+            () => "ready" as const,
+            (error: unknown) => {
+              if (
+                this.reconnectTimer !== undefined &&
+                !this.closed &&
+                this.residentBootstrapEnabled
+              ) {
+                return "retrying" as const;
+              }
+              throw error;
+            },
+          ),
           superseded.then(() => "superseded" as const),
         ]);
         if (this.closed) {
@@ -203,7 +222,27 @@ export class ResidentRuntimeLifecycle {
           bootstrap = this.bootstrapPromise ?? this.bootstrap(logger);
           continue;
         }
+        if (outcome === "retrying") {
+          await superseded;
+          if (this.closed || !this.residentBootstrapEnabled) {
+            throw new Error("Resident runtime bootstrap was superseded");
+          }
+          bootstrap = this.bootstrapPromise ?? this.bootstrap(logger);
+          continue;
+        }
         if (this.marker.state !== "ready" || !this.runtime.browserConnectionStatus().connected) {
+          if (this.reconnectTimer !== undefined) {
+            await superseded;
+            if (this.closed || !this.residentBootstrapEnabled) {
+              throw new Error("Resident runtime bootstrap was superseded");
+            }
+            bootstrap = this.bootstrapPromise ?? this.bootstrap(logger);
+            continue;
+          }
+          if (this.bootstrapPromise && this.bootstrapPromise !== bootstrap) {
+            bootstrap = this.bootstrapPromise;
+            continue;
+          }
           throw new Error("Resident runtime is not ready for stagehand.init");
         }
         return await this.enqueue(() => this.runtime.initialize(params, logger));
@@ -224,43 +263,68 @@ export class ResidentRuntimeLifecycle {
     generation: number,
     bootstrapLogger?: StagehandLogger,
   ): Promise<void> {
-    if (generation !== this.operationGeneration || this.closed) return;
+    if (generation !== this.operationGeneration || this.closed) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
 
     const resolveResidentWebSocketUrl = this.options.resolveResidentWebSocketUrl;
     if (!resolveResidentWebSocketUrl) throw new Error("Resident browser proxy is not configured");
 
     const connectStartedAt = this.now();
-    const reconnecting = this.reconnectAttempt > 0 || this.marker.state === "reconnecting";
+    // Only a lifecycle that has held a browser socket before is reconnecting; retries of the
+    // first connection keep reporting the connecting phase.
+    const reconnecting = this.hasConnected;
+    const disconnected = this.createSupersession();
     this.publish(reconnecting ? "reconnecting" : "connecting", false, {});
 
     try {
-      const cdpUrl = await resolveResidentWebSocketUrl();
-      if (!this.isCurrent(generation)) return;
-
-      await this.runtime.replaceBrowserConnection(
-        { cdpUrl },
-        {
-          bootstrapLogger,
-          lifecycle: {
-            bootstrapMode: "resident",
-            onConnected: () => {
-              if (this.isCurrent(generation)) this.publish("bootstrapping", true, {});
-            },
-            onDisconnected: () => {
-              if (this.isCurrent(generation)) this.handleResidentDisconnect();
-            },
-          },
-        },
+      const cdpUrl = await this.raceWithAbort(
+        generation,
+        resolveResidentWebSocketUrl(),
+        disconnected.promise,
       );
 
-      if (!this.isCurrent(generation)) return;
+      await this.raceWithAbort(
+        generation,
+        this.runtime.replaceBrowserConnection(
+          { cdpUrl },
+          {
+            bootstrapLogger,
+            lifecycle: {
+              bootstrapMode: "resident",
+              onConnected: () => {
+                if (!this.isCurrent(generation)) return;
+                this.hasConnected = true;
+                this.publish("bootstrapping", true, {});
+              },
+              onDisconnected: () => {
+                if (this.isCurrent(generation)) this.handleResidentDisconnect();
+                disconnected.resolve();
+              },
+            },
+          },
+        ),
+        disconnected.promise,
+      );
+
+      if (!this.isCurrent(generation)) {
+        throw new Error("Stagehand browser session bootstrap was superseded");
+      }
       if (!this.runtime.browserConnectionStatus().connected) {
-        throw new Error("Resident runtime disconnected during bootstrap");
+        throw new Error("Stagehand browser session disconnected during bootstrap");
       }
 
-      await this.runtime.restoreInitializedBrowserSession();
+      await this.raceWithAbort(
+        generation,
+        this.runtime.restoreInitializedBrowserSession(),
+        disconnected.promise,
+      );
       this.assertConnected(generation);
-      await this.options.waitForRpcReceiver?.();
+      await this.raceWithAbort(
+        generation,
+        this.options.waitForRpcReceiver?.() ?? Promise.resolve(),
+        disconnected.promise,
+      );
       this.assertConnected(generation);
 
       this.cancelReconnects();
@@ -278,11 +342,13 @@ export class ResidentRuntimeLifecycle {
         if (this.scheduleReconnect()) {
           this.publish("reconnecting", false, this.marker.timings);
         } else if (this.marker.state !== "failed") {
+          const code = error instanceof ResidentBrowserProxyError ? error.code : undefined;
           this.publishFailure(
             phase,
             phase === "reconnecting"
               ? "Resident runtime reconnect budget exhausted"
               : `Resident runtime ${phase} failed`,
+            code,
           );
         }
       }
@@ -297,6 +363,30 @@ export class ResidentRuntimeLifecycle {
     if (!this.runtime.browserConnectionStatus().connected) {
       throw new Error("Stagehand browser session disconnected during bootstrap");
     }
+  }
+
+  private async raceWithAbort<T>(
+    generation: number,
+    step: Promise<T>,
+    disconnected: Promise<void>,
+  ): Promise<T> {
+    void step.catch(() => {});
+    if (generation !== this.operationGeneration) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
+    const superseded = this.supersession.promise;
+    const outcome = await Promise.race([
+      step.then((value) => ({ type: "value" as const, value })),
+      superseded.then(() => ({ type: "superseded" as const })),
+      disconnected.then(() => ({ type: "disconnected" as const })),
+    ]);
+    if (outcome.type === "superseded" || generation !== this.operationGeneration) {
+      throw new Error("Stagehand browser session bootstrap was superseded");
+    }
+    if (outcome.type === "disconnected") {
+      throw new Error("Stagehand browser session disconnected during bootstrap");
+    }
+    return outcome.value;
   }
 
   private handleResidentDisconnect(): void {
@@ -315,10 +405,8 @@ export class ResidentRuntimeLifecycle {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
       if (this.closed) return;
+      // Drop the stalled attempt's handle; bootstrap() opens the next generation.
       this.bootstrapPromise = undefined;
-      this.bumpOperationGeneration();
-      // Generation guards isolate the stale operation, so the replacement need not wait for it.
-      this.operationTail = Promise.resolve();
       void this.bootstrap().catch(() => {});
     }, delay);
     return true;
@@ -346,6 +434,8 @@ export class ResidentRuntimeLifecycle {
     const supersession = this.supersession;
     this.operationGeneration += 1;
     this.supersession = this.createSupersession();
+    // Generation guards isolate the stale operation, so the replacement need not wait for it.
+    this.operationTail = Promise.resolve();
     supersession.resolve();
   }
 
@@ -368,9 +458,9 @@ export class ResidentRuntimeLifecycle {
     delete this.marker.failure;
   }
 
-  private publishFailure(phase: ResidentRuntimeFailurePhase, message: string): void {
+  private publishFailure(phase: ResidentRuntimeFailurePhase, message: string, code?: string): void {
     this.marker.state = "failed";
     this.marker.connected = false;
-    this.marker.failure = { phase, message };
+    this.marker.failure = { phase, message, ...(code ? { code } : {}) };
   }
 }

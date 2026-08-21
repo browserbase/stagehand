@@ -10,7 +10,9 @@ import {
   type StagehandBrowserSessionOptions,
   type UnderstudyRuntimePage,
 } from "../runtime.js";
+import { ResidentBrowserProxyError } from "../service-worker-lifecycle/resident-browser-proxy.js";
 import {
+  DEFAULT_RECONNECT_DELAYS_MS,
   ResidentRuntimeLifecycle,
   type ResidentRuntimeLifecycleOptions,
 } from "../service-worker-lifecycle/resident-runtime.js";
@@ -129,6 +131,10 @@ function captureHooks(
 }
 
 describe("resident runtime lifecycle", () => {
+  it("exports a five-step reconnect schedule", () => {
+    expect(DEFAULT_RECONNECT_DELAYS_MS).toStrictEqual([100, 250, 500, 1000, 2000]);
+  });
+
   it("does nothing when the resident browser proxy is unconfigured", async () => {
     const browserSessionFactory = vi.fn();
     const runtime = createStagehandRuntime({ browserSessionFactory });
@@ -246,7 +252,8 @@ describe("resident runtime lifecycle", () => {
       browserCdpUrl: "ws://custom-browser.test/devtools/browser/session",
     });
     residentUrl.resolve(RESIDENT_TEST_URL);
-    await bootstrap;
+    // A superseded resident bootstrap rejects instead of resolving with a non-ready marker.
+    await expect(bootstrap).rejects.toThrow("superseded");
 
     expect(browserSessionFactory).toHaveBeenCalledOnce();
     expect(browserSessionFactory).toHaveBeenCalledWith(
@@ -384,6 +391,166 @@ describe("resident runtime lifecycle", () => {
       phase: "reconnecting",
       message: "Resident runtime reconnect budget exhausted",
     });
+  });
+
+  it("a bootstrap step that hangs and then loses the socket fails the attempt instead of wedging", async () => {
+    const first = createSession();
+    const second = createSession();
+    const third = createSession();
+    second.prepareForInitialization.mockImplementation(
+      async () => await new Promise<void>(() => {}),
+    );
+    const sessions = [first.session, second.session, third.session];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: connectedFactory(async () => sessions.shift()!),
+    });
+    const hooks = captureHooks(runtime);
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [0] }),
+    );
+
+    await lifecycle.initialize(initParams);
+    first.disconnect();
+    hooks[0]?.lifecycle?.onDisconnected?.();
+    await vi.waitFor(() => expect(hooks).toHaveLength(2));
+    await vi.waitFor(() => expect(second.prepareForInitialization).toHaveBeenCalledOnce());
+    second.disconnect();
+    hooks[1]?.lifecycle?.onDisconnected?.();
+
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("failed"));
+    expect(lifecycle.marker.failure).toStrictEqual({
+      phase: "reconnecting",
+      message: "Resident runtime reconnect budget exhausted",
+    });
+    await expect(lifecycle.initialize(initParams)).resolves.toMatchObject({ initialized: true });
+    expect(runtime.browserSession).toBe(third.session);
+
+    // The abandoned attempt's hooks belong to a superseded generation and must not act on the
+    // fresh session.
+    hooks[1]?.lifecycle?.onDisconnected?.();
+    hooks[1]?.lifecycle?.onConnected?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(lifecycle.marker).toMatchObject({ state: "ready", connected: true });
+    expect(hooks).toHaveLength(3);
+  });
+
+  it("the first stagehand.init rides out a transient connect failure within the reconnect budget", async () => {
+    const current = createSession();
+    let attempt = 0;
+    const browserSessionFactory = vi.fn(
+      connectedFactory(async () => {
+        attempt += 1;
+        if (attempt === 1) throw new Error("proxy not ready");
+        return current.session;
+      }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [0] }),
+    );
+
+    await expect(lifecycle.initialize(initParams)).resolves.toMatchObject({ initialized: true });
+    expect(browserSessionFactory).toHaveBeenCalledTimes(2);
+    expect(lifecycle.marker).toMatchObject({ state: "ready", connected: true });
+  });
+
+  it("the first stagehand.init rejects with the last attempt's error once the budget is exhausted", async () => {
+    const browserSessionFactory = vi.fn(async () => {
+      throw new ResidentBrowserProxyError(
+        "RESIDENT_PROXY_NOT_READY",
+        "RESIDENT_PROXY_NOT_READY: proxy not ready",
+      );
+    });
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [0] }),
+    );
+
+    await expect(lifecycle.initialize(initParams)).rejects.toThrow(/RESIDENT_PROXY_NOT_READY/);
+    expect(browserSessionFactory).toHaveBeenCalledTimes(2);
+    expect(lifecycle.marker).toMatchObject({
+      state: "failed",
+      failure: { phase: "connecting", code: "RESIDENT_PROXY_NOT_READY" },
+    });
+  });
+
+  it("a stagehand.init during the reconnect window follows a failed retry to the next one", async () => {
+    const first = createSession();
+    const third = createSession();
+    let attempt = 0;
+    const browserSessionFactory = vi.fn(
+      connectedFactory(async () => {
+        attempt += 1;
+        if (attempt === 1) return first.session;
+        if (attempt === 2) throw new Error("retry failed");
+        return third.session;
+      }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const hooks = captureHooks(runtime);
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [60_000, 0] }),
+    );
+
+    await lifecycle.initialize(initParams);
+    first.disconnect();
+    hooks[0]?.lifecycle?.onDisconnected?.();
+
+    await expect(lifecycle.initialize(initParams)).resolves.toMatchObject({ initialized: true });
+    expect(browserSessionFactory).toHaveBeenCalledTimes(3);
+    expect(third.prepareForInitialization).toHaveBeenCalledOnce();
+  });
+
+  it("a fresh stagehand.init after budget exhaustion gets a fresh budget", async () => {
+    const first = createSession();
+    const fourth = createSession();
+    let attempt = 0;
+    const browserSessionFactory = vi.fn(
+      connectedFactory(async () => {
+        attempt += 1;
+        if (attempt === 1) return first.session;
+        if (attempt === 4) return fourth.session;
+        throw new Error(`attempt ${String(attempt)} failed`);
+      }),
+    );
+    const runtime = createStagehandRuntime({ browserSessionFactory });
+    const hooks = captureHooks(runtime);
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [0] }),
+    );
+
+    await lifecycle.initialize(initParams);
+    first.disconnect();
+    hooks[0]?.lifecycle?.onDisconnected?.();
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("failed"));
+
+    await expect(lifecycle.initialize(initParams)).resolves.toMatchObject({ initialized: true });
+    expect(browserSessionFactory).toHaveBeenCalledTimes(4);
+    expect(lifecycle.marker).toMatchObject({ state: "ready", connected: true });
+  });
+
+  it("closing during a stalled bootstrap rejects a pending stagehand.init", async () => {
+    const receiverReady = deferred<void>();
+    const current = createSession();
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: connectedFactory(async () => current.session),
+    });
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ waitForRpcReceiver: () => receiverReady.promise }),
+    );
+
+    const initialization = lifecycle.initialize(initParams);
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("bootstrapping"));
+    await lifecycle.close();
+
+    await expect(initialization).rejects.toThrow("superseded");
+    expect(lifecycle.marker.state).toBe("closed");
   });
 
   it("clears connected state and consumes a pending retry when bootstrap is retried", async () => {
@@ -634,6 +801,43 @@ describe("resident runtime lifecycle", () => {
     expect(thirdPage.subscribeCDPEvent).toHaveBeenCalledOnce();
   });
 
+  it("a stale restore does not touch the next generation's pages", async () => {
+    const firstPage = createPage("page-a");
+    const secondPage = createPage("page-a");
+    const thirdPage = createPage("page-a");
+    const first = createSession([firstPage.page]);
+    const second = createSession([secondPage.page]);
+    const third = createSession([thirdPage.page]);
+    const restoring = deferred<void>();
+    second.prepareForInitialization.mockImplementation(async () => await restoring.promise);
+    const sessions = [first.session, second.session, third.session];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: connectedFactory(async () => sessions.shift()!),
+    });
+    const hooks = captureHooks(runtime);
+    const lifecycle = new ResidentRuntimeLifecycle(
+      runtime,
+      residentOptions({ reconnectDelaysMs: [0, 0] }),
+    );
+
+    await lifecycle.initialize(initParams);
+    await runtime.pageAddInitScript({ pageId: "page-a", source: "globalThis.__page = true" });
+    first.disconnect();
+    hooks[0]?.lifecycle?.onDisconnected?.();
+    await vi.waitFor(() => expect(hooks).toHaveLength(2));
+    await vi.waitFor(() => expect(second.prepareForInitialization).toHaveBeenCalledOnce());
+    second.disconnect();
+    hooks[1]?.lifecycle?.onDisconnected?.();
+    await vi.waitFor(() => expect(lifecycle.marker.state).toBe("ready"));
+
+    restoring.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(thirdPage.addInitScript).toHaveBeenCalledOnce();
+    expect(secondPage.addInitScript).not.toHaveBeenCalled();
+    expect(second.addInitScript).not.toHaveBeenCalled();
+  });
+
   it("a stagehand.init awaiting a stalled stale reconnect follows the new generation instead of wedging the init guard", async () => {
     const first = createSession([createPage("page-a").page]);
     const second = createSession([createPage("page-a").page]);
@@ -720,7 +924,7 @@ describe("resident runtime lifecycle", () => {
     expect(runtime.state.getState()).toStrictEqual({ status: "closed" });
   });
 
-  it("restores page CDP event subscriptions that survive a reconnect", async () => {
+  it("logs and drops a page CDP event subscription whose page vanished across the reconnect", async () => {
     const firstPage = createPage("page-a");
     const removedPage = createPage("page-gone");
     const secondPage = createPage("page-a");
@@ -730,9 +934,11 @@ describe("resident runtime lifecycle", () => {
     const third = createSession([thirdPage.page]);
     const sessions = [first.session, second.session, third.session];
     const notifications: unknown[] = [];
+    const logs: unknown[] = [];
     const runtime = createStagehandRuntime({
       browserSessionFactory: connectedFactory(async () => sessions.shift()!),
       emitPageCDPEvent: (event) => notifications.push(event),
+      emitLog: (log) => logs.push(log),
     });
     const hooks = captureHooks(runtime);
     const lifecycle = new ResidentRuntimeLifecycle(
@@ -759,6 +965,13 @@ describe("resident runtime lifecycle", () => {
     });
     expect(notifications).toContainEqual(expect.objectContaining({ subscriptionId: "sub-1" }));
     expect(() => runtime.pageOff({ subscriptionId: "sub-gone" })).not.toThrow();
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        level: "warn",
+        message: expect.stringContaining("Dropped page CDP event subscription"),
+        data: expect.objectContaining({ subscriptionId: "sub-gone" }),
+      }),
+    );
 
     second.disconnect();
     hooks[1]?.lifecycle?.onDisconnected?.();
