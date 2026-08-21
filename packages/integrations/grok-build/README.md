@@ -14,7 +14,7 @@ pnpm --dir packages/integrations/grok-build start -- \
   "Open https://example.com, snapshot it, request a screenshot, and report the title."
 ```
 
-An existing `grok login` can be used instead of `XAI_API_KEY`. Grok uses its configured default model. Browser selection continues to use `STAGEHAND_BROWSER`, `BROWSERBASE_API_KEY`, and `BROWSERBASE_PROJECT_ID`.
+An existing `grok login` can be used instead of `XAI_API_KEY`. Grok uses its configured default model. Browser selection continues to use `STAGEHAND_BROWSER` and `BROWSERBASE_API_KEY`; `BROWSERBASE_PROJECT_ID` is optional.
 
 ## Isolation
 

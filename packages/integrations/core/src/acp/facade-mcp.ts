@@ -11,7 +11,7 @@ export function buildAcpFacadeMcpServer(
   return {
     name: "stagehand",
     command: process.execPath,
-    args: [facadeLauncherPath, facadeServerPath],
+    args: [facadeLauncherPath, facadeServerPath, "--max-screenshot-base64-bytes=60000"],
     env: Object.entries(buildAcpFacadeEnv(source)).map(([name, value]) => ({ name, value })),
   };
 }

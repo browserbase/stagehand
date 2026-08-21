@@ -49,7 +49,7 @@ describe("ACP facade MCP adapter", () => {
     ).toStrictEqual({
       name: "stagehand",
       command: process.execPath,
-      args: [resolvedFacadeLauncher, "/absolute/facade.mjs"],
+      args: [resolvedFacadeLauncher, "/absolute/facade.mjs", "--max-screenshot-base64-bytes=60000"],
       env: [{ name: "STAGEHAND_BROWSER", value: "local" }],
     });
   });
