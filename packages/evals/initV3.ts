@@ -21,6 +21,7 @@ import {
   modelToAgentProviderMap,
   V3,
 } from "@browserbasehq/stagehand";
+import { maybeWrapV3ForCapture } from "./captureCalls.js";
 import { getEnv } from "./env.js";
 import { EvalLogger } from "./logger.js";
 
@@ -44,6 +45,8 @@ type InitV3Args = {
   actTimeoutMs?: number; // retained for parity (v3 agent tools don't use this globally)
   modelName: AvailableModel;
   verbose?: boolean;
+  /** Task name stamped on captured primitive calls (EVAL_CAPTURE_CALLS_PATH). */
+  captureTaskName?: string;
 };
 
 export type V3InitResult = {
@@ -65,6 +68,7 @@ export async function initV3({
   agentMode,
   isCUA,
   verbose = false,
+  captureTaskName,
 }: InitV3Args): Promise<V3InitResult> {
   // If CUA, choose a safe internal AISDK model for V3 handlers based on available API keys
   let internalModel: AvailableModel = modelName;
@@ -128,6 +132,7 @@ export async function initV3({
   }
 
   const v3 = new V3(v3Options);
+  maybeWrapV3ForCapture(v3, captureTaskName ?? "unknown");
 
   // Associate the logger with the V3 instance
   logger.init(v3);

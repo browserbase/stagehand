@@ -173,6 +173,7 @@ export const stagehandHarness: BenchHarness = {
         isCUA,
         verbose,
         configOverrides: { env: config.environment },
+        captureTaskName: task.name,
       });
     } else {
       let llmClient: LLMClient | undefined;
@@ -195,6 +196,7 @@ export const stagehandHarness: BenchHarness = {
         isCUA,
         verbose,
         configOverrides: { env: config.environment },
+        captureTaskName: task.name,
       });
     }
 
