@@ -1,0 +1,147 @@
+---
+title: "Run a Durable Browser Agent on Cloudflare Workers"
+sidebarTitle: "Durable Browser Agent on Cloudflare"
+description: "Stagehand + Cloudflare Agents SDK: one Durable Object per conversation owns the browser, state, and schedules."
+---
+
+## Agent brief
+
+Give this section to your coding agent as the implementation brief. It should adapt storage and UI to an existing Agents SDK app rather than scaffold a new one.
+
+```text
+Build a Stagehand v4 + Cloudflare Agents SDK browser agent.
+
+Stack: agents (Cloudflare Agents SDK), @browserbasehq/stagehand with
+env: "BROWSERBASE", wrangler for deploy, React frontend with useAgentChat.
+
+Architecture rules:
+- ONE Agent class (Durable Object) per conversation. The DO owns the
+  Stagehand instance — never create Stagehand at module top level.
+- Init Stagehand lazily inside a method; persist the Browserbase session
+  id in this.sql so the DO can reattach after eviction or deploy.
+- Expose act/extract/observe as callable() methods plus chat via the
+  Agents SDK WebSocket path. The client talks to the DO, never directly
+  to Stagehand.
+- Schedule cleanup: use this.setAlarm to close idle sessions instead of
+  leaking Browserbase sessions.
+- All secrets (BROWSERBASE_API_KEY, model keys) come from env bindings.
+
+Task: chat message "find X on stagehand.dev and summarize" drives the
+browser inside the DO; extracted data persists in DO SQL and survives a
+wrangler redeploy mid-conversation.
+
+Verify: extract once, redeploy, ask again — the second answer reuses
+stored context without re-extracting, and no session outlives its TTL.
+```
+
+**Goal:** Keep a live Stagehand↔Browserbase session attached to a stateful serverless agent — the hard part of running browser automation on ephemeral infrastructure.
+
+**Outcome:** A deployed Worker where each conversation maps to one Durable Object holding its own browser, chat history in DO SQL, alarm-based session cleanup, and a React chat UI over WebSockets.
+
+<Note>
+  This page is part of the Examples catalog mock. Historical blockers for Stagehand-on-Workers (native modules, WebSocket message size limits) are resolved for remote-browser setups; see [Browser Rendering's Stagehand support](https://developers.cloudflare.com/browser-rendering/stagehand/) and always prefer `env: "BROWSERBASE"` over launching Chromium in a Worker.
+</Note>
+
+## Stack
+
+- Node.js 20+ and pnpm
+- `agents` (Cloudflare Agents SDK), `wrangler`
+- `@browserbasehq/stagehand` with `env: "BROWSERBASE"`
+- `BROWSERBASE_API_KEY` binding, model API key binding
+- React + `agents/ai-react` (`useAgentChat`) for the frontend
+
+## Why a Durable Object
+
+| Requirement | Plain Worker | Durable Object |
+| --- | --- | --- |
+| Live browser WebSocket across requests | No stable home | Single-threaded actor owns it |
+| Conversation state | External DB required | `this.sql` built in |
+| Reattach after deploy/eviction | Lost | Persisted session id + retry |
+| Idle cleanup | Cron guessing per-session | Alarm scoped to the session |
+
+## The Agent class
+
+```typescript
+import { Agent, callable } from "agents";
+
+import { Stagehand } from "@browserbasehq/stagehand";
+
+export class BrowserAgent extends Agent {
+  stagehand = null;
+
+  async ensureSession() {
+    if (this.stagehand) return this.stagehand;
+
+    const stored = await this.sql`SELECT session_id FROM sessions LIMIT 1`;
+    const stagehand = new Stagehand({
+      env: "BROWSERBASE",
+      browserbaseSessionID: stored[0]?.session_id,
+    });
+    await stagehand.init();
+    this.stagehand = stagehand;
+
+    // Reattachable across evictions and deploys.
+    await this.sql`INSERT OR REPLACE INTO sessions VALUES (${stagehand.sessionId})`;
+    return stagehand;
+  }
+
+  @callable()
+  async browseTo({ url }) {
+    const stagehand = await this.ensureSession();
+    await stagehand.page.goto(url);
+    return { title: await stagehand.page.title() };
+  }
+
+  @callable()
+  async extract({ instruction, schema }) {
+    const stagehand = await this.ensureSession();
+    const result = await stagehand.page.extract(instruction, schema);
+    await this.sql`INSERT INTO extractions (data, created_at)
+                   VALUES (${JSON.stringify(result.data)}, ${Date.now()})`;
+    return result.data;
+  }
+
+  async onAlarm() {
+    // Reap the cloud session if nobody chatted with us recently.
+    const last = await this.sql`SELECT MAX(created_at) AS t FROM activity`;
+    if (Date.now() - (last[0]?.t ?? 0) > 10 * 60_000) {
+      await this.stagehand?.close();
+      this.stagehand = null;
+    }
+  }
+}
+```
+
+Wire the frontend with the standard Agents SDK chat path:
+
+```tsx
+import { useAgentChat } from "agents/ai-react";
+
+export function Chat() {
+  const agent = useAgentChat({ agent: "browser-agent" });
+  return <>{/* render agent.messages as bubbles */}</>;
+}
+```
+
+## Check your work
+
+- `new Stagehand(...)` appears only inside `ensureSession()` — never at module scope.
+- Killing and redeploying the Worker mid-conversation does not lose the session: the DO reattaches by persisted `session_id`.
+- Two conversations map to two distinct Browserbase sessions (one DO each).
+- An idle agent closes its session within the alarm window; no orphaned keep-alive billing.
+- Long `agent.execute()` runs are chunked into multiple turns — nothing exceeds Workers CPU/subrequest limits.
+
+<Warning>
+  Workers have CPU time and subrequest limits per invocation. An autonomous multi-minute `agent.execute()` can hit them mid-run — split long tasks into steps that each fit within limits, checkpointing progress in DO storage between turns.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloudflare Browser Run vs Stagehand" href="https://developers.cloudflare.com/agents/tools/browser/">
+    When to drop to raw CDP tooling instead of Stagehand's semantic layer.
+  </Card>
+  <Card title="Deployments best practices" href="/v4/best-practices/deployments">
+    Hosting patterns that pair with durable backends.
+  </Card>
+</CardGroup>

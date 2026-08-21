@@ -1,0 +1,185 @@
+---
+title: "Build a Browser Agent with TanStack AI"
+sidebarTitle: "Browser Agent with TanStack AI"
+description: "Stagehand browser tools as isomorphic TanStack AI toolDefinitions — server-side execution, approval interrupts, AG-UI streaming."
+---
+
+## Agent brief
+
+Give this section to your coding agent as the implementation brief. It should adapt routes, storage, and UI to your app rather than scaffold a separate one.
+
+```text
+Build a Stagehand v4 + TanStack AI chat agent.
+
+Stack: @tanstack/ai, @tanstack/ai-openrouter, @tanstack/ai-react,
+@browserbasehq/stagehand, zod. Server: TanStack Start route.
+
+Architecture rules:
+- Define every browser capability once as toolDefinition({ ... }) with
+  inputSchema AND outputSchema; attach server implementations with
+  .server(async ...) that call a shared Stagehand page instance.
+- Keep ALL Stagehand tools server-side. The browser and its session live
+  on the server; the client never imports Stagehand.
+- Mark purchase/checkout-class tools needsApproval: true so the run ends
+  in an interrupt the UI resolves — do not auto-execute them.
+- Key the Stagehand instance per conversation id so two users never share
+  a browser tab.
+- Stream via toServerSentEventsResponse; consume with useChat +
+  fetchServerSentEvents. No proprietary stream format.
+
+Task: user asks the chat to find a product on stagehand.dev and add it
+to cart. browse + extract run automatically; addToCart pauses for an
+Approve button before resuming.
+
+Verify: the interrupt renders in the UI, approving resumes the same
+conversation, and the browser tab belongs only to that thread id.
+```
+
+**Goal:** Drive a Stagehand browser from a provider-neutral TanStack AI loop where tools are typed end-to-end and high-stakes actions pause for human approval.
+
+**Outcome:** A streaming chat UI over SSE whose server route runs `chat()` with Stagehand-backed `toolDefinition` tools — extraction happens automatically, `addToCart` surfaces an approve/reject interrupt, and devtools shows each browser step on a timeline.
+
+<Note>
+  This page is part of the Examples catalog mock. There is no official TanStack AI Stagehand adapter yet; the recipe uses Stagehand's public primitives directly. TanStack AI is in beta — APIs may shift between minor versions.
+</Note>
+
+## Stack
+
+- Node.js 20+ and pnpm
+- `@tanstack/ai`, `@tanstack/ai-openrouter` (or any adapter), `@tanstack/ai-react`
+- `@browserbasehq/stagehand`
+- `OPENROUTER_API_KEY` for the model
+- Local Chrome or `BROWSERBASE_API_KEY` for the browser
+
+## Why this combo
+
+| Concern | Who owns it |
+| --- | --- |
+| Typed tool contract (input + output) | `toolDefinition()` — one definition, `.server()` impl |
+| Browser intelligence | Stagehand `act` / `extract` / `observe` |
+| Approval gates | TanStack interrupts (`needsApproval`) |
+| Wire format | AG-UI over SSE — swap the backend agent later without touching the UI |
+| Provider choice | Adapter string (`openRouterText("anthropic/claude-sonnet-4.5")`) |
+
+Unlike a bespoke Express+XState setup, you get interrupts, typed state, and replayable devtools without writing protocol code.
+
+## Define Stagehand tools
+
+```typescript
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod/v4";
+
+import { getPageFor } from "./stagehand-pool.ts"; // per-conversation Stagehand
+
+export const browseTo = toolDefinition({
+  name: "browse_to",
+  description: "Navigate the conversation's browser tab to a URL.",
+  inputSchema: z.object({ url: z.string().url() }),
+  outputSchema: z.object({ title: z.string() }),
+}).server(async ({ url }, ctx) => {
+  const page = await getPageFor(ctx.conversationId);
+  await page.goto(url);
+  return { title: await page.title() };
+});
+
+export const findProduct = toolDefinition({
+  name: "find_product",
+  description: "Extract products matching a description from the current page.",
+  inputSchema: z.object({ description: z.string() }),
+  outputSchema: z.object({
+    name: z.string(),
+    price: z.number(),
+  }),
+}).server(async ({ description }, ctx) => {
+  const page = await getPageFor(ctx.conversationId);
+  const { data } = await page.extract(
+    `Find the product matching: ${description}. Return its name and price.`,
+    z.object({ name: z.string(), price: z.number() }),
+  );
+  return data;
+});
+
+export const addToCart = toolDefinition({
+  name: "add_to_cart",
+  description: "Add a product to the cart. Requires human approval.",
+  inputSchema: z.object({ productName: z.string() }),
+  outputSchema: z.object({ added: z.boolean() }),
+  needsApproval: true,
+}).server(async ({ productName }, ctx) => {
+  const page = await getPageFor(ctx.conversationId);
+  await page.act(`Click 'Add to cart' for ${productName}.`);
+  return { added: true };
+});
+```
+
+## Run the loop server-side
+
+```typescript
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+
+import { browseTo, findProduct, addToCart } from "./stagehand-tools.ts";
+
+export async function POST(request: Request) {
+  const { messages, conversationId } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterText("anthropic/claude-sonnet-4.5"),
+    messages,
+    tools: [browseTo, findProduct, addToCart],
+    stopWhen: ({ steps }) => steps.length >= 20,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+## Resolve interrupts in the UI
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const { messages, sendMessage, interrupts } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <>
+      {messages.map((m) => (
+        <Bubble key={m.id} {...m} />
+      ))}
+      {interrupts.map((i) => (
+        <button key={i.id} onClick={() => i.resolveInterrupt(true)}>
+          Approve {i.toolName}
+        </button>
+      ))}
+    </>
+  );
+}
+```
+
+When the model calls `add_to_cart`, the run stops at the interrupt instead of executing; clicking **Approve** resumes the exact state on the stateless server.
+
+## Check your work
+
+- All Stagehand imports live under `server/`; nothing browser-touching ships to the client bundle.
+- Two conversations produce two distinct browser tabs (pool keyed by conversation id).
+- `add_to_cart` never executes without a resolved interrupt.
+- The devtools panel shows `browse_to → find_product → add_to_cart (interrupt)` as a timeline with inputs/outputs.
+- Swapping `openRouterText` for another adapter requires no changes below the adapter line.
+
+<Warning>
+  A per-conversation browser is a resource leak if conversations are abandoned. Reap idle Stagehand instances with a TTL sweeper, or run on Browserbase with keep-alive sessions you release explicitly.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Run browser tools through AI SDK Code Mode" href="/v4/examples/vercel-ai-sdk/code-mode">
+    Same idea where the model writes the orchestration program itself.
+  </Card>
+  <Card title="Quickstart: First Automation" href="/v4/examples/get-started/first-automation">
+    Bare Stagehand primitives without a framework.
+  </Card>
+</CardGroup>
