@@ -462,7 +462,7 @@ function installedExtension(id: string, name: string): Record<string, unknown> {
   return {
     id,
     name,
-    version: "1.0.0",
+    version: "0.0.1",
     path: `/extensions/${id}`,
     enabled: true,
   };
