@@ -100,7 +100,10 @@ export async function initStagehand({
     // harness without the session/debug URLs that TaskResults and the
     // Braintrust replay click-through report. The shared creator also passes
     // the project id explicitly (the Browserbase SDK does not read
-    // BROWSERBASE_PROJECT_ID from the environment).
+    // BROWSERBASE_PROJECT_ID from the environment). The runner uploads its own
+    // Stagehand build, so forwarding extensionId keeps the legacy public-CDP
+    // attach; without it, connect() assumes the session opted into the
+    // image-resident extension.
     const session = await launchRunnerProvidedBrowserbaseChrome();
     sessionUrl = session.sessionUrl;
     debugUrl = session.debugUrl ?? "";
@@ -109,6 +112,7 @@ export async function initStagehand({
       browser = await browserbase.connect({
         apiKey: browserbaseApiKey,
         sessionId: session.sessionId,
+        extensionId: session.extensionId,
       });
     } catch (error) {
       await endSession().catch(() => {});
