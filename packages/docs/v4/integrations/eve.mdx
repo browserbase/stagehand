@@ -23,8 +23,8 @@ Stagehand ships this experimental integration from the repository rather than pu
 ```bash
 git clone https://github.com/browserbase/stagehand.git
 cd stagehand
-corepack pnpm@11.10.0 install --frozen-lockfile
-corepack pnpm@11.10.0 exec turbo run build \
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
   --filter @browserbasehq/stagehand-integrations
 ```
   </Step>
@@ -47,7 +47,7 @@ export BROWSERBASE_API_KEY="your-browserbase-api-key"
   </Step>
   <Step title="Start Eve">
 ```bash
-corepack pnpm@11.10.0 --dir packages/integrations/eve dev
+pnpm --dir packages/integrations/eve dev
 ```
   </Step>
   <Step title="Run a browser task">
@@ -70,7 +70,7 @@ Eve uses the `run` tool and should report `Example Domain` before returning to t
 | `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
 | `BROWSERBASE_API_KEY` | Required for Browserbase. |
 | `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
-| `STAGEHAND_MODEL_NAME` | Optional model for Stagehand AI methods called inside `run`. |
+| `STAGEHAND_MODEL_NAME` | Optional. The facade tools are deterministic and do not call a Stagehand model today. |
 | `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`; Eve can infer a supported provider key. |
 | `STAGEHAND_EVE_SESSION_FILE` | Optional file where Eve persists a Browserbase session ID. Defaults to the system temporary directory. |
 

@@ -1,0 +1,94 @@
+---
+title: "Pi"
+description: "Give the Pi coding agent native Stagehand browser tools registered directly by an extension."
+---
+
+The Pi integration gives a Pi agent native `run`, `snapshot`, and `screenshot` tools backed by one persistent Stagehand browser per Pi session. Pi ships without built-in MCP by design; extensions register tools directly, so this integration runs in process without an MCP server or bridge. The tool descriptions, runtime validators, and system prompt come from the shared facade contract, so the tools behave the same as the MCP-based integrations.
+
+<Note>
+Stagehand ships this experimental integration from the repository rather than publishing it as a standalone adapter.
+</Note>
+
+## Prerequisites
+
+- Node.js 24 or newer
+- pnpm 11.10.0
+- A model-provider credential for Pi (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
+- A current Google Chrome installation for local browser mode
+
+## Quickstart
+
+<Steps>
+  <Step title="Clone and build Stagehand">
+```bash
+git clone https://github.com/browserbase/stagehand.git
+cd stagehand
+pnpm install --frozen-lockfile
+pnpm exec turbo run build \
+  --filter @browserbasehq/stagehand-integrations
+```
+  </Step>
+  <Step title="Configure the Pi model">
+```bash
+export OPENAI_API_KEY="your-openai-api-key"
+```
+
+Export `ANTHROPIC_API_KEY` instead to use an Anthropic model. This credential is for Pi's own model, not the browser.
+  </Step>
+  <Step title="Choose the browser">
+The extension defaults to Browserbase when `BROWSERBASE_API_KEY` is set, otherwise it uses local Chrome:
+
+```bash
+export STAGEHAND_BROWSER="browserbase"
+export BROWSERBASE_API_KEY="your-browserbase-api-key"
+```
+  </Step>
+  <Step title="Run a browser task">
+```bash
+cd packages/integrations/pi
+pnpm start "Open https://example.com and report the page title." </dev/null
+```
+
+The `start` script runs `pi -e ./extensions/stagehand.ts --no-session -p`, so no install step is required; Pi loads TypeScript directly and resolves `@browserbasehq/stagehand-integrations` through the workspace.
+  </Step>
+</Steps>
+
+<Note>
+Two headless gotchas: print mode reads piped stdin (always redirect `</dev/null`), and non-interactive runs never show the project-trust prompt. Load the extension with `-e` as above, or use `-a` after trusting the project.
+</Note>
+
+## Install permanently
+
+To register the extension for every Pi session instead of loading it per invocation:
+
+```bash
+pi install ./packages/integrations/pi
+```
+
+The `pi` manifest key in the package's `package.json` points at the extension.
+
+## Configuration
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | Credential for Pi's own model. |
+| `ANTHROPIC_API_KEY` | Alternative credential for Pi's own model. |
+| `STAGEHAND_BROWSER` | Select `local` or `browserbase`. |
+| `BROWSERBASE_API_KEY` | Required for Browserbase. |
+| `BROWSERBASE_PROJECT_ID` | Optional Browserbase project ID. |
+| `STAGEHAND_MODEL_NAME` | Optional. The facade tools are deterministic and do not call a Stagehand model today. |
+| `STAGEHAND_MODEL_API_KEY` | Optional credential for `STAGEHAND_MODEL_NAME`; the extension can infer a supported provider key from its environment. |
+
+## Session lifecycle
+
+The extension factory does not start a browser; factories also run in invocations that never start a session, such as `pi --list-models`. The browser launches lazily on the first tool call, relaunches if it closed, and closes on session shutdown. Shutdown awaits a still-pending launch before closing so it does not leak a racing launch.
+
+`snapshot` and `run` return text content. `screenshot` returns real image content because Pi supports multimodal tool results.
+
+<Warning>
+`run` executes model-authored JavaScript in the browser. Use Browserbase for untrusted tasks and review the [integration security boundary](/v4/integrations/overview#security-boundary).
+</Warning>
+
+<Card title="Pi integration source" icon="github" href="https://github.com/browserbase/stagehand/tree/main/packages/integrations/pi">
+  Read the extension tool registrations and lazy browser lifecycle.
+</Card>

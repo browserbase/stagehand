@@ -4,7 +4,7 @@ description: "Initialize a browser session and run AI-powered actions, observati
 icon: "hand-horns"
 ---
 
-`Stagehand` owns the browser connection and exposes top-level lifecycle, metrics, and AI methods.
+`Stagehand` attaches to a browser connection and exposes top-level lifecycle, metrics, and AI methods. The browser handle remains caller-owned.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -14,7 +14,18 @@ icon: "hand-horns"
 ```typescript
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
-const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
+const browser = await localBrowser.launch();
+try {
+  const stagehand = await Stagehand.create({ browser });
+  try {
+    const page = await browser.context.activePage();
+    await page.goto("https://example.com");
+  } finally {
+    await stagehand.close();
+  }
+} finally {
+  await browser.close();
+}
 ```
 
 ## create()
@@ -22,7 +33,8 @@ const stagehand = await Stagehand.create({ browser: await localBrowser.launch() 
 Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```typescript
-const stagehand = await Stagehand.create({ browser: await localBrowser.launch() });
+const browser = await localBrowser.launch();
+const stagehand = await Stagehand.create({ browser });
 ```
 
 <ParamField path="browser" type="StagehandBrowser" required>
@@ -87,10 +99,11 @@ const page = await stagehand.browser.context.activePage();
 
 ## close()
 
-Close the Stagehand session and release browser resources.
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
 
 ```typescript
 await stagehand.close();
+await browser.close();
 ```
 
 <ResponseField name="result" type="Promise<void>">
@@ -852,7 +865,16 @@ console.log(product.data, product.metadata.cache.status);
 ```python
 from stagehand import Stagehand, local_browser
 
-stagehand = await Stagehand.create(browser=await local_browser.launch())
+browser = await local_browser.launch()
+try:
+    stagehand = await Stagehand.create(browser=browser)
+    try:
+        page = await browser.context.active_page()
+        await page.goto("https://example.com")
+    finally:
+        await stagehand.close()
+finally:
+    await browser.close()
 ```
 
 ## create()
@@ -860,7 +882,8 @@ stagehand = await Stagehand.create(browser=await local_browser.launch())
 Create a Stagehand instance and connect it to a browser. `Stagehand.create()` is the only way to build one; there is no public constructor, and the returned instance is already initialized.
 
 ```python
-stagehand = await Stagehand.create(browser=await local_browser.launch())
+browser = await local_browser.launch()
+stagehand = await Stagehand.create(browser=browser)
 ```
 
 <ParamField path="browser" type="StagehandBrowser" required>
@@ -933,10 +956,11 @@ page = await stagehand.browser.context.active_page()
 
 ## close()
 
-Close the Stagehand session and release browser resources.
+Close the Stagehand runtime and release its resources. The browser handle stays open; close it separately with `browser.close()`.
 
 ```python
 await stagehand.close()
+await browser.close()
 ```
 
 <ResponseField name="result" type="None">

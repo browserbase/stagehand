@@ -5,9 +5,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Internal mirrored pull request number
+        required: true
+        type: string
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -306,8 +313,7 @@ jobs:
     # a specific external PR in.
     if: >-
       needs.determine-changes.outputs.sdk-go == 'true' &&
-      (github.event_name == 'push' ||
-       github.event.pull_request.head.repo.full_name == github.repository ||
+      (needs.determine-changes.outputs.is_internal_head == 'true' ||
        contains(github.event.pull_request.labels.*.name, 'safe-to-test'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -433,8 +439,7 @@ jobs:
     name: Go (Windows process management)
     needs: [determine-changes]
     if: >-
-      github.event_name == 'push' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      needs.determine-changes.outputs.is_internal_head == 'true'
     runs-on: windows-latest
     timeout-minutes: 10
     defaults:

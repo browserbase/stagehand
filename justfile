@@ -88,3 +88,11 @@ _preview commit:
 _publish-typescript:
     pnpm --filter ./packages/sdk-ts build
     pnpm exec changeset publish
+
+# Publishes a commit-addressed alpha of the TypeScript SDK (`<next>-alpha-<sha>`)
+# under the `alpha` dist-tag. Only packages with pending changesets are versioned,
+# so this is a no-op when nothing is unreleased.
+_publish-typescript-alpha:
+    pnpm exec changeset version --snapshot
+    pnpm --filter ./packages/sdk-ts build
+    pnpm exec changeset publish --tag alpha --no-git-tag

@@ -425,7 +425,11 @@ When `browserbase.launch()` creates a session without an `extensionId`, Stagehan
 
 ### Alternative: Browserbase SDK
 
-If you prefer to manage sessions directly, create the session with the Browserbase SDK and hand Stagehand the resulting session through `browserbase.connect()`:
+If you prefer to manage sessions directly, upload the Stagehand extension to Browserbase first and include that uploaded extension when you create the session. Extensions cannot be added after a browser session starts. You can then hand Stagehand the resulting session through `browserbase.connect()`:
+
+<Note>
+The extension ID used to create the session is the uploaded-extension resource ID returned by the Browserbase Extensions API. `browserbase.launch()` handles this upload and session configuration automatically.
+</Note>
 
 <Tabs>
 <Tab title="TypeScript">
@@ -439,6 +443,7 @@ const bb = new Browserbase({
 
 const session = await bb.sessions.create({
   projectId: process.env.BROWSERBASE_PROJECT_ID!,
+  extensionId: process.env.BROWSERBASE_STAGEHAND_EXTENSION_ID!,
   // Add configuration options here
 });
 
@@ -464,6 +469,7 @@ bb = Browserbase(api_key=os.environ["BROWSERBASE_API_KEY"])
 
 session = bb.sessions.create(
     project_id=os.environ["BROWSERBASE_PROJECT_ID"],
+    extension_id=os.environ["BROWSERBASE_STAGEHAND_EXTENSION_ID"],
     # Add configuration options here
 )
 
@@ -478,9 +484,10 @@ stagehand = await Stagehand.create(browser=browser)
 
 <Tab title="Go">
 ```go
-// Create the session with your Browserbase client of choice, then attach by
-// session ID so the browser keeps its Browserbase identity.
-session, err := createBrowserbaseSession(ctx)
+// Create the session with your Browserbase client of choice, including the
+// uploaded Stagehand extension, then attach by session ID.
+extensionID := os.Getenv("BROWSERBASE_STAGEHAND_EXTENSION_ID")
+session, err := createBrowserbaseSession(ctx, extensionID)
 if err != nil {
 	return err
 }
@@ -504,13 +511,9 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 </Tab>
 </Tabs>
 
-When the existing Browserbase session uses a specific Stagehand extension, identify it with
-`extensionId` in TypeScript, `extension_id` in Python, or `ExtensionID` in Go. Omit this option to
-discover a compatible preloaded Stagehand extension automatically.
+#### Connecting over CDP
 
-#### Connecting to an existing session
-
-`localBrowser.connect()` attaches to any Chromium browser that is already running and exposing a DevTools endpoint, whether that is a Browserbase session you created earlier or a browser on your own machine:
+`localBrowser.connect()` attaches to a Chromium browser that is already running and exposing a DevTools endpoint. By default, it loads Stagehand's extension from the SDK host, so use it when the SDK and browser share a filesystem. For an existing Browserbase session, use `browserbase.connect()` with its session ID as shown above.
 
 <Tabs>
 <Tab title="TypeScript">
@@ -518,7 +521,7 @@ discover a compatible preloaded Stagehand extension automatically.
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await localBrowser.connect({
-  cdpUrl: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
+  cdpUrl: "http://127.0.0.1:9222",
 });
 const stagehand = await Stagehand.create({ browser });
 ```
@@ -529,7 +532,7 @@ const stagehand = await Stagehand.create({ browser });
 from stagehand import Stagehand, local_browser
 
 browser = await local_browser.connect(
-    cdp_url=connect_url,  # from your Browserbase session
+    cdp_url="http://127.0.0.1:9222",
 )
 stagehand = await Stagehand.create(browser=browser)
 ```
@@ -538,7 +541,7 @@ stagehand = await Stagehand.create(browser=browser)
 <Tab title="Go">
 ```go
 browser, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
-	CDPURL: "wss://connect.browserbase.com/?apiKey=...&sessionId=...",
+	CDPURL: "http://127.0.0.1:9222",
 })
 if err != nil {
 	return err
@@ -553,11 +556,6 @@ defer func() { err = errors.Join(err, client.Close(ctx)) }()
 ```
 </Tab>
 </Tabs>
-
-When the browser already has the Stagehand extension installed, identify it with `extensionId` in
-TypeScript, `extension_id` in Python, or `ExtensionID` in Go. If you omit this option, Stagehand
-attempts to load its bundled extension; pass the ID explicitly when the connected Chrome build does
-not support loading an unpacked extension over CDP.
 
 <Note>
 Stagehand never closes a browser it did not launch. When you connect to an existing browser, `close()` tears down the Stagehand connection and leaves the browser running.
@@ -854,20 +852,24 @@ By default, Stagehand terminates the browser it launched and cleans up all resou
 <Tabs>
 <Tab title="TypeScript">
 ```typescript
-import { browserbase, localBrowser, Stagehand } from "@browserbasehq/stagehand";
+import { browserbase, Stagehand } from "@browserbasehq/stagehand";
 
 const browser = await browserbase.launch({
   apiKey: process.env.BROWSERBASE_API_KEY,
   keepAlive: true,
 });
 const stagehand = await Stagehand.create({ browser });
+const sessionId = browser.sessionId!;
 
 // The browser session continues running after close()
 await stagehand.close();
 await browser.close();
 
-// Later, reconnect to the same session over CDP
-const browser2 = await localBrowser.connect({ cdpUrl: existingConnectUrl });
+// Later, reconnect to the same Browserbase session
+const browser2 = await browserbase.connect({
+  apiKey: process.env.BROWSERBASE_API_KEY,
+  sessionId,
+});
 const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```
 </Tab>
@@ -876,20 +878,25 @@ const stagehand2 = await Stagehand.create({ browser: browser2 });
 ```python
 import os
 
-from stagehand import Stagehand, browserbase, local_browser
+from stagehand import Stagehand, browserbase
 
 browser = await browserbase.launch(
     api_key=os.environ["BROWSERBASE_API_KEY"],
     keep_alive=True,
 )
 stagehand = await Stagehand.create(browser=browser)
+session_id = browser.session_id
+assert session_id is not None
 
 # The browser session continues running after close()
 await stagehand.close()
 await browser.close()
 
-# Later, reconnect to the same session over CDP
-browser2 = await local_browser.connect(cdp_url=existing_connect_url)
+# Later, reconnect to the same Browserbase session
+browser2 = await browserbase.connect(
+    api_key=os.environ["BROWSERBASE_API_KEY"],
+    session_id=session_id,
+)
 stagehand2 = await Stagehand.create(browser=browser2)
 ```
 </Tab>
@@ -910,6 +917,7 @@ client, err := stagehand.Create(ctx, stagehand.CreateOptions{Browser: browser})
 if err != nil {
 	return err
 }
+sessionID := browser.SessionID()
 
 // The browser session continues running after Close()
 if err := client.Close(ctx); err != nil {
@@ -919,9 +927,10 @@ if err := browser.Close(ctx); err != nil {
 	return err
 }
 
-// Later, reconnect to the same session over CDP
-browser2, err := stagehand.ConnectLocalBrowser(ctx, stagehand.LocalBrowserConnectOptions{
-	CDPURL: existingConnectURL,
+// Later, reconnect to the same Browserbase session
+browser2, err := stagehand.ConnectBrowserbase(ctx, stagehand.BrowserbaseConnectOptions{
+	APIKey:    apiKey,
+	SessionID: sessionID,
 })
 if err != nil {
 	return err
