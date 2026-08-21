@@ -24,6 +24,7 @@ import {
   SNAPSHOT_TOOL_DESCRIPTION,
   SnapshotInputSchema,
   StagehandFacadeTools,
+  releaseBrowserbaseSession,
   stagehandFacadeConfigFromEnv,
 } from "@browserbasehq/stagehand-integrations/facade";
 
@@ -31,7 +32,16 @@ type FacadeResources = {
   browser: StagehandBrowser;
   stagehand: Stagehand;
   tools: StagehandFacadeTools;
+  releaseSession?: () => Promise<void>;
 };
+
+export class StagehandFacadeCleanupError extends Error {
+  override readonly name = "StagehandFacadeCleanupError";
+
+  constructor() {
+    super("Failed to close the browser session cleanly.");
+  }
+}
 
 // TypeBox mirrors of the wire schemas (pi validates params with TypeBox; the
 // zod validators from the contract re-enforce semantics like code XOR actions
@@ -65,24 +75,52 @@ export default function stagehandExtension(pi: ExtensionAPI) {
   // browser launches lazily on first tool call and closes on shutdown.
   let resources: FacadeResources | undefined;
   let resourcesPromise: Promise<FacadeResources> | undefined;
+  let cleanupPromise: Promise<void> = Promise.resolve();
+  const cleanupTargets = new Set<() => Promise<void>>();
 
   async function facadeTools(): Promise<StagehandFacadeTools> {
     if (resources && !resources.browser.closed) return resources.tools;
     resources = undefined;
-    resourcesPromise ??= (async () => {
+    resourcesPromise ??= cleanupPromise.then(retryCleanupTargets).then(async () => {
       const config = stagehandFacadeConfigFromEnv();
       const browser =
         config.browser.type === "browserbase"
           ? await browserbase.launch(config.browser.launchOptions)
           : await localBrowser.launch(config.browser.launchOptions);
+      const sessionId = browser.sessionId;
+      let releaseSession: (() => Promise<void>) | undefined;
+      if (config.browser.type === "browserbase" && sessionId) {
+        const { apiKey, baseUrl } = config.browser.launchOptions;
+        releaseSession = () => releaseBrowserbaseSession({ apiKey, baseUrl, sessionId });
+      }
       try {
         const stagehand = await Stagehand.create({ browser, ...config.stagehand });
-        return { browser, stagehand, tools: new StagehandFacadeTools(stagehand) };
+        let tools: StagehandFacadeTools;
+        tools = new StagehandFacadeTools(stagehand, {
+          close: () => closeResources(tools, true),
+        });
+        return { browser, stagehand, tools, ...(releaseSession ? { releaseSession } : {}) };
       } catch (error) {
-        await browser.close().catch(() => undefined);
-        throw error;
+        const cleanupErrors: unknown[] = [error];
+        let browserCloseFailed = false;
+        await browser.close().catch((cleanupError) => {
+          browserCloseFailed = true;
+          cleanupErrors.push(cleanupError);
+        });
+        if (browserCloseFailed && releaseSession) {
+          await releaseSession().catch((releaseError) => {
+            cleanupTargets.add(releaseSession);
+            cleanupErrors.push(releaseError);
+          });
+        }
+        if (cleanupErrors.length === 1) throw error;
+        throw new AggregateError(
+          cleanupErrors,
+          "Stagehand initialization failed and browser cleanup also failed.",
+          { cause: error },
+        );
       }
-    })();
+    });
     try {
       resources = await resourcesPromise;
       return resources.tools;
@@ -91,19 +129,64 @@ export default function stagehandExtension(pi: ExtensionAPI) {
     }
   }
 
-  async function closeResources(): Promise<void> {
+  async function closeResources(
+    expected?: StagehandFacadeTools,
+    reportErrors = false,
+  ): Promise<void> {
     // A shutdown can race a still-pending launch; wait for it so the browser
     // it produces is closed rather than leaked.
     const pending = resourcesPromise;
-    if (pending) await pending.catch(() => undefined);
-    const current = resources;
+    const launched = await pending?.catch(() => undefined);
+    const current = resources ?? launched;
+    if (expected && current?.tools !== expected) return;
     resources = undefined;
-    if (!current) return;
-    await current.stagehand.close().catch(() => undefined);
-    await current.browser.close().catch(() => undefined);
+    if (!current) {
+      if (!reportErrors) {
+        await cleanupPromise;
+        await retryCleanupTargets().catch(() => undefined);
+      }
+      return;
+    }
+    const closeResult = cleanupPromise.then(() => closeResource(current));
+    cleanupPromise = closeResult.then(
+      () => undefined,
+      () => undefined,
+    );
+    if (!reportErrors) {
+      await closeResult.catch(() => undefined);
+      await retryCleanupTargets().catch(() => undefined);
+      return;
+    }
+    await closeResult;
   }
 
-  pi.on("session_shutdown", closeResources);
+  async function closeResource(current: FacadeResources): Promise<void> {
+    const cleanupErrors: unknown[] = [];
+    let browserCloseFailed = false;
+    await current.stagehand.close().catch((error) => cleanupErrors.push(error));
+    await current.browser.close().catch((error) => {
+      browserCloseFailed = true;
+      cleanupErrors.push(error);
+    });
+    if (browserCloseFailed && current.releaseSession) {
+      cleanupTargets.add(current.releaseSession);
+    } else if (current.releaseSession) {
+      cleanupTargets.delete(current.releaseSession);
+    }
+    if (cleanupErrors.length === 0) return;
+    // Pi surfaces rejected tool executions directly. Keep SDK/CDP details out
+    // of the model-visible error, including Error.cause and AggregateError.errors.
+    throw new StagehandFacadeCleanupError();
+  }
+
+  async function retryCleanupTargets(): Promise<void> {
+    for (const releaseSession of cleanupTargets) {
+      await releaseSession();
+      cleanupTargets.delete(releaseSession);
+    }
+  }
+
+  pi.on("session_shutdown", () => closeResources());
 
   pi.registerTool({
     name: "run",
