@@ -11,6 +11,10 @@ import {
 } from "./helpers/fake-browserbase-server.js";
 import { runCli } from "./helpers/run-cli.js";
 import { itPosix } from "./helpers/platform.js";
+import {
+  buildNextSteps,
+  resolveScaffolderTemplateName,
+} from "../src/lib/templates/scaffold.js";
 
 interface TemplateFixture {
   category: string[];
@@ -78,6 +82,37 @@ afterEach(async () => {
 });
 
 describe("templates commands", () => {
+  it("resolves language-specific scaffold names from catalog commands", () => {
+    const template = {
+      ...templates[0],
+      slug: "playwright",
+      commands: [
+        "npx create-browser-app --template quickstart-playwright",
+        "uvx create-browser-app --template quickstart-playwright",
+      ],
+    };
+
+    expect(resolveScaffolderTemplateName(template, "typescript")).toBe(
+      "quickstart-playwright",
+    );
+    expect(resolveScaffolderTemplateName(template, "python")).toBe(
+      "quickstart-playwright",
+    );
+  });
+
+  it("uses README uv dependencies when a Python template has no manifest", async () => {
+    const dest = await createTempDir("browse-templates-readme-uv-");
+    await writeFile(join(dest, "main.py"), "print('hello')\n");
+    await writeFile(
+      join(dest, "README.md"),
+      "4. uvx --with browserbase --with selenium --with python-dotenv python main.py\n",
+    );
+
+    await expect(buildNextSteps(dest, dest, "python")).resolves.toContain(
+      "uv run --with browserbase --with selenium --with python-dotenv python main.py",
+    );
+  });
+
   it("lists templates from the templates API", async () => {
     await withTemplatesApi(async ({ baseUrl, requests }) => {
       const result = await runCli(["templates", "list", "--format", "table"], {
@@ -257,7 +292,7 @@ describe("templates commands", () => {
           'printf \'npx %s\\n\' "$*" >> "$BB_STUB_LOG"',
           'project="$2"',
           'mkdir -p "$project"',
-          'printf \'{"name":"stub-app","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
+          'printf \'{"name":"stub-app","packageManager":"pnpm@10.24.0","scripts":{"dev":"tsx index.ts"}}\\n\' > "$project/package.json"',
           "printf 'BROWSERBASE_API_KEY=\\n' > \"$project/.env.example\"",
         ].join("\n"),
       );
@@ -288,9 +323,9 @@ describe("templates commands", () => {
         );
         expect(result.stdout).toContain(`Template scaffolded to ${dest}`);
         expect(result.stdout).toContain(`cd ${dest}`);
-        expect(result.stdout).toContain("npm install");
+        expect(result.stdout).toContain("pnpm install");
         expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("npm run dev");
+        expect(result.stdout).toContain("pnpm dev");
         expect(await readFile(join(dest, "package.json"), "utf8")).toContain(
           "stub-app",
         );
@@ -349,7 +384,7 @@ describe("templates commands", () => {
         );
         expect(result.stdout).toContain("uv sync");
         expect(result.stdout).toContain("cp .env.example .env");
-        expect(result.stdout).toContain("python main.py");
+        expect(result.stdout).toContain("uv run python main.py");
         expect(await readFile(join(dest, "main.py"), "utf8")).toContain(
           "hello",
         );
