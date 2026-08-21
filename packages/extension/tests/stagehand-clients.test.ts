@@ -8,7 +8,10 @@ import {
   StagehandRpcNotificationSchema,
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.ts";
-import { startStagehandServiceWorker } from "../service-worker.ts";
+import {
+  startStagehandServiceWorker,
+  type StagehandServiceWorkerScope,
+} from "../service-worker.ts";
 import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
@@ -660,6 +663,114 @@ function configuredInitParams(cdpUrl: string) {
 }
 
 describe("Stagehand worker clients", () => {
+  it("does not auto-bootstrap a public build without resident configuration", async () => {
+    const browserSessionFactory = vi.fn(async () => new FakeBrowserSession());
+    const runtime = createStagehandRuntime({ browserSessionFactory }, testTracing);
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime);
+    await Promise.resolve();
+
+    expect(browserSessionFactory).not.toHaveBeenCalled();
+    expect(scope.__stagehand_runtime?.failure).toBeUndefined();
+  });
+
+  it("keeps a configured resident runtime idle until stagehand.init", async () => {
+    const messages: unknown[] = [];
+    const session = new FakeBrowserSession();
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_url, _logger, options) => {
+          options?.lifecycle?.onConnected?.();
+          return session;
+        },
+      },
+      testTracing,
+    );
+    const resolveResidentWebSocketUrl = vi.fn(async () => "ws://browser-proxy.test/session");
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: (payload) => messages.push(JSON.parse(payload)),
+    };
+
+    startStagehandServiceWorker(scope, runtime, { resolveResidentWebSocketUrl });
+    await Promise.resolve();
+
+    expect(resolveResidentWebSocketUrl).not.toHaveBeenCalled();
+    expect(scope.__stagehand_runtime).toMatchObject({ state: "idle", connected: false });
+
+    await scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "stagehand.init",
+        params: {
+          protocol_version: STAGEHAND_PROTOCOL_VERSION,
+          client_info: { name: "stagehand-sdk-test", version: "1.0.0" },
+        },
+      }),
+    );
+
+    expect(resolveResidentWebSocketUrl).toHaveBeenCalledOnce();
+    expect(session.prepareForInitializationCalls).toBe(1);
+    expect(scope.__stagehand_runtime).toMatchObject({ state: "ready", connected: true });
+    expect(messages).toContainEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { initialized: true, pages: [] },
+    });
+  });
+
+  it("does not publish ready while bootstrap is pending even though the receiver is installed", async () => {
+    const session = new FakeBrowserSession();
+    let finishBootstrap: (() => void) | undefined;
+    const runtime = createStagehandRuntime(
+      {
+        browserSessionFactory: async (_url, _logger, options) => {
+          options?.lifecycle?.onConnected?.();
+          await new Promise<void>((resolve) => {
+            finishBootstrap = resolve;
+          });
+          return session;
+        },
+      },
+      testTracing,
+    );
+    const scope: StagehandServiceWorkerScope & {
+      [STAGEHAND_SEND_TO_HOST_BINDING](payload: string): void;
+    } = {
+      [STAGEHAND_SEND_TO_HOST_BINDING]: () => {},
+    };
+
+    startStagehandServiceWorker(scope, runtime, {
+      resolveResidentWebSocketUrl: async () => "ws://browser-proxy.test/session",
+    });
+    const initialization = scope.__stagehandReceiveFromHost?.(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "stagehand.init",
+        params: {
+          protocol_version: STAGEHAND_PROTOCOL_VERSION,
+          client_info: { name: "stagehand-sdk-test", version: "1.0.0" },
+        },
+      }),
+    );
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("bootstrapping"));
+
+    expect(scope.__stagehandReceiveFromHost).toEqual(expect.any(Function));
+    expect(scope.__stagehand_runtime?.state).not.toBe("ready");
+
+    finishBootstrap?.();
+    await initialization;
+    await vi.waitFor(() => expect(scope.__stagehand_runtime?.state).toBe("ready"));
+  });
+
   it("routes callback batches through the registered JSON-RPC method", async () => {
     const page = new FakeUnderstudyRuntimePage("page-1", "https://example.com", "Example");
     const handle = await createConfiguredHandler(new FakeBrowserSession([page]));

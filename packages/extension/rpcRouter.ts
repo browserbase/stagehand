@@ -41,8 +41,12 @@ export type HandlerContext = {
 };
 
 export type RPCRouterOptions = {
-  initializeStagehand?: (params: StagehandInitParams) => Promise<StagehandInitResult>;
+  initializeStagehand?: (
+    params: StagehandInitParams,
+    logger: StagehandLogger,
+  ) => Promise<StagehandInitResult>;
   closeStagehand?: () => Promise<void>;
+  closeContext?: () => Promise<void>;
 };
 
 export class RPCRouter {
@@ -61,7 +65,10 @@ export class RPCRouter {
       ...(options.initializeStagehand ? { initialize: options.initializeStagehand } : {}),
       ...(options.closeStagehand ? { close: options.closeStagehand } : {}),
     });
-    this.contextController = createContextController(runtime);
+    this.contextController = createContextController(
+      runtime,
+      options.closeContext ? { close: options.closeContext } : {},
+    );
     this.pageController = createPageController(runtime);
     this.locatorController = createLocatorController(runtime);
     this.responseController = createResponseController(runtime);

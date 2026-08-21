@@ -42,7 +42,36 @@ function createBrowserSession(
   };
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe("Stagehand runtime state", () => {
+  it("does not start a superseded browser session after an earlier close settles", async () => {
+    const previousClosed = deferred();
+    const createdUrls: string[] = [];
+    const runtime = createStagehandRuntime({
+      browserSessionFactory: async (url) => {
+        createdUrls.push(url);
+        return createBrowserSession({
+          close: url === "ws://initial" ? () => previousClosed.promise : async () => {},
+        });
+      },
+    });
+
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://initial" });
+    const stale = runtime.replaceBrowserConnection({ cdpUrl: "ws://stale" });
+    await runtime.replaceBrowserConnection({ cdpUrl: "ws://current" });
+    previousClosed.resolve();
+
+    await expect(stale).rejects.toThrow("superseded");
+    expect(createdUrls).toStrictEqual(["ws://initial", "ws://current"]);
+  });
+
   it("keeps the persistent browser session on the neutral runtime logger", async () => {
     const browserSessionFactory = vi.fn(async () => createBrowserSession());
     const runtime = createStagehandRuntime({ browserSessionFactory });
@@ -59,11 +88,9 @@ describe("Stagehand runtime state", () => {
       initLogger,
     );
 
-    expect(browserSessionFactory).toHaveBeenCalledWith(
-      "ws://browser.example",
-      runtime.logger,
-      initLogger,
-    );
+    expect(browserSessionFactory).toHaveBeenCalledWith("ws://browser.example", runtime.logger, {
+      bootstrapLogger: initLogger,
+    });
   });
 
   it("stores the exact validated Stagehand init params after initialization", async () => {

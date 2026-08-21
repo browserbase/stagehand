@@ -12,15 +12,19 @@ describe("runtime descriptor", () => {
     const scope: StagehandServiceWorkerScope = {};
     startStagehandServiceWorker(scope);
 
-    expect(RuntimeDescriptorSchema.parse(scope.__stagehand_runtime)).toStrictEqual(
-      scope.__stagehand_runtime,
-    );
-    expect(scope.__stagehand_runtime).toStrictEqual({
+    expect(
+      RuntimeDescriptorSchema.parse({
+        protocolVersion: scope.__stagehand_runtime?.protocolVersion,
+        serverInfo: scope.__stagehand_runtime?.serverInfo,
+      }),
+    ).toStrictEqual({
       protocolVersion: STAGEHAND_PROTOCOL_VERSION,
-      serverInfo: {
-        name: "stagehand",
-        version: extensionPackageJson.version,
-      },
+      serverInfo: { name: "stagehand", version: extensionPackageJson.version },
+    });
+    expect(scope.__stagehand_runtime).toMatchObject({
+      state: "unconfigured",
+      connected: false,
+      timings: {},
     });
   });
 
