@@ -36,6 +36,40 @@ async function loadWrappedAISDK(): Promise<WrappedAI> {
   return wrappedAiPromise;
 }
 
+/**
+ * Some models (observed: claude-sonnet-5 on the observe schema) return the
+ * payload double-encoded — the whole JSON object stringified inside the
+ * top-level field, e.g. {"elements": "{\"elements\": [...]}"}. Parses the
+ * raw text and unwraps one level of string-encoded JSON per field (preferring
+ * the field's own key when the inner object repeats it) so the schema can be
+ * re-validated instead of failing the trial on a formatting quirk.
+ */
+function repairDoubleEncodedObject(text: string): unknown {
+  const candidate = JSON.parse(text) as Record<string, unknown>;
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return candidate;
+  }
+  const repaired: Record<string, unknown> = { ...candidate };
+  for (const [key, value] of Object.entries(candidate)) {
+    if (typeof value !== "string") {
+      continue;
+    }
+    try {
+      const inner = JSON.parse(value) as unknown;
+      repaired[key] =
+        inner &&
+        typeof inner === "object" &&
+        !Array.isArray(inner) &&
+        key in (inner as Record<string, unknown>)
+          ? (inner as Record<string, unknown>)[key]
+          : inner;
+    } catch {
+      // Not JSON — leave the original string in place.
+    }
+  }
+  return repaired;
+}
+
 export class AISdkClientWrapped extends LLMClient {
   public type = "aisdk" as const;
   private model: LanguageModelV2;
@@ -194,6 +228,36 @@ You must respond in JSON format. respond WITH JSON. Do not include any other tex
             : undefined,
         });
       } catch (err) {
+        if (NoObjectGeneratedError.isInstance(err) && err.text) {
+          try {
+            const repaired = repairDoubleEncodedObject(err.text);
+            const validated =
+              options.response_model.schema.safeParse(repaired);
+            if (validated.success) {
+              this.logger?.({
+                category: "aisdk",
+                message: "repaired double-encoded object response",
+                level: 1,
+                auxiliary: {
+                  requestId: { value: options.requestId, type: "string" },
+                  modelName: { value: this.model.modelId, type: "string" },
+                },
+              });
+              return {
+                data: validated.data,
+                usage: {
+                  prompt_tokens: err.usage?.inputTokens ?? 0,
+                  completion_tokens: err.usage?.outputTokens ?? 0,
+                  reasoning_tokens: err.usage?.reasoningTokens ?? 0,
+                  cached_input_tokens: err.usage?.cachedInputTokens ?? 0,
+                  total_tokens: err.usage?.totalTokens ?? 0,
+                },
+              } as T;
+            }
+          } catch {
+            // Repair failed — fall through to the original error handling.
+          }
+        }
         if (NoObjectGeneratedError.isInstance(err)) {
           this.logger?.({
             category: "AISDK error",
