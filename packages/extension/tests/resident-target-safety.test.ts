@@ -21,19 +21,30 @@ const chromeTabs: ChromeTabTargetController = {
   activateTarget: async () => {},
 };
 
-function bootstrapConnection(targets: Protocol.Target.TargetInfo[]) {
+function bootstrapConnection(
+  targets: Protocol.Target.TargetInfo[],
+  getSession: (sessionId: string) => unknown = () => undefined,
+) {
   const attachToTarget = vi.fn(async () => ({}));
   let targetInfoChanged: ((event: Protocol.Target.TargetInfoChangedEvent) => void) | undefined;
+  let targetDestroyed: ((event: Protocol.Target.TargetDestroyedEvent) => void) | undefined;
   const connection = {
     connected: true,
     on: vi.fn((event: string, handler: (event: never) => void) => {
       if (event === "Target.targetInfoChanged") targetInfoChanged = handler;
+      if (event === "Target.targetDestroyed") targetDestroyed = handler;
     }),
     enableAutoAttach: vi.fn(async () => {}),
     getTargets: vi.fn(async () => targets),
     attachToTarget,
+    getSession: vi.fn(getSession),
   };
-  return { connection, attachToTarget, getTargetInfoChanged: () => targetInfoChanged };
+  return {
+    connection,
+    attachToTarget,
+    getTargetInfoChanged: () => targetInfoChanged,
+    getTargetDestroyed: () => targetDestroyed,
+  };
 }
 
 function pageSession(id: string, frameId = "main") {
@@ -188,6 +199,89 @@ describe("resident target attachment safety", () => {
     await vi.waitFor(() => expect(attachToTarget).toHaveBeenCalledWith("new-tab"));
   });
 
+  it("reattaches an ignored resident page after navigation even when another client is attached", async () => {
+    const session = pageSession("session-new-tab");
+    const parentSend = vi.fn(async () => ({}));
+    const { connection, attachToTarget, getTargetInfoChanged } = bootstrapConnection(
+      [target("new-tab", "page", "chrome://newtab", true)],
+      () => session,
+    );
+    const context = new BrowserContext(
+      connection as never,
+      {} as never,
+      chromeTabs,
+      "LOCAL",
+      null,
+      "about:blank",
+      null,
+      { restrictToWebTargets: true },
+    );
+    vi.spyOn(context, "waitForInitialTopLevelTargets").mockResolvedValue();
+    await context.bootstrap();
+
+    await context.onAttachedToTarget(
+      target("new-tab", "page", "chrome://newtab", true),
+      "session-new-tab",
+      { send: parentSend } as never,
+    );
+    expect(parentSend).toHaveBeenCalledWith("Target.detachFromTarget", {
+      sessionId: "session-new-tab",
+    });
+
+    getTargetInfoChanged()?.({
+      targetInfo: target("new-tab", "page", "https://example.com", true),
+    });
+    await vi.waitFor(() => expect(attachToTarget).toHaveBeenCalledWith("new-tab"));
+  });
+
+  it("does not re-attach resident pages it never ignored", async () => {
+    const { connection, attachToTarget, getTargetInfoChanged } = bootstrapConnection([]);
+    const context = new BrowserContext(
+      connection as never,
+      {} as never,
+      chromeTabs,
+      "LOCAL",
+      null,
+      "about:blank",
+      null,
+      { restrictToWebTargets: true },
+    );
+    vi.spyOn(context, "waitForInitialTopLevelTargets").mockResolvedValue();
+    await context.bootstrap();
+
+    getTargetInfoChanged()?.({
+      targetInfo: target("page", "page", "https://example.com"),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(attachToTarget).not.toHaveBeenCalled();
+  });
+
+  it("stops tracking an ignored resident page once its target is destroyed", async () => {
+    const { connection, attachToTarget, getTargetInfoChanged, getTargetDestroyed } =
+      bootstrapConnection([target("new-tab", "page", "chrome://newtab")]);
+    const context = new BrowserContext(
+      connection as never,
+      {} as never,
+      chromeTabs,
+      "LOCAL",
+      null,
+      "about:blank",
+      null,
+      { restrictToWebTargets: true },
+    );
+    vi.spyOn(context, "waitForInitialTopLevelTargets").mockResolvedValue();
+    await context.bootstrap();
+
+    getTargetDestroyed()?.({ targetId: "new-tab" });
+    getTargetInfoChanged()?.({
+      targetInfo: target("new-tab", "page", "https://example.com"),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(attachToTarget).not.toHaveBeenCalled();
+  });
+
   it("does not root-attach resident iframe target-info changes", async () => {
     const { connection, attachToTarget, getTargetInfoChanged } = bootstrapConnection([]);
     const context = new BrowserContext(
@@ -221,7 +315,9 @@ describe("resident target attachment safety", () => {
 
   it("coalesces repeated resident target-info attachment attempts", async () => {
     let resolveAttachment: (() => void) | undefined;
-    const { connection, attachToTarget, getTargetInfoChanged } = bootstrapConnection([]);
+    const { connection, attachToTarget, getTargetInfoChanged } = bootstrapConnection([
+      target("page", "page", "chrome://newtab"),
+    ]);
     attachToTarget.mockImplementation(
       async () =>
         await new Promise<void>((resolve) => {
