@@ -98,6 +98,7 @@ jobs:
       - run: pnpm build
       - run: git diff --exit-code -- packages/protocol/stagehand.v4.json
       - run: pnpm check
+      - run: pnpm test:unit
       - run: uv lock --check
         working-directory: packages/sdk-python
       - run: uv run --locked python scripts/generate.py --check
