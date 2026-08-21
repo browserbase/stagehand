@@ -18,6 +18,7 @@ else, never restated.
 | `eve/`         | Eve example with the tools bound natively via `defineTool` (Eve has no external-process tool mounting).                                                                      |
 | `fx/`          | fx configuration templates and skill — fx consumes the facade via its user-global MCP config.                                                                                |
 | `mastra/`      | Mastra example over MCP/stdio via Mastra's `MCPClient`.                                                                                                                      |
+| `opencode/`    | OpenCode SDK example over MCP/stdio via the OpenCode SDK.                                                                                                                    |
 | `pi/`          | Pi extension registering the tools natively (Pi ships without built-in MCP).                                                                                                 |
 | `vercel-ai/`   | Vercel AI SDK example over MCP/stdio via `createMCPClient`.                                                                                                                  |
 
