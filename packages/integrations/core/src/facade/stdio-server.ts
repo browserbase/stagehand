@@ -19,6 +19,10 @@ import {
   ScreenshotInputSchema,
   SnapshotInputSchema,
 } from "./contract.js";
+import {
+  captureScreenshotWithinBase64Budget,
+  screenshotBase64BudgetFromArgs,
+} from "./screenshot-transport.js";
 import { StagehandFacadeTools } from "./tools.js";
 
 type FacadeResources = {
@@ -28,6 +32,7 @@ type FacadeResources = {
 };
 
 const server = new McpServer({ name: "stagehand-facade", version: "4.0.0" });
+const screenshotBase64Budget = screenshotBase64BudgetFromArgs(process.argv.slice(2));
 let resourcesPromise: Promise<FacadeResources> | undefined;
 let closing = false;
 
@@ -70,11 +75,28 @@ server.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
       case "screenshot": {
         const input = ScreenshotInputSchema.parse(args);
-        const image = await (await ensureResources()).tools.screenshot(input);
+        const tools = (await ensureResources()).tools;
+        const screenshot =
+          screenshotBase64Budget === undefined
+            ? { image: await tools.screenshot(input), adjusted: false }
+            : await captureScreenshotWithinBase64Budget(
+                (options) => tools.screenshot(options),
+                input,
+                screenshotBase64Budget,
+              );
         return {
           content: [
-            { type: "text" as const, text: "Screenshot captured." },
-            { type: "image" as const, data: image.data, mimeType: image.mimeType },
+            {
+              type: "text" as const,
+              text: screenshot.adjusted
+                ? "Screenshot captured with transport-safe compression."
+                : "Screenshot captured.",
+            },
+            {
+              type: "image" as const,
+              data: screenshot.image.data,
+              mimeType: screenshot.image.mimeType,
+            },
           ],
         };
       }

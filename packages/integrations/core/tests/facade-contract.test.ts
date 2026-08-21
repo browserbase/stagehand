@@ -18,6 +18,9 @@ describe("Stagehand facade contract", () => {
 
   it("pins the three tool names and descriptions", () => {
     expect(FACADE_TOOLS.map((tool) => tool.name)).toStrictEqual(["run", "snapshot", "screenshot"]);
+    expect(FACADE_TOOLS[0].description).toContain("Browse and automate websites");
+    expect(FACADE_TOOLS[0].description).toContain('await page.goto("https://example.com")');
+    expect(FACADE_TOOLS[0].description).toContain("no separate navigate or start tool");
     expect(FACADE_TOOLS[0].description).toContain('"op" (never "kind")');
     expect(FACADE_TOOLS[0].description).toContain('"id" (never "ref")');
     expect(FACADE_TOOLS[0].description).toContain('{"actions":[{"op":"click","id":"1-42"}]}');
@@ -27,6 +30,7 @@ describe("Stagehand facade contract", () => {
     expect(FACADE_TOOLS[0].description).toContain(
       '{"actions":[{"op":"select","id":"3-9","values":"Lowest price"}]}',
     );
+    expect(FACADE_TOOLS[2].description).toContain('{"type":"jpeg","quality":40,"fullPage":false}');
   });
 
   it("pins snapshot error punctuation", () => {

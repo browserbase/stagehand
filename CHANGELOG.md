@@ -3,6 +3,30 @@
 This changelog covers the public Stagehand TypeScript and Python SDKs. Entries before 4.0.0
 describe the TypeScript SDK.
 
+## TypeScript SDK 4.0.2
+
+### Patch Changes
+
+- [#2752](https://github.com/browserbase/stagehand/pull/2752) [`c0a2734`](https://github.com/browserbase/stagehand/commit/c0a2734c46c1fb49e89705b186736cb11b5f78b7) Thanks [@monadoid](https://github.com/monadoid)! - Allow SDK clients to reattach to an initialized Stagehand extension runtime.
+
+## Python SDK 4.0.2
+
+### Patch Changes
+
+- [#2752](https://github.com/browserbase/stagehand/pull/2752) [`c0a2734`](https://github.com/browserbase/stagehand/commit/c0a2734c46c1fb49e89705b186736cb11b5f78b7) Thanks [@monadoid](https://github.com/monadoid)! - Allow SDK clients to reattach to an initialized Stagehand extension runtime.
+
+## Extension Runtime 1.0.1
+
+### Patch Changes
+
+- [#2752](https://github.com/browserbase/stagehand/pull/2752) [`c0a2734`](https://github.com/browserbase/stagehand/commit/c0a2734c46c1fb49e89705b186736cb11b5f78b7) Thanks [@monadoid](https://github.com/monadoid)! - Allow SDK clients to reattach to an initialized Stagehand extension runtime.
+
+## Go SDK 4.0.2
+
+### Patch Changes
+
+- [#2752](https://github.com/browserbase/stagehand/pull/2752) [`c0a2734`](https://github.com/browserbase/stagehand/commit/c0a2734c46c1fb49e89705b186736cb11b5f78b7) Thanks [@monadoid](https://github.com/monadoid)! - Allow SDK clients to reattach to an initialized Stagehand extension runtime.
+
 ## TypeScript SDK 4.0.1
 
 ### Patch Changes

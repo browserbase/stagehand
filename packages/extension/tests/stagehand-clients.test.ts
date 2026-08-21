@@ -9,6 +9,7 @@ import {
   StagehandSendToHostBindingSchema,
 } from "../../protocol/schema-registry.ts";
 import { startStagehandServiceWorker } from "../service-worker.ts";
+import { STAGEHAND_RUNTIME_VERSION } from "../version.ts";
 import type {
   StagehandBrowserSession,
   UnderstudyRuntimeClipboardOptions,
@@ -804,7 +805,7 @@ describe("Stagehand worker clients", () => {
         protocolVersion: STAGEHAND_PROTOCOL_VERSION,
         serverInfo: {
           name: "stagehand",
-          version: "1.0.0",
+          version: STAGEHAND_RUNTIME_VERSION,
         },
       },
       __stagehandReceiveFromHost: expect.any(Function),
@@ -940,7 +941,7 @@ describe("Stagehand worker clients", () => {
     expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
-  it("rejects a second stagehand.init without replacing the browser session", async () => {
+  it("reuses the browser session for a second stagehand.init", async () => {
     const sessions: FakeBrowserSession[] = [];
     const handle = createHandle({
       browserSessionFactory: async () => {
@@ -963,10 +964,18 @@ describe("Stagehand worker clients", () => {
         method: "stagehand.init",
         params: configuredInitParams("ws://127.0.0.1:9222/devtools/browser/second"),
       }),
-    ).resolves.toMatchObject({ error: { message: "Stagehand has already been initialized" } });
+    ).resolves.toStrictEqual({
+      jsonrpc: "2.0",
+      id: 2,
+      result: {
+        initialized: true,
+        pages: [],
+      },
+    });
 
     expect(sessions).toHaveLength(1);
     expect(sessions[0]?.closed).toBe(false);
+    expect(sessions[0]?.prepareForInitializationCalls).toBe(1);
   });
 
   it("closes the browser session on stagehand.close", async () => {

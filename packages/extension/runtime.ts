@@ -342,8 +342,9 @@ export class StagehandRuntime {
     params: StagehandInitParams,
     logger: StagehandLogger = this.logger,
   ): Promise<StagehandInitResult> {
-    if (this.state.getState().status !== "created") {
-      throw new Error("Stagehand has already been initialized");
+    const state = this.state.getState();
+    if (state.status === "closed") {
+      throw new Error("Stagehand has been closed and cannot be initialized again");
     }
     if (this.initializationInProgress) {
       throw new Error("Stagehand initialization is already in progress");
@@ -362,7 +363,9 @@ export class StagehandRuntime {
         Symbol("stagehand.init"),
         logger,
         async () => {
-          await this.browserSession?.prepareForInitialization?.();
+          if (state.status === "created") {
+            await this.browserSession?.prepareForInitialization?.();
+          }
           return await this.contextPages();
         },
       );
