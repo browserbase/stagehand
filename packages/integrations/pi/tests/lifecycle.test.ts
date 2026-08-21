@@ -87,11 +87,12 @@ describe("pi stagehand lifecycle", () => {
       .mockResolvedValueOnce({ ok: false })
       .mockResolvedValueOnce({ ok: true });
     vi.stubGlobal("fetch", release);
+    const { StagehandFacadeCleanupError } = await import("../extensions/stagehand.js");
     const { tools } = await registerExtension();
     const run = tools.find((tool) => tool.name === "run");
 
-    await expect(run?.execute("call-1", { code: "await browser.close();" })).rejects.toThrow(
-      "browser close failed",
+    await expect(run?.execute("call-1", { code: "await browser.close();" })).rejects.toBeInstanceOf(
+      StagehandFacadeCleanupError,
     );
     const snapshot = tools.find((tool) => tool.name === "snapshot");
     await expect(snapshot?.execute("call-2", {})).rejects.toThrow(

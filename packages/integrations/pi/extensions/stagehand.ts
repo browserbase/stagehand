@@ -35,6 +35,14 @@ type FacadeResources = {
   releaseSession?: () => Promise<void>;
 };
 
+export class StagehandFacadeCleanupError extends Error {
+  override readonly name = "StagehandFacadeCleanupError";
+
+  constructor() {
+    super("Failed to close the browser session cleanly.");
+  }
+}
+
 // TypeBox mirrors of the wire schemas (pi validates params with TypeBox; the
 // zod validators from the contract re-enforce semantics like code XOR actions
 // at execute time). Kept permissive on action items — the contract validator
@@ -166,8 +174,9 @@ export default function stagehandExtension(pi: ExtensionAPI) {
       cleanupTargets.delete(current.releaseSession);
     }
     if (cleanupErrors.length === 0) return;
-    if (cleanupErrors.length === 1) throw cleanupErrors[0];
-    throw new AggregateError(cleanupErrors, "Failed to close the browser session cleanly.");
+    // Pi surfaces rejected tool executions directly. Keep SDK/CDP details out
+    // of the model-visible error, including Error.cause and AggregateError.errors.
+    throw new StagehandFacadeCleanupError();
   }
 
   async function retryCleanupTargets(): Promise<void> {
